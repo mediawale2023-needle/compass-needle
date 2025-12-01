@@ -3,7 +3,7 @@ import json
 import os
 
 def convert():
-    print("🚀 Starting Central Scheme Extraction...")
+    print("🚀 Starting Aggressive Central Scheme Extraction...")
     
     if not os.path.exists("kaggle_schemes.csv"):
         print("❌ Error: 'kaggle_schemes.csv' not found.")
@@ -12,53 +12,72 @@ def convert():
     try:
         df = pd.read_csv("kaggle_schemes.csv")
         
-        # --- FILTER LOGIC ---
-        # We check if the 'level' column says 'Central'
-        # If the column names are different in your specific CSV version, 
-        # we print them out to help debug.
-        
-        # Normalize column names just in case (lowercase)
+        # 1. Normalize Columns
         df.columns = [c.strip().lower() for c in df.columns]
         
-        # Check if 'level' column exists (Common in this dataset)
-        if 'level' in df.columns:
-            central_df = df[df['level'].str.contains('Central', case=False, na=False)]
-        else:
-            # Fallback: Filter by Ministry Name (Central ministries usually contain 'Ministry of')
-            # State depts often say "Department of..." or have state names.
-            print("⚠️ 'level' column not found. Filtering by Ministry name...")
-            central_df = df[df['ministry_name'].str.contains('Ministry of', case=False, na=False)]
+        # 2. Define State Blacklist (To filter out state ministries)
+        state_blacklist = [
+            "andhra", "arunachal", "assam", "bihar", "chhattisgarh", "goa", "gujarat", 
+            "haryana", "himachal", "jharkhand", "karnataka", "kerala", "madhya", 
+            "maharashtra", "manipur", "meghalaya", "mizoram", "nagaland", "odisha", 
+            "punjab", "rajasthan", "sikkim", "tamil", "telangana", "tripura", 
+            "uttar", "uttarakhand", "west bengal", "delhi", "jammu", "kashmir",
+            "ladakh", "puducherry", "chandigarh", "dadra", "lakshadweep", "andaman"
+        ]
 
         needle_db = []
-        print(f"   -> Found {len(central_df)} Central Schemes (out of {len(df)} total).")
+        count_central = 0
+        count_state = 0
         
-        for _, row in central_df.iterrows():
-            # Extract Data
-            scheme_name = str(row.get('scheme_name', 'Unknown'))
-            ministry = str(row.get('ministry_name', 'Central Govt'))
-            desc = str(row.get('details', ''))[:400] + "..."
+        print(f"   -> Scanning {len(df)} total rows...")
+
+        for _, row in df.iterrows():
+            # Get raw values
+            level = str(row.get('level', '')).lower()
+            ministry = str(row.get('ministry_name', ''))
+            scheme_name = str(row.get('scheme_name', ''))
+
+            # --- THE STRICT FILTER ---
+            is_central = False
             
-            # Clean Tags
-            cat = str(row.get('schemecategory', 'General'))
-            tags = [x.strip() for x in cat.split(',')]
+            # Check 1: Explicit 'Central' tag
+            if 'central' in level:
+                is_central = True
             
-            entry = {
-                "Scheme": scheme_name,
-                "Ministry": ministry,
-                "Description": desc,
-                "Focus": tags,
-                "Grant": "View Guidelines",
-                "Status": "🟢 Open", 
-                "Confidence": 90,
-                "Evidence": "Sourced from National Portal"
-            }
-            needle_db.append(entry)
+            # Check 2: Exclude if Ministry/Scheme contains a State Name
+            for state in state_blacklist:
+                if state in ministry.lower() or state in scheme_name.lower():
+                    is_central = False
+                    break
+            
+            if is_central:
+                count_central += 1
+                
+                # Prepare Entry
+                desc = str(row.get('details', ''))[:400] + "..."
+                cat = str(row.get('schemecategory', 'General'))
+                tags = [x.strip() for x in cat.split(',')]
+                
+                entry = {
+                    "Scheme": row.get('scheme_name', 'Unknown'),
+                    "Ministry": row.get('ministry_name', 'Central Govt'),
+                    "Description": desc,
+                    "Focus": tags,
+                    "Grant": "View Guidelines",
+                    "Status": "🟢 Open", 
+                    "Confidence": 90,
+                    "Evidence": "Sourced from National Portal"
+                }
+                needle_db.append(entry)
+            else:
+                count_state += 1
             
         # Save filtered list
         with open("schemes.json", "w", encoding='utf-8') as f:
             json.dump(needle_db, f, indent=4, ensure_ascii=False)
             
-        print(f"✅ SUCCESS! Saved {len(needle_db)} Central Schemes to 'schemes.json'.")
+        print(f"✅ SUCCESS! Saved {len(needle_db)} Central Schemes.")
+        print(f"🗑️ Filtered out {count_state} State Schemes.")
         
     except Exception as e:
         print(f"❌ Failed: {e}")
