@@ -1,6 +1,7 @@
 import streamlit as st
 from streamlit_option_menu import option_menu
 from datetime import datetime
+import os
 
 # --- MODULE IMPORTS ---
 try:
@@ -10,7 +11,7 @@ try:
     from modules.admin import render_admin
     from modules.pmb_drafter import render_pmb_drafter
     from modules.utils import track_action, show_download_button
-    from modules.persistence import load_archives, delete_draft 
+    from modules.persistence import load_archives, delete_draft
 except ImportError as e:
     st.error(f"Module Import Error: {e}. Please ensure all files are correctly placed in the 'modules/' folder.")
     st.stop()
@@ -23,13 +24,14 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- INITIALIZE STATE ---
+# --- INITIALIZE SESSION STATE ---
 if 'uploaded_file_data' not in st.session_state: st.session_state.uploaded_file_data = None
 if 'uploaded_file_name' not in st.session_state: st.session_state.uploaded_file_name = ""
 if 'action_log' not in st.session_state: st.session_state.action_log = [] 
 if 'groq_api_key' not in st.session_state: st.session_state.groq_api_key = ""
 if 'password_correct' not in st.session_state: st.session_state.password_correct = False
 if 'global_lang' not in st.session_state: st.session_state.global_lang = "English"
+
 
 # --- CUSTOM CSS ---
 st.markdown("""
@@ -50,9 +52,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- AUTH BYPASS FOR DEV ---
+# --- AUTHENTICATION (DEV BYPASS) ---
 def check_password():
     if not st.session_state.password_correct:
+        # BYPASS: Force login as Milind Deora for demo
         try:
             st.session_state["username"] = "milind_deora"
             st.session_state["user_profile"] = st.secrets["profiles"]["milind_deora"]
@@ -60,11 +63,11 @@ def check_password():
             st.session_state["password_correct"] = True
             return True
         except:
-            st.error("Login bypass failed: Check secrets.toml.")
+            st.error("Login bypass failed. Check secrets.toml.")
             return False
     return True 
 
-# --- MAIN EXECUTION ---
+# --- MAIN APP LOGIC ---
 if check_password():
     username = st.session_state.get("current_user", "milind_deora")
     user = st.session_state["user_profile"]
@@ -72,7 +75,7 @@ if check_password():
     if username == "admin":
         render_admin()
     else:
-        # === SIDEBAR (GLOBAL CONTROLS) ===
+        # === GLOBAL SIDEBAR ===
         with st.sidebar:
             st.markdown(f"""
             <div class="profile-card">
@@ -84,21 +87,20 @@ if check_password():
             """, unsafe_allow_html=True)
             
             st.divider()
-            st.header("🔐 Access")
+            st.header("🔐 Access Key")
             
-            # API Key Input
+            # PERSISTENT API KEY INPUT
             input_key = st.text_input(
-                "API Key", type="password", 
+                "Groq API Key", type="password", 
                 value=st.session_state.get('groq_api_key', ''), 
-                key='global_groq_key_input', placeholder="gsk_..."
+                key='global_key_input', placeholder="gsk_..."
             )
             if input_key: st.session_state.groq_api_key = input_key
             
             st.divider()
             st.header("🗣️ Language")
             
-            # --- GLOBAL LANGUAGE SELECTOR (THE FIX) ---
-            # This saves the language to session_state so ALL modules can see it
+            # GLOBAL LANGUAGE SELECTOR
             selected_lang = st.selectbox(
                 "Output Language", 
                 ["English", "Hindi (हिंदी)", "Marathi (मराठी)", "Tamil (தமிழ்)"],
@@ -109,11 +111,11 @@ if check_password():
 
             st.divider()
             
-            # History Log
-            st.subheader("🕒 History")
+            # SESSION HISTORY LOG
+            st.subheader("🕒 Recent History")
             if st.session_state.action_log:
                 for item in reversed(st.session_state.action_log[-5:]):
-                    st.caption(f"{item['time']} - {item['activity']}")
+                    st.markdown(f'<div style="font-size:0.8em; border-bottom:1px solid #eee; padding-bottom:4px; margin-bottom:4px;"><b>{item["time"]}</b>: {item["activity"]}</div>', unsafe_allow_html=True)
             else:
                 st.caption("No activity yet.")
                 
@@ -121,7 +123,7 @@ if check_password():
                 st.session_state["password_correct"] = False
                 st.rerun()
 
-        # Navigation
+        # === NAVIGATION ===
         selected = option_menu(
             menu_title=None,
             options=["Co-Pilot", "Drafter", "PMB Drafter", "Schemes", "Archives"],
@@ -131,10 +133,9 @@ if check_password():
             orientation="horizontal"
         )
         
-        # --- PASSING GLOBAL SETTINGS TO MODULES ---
-        # We now pass the 'global_lang' to modules or they read it from session_state
+        # === MODULE ROUTING ===
         if selected == "Co-Pilot":
-            render_copilot(api_key=st.session_state.groq_api_key)
+            render_copilot(username)
         elif selected == "Drafter":
             render_drafter(username)
         elif selected == "PMB Drafter":
@@ -142,10 +143,11 @@ if check_password():
         elif selected == "Schemes":
             render_matcher(user_tags=user.get('tags', []))
         elif selected == "Archives":
+            # --- ARCHIVES TAB ---
             st.title("📂 User Archives")
             archives = load_archives(username)
             if not archives:
-                st.info("No drafts saved yet.")
+                st.info("No saved drafts. Use 'Save' in other tools to add files here.")
             else:
                 for doc in archives:
                     with st.expander(f"📄 {doc['title']} ({doc['date']})"):
