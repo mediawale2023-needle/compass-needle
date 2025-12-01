@@ -1,0 +1,602 @@
+[
+    {
+        "Scheme": "Pradhan Mantri Awas Yojana (Urban)",
+        "Ministry": "Ministry of Housing & Urban Affairs",
+        "Description": "Interest subsidy on home loans for first-time urban homeowners.",
+        "Tags": [
+            "Urban",
+            "Housing",
+            "Infrastructure"
+        ],
+        "Grant": "\u20b92.67 Lakh Subsidy",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "PM-KISAN Samman Nidhi",
+        "Ministry": "Ministry of Agriculture",
+        "Description": "Income support of \u20b96,000 per year to all landholding farmer families.",
+        "Tags": [
+            "Rural",
+            "Farmers",
+            "Agriculture"
+        ],
+        "Grant": "\u20b96,000 / year",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Jal Jeevan Mission (Har Ghar Jal)",
+        "Ministry": "Ministry of Jal Shakti",
+        "Description": "Provision of safe and adequate drinking water through individual tap connections.",
+        "Tags": [
+            "Rural",
+            "Water",
+            "Health"
+        ],
+        "Grant": "100% Infra Funding",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Ayushman Bharat PM-JAY",
+        "Ministry": "Ministry of Health",
+        "Description": "Health cover of \u20b95 lakhs per family per year for secondary care hospitalization.",
+        "Tags": [
+            "Health",
+            "Poor",
+            "Women"
+        ],
+        "Grant": "\u20b95 Lakh Insurance",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Pradhan Mantri Matsya Sampada Yojana",
+        "Ministry": "Ministry of Fisheries",
+        "Description": "Sustainable development of fisheries sector and welfare of fishermen.",
+        "Tags": [
+            "Coastal",
+            "Fishermen",
+            "Blue Economy"
+        ],
+        "Grant": "40-60% Subsidy",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Atal Mission for Rejuvenation (AMRUT 2.0)",
+        "Ministry": "Ministry of Housing & Urban Affairs",
+        "Description": "Universal coverage of water supply in all statutory towns.",
+        "Tags": [
+            "Urban",
+            "Water",
+            "Infrastructure"
+        ],
+        "Grant": "Project Based",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Digital India Bhashini",
+        "Ministry": "MeitY",
+        "Description": "Language translation mission to break the language barrier in India.",
+        "Tags": [
+            "Digital",
+            "Tech",
+            "Youth"
+        ],
+        "Grant": "R&D Grants",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "PM Vishwakarma",
+        "Ministry": "Ministry of MSME",
+        "Description": "Support to artisans and craftspeople with tools and credit.",
+        "Tags": [
+            "Rural",
+            "Artisans",
+            "Skill"
+        ],
+        "Grant": "\u20b915,000 Tool Kit",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Stand Up India",
+        "Ministry": "Ministry of Finance",
+        "Description": "Bank loans between \u20b910 lakh and \u20b91 Crore to SC/ST and Women borrowers.",
+        "Tags": [
+            "SC/ST",
+            "Women",
+            "Entrepreneurship"
+        ],
+        "Grant": "Loan Guarantee",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "SagarMala",
+        "Ministry": "Ministry of Ports, Shipping and Waterways",
+        "Description": "Port-led development and coastal community development.",
+        "Tags": [
+            "Coastal",
+            "Infrastructure",
+            "Logistics"
+        ],
+        "Grant": "Project Based",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Pradhan Mantri Awas Yojana (Urban) (Phase 2)",
+        "Ministry": "Ministry of Housing & Urban Affairs",
+        "Description": "Interest subsidy on home loans for first-time urban homeowners.",
+        "Tags": [
+            "Urban",
+            "Housing",
+            "Infrastructure"
+        ],
+        "Grant": "\u20b92.67 Lakh Subsidy",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "PM-KISAN Samman Nidhi (Phase 2)",
+        "Ministry": "Ministry of Agriculture",
+        "Description": "Income support of \u20b96,000 per year to all landholding farmer families.",
+        "Tags": [
+            "Rural",
+            "Farmers",
+            "Agriculture"
+        ],
+        "Grant": "\u20b96,000 / year",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Jal Jeevan Mission (Har Ghar Jal) (Phase 2)",
+        "Ministry": "Ministry of Jal Shakti",
+        "Description": "Provision of safe and adequate drinking water through individual tap connections.",
+        "Tags": [
+            "Rural",
+            "Water",
+            "Health"
+        ],
+        "Grant": "100% Infra Funding",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Ayushman Bharat PM-JAY (Phase 2)",
+        "Ministry": "Ministry of Health",
+        "Description": "Health cover of \u20b95 lakhs per family per year for secondary care hospitalization.",
+        "Tags": [
+            "Health",
+            "Poor",
+            "Women"
+        ],
+        "Grant": "\u20b95 Lakh Insurance",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Pradhan Mantri Matsya Sampada Yojana (Phase 2)",
+        "Ministry": "Ministry of Fisheries",
+        "Description": "Sustainable development of fisheries sector and welfare of fishermen.",
+        "Tags": [
+            "Coastal",
+            "Fishermen",
+            "Blue Economy"
+        ],
+        "Grant": "40-60% Subsidy",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Atal Mission for Rejuvenation (AMRUT 2.0) (Phase 2)",
+        "Ministry": "Ministry of Housing & Urban Affairs",
+        "Description": "Universal coverage of water supply in all statutory towns.",
+        "Tags": [
+            "Urban",
+            "Water",
+            "Infrastructure"
+        ],
+        "Grant": "Project Based",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Digital India Bhashini (Phase 2)",
+        "Ministry": "MeitY",
+        "Description": "Language translation mission to break the language barrier in India.",
+        "Tags": [
+            "Digital",
+            "Tech",
+            "Youth"
+        ],
+        "Grant": "R&D Grants",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "PM Vishwakarma (Phase 2)",
+        "Ministry": "Ministry of MSME",
+        "Description": "Support to artisans and craftspeople with tools and credit.",
+        "Tags": [
+            "Rural",
+            "Artisans",
+            "Skill"
+        ],
+        "Grant": "\u20b915,000 Tool Kit",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Stand Up India (Phase 2)",
+        "Ministry": "Ministry of Finance",
+        "Description": "Bank loans between \u20b910 lakh and \u20b91 Crore to SC/ST and Women borrowers.",
+        "Tags": [
+            "SC/ST",
+            "Women",
+            "Entrepreneurship"
+        ],
+        "Grant": "Loan Guarantee",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "SagarMala (Phase 2)",
+        "Ministry": "Ministry of Ports, Shipping and Waterways",
+        "Description": "Port-led development and coastal community development.",
+        "Tags": [
+            "Coastal",
+            "Infrastructure",
+            "Logistics"
+        ],
+        "Grant": "Project Based",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Pradhan Mantri Awas Yojana (Urban) (Phase 3)",
+        "Ministry": "Ministry of Housing & Urban Affairs",
+        "Description": "Interest subsidy on home loans for first-time urban homeowners.",
+        "Tags": [
+            "Urban",
+            "Housing",
+            "Infrastructure"
+        ],
+        "Grant": "\u20b92.67 Lakh Subsidy",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "PM-KISAN Samman Nidhi (Phase 3)",
+        "Ministry": "Ministry of Agriculture",
+        "Description": "Income support of \u20b96,000 per year to all landholding farmer families.",
+        "Tags": [
+            "Rural",
+            "Farmers",
+            "Agriculture"
+        ],
+        "Grant": "\u20b96,000 / year",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Jal Jeevan Mission (Har Ghar Jal) (Phase 3)",
+        "Ministry": "Ministry of Jal Shakti",
+        "Description": "Provision of safe and adequate drinking water through individual tap connections.",
+        "Tags": [
+            "Rural",
+            "Water",
+            "Health"
+        ],
+        "Grant": "100% Infra Funding",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Ayushman Bharat PM-JAY (Phase 3)",
+        "Ministry": "Ministry of Health",
+        "Description": "Health cover of \u20b95 lakhs per family per year for secondary care hospitalization.",
+        "Tags": [
+            "Health",
+            "Poor",
+            "Women"
+        ],
+        "Grant": "\u20b95 Lakh Insurance",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Pradhan Mantri Matsya Sampada Yojana (Phase 3)",
+        "Ministry": "Ministry of Fisheries",
+        "Description": "Sustainable development of fisheries sector and welfare of fishermen.",
+        "Tags": [
+            "Coastal",
+            "Fishermen",
+            "Blue Economy"
+        ],
+        "Grant": "40-60% Subsidy",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Atal Mission for Rejuvenation (AMRUT 2.0) (Phase 3)",
+        "Ministry": "Ministry of Housing & Urban Affairs",
+        "Description": "Universal coverage of water supply in all statutory towns.",
+        "Tags": [
+            "Urban",
+            "Water",
+            "Infrastructure"
+        ],
+        "Grant": "Project Based",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Digital India Bhashini (Phase 3)",
+        "Ministry": "MeitY",
+        "Description": "Language translation mission to break the language barrier in India.",
+        "Tags": [
+            "Digital",
+            "Tech",
+            "Youth"
+        ],
+        "Grant": "R&D Grants",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "PM Vishwakarma (Phase 3)",
+        "Ministry": "Ministry of MSME",
+        "Description": "Support to artisans and craftspeople with tools and credit.",
+        "Tags": [
+            "Rural",
+            "Artisans",
+            "Skill"
+        ],
+        "Grant": "\u20b915,000 Tool Kit",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Stand Up India (Phase 3)",
+        "Ministry": "Ministry of Finance",
+        "Description": "Bank loans between \u20b910 lakh and \u20b91 Crore to SC/ST and Women borrowers.",
+        "Tags": [
+            "SC/ST",
+            "Women",
+            "Entrepreneurship"
+        ],
+        "Grant": "Loan Guarantee",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "SagarMala (Phase 3)",
+        "Ministry": "Ministry of Ports, Shipping and Waterways",
+        "Description": "Port-led development and coastal community development.",
+        "Tags": [
+            "Coastal",
+            "Infrastructure",
+            "Logistics"
+        ],
+        "Grant": "Project Based",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Pradhan Mantri Awas Yojana (Urban) (Phase 4)",
+        "Ministry": "Ministry of Housing & Urban Affairs",
+        "Description": "Interest subsidy on home loans for first-time urban homeowners.",
+        "Tags": [
+            "Urban",
+            "Housing",
+            "Infrastructure"
+        ],
+        "Grant": "\u20b92.67 Lakh Subsidy",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "PM-KISAN Samman Nidhi (Phase 4)",
+        "Ministry": "Ministry of Agriculture",
+        "Description": "Income support of \u20b96,000 per year to all landholding farmer families.",
+        "Tags": [
+            "Rural",
+            "Farmers",
+            "Agriculture"
+        ],
+        "Grant": "\u20b96,000 / year",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Jal Jeevan Mission (Har Ghar Jal) (Phase 4)",
+        "Ministry": "Ministry of Jal Shakti",
+        "Description": "Provision of safe and adequate drinking water through individual tap connections.",
+        "Tags": [
+            "Rural",
+            "Water",
+            "Health"
+        ],
+        "Grant": "100% Infra Funding",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Ayushman Bharat PM-JAY (Phase 4)",
+        "Ministry": "Ministry of Health",
+        "Description": "Health cover of \u20b95 lakhs per family per year for secondary care hospitalization.",
+        "Tags": [
+            "Health",
+            "Poor",
+            "Women"
+        ],
+        "Grant": "\u20b95 Lakh Insurance",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Pradhan Mantri Matsya Sampada Yojana (Phase 4)",
+        "Ministry": "Ministry of Fisheries",
+        "Description": "Sustainable development of fisheries sector and welfare of fishermen.",
+        "Tags": [
+            "Coastal",
+            "Fishermen",
+            "Blue Economy"
+        ],
+        "Grant": "40-60% Subsidy",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Atal Mission for Rejuvenation (AMRUT 2.0) (Phase 4)",
+        "Ministry": "Ministry of Housing & Urban Affairs",
+        "Description": "Universal coverage of water supply in all statutory towns.",
+        "Tags": [
+            "Urban",
+            "Water",
+            "Infrastructure"
+        ],
+        "Grant": "Project Based",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Digital India Bhashini (Phase 4)",
+        "Ministry": "MeitY",
+        "Description": "Language translation mission to break the language barrier in India.",
+        "Tags": [
+            "Digital",
+            "Tech",
+            "Youth"
+        ],
+        "Grant": "R&D Grants",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "PM Vishwakarma (Phase 4)",
+        "Ministry": "Ministry of MSME",
+        "Description": "Support to artisans and craftspeople with tools and credit.",
+        "Tags": [
+            "Rural",
+            "Artisans",
+            "Skill"
+        ],
+        "Grant": "\u20b915,000 Tool Kit",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Stand Up India (Phase 4)",
+        "Ministry": "Ministry of Finance",
+        "Description": "Bank loans between \u20b910 lakh and \u20b91 Crore to SC/ST and Women borrowers.",
+        "Tags": [
+            "SC/ST",
+            "Women",
+            "Entrepreneurship"
+        ],
+        "Grant": "Loan Guarantee",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "SagarMala (Phase 4)",
+        "Ministry": "Ministry of Ports, Shipping and Waterways",
+        "Description": "Port-led development and coastal community development.",
+        "Tags": [
+            "Coastal",
+            "Infrastructure",
+            "Logistics"
+        ],
+        "Grant": "Project Based",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Pradhan Mantri Awas Yojana (Urban) (Phase 5)",
+        "Ministry": "Ministry of Housing & Urban Affairs",
+        "Description": "Interest subsidy on home loans for first-time urban homeowners.",
+        "Tags": [
+            "Urban",
+            "Housing",
+            "Infrastructure"
+        ],
+        "Grant": "\u20b92.67 Lakh Subsidy",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "PM-KISAN Samman Nidhi (Phase 5)",
+        "Ministry": "Ministry of Agriculture",
+        "Description": "Income support of \u20b96,000 per year to all landholding farmer families.",
+        "Tags": [
+            "Rural",
+            "Farmers",
+            "Agriculture"
+        ],
+        "Grant": "\u20b96,000 / year",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Jal Jeevan Mission (Har Ghar Jal) (Phase 5)",
+        "Ministry": "Ministry of Jal Shakti",
+        "Description": "Provision of safe and adequate drinking water through individual tap connections.",
+        "Tags": [
+            "Rural",
+            "Water",
+            "Health"
+        ],
+        "Grant": "100% Infra Funding",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Ayushman Bharat PM-JAY (Phase 5)",
+        "Ministry": "Ministry of Health",
+        "Description": "Health cover of \u20b95 lakhs per family per year for secondary care hospitalization.",
+        "Tags": [
+            "Health",
+            "Poor",
+            "Women"
+        ],
+        "Grant": "\u20b95 Lakh Insurance",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Pradhan Mantri Matsya Sampada Yojana (Phase 5)",
+        "Ministry": "Ministry of Fisheries",
+        "Description": "Sustainable development of fisheries sector and welfare of fishermen.",
+        "Tags": [
+            "Coastal",
+            "Fishermen",
+            "Blue Economy"
+        ],
+        "Grant": "40-60% Subsidy",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Atal Mission for Rejuvenation (AMRUT 2.0) (Phase 5)",
+        "Ministry": "Ministry of Housing & Urban Affairs",
+        "Description": "Universal coverage of water supply in all statutory towns.",
+        "Tags": [
+            "Urban",
+            "Water",
+            "Infrastructure"
+        ],
+        "Grant": "Project Based",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Digital India Bhashini (Phase 5)",
+        "Ministry": "MeitY",
+        "Description": "Language translation mission to break the language barrier in India.",
+        "Tags": [
+            "Digital",
+            "Tech",
+            "Youth"
+        ],
+        "Grant": "R&D Grants",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "PM Vishwakarma (Phase 5)",
+        "Ministry": "Ministry of MSME",
+        "Description": "Support to artisans and craftspeople with tools and credit.",
+        "Tags": [
+            "Rural",
+            "Artisans",
+            "Skill"
+        ],
+        "Grant": "\u20b915,000 Tool Kit",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "Stand Up India (Phase 5)",
+        "Ministry": "Ministry of Finance",
+        "Description": "Bank loans between \u20b910 lakh and \u20b91 Crore to SC/ST and Women borrowers.",
+        "Tags": [
+            "SC/ST",
+            "Women",
+            "Entrepreneurship"
+        ],
+        "Grant": "Loan Guarantee",
+        "Status": "Active"
+    },
+    {
+        "Scheme": "SagarMala (Phase 5)",
+        "Ministry": "Ministry of Ports, Shipping and Waterways",
+        "Description": "Port-led development and coastal community development.",
+        "Tags": [
+            "Coastal",
+            "Infrastructure",
+            "Logistics"
+        ],
+        "Grant": "Project Based",
+        "Status": "Active"
+    }
+]

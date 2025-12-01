@@ -1,0 +1,72 @@
+[
+    {
+        "Ministry": "Ministry of Defence",
+        "Budget_2024_25": "₹6.2 Lakh Cr",
+        "Change": "+4.7%",
+        "Focus": ["Modernization", "Border Infra", "R&D"],
+        "Status": "Allocated"
+    },
+    {
+        "Ministry": "Ministry of Road Transport and Highways",
+        "Budget_2024_25": "₹2.78 Lakh Cr",
+        "Change": "+2.8%",
+        "Focus": ["National Highways", "Green Corridors"],
+        "Status": "Allocated"
+    },
+    {
+        "Ministry": "Ministry of Railways",
+        "Budget_2024_25": "₹2.55 Lakh Cr",
+        "Change": "+5.1%",
+        "Focus": ["Vande Bharat", "Safety Kavach", "New Tracks"],
+        "Status": "Allocated"
+    },
+    {
+        "Ministry": "Ministry of Consumer Affairs, Food & Public Distribution",
+        "Budget_2024_25": "₹2.13 Lakh Cr",
+        "Change": "-3.0%",
+        "Focus": ["Food Subsidy", "MSP Operations"],
+        "Status": "Allocated"
+    },
+    {
+        "Ministry": "Ministry of Home Affairs",
+        "Budget_2024_25": "₹2.03 Lakh Cr",
+        "Change": "+3.0%",
+        "Focus": ["Internal Security", "Police Modernization"],
+        "Status": "Allocated"
+    },
+    {
+        "Ministry": "Ministry of Rural Development",
+        "Budget_2024_25": "₹1.77 Lakh Cr",
+        "Change": "+10.0%",
+        "Focus": ["MGNREGA", "Rural Roads"],
+        "Status": "Allocated"
+    },
+    {
+        "Ministry": "Ministry of Agriculture",
+        "Budget_2024_25": "₹1.27 Lakh Cr",
+        "Change": "+0.5%",
+        "Focus": ["PM-KISAN", "Crop Insurance"],
+        "Status": "Allocated"
+    },
+    {
+        "Ministry": "Ministry of Jal Shakti",
+        "Budget_2024_25": "₹98,000 Cr",
+        "Change": "+1.2%",
+        "Focus": ["Tap Water", "Sanitation"],
+        "Status": "Allocated"
+    },
+    {
+        "Ministry": "Ministry of Education",
+        "Budget_2024_25": "₹1.20 Lakh Cr",
+        "Change": "+7.0%",
+        "Focus": ["PM-SHRI", "Higher Ed Research"],
+        "Status": "Allocated"
+    },
+    {
+        "Ministry": "Ministry of Health",
+        "Budget_2024_25": "₹90,658 Cr",
+        "Change": "+12.0%",
+        "Focus": ["Ayushman Bharat", "New AIIMS"],
+        "Status": "Allocated"
+    }
+]
