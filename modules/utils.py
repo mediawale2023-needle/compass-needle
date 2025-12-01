@@ -1,39 +1,39 @@
 import streamlit as st
 import base64
 from datetime import datetime
-import time
 
 def track_action(activity_description):
-    """Adds a timestamped entry to the persistent session history log."""
-    # Ensure the log list exists
+    """Adds a timestamped entry to the session history log."""
     if 'action_log' not in st.session_state:
         st.session_state.action_log = []
         
     st.session_state.action_log.append({
-        "time": datetime.now().strftime("%H:%M:%S"),
+        "time": datetime.now().strftime("%H:%M"),
         "activity": activity_description
     })
 
 def show_download_button(text_content, filename_prefix="needle_draft"):
-    """
-    Generates an anchor tag (button) to download the text content via base64 encoding.
-    (This uses a hack because st.download_button is not used.)
-    """
+    """Generates a download link for text content."""
     try:
-        # Encode content to base64
         b64 = base64.b64encode(text_content.encode('utf-8')).decode()
-    except Exception:
-        # Fallback if encoding fails (e.g., complex unicode data)
-        st.error("Download encoding failed.")
-        return
-
-    # Generate a unique, professional filename
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{filename_prefix.replace(' ', '_')}_{timestamp}.txt"
-    
-    # Create the downloadable link using HTML markdown
-    href = f'<a href="data:file/txt;base64,{b64}" download="{filename}">'
-    button_html = f'<button style="background-color:#002D62; color:white; padding: 10px 20px; border-radius: 5px; border: none; cursor: pointer;">⬇️ Download to PC</button></a>'
-    
-    # Inject the button HTML into Streamlit
-    st.markdown(href + button_html, unsafe_allow_html=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        filename = f"{filename_prefix}_{timestamp}.txt"
+        
+        href = f'<a href="data:file/txt;base64,{b64}" download="{filename}">'
+        button_html = f'''
+        <div style="margin-top:10px;">
+            {href}<button style="
+                background-color: #f0f2f6; 
+                border: 1px solid #d1d5db; 
+                border-radius: 5px; 
+                padding: 5px 15px; 
+                cursor: pointer; 
+                color: #31333F; 
+                font-size: 14px;">
+                ⬇️ Download .txt
+            </button></a>
+        </div>
+        '''
+        st.markdown(button_html, unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Download Error: {e}")
