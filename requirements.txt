@@ -1,1 +1,8 @@
 streamlit
+streamlit-option-menu
+pandas
+langchain-groq
+pypdf
+deep-translator
+requests
+beautifulsoup4
