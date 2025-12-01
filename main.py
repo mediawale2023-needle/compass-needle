@@ -24,14 +24,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- INITIALIZE SESSION STATE ---
+# --- INITIALIZE STATE ---
 if 'uploaded_file_data' not in st.session_state: st.session_state.uploaded_file_data = None
 if 'uploaded_file_name' not in st.session_state: st.session_state.uploaded_file_name = ""
 if 'action_log' not in st.session_state: st.session_state.action_log = [] 
 if 'groq_api_key' not in st.session_state: st.session_state.groq_api_key = ""
 if 'password_correct' not in st.session_state: st.session_state.password_correct = False
 if 'global_lang' not in st.session_state: st.session_state.global_lang = "English"
-
 
 # --- CUSTOM CSS ---
 st.markdown("""
@@ -52,22 +51,34 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- AUTHENTICATION (DEV BYPASS) ---
+# --- AUTHENTICATION (ROBUST BYPASS) ---
 def check_password():
+    # If not logged in, force the bypass
     if not st.session_state.password_correct:
-        # BYPASS: Force login as Milind Deora for demo
+        
+        # 1. Define the Backup Profile (Hardcoded Safety Net)
+        backup_user = {
+            "name": "Hon. Milind Deora",
+            "constituency": "Rajya Sabha (Maharashtra)",
+            "tags": ["Urban", "Coastal", "Youth"],
+            "avatar": "https://ui-avatars.com/api/?name=Milind+Deora&background=002D62&color=fff"
+        }
+
         try:
-            st.session_state["username"] = "milind_deora"
+            # 2. Try to load from Secrets file first
             st.session_state["user_profile"] = st.secrets["profiles"]["milind_deora"]
-            st.session_state["current_user"] = "milind_deora"
-            st.session_state["password_correct"] = True
-            return True
         except:
-            st.error("Login bypass failed. Check secrets.toml.")
-            return False
+            # 3. If Secrets fail/missing, load the Backup Profile
+            # This ensures the app NEVER crashes on login
+            st.session_state["user_profile"] = backup_user
+            
+        st.session_state["username"] = "milind_deora"
+        st.session_state["current_user"] = "milind_deora"
+        st.session_state["password_correct"] = True
+        
     return True 
 
-# --- MAIN APP LOGIC ---
+# --- MAIN EXECUTION ---
 if check_password():
     username = st.session_state.get("current_user", "milind_deora")
     user = st.session_state["user_profile"]
@@ -89,7 +100,7 @@ if check_password():
             st.divider()
             st.header("🔐 Access Key")
             
-            # PERSISTENT API KEY INPUT
+            # API KEY INPUT
             input_key = st.text_input(
                 "Groq API Key", type="password", 
                 value=st.session_state.get('groq_api_key', ''), 
@@ -100,7 +111,7 @@ if check_password():
             st.divider()
             st.header("🗣️ Language")
             
-            # GLOBAL LANGUAGE SELECTOR
+            # LANGUAGE SELECTOR
             selected_lang = st.selectbox(
                 "Output Language", 
                 ["English", "Hindi (हिंदी)", "Marathi (मराठी)", "Tamil (தமிழ்)"],
@@ -111,7 +122,7 @@ if check_password():
 
             st.divider()
             
-            # SESSION HISTORY LOG
+            # HISTORY LOG
             st.subheader("🕒 Recent History")
             if st.session_state.action_log:
                 for item in reversed(st.session_state.action_log[-5:]):
@@ -133,7 +144,7 @@ if check_password():
             orientation="horizontal"
         )
         
-        # === MODULE ROUTING ===
+        # === ROUTING ===
         if selected == "Co-Pilot":
             render_copilot(username)
         elif selected == "Drafter":
@@ -143,7 +154,6 @@ if check_password():
         elif selected == "Schemes":
             render_matcher(user_tags=user.get('tags', []))
         elif selected == "Archives":
-            # --- ARCHIVES TAB ---
             st.title("📂 User Archives")
             archives = load_archives(username)
             if not archives:
