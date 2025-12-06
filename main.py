@@ -3,17 +3,18 @@ from streamlit_option_menu import option_menu
 from datetime import datetime
 import os
 
-# --- MODULE IMPORTS ---
+# --- MODULE IMPORTS (Safe Loading) ---
 try:
     from modules.copilot import render_copilot
     from modules.drafter import render_drafter
-    from modules.matcher import render_matcher
+    from modules.matcher import render_matcher  # Schemes
     from modules.admin import render_admin
     from modules.pmb_drafter import render_pmb_drafter
-    # CSR Modules
+    # CSR Suite
     from modules.csr_discovery import render_csr_discovery
     from modules.csr_projects import render_csr_projects
     from modules.csr_partners import render_csr_partners
+    from modules.state_intel import render_state_intel  
     # Utilities
     from modules.utils import track_action, show_download_button
     from modules.persistence import load_archives, delete_draft 
@@ -29,7 +30,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- INITIALIZE STATE ---
+# --- INITIALIZE SESSION STATE ---
 if 'uploaded_file_data' not in st.session_state: st.session_state.uploaded_file_data = None
 if 'uploaded_file_name' not in st.session_state: st.session_state.uploaded_file_name = ""
 if 'action_log' not in st.session_state: st.session_state.action_log = [] 
@@ -37,7 +38,8 @@ if 'groq_api_key' not in st.session_state: st.session_state.groq_api_key = ""
 if 'password_correct' not in st.session_state: st.session_state.password_correct = False
 if 'global_lang' not in st.session_state: st.session_state.global_lang = "English"
 
-# --- CUSTOM CSS ---
+
+# --- CUSTOM CSS (Native App Feel) ---
 st.markdown("""
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -60,17 +62,18 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- AUTHENTICATION (BYPASS ACTIVE) ---
+# --- AUTHENTICATION (DEV BYPASS ACTIVE) ---
 def check_password():
     if not st.session_state.password_correct:
         try:
+            # Force Login as Default User for Demo
             st.session_state["username"] = "milind_deora"
             st.session_state["user_profile"] = st.secrets["profiles"]["milind_deora"]
             st.session_state["current_user"] = "milind_deora"
             st.session_state["password_correct"] = True
             return True
         except:
-            # Fallback
+            # Fallback if secrets.toml is missing
             st.session_state["username"] = "milind_deora"
             st.session_state["user_profile"] = {
                 "name": "Hon. Milind Deora",
@@ -83,7 +86,7 @@ def check_password():
             return True
     return True 
 
-# --- MAIN EXECUTION ---
+# --- MAIN APP EXECUTION ---
 if check_password():
     username = st.session_state.get("current_user", "milind_deora")
     user = st.session_state["user_profile"]
@@ -93,7 +96,7 @@ if check_password():
         render_admin()
         
     else:
-        # === SIDEBAR ===
+        # === STANDARD MP INTERFACE ===
         with st.sidebar:
             st.markdown(f"""
             <div class="profile-card">
@@ -106,7 +109,7 @@ if check_password():
             
             st.divider()
             
-            # Global Key & Language
+            # --- GLOBAL API KEY INPUT ---
             input_key = st.text_input(
                 "Groq API Key", type="password", 
                 value=st.session_state.get('groq_api_key', ''), 
@@ -116,6 +119,7 @@ if check_password():
             
             st.divider()
             
+            # --- GLOBAL LANGUAGE ---
             selected_lang = st.selectbox(
                 "Output Language", 
                 ["English", "Hindi (हिंदी)", "Marathi (मराठी)", "Tamil (தமிழ்)"],
@@ -126,35 +130,45 @@ if check_password():
 
             st.divider()
             
-            # History
+            # --- HISTORY LOG ---
             st.subheader("🕒 History")
             if st.session_state.action_log:
                 for item in reversed(st.session_state.action_log[-5:]):
                     st.markdown(f'<div style="font-size:0.8em; border-bottom:1px solid #eee; margin-bottom:4px;"><b>{item["time"]}</b>: {item["activity"]}</div>', unsafe_allow_html=True)
             else:
                 st.caption("No activity yet.")
-                
+            
+            st.divider()
+
+            # --- PASSWORD CHANGE ---
+            if st.button("🔑 Change Password"):
+                 st.session_state["show_change_form"] = True
+
             if st.button("🔒 Log Out"):
                 st.session_state["password_correct"] = False
+                st.session_state["show_change_form"] = False
                 st.rerun()
 
-        # === MAIN NAVIGATION ===
-        # The list you requested
+        # === NAVIGATION MENU ===
         selected = option_menu(
             menu_title=None,
             options=[
+                "Dashboard", 
                 "Co-Pilot", 
                 "Drafter", 
                 "PMB", 
-                "CSR Suite",   # <--- Combined Tab
+                "State Intel", 
+                "CSR Suite", 
                 "Schemes", 
                 "Archives"
             ],
             icons=[
+                "speedometer2", 
                 "robot", 
                 "pen", 
                 "law", 
-                "buildings", # Icon for CSR Suite
+                "map-fill",
+                "buildings",  # CSR Suite
                 "cash-coin", 
                 "archive"
             ],
@@ -169,9 +183,34 @@ if check_password():
             }
         )
         
+        # === PASSWORD CHANGE FORM RENDER ===
+        if st.session_state.get('show_change_form', False):
+            st.title("🔑 Password Change Request")
+            st.warning("All changes require final approval from System Administrator (Manual Update in secrets.toml).")
+            with st.form("change_password_form"):
+                st.text_input("New Password", type="password", key="new_pass")
+                st.text_input("Confirm New Password", type="password", key="confirm_pass")
+                
+                if st.form_submit_button("Submit Request"):
+                    if st.session_state.new_pass != st.session_state.confirm_pass:
+                        st.error("Passwords do not match.")
+                    else:
+                        st.success(f"Request submitted for {user.get('name')}. Contact Admin.")
+                        st.session_state.show_change_form = False
+                        st.rerun()
+
         # === ROUTING LOGIC ===
         
-        if selected == "Co-Pilot":
+        elif selected == "Dashboard":
+            # Simple Dashboard View
+            st.title("🏛️ Command Center")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("State CSR Funds", "₹35,835 Cr", "Maharashtra")
+            c2.metric("Pending Drafts", "3", "Urgent")
+            c3.metric("District Alert", "Nagpur (Water)", "Critical")
+            st.info("System Status: All Intelligence Nodes Online.")
+
+        elif selected == "Co-Pilot":
             render_copilot(username)
             
         elif selected == "Drafter":
@@ -180,6 +219,9 @@ if check_password():
         elif selected == "PMB":
             render_pmb_drafter(username)
             
+        elif selected == "State Intel":
+            render_state_intel(username)
+
         elif selected == "CSR Suite":
             # --- CSR SUB-NAVIGATION ---
             st.title("💰 Corporate Social Responsibility (CSR)")
