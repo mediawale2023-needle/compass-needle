@@ -11,7 +11,6 @@ def render_csr_discovery(username):
 
     # 1. Load Data
     try:
-        # Try to load from root
         with open("csr_discovery.json", "r") as f:
             data = json.load(f)
         df = pd.DataFrame(data)
@@ -62,8 +61,15 @@ def render_csr_discovery(username):
                             draft = llm.invoke(prompt).content
                             
                             st.text_area("Draft Letter", draft, height=250)
-                            save_draft(username, f"CSR Upscale: {row['Company']}", draft, "CSR Letter")
-                            show_download_button(draft, f"CSR_{row['Company']}")
+                            
+                            # --- SAVE & DOWNLOAD ---
+                            c_s, c_d = st.columns([1,1])
+                            with c_s:
+                                if st.button("💾 Save", key=f"save_rem_{idx}"):
+                                    save_draft(username, f"CSR Upscale: {row['Company']}", draft, "CSR Letter")
+                            with c_d:
+                                show_download_button(draft, f"CSR_{row['Company']}")
+                            
                             track_action(f"Drafted CSR Proposal for {row['Company']}")
 
     # 5. LOCAL SPENDERS
