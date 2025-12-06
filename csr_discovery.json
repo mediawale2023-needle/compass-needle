@@ -1,0 +1,520 @@
+[
+    {
+        "District": "Nagpur",
+        "Company": "Axis Bank Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "History": {
+            "2022-23": "\u20b947 L",
+            "2023-24": "\u20b951 L",
+            "2024-25": "\u20b942 L"
+        },
+        "Total_3Y": "\u20b9141 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "History": {
+            "2022-23": "\u20b975 L",
+            "2023-24": "\u20b982 L",
+            "2024-25": "\u20b967 L"
+        },
+        "Total_3Y": "\u20b9225 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udfed Local (Has Factory/Office)",
+        "Sector": "Sanitation",
+        "History": {
+            "2022-23": "\u20b9382 L",
+            "2023-24": "\u20b9382 L",
+            "2024-25": "\u20b9432 L"
+        },
+        "Total_3Y": "\u20b91196 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udfed Local (Has Factory/Office)",
+        "Sector": "Environment",
+        "History": {
+            "2022-23": "\u20b9355 L",
+            "2023-24": "\u20b9355 L",
+            "2024-25": "\u20b9405 L"
+        },
+        "Total_3Y": "\u20b91115 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Pune",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "History": {
+            "2022-23": "\u20b950 L",
+            "2023-24": "\u20b955 L",
+            "2024-25": "\u20b945 L"
+        },
+        "Total_3Y": "\u20b9150 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Pune",
+        "Company": "HDFC Life",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "History": {
+            "2022-23": "\u20b998 L",
+            "2023-24": "\u20b9107 L",
+            "2024-25": "\u20b988 L"
+        },
+        "Total_3Y": "\u20b9294 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Pune",
+        "Company": "Tech Mahindra Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "History": {
+            "2022-23": "\u20b981 L",
+            "2023-24": "\u20b989 L",
+            "2024-25": "\u20b972 L"
+        },
+        "Total_3Y": "\u20b9243 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Pune",
+        "Company": "SBI Life",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "History": {
+            "2022-23": "\u20b941 L",
+            "2023-24": "\u20b945 L",
+            "2024-25": "\u20b936 L"
+        },
+        "Total_3Y": "\u20b9123 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Pune",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "History": {
+            "2022-23": "\u20b984 L",
+            "2023-24": "\u20b992 L",
+            "2024-25": "\u20b975 L"
+        },
+        "Total_3Y": "\u20b9252 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Pune",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udfed Local (Has Factory/Office)",
+        "Sector": "N/A",
+        "History": {
+            "2022-23": "\u20b90",
+            "2023-24": "\u20b90",
+            "2024-25": "\u20b90"
+        },
+        "Total_3Y": "\u20b90",
+        "Status": "\ud83d\udea8 ZERO SPEND (Violation)",
+        "Gap_Analysis": "CRITICAL: Operation exists but Funds missing."
+    },
+    {
+        "District": "Pune",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udfed Local (Has Factory/Office)",
+        "Sector": "Environment",
+        "History": {
+            "2022-23": "\u20b999 L",
+            "2023-24": "\u20b999 L",
+            "2024-25": "\u20b9149 L"
+        },
+        "Total_3Y": "\u20b9347 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Pune",
+        "Company": "Skoda Auto",
+        "Type": "\ud83c\udfed Local (Has Factory/Office)",
+        "Sector": "Sanitation",
+        "History": {
+            "2022-23": "\u20b9364 L",
+            "2023-24": "\u20b9364 L",
+            "2024-25": "\u20b9414 L"
+        },
+        "Total_3Y": "\u20b91142 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Pune",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udfed Local (Has Factory/Office)",
+        "Sector": "Environment",
+        "History": {
+            "2022-23": "\u20b9279 L",
+            "2023-24": "\u20b9279 L",
+            "2024-25": "\u20b9329 L"
+        },
+        "Total_3Y": "\u20b9887 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "History": {
+            "2022-23": "\u20b988 L",
+            "2023-24": "\u20b996 L",
+            "2024-25": "\u20b979 L"
+        },
+        "Total_3Y": "\u20b9264 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "ICICI Lombard",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "History": {
+            "2022-23": "\u20b991 L",
+            "2023-24": "\u20b9100 L",
+            "2024-25": "\u20b981 L"
+        },
+        "Total_3Y": "\u20b9273 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "History": {
+            "2022-23": "\u20b949 L",
+            "2023-24": "\u20b953 L",
+            "2024-25": "\u20b944 L"
+        },
+        "Total_3Y": "\u20b9147 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udfed Local (Has Factory/Office)",
+        "Sector": "Sanitation",
+        "History": {
+            "2022-23": "\u20b9204 L",
+            "2023-24": "\u20b9204 L",
+            "2024-25": "\u20b9254 L"
+        },
+        "Total_3Y": "\u20b9662 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "Skoda Auto",
+        "Type": "\ud83c\udfed Local (Has Factory/Office)",
+        "Sector": "Infra",
+        "History": {
+            "2022-23": "\u20b9235 L",
+            "2023-24": "\u20b9235 L",
+            "2024-25": "\u20b9285 L"
+        },
+        "Total_3Y": "\u20b9755 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Thane",
+        "Company": "HDFC Life",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "History": {
+            "2022-23": "\u20b979 L",
+            "2023-24": "\u20b986 L",
+            "2024-25": "\u20b971 L"
+        },
+        "Total_3Y": "\u20b9237 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Thane",
+        "Company": "Tech Mahindra Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "History": {
+            "2022-23": "\u20b998 L",
+            "2023-24": "\u20b9107 L",
+            "2024-25": "\u20b988 L"
+        },
+        "Total_3Y": "\u20b9294 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Thane",
+        "Company": "Axis Bank Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "History": {
+            "2022-23": "\u20b946 L",
+            "2023-24": "\u20b950 L",
+            "2024-25": "\u20b941 L"
+        },
+        "Total_3Y": "\u20b9138 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Thane",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "History": {
+            "2022-23": "\u20b941 L",
+            "2023-24": "\u20b945 L",
+            "2024-25": "\u20b936 L"
+        },
+        "Total_3Y": "\u20b9123 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Thane",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udfed Local (Has Factory/Office)",
+        "Sector": "Sanitation",
+        "History": {
+            "2022-23": "\u20b985 L",
+            "2023-24": "\u20b985 L",
+            "2024-25": "\u20b9135 L"
+        },
+        "Total_3Y": "\u20b9305 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Thane",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udfed Local (Has Factory/Office)",
+        "Sector": "Infra",
+        "History": {
+            "2022-23": "\u20b9142 L",
+            "2023-24": "\u20b9142 L",
+            "2024-25": "\u20b9192 L"
+        },
+        "Total_3Y": "\u20b9476 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Nashik",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "History": {
+            "2022-23": "\u20b984 L",
+            "2023-24": "\u20b992 L",
+            "2024-25": "\u20b975 L"
+        },
+        "Total_3Y": "\u20b9252 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Nashik",
+        "Company": "Tech Mahindra Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "History": {
+            "2022-23": "\u20b986 L",
+            "2023-24": "\u20b994 L",
+            "2024-25": "\u20b977 L"
+        },
+        "Total_3Y": "\u20b9258 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Nashik",
+        "Company": "SBI Life",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "History": {
+            "2022-23": "\u20b981 L",
+            "2023-24": "\u20b989 L",
+            "2024-25": "\u20b972 L"
+        },
+        "Total_3Y": "\u20b9243 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Nashik",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "History": {
+            "2022-23": "\u20b961 L",
+            "2023-24": "\u20b967 L",
+            "2024-25": "\u20b954 L"
+        },
+        "Total_3Y": "\u20b9183 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Nashik",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udfed Local (Has Factory/Office)",
+        "Sector": "N/A",
+        "History": {
+            "2022-23": "\u20b90",
+            "2023-24": "\u20b90",
+            "2024-25": "\u20b90"
+        },
+        "Total_3Y": "\u20b90",
+        "Status": "\ud83d\udea8 ZERO SPEND (Violation)",
+        "Gap_Analysis": "CRITICAL: Operation exists but Funds missing."
+    },
+    {
+        "District": "Mumbai South",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "History": {
+            "2022-23": "\u20b928 L",
+            "2023-24": "\u20b930 L",
+            "2024-25": "\u20b925 L"
+        },
+        "Total_3Y": "\u20b984 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Mumbai South",
+        "Company": "Tech Mahindra Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "History": {
+            "2022-23": "\u20b998 L",
+            "2023-24": "\u20b9107 L",
+            "2024-25": "\u20b988 L"
+        },
+        "Total_3Y": "\u20b9294 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Mumbai South",
+        "Company": "SBI Life",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "History": {
+            "2022-23": "\u20b984 L",
+            "2023-24": "\u20b992 L",
+            "2024-25": "\u20b975 L"
+        },
+        "Total_3Y": "\u20b9252 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Mumbai South",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "History": {
+            "2022-23": "\u20b983 L",
+            "2023-24": "\u20b991 L",
+            "2024-25": "\u20b974 L"
+        },
+        "Total_3Y": "\u20b9249 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Mumbai South",
+        "Company": "Wipro Cares",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "History": {
+            "2022-23": "\u20b988 L",
+            "2023-24": "\u20b996 L",
+            "2024-25": "\u20b979 L"
+        },
+        "Total_3Y": "\u20b9264 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Good Partner"
+    },
+    {
+        "District": "Mumbai South",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udfed Local (Has Factory/Office)",
+        "Sector": "Infra",
+        "History": {
+            "2022-23": "\u20b953 L",
+            "2023-24": "\u20b953 L",
+            "2024-25": "\u20b9103 L"
+        },
+        "Total_3Y": "\u20b9209 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Mumbai South",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udfed Local (Has Factory/Office)",
+        "Sector": "N/A",
+        "History": {
+            "2022-23": "\u20b90",
+            "2023-24": "\u20b90",
+            "2024-25": "\u20b90"
+        },
+        "Total_3Y": "\u20b90",
+        "Status": "\ud83d\udea8 ZERO SPEND (Violation)",
+        "Gap_Analysis": "CRITICAL: Operation exists but Funds missing."
+    },
+    {
+        "District": "Mumbai South",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udfed Local (Has Factory/Office)",
+        "Sector": "Environment",
+        "History": {
+            "2022-23": "\u20b9373 L",
+            "2023-24": "\u20b9373 L",
+            "2024-25": "\u20b9423 L"
+        },
+        "Total_3Y": "\u20b91169 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    }
+]
