@@ -10,11 +10,11 @@ try:
     from modules.matcher import render_matcher  # Schemes
     from modules.admin import render_admin
     from modules.pmb_drafter import render_pmb_drafter
-    # CSR Suite
+    # CSR Suite Modules
     from modules.csr_discovery import render_csr_discovery
     from modules.csr_projects import render_csr_projects
     from modules.csr_partners import render_csr_partners
-    from modules.state_intel import render_state_intel  
+    from modules.state_intel import render_state_intel
     # Utilities
     from modules.utils import track_action, show_download_button
     from modules.persistence import load_archives, delete_draft 
@@ -38,8 +38,7 @@ if 'groq_api_key' not in st.session_state: st.session_state.groq_api_key = ""
 if 'password_correct' not in st.session_state: st.session_state.password_correct = False
 if 'global_lang' not in st.session_state: st.session_state.global_lang = "English"
 
-
-# --- CUSTOM CSS (Native App Feel) ---
+# --- CUSTOM CSS ---
 st.markdown("""
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -62,7 +61,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- AUTHENTICATION (DEV BYPASS ACTIVE) ---
+# --- AUTHENTICATION (DEV BYPASS) ---
 def check_password():
     if not st.session_state.password_correct:
         try:
@@ -73,7 +72,7 @@ def check_password():
             st.session_state["password_correct"] = True
             return True
         except:
-            # Fallback if secrets.toml is missing
+            # Fallback if secrets missing
             st.session_state["username"] = "milind_deora"
             st.session_state["user_profile"] = {
                 "name": "Hon. Milind Deora",
@@ -86,7 +85,7 @@ def check_password():
             return True
     return True 
 
-# --- MAIN APP EXECUTION ---
+# --- MAIN EXECUTION ---
 if check_password():
     username = st.session_state.get("current_user", "milind_deora")
     user = st.session_state["user_profile"]
@@ -96,7 +95,7 @@ if check_password():
         render_admin()
         
     else:
-        # === STANDARD MP INTERFACE ===
+        # === SIDEBAR ===
         with st.sidebar:
             st.markdown(f"""
             <div class="profile-card">
@@ -109,7 +108,7 @@ if check_password():
             
             st.divider()
             
-            # --- GLOBAL API KEY INPUT ---
+            # Global Key & Language
             input_key = st.text_input(
                 "Groq API Key", type="password", 
                 value=st.session_state.get('groq_api_key', ''), 
@@ -119,7 +118,6 @@ if check_password():
             
             st.divider()
             
-            # --- GLOBAL LANGUAGE ---
             selected_lang = st.selectbox(
                 "Output Language", 
                 ["English", "Hindi (हिंदी)", "Marathi (मराठी)", "Tamil (தமிழ்)"],
@@ -130,23 +128,16 @@ if check_password():
 
             st.divider()
             
-            # --- HISTORY LOG ---
+            # History
             st.subheader("🕒 History")
             if st.session_state.action_log:
                 for item in reversed(st.session_state.action_log[-5:]):
                     st.markdown(f'<div style="font-size:0.8em; border-bottom:1px solid #eee; margin-bottom:4px;"><b>{item["time"]}</b>: {item["activity"]}</div>', unsafe_allow_html=True)
             else:
                 st.caption("No activity yet.")
-            
-            st.divider()
-
-            # --- PASSWORD CHANGE ---
-            if st.button("🔑 Change Password"):
-                 st.session_state["show_change_form"] = True
-
+                
             if st.button("🔒 Log Out"):
                 st.session_state["password_correct"] = False
-                st.session_state["show_change_form"] = False
                 st.rerun()
 
         # === NAVIGATION MENU ===
@@ -157,8 +148,7 @@ if check_password():
                 "Co-Pilot", 
                 "Drafter", 
                 "PMB", 
-                "State Intel", 
-                "CSR Suite", 
+                "CSR Suite",   # <--- Combined Tab
                 "Schemes", 
                 "Archives"
             ],
@@ -167,8 +157,7 @@ if check_password():
                 "robot", 
                 "pen", 
                 "law", 
-                "map-fill",
-                "buildings",  # CSR Suite
+                "buildings", # Icon for CSR Suite
                 "cash-coin", 
                 "archive"
             ],
@@ -183,26 +172,9 @@ if check_password():
             }
         )
         
-        # === PASSWORD CHANGE FORM RENDER ===
-        if st.session_state.get('show_change_form', False):
-            st.title("🔑 Password Change Request")
-            st.warning("All changes require final approval from System Administrator (Manual Update in secrets.toml).")
-            with st.form("change_password_form"):
-                st.text_input("New Password", type="password", key="new_pass")
-                st.text_input("Confirm New Password", type="password", key="confirm_pass")
-                
-                if st.form_submit_button("Submit Request"):
-                    if st.session_state.new_pass != st.session_state.confirm_pass:
-                        st.error("Passwords do not match.")
-                    else:
-                        st.success(f"Request submitted for {user.get('name')}. Contact Admin.")
-                        st.session_state.show_change_form = False
-                        st.rerun()
-
         # === ROUTING LOGIC ===
         
-        elif selected == "Dashboard":
-            # Simple Dashboard View
+        if selected == "Dashboard":
             st.title("🏛️ Command Center")
             c1, c2, c3 = st.columns(3)
             c1.metric("State CSR Funds", "₹35,835 Cr", "Maharashtra")
@@ -219,20 +191,20 @@ if check_password():
         elif selected == "PMB":
             render_pmb_drafter(username)
             
-        elif selected == "State Intel":
-            render_state_intel(username)
-
         elif selected == "CSR Suite":
             # --- CSR SUB-NAVIGATION ---
             st.title("💰 Corporate Social Responsibility (CSR)")
             
-            # Create Sub-Tabs
-            tab_disc, tab_proj, tab_part = st.tabs([
-                "🔭 Discovery (Funding)", 
+            # 4 Sub-Tabs including State Intel
+            tab_state, tab_disc, tab_proj, tab_part = st.tabs([
+                "🗺️ State Intel",
+                "🔭 Discovery", 
                 "📋 Project Catalog", 
                 "🤝 Partners (NGOs)"
             ])
             
+            with tab_state:
+                render_state_intel(username)
             with tab_disc:
                 render_csr_discovery(username)
             with tab_proj:
