@@ -3,14 +3,14 @@ from streamlit_option_menu import option_menu
 from datetime import datetime
 import os
 
-# --- MODULE IMPORTS (Safe Loading for all features) ---
+# --- MODULE IMPORTS ---
 try:
     from modules.copilot import render_copilot
     from modules.drafter import render_drafter
-    from modules.matcher import render_matcher  # Schemes
+    from modules.matcher import render_matcher
     from modules.admin import render_admin
     from modules.pmb_drafter import render_pmb_drafter
-    # New CSR Modules
+    # CSR Modules
     from modules.csr_discovery import render_csr_discovery
     from modules.csr_projects import render_csr_projects
     from modules.csr_partners import render_csr_partners
@@ -29,19 +29,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- INITIALIZE SESSION STATE ---
-# Persistence
+# --- INITIALIZE STATE ---
 if 'uploaded_file_data' not in st.session_state: st.session_state.uploaded_file_data = None
 if 'uploaded_file_name' not in st.session_state: st.session_state.uploaded_file_name = ""
-# History & Keys
 if 'action_log' not in st.session_state: st.session_state.action_log = [] 
 if 'groq_api_key' not in st.session_state: st.session_state.groq_api_key = ""
-# Auth
 if 'password_correct' not in st.session_state: st.session_state.password_correct = False
 if 'global_lang' not in st.session_state: st.session_state.global_lang = "English"
 
-
-# --- CUSTOM CSS (Native App Feel) ---
+# --- CUSTOM CSS ---
 st.markdown("""
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -57,25 +53,37 @@ st.markdown("""
     .status-dot { color: #10b981; font-size: 0.8em; margin-top:5px;}
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
+    /* Tabs Styling */
+    .stTabs [data-baseweb="tab-list"] { gap: 20px; }
+    .stTabs [data-baseweb="tab"] { height: 50px; white-space: pre-wrap; background-color: #fff; border-radius: 5px; padding: 10px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .stTabs [aria-selected="true"] { background-color: #e6f0ff; color: #002D62; border-bottom: 2px solid #002D62; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- AUTHENTICATION (DEV BYPASS ACTIVE) ---
+# --- AUTHENTICATION (BYPASS ACTIVE) ---
 def check_password():
     if not st.session_state.password_correct:
         try:
-            # Force Login for Demo
             st.session_state["username"] = "milind_deora"
             st.session_state["user_profile"] = st.secrets["profiles"]["milind_deora"]
             st.session_state["current_user"] = "milind_deora"
             st.session_state["password_correct"] = True
             return True
         except:
-            st.error("Login bypass failed. Check .streamlit/secrets.toml")
-            return False
+            # Fallback
+            st.session_state["username"] = "milind_deora"
+            st.session_state["user_profile"] = {
+                "name": "Hon. Milind Deora",
+                "constituency": "Maharashtra", 
+                "tags": ["Urban", "Coastal"],
+                "avatar": "https://ui-avatars.com/api/?name=Milind+Deora&background=002D62&color=fff"
+            }
+            st.session_state["current_user"] = "milind_deora"
+            st.session_state["password_correct"] = True
+            return True
     return True 
 
-# --- MAIN APP EXECUTION ---
+# --- MAIN EXECUTION ---
 if check_password():
     username = st.session_state.get("current_user", "milind_deora")
     user = st.session_state["user_profile"]
@@ -85,7 +93,7 @@ if check_password():
         render_admin()
         
     else:
-        # === STANDARD MP INTERFACE ===
+        # === SIDEBAR ===
         with st.sidebar:
             st.markdown(f"""
             <div class="profile-card">
@@ -98,7 +106,7 @@ if check_password():
             
             st.divider()
             
-            # --- GLOBAL API KEY INPUT ---
+            # Global Key & Language
             input_key = st.text_input(
                 "Groq API Key", type="password", 
                 value=st.session_state.get('groq_api_key', ''), 
@@ -108,7 +116,6 @@ if check_password():
             
             st.divider()
             
-            # --- GLOBAL LANGUAGE ---
             selected_lang = st.selectbox(
                 "Output Language", 
                 ["English", "Hindi (हिंदी)", "Marathi (मराठी)", "Tamil (தமிழ்)"],
@@ -119,7 +126,7 @@ if check_password():
 
             st.divider()
             
-            # --- HISTORY LOG ---
+            # History
             st.subheader("🕒 History")
             if st.session_state.action_log:
                 for item in reversed(st.session_state.action_log[-5:]):
@@ -131,28 +138,23 @@ if check_password():
                 st.session_state["password_correct"] = False
                 st.rerun()
 
-        # === NAVIGATION MENU ===
+        # === MAIN NAVIGATION ===
+        # The list you requested
         selected = option_menu(
             menu_title=None,
             options=[
-                "Dashboard", 
                 "Co-Pilot", 
                 "Drafter", 
-                "PMB Drafter", 
-                "CSR Discovery", 
-                "CSR Projects", 
-                "CSR Partners", 
+                "PMB", 
+                "CSR Suite",   # <--- Combined Tab
                 "Schemes", 
                 "Archives"
             ],
             icons=[
-                "speedometer2", 
                 "robot", 
                 "pen", 
                 "law", 
-                "radar",    # CSR Discovery
-                "cart",     # CSR Projects
-                "people-fill", # CSR Partners
+                "buildings", # Icon for CSR Suite
                 "cash-coin", 
                 "archive"
             ],
@@ -169,31 +171,32 @@ if check_password():
         
         # === ROUTING LOGIC ===
         
-        if selected == "Dashboard":
-            st.title("🏛️ Command Center")
-            c1, c2, c3 = st.columns(3)
-            c1.metric("CSR Targets", "8 High Value", "+2 New")
-            c2.metric("Pending Drafts", "3", "Urgent")
-            c3.metric("District Alert", "Nagpur (Water)", "Critical")
-            st.info("System Status: All Intelligence Nodes Online.")
-
-        elif selected == "Co-Pilot":
+        if selected == "Co-Pilot":
             render_copilot(username)
             
         elif selected == "Drafter":
             render_drafter(username)
             
-        elif selected == "PMB Drafter":
+        elif selected == "PMB":
             render_pmb_drafter(username)
             
-        elif selected == "CSR Discovery":
-            render_csr_discovery(username)
+        elif selected == "CSR Suite":
+            # --- CSR SUB-NAVIGATION ---
+            st.title("💰 Corporate Social Responsibility (CSR)")
             
-        elif selected == "CSR Projects":
-            render_csr_projects(username)
+            # Create Sub-Tabs
+            tab_disc, tab_proj, tab_part = st.tabs([
+                "🔭 Discovery (Funding)", 
+                "📋 Project Catalog", 
+                "🤝 Partners (NGOs)"
+            ])
             
-        elif selected == "CSR Partners":
-            render_csr_partners(username)
+            with tab_disc:
+                render_csr_discovery(username)
+            with tab_proj:
+                render_csr_projects(username)
+            with tab_part:
+                render_csr_partners(username)
             
         elif selected == "Schemes":
             render_matcher(user_tags=user.get('tags', []))
