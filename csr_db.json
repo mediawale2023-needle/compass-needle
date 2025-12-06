@@ -1,0 +1,2953 @@
+[
+    {
+        "District": "Ahmednagar",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b921 L",
+            "2023_24": "\u20b923 L",
+            "2024_25": "\u20b918 L"
+        },
+        "Total_3Y": "\u20b963 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Ahmednagar",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b9154 L",
+            "2023_24": "\u20b9169 L",
+            "2024_25": "\u20b9138 L"
+        },
+        "Total_3Y": "\u20b9462 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Ahmednagar",
+        "Company": "Hindustan Unilever",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b948 L",
+            "2023_24": "\u20b952 L",
+            "2024_25": "\u20b943 L"
+        },
+        "Total_3Y": "\u20b9144 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Ahmednagar",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b913 L",
+            "2023_24": "\u20b914 L",
+            "2024_25": "\u20b911 L"
+        },
+        "Total_3Y": "\u20b939 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Ahmednagar",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b937 L",
+            "2023_24": "\u20b940 L",
+            "2024_25": "\u20b933 L"
+        },
+        "Total_3Y": "\u20b9111 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Ahmednagar",
+        "Company": "Sun Pharma",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b910 L",
+            "2023_24": "\u20b911 L",
+            "2024_25": "\u20b99 L"
+        },
+        "Total_3Y": "\u20b930 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Ahmednagar",
+        "Company": "SBI Life",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "Spend_History": {
+            "2022_23": "\u20b936 L",
+            "2023_24": "\u20b939 L",
+            "2024_25": "\u20b936 L"
+        },
+        "Total_3Y": "\u20b9111 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Akola",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b938 L",
+            "2023_24": "\u20b941 L",
+            "2024_25": "\u20b934 L"
+        },
+        "Total_3Y": "\u20b9114 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Amravati",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b97 L",
+            "2023_24": "\u20b97 L",
+            "2024_25": "\u20b96 L"
+        },
+        "Total_3Y": "\u20b921 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Amravati",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b948 L",
+            "2023_24": "\u20b952 L",
+            "2024_25": "\u20b943 L"
+        },
+        "Total_3Y": "\u20b9144 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Amravati",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b942 L",
+            "2023_24": "\u20b946 L",
+            "2024_25": "\u20b937 L"
+        },
+        "Total_3Y": "\u20b9126 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Amravati",
+        "Company": "Wipro Cares",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b947 L",
+            "2023_24": "\u20b951 L",
+            "2024_25": "\u20b942 L"
+        },
+        "Total_3Y": "\u20b9141 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Amravati",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b938 L",
+            "2023_24": "\u20b941 L",
+            "2024_25": "\u20b934 L"
+        },
+        "Total_3Y": "\u20b9114 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Amravati",
+        "Company": "Adani Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b918 L",
+            "2023_24": "\u20b919 L",
+            "2024_25": "\u20b916 L"
+        },
+        "Total_3Y": "\u20b954 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Amravati",
+        "Company": "Bill & Melinda Gates Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "Spend_History": {
+            "2022_23": "\u20b946 L",
+            "2023_24": "\u20b950 L",
+            "2024_25": "\u20b946 L"
+        },
+        "Total_3Y": "\u20b9142 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "Reliance Industries",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b936 L",
+            "2023_24": "\u20b939 L",
+            "2024_25": "\u20b932 L"
+        },
+        "Total_3Y": "\u20b9108 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b99 L",
+            "2023_24": "\u20b99 L",
+            "2024_25": "\u20b98 L"
+        },
+        "Total_3Y": "\u20b927 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b95 L",
+            "2023_24": "\u20b95 L",
+            "2024_25": "\u20b94 L"
+        },
+        "Total_3Y": "\u20b915 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b9194 L",
+            "2023_24": "\u20b9213 L",
+            "2024_25": "\u20b9174 L"
+        },
+        "Total_3Y": "\u20b9582 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "HDFC Bank",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b927 L",
+            "2023_24": "\u20b929 L",
+            "2024_25": "\u20b924 L"
+        },
+        "Total_3Y": "\u20b981 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b939 L",
+            "2023_24": "\u20b942 L",
+            "2024_25": "\u20b935 L"
+        },
+        "Total_3Y": "\u20b9117 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b949 L",
+            "2023_24": "\u20b953 L",
+            "2024_25": "\u20b944 L"
+        },
+        "Total_3Y": "\u20b9147 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "Sun Pharma",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b97 L",
+            "2023_24": "\u20b97 L",
+            "2024_25": "\u20b96 L"
+        },
+        "Total_3Y": "\u20b921 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Beed",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b936 L",
+            "2023_24": "\u20b939 L",
+            "2024_25": "\u20b932 L"
+        },
+        "Total_3Y": "\u20b9108 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Beed",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b941 L",
+            "2023_24": "\u20b945 L",
+            "2024_25": "\u20b936 L"
+        },
+        "Total_3Y": "\u20b9123 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Beed",
+        "Company": "HDFC Bank",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b913 L",
+            "2023_24": "\u20b914 L",
+            "2024_25": "\u20b911 L"
+        },
+        "Total_3Y": "\u20b939 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Beed",
+        "Company": "Hindustan Unilever",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b915 L",
+            "2023_24": "\u20b916 L",
+            "2024_25": "\u20b913 L"
+        },
+        "Total_3Y": "\u20b945 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Beed",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b920 L",
+            "2023_24": "\u20b922 L",
+            "2024_25": "\u20b918 L"
+        },
+        "Total_3Y": "\u20b960 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Beed",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b949 L",
+            "2023_24": "\u20b953 L",
+            "2024_25": "\u20b944 L"
+        },
+        "Total_3Y": "\u20b9147 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Bhandara",
+        "Company": "Reliance Industries",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b927 L",
+            "2023_24": "\u20b929 L",
+            "2024_25": "\u20b924 L"
+        },
+        "Total_3Y": "\u20b981 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Bhandara",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b928 L",
+            "2023_24": "\u20b930 L",
+            "2024_25": "\u20b925 L"
+        },
+        "Total_3Y": "\u20b984 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Bhandara",
+        "Company": "Hindustan Unilever",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b98 L",
+            "2023_24": "\u20b98 L",
+            "2024_25": "\u20b97 L"
+        },
+        "Total_3Y": "\u20b924 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Bhandara",
+        "Company": "Wipro Cares",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b927 L",
+            "2023_24": "\u20b929 L",
+            "2024_25": "\u20b924 L"
+        },
+        "Total_3Y": "\u20b981 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Bhandara",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b933 L",
+            "2023_24": "\u20b936 L",
+            "2024_25": "\u20b929 L"
+        },
+        "Total_3Y": "\u20b999 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Bhandara",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b98 L",
+            "2023_24": "\u20b98 L",
+            "2024_25": "\u20b97 L"
+        },
+        "Total_3Y": "\u20b924 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Bhandara",
+        "Company": "SBI Life",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "Spend_History": {
+            "2022_23": "\u20b910 L",
+            "2023_24": "\u20b911 L",
+            "2024_25": "\u20b910 L"
+        },
+        "Total_3Y": "\u20b931 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Bhandara",
+        "Company": "Kotak Mahindra Bank",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "Spend_History": {
+            "2022_23": "\u20b949 L",
+            "2023_24": "\u20b953 L",
+            "2024_25": "\u20b949 L"
+        },
+        "Total_3Y": "\u20b9151 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Buldhana",
+        "Company": "Reliance Industries",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b949 L",
+            "2023_24": "\u20b953 L",
+            "2024_25": "\u20b944 L"
+        },
+        "Total_3Y": "\u20b9147 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Buldhana",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b940 L",
+            "2023_24": "\u20b944 L",
+            "2024_25": "\u20b936 L"
+        },
+        "Total_3Y": "\u20b9120 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Buldhana",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b911 L",
+            "2023_24": "\u20b912 L",
+            "2024_25": "\u20b99 L"
+        },
+        "Total_3Y": "\u20b933 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Buldhana",
+        "Company": "Hindustan Unilever",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b948 L",
+            "2023_24": "\u20b952 L",
+            "2024_25": "\u20b943 L"
+        },
+        "Total_3Y": "\u20b9144 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Buldhana",
+        "Company": "Wipro Cares",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b919 L",
+            "2023_24": "\u20b920 L",
+            "2024_25": "\u20b917 L"
+        },
+        "Total_3Y": "\u20b957 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Buldhana",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b926 L",
+            "2023_24": "\u20b928 L",
+            "2024_25": "\u20b923 L"
+        },
+        "Total_3Y": "\u20b978 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Buldhana",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b920 L",
+            "2023_24": "\u20b922 L",
+            "2024_25": "\u20b918 L"
+        },
+        "Total_3Y": "\u20b960 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Buldhana",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b98 L",
+            "2023_24": "\u20b98 L",
+            "2024_25": "\u20b97 L"
+        },
+        "Total_3Y": "\u20b924 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Buldhana",
+        "Company": "Adani Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b913 L",
+            "2023_24": "\u20b914 L",
+            "2024_25": "\u20b911 L"
+        },
+        "Total_3Y": "\u20b939 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Chandrapur",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b936 L",
+            "2023_24": "\u20b939 L",
+            "2024_25": "\u20b932 L"
+        },
+        "Total_3Y": "\u20b9108 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Chandrapur",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b928 L",
+            "2023_24": "\u20b930 L",
+            "2024_25": "\u20b925 L"
+        },
+        "Total_3Y": "\u20b984 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Chandrapur",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b943 L",
+            "2023_24": "\u20b947 L",
+            "2024_25": "\u20b938 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Chandrapur",
+        "Company": "Hindustan Unilever",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b916 L",
+            "2023_24": "\u20b917 L",
+            "2024_25": "\u20b914 L"
+        },
+        "Total_3Y": "\u20b948 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Chandrapur",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b917 L",
+            "2023_24": "\u20b918 L",
+            "2024_25": "\u20b915 L"
+        },
+        "Total_3Y": "\u20b951 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Chandrapur",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b90 L",
+            "2023_24": "\u20b90 L",
+            "2024_25": "\u20b90 L"
+        },
+        "Total_3Y": "\u20b90 Lakhs",
+        "Status": "\ud83d\udea8 ZERO SPEND (Violation)"
+    },
+    {
+        "District": "Chandrapur",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b9112 L",
+            "2023_24": "\u20b9123 L",
+            "2024_25": "\u20b9100 L"
+        },
+        "Total_3Y": "\u20b9336 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Chandrapur",
+        "Company": "Kotak Mahindra Bank",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "Spend_History": {
+            "2022_23": "\u20b966 L",
+            "2023_24": "\u20b972 L",
+            "2024_25": "\u20b966 L"
+        },
+        "Total_3Y": "\u20b9204 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Dhule",
+        "Company": "HDFC Bank",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b932 L",
+            "2023_24": "\u20b935 L",
+            "2024_25": "\u20b928 L"
+        },
+        "Total_3Y": "\u20b996 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Dhule",
+        "Company": "Wipro Cares",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b922 L",
+            "2023_24": "\u20b924 L",
+            "2024_25": "\u20b919 L"
+        },
+        "Total_3Y": "\u20b966 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Dhule",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b921 L",
+            "2023_24": "\u20b923 L",
+            "2024_25": "\u20b918 L"
+        },
+        "Total_3Y": "\u20b963 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Dhule",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b98 L",
+            "2023_24": "\u20b98 L",
+            "2024_25": "\u20b97 L"
+        },
+        "Total_3Y": "\u20b924 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Dhule",
+        "Company": "Adani Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b949 L",
+            "2023_24": "\u20b953 L",
+            "2024_25": "\u20b944 L"
+        },
+        "Total_3Y": "\u20b9147 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Dhule",
+        "Company": "SBI Life",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "Spend_History": {
+            "2022_23": "\u20b938 L",
+            "2023_24": "\u20b941 L",
+            "2024_25": "\u20b938 L"
+        },
+        "Total_3Y": "\u20b9117 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Gadchiroli",
+        "Company": "Reliance Industries",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b937 L",
+            "2023_24": "\u20b940 L",
+            "2024_25": "\u20b933 L"
+        },
+        "Total_3Y": "\u20b9111 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Gadchiroli",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b922 L",
+            "2023_24": "\u20b924 L",
+            "2024_25": "\u20b919 L"
+        },
+        "Total_3Y": "\u20b966 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Gadchiroli",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b96 L",
+            "2023_24": "\u20b96 L",
+            "2024_25": "\u20b95 L"
+        },
+        "Total_3Y": "\u20b918 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Gadchiroli",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b936 L",
+            "2023_24": "\u20b939 L",
+            "2024_25": "\u20b932 L"
+        },
+        "Total_3Y": "\u20b9108 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Gadchiroli",
+        "Company": "Hindustan Unilever",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b943 L",
+            "2023_24": "\u20b947 L",
+            "2024_25": "\u20b938 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Gadchiroli",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b948 L",
+            "2023_24": "\u20b952 L",
+            "2024_25": "\u20b943 L"
+        },
+        "Total_3Y": "\u20b9144 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Gadchiroli",
+        "Company": "Wipro Cares",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b915 L",
+            "2023_24": "\u20b916 L",
+            "2024_25": "\u20b913 L"
+        },
+        "Total_3Y": "\u20b945 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Gadchiroli",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b947 L",
+            "2023_24": "\u20b951 L",
+            "2024_25": "\u20b942 L"
+        },
+        "Total_3Y": "\u20b9141 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Gondia",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b923 L",
+            "2023_24": "\u20b925 L",
+            "2024_25": "\u20b920 L"
+        },
+        "Total_3Y": "\u20b969 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Gondia",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b945 L",
+            "2023_24": "\u20b949 L",
+            "2024_25": "\u20b940 L"
+        },
+        "Total_3Y": "\u20b9135 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Gondia",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b912 L",
+            "2023_24": "\u20b913 L",
+            "2024_25": "\u20b910 L"
+        },
+        "Total_3Y": "\u20b936 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Gondia",
+        "Company": "Adani Foundation",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b90 L",
+            "2023_24": "\u20b90 L",
+            "2024_25": "\u20b90 L"
+        },
+        "Total_3Y": "\u20b90 Lakhs",
+        "Status": "\ud83d\udea8 ZERO SPEND (Violation)"
+    },
+    {
+        "District": "Gondia",
+        "Company": "Axis Bank Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Digital Literacy",
+        "Spend_History": {
+            "2022_23": "\u20b976 L",
+            "2023_24": "\u20b983 L",
+            "2024_25": "\u20b976 L"
+        },
+        "Total_3Y": "\u20b9235 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Hingoli",
+        "Company": "Reliance Industries",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b97 L",
+            "2023_24": "\u20b97 L",
+            "2024_25": "\u20b96 L"
+        },
+        "Total_3Y": "\u20b921 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Hingoli",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b928 L",
+            "2023_24": "\u20b930 L",
+            "2024_25": "\u20b925 L"
+        },
+        "Total_3Y": "\u20b984 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Hingoli",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b943 L",
+            "2023_24": "\u20b947 L",
+            "2024_25": "\u20b938 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Hingoli",
+        "Company": "JSW Steel",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b931 L",
+            "2023_24": "\u20b934 L",
+            "2024_25": "\u20b927 L"
+        },
+        "Total_3Y": "\u20b993 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Hingoli",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b939 L",
+            "2023_24": "\u20b942 L",
+            "2024_25": "\u20b935 L"
+        },
+        "Total_3Y": "\u20b9117 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Hingoli",
+        "Company": "Sun Pharma",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b940 L",
+            "2023_24": "\u20b944 L",
+            "2024_25": "\u20b936 L"
+        },
+        "Total_3Y": "\u20b9120 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Hingoli",
+        "Company": "SBI Life",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Financial Inclusion",
+        "Spend_History": {
+            "2022_23": "\u20b977 L",
+            "2023_24": "\u20b984 L",
+            "2024_25": "\u20b977 L"
+        },
+        "Total_3Y": "\u20b9238 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Hingoli",
+        "Company": "Axis Bank Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Digital Literacy",
+        "Spend_History": {
+            "2022_23": "\u20b970 L",
+            "2023_24": "\u20b977 L",
+            "2024_25": "\u20b970 L"
+        },
+        "Total_3Y": "\u20b9217 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Jalgaon",
+        "Company": "HDFC Bank",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b938 L",
+            "2023_24": "\u20b941 L",
+            "2024_25": "\u20b934 L"
+        },
+        "Total_3Y": "\u20b9114 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Jalgaon",
+        "Company": "Wipro Cares",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b932 L",
+            "2023_24": "\u20b935 L",
+            "2024_25": "\u20b928 L"
+        },
+        "Total_3Y": "\u20b996 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Jalgaon",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b928 L",
+            "2023_24": "\u20b930 L",
+            "2024_25": "\u20b925 L"
+        },
+        "Total_3Y": "\u20b984 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Jalgaon",
+        "Company": "Adani Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b921 L",
+            "2023_24": "\u20b923 L",
+            "2024_25": "\u20b918 L"
+        },
+        "Total_3Y": "\u20b963 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Jalgaon",
+        "Company": "Tech Mahindra Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Financial Inclusion",
+        "Spend_History": {
+            "2022_23": "\u20b971 L",
+            "2023_24": "\u20b978 L",
+            "2024_25": "\u20b971 L"
+        },
+        "Total_3Y": "\u20b9220 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Jalna",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b934 L",
+            "2023_24": "\u20b937 L",
+            "2024_25": "\u20b930 L"
+        },
+        "Total_3Y": "\u20b9102 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Kolhapur",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b935 L",
+            "2023_24": "\u20b938 L",
+            "2024_25": "\u20b931 L"
+        },
+        "Total_3Y": "\u20b9105 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Kolhapur",
+        "Company": "JSW Steel",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b929 L",
+            "2023_24": "\u20b931 L",
+            "2024_25": "\u20b926 L"
+        },
+        "Total_3Y": "\u20b987 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Kolhapur",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b934 L",
+            "2023_24": "\u20b937 L",
+            "2024_25": "\u20b930 L"
+        },
+        "Total_3Y": "\u20b9102 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Kolhapur",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b911 L",
+            "2023_24": "\u20b912 L",
+            "2024_25": "\u20b99 L"
+        },
+        "Total_3Y": "\u20b933 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Kolhapur",
+        "Company": "Adani Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b943 L",
+            "2023_24": "\u20b947 L",
+            "2024_25": "\u20b938 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Kolhapur",
+        "Company": "ICICI Lombard",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Financial Inclusion",
+        "Spend_History": {
+            "2022_23": "\u20b946 L",
+            "2023_24": "\u20b950 L",
+            "2024_25": "\u20b946 L"
+        },
+        "Total_3Y": "\u20b9142 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Latur",
+        "Company": "HDFC Bank",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b928 L",
+            "2023_24": "\u20b930 L",
+            "2024_25": "\u20b925 L"
+        },
+        "Total_3Y": "\u20b984 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Latur",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b943 L",
+            "2023_24": "\u20b947 L",
+            "2024_25": "\u20b938 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Latur",
+        "Company": "Wipro Cares",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b925 L",
+            "2023_24": "\u20b927 L",
+            "2024_25": "\u20b922 L"
+        },
+        "Total_3Y": "\u20b975 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Latur",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b917 L",
+            "2023_24": "\u20b918 L",
+            "2024_25": "\u20b915 L"
+        },
+        "Total_3Y": "\u20b951 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "Reliance Industries",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b973 L",
+            "2023_24": "\u20b980 L",
+            "2024_25": "\u20b965 L"
+        },
+        "Total_3Y": "\u20b9219 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b9192 L",
+            "2023_24": "\u20b9211 L",
+            "2024_25": "\u20b9172 L"
+        },
+        "Total_3Y": "\u20b9576 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b90 L",
+            "2023_24": "\u20b90 L",
+            "2024_25": "\u20b90 L"
+        },
+        "Total_3Y": "\u20b90 Lakhs",
+        "Status": "\ud83d\udea8 ZERO SPEND (Violation)"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "HDFC Bank",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b90 L",
+            "2023_24": "\u20b90 L",
+            "2024_25": "\u20b90 L"
+        },
+        "Total_3Y": "\u20b90 Lakhs",
+        "Status": "\ud83d\udea8 ZERO SPEND (Violation)"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b9149 L",
+            "2023_24": "\u20b9163 L",
+            "2024_25": "\u20b9134 L"
+        },
+        "Total_3Y": "\u20b9447 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "JSW Steel",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b945 L",
+            "2023_24": "\u20b949 L",
+            "2024_25": "\u20b940 L"
+        },
+        "Total_3Y": "\u20b9135 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "Hindustan Unilever",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b90 L",
+            "2023_24": "\u20b90 L",
+            "2024_25": "\u20b90 L"
+        },
+        "Total_3Y": "\u20b90 Lakhs",
+        "Status": "\ud83d\udea8 ZERO SPEND (Violation)"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b9150 L",
+            "2023_24": "\u20b9165 L",
+            "2024_25": "\u20b9135 L"
+        },
+        "Total_3Y": "\u20b9450 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "Adani Foundation",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b9197 L",
+            "2023_24": "\u20b9216 L",
+            "2024_25": "\u20b9177 L"
+        },
+        "Total_3Y": "\u20b9591 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "Axis Bank Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Digital Literacy",
+        "Spend_History": {
+            "2022_23": "\u20b970 L",
+            "2023_24": "\u20b977 L",
+            "2024_25": "\u20b970 L"
+        },
+        "Total_3Y": "\u20b9217 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "Reliance Industries",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b90 L",
+            "2023_24": "\u20b90 L",
+            "2024_25": "\u20b90 L"
+        },
+        "Total_3Y": "\u20b90 Lakhs",
+        "Status": "\ud83d\udea8 ZERO SPEND (Violation)"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b9173 L",
+            "2023_24": "\u20b9190 L",
+            "2024_25": "\u20b9155 L"
+        },
+        "Total_3Y": "\u20b9519 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b90 L",
+            "2023_24": "\u20b90 L",
+            "2024_25": "\u20b90 L"
+        },
+        "Total_3Y": "\u20b90 Lakhs",
+        "Status": "\ud83d\udea8 ZERO SPEND (Violation)"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "HDFC Bank",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b992 L",
+            "2023_24": "\u20b9101 L",
+            "2024_25": "\u20b982 L"
+        },
+        "Total_3Y": "\u20b9276 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b9123 L",
+            "2023_24": "\u20b9135 L",
+            "2024_25": "\u20b9110 L"
+        },
+        "Total_3Y": "\u20b9369 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "Hindustan Unilever",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b988 L",
+            "2023_24": "\u20b996 L",
+            "2024_25": "\u20b979 L"
+        },
+        "Total_3Y": "\u20b9264 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b915 L",
+            "2023_24": "\u20b916 L",
+            "2024_25": "\u20b913 L"
+        },
+        "Total_3Y": "\u20b945 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b945 L",
+            "2023_24": "\u20b949 L",
+            "2024_25": "\u20b940 L"
+        },
+        "Total_3Y": "\u20b9135 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "Sun Pharma",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b9158 L",
+            "2023_24": "\u20b9173 L",
+            "2024_25": "\u20b9142 L"
+        },
+        "Total_3Y": "\u20b9474 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "Axis Bank Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "Spend_History": {
+            "2022_23": "\u20b949 L",
+            "2023_24": "\u20b953 L",
+            "2024_25": "\u20b949 L"
+        },
+        "Total_3Y": "\u20b9151 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "Reliance Industries",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b918 L",
+            "2023_24": "\u20b919 L",
+            "2024_25": "\u20b916 L"
+        },
+        "Total_3Y": "\u20b954 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b912 L",
+            "2023_24": "\u20b913 L",
+            "2024_25": "\u20b910 L"
+        },
+        "Total_3Y": "\u20b936 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b9180 L",
+            "2023_24": "\u20b9198 L",
+            "2024_25": "\u20b9162 L"
+        },
+        "Total_3Y": "\u20b9540 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "HDFC Bank",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b935 L",
+            "2023_24": "\u20b938 L",
+            "2024_25": "\u20b931 L"
+        },
+        "Total_3Y": "\u20b9105 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b943 L",
+            "2023_24": "\u20b947 L",
+            "2024_25": "\u20b938 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b914 L",
+            "2023_24": "\u20b915 L",
+            "2024_25": "\u20b912 L"
+        },
+        "Total_3Y": "\u20b942 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b9195 L",
+            "2023_24": "\u20b9214 L",
+            "2024_25": "\u20b9175 L"
+        },
+        "Total_3Y": "\u20b9585 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b917 L",
+            "2023_24": "\u20b918 L",
+            "2024_25": "\u20b915 L"
+        },
+        "Total_3Y": "\u20b951 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "Sun Pharma",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b939 L",
+            "2023_24": "\u20b942 L",
+            "2024_25": "\u20b935 L"
+        },
+        "Total_3Y": "\u20b9117 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "Axis Bank Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Digital Literacy",
+        "Spend_History": {
+            "2022_23": "\u20b962 L",
+            "2023_24": "\u20b968 L",
+            "2024_25": "\u20b962 L"
+        },
+        "Total_3Y": "\u20b9192 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Nanded",
+        "Company": "HDFC Bank",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b926 L",
+            "2023_24": "\u20b928 L",
+            "2024_25": "\u20b923 L"
+        },
+        "Total_3Y": "\u20b978 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nanded",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b947 L",
+            "2023_24": "\u20b951 L",
+            "2024_25": "\u20b942 L"
+        },
+        "Total_3Y": "\u20b9141 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nanded",
+        "Company": "Wipro Cares",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b929 L",
+            "2023_24": "\u20b931 L",
+            "2024_25": "\u20b926 L"
+        },
+        "Total_3Y": "\u20b987 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nanded",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b99 L",
+            "2023_24": "\u20b99 L",
+            "2024_25": "\u20b98 L"
+        },
+        "Total_3Y": "\u20b927 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nanded",
+        "Company": "Adani Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b947 L",
+            "2023_24": "\u20b951 L",
+            "2024_25": "\u20b942 L"
+        },
+        "Total_3Y": "\u20b9141 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nanded",
+        "Company": "SBI Life",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Financial Inclusion",
+        "Spend_History": {
+            "2022_23": "\u20b965 L",
+            "2023_24": "\u20b971 L",
+            "2024_25": "\u20b965 L"
+        },
+        "Total_3Y": "\u20b9201 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Nandurbar",
+        "Company": "Reliance Industries",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b943 L",
+            "2023_24": "\u20b947 L",
+            "2024_25": "\u20b938 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nandurbar",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b928 L",
+            "2023_24": "\u20b930 L",
+            "2024_25": "\u20b925 L"
+        },
+        "Total_3Y": "\u20b984 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nandurbar",
+        "Company": "JSW Steel",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b930 L",
+            "2023_24": "\u20b933 L",
+            "2024_25": "\u20b927 L"
+        },
+        "Total_3Y": "\u20b990 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nandurbar",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b95 L",
+            "2023_24": "\u20b95 L",
+            "2024_25": "\u20b94 L"
+        },
+        "Total_3Y": "\u20b915 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nandurbar",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b933 L",
+            "2023_24": "\u20b936 L",
+            "2024_25": "\u20b929 L"
+        },
+        "Total_3Y": "\u20b999 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nandurbar",
+        "Company": "Axis Bank Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Financial Inclusion",
+        "Spend_History": {
+            "2022_23": "\u20b970 L",
+            "2023_24": "\u20b977 L",
+            "2024_25": "\u20b970 L"
+        },
+        "Total_3Y": "\u20b9217 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Nashik",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b928 L",
+            "2023_24": "\u20b930 L",
+            "2024_25": "\u20b925 L"
+        },
+        "Total_3Y": "\u20b984 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nashik",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b943 L",
+            "2023_24": "\u20b947 L",
+            "2024_25": "\u20b938 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Nashik",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b90 L",
+            "2023_24": "\u20b90 L",
+            "2024_25": "\u20b90 L"
+        },
+        "Total_3Y": "\u20b90 Lakhs",
+        "Status": "\ud83d\udea8 ZERO SPEND (Violation)"
+    },
+    {
+        "District": "Nashik",
+        "Company": "Sun Pharma",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b913 L",
+            "2023_24": "\u20b914 L",
+            "2024_25": "\u20b911 L"
+        },
+        "Total_3Y": "\u20b939 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Osmanabad",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b937 L",
+            "2023_24": "\u20b940 L",
+            "2024_25": "\u20b933 L"
+        },
+        "Total_3Y": "\u20b9111 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Osmanabad",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b928 L",
+            "2023_24": "\u20b930 L",
+            "2024_25": "\u20b925 L"
+        },
+        "Total_3Y": "\u20b984 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Osmanabad",
+        "Company": "JSW Steel",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b923 L",
+            "2023_24": "\u20b925 L",
+            "2024_25": "\u20b920 L"
+        },
+        "Total_3Y": "\u20b969 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Osmanabad",
+        "Company": "Hindustan Unilever",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b914 L",
+            "2023_24": "\u20b915 L",
+            "2024_25": "\u20b912 L"
+        },
+        "Total_3Y": "\u20b942 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Osmanabad",
+        "Company": "Wipro Cares",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b943 L",
+            "2023_24": "\u20b947 L",
+            "2024_25": "\u20b938 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Osmanabad",
+        "Company": "Sun Pharma",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b927 L",
+            "2023_24": "\u20b929 L",
+            "2024_25": "\u20b924 L"
+        },
+        "Total_3Y": "\u20b981 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Osmanabad",
+        "Company": "Adani Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b925 L",
+            "2023_24": "\u20b927 L",
+            "2024_25": "\u20b922 L"
+        },
+        "Total_3Y": "\u20b975 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Palghar",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b912 L",
+            "2023_24": "\u20b913 L",
+            "2024_25": "\u20b910 L"
+        },
+        "Total_3Y": "\u20b936 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Palghar",
+        "Company": "HDFC Bank",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b932 L",
+            "2023_24": "\u20b935 L",
+            "2024_25": "\u20b928 L"
+        },
+        "Total_3Y": "\u20b996 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Palghar",
+        "Company": "Hindustan Unilever",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b930 L",
+            "2023_24": "\u20b933 L",
+            "2024_25": "\u20b927 L"
+        },
+        "Total_3Y": "\u20b990 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Palghar",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b913 L",
+            "2023_24": "\u20b914 L",
+            "2024_25": "\u20b911 L"
+        },
+        "Total_3Y": "\u20b939 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Palghar",
+        "Company": "Adani Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b927 L",
+            "2023_24": "\u20b929 L",
+            "2024_25": "\u20b924 L"
+        },
+        "Total_3Y": "\u20b981 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Palghar",
+        "Company": "HDFC Life",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Financial Inclusion",
+        "Spend_History": {
+            "2022_23": "\u20b935 L",
+            "2023_24": "\u20b938 L",
+            "2024_25": "\u20b935 L"
+        },
+        "Total_3Y": "\u20b9108 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Palghar",
+        "Company": "SBI Life",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Digital Literacy",
+        "Spend_History": {
+            "2022_23": "\u20b933 L",
+            "2023_24": "\u20b936 L",
+            "2024_25": "\u20b933 L"
+        },
+        "Total_3Y": "\u20b9102 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Palghar",
+        "Company": "Kotak Mahindra Bank",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Digital Literacy",
+        "Spend_History": {
+            "2022_23": "\u20b920 L",
+            "2023_24": "\u20b922 L",
+            "2024_25": "\u20b920 L"
+        },
+        "Total_3Y": "\u20b962 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Parbhani",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b919 L",
+            "2023_24": "\u20b920 L",
+            "2024_25": "\u20b917 L"
+        },
+        "Total_3Y": "\u20b957 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Parbhani",
+        "Company": "Wipro Cares",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b916 L",
+            "2023_24": "\u20b917 L",
+            "2024_25": "\u20b914 L"
+        },
+        "Total_3Y": "\u20b948 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Parbhani",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b914 L",
+            "2023_24": "\u20b915 L",
+            "2024_25": "\u20b912 L"
+        },
+        "Total_3Y": "\u20b942 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Pune",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b9112 L",
+            "2023_24": "\u20b9123 L",
+            "2024_25": "\u20b9100 L"
+        },
+        "Total_3Y": "\u20b9336 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Pune",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b9110 L",
+            "2023_24": "\u20b9121 L",
+            "2024_25": "\u20b999 L"
+        },
+        "Total_3Y": "\u20b9330 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Pune",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b935 L",
+            "2023_24": "\u20b938 L",
+            "2024_25": "\u20b931 L"
+        },
+        "Total_3Y": "\u20b9105 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Pune",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b9187 L",
+            "2023_24": "\u20b9205 L",
+            "2024_25": "\u20b9168 L"
+        },
+        "Total_3Y": "\u20b9561 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Pune",
+        "Company": "JSW Steel",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b924 L",
+            "2023_24": "\u20b926 L",
+            "2024_25": "\u20b921 L"
+        },
+        "Total_3Y": "\u20b972 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Pune",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b938 L",
+            "2023_24": "\u20b941 L",
+            "2024_25": "\u20b934 L"
+        },
+        "Total_3Y": "\u20b9114 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Pune",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b934 L",
+            "2023_24": "\u20b937 L",
+            "2024_25": "\u20b930 L"
+        },
+        "Total_3Y": "\u20b9102 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Pune",
+        "Company": "Kotak Mahindra Bank",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Financial Inclusion",
+        "Spend_History": {
+            "2022_23": "\u20b962 L",
+            "2023_24": "\u20b968 L",
+            "2024_25": "\u20b962 L"
+        },
+        "Total_3Y": "\u20b9192 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Raigad",
+        "Company": "Reliance Industries",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b987 L",
+            "2023_24": "\u20b995 L",
+            "2024_25": "\u20b978 L"
+        },
+        "Total_3Y": "\u20b9261 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Raigad",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b946 L",
+            "2023_24": "\u20b950 L",
+            "2024_25": "\u20b941 L"
+        },
+        "Total_3Y": "\u20b9138 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Raigad",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b95 L",
+            "2023_24": "\u20b95 L",
+            "2024_25": "\u20b94 L"
+        },
+        "Total_3Y": "\u20b915 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Raigad",
+        "Company": "JSW Steel",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b90 L",
+            "2023_24": "\u20b90 L",
+            "2024_25": "\u20b90 L"
+        },
+        "Total_3Y": "\u20b90 Lakhs",
+        "Status": "\ud83d\udea8 ZERO SPEND (Violation)"
+    },
+    {
+        "District": "Raigad",
+        "Company": "Hindustan Unilever",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b938 L",
+            "2023_24": "\u20b941 L",
+            "2024_25": "\u20b934 L"
+        },
+        "Total_3Y": "\u20b9114 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Raigad",
+        "Company": "Wipro Cares",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b943 L",
+            "2023_24": "\u20b947 L",
+            "2024_25": "\u20b938 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Raigad",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b928 L",
+            "2023_24": "\u20b930 L",
+            "2024_25": "\u20b925 L"
+        },
+        "Total_3Y": "\u20b984 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Raigad",
+        "Company": "SBI Life",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "Spend_History": {
+            "2022_23": "\u20b976 L",
+            "2023_24": "\u20b983 L",
+            "2024_25": "\u20b976 L"
+        },
+        "Total_3Y": "\u20b9235 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Raigad",
+        "Company": "Axis Bank Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "Spend_History": {
+            "2022_23": "\u20b947 L",
+            "2023_24": "\u20b951 L",
+            "2024_25": "\u20b947 L"
+        },
+        "Total_3Y": "\u20b9145 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Ratnagiri",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b946 L",
+            "2023_24": "\u20b950 L",
+            "2024_25": "\u20b941 L"
+        },
+        "Total_3Y": "\u20b9138 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Sangli",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b925 L",
+            "2023_24": "\u20b927 L",
+            "2024_25": "\u20b922 L"
+        },
+        "Total_3Y": "\u20b975 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Sangli",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b950 L",
+            "2023_24": "\u20b955 L",
+            "2024_25": "\u20b945 L"
+        },
+        "Total_3Y": "\u20b9150 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Sangli",
+        "Company": "Kotak Mahindra Bank",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Digital Literacy",
+        "Spend_History": {
+            "2022_23": "\u20b944 L",
+            "2023_24": "\u20b948 L",
+            "2024_25": "\u20b944 L"
+        },
+        "Total_3Y": "\u20b9136 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Satara",
+        "Company": "Reliance Industries",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b928 L",
+            "2023_24": "\u20b930 L",
+            "2024_25": "\u20b925 L"
+        },
+        "Total_3Y": "\u20b984 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Satara",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b933 L",
+            "2023_24": "\u20b936 L",
+            "2024_25": "\u20b929 L"
+        },
+        "Total_3Y": "\u20b999 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Satara",
+        "Company": "JSW Steel",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b936 L",
+            "2023_24": "\u20b939 L",
+            "2024_25": "\u20b932 L"
+        },
+        "Total_3Y": "\u20b9108 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Satara",
+        "Company": "Hindustan Unilever",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b923 L",
+            "2023_24": "\u20b925 L",
+            "2024_25": "\u20b920 L"
+        },
+        "Total_3Y": "\u20b969 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Satara",
+        "Company": "Wipro Cares",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b931 L",
+            "2023_24": "\u20b934 L",
+            "2024_25": "\u20b927 L"
+        },
+        "Total_3Y": "\u20b993 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Satara",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b922 L",
+            "2023_24": "\u20b924 L",
+            "2024_25": "\u20b919 L"
+        },
+        "Total_3Y": "\u20b966 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Satara",
+        "Company": "Adani Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b924 L",
+            "2023_24": "\u20b926 L",
+            "2024_25": "\u20b921 L"
+        },
+        "Total_3Y": "\u20b972 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Satara",
+        "Company": "HDFC Life",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "Spend_History": {
+            "2022_23": "\u20b917 L",
+            "2023_24": "\u20b918 L",
+            "2024_25": "\u20b917 L"
+        },
+        "Total_3Y": "\u20b952 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Sindhudurg",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b914 L",
+            "2023_24": "\u20b915 L",
+            "2024_25": "\u20b912 L"
+        },
+        "Total_3Y": "\u20b942 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Sindhudurg",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b943 L",
+            "2023_24": "\u20b947 L",
+            "2024_25": "\u20b938 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Sindhudurg",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b937 L",
+            "2023_24": "\u20b940 L",
+            "2024_25": "\u20b933 L"
+        },
+        "Total_3Y": "\u20b9111 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Sindhudurg",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b913 L",
+            "2023_24": "\u20b914 L",
+            "2024_25": "\u20b911 L"
+        },
+        "Total_3Y": "\u20b939 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Sindhudurg",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b927 L",
+            "2023_24": "\u20b929 L",
+            "2024_25": "\u20b924 L"
+        },
+        "Total_3Y": "\u20b981 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Sindhudurg",
+        "Company": "HDFC Life",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Healthcare",
+        "Spend_History": {
+            "2022_23": "\u20b979 L",
+            "2023_24": "\u20b986 L",
+            "2024_25": "\u20b979 L"
+        },
+        "Total_3Y": "\u20b9244 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Solapur",
+        "Company": "Reliance Industries",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b921 L",
+            "2023_24": "\u20b923 L",
+            "2024_25": "\u20b918 L"
+        },
+        "Total_3Y": "\u20b963 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Solapur",
+        "Company": "Hindustan Unilever",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b927 L",
+            "2023_24": "\u20b929 L",
+            "2024_25": "\u20b924 L"
+        },
+        "Total_3Y": "\u20b981 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Solapur",
+        "Company": "Wipro Cares",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b913 L",
+            "2023_24": "\u20b914 L",
+            "2024_25": "\u20b911 L"
+        },
+        "Total_3Y": "\u20b939 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Solapur",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b914 L",
+            "2023_24": "\u20b915 L",
+            "2024_25": "\u20b912 L"
+        },
+        "Total_3Y": "\u20b942 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Solapur",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b944 L",
+            "2023_24": "\u20b948 L",
+            "2024_25": "\u20b939 L"
+        },
+        "Total_3Y": "\u20b9132 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Solapur",
+        "Company": "Adani Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b914 L",
+            "2023_24": "\u20b915 L",
+            "2024_25": "\u20b912 L"
+        },
+        "Total_3Y": "\u20b942 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Solapur",
+        "Company": "Axis Bank Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Financial Inclusion",
+        "Spend_History": {
+            "2022_23": "\u20b937 L",
+            "2023_24": "\u20b940 L",
+            "2024_25": "\u20b937 L"
+        },
+        "Total_3Y": "\u20b9114 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Thane",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b964 L",
+            "2023_24": "\u20b970 L",
+            "2024_25": "\u20b957 L"
+        },
+        "Total_3Y": "\u20b9192 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Thane",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b926 L",
+            "2023_24": "\u20b928 L",
+            "2024_25": "\u20b923 L"
+        },
+        "Total_3Y": "\u20b978 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Thane",
+        "Company": "JSW Steel",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b924 L",
+            "2023_24": "\u20b926 L",
+            "2024_25": "\u20b921 L"
+        },
+        "Total_3Y": "\u20b972 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Thane",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b939 L",
+            "2023_24": "\u20b942 L",
+            "2024_25": "\u20b935 L"
+        },
+        "Total_3Y": "\u20b9117 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Thane",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b90 L",
+            "2023_24": "\u20b90 L",
+            "2024_25": "\u20b90 L"
+        },
+        "Total_3Y": "\u20b90 Lakhs",
+        "Status": "\ud83d\udea8 ZERO SPEND (Violation)"
+    },
+    {
+        "District": "Wardha",
+        "Company": "HDFC Bank",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b95 L",
+            "2023_24": "\u20b95 L",
+            "2024_25": "\u20b94 L"
+        },
+        "Total_3Y": "\u20b915 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Wardha",
+        "Company": "Larsen & Toubro",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b932 L",
+            "2023_24": "\u20b935 L",
+            "2024_25": "\u20b928 L"
+        },
+        "Total_3Y": "\u20b996 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Wardha",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b943 L",
+            "2023_24": "\u20b947 L",
+            "2024_25": "\u20b938 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Wardha",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b924 L",
+            "2023_24": "\u20b926 L",
+            "2024_25": "\u20b921 L"
+        },
+        "Total_3Y": "\u20b972 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Wardha",
+        "Company": "Sun Pharma",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b930 L",
+            "2023_24": "\u20b933 L",
+            "2024_25": "\u20b927 L"
+        },
+        "Total_3Y": "\u20b990 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Wardha",
+        "Company": "Adani Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b935 L",
+            "2023_24": "\u20b938 L",
+            "2024_25": "\u20b931 L"
+        },
+        "Total_3Y": "\u20b9105 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Washim",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b926 L",
+            "2023_24": "\u20b928 L",
+            "2024_25": "\u20b923 L"
+        },
+        "Total_3Y": "\u20b978 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Washim",
+        "Company": "JSW Steel",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022_23": "\u20b938 L",
+            "2023_24": "\u20b941 L",
+            "2024_25": "\u20b934 L"
+        },
+        "Total_3Y": "\u20b9114 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Washim",
+        "Company": "Infosys Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b929 L",
+            "2023_24": "\u20b931 L",
+            "2024_25": "\u20b926 L"
+        },
+        "Total_3Y": "\u20b987 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Washim",
+        "Company": "Adani Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b949 L",
+            "2023_24": "\u20b953 L",
+            "2024_25": "\u20b944 L"
+        },
+        "Total_3Y": "\u20b9147 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Washim",
+        "Company": "Axis Bank Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Financial Inclusion",
+        "Spend_History": {
+            "2022_23": "\u20b945 L",
+            "2023_24": "\u20b949 L",
+            "2024_25": "\u20b945 L"
+        },
+        "Total_3Y": "\u20b9139 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Washim",
+        "Company": "Bill & Melinda Gates Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Financial Inclusion",
+        "Spend_History": {
+            "2022_23": "\u20b916 L",
+            "2023_24": "\u20b917 L",
+            "2024_25": "\u20b916 L"
+        },
+        "Total_3Y": "\u20b949 Lakhs",
+        "Status": "\u2705 Voluntary Spender"
+    },
+    {
+        "District": "Yavatmal",
+        "Company": "Reliance Industries",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b913 L",
+            "2023_24": "\u20b914 L",
+            "2024_25": "\u20b911 L"
+        },
+        "Total_3Y": "\u20b939 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Yavatmal",
+        "Company": "Tata Consultancy Services",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b940 L",
+            "2023_24": "\u20b944 L",
+            "2024_25": "\u20b936 L"
+        },
+        "Total_3Y": "\u20b9120 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Yavatmal",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022_23": "\u20b919 L",
+            "2023_24": "\u20b920 L",
+            "2024_25": "\u20b917 L"
+        },
+        "Total_3Y": "\u20b957 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Yavatmal",
+        "Company": "HDFC Bank",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b98 L",
+            "2023_24": "\u20b98 L",
+            "2024_25": "\u20b97 L"
+        },
+        "Total_3Y": "\u20b924 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Yavatmal",
+        "Company": "Hindustan Unilever",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022_23": "\u20b945 L",
+            "2023_24": "\u20b949 L",
+            "2024_25": "\u20b940 L"
+        },
+        "Total_3Y": "\u20b9135 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Yavatmal",
+        "Company": "Siemens Ltd",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022_23": "\u20b924 L",
+            "2023_24": "\u20b926 L",
+            "2024_25": "\u20b921 L"
+        },
+        "Total_3Y": "\u20b972 Lakhs",
+        "Status": "Active"
+    },
+    {
+        "District": "Yavatmal",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022_23": "\u20b943 L",
+            "2023_24": "\u20b947 L",
+            "2024_25": "\u20b938 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "Active"
+    }
+]
