@@ -3,17 +3,22 @@ from streamlit_option_menu import option_menu
 from datetime import datetime
 import os
 
-# --- MODULE IMPORTS ---
+# --- MODULE IMPORTS (Safe Loading for all features) ---
 try:
     from modules.copilot import render_copilot
     from modules.drafter import render_drafter
-    from modules.matcher import render_matcher
+    from modules.matcher import render_matcher  # Schemes
     from modules.admin import render_admin
     from modules.pmb_drafter import render_pmb_drafter
+    # New CSR Modules
+    from modules.csr_discovery import render_csr_discovery
+    from modules.csr_projects import render_csr_projects
+    from modules.csr_partners import render_csr_partners
+    # Utilities
     from modules.utils import track_action, show_download_button
-    from modules.persistence import load_archives, delete_draft
+    from modules.persistence import load_archives, delete_draft 
 except ImportError as e:
-    st.error(f"Module Import Error: {e}. Please ensure all files are correctly placed in the 'modules/' folder.")
+    st.error(f"⚠️ Module Missing: {e}. Please ensure all files are in the 'modules/' folder.")
     st.stop()
 
 # --- PAGE CONFIG ---
@@ -24,15 +29,19 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- INITIALIZE STATE ---
+# --- INITIALIZE SESSION STATE ---
+# Persistence
 if 'uploaded_file_data' not in st.session_state: st.session_state.uploaded_file_data = None
 if 'uploaded_file_name' not in st.session_state: st.session_state.uploaded_file_name = ""
+# History & Keys
 if 'action_log' not in st.session_state: st.session_state.action_log = [] 
 if 'groq_api_key' not in st.session_state: st.session_state.groq_api_key = ""
+# Auth
 if 'password_correct' not in st.session_state: st.session_state.password_correct = False
 if 'global_lang' not in st.session_state: st.session_state.global_lang = "English"
 
-# --- CUSTOM CSS ---
+
+# --- CUSTOM CSS (Native App Feel) ---
 st.markdown("""
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -51,42 +60,32 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- AUTHENTICATION (ROBUST BYPASS) ---
+# --- AUTHENTICATION (DEV BYPASS ACTIVE) ---
 def check_password():
-    # If not logged in, force the bypass
     if not st.session_state.password_correct:
-        
-        # 1. Define the Backup Profile (Hardcoded Safety Net)
-        backup_user = {
-            "name": "Hon. Milind Deora",
-            "constituency": "Rajya Sabha (Maharashtra)",
-            "tags": ["Urban", "Coastal", "Youth"],
-            "avatar": "https://ui-avatars.com/api/?name=Milind+Deora&background=002D62&color=fff"
-        }
-
         try:
-            # 2. Try to load from Secrets file first
+            # Force Login for Demo
+            st.session_state["username"] = "milind_deora"
             st.session_state["user_profile"] = st.secrets["profiles"]["milind_deora"]
+            st.session_state["current_user"] = "milind_deora"
+            st.session_state["password_correct"] = True
+            return True
         except:
-            # 3. If Secrets fail/missing, load the Backup Profile
-            # This ensures the app NEVER crashes on login
-            st.session_state["user_profile"] = backup_user
-            
-        st.session_state["username"] = "milind_deora"
-        st.session_state["current_user"] = "milind_deora"
-        st.session_state["password_correct"] = True
-        
+            st.error("Login bypass failed. Check .streamlit/secrets.toml")
+            return False
     return True 
 
-# --- MAIN EXECUTION ---
+# --- MAIN APP EXECUTION ---
 if check_password():
     username = st.session_state.get("current_user", "milind_deora")
     user = st.session_state["user_profile"]
 
+    # === GOD MODE (ADMIN) ===
     if username == "admin":
         render_admin()
+        
     else:
-        # === GLOBAL SIDEBAR ===
+        # === STANDARD MP INTERFACE ===
         with st.sidebar:
             st.markdown(f"""
             <div class="profile-card">
@@ -98,9 +97,8 @@ if check_password():
             """, unsafe_allow_html=True)
             
             st.divider()
-            st.header("🔐 Access Key")
             
-            # API KEY INPUT
+            # --- GLOBAL API KEY INPUT ---
             input_key = st.text_input(
                 "Groq API Key", type="password", 
                 value=st.session_state.get('groq_api_key', ''), 
@@ -109,9 +107,8 @@ if check_password():
             if input_key: st.session_state.groq_api_key = input_key
             
             st.divider()
-            st.header("🗣️ Language")
             
-            # LANGUAGE SELECTOR
+            # --- GLOBAL LANGUAGE ---
             selected_lang = st.selectbox(
                 "Output Language", 
                 ["English", "Hindi (हिंदी)", "Marathi (मराठी)", "Tamil (தமிழ்)"],
@@ -122,11 +119,11 @@ if check_password():
 
             st.divider()
             
-            # HISTORY LOG
-            st.subheader("🕒 Recent History")
+            # --- HISTORY LOG ---
+            st.subheader("🕒 History")
             if st.session_state.action_log:
                 for item in reversed(st.session_state.action_log[-5:]):
-                    st.markdown(f'<div style="font-size:0.8em; border-bottom:1px solid #eee; padding-bottom:4px; margin-bottom:4px;"><b>{item["time"]}</b>: {item["activity"]}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="font-size:0.8em; border-bottom:1px solid #eee; margin-bottom:4px;"><b>{item["time"]}</b>: {item["activity"]}</div>', unsafe_allow_html=True)
             else:
                 st.caption("No activity yet.")
                 
@@ -134,33 +131,82 @@ if check_password():
                 st.session_state["password_correct"] = False
                 st.rerun()
 
-        # === NAVIGATION ===
+        # === NAVIGATION MENU ===
         selected = option_menu(
             menu_title=None,
-            options=["Co-Pilot", "Drafter", "PMB Drafter", "Schemes", "Archives"],
-            icons=["robot", "pen", "law", "cash-coin", "archive"],
+            options=[
+                "Dashboard", 
+                "Co-Pilot", 
+                "Drafter", 
+                "PMB Drafter", 
+                "CSR Discovery", 
+                "CSR Projects", 
+                "CSR Partners", 
+                "Schemes", 
+                "Archives"
+            ],
+            icons=[
+                "speedometer2", 
+                "robot", 
+                "pen", 
+                "law", 
+                "radar",    # CSR Discovery
+                "cart",     # CSR Projects
+                "people-fill", # CSR Partners
+                "cash-coin", 
+                "archive"
+            ],
             menu_icon="cast",
             default_index=0,
-            orientation="horizontal"
+            orientation="horizontal",
+            styles={
+                "container": {"padding": "0!important", "background-color": "transparent"},
+                "icon": {"color": "#002D62", "font-size": "14px"}, 
+                "nav-link": {"font-size": "14px", "text-align": "center", "margin":"2px", "padding":"10px"},
+                "nav-link-selected": {"background-color": "#002D62", "color": "white"},
+            }
         )
         
-        # === ROUTING ===
-        if selected == "Co-Pilot":
+        # === ROUTING LOGIC ===
+        
+        if selected == "Dashboard":
+            st.title("🏛️ Command Center")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("CSR Targets", "8 High Value", "+2 New")
+            c2.metric("Pending Drafts", "3", "Urgent")
+            c3.metric("District Alert", "Nagpur (Water)", "Critical")
+            st.info("System Status: All Intelligence Nodes Online.")
+
+        elif selected == "Co-Pilot":
             render_copilot(username)
+            
         elif selected == "Drafter":
             render_drafter(username)
+            
         elif selected == "PMB Drafter":
             render_pmb_drafter(username)
+            
+        elif selected == "CSR Discovery":
+            render_csr_discovery(username)
+            
+        elif selected == "CSR Projects":
+            render_csr_projects(username)
+            
+        elif selected == "CSR Partners":
+            render_csr_partners(username)
+            
         elif selected == "Schemes":
             render_matcher(user_tags=user.get('tags', []))
+            
         elif selected == "Archives":
             st.title("📂 User Archives")
             archives = load_archives(username)
             if not archives:
-                st.info("No saved drafts. Use 'Save' in other tools to add files here.")
+                st.info("No saved drafts found.")
             else:
                 for doc in archives:
                     with st.expander(f"📄 {doc['title']} ({doc['date']})"):
+                        st.caption(f"Category: {doc['category']}")
                         st.text_area("Content", doc['content'], height=200, disabled=True)
                         c1, c2 = st.columns([1, 4])
                         with c1:
