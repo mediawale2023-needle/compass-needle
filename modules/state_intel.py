@@ -48,11 +48,16 @@ def render_state_intel(username):
         # 4. THE DUAL-MODE SELECTOR
         filter_mode = st.radio("How do you want to search?", ["🏢 By Company", "🏥 By Focus Area (Sector)"], horizontal=True)
         
-        # --- MODE A: SEARCH BY COMPANY ---
+        # --- MODE A: SEARCH BY COMPANY (Sorted by Spend) ---
         if filter_mode == "🏢 By Company":
-            # Get list of companies active in this state
-            company_list = sorted(state_df['Company Name'].unique())
-            selected_comp = st.selectbox("Select a Company", company_list)
+            # LOGIC UPDATE: Group by company sum to sort them
+            comp_stats = state_df.groupby('Company Name')['Project Amount Spent (In INR Cr.)'].sum().sort_values(ascending=False)
+            
+            # Create the sorted list
+            company_list = comp_stats.index.tolist()
+            
+            # Show dropdown
+            selected_comp = st.selectbox("Select a Company (Sorted by Highest Spend)", company_list)
             
             # Filter for specific company
             comp_data = state_df[state_df['Company Name'] == selected_comp]
@@ -67,6 +72,8 @@ def render_state_intel(username):
             st.write("**Key Focus Areas:**")
             # Show breakdown by sector
             sector_breakdown = comp_data.groupby('CSR Development Sector')['Project Amount Spent (In INR Cr.)'].sum().reset_index()
+            # Sort sectors by spend too
+            sector_breakdown = sector_breakdown.sort_values(by='Project Amount Spent (In INR Cr.)', ascending=False)
             st.dataframe(sector_breakdown, use_container_width=True)
             
             # Action Button
@@ -109,8 +116,8 @@ def render_state_intel(username):
             st.subheader(f"🏆 Top Spenders in '{selected_sector}'")
             st.metric("Total Sector Budget", f"₹{top_spenders['Project Amount Spent (In INR Cr.)'].sum():,.2f} Cr")
             
-            # Show list of companies
-            for idx, row in top_spenders.head(10).iterrows():
+            # Show list of companies (Top 20 to keep it clean)
+            for idx, row in top_spenders.head(20).iterrows():
                 comp = row['Company Name']
                 amt = row['Project Amount Spent (In INR Cr.)']
                 
