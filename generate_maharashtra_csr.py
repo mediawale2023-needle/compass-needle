@@ -2,9 +2,8 @@ import json
 import random
 
 def generate_maharashtra_csr_db():
-    print("🏭 Minting Maharashtra CSR Intelligence Database...")
+    print("🏭 Minting Full Maharashtra Database (36 Districts)...")
 
-    # Full list of 36 Maharashtra Districts
     districts = [
         "Ahmednagar", "Akola", "Amravati", "Aurangabad", "Beed", "Bhandara", "Buldhana",
         "Chandrapur", "Dhule", "Gadchiroli", "Gondia", "Hingoli", "Jalgaon", "Jalna",
@@ -14,97 +13,82 @@ def generate_maharashtra_csr_db():
         "Washim", "Yavatmal"
     ]
 
-    # Major Companies with likely HQ/Factory locations in MH
-    # (Company Name, [List of Local Districts], Base Budget Cr)
-    companies = [
-        ("Reliance Industries", ["Mumbai City", "Mumbai Suburban", "Raigad", "Nagpur"], 1185),
-        ("Tata Consultancy Services", ["Mumbai City", "Mumbai Suburban", "Pune", "Thane"], 800),
+    # 1. National Giants (These spend everywhere - Guarantees data for every district)
+    national_giants = [
+        ("Reliance Foundation", ["Education", "Health"], 1500),
+        ("Tata Trusts", ["Rural Dev", "Health"], 1200),
+        ("HDFC Bank Parivartan", ["Education", "Water"], 900),
+        ("SBI Foundation", ["Health", "Skill Dev"], 600)
+    ]
+
+    # 2. Industrial Players (Specific Locations)
+    local_players = [
         ("Mahindra & Mahindra", ["Mumbai City", "Mumbai Suburban", "Nashik", "Pune", "Nagpur"], 110),
         ("Bajaj Auto", ["Pune", "Aurangabad"], 140),
-        ("HDFC Bank", ["Mumbai City", "Mumbai Suburban"], 795),
-        ("Larsen & Toubro", ["Mumbai City", "Mumbai Suburban", "Pune", "Ahmednagar"], 400),
         ("JSW Steel", ["Mumbai City", "Thane", "Raigad"], 190),
-        ("Hindustan Unilever", ["Mumbai City", "Mumbai Suburban"], 160),
-        ("Infosys Foundation", ["Pune", "Nagpur"], 520), # Large operations in Pune
-        ("Wipro Cares", ["Pune"], 230),
-        ("Siemens Ltd", ["Mumbai City", "Thane", "Aurangabad"], 90),
-        ("MahaGenco", ["Nagpur", "Chandrapur", "Nashik"], 150), # State PSU
-        ("Western Coalfields", ["Nagpur", "Chandrapur", "Yavatmal"], 200), # PSU
-        ("Sun Pharma", ["Mumbai Suburban", "Ahmednagar"], 80),
-        ("Adani Foundation", ["Mumbai City", "Gondia", "Tiroda"], 450)
-    ]
-    
-    # Generic "Remote Giants" (Banks, IT, Insurance) likely to spend anywhere
-    remote_only_giants = [
-        "ICICI Lombard", "HDFC Life", "SBI Life", "Axis Bank Foundation", 
-        "Tech Mahindra Foundation", "Kotak Mahindra Bank", "Bill & Melinda Gates Foundation"
+        ("MahaGenco", ["Nagpur", "Chandrapur", "Nashik"], 150),
+        ("Western Coalfields", ["Nagpur", "Chandrapur", "Yavatmal"], 200),
+        ("Sun Pharma", ["Mumbai Suburban", "Ahmednagar"], 80)
     ]
 
     db = []
 
     for dist in districts:
-        # 1. Process Major Industrial Players
-        for comp_name, local_hubs, budget in companies:
-            # Determine if Local or Remote for THIS district
-            if dist in local_hubs:
-                is_local = True
-                type_label = "🏭 Local (Factory/Office)"
-                # Higher chance of spend if local
-                active_chance = 0.9 
-            else:
-                is_local = False
-                type_label = "🌍 Remote (No Office)"
-                # Lower chance of spend if remote
-                active_chance = 0.3
+        # A. GUARANTEE: Add National Giants to EVERY district (Remote Spenders)
+        for name, focus, budget in national_giants:
+            spend_base = random.randint(15, 80)
+            db.append({
+                "District": dist,
+                "Company": name,
+                "Type": "🌍 Remote (No Office)",
+                "Sector": random.choice(focus),
+                "Spend_History": {
+                    "2022-23": f"₹{spend_base} L",
+                    "2023-24": f"₹{int(spend_base * 1.1)} L",
+                    "2024-25": f"₹{int(spend_base * 1.05)} L"
+                },
+                "Total_3Y": f"₹{int(spend_base * 3.15)} Lakhs",
+                "Status": "✅ Active Spender",
+                "Gap_Analysis": "Opportunity for Upscale"
+            })
 
-            if random.random() < active_chance:
-                # Calculate spend
-                spend_base = random.randint(10, 200) if is_local else random.randint(5, 50)
-                
-                # Check for "Zero Spend" Violation (Local only)
-                status = "Active"
-                if is_local and random.random() < 0.2: # 20% chance of violation
-                    spend_base = 0
-                    status = "🚨 ZERO SPEND (Violation)"
-                
-                entry = {
-                    "District": dist,
-                    "Company": comp_name,
-                    "Type": type_label,
-                    "Sector": random.choice(["Education", "Health", "Rural Dev", "Skill Dev", "Water"]),
-                    "Spend_History": {
-                        "2022_23": f"₹{spend_base} L",
-                        "2023_24": f"₹{int(spend_base * 1.1)} L",
-                        "2024_25": f"₹{int(spend_base * 0.9)} L"
-                    },
-                    "Total_3Y": f"₹{int(spend_base * 3)} Lakhs",
-                    "Status": status
-                }
-                db.append(entry)
-
-        # 2. Process Remote-Only Giants (The "Bonus" Money)
-        for comp_name in remote_only_giants:
-            if random.random() < 0.15: # 15% chance they picked this district
-                spend_base = random.randint(10, 80)
-                entry = {
-                    "District": dist,
-                    "Company": comp_name,
-                    "Type": "🌍 Remote (No Office)",
-                    "Sector": random.choice(["Digital Literacy", "Healthcare", "Financial Inclusion"]),
-                    "Spend_History": {
-                        "2022_23": f"₹{spend_base} L",
-                        "2023_24": f"₹{int(spend_base * 1.1)} L",
-                        "2024_25": f"₹{int(spend_base * 1.0)} L"
-                    },
-                    "Total_3Y": f"₹{int(spend_base * 3.1)} Lakhs",
-                    "Status": "✅ Voluntary Spender"
-                }
-                db.append(entry)
+        # B. ADD LOCALS: Only if they match the district
+        for name, locs, budget in local_players:
+            if dist in locs:
+                # 20% Chance of Zero Spend Violation
+                is_violator = random.random() < 0.2
+                if is_violator:
+                     db.append({
+                        "District": dist,
+                        "Company": name,
+                        "Type": "🏭 Local (Factory/Office)",
+                        "Sector": "N/A",
+                        "Spend_History": {"2022-23": "₹0", "2023-24": "₹0", "2024-25": "₹0"},
+                        "Total_3Y": "₹0",
+                        "Status": "🚨 ZERO SPEND (Violation)",
+                        "Gap_Analysis": "CRITICAL: Operation exists but Funds missing."
+                    })
+                else:
+                    spend = random.randint(50, 300)
+                    db.append({
+                        "District": dist,
+                        "Company": name,
+                        "Type": "🏭 Local (Factory/Office)",
+                        "Sector": "Community Dev",
+                        "Spend_History": {
+                            "2022-23": f"₹{spend} L",
+                            "2023-24": f"₹{spend} L",
+                            "2024-25": f"₹{spend} L"
+                        },
+                        "Total_3Y": f"₹{spend * 3} Lakhs",
+                        "Status": "✅ Compliant",
+                        "Gap_Analysis": "Good Standing"
+                    })
 
     with open("csr_db.json", "w") as f:
         json.dump(db, f, indent=4)
     
-    print(f"✅ Generated CSR Intelligence for {len(db)} projects across {len(districts)} Maharashtra districts.")
+    print(f"✅ SUCCESS! Generated {len(db)} records covering ALL {len(districts)} districts.")
 
 if __name__ == "__main__":
     generate_maharashtra_csr_db()

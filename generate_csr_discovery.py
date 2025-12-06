@@ -1,94 +1,92 @@
 import json
 import random
 
-def generate_discovery_db():
-    print("🛰️ Minting CSR Discovery & Gap Analysis Database...")
+def generate_full_maharashtra_db():
+    print("🏭 Generating Correct CSR Database...")
 
-    districts = ["Nagpur", "Pune", "Aurangabad", "Thane", "Nashik", "Mumbai South"]
-
-    # 1. The "Whales" (Big Remote Spenders)
-    remote_giants = [
-        "Infosys Foundation", "HDFC Life", "ICICI Lombard", "Tech Mahindra Foundation", 
-        "Axis Bank Foundation", "SBI Life", "Reliance Foundation", "Tata Trusts", "Wipro Cares"
+    districts = [
+        "Ahmednagar", "Akola", "Amravati", "Aurangabad", "Beed", "Bhandara", "Buldhana",
+        "Chandrapur", "Dhule", "Gadchiroli", "Gondia", "Hingoli", "Jalgaon", "Jalna",
+        "Kolhapur", "Latur", "Mumbai City", "Mumbai Suburban", "Nagpur", "Nanded",
+        "Nandurbar", "Nashik", "Osmanabad", "Palghar", "Parbhani", "Pune", "Raigad",
+        "Ratnagiri", "Sangli", "Satara", "Sindhudurg", "Solapur", "Thane", "Wardha",
+        "Washim", "Yavatmal"
     ]
 
-    # 2. The "Locals" (Have Factories/Offices in these districts)
+    national_giants = [
+        ("Reliance Foundation", ["Education", "Health"], 1500),
+        ("Tata Trusts", ["Cancer Care", "Education"], 1200),
+        ("HDFC Parivartan", ["Rural Dev", "Education"], 900),
+        ("SBI Foundation", ["Health", "Skill Dev"], 600)
+    ]
+    
     local_ops_map = {
-        "Mahindra & Mahindra": ["Mumbai South", "Pune", "Nashik"],
+        "Mahindra & Mahindra": ["Mumbai City", "Mumbai Suburban", "Nashik", "Pune", "Nagpur"],
         "Bajaj Auto": ["Pune", "Aurangabad"],
         "Siemens Ltd": ["Thane", "Mumbai South"],
-        "MahaGenco": ["Nagpur", "Chandrapur"],
+        "MahaGenco": ["Nagpur", "Chandrapur", "Nashik"],
         "Western Coalfields": ["Nagpur", "Chandrapur"],
-        "Skoda Auto": ["Aurangabad", "Pune"],
-        "Larsen & Toubro": ["Mumbai South", "Thane", "Pune"]
+        "JSW Steel": ["Mumbai City", "Raigad"]
     }
 
     db = []
 
     for dist in districts:
-        # A. REMOTE SPENDERS (Voluntary)
-        for comp in remote_giants:
-            if random.random() > 0.6: 
-                base_spend = random.randint(25, 100)
-                entry = {
+        # A. Remote Spenders
+        for name, focus, budget in national_giants:
+            if random.random() < 0.7:
+                base = random.randint(10, 50)
+                db.append({
                     "District": dist,
-                    "Company": comp,
+                    "Company": name,
                     "Type": "🌍 Remote (No Office)",
-                    "Sector": random.choice(["Education", "Healthcare", "Skill Dev", "Water"]),
-                    "History": {
-                        "2022-23": f"₹{base_spend} L",
-                        "2023-24": f"₹{int(base_spend * 1.1)} L",
-                        "2024-25": f"₹{int(base_spend * 0.9)} L"
+                    "Sector": random.choice(focus),
+                    "Spend_History": {
+                        "2022-23": f"₹{base} L",
+                        "2023-24": f"₹{int(base*1.1)} L",
+                        "2024-25": f"₹{int(base*1.2)} L"
                     },
-                    "Total_3Y": f"₹{int(base_spend * 3)} Lakhs",
+                    "Total_3Y": f"₹{int(base*3.3)} Lakhs",
                     "Status": "✅ Active Spender",
-                    "Gap_Analysis": "Good Partner"
-                }
-                db.append(entry)
+                    "Gap_Analysis": "Opportunity to Upscale"
+                })
 
-        # B. LOCAL OPERATORS (Mandatory - The Trap)
-        for comp, present_districts in local_ops_map.items():
-            if dist in present_districts:
-                # 30% chance they are SKIPPING this district (The Violation)
+        # B. Local Spenders
+        for name, locs in local_ops_map.items():
+            if dist in locs:
                 is_violator = random.random() < 0.3
-                
                 if is_violator:
-                    entry = {
+                     db.append({
                         "District": dist,
-                        "Company": comp,
-                        "Type": "🏭 Local (Has Factory/Office)",
+                        "Company": name,
+                        "Type": "🏭 Local (Factory/Office)",
                         "Sector": "N/A",
-                        "History": {
-                            "2022-23": "₹0",
-                            "2023-24": "₹0",
-                            "2024-25": "₹0"
-                        },
+                        "Spend_History": {"2022-23": "₹0", "2023-24": "₹0", "2024-25": "₹0"},
                         "Total_3Y": "₹0",
                         "Status": "🚨 ZERO SPEND (Violation)",
                         "Gap_Analysis": "CRITICAL: Operation exists but Funds missing."
-                    }
+                    })
                 else:
-                    base_spend = random.randint(50, 400)
-                    entry = {
+                    base = random.randint(50, 200)
+                    db.append({
                         "District": dist,
-                        "Company": comp,
-                        "Type": "🏭 Local (Has Factory/Office)",
-                        "Sector": random.choice(["Infra", "Sanitation", "Environment"]),
-                        "History": {
-                            "2022-23": f"₹{base_spend} L",
-                            "2023-24": f"₹{base_spend} L",
-                            "2024-25": f"₹{base_spend + 50} L"
+                        "Company": name,
+                        "Type": "🏭 Local (Factory/Office)",
+                        "Sector": "Community Dev",
+                        "Spend_History": {
+                            "2022-23": f"₹{base} L",
+                            "2023-24": f"₹{base} L",
+                            "2024-25": f"₹{base} L"
                         },
-                        "Total_3Y": f"₹{base_spend * 3 + 50} Lakhs",
+                        "Total_3Y": f"₹{base * 3} Lakhs",
                         "Status": "✅ Compliant",
                         "Gap_Analysis": "Good Standing"
-                    }
-                db.append(entry)
+                    })
 
     with open("csr_discovery.json", "w") as f:
         json.dump(db, f, indent=4)
     
-    print(f"✅ Generated {len(db)} CSR records with Gap Analysis.")
+    print(f"✅ SUCCESS! Generated correct database with 'Total_3Y' keys.")
 
 if __name__ == "__main__":
-    generate_discovery_db()
+    generate_full_maharashtra_db()
