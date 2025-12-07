@@ -9,58 +9,55 @@ def render_matcher(user_tags=None):
     st.header("🎯 Fund Liquidity Radar (Schemes)")
     st.caption("Match constituency needs with active Government Schemes & **2025-26 Budget Status**.")
 
-    # --- 1. THE TRUTH SOURCE (Embedded Budget Data) ---
+    # --- 1. BUDGET OVERLAY (Hardcoded 2025-26 Data) ---
+    # This ensures budget data appears even if the JSON is missing it
     BUDGET_OVERLAY = {
         "jal jeevan": {"alloc": "₹67,000 Cr", "status": "🟢 Very High Liquidity", "note": "Target: 100% rural tap coverage by 2028."},
         "mgnrega": {"alloc": "₹86,000 Cr", "status": "🟡 Stagnant", "note": "Same as FY24. Demand-driven."},
         "pm-kisan": {"alloc": "₹60,000 Cr", "status": "🟢 Active", "note": "Direct Benefit Transfer stable."},
-        "kisann": {"alloc": "₹60,000 Cr", "status": "🟢 Active", "note": "Direct Benefit Transfer stable."},
         "fasal bima": {"alloc": "₹12,242 Cr", "status": "🟢 Active", "note": "Crop Insurance allocation."},
         "krishi sinchai": {"alloc": "₹11,391 Cr", "status": "🟢 High", "note": "Focus on micro-irrigation."},
         "fame": {"alloc": "₹4,000 Cr (PM E-DRIVE)", "status": "🟢 Transformed", "note": "FAME is now PM E-DRIVE."},
         "electric vehicle": {"alloc": "₹4,000 Cr (PM E-DRIVE)", "status": "🟢 Transformed", "note": "Replaces FAME II."},
         "surya": {"alloc": "₹20,000 Cr", "status": "🟢 Massive Allocation", "note": "PM Surya Ghar Muft Bijli Yojana."},
         "solar": {"alloc": "₹20,000 Cr", "status": "🟢 Massive Allocation", "note": "PM Surya Ghar Muft Bijli Yojana."},
-        "hydrogen": {"alloc": "₹600 Cr", "status": "🟢 Emerging", "note": "National Green Hydrogen Mission."},
         "pmay": {"alloc": "₹23,294 Cr (Urban)", "status": "🟢 Very High", "note": "Part of ₹10L Cr investment plan."},
         "awas": {"alloc": "₹23,294 Cr (Urban)", "status": "🟢 Very High", "note": "Part of ₹10L Cr investment plan."},
         "amrut": {"alloc": "₹10,000 Cr", "status": "🟢 Active", "note": "Smart Cities & Urban Rejuvenation."},
-        "smart cit": {"alloc": "₹10,000 Cr", "status": "🟢 Active", "note": "Smart Cities Mission."},
-        "swachh": {"alloc": "₹12,192 Cr (Total)", "status": "🟢 Active", "note": "Urban + Rural Sanitation."},
         "samagra": {"alloc": "₹41,250 Cr", "status": "🟢 High Liquidity", "note": "Flagship School Education Scheme."},
-        "mid-day": {"alloc": "₹12,500 Cr", "status": "🟢 Active", "note": "PM-POSHAN Scheme."},
         "poshan": {"alloc": "₹21,960 Cr", "status": "🟢 Very High", "note": "Saksham Anganwadi & Poshan 2.0."},
-        "anganwadi": {"alloc": "₹21,960 Cr", "status": "🟢 Very High", "note": "Saksham Anganwadi."},
         "health mission": {"alloc": "₹37,227 Cr", "status": "🟢 Active", "note": "National Health Mission (NHM)."},
         "ayushman": {"alloc": "₹9,406 Cr", "status": "🟢 High", "note": "PMJAY Insurance Cover."},
         "pli": {"alloc": "₹19,000 Cr (Total)", "status": "🟢 High Opportunity", "note": "Electronics, Auto, Textiles PLI."},
-        "textile": {"alloc": "₹1,148 Cr (PLI)", "status": "🟢 Opportunity", "note": "25x increase in PLI allocation."},
         "khelo": {"alloc": "₹1,000 Cr", "status": "🟢 Active", "note": "Sports Development."},
-        "sampada": {"alloc": "₹903 Cr", "status": "🟢 Active", "note": "Food Processing Infrastructure."},
         "svanidhi": {"alloc": "₹373 Cr", "status": "🟢 Active", "note": "Street Vendor Loans."}
     }
 
-    # --- 2. LOAD SCHEMES ---
+    # --- 2. LOAD & DEDUPLICATE DATABASE ---
     schemes_db = []
     try:
         if os.path.exists("schemes.json"):
             with open("schemes.json", "r") as f:
-                schemes_db = json.load(f)
+                raw_data = json.load(f)
+                
+            # DEDUPLICATION LOGIC
+            seen_names = set()
+            for item in raw_data:
+                name = item.get('Scheme', 'Unknown').strip()
+                if name not in seen_names and len(name) > 2:
+                    schemes_db.append(item)
+                    seen_names.add(name)
         else:
-            st.error("⚠️ 'schemes.json' not found. Please run the data pipeline.")
+            st.error("⚠️ 'schemes.json' not found.")
             return
     except Exception as e:
         st.error(f"Error reading database: {e}")
         return
 
     # --- 3. FILTER LISTS ---
-    # Extract unique ministries for dropdown
+    # Extract unique ministries safely
     all_ministries = sorted(list(set([str(s.get('Ministry', '')).strip() for s in schemes_db if s.get('Ministry')])))
     
-    # Safe fallback if extraction fails
-    if not all_ministries:
-        all_ministries = ["Ministry of Agriculture", "Ministry of Jal Shakti", "Ministry of Power", "Ministry of Education", "Ministry of Health"]
-
     all_geographies = ["Urban", "Rural", "Tribal", "Coastal", "Border Area", "Aspirational District"]
     all_demographics = ["Farmers", "Women", "Youth", "SC/ST", "Minority", "MSME", "Students"]
     
@@ -81,11 +78,13 @@ def render_matcher(user_tags=None):
             st.warning("Please select at least one filter.")
         else:
             found_schemes = []
+            # Criteria set
             user_criteria = set(selected_geo + selected_demo)
             
             for item in schemes_db:
-                # A. Ministry Filter
-                if selected_ministry and item.get('Ministry', '').strip() not in selected_ministry:
+                # A. Ministry Filter (Safe String Check)
+                item_ministry = str(item.get('Ministry', '')).strip()
+                if selected_ministry and item_ministry not in selected_ministry:
                     continue
 
                 # B. Keyword/Tag Matching
@@ -108,13 +107,14 @@ def render_matcher(user_tags=None):
 
                 matches = user_criteria.intersection(scheme_tags)
                 
+                # Logic: If Geo/Demo filters set, require match. If ONLY Ministry set, allow all.
                 if (selected_geo or selected_demo) and not matches and not selected_ministry:
                     continue
 
                 item['Matched_Tags'] = list(matches)
                 item['Match_Score'] = len(matches)
                 
-                # C. BUDGET OVERLAY
+                # C. APPLY BUDGET OVERLAY
                 s_name_lower = item['Scheme'].lower()
                 budget_hit = False
                 
@@ -145,7 +145,7 @@ def render_matcher(user_tags=None):
         results = st.session_state['matched_results']
         st.success(f"Found {len(results)} relevant schemes.")
         
-        # ERROR FIX: Added 'enumerate' to generate unique keys for buttons
+        # Use ENUMERATE to generate unique keys (Fixes the crash)
         for i, item in enumerate(results[:50]):
             with st.container():
                 c1, c2 = st.columns([3, 1])
@@ -164,7 +164,7 @@ def render_matcher(user_tags=None):
                         st.success(f"Budget 25-26: {b_status}")
                         if b_alloc != "Check Dept": st.caption(f"💰 {b_alloc}")
                     elif "Yellow" in b_status:
-                        st.warning(f"Budget 25-26: {b_status}")
+                        st.warning(f"Budget: {b_status}")
                     else:
                         st.info("Budget: Not Linked")
 
@@ -181,8 +181,8 @@ def render_matcher(user_tags=None):
                     with t2: st.write(item.get('Documents', 'Check Portal'))
                     with t3: st.write(item.get('Process', 'Check Portal'))
 
-                    # ERROR FIX: Unique Key generated using index 'i'
-                    if st.button("Draft Proposal", key=f"btn_{i}_{item.get('Scheme')}"):
+                    # UNIQUE KEY GENERATION (The Fix)
+                    if st.button("Draft Proposal", key=f"btn_{i}_{item.get('Scheme')[:10]}"):
                         api_key = st.session_state.get('groq_api_key')
                         if not api_key:
                             st.error("Enter API Key in Sidebar")
@@ -190,7 +190,7 @@ def render_matcher(user_tags=None):
                             with st.spinner("Drafting..."):
                                 try:
                                     llm = ChatGroq(temperature=0.5, groq_api_key=api_key, model_name="llama-3.1-8b-instant")
-                                    # Prompt logic
+                                    
                                     budget_ctx = ""
                                     if item.get('Budget_Alloc') != "Check Dept":
                                         budget_ctx = f"- Note: 2025-26 Budget Allocation is {item['Budget_Alloc']}."
@@ -199,7 +199,7 @@ def render_matcher(user_tags=None):
                                     Write a formal letter from an MP to the Minister of {item.get('Ministry', 'Govt of India')}.
                                     Subject: Implementation of {item['Scheme']} in my constituency.
                                     Context: 
-                                    - Matches local needs ({', '.join(item.get('Matched_Tags', ['Development']))}).
+                                    - Matches local needs.
                                     {budget_ctx}
                                     - Request immediate sanction.
                                     Tone: Official, Urgent.
