@@ -7,28 +7,30 @@ from modules.persistence import save_draft
 
 def render_matcher(user_tags=None):
     st.header("🎯 Fund Liquidity Radar (Schemes)")
-    st.caption("Match constituency needs with active Government Schemes & 2025-26 Budget Status.")
+    st.caption("Match constituency needs with active Government Schemes & **2025-26 Budget Status**.")
 
     # --- 1. LOAD DATABASES ---
     schemes_db = []
     budget_db = []
     
     try:
+        # Load Schemes (The big database)
         if os.path.exists("schemes.json"):
-            with open("schemes.json", "r") as f:
+            with open("schemes.json", "r", encoding='utf-8') as f:
                 schemes_db = json.load(f)
         else:
-            st.warning("⚠️ 'schemes.json' not found. Please upload it via Admin.")
+            st.warning("⚠️ 'schemes.json' not found. Please run the ingestion script.")
             
+        # Load Budget (The financial data)
         if os.path.exists("budget_2025_26.json"):
-            with open("budget_2025_26.json", "r") as f:
+            with open("budget_2025_26.json", "r", encoding='utf-8') as f:
                 budget_db = json.load(f)
     except Exception as e:
         st.error(f"Error reading database: {e}")
         return
 
     # --- 2. EXTRACT MINISTRIES DYNAMICALLY ---
-    # This ensures the dropdown always matches your actual data
+    # Scans your database to find all available Ministries for the dropdown
     unique_ministries = set()
     for s in schemes_db:
         if s.get('Ministry'):
@@ -41,6 +43,7 @@ def render_matcher(user_tags=None):
         "Hilly Area", "Border Area", "Aspirational District", "Industrial Zone", 
         "North East Region", "Drought Prone", "Flood Prone", "LWE Affected"
     ]
+    
     all_demographics = [
         "Farmers", "Fishermen", "Youth (18-35)", "Women", "Children", 
         "Senior Citizens", "SC (Scheduled Caste)", "ST (Scheduled Tribe)", 
@@ -48,32 +51,24 @@ def render_matcher(user_tags=None):
         "Artisans", "Weavers", "Street Vendors", "Students", "BPL"
     ]
     
-    # Defaults
+    # Defaults from User Profile
     default_geo = [t for t in (user_tags or []) if t in all_geographies]
     default_demo = [t for t in (user_tags or []) if t in all_demographics]
 
-    # --- 4. FILTER UI ---
+    # --- 4. FILTER INTERFACE ---
     with st.expander("📍 Configure Search Filters", expanded=True):
-        # Row 1: Ministry (Full Width)
-        selected_ministry = st.multiselect("🏛️ Filter by Ministry (Optional)", all_ministries, placeholder="Select Ministries (e.g. Agriculture, Jal Shakti)")
+        # Ministry Filter (The Fix)
+        selected_ministry = st.multiselect("🏛️ Filter by Ministry", all_ministries, placeholder="Select Ministry (e.g. Agriculture, Jal Shakti)")
         
-        # Row 2: Geo & Demo
         c1, c2 = st.columns(2)
-        with c1: selected_geo = st.multiselect("🌍 Geography", all_geographies, default=default_geo)
-        with c2: selected_demo = st.multiselect("👥 Beneficiary", all_demographics, default=default_demo)
-
-    # Helper for Budget
-    def get_budget_info(scheme_name):
-        if not budget_db: return None
-        for b in budget_db:
-            if b['Scheme'].lower() in scheme_name.lower() or scheme_name.lower() in b['Scheme'].lower(): return b
-            if "mgnrega" in b['Scheme'].lower() and "employment" in scheme_name.lower(): return b
-            if "pmay" in b['Scheme'].lower() and "awas" in scheme_name.lower(): return b
-        return None
+        with c1: 
+            selected_geo = st.multiselect("🌍 Geography", all_geographies, default=default_geo)
+        with c2: 
+            selected_demo = st.multiselect("👥 Beneficiary", all_demographics, default=default_demo)
 
     # --- 5. SCANNER LOGIC ---
     if st.button("🔍 Scan for Funds"):
-        # We allow search if ANY filter is set
+        # We allow search if ANY filter is set (Ministry OR Geo OR Demo)
         if not (selected_geo or selected_demo or selected_ministry):
             st.warning("Please select at least one filter.")
         else:
@@ -81,13 +76,13 @@ def render_matcher(user_tags=None):
             user_criteria = set(selected_geo + selected_demo)
             
             for item in schemes_db:
-                # A. MINISTRY FILTER (Hard Filter)
-                # If user selected specific ministries, skip schemes that don't match
+                # A. MINISTRY FILTER (Hard Check)
+                # If user selected a Ministry, we ONLY show schemes from that Ministry
                 if selected_ministry:
                     if item.get('Ministry', '').strip() not in selected_ministry:
                         continue
 
-                # B. TAG MATCHING (Soft Score)
+                # B. TAG MATCHING (Soft Check)
                 raw_tags = item.get('Focus', [])
                 if isinstance(raw_tags, str): raw_tags = [raw_tags]
                 scheme_tags = set([str(t).strip() for t in raw_tags])
@@ -95,43 +90,42 @@ def render_matcher(user_tags=None):
                 # C. KEYWORD MATCHING
                 full_text = (str(item.get('Description', '')) + " " + str(item.get('Scheme', ''))).lower()
                 keyword_map = {
-                    "Farmers": ["kisan", "agriculture", "crop"], "Women": ["mahila", "girl", "female", "widow"],
-                    "Students": ["scholarship", "school", "education"], "Urban": ["city", "municipal", "smart city", "amrut"],
-                    "Rural": ["gram", "village", "panchayat", "mgnrega"], "Health": ["ayushman", "health", "medical"],
-                    "Tribal": ["tribal", "vanbasi"], "MSME": ["business", "loan", "pli", "industry"]
+                    "Farmers": ["kisan", "agriculture", "crop", "farm"],
+                    "Women": ["mahila", "girl", "female", "widow", "shakti"],
+                    "Students": ["scholarship", "school", "education", "vidya"],
+                    "Urban": ["city", "municipal", "metro", "smart city", "amrut"],
+                    "Rural": ["gram", "village", "panchayat", "mgnrega"],
+                    "Health": ["ayushman", "health", "medical", "hospital"],
+                    "Tribal": ["tribal", "vanbasi", "forest"],
+                    "MSME": ["business", "loan", "pli", "industry", "credit"]
                 }
                 for tag, keywords in keyword_map.items():
                     if tag in user_criteria and any(k in full_text for k in keywords):
                         scheme_tags.add(tag)
 
-                # D. SCORING
-                # If Geo/Demo filters are set, we score. If only Ministry is set, we show all for that Ministry.
                 matches = user_criteria.intersection(scheme_tags)
                 
-                # Logic: If Geo/Demo selected, must match at least one OR be in selected Ministry
+                # Logic: If Geo/Demo filters ARE set, we need at least one match.
+                # If ONLY Ministry is set, we show everything for that Ministry.
                 if (selected_geo or selected_demo) and not matches and not selected_ministry:
-                    continue 
+                    continue
 
                 item['Match_Score'] = len(matches)
                 item['Matched_Tags'] = list(matches)
                 
-                # E. BUDGET INTEL
-                budget_info = get_budget_info(item['Scheme'])
-                if budget_info:
-                    item['Budget_Alloc'] = budget_info['Allocation_2025_26']
-                    item['Budget_Status'] = budget_info['Status']
-                    item['Budget_Note'] = budget_info['Notes']
-                    item['Boost'] = 100
-                else:
-                    item['Budget_Alloc'] = "Unknown"
-                    item['Budget_Status'] = "Check Dept"
-                    item['Budget_Note'] = ""
-                    item['Boost'] = 0
+                # Boost Score for Budget
+                boost = 0
+                if "High" in item.get('Budget_Status', '') or "Green" in item.get('Budget_Status', ''):
+                    boost = 100
+                elif "Active" in item.get('Budget_Status', ''):
+                    boost = 50
 
+                item['Boost'] = boost
                 found_schemes.append(item)
             
             # Sort: Budget Priority -> Relevance -> Alphabetical
             found_schemes.sort(key=lambda x: (x['Boost'], x['Match_Score']), reverse=True)
+            
             st.session_state['matched_results'] = found_schemes
             st.rerun()
 
@@ -150,30 +144,39 @@ def render_matcher(user_tags=None):
                         st.success(f"✅ Matched: {', '.join(item['Matched_Tags'])}")
                 
                 with c2:
+                    # Budget Badge
                     b_status = item.get('Budget_Status', 'Unknown')
-                    if "Green" in b_status or "High" in b_status:
-                        st.success(f"Budget 25-26: {b_status}")
+                    b_alloc = item.get('Budget_Alloc', 'Check Dept')
+                    
+                    if "Green" in b_status or "High" in b_status or "Active" in b_status:
+                        st.success(f"Budget: {b_status}")
+                        if b_alloc != "Check Dept": st.caption(f"💰 {b_alloc}")
                     elif "Yellow" in b_status:
-                        st.warning(f"Budget 25-26: {b_status}")
+                        st.warning(f"Budget: {b_status}")
                     else:
                         st.info("Budget: Not Linked")
 
-                with st.expander("View Details & Draft"):
-                    # Tabs for Details
-                    tab_ov, tab_elig, tab_doc, tab_proc = st.tabs(["Overview", "Eligibility", "Documents", "Process"])
+                # Details Expander with Tabs
+                with st.expander("View Details & Guidelines"):
+                    t1, t2, t3 = st.tabs(["Overview", "Eligibility & Docs", "Process"])
                     
-                    with tab_ov:
-                        if item.get('Budget_Alloc') != "Unknown":
-                            st.info(f"💰 **2025 Allocation:** {item['Budget_Alloc']} | **Note:** {item['Budget_Note']}")
+                    with t1:
+                        if item.get('Budget_Alloc') != "Check Dept":
+                            st.info(f"**Budget Insight:** {item.get('Budget_Note', 'Allocated in 2025-26 Budget.')}")
                         st.write(f"**Description:** {item.get('Description', '')}")
-                        st.write(f"**Grant:** {item.get('Grant', 'Check Guidelines')}")
+                        st.write(f"**Grant:** {item.get('Grant', 'See Guidelines')}")
 
-                    with tab_elig: st.write(item.get('Eligibility', 'Check Portal'))
-                    with tab_doc: st.write(item.get('Documents', 'Check Portal'))
-                    with tab_proc: st.write(item.get('Process', 'Check Portal'))
+                    with t2:
+                        st.write("### Eligibility")
+                        st.write(item.get('Eligibility', 'Check Portal'))
+                        st.write("### Documents Required")
+                        st.write(item.get('Documents', 'Check Portal'))
 
-                    # Draft Button
-                    if st.button("Draft Proposal", key=f"sc_{item.get('Scheme')}"):
+                    with t3:
+                        st.write("### Application Process")
+                        st.write(item.get('Process', 'Check Portal'))
+
+                    if st.button("Draft Proposal", key=f"btn_{item.get('Scheme')}"):
                         api_key = st.session_state.get('groq_api_key')
                         if not api_key:
                             st.error("Enter API Key in Sidebar")
@@ -185,9 +188,9 @@ def render_matcher(user_tags=None):
                                     Write a formal fund request letter from an MP to the Minister of {item.get('Ministry', 'Govt of India')}.
                                     Subject: Implementation of {item['Scheme']} in my constituency.
                                     Context: 
-                                    - Scheme matches local needs: {', '.join(item.get('Matched_Tags', ['Development']))}.
-                                    - Budget 2025 Allocation: {item.get('Budget_Alloc', 'N/A')}.
-                                    - Request immediate sanction.
+                                    - Scheme fits local needs ({', '.join(item.get('Matched_Tags', ['Development']))}).
+                                    - 2025-26 Budget Allocation: {item.get('Budget_Alloc', 'N/A')}.
+                                    - Requesting immediate sanction.
                                     Tone: Official, Urgent.
                                     """
                                     draft = llm.invoke(prompt).content
@@ -203,7 +206,7 @@ def render_matcher(user_tags=None):
         st.markdown("---")
         st.subheader("📝 Final Draft")
         st.text_area("Output", st.session_state['final_draft_text'], height=400)
-        c1, c2 = st.columns([1,4])
+        c1, c2 = st.columns([1, 4])
         with c1:
             if st.button("💾 Save"):
                 save_draft(st.session_state.get("current_user", "User"), st.session_state['final_draft_title'], st.session_state['final_draft_text'], "Proposal")
