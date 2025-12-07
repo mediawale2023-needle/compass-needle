@@ -9,116 +9,207 @@ def render_matcher(user_tags=None):
     st.header("🎯 Fund Liquidity Radar (Schemes)")
     st.caption("Browse Government Schemes by Geography & Demographics. Budget 2025-26 enabled.")
 
-    # --- 1. LOAD DATABASE ---
+    # --- 1. BUDGET OVERLAY (Hardcoded 2025-26 Data) ---
+    BUDGET_OVERLAY = {
+        "jal jeevan": {"alloc": "₹67,000 Cr", "status": "🟢 Very High Liquidity", "note": "Target: 100% rural tap coverage by 2028."},
+        "mgnrega": {"alloc": "₹86,000 Cr", "status": "🟡 Stagnant", "note": "Same as FY24. Demand-driven."},
+        "pm-kisan": {"alloc": "₹60,000 Cr", "status": "🟢 Active", "note": "Direct Benefit Transfer stable."},
+        "fasal bima": {"alloc": "₹12,242 Cr", "status": "🟢 Active", "note": "Crop Insurance allocation."},
+        "krishi sinchai": {"alloc": "₹11,391 Cr", "status": "🟢 High", "note": "Focus on micro-irrigation."},
+        "fame": {"alloc": "₹4,000 Cr (PM E-DRIVE)", "status": "🟢 Transformed", "note": "FAME is now PM E-DRIVE."},
+        "electric vehicle": {"alloc": "₹4,000 Cr (PM E-DRIVE)", "status": "🟢 Transformed", "note": "Replaces FAME II."},
+        "surya": {"alloc": "₹20,000 Cr", "status": "🟢 Massive Allocation", "note": "PM Surya Ghar Muft Bijli Yojana."},
+        "solar": {"alloc": "₹20,000 Cr", "status": "🟢 Massive Allocation", "note": "PM Surya Ghar Muft Bijli Yojana."},
+        "pmay": {"alloc": "₹23,294 Cr (Urban)", "status": "🟢 Very High", "note": "Part of ₹10L Cr investment plan."},
+        "awas": {"alloc": "₹23,294 Cr (Urban)", "status": "🟢 Very High", "note": "Part of ₹10L Cr investment plan."},
+        "amrut": {"alloc": "₹10,000 Cr", "status": "🟢 Active", "note": "Smart Cities & Urban Rejuvenation."},
+        "samagra": {"alloc": "₹41,250 Cr", "status": "🟢 High Liquidity", "note": "Flagship School Education Scheme."},
+        "poshan": {"alloc": "₹21,960 Cr", "status": "🟢 Very High", "note": "Saksham Anganwadi & Poshan 2.0."},
+        "health mission": {"alloc": "₹37,227 Cr", "status": "🟢 Active", "note": "National Health Mission (NHM)."},
+        "ayushman": {"alloc": "₹9,406 Cr", "status": "🟢 High", "note": "PMJAY Insurance Cover."},
+        "pli": {"alloc": "₹19,000 Cr (Total)", "status": "🟢 High Opportunity", "note": "Electronics, Auto, Textiles PLI."},
+        "khelo": {"alloc": "₹1,000 Cr", "status": "🟢 Active", "note": "Sports Development."},
+        "svanidhi": {"alloc": "₹373 Cr", "status": "🟢 Active", "note": "Street Vendor Loans."}
+    }
+
+    # --- 2. LOAD & DEDUPLICATE DATABASE ---
     schemes_db = []
     try:
         if os.path.exists("schemes.json"):
             with open("schemes.json", "r") as f:
-                schemes_db = json.load(f)
+                raw_data = json.load(f)
+                
+            # DEDUPLICATION LOGIC
+            seen_names = set()
+            for item in raw_data:
+                name = item.get('Scheme', 'Unknown').strip()
+                if name not in seen_names and len(name) > 2:
+                    schemes_db.append(item)
+                    seen_names.add(name)
         else:
-            st.error("⚠️ 'schemes.json' missing. Run 'final_data_build.py' or 'master_reset.py'.")
+            st.error("⚠️ 'schemes.json' not found.")
             return
     except Exception as e:
-        st.error(f"Error loading database: {e}")
+        st.error(f"Error reading database: {e}")
         return
 
-    # --- 2. EXTRACT DYNAMIC FILTERS ---
-    all_geographies = ["Urban", "Rural", "Tribal", "Coastal", "Border Area", "Hilly Area"]
-    all_demographics = ["Farmers", "Women", "Youth", "SC/ST", "MSME", "Minority"]
+    # --- 3. FILTER LISTS ---
+    all_geographies = ["Urban", "Rural", "Tribal", "Coastal", "Border Area", "Aspirational District"]
+    all_demographics = ["Farmers", "Women", "Youth", "SC/ST", "Minority", "MSME", "Students"]
+    
+    # Defaults
+    default_geo = [t for t in (user_tags or []) if t in all_geographies]
+    default_demo = [t for t in (user_tags or []) if t in all_demographics]
 
-    # --- 3. FILTER UI (Simplified) ---
-    with st.expander("📍 Configuration: Select Area and Beneficiary", expanded=True):
+    # --- 4. FILTER UI ---
+    with st.expander("📍 Configure Search Filters", expanded=True):
         c1, c2 = st.columns(2)
-        with c1: selected_geo = st.multiselect("🌍 Geography", all_geographies)
-        with c2: selected_demo = st.multiselect("👥 Beneficiary", all_demographics)
+        with c1: selected_geo = st.multiselect("🌍 Geography", all_geographies, default=default_geo)
+        with c2: selected_demo = st.multiselect("👥 Beneficiary", all_demographics, default=default_demo)
 
-    # --- 4. SCANNING LOGIC ---
-    found_schemes = []
-    
-    for item in schemes_db:
-        # Default: Include all if no filters selected
-        include_item = True
-        
-        # Apply filters if they exist
-        if selected_geo or selected_demo:
-            # Prepare search text (Description + Focus tags)
-            item_text = (str(item.get('Description', '')) + " " + str(item.get('Focus', ''))).lower()
+    # --- 5. SCANNER LOGIC ---
+    if st.button("🔍 Scan for Funds"):
+        if not (selected_geo or selected_demo):
+            st.warning("Please select at least one filter.")
+        else:
+            found_schemes = []
+            # Criteria set
+            user_criteria = set(selected_geo + selected_demo)
             
-            # Check Geography Match
-            geo_match = True
-            if selected_geo:
-                geo_match = any(g.lower() in item_text for g in selected_geo)
-            
-            # Check Demographic Match
-            demo_match = True
-            if selected_demo:
-                demo_match = any(d.lower() in item_text for d in selected_demo)
-            
-            # Must match BOTH criteria types if selected
-            if not (geo_match and demo_match):
-                include_item = False
-        
-        if include_item:
-            found_schemes.append(item)
-
-    # --- 5. DISPLAY SCHEME CARDS ---
-    st.divider()
-    
-    # Limit display to top 50 to ensure speed
-    display_list = found_schemes[:50]
-    
-    if not display_list:
-        st.warning("No schemes found for these specific filters.")
-    else:
-        st.success(f"Displaying {len(display_list)} schemes.")
-
-        # Iterate with index to ensure unique keys
-        for i, scheme in enumerate(display_list):
-            with st.container():
-                col_title, col_status = st.columns([3, 1])
-                with col_title:
-                    st.subheader(scheme.get('Scheme', 'Unknown Scheme'))
-                    st.caption(f"Administered by: **{scheme.get('Ministry', 'Central Govt')}**")
+            for item in schemes_db:
+                # A. Keyword/Tag Matching
+                raw_tags = item.get('Focus', [])
+                if isinstance(raw_tags, str): raw_tags = [raw_tags]
+                scheme_tags = set([str(t).strip() for t in raw_tags])
                 
-                with col_status:
-                    # Show Budget Allocation Badge
-                    alloc = scheme.get('Budget_Alloc', 'Check Dept')
-                    if alloc != "Check Dept":
-                        st.success(f"💰 {alloc}")
+                full_text = (str(item.get('Description', '')) + " " + str(item.get('Scheme', ''))).lower()
+                
+                kw_map = {
+                    "Farmers": ["kisan", "agriculture", "crop"], "Women": ["mahila", "girl", "female", "widow"],
+                    "Students": ["scholarship", "school", "education"], "Urban": ["city", "municipal", "smart city", "amrut"],
+                    "Rural": ["gram", "village", "panchayat", "mgnrega"], "Health": ["ayushman", "health", "medical"],
+                    "Tribal": ["tribal", "vanbasi", "forest"], "MSME": ["business", "loan", "pli", "industry"],
+                    "Fishermen": ["fish", "matsya", "boat"], "Water": ["jal", "water", "irrigation"]
+                }
+                for tag, keywords in kw_map.items():
+                    if tag in user_criteria and any(k in full_text for k in keywords):
+                        scheme_tags.add(tag)
+
+                matches = user_criteria.intersection(scheme_tags)
+                
+                # Logic: If Geo/Demo filters set, require match.
+                if (selected_geo or selected_demo) and not matches:
+                    continue
+
+                item['Matched_Tags'] = list(matches)
+                item['Match_Score'] = len(matches)
+                
+                # B. APPLY BUDGET OVERLAY
+                s_name_lower = item['Scheme'].lower()
+                budget_hit = False
+                
+                for key, data in BUDGET_OVERLAY.items():
+                    if key in s_name_lower:
+                        item['Budget_Alloc'] = data['alloc']
+                        item['Budget_Status'] = data['status']
+                        item['Budget_Note'] = data['note']
+                        item['Boost'] = 100
+                        budget_hit = True
+                        break
+                
+                if not budget_hit:
+                    item['Budget_Alloc'] = "Check Dept"
+                    item['Budget_Status'] = "Unknown"
+                    item['Budget_Note'] = ""
+                    item['Boost'] = 0
+
+                found_schemes.append(item)
+            
+            # Sort
+            found_schemes.sort(key=lambda x: (x['Boost'], x['Match_Score']), reverse=True)
+            st.session_state['matched_results'] = found_schemes
+            st.rerun()
+
+    # --- 6. DISPLAY RESULTS ---
+    if st.session_state.get('matched_results'):
+        results = st.session_state['matched_results']
+        st.success(f"Found {len(results)} relevant schemes.")
+        
+        # Use ENUMERATE to generate unique keys (Fixes the crash)
+        for i, item in enumerate(results[:50]):
+            with st.container():
+                c1, c2 = st.columns([3, 1])
+                with c1:
+                    st.subheader(item.get('Scheme', 'Unknown'))
+                    st.caption(f"Ministry: {item.get('Ministry', 'N/A')}")
+                    if item.get('Matched_Tags'):
+                        st.success(f"✅ Matched: {', '.join(item['Matched_Tags'])}")
+                
+                with c2:
+                    # Budget Badge
+                    b_status = item.get('Budget_Status', 'Unknown')
+                    b_alloc = item.get('Budget_Alloc', 'Check Dept')
+                    
+                    if "Green" in b_status or "High" in b_status or "Active" in b_status:
+                        st.success(f"Budget 25-26: {b_status}")
+                        if b_alloc != "Check Dept": st.caption(f"💰 {b_alloc}")
+                    elif "Yellow" in b_status:
+                        st.warning(f"Budget: {b_status}")
                     else:
-                        st.info("Budget: N/A")
+                        st.info("Budget: Not Linked")
 
-                # Detailed View
-                with st.expander("🔍 View Scheme Details & Guidelines", expanded=False):
-                    t1, t2, t3 = st.tabs(["Overview", "Eligibility & Docs", "Action"])
+                with st.expander("View Details & Guidelines"):
+                    if item.get('Budget_Alloc') != "Check Dept":
+                        st.markdown(f"### 💰 2025-26 Allocation: **{item['Budget_Alloc']}**")
+                        st.info(f"**Intel:** {item['Budget_Note']}")
                     
-                    with t1:
-                        st.write(f"**Description:** {scheme.get('Description')}")
-                        st.write(f"**Grant Details:** {scheme.get('Grant')}")
+                    st.write(item.get('Description', ''))
                     
-                    with t2:
-                        st.write(f"**Eligibility:** {scheme.get('Eligibility')}")
-                        st.write(f"**Required Documents:** {scheme.get('Documents')}")
-                        st.write(f"**Application Process:** {scheme.get('Process')}")
+                    # Details Tabs
+                    t1, t2, t3 = st.tabs(["Eligibility", "Documents", "Process"])
+                    with t1: st.write(item.get('Eligibility', 'Check Portal'))
+                    with t2: st.write(item.get('Documents', 'Check Portal'))
+                    with t3: st.write(item.get('Process', 'Check Portal'))
 
-                    with t3:
-                        # Unique key using index 'i' to prevent DuplicateKeyError
-                        if st.button("📝 Draft Sanction Letter", key=f"draft_{i}"):
-                            api_key = st.session_state.get('groq_api_key')
-                            if not api_key:
-                                st.error("Please enter Groq API Key in sidebar first.")
-                            else:
-                                with st.spinner("Drafting..."):
-                                    try:
-                                        llm = ChatGroq(temperature=0.5, groq_api_key=api_key, model_name="llama-3.1-8b-instant")
-                                        prompt = f"""
-                                        Write a formal letter from an MP requesting implementation of {scheme.get('Scheme')} in his district. 
-                                        Mention current 2025 budget allocation ({scheme.get('Budget_Alloc', 'N/A')}) if applicable.
-                                        """
-                                        draft = llm.invoke(prompt).content
-                                        st.text_area("Final Draft", draft, height=250)
-                                        show_download_button(draft, f"{scheme.get('Scheme')}_proposal")
-                                        save_draft("milind_deora", scheme.get('Scheme'), draft, "Letter")
-                                    except Exception as e:
-                                        st.error(f"AI Error: {e}")
+                    # UNIQUE KEY GENERATION (The Fix)
+                    if st.button("Draft Proposal", key=f"btn_{i}_{item.get('Scheme')[:10]}"):
+                        api_key = st.session_state.get('groq_api_key')
+                        if not api_key:
+                            st.error("Enter API Key in Sidebar")
+                        else:
+                            with st.spinner("Drafting..."):
+                                try:
+                                    llm = ChatGroq(temperature=0.5, groq_api_key=api_key, model_name="llama-3.1-8b-instant")
+                                    
+                                    budget_ctx = ""
+                                    if item.get('Budget_Alloc') != "Check Dept":
+                                        budget_ctx = f"- Note: 2025-26 Budget Allocation is {item['Budget_Alloc']}."
+                                    
+                                    prompt = f"""
+                                    Write a formal letter from an MP to the Minister of {item.get('Ministry', 'Govt of India')}.
+                                    Subject: Implementation of {item['Scheme']} in my constituency.
+                                    Context: 
+                                    - Matches local needs.
+                                    {budget_ctx}
+                                    - Request immediate sanction.
+                                    Tone: Official, Urgent.
+                                    """
+                                    draft = llm.invoke(prompt).content
+                                    st.session_state['final_draft_text'] = draft
+                                    st.session_state['final_draft_title'] = f"Proposal: {item['Scheme']}"
+                                    track_action(f"Drafted Proposal for {item['Scheme']}")
+                                except Exception as e:
+                                    st.error(f"AI Error: {e}")
             st.divider()
+
+    # --- 7. SAVE DRAFT ---
+    if st.session_state.get('final_draft_text'):
+        st.markdown("---")
+        st.subheader("📝 Final Draft")
+        st.text_area("Output", st.session_state['final_draft_text'], height=400)
+        c1, c2 = st.columns([1, 4])
+        with c1:
+            if st.button("💾 Save"):
+                save_draft(st.session_state.get("current_user", "User"), st.session_state['final_draft_title'], st.session_state['final_draft_text'], "Proposal")
+        with c2:
+            show_download_button(st.session_state['final_draft_text'], "Proposal")
