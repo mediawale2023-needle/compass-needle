@@ -10,8 +10,6 @@ def render_matcher(user_tags=None):
     st.caption("Match constituency needs with active Government Schemes & **2025-26 Budget Status**.")
 
     # --- 1. THE TRUTH SOURCE (Embedded Budget Data) ---
-    # This dictionary acts as an overlay. If a scheme name matches a key here (partially),
-    # it gets the Budget Allocation tag.
     BUDGET_OVERLAY = {
         "jal jeevan": {"alloc": "₹67,000 Cr", "status": "🟢 Very High Liquidity", "note": "Target: 100% rural tap coverage by 2028."},
         "mgnrega": {"alloc": "₹86,000 Cr", "status": "🟡 Stagnant", "note": "Same as FY24. Demand-driven."},
@@ -42,7 +40,7 @@ def render_matcher(user_tags=None):
         "svanidhi": {"alloc": "₹373 Cr", "status": "🟢 Active", "note": "Street Vendor Loans."}
     }
 
-    # --- 2. LOAD SCHEMES (From JSON) ---
+    # --- 2. LOAD SCHEMES ---
     schemes_db = []
     try:
         if os.path.exists("schemes.json"):
@@ -56,21 +54,16 @@ def render_matcher(user_tags=None):
         return
 
     # --- 3. FILTER LISTS ---
-    all_geographies = [
-        "Urban", "Rural", "Semi-Urban", "Tribal (Scheduled Area)", "Coastal", 
-        "Hilly Area", "Border Area", "Aspirational District", "Industrial Zone", 
-        "North East Region", "Drought Prone", "Flood Prone", "LWE Affected"
-    ]
-    all_demographics = [
-        "Farmers", "Fishermen", "Youth (18-35)", "Women", "Children", 
-        "Senior Citizens", "SC (Scheduled Caste)", "ST (Scheduled Tribe)", 
-        "OBC", "Minority Communities", "Disabled (Divyangjan)", "MSME Owners",
-        "Artisans", "Weavers", "Street Vendors", "Students", "BPL"
-    ]
-    
-    # Extract Ministries for Dropdown
+    # Extract unique ministries for dropdown
     all_ministries = sorted(list(set([str(s.get('Ministry', '')).strip() for s in schemes_db if s.get('Ministry')])))
+    
+    # Safe fallback if extraction fails
+    if not all_ministries:
+        all_ministries = ["Ministry of Agriculture", "Ministry of Jal Shakti", "Ministry of Power", "Ministry of Education", "Ministry of Health"]
 
+    all_geographies = ["Urban", "Rural", "Tribal", "Coastal", "Border Area", "Aspirational District"]
+    all_demographics = ["Farmers", "Women", "Youth", "SC/ST", "Minority", "MSME", "Students"]
+    
     # Defaults
     default_geo = [t for t in (user_tags or []) if t in all_geographies]
     default_demo = [t for t in (user_tags or []) if t in all_demographics]
@@ -102,12 +95,11 @@ def render_matcher(user_tags=None):
                 
                 full_text = (str(item.get('Description', '')) + " " + str(item.get('Scheme', ''))).lower()
                 
-                # Keyword Map
                 kw_map = {
                     "Farmers": ["kisan", "agriculture", "crop"], "Women": ["mahila", "girl", "female", "widow"],
                     "Students": ["scholarship", "school", "education"], "Urban": ["city", "municipal", "smart city", "amrut"],
                     "Rural": ["gram", "village", "panchayat", "mgnrega"], "Health": ["ayushman", "health", "medical"],
-                    "Tribal": ["tribal", "vanbasi"], "MSME": ["business", "loan", "pli", "industry"],
+                    "Tribal": ["tribal", "vanbasi", "forest"], "MSME": ["business", "loan", "pli", "industry"],
                     "Fishermen": ["fish", "matsya", "boat"], "Water": ["jal", "water", "irrigation"]
                 }
                 for tag, keywords in kw_map.items():
@@ -119,11 +111,10 @@ def render_matcher(user_tags=None):
                 if (selected_geo or selected_demo) and not matches and not selected_ministry:
                     continue
 
-                item['Match_Score'] = len(matches)
                 item['Matched_Tags'] = list(matches)
+                item['Match_Score'] = len(matches)
                 
-                # C. BUDGET OVERLAY (The Magic Fix)
-                # We check the scheme name against our hardcoded budget map
+                # C. BUDGET OVERLAY
                 s_name_lower = item['Scheme'].lower()
                 budget_hit = False
                 
@@ -154,7 +145,8 @@ def render_matcher(user_tags=None):
         results = st.session_state['matched_results']
         st.success(f"Found {len(results)} relevant schemes.")
         
-        for item in results[:50]:
+        # ERROR FIX: Added 'enumerate' to generate unique keys for buttons
+        for i, item in enumerate(results[:50]):
             with st.container():
                 c1, c2 = st.columns([3, 1])
                 with c1:
@@ -166,8 +158,11 @@ def render_matcher(user_tags=None):
                 with c2:
                     # Budget Badge
                     b_status = item.get('Budget_Status', 'Unknown')
-                    if "Green" in b_status or "High" in b_status:
+                    b_alloc = item.get('Budget_Alloc', 'Check Dept')
+                    
+                    if "Green" in b_status or "High" in b_status or "Active" in b_status:
                         st.success(f"Budget 25-26: {b_status}")
+                        if b_alloc != "Check Dept": st.caption(f"💰 {b_alloc}")
                     elif "Yellow" in b_status:
                         st.warning(f"Budget 25-26: {b_status}")
                     else:
@@ -186,7 +181,8 @@ def render_matcher(user_tags=None):
                     with t2: st.write(item.get('Documents', 'Check Portal'))
                     with t3: st.write(item.get('Process', 'Check Portal'))
 
-                    if st.button("Draft Proposal", key=f"btn_{item.get('Scheme')}"):
+                    # ERROR FIX: Unique Key generated using index 'i'
+                    if st.button("Draft Proposal", key=f"btn_{i}_{item.get('Scheme')}"):
                         api_key = st.session_state.get('groq_api_key')
                         if not api_key:
                             st.error("Enter API Key in Sidebar")
@@ -194,7 +190,7 @@ def render_matcher(user_tags=None):
                             with st.spinner("Drafting..."):
                                 try:
                                     llm = ChatGroq(temperature=0.5, groq_api_key=api_key, model_name="llama-3.1-8b-instant")
-                                    # Use budget info in prompt
+                                    # Prompt logic
                                     budget_ctx = ""
                                     if item.get('Budget_Alloc') != "Check Dept":
                                         budget_ctx = f"- Note: 2025-26 Budget Allocation is {item['Budget_Alloc']}."
