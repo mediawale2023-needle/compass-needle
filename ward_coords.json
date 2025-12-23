@@ -1,0 +1,10 @@
+{
+  "Arabhavi": { "lat": 16.2250, "lon": 74.8250, "name": "Arabhavi" },
+  "Gokak": { "lat": 16.1691, "lon": 74.8298, "name": "Gokak" },
+  "Belgaum Uttar": { "lat": 15.8850, "lon": 74.5250, "name": "Belgaum North" },
+  "Belgaum Dakshin": { "lat": 15.8350, "lon": 74.5050, "name": "Belgaum South" },
+  "Belgaum Rural": { "lat": 15.8000, "lon": 74.4300, "name": "Belgaum Rural" },
+  "Bailhongal": { "lat": 15.8194, "lon": 74.8631, "name": "Bailhongal" },
+  "Saundatti Yellamma": { "lat": 15.7770, "lon": 75.1220, "name": "Saundatti" },
+  "Ramdurg": { "lat": 15.9447, "lon": 75.2975, "name": "Ramdurg" }
+}
