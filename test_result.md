@@ -101,3 +101,81 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Build an Admin Dashboard that allows admin to:
+  1) Onboard new MPs
+  2) Reset MP passwords
+  3) Upload Election Commission polling-station PDFs
+  4) Convert PDFs into JSON using pdfplumber (NO AI)
+  5) Allow admin to manually edit JSON before saving
+  6) Store constituency metadata as free-text JSON
+  Also build a backend-only geography resolver that maps grievance text to Assembly/Parliamentary Constituency.
+
+backend:
+  - task: "Admin Dashboard - Streamlit App"
+    implemented: true
+    working: "NA"
+    file: "/app/admin_dashboard.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Created admin_dashboard.py with 3 tabs: MP Management, Geography Upload, Constituency Metadata"
+
+  - task: "Geography Resolver - Backend Module"
+    implemented: true
+    working: true
+    file: "/app/sansadx-backend/geography_resolver.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Created geography_resolver.py with deterministic location matching. Tested successfully with sample data."
+
+  - task: "Geography Integration in Grievance Processing"
+    implemented: true
+    working: "NA"
+    file: "/app/sansadx-backend/main.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Integrated geography resolver into process_and_reply function. Added geography endpoints."
+
+frontend:
+  - task: "No frontend changes required"
+    implemented: true
+    working: "NA"
+    file: "N/A"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Admin Dashboard is a separate Streamlit app, not part of React frontend"
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Geography Resolver API endpoints"
+    - "Admin Dashboard MP Management"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Implemented Admin Dashboard (Streamlit) with 3 tabs and Geography Resolver backend. Ready for testing."
