@@ -13,9 +13,10 @@ from db import SessionLocal, init_db, Case, Tenant, User
 from jurisdiction import get_classification
 from prompts import SYSTEM_PROMPT
 from llm_client import call_sansadx_model
-from twilio_client import send_whatsapp_message, send_typing_indicator # <--- NEW IMPORT
+from twilio_client import send_whatsapp_message, send_typing_indicator
+from geography_resolver import load_geography_index, enrich_grievance_with_location, get_index_stats
 
-app = FastAPI(title="Needle SaaS Core", version="1.6 (Human Touch)")
+app = FastAPI(title="Needle SaaS Core", version="1.7 (Geography Resolver)")
 
 # --- DATABASE DEPENDENCY ---
 def get_db():
