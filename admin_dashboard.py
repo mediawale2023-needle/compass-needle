@@ -155,7 +155,7 @@ def ensure_admin_exists():
             db.commit()
             return True
         return False
-    except:
+    except Exception:
         db.rollback()
         return False
     finally:
