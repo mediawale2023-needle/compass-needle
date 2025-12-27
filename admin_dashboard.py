@@ -389,7 +389,7 @@ def main():
                     else:
                         st.error("❌ Invalid credentials or insufficient permissions")
             
-            st.caption("💡 Default admin: sysadmin / admin123")
+            st.caption("💡 Existing admin: admin / admin (or create sysadmin via DB)")
         return
     
     # --- Admin Dashboard ---
