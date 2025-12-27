@@ -29,6 +29,9 @@ def get_db():
 @app.on_event("startup")
 def on_startup():
     init_db()
+    # Load geography index for location resolution
+    load_geography_index()
+    print(f"📍 Geography Index Stats: {get_index_stats()}")
 
 # --- PYDANTIC MODELS ---
 class SimulationRequest(BaseModel):
