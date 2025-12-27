@@ -93,7 +93,6 @@ def load_geography_index() -> bool:
                     # Index by station number
                     station_num = station.get("station_number", "")
                     if station_num:
-                        key = f"{parliamentary}_{assembly}_{station_num}"
                         _geography_index["station_numbers"][station_num] = {
                             "assembly_constituency": assembly,
                             "parliamentary_constituency": parliamentary,
