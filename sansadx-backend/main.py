@@ -136,6 +136,30 @@ def process_and_reply(user_message: str, user_phone: str, db: Session, target_bo
         case.response_to_citizen = response_text
         case.notes_for_staff = g_data.get("summary", "No summary")
 
+        # 🗺️ GEOGRAPHY ENRICHMENT (Deterministic Resolution)
+        # Run geography resolver to enrich with constituency data
+        geography_data = {
+            "raw_message": user_message,
+            "location": g_data.get("location", "")
+        }
+        enriched = enrich_grievance_with_location(geography_data)
+        geo_result = enriched.get("geography", {})
+        
+        if geo_result.get("location_resolved"):
+            # Store resolved geography in notes_for_staff as JSON metadata
+            geo_info = f"\n📍 RESOLVED: {geo_result.get('assembly_constituency', 'N/A')} (AC), {geo_result.get('parliamentary_constituency', 'N/A')} (PC)"
+            if geo_result.get("polling_station"):
+                geo_info += f", Station #{geo_result.get('polling_station')}"
+            case.notes_for_staff = (case.notes_for_staff or "") + geo_info
+            
+            # Update ward if resolved
+            if geo_result.get("assembly_constituency"):
+                case.ward = geo_result.get("assembly_constituency")
+            
+            print(f"📍 Location resolved: {geo_result}")
+        else:
+            print(f"📍 Location not resolved for: {g_data.get('location', 'N/A')}")
+
         db.commit()
         db.refresh(case)
 
