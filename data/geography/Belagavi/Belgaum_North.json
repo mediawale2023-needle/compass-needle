@@ -1,0 +1,27 @@
+[
+  {
+    "station_number": "1",
+    "locality": "Muglihal",
+    "building_name": "Govt Primary School"
+  },
+  {
+    "station_number": "2",
+    "locality": "Shahapur",
+    "building_name": "Zilla Parishad School"
+  },
+  {
+    "station_number": "3",
+    "locality": "Tilakwadi",
+    "building_name": "KLE College"
+  },
+  {
+    "station_number": "4",
+    "locality": "Vadgaon",
+    "building_name": "Municipal School"
+  },
+  {
+    "station_number": "5",
+    "locality": "Angol",
+    "building_name": "Community Hall"
+  }
+]
