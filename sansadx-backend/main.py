@@ -279,3 +279,23 @@ def simulate(payload: SimulationRequest, db: Session = Depends(get_db)):
 @app.get("/cases")
 def list_cases(db: Session = Depends(get_db)):
     return db.query(Case).order_by(Case.created_at.desc()).all()
+
+# --- GEOGRAPHY ENDPOINTS ---
+from geography_resolver import reload_index, resolve_location
+
+@app.get("/geography/stats")
+def geography_stats():
+    """Get geography index statistics"""
+    return get_index_stats()
+
+@app.post("/geography/reload")
+def geography_reload():
+    """Reload geography index (after admin uploads new data)"""
+    success = reload_index()
+    return {"status": "reloaded" if success else "empty", "stats": get_index_stats()}
+
+@app.post("/geography/resolve")
+def geography_resolve(text: str):
+    """Test geography resolver with a text string"""
+    result = resolve_location(text)
+    return result
