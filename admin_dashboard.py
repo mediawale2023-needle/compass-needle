@@ -41,9 +41,9 @@ def verify_admin_login(username: str, password: str) -> dict:
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.username == username).first()
-        if user and user.role == "admin":
+        # Accept "admin", "super_admin", or "sysadmin" roles
+        if user and user.role in ("admin", "super_admin", "sysadmin"):
             # For simplicity, we check plain password or hashed
-            # Accept both "admin" and "super_admin" roles
             if user.password_hash == password or user.password_hash == hash_password(password):
                 return {"success": True, "username": user.username, "tenant_id": user.tenant_id}
         return {"success": False}
