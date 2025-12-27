@@ -180,7 +180,6 @@ def resolve_location(text: str, context: Optional[Dict] = None) -> Dict[str, Any
         return {"location_resolved": False}
     
     normalized_text = normalize_text(text)
-    words = normalized_text.split()
     
     # --- RESOLUTION ORDER (Strict, Exact Match Only) ---
     
