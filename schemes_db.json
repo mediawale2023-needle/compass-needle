@@ -1,0 +1,2512 @@
+[
+    {
+        "id": "AGRICULTURE_0",
+        "name": "Pradhan Mantri KISAN Samman Nidhi (PM-KISAN)",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To provide income support to all landholding farmers' families to supplement their financial needs.",
+        "focus": "Financial Assistance",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b960,000 Cr"
+    },
+    {
+        "id": "AGRICULTURE_1",
+        "name": "Pradhan Mantri Fasal Bima Yojana (PMFBY)",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To provide insurance coverage and financial support to farmers in the event of crop failure.",
+        "focus": "Financial Assistance",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b914,600 Cr"
+    },
+    {
+        "id": "AGRICULTURE_2",
+        "name": "Pradhan Mantri Krishi Sinchai Yojana (PMKSY)",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To enhance irrigation coverage and improve water use efficiency in a focused manner.",
+        "focus": "Agricultural Development and Sustainability",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b912,000 Cr"
+    },
+    {
+        "id": "AGRICULTURE_3",
+        "name": "Pradhan Mantri Kisan Maan-Dhan Yojana (PM-KMY)",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To provide social security to small and marginal farmers in their old age.",
+        "focus": "Financial Assistance",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b912,000 Cr"
+    },
+    {
+        "id": "AGRICULTURE_4",
+        "name": "Krishi Kalyan Abhiyan",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To aid, assist and advise farmers on the best agricultural practices and enhance their incomes.",
+        "focus": "Agricultural Development and Sustainability",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b98,000 Cr"
+    },
+    {
+        "id": "AGRICULTURE_5",
+        "name": "Soil Health Cards (SHC) Scheme",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To promote soil test-based and balanced use of fertilizers to enable farmers to realize higher yields.",
+        "focus": "Agricultural Development and Sustainability",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b938,000 Cr"
+    },
+    {
+        "id": "AGRICULTURE_6",
+        "name": "National Bamboo Mission",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To promote the growth of the bamboo sector through area-based, regionally differentiated strategy.",
+        "focus": "Infrastructure",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b91,275 Cr"
+    },
+    {
+        "id": "AGRICULTURE_7",
+        "name": "Green Revolution \u2013 Krishonnati Yojana",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To develop the agriculture and allied sectors in a holistic and sustainable manner.",
+        "focus": "Education and Training",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b98,000 Cr"
+    },
+    {
+        "id": "AGRICULTURE_8",
+        "name": "Yuva Sahakar-Cooperative Enterprise Support and Innovation Scheme",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To encourage cooperatives to take up innovative ventures for socio-economic development.",
+        "focus": "Education and Training",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "AGRICULTURE_9",
+        "name": "Pradhan Mantri Annadata Aay SanraksHan Abhiyan (PM-AASHA)",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To ensure remunerative prices to the farmers for their produce.",
+        "focus": "Support and protection",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b91,815 Cr"
+    },
+    {
+        "id": "AGRICULTURE_10",
+        "name": "Paramparagat Krishi Vikas Yojana (PKVY)",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To promote organic farming and improve soil health.",
+        "focus": "Education and Training",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b98,500 Cr"
+    },
+    {
+        "id": "AGRICULTURE_11",
+        "name": "National Food Security Mission (NFSM)",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To increase the production of rice, wheat, pulses, coarse cereals, and commercial crops.",
+        "focus": "Education and Training",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b938,000 Cr"
+    },
+    {
+        "id": "AGRICULTURE_12",
+        "name": "Pandit Deen Dayal Upadhyay Unnat Krishi Shiksha Yojana (PDDUUKSY)",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To promote agricultural education and research in the country.",
+        "focus": "Education and Training",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b98,500 Cr"
+    },
+    {
+        "id": "AGRICULTURE_13",
+        "name": "Rashtriya Gokul Mission (RGM)",
+        "ministry": "Ministry of Fisheries, Animal Husbandry & Dairying",
+        "description": "To develop and conserve indigenous bovine breeds for improving their genetic makeup and increasing the milk production.",
+        "focus": "Education and Training",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b938,000 Cr"
+    },
+    {
+        "id": "AGRICULTURE_14",
+        "name": "National Beekeeping and Honey Mission (NBHM)",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To promote holistic growth of the beekeeping industry for income and employment generation.",
+        "focus": "Agricultural Development and Sustainability",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b938,000 Cr"
+    },
+    {
+        "id": "AGRICULTURE_15",
+        "name": "National Mission on Edible Oils (NMEO-OP)",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To augment the availability of edible oils and reduce import dependence through the promotion of oilseed cultivation.",
+        "focus": "Education and Training",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b938,000 Cr"
+    },
+    {
+        "id": "AGRICULTURE_16",
+        "name": "National Mission on Natural Farming (NMNF)",
+        "ministry": "Ministry of Agriculture & Farmers' Welfare",
+        "description": "To promote natural farming practices across the country for sustainable agriculture.",
+        "focus": "Education and Training",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b9459 Cr"
+    },
+    {
+        "id": "AGRICULTURE_17",
+        "name": "National Scheme of Welfare of Fishermen (NSWF)",
+        "ministry": "Ministry of Fisheries, Animal Husbandry & Dairying",
+        "description": "To provide financial assistance to fishers for housing, insurance, and other social security measures.",
+        "focus": "Financial Assistance",
+        "category": "AGRICULTURE",
+        "active": "Yes",
+        "budget_allocation": "\u20b938,000 Cr"
+    },
+    {
+        "id": "PORTS_0",
+        "name": "Setu Bharatam",
+        "ministry": "Ministry of Road Transport & Highways",
+        "description": "To free all national highways from railway level crossings and renovate old bridges by 2019.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_1",
+        "name": "Bharatmala",
+        "ministry": "Ministry of Road Transport & Highways",
+        "description": "Develop border and international connectivity roads, coastal and port connectivity roads, and improve efficiency of national corridors and economic corridors.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_2",
+        "name": "National Highways Interconnectivity Improvement Project",
+        "ministry": "Ministry of Road Transport & Highways",
+        "description": "Ensure safe, fast, and all-weather movement of traffic on National Highways in backward regions.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_3",
+        "name": "Logistic Efficiency Enhancement Programme (LEEP)",
+        "ministry": "Ministry of Road Transport & Highways",
+        "description": "Enhance freight transportation by improving cost, time, tracking, and transferability of consignments through infrastructure, procedural, and IT interventions.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_4",
+        "name": "Vehicle Fleet Modernization Programme",
+        "ministry": "Ministry of Road Transport & Highways",
+        "description": "Promote port-led direct and indirect development and provide infrastructure to transport goods to and from ports quickly, efficiently, and cost-effectively.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_5",
+        "name": "Sagarmala Programme",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To promote port-led development through infrastructure and connectivity enhancement projects.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_6",
+        "name": "National Maritime Development Programme (NMDP)",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To modernize and develop major ports with world-class infrastructure and facilities.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "\u20b9600 Cr"
+    },
+    {
+        "id": "PORTS_7",
+        "name": "Project Unnati",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To improve the operational efficiency of major ports.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_8",
+        "name": "Green Ports Initiative",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To make Indian ports more environmentally sustainable through eco-friendly practices.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_9",
+        "name": "Inland Waterways Authority of India (IWAI)",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To develop and regulate inland waterways for shipping and navigation.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_10",
+        "name": "Coastal Berth Scheme",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To promote coastal shipping and decongest road and rail networks.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_11",
+        "name": "National Waterways",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To develop designated inland waterways for cargo and passenger transportation.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "\u20b938,000 Cr"
+    },
+    {
+        "id": "PORTS_12",
+        "name": "Port Community System (PCS)",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To provide a single electronic platform for port-related processes and documentation.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_13",
+        "name": "Maritime India Vision 2030",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To drive the growth of India's maritime sector and enhance the global competitiveness of Indian ports.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "\u20b92,400 Cr"
+    },
+    {
+        "id": "PORTS_14",
+        "name": "Shipbuilding Financial Assistance Policy",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To provide financial assistance to Indian shipyards for shipbuilding projects.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_15",
+        "name": "Chabahar Port Development",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To develop and operate the Chabahar Port in Iran to enhance trade connectivity.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_16",
+        "name": "National Logistics Portal (Marine)",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To integrate multiple systems across various stakeholders involved in the logistics sector.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "\u20b9459 Cr"
+    },
+    {
+        "id": "PORTS_17",
+        "name": "Cruise Shipping Policy",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To promote cruise tourism and develop necessary infrastructure and services at Indian ports.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_18",
+        "name": "Ship Recycling Act",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To regulate ship recycling activities in an environmentally friendly and safe manner.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_19",
+        "name": "Lighthouse Development Programme",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To enhance the navigational safety and tourism potential of lighthouses in India.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_20",
+        "name": "Seafarers Welfare Fund Society (SWFS)",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To provide welfare measures and financial assistance to Indian seafarers and their families.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_21",
+        "name": "National Shipbuilding Policy",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To promote the growth of the Indian shipbuilding industry and make it globally competitive.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_22",
+        "name": "Coastal Shipping Promotion",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To enhance the share of coastal shipping in domestic cargo transportation.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_23",
+        "name": "Bharat Mala Project",
+        "ministry": "Ministry of Road Transport and Highways",
+        "description": "To improve road connectivity to major ports, ensuring seamless and efficient transportation.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_24",
+        "name": "Sagarmala Development Company",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To provide equity support for port-led development projects under the Sagarmala Programme.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_25",
+        "name": "Major Port Authorities Act",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To provide greater autonomy to major ports for efficient decision-making and management.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_26",
+        "name": "Port Modernization Program",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To upgrade existing port infrastructure and introduce advanced technology for better efficiency.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_27",
+        "name": "Coastal Economic Zones (CEZs)",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To promote port-led industrialization through the development of Coastal Economic Zones.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_28",
+        "name": "Sagarmala Development Fund",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To provide funding support for infrastructure projects under the Sagarmala initiative.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "PORTS_29",
+        "name": "Port-led Industrialization",
+        "ministry": "Ministry of Ports, Shipping and Waterways",
+        "description": "To boost industrial growth by leveraging the proximity of industries to ports.",
+        "focus": "General",
+        "category": "PORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "POWER_0",
+        "name": "Saubhagya",
+        "ministry": "Ministry of Power",
+        "description": "To provide electricity connections to over 4 crore families in rural and urban areas by December 2018.",
+        "focus": "General",
+        "category": "POWER",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "POWER_1",
+        "name": "UDAY",
+        "ministry": "Ministry of Power",
+        "description": "Making all discoms profitable by 2018-19 through improving operational efficiencies, reducing power costs, reducing interest costs, and enforcing financial discipline on discoms.",
+        "focus": "General",
+        "category": "POWER",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "POWER_2",
+        "name": "Deendayal Upadhyaya Gram Jyoti Yojana (DUGJY)",
+        "ministry": "Ministry of Power",
+        "description": "To provide 24\u00d77 uninterrupted electricity supply to each rural household across the country by 2022.",
+        "focus": "General",
+        "category": "POWER",
+        "active": "Yes",
+        "budget_allocation": "\u20b912,000 Cr"
+    },
+    {
+        "id": "POWER_3",
+        "name": "24\u00d77 \u2013 Power for All",
+        "ministry": "Ministry of Power",
+        "description": "To provide 24\u00d77 power availability to all households, industries, commercial businesses, and agriculture by FY 19.",
+        "focus": "General",
+        "category": "POWER",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "POWER_4",
+        "name": "Integrated Power Development Scheme (IPDS)",
+        "ministry": "Ministry of Power",
+        "description": "Strengthening sub-transmission and distribution network in urban areas, metering distribution transformers/feeders/consumers, and IT enablement of distribution sector.",
+        "focus": "General",
+        "category": "POWER",
+        "active": "Yes",
+        "budget_allocation": "\u20b922,600 Cr"
+    },
+    {
+        "id": "POWER_5",
+        "name": "National Smart Grid Mission (NSGM)",
+        "ministry": "Ministry of Power",
+        "description": "Implementation of a smart electrical grid with advanced technology in automation, communication, and IT systems to monitor and control power flows.",
+        "focus": "General",
+        "category": "POWER",
+        "active": "Yes",
+        "budget_allocation": "\u20b938,000 Cr"
+    },
+    {
+        "id": "POWER_6",
+        "name": "UJALA",
+        "ministry": "Ministry of Power",
+        "description": "To save energy by distributing energy-efficient LED bulbs.",
+        "focus": "General",
+        "category": "POWER",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "POWER_7",
+        "name": "TARANG, UJALA, VIDYUT PRAVAH, GARV, URJA, and MERIT",
+        "ministry": "Ministry of Power",
+        "description": "Enhance transparency in the power sector in line with the Digital India initiative.",
+        "focus": "General",
+        "category": "POWER",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "POWER_8",
+        "name": "Sustainable Rooftop Implementation for Solar Transfiguration of India (SRISTI)",
+        "ministry": "Ministry of New and Renewable Energy (MNRE)",
+        "description": "Provide incentives for installing rooftop solar power plant projects.",
+        "focus": "General",
+        "category": "POWER",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "POWER_9",
+        "name": "Green Energy Corridors Project",
+        "ministry": "Ministry of New and Renewable Energy (MNRE)",
+        "description": "Create a dedicated transmission network for renewable energy.",
+        "focus": "General",
+        "category": "POWER",
+        "active": "Yes",
+        "budget_allocation": "\u20b9600 Cr"
+    },
+    {
+        "id": "POWER_10",
+        "name": "India\u2019s Street Lighting National Programme (SLNP)",
+        "ministry": "Ministry of Power",
+        "description": "Install LED street lights across cities to promote energy efficiency.",
+        "focus": "General",
+        "category": "POWER",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "POWER_11",
+        "name": "SuryaMitra Programme",
+        "ministry": "Ministry of New and Renewable Energy (MNRE)",
+        "description": "Provide skill training to rural youth in handling solar installations, aiming to create 50,000 trained solar photovoltaic technicians by March 2020.",
+        "focus": "General",
+        "category": "POWER",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "POWER_12",
+        "name": "National Mission for Enhanced Energy Efficiency (NMEEE)",
+        "ministry": "Ministry of Power",
+        "description": "Improve efficiency in energy-intensive sectors, provide a platform for energy efficiency financing, promote energy-efficient appliances, and develop fiscal instruments for energy efficiency financing.",
+        "focus": "General",
+        "category": "POWER",
+        "active": "Yes",
+        "budget_allocation": "\u20b938,000 Cr"
+    },
+    {
+        "id": "SOCIAL JUSTICE_0",
+        "name": "Scheme For Residential Education For Students in High Schools in Targeted Areas (SHRESHTA)",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To provide high-quality residential education to meritorious SC students in reputed private schools from class 9th to 12th.",
+        "focus": "Educational Assistance and Scholarships",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_1",
+        "name": "Atal Vayo Abhyuday Yojana (AVYAY)",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To improve the quality of life for senior citizens by providing them with basic amenities and services.",
+        "focus": "Social Support and Protection",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "\u20b92,500 Cr"
+    },
+    {
+        "id": "SOCIAL JUSTICE_2",
+        "name": "National Fellowship for OBC Students (NF-OBC)",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To provide financial assistance to OBC students pursuing higher education in universities and institutions.",
+        "focus": "Educational Assistance and Scholarships",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_3",
+        "name": "Construction of Hostels for OBC Boys and Girls",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To facilitate education by providing accommodation to OBC students.",
+        "focus": "Educational Assistance ",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_4",
+        "name": "Dr. Ambedkar Scheme of Interest Subsidy on Educational Loan for Overseas Studies for OBCs & EBCs",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To provide interest subsidy on educational loans for OBC and EBC students studying abroad.",
+        "focus": "Educational Assistance and Scholarships",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_5",
+        "name": "Educational Loans provided by NBCFDC",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To offer educational loans to economically weaker sections for pursuing higher education.",
+        "focus": "Educational Assistance and Scholarships",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_6",
+        "name": "Pre-Matric Scholarships Scheme for Scheduled Castes & Others",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To provide financial assistance to SC students for their education from class 9th onwards.",
+        "focus": "Educational Assistance and Scholarships",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "\u20b96,350 Cr"
+    },
+    {
+        "id": "SOCIAL JUSTICE_7",
+        "name": "Post-Matric Scholarship for SC students",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To support the education of SC students after matriculation.",
+        "focus": "Educational Assistance and Scholarships",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "\u20b96,350 Cr"
+    },
+    {
+        "id": "SOCIAL JUSTICE_8",
+        "name": "Upgradation Of Merit Of SC Students",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To upgrade the merit of SC students by providing them with remedial and special coaching.",
+        "focus": "Educational Assistance and Scholarships",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_9",
+        "name": "Central Sector Scholarship of Top Class Education for SC Students",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To provide financial support to SC students for pursuing studies in top-class educational institutions.",
+        "focus": "FINANCIAL ASSISTANCE",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_10",
+        "name": "National Overseas Scholarship",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To provide financial assistance to SC students for pursuing higher education abroad.",
+        "focus": "FINANCIAL ASSISTANCE",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "\u20b96,350 Cr"
+    },
+    {
+        "id": "SOCIAL JUSTICE_11",
+        "name": "National Fellowship for Scheduled Caste Students",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To provide financial assistance to SC students pursuing M.Phil and Ph.D. degrees.",
+        "focus": "FINANCIAL ASSISTANCE",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_12",
+        "name": "Free Coaching Scheme for SC and OBC Students",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To provide quality coaching for economically disadvantaged SC and OBC students to enable them to compete in competitive examinations.",
+        "focus": "Educational Assistance ",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_13",
+        "name": "Pre-Matric Scholarship for OBC Students",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To provide financial assistance to OBC students for their education from class 1st to 10th.",
+        "focus": "Educational Assistance ",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "\u20b96,350 Cr"
+    },
+    {
+        "id": "SOCIAL JUSTICE_14",
+        "name": "Scholarships for Higher Education for Young Achievers Scheme (SHREYAS) (OBC & Others)",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To provide scholarships to young achievers from OBC and other disadvantaged communities for higher education.",
+        "focus": "Educational Assistance and Scholarships",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_15",
+        "name": "Revised Guideline of PM YASASVI Top Class Education in College for OBC EBC and DNT Students",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To provide top-class education facilities to OBC, EBC, and DNT students in colleges.",
+        "focus": "Economic Empowerement",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_16",
+        "name": "Entrepreneurial Schemes of NBCFDC",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To promote entrepreneurship among the socially and economically disadvantaged sections of society.",
+        "focus": "Skill Development",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_17",
+        "name": "Credit Enhancement Guarantee Scheme for the Scheduled Castes (SCs)",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To provide credit enhancement guarantees for SC entrepreneurs to improve their creditworthiness.",
+        "focus": "FINANCIAL ASSISTANCE",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_18",
+        "name": "National Safai Karamcharis Finance and Development Corporation (NSKFDC)",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To support the socio-economic development of Safai Karamcharis and manual scavengers.",
+        "focus": "Social Support and Protection",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_19",
+        "name": "National Scheduled Castes Finance and Development Corporation (NSFDC)",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To provide financial assistance for the economic development of SCs.",
+        "focus": "FINANCIAL ASSISTANCE",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_20",
+        "name": "Scheme of Assistance to Scheduled Castes Development Corporations (SCDCs)",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To assist SCDCs in their efforts to promote economic development among SC communities.",
+        "focus": "Economic Empowerement",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_21",
+        "name": "National Action for Mechanised Sanitation Ecosystem (NAMASTE)",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To achieve mechanized sanitation and reduce manual scavenging practices.",
+        "focus": "Social Support and Protection",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_22",
+        "name": "Pradhan Mantri Dakshta Aur Kushalta Sampann Hitgrahi (PM-DAKSH) Yojana",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To enhance the skill development of SCs, OBCs, and DNTs through short-term and long-term training programs.",
+        "focus": "Skill Development",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "\u20b960,000 Cr"
+    },
+    {
+        "id": "SOCIAL JUSTICE_23",
+        "name": "Scheme for Economic Empowerment of DNTs (SEED)",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To provide socio-economic and educational support to Denotified, Nomadic, and Semi-Nomadic Tribes.",
+        "focus": "Social Support and Protection",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_24",
+        "name": "Centrally Sponsored Scheme for implementation of the Protection of Civil Rights Act 1955 and the Scheduled Castes and the Scheduled Tribes (Prevention of Atrocities) Act 1989",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To prevent atrocities against SCs and STs and to implement civil rights protections.",
+        "focus": "Social Support and Protection",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_25",
+        "name": "Support for Marginalized Individuals for Livelihood and Enterprise (SMILE)",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To support the livelihood and entrepreneurial activities of marginalized individuals.",
+        "focus": "Economic Empowerement",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_26",
+        "name": "PM YOUNG ACHIEVERS SCHOLARSHIP AWARD SCHEME FOR VIBRANT INDIA FOR OBCs AND OTHERS (PM -YASASVI)",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To provide scholarships to OBC and other disadvantaged students for their higher education.",
+        "focus": "Educational Assistance and Scholarships",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SOCIAL JUSTICE_27",
+        "name": "Pradhan Mantri Anusuchit Jaati Abhyuday Yojna (PM-AJAY)",
+        "ministry": "Ministry of Social Justice and Empowerment",
+        "description": "To promote the socio-economic development of SCs through various initiatives and schemes.",
+        "focus": "Economic Empowerement",
+        "category": "SOCIAL JUSTICE",
+        "active": "Yes",
+        "budget_allocation": "\u20b92,500 Cr"
+    },
+    {
+        "id": "SPORTS_0",
+        "name": "Khelo India Programme",
+        "ministry": "Ministry of Youth Affairs and Sports",
+        "description": "- Revive sports culture in India  - Build a strong framework for all sports played in the country  ",
+        "focus": "Diversified projects funded",
+        "category": "SPORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SPORTS_1",
+        "name": "Fit India Movement",
+        "ministry": "Ministry of Youth Affairs and Sports",
+        "description": "- Encourage people to include physical activities and sports in their daily lives\u200b",
+        "focus": "Education and Training",
+        "category": "SPORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SPORTS_2",
+        "name": "Target Olympic Podium Scheme (TOPS)",
+        "ministry": "Ministry of Youth Affairs and Sports",
+        "description": "- Identify and support potential medal prospects for the Olympics  - Provide them with financial assistance and other help for training and competitions\u200b",
+        "focus": "FINANCIAL +TRAINING",
+        "category": "SPORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SPORTS_3",
+        "name": "National Sports Talent Search Scheme",
+        "ministry": "Ministry of Youth Affairs and Sports",
+        "description": "- Identify sporting talent among students in the age group of 8\u201312 years <br> - Provide them with scientific training and support",
+        "focus": "Training",
+        "category": "SPORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SPORTS_4",
+        "name": "Scheme of Human Resource Development in Sports",
+        "ministry": "Ministry of Youth Affairs and Sports",
+        "description": "Improve the skill set of coaches, sports scientists, and other support personnel through training and certification programs.",
+        "focus": "Training",
+        "category": "SPORTS",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "SPORTS_5",
+        "name": "National Sports Development Fund (NSDF)",
+        "ministry": "Ministry of Youth Affairs and Sports",
+        "description": "Mobilize resources from the government, public, and private sectors to support athletes, sports federations, and sports infrastructure development.",
+        "focus": "FINANCIAL +TRAINING",
+        "category": "SPORTS",
+        "active": "Yes",
+        "budget_allocation": "\u20b938,000 Cr"
+    },
+    {
+        "id": "SPORTS_6",
+        "name": "Panchayat Yuva Krida Aur Khel Abhiyan (PYKKA)",
+        "ministry": "Ministry of Youth Affairs and Sports",
+        "description": "Promote sports culture at the village and district levels by developing basic sports infrastructure and organizing competitions.",
+        "focus": "Finance and Rural Infrastructure",
+        "category": "SPORTS",
+        "active": "Yes",
+        "budget_allocation": "\u20b91,815 Cr"
+    },
+    {
+        "id": "RENEWABLE ENERGY_0",
+        "name": "Amendment to the Scheme for Flexibility in Generation and Scheduling of Thermal/Hydro Power Stations",
+        "ministry": "Ministry of Power",
+        "description": "Deletion of specific paras (9.2 and 9.4.3) to enhance flexibility in generation and scheduling.",
+        "focus": "General",
+        "category": "RENEWABLE ENERGY",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "RENEWABLE ENERGY_1",
+        "name": "Biogas Programme under the Umbrella scheme of National Bio Energy Programme",
+        "ministry": "Ministry of New & Renewable Energy (Biogas Division)",
+        "description": "Continued implementation of the National Bioenergy Programme from FY 2021-22 to 2025-26 with a budget of Rs. 858 crore for Phase-I.",
+        "focus": "General",
+        "category": "RENEWABLE ENERGY",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "RENEWABLE ENERGY_2",
+        "name": "Extension of Phase-II of Grid Connected Rooftop Solar programme",
+        "ministry": "Ministry of New & Renewable Energy",
+        "description": "Extend the Grid Connected Rooftop Solar programme Phase-II until 31.03.2026 without additional financial application.",
+        "focus": "General",
+        "category": "RENEWABLE ENERGY",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "RENEWABLE ENERGY_3",
+        "name": "Solarisation of Sun-Temple Town of Modhera, Gujarat",
+        "ministry": "Ministry of New & Renewable Energy",
+        "description": "Achieve 100% solarization of Modhera, fulfilling domestic and agricultural electricity needs through solar energy and setting up a pilot project for a village or town running entirely on solar power.",
+        "focus": "General",
+        "category": "RENEWABLE ENERGY",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "RENEWABLE ENERGY_4",
+        "name": "Biomass Programme under the Umbrella scheme of National Bioenergy Programme",
+        "ministry": "Ministry of New & Renewable Energy (Biomass Division)",
+        "description": "Implement Phase-I of the National Bioenergy Programme with a budget of Rs. 858 crore, continuing the programme from FY 2021-22 to 2025-26.",
+        "focus": "General",
+        "category": "RENEWABLE ENERGY",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "RENEWABLE ENERGY_5",
+        "name": "Production Linked Incentive Scheme (Tranche II) under National Programme on High Efficiency Solar PV Modules",
+        "ministry": "Ministry of New & Renewable Energy",
+        "description": "Allocate 39600 MW of domestic Solar PV module manufacturing capacity with an outlay of Rs. 14007 crore, expected to generate significant employment and become operational in phases from October 2024 to April 2026.",
+        "focus": "General",
+        "category": "RENEWABLE ENERGY",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "RENEWABLE ENERGY_6",
+        "name": "Clarification on applicability of central financial assistance under Rooftop Solar Programme Phase-II",
+        "ministry": "Ministry of New & Renewable Energy",
+        "description": "Clarify the applicability of central financial assistance for solar systems installed under the Virtual Net Metering arrangement.",
+        "focus": "General",
+        "category": "RENEWABLE ENERGY",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "RENEWABLE ENERGY_7",
+        "name": "Extension of Pradhan Mantri Urja Suraksha evam Utthaan Mahabhiyaan (PM-KUSSUM)",
+        "ministry": "Ministry of New & Renewable Energy",
+        "description": "Boost solar power installation in rural areas and extend the PM-KUSUM scheme until March 2026.",
+        "focus": "General",
+        "category": "RENEWABLE ENERGY",
+        "active": "Yes",
+        "budget_allocation": "\u20b91,815 Cr"
+    },
+    {
+        "id": "RENEWABLE ENERGY_8",
+        "name": "Carbon Credit Trading Scheme 2023",
+        "ministry": "Ministry of Power",
+        "description": "Establish a platform for trading carbon credits to control greenhouse gas emissions, encouraging entities to minimize their carbon footprint.",
+        "focus": "General",
+        "category": "RENEWABLE ENERGY",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "RENEWABLE ENERGY_9",
+        "name": "Development of Solar Parks and Ultra Mega Solar Power Projects",
+        "ministry": "Ministry of New & Renewable Energy National Solar Mission Division",
+        "description": "Extend the Solar Park Scheme timeline until FY 2025-26, facilitating the development of solar parks and ultra mega solar power projects without additional financial implications.",
+        "focus": "General",
+        "category": "RENEWABLE ENERGY",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_0",
+        "name": "Beti Bachao Beti Padhao (BBBP)",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To address the declining child sex ratio and promote the education and empowerment of girls.",
+        "focus": "Education",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_1",
+        "name": "Integrated Child Development Services (ICDS)",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To improve the nutrition and health status of children below six years and their mothers.",
+        "focus": "Health and Nutrition",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_2",
+        "name": "Pradhan Mantri Matru Vandana Yojana (PMMVY)",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To provide partial compensation for wage loss during childbirth and ensure proper nutrition and rest.",
+        "focus": "Financial Assistance",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "\u20b912,000 Cr"
+    },
+    {
+        "id": "WOMEN AND CHILD_3",
+        "name": "National Creche Scheme",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To provide daycare facilities to children of working mothers in rural and urban areas.",
+        "focus": "Health and Nutrition",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "\u20b9600 Cr"
+    },
+    {
+        "id": "WOMEN AND CHILD_4",
+        "name": "One Stop Centre Scheme",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To provide integrated support and assistance to women affected by violence.",
+        "focus": "Social Support and Protection",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_5",
+        "name": "Swadhar Greh",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To provide temporary accommodation, food, clothing, and counseling to women in difficult circumstances.",
+        "focus": "Social Support and Protection",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_6",
+        "name": "Ujjawala Scheme",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To combat trafficking and commercial sexual exploitation of women and children.",
+        "focus": "Social Support and Protection",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_7",
+        "name": "Rashtriya Mahila Kosh (RMK)",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To provide micro-finance services to bring about socio-economic upliftment of poor women.",
+        "focus": "Financial Assistance",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "\u20b98,500 Cr"
+    },
+    {
+        "id": "WOMEN AND CHILD_8",
+        "name": "Mahila Shakti Kendra",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To empower rural women through community participation and create an environment for social change.",
+        "focus": "Social Support and Protection",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_9",
+        "name": "Poshan Abhiyaan",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To improve nutritional outcomes for children, pregnant women, and lactating mothers.",
+        "focus": "Health and Nutrition",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_10",
+        "name": "Scheme for Adolescent Girls (SAG)",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To empower adolescent girls through nutrition, health education, and life skills training.",
+        "focus": "Health and Nutrition",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_11",
+        "name": "Child Protection Services (CPS)",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To provide care, support, and rehabilitation to children in difficult circumstances.",
+        "focus": "Social Support and Protection",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "\u20b91,472 Cr"
+    },
+    {
+        "id": "WOMEN AND CHILD_12",
+        "name": "Scheme for Women in Difficult Circumstances (STEP)",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To provide skills and job training for women to become economically independent.",
+        "focus": "Social Support and Protection",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_13",
+        "name": "National Nutrition Mission",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To reduce the level of stunting, undernutrition, anemia, and low birth weight in children.",
+        "focus": "Health and Nutrition",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "\u20b91,275 Cr"
+    },
+    {
+        "id": "WOMEN AND CHILD_14",
+        "name": "Sabla Scheme",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To facilitate the development and empowerment of adolescent girls.",
+        "focus": "Health and Nutrition",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_15",
+        "name": "Anganwadi Services",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To provide a package of six services including supplementary nutrition, preschool education, and health.",
+        "focus": "Health and Nutrition",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_16",
+        "name": "Pradhan Mantri Surakshit Matritva Abhiyan",
+        "ministry": "Ministry of Health and Family Welfare",
+        "description": "To provide assured, comprehensive, and quality antenatal care to pregnant women.",
+        "focus": "Health and Nutrition",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "\u20b92,500 Cr"
+    },
+    {
+        "id": "WOMEN AND CHILD_17",
+        "name": "Kasturba Gandhi Balika Vidyalaya",
+        "ministry": "Ministry of Education",
+        "description": "To ensure access and quality education for girls from disadvantaged groups.",
+        "focus": "Education ",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_18",
+        "name": "Sukanya Samriddhi Yojana",
+        "ministry": "Ministry of Finance",
+        "description": "To encourage savings for the future education and marriage expenses of girl children.",
+        "focus": "Financial Education and Savimgs",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "\u20b92,465 Cr"
+    },
+    {
+        "id": "WOMEN AND CHILD_19",
+        "name": "Janani Suraksha Yojana (JSY)",
+        "ministry": "Ministry of Health and Family Welfare",
+        "description": "To reduce maternal and neonatal mortality by promoting institutional delivery among poor pregnant women.",
+        "focus": "Cash Assistance",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_20",
+        "name": "Pradhan Mantri Mahila Shakti Kendra",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To empower rural women through community engagement and training.",
+        "focus": "Social Support and Protection",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "\u20b92,465 Cr"
+    },
+    {
+        "id": "WOMEN AND CHILD_21",
+        "name": "National Scheme of Incentive to Girls for Secondary Education",
+        "ministry": "Ministry of Education",
+        "description": "To promote enrollment of girls in secondary education, particularly those from SC/ST communities.",
+        "focus": "Education",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_22",
+        "name": "Working Women Hostel",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To provide safe and affordable accommodation to working women.",
+        "focus": "Social Support and Protection",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_23",
+        "name": "Maternity Benefit Programme",
+        "ministry": "Ministry of Labour and Employment",
+        "description": "To provide maternity benefits to women workers for ensuring health and well-being of mother and child.",
+        "focus": "Financial Assistance",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_24",
+        "name": "Rajiv Gandhi Scheme for Empowerment of Adolescent Boys (Saksham)",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To promote health, hygiene, and nutrition among adolescent boys.",
+        "focus": "Health and Nutrition",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_25",
+        "name": "Sabla \u2013 Rajiv Gandhi Scheme for Empowerment of Adolescent Girls",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To enable self-development and empowerment of adolescent girls by providing them education and nutrition.",
+        "focus": "Awareness",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_26",
+        "name": "Conditional Maternity Benefit Scheme",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To support pregnant and lactating women by providing cash incentives for better health and nutrition.",
+        "focus": "Financial Assistance",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_27",
+        "name": "Pradhan Mantri Matru Surakshit Abhiyan",
+        "ministry": "Ministry of Health and Family Welfare",
+        "description": "To provide assured, comprehensive, and quality antenatal care to pregnant women on the 9th of every month.",
+        "focus": "Health and Nutrition",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "\u20b91,815 Cr"
+    },
+    {
+        "id": "WOMEN AND CHILD_28",
+        "name": "Support to Training and Employment Program (STEP)",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To provide skills that give employability to women and to provide competencies and skills that enable women to become self-employed/entrepreneurs.",
+        "focus": "Community Development",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_29",
+        "name": "Mahila Shakti Kendra (MSK)",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To empower rural women through community participation, and create an environment for social change through skill development.",
+        "focus": "Social Support and Protection",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_30",
+        "name": "Pradhan Mantri Kaushal Vikas Yojana (PMKVY) for Women",
+        "ministry": "Ministry of Skill Development and Entrepreneurship",
+        "description": "To enable a large number of Indian youth, especially women, to take up industry-relevant skill training that will help them secure better livelihoods.",
+        "focus": "Skill Development",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "\u20b914,600 Cr"
+    },
+    {
+        "id": "WOMEN AND CHILD_31",
+        "name": "National Apprenticeship Promotion Scheme (NAPS)",
+        "ministry": "Ministry of Skill Development and Entrepreneurship",
+        "description": "To promote apprenticeship training and to increase the engagement of women in apprenticeships by providing financial incentives to employers.",
+        "focus": "Skill Development",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "\u20b938,000 Cr"
+    },
+    {
+        "id": "WOMEN AND CHILD_32",
+        "name": "Deen Dayal Upadhyaya Grameen Kaushalya Yojana (DDU-GKY)",
+        "ministry": "Ministry of Rural Development",
+        "description": "To transform rural poor youth into an economically independent and globally relevant workforce, with a special focus on empowering women.",
+        "focus": "Skill Development",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "\u20b912,000 Cr"
+    },
+    {
+        "id": "WOMEN AND CHILD_33",
+        "name": "Nai Roshni",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "To empower and instill confidence among minority women by providing knowledge, tools, and techniques for interacting with government systems, banks, and other institutions at all levels.",
+        "focus": "Skill Development",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_34",
+        "name": "Women Entrepreneurship Platform (WEP)",
+        "ministry": "NITI Aayog",
+        "description": "To create an ecosystem for budding and existing women entrepreneurs across the country, promoting and supporting both startups and established businesses.",
+        "focus": "Skill Development",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_35",
+        "name": "Entrepreneurship Development Programmes (EDPs) by MSME",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises",
+        "description": "To develop entrepreneurial skills among women and encourage them to start and manage their own businesses.",
+        "focus": "Skill Development",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "WOMEN AND CHILD_36",
+        "name": "Pradhan Mantri Mahila Shakti Kendra",
+        "ministry": "Ministry of Women and Child Development",
+        "description": "To empower rural women through skill development and capacity building activities.",
+        "focus": "Social Support and Protection",
+        "category": "WOMEN AND CHILD",
+        "active": "Yes",
+        "budget_allocation": "\u20b92,465 Cr"
+    },
+    {
+        "id": "EDUCATION_0",
+        "name": "Sarva Shiksha Abhiyan (SSA)",
+        "ministry": "Ministry of Education",
+        "description": "To ensure universal access to elementary education for children aged 6-14 years.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "\u20b91,815 Cr"
+    },
+    {
+        "id": "EDUCATION_1",
+        "name": "Rashtriya Madhyamik Shiksha Abhiyan (RMSA)",
+        "ministry": "Ministry of Education",
+        "description": "To enhance access to secondary education and improve its quality.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "\u20b91,815 Cr"
+    },
+    {
+        "id": "EDUCATION_2",
+        "name": "Mid-Day Meal Scheme (MDMS)",
+        "ministry": "Ministry of Education",
+        "description": "To improve nutritional status of school children and enhance their enrollment, retention, and attendance.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_3",
+        "name": "Samagra Shiksha",
+        "ministry": "Ministry of Education",
+        "description": "To ensure inclusive and equitable quality education from pre-school to senior secondary stage.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "\u20b941,250 Cr"
+    },
+    {
+        "id": "EDUCATION_4",
+        "name": "National Scheme of Incentive to Girls for Secondary Education",
+        "ministry": "Ministry of Education",
+        "description": "To promote enrollment of girls in secondary education, especially those belonging to SC/ST communities.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_5",
+        "name": "Kasturba Gandhi Balika Vidyalaya (KGBV)",
+        "ministry": "Ministry of Education",
+        "description": "To provide quality education for girls from disadvantaged groups in upper primary and secondary levels.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_6",
+        "name": "Pandit Madan Mohan Malaviya National Mission on Teachers and Teaching (PMMMNMTT)",
+        "ministry": "Ministry of Education",
+        "description": "To improve the quality of teaching and learning in higher education institutions.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_7",
+        "name": "Scheme for Providing Quality Education in Madrasas (SPQEM)",
+        "ministry": "Ministry of Education",
+        "description": "To enhance the quality of education in Madrasas by introducing modern subjects like science, mathematics, and English.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_8",
+        "name": "Rashtriya Aavishkar Abhiyan",
+        "ministry": "Ministry of Education",
+        "description": "To motivate and engage children in science, mathematics, and technology through observation and experimentation.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "\u20b98,500 Cr"
+    },
+    {
+        "id": "EDUCATION_9",
+        "name": "Digital India e-Learning",
+        "ministry": "Ministry of Electronics and Information Technology",
+        "description": "To promote e-learning and improve digital literacy among students and teachers.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_10",
+        "name": "Pradhan Mantri Innovative Learning Programme (DHRUV)",
+        "ministry": "Ministry of Education",
+        "description": "To identify and encourage talented students in various fields like science, arts, and performing arts.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "\u20b919,794 Cr"
+    },
+    {
+        "id": "EDUCATION_11",
+        "name": "Unnat Bharat Abhiyan",
+        "ministry": "Ministry of Education",
+        "description": "To connect institutions of higher education with local communities to address development challenges.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_12",
+        "name": "UDAAN",
+        "ministry": "Ministry of Education",
+        "description": "To encourage girl students to pursue higher education and careers in science and technology.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_13",
+        "name": "SWAYAM (Study Webs of Active-Learning for Young Aspiring Minds)",
+        "ministry": "Ministry of Education",
+        "description": "To provide free online courses to students and promote the use of digital education.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_14",
+        "name": "National Programme on Technology Enhanced Learning (NPTEL)",
+        "ministry": "Ministry of Education",
+        "description": "To provide high-quality online courses in engineering and science to students and working professionals.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_15",
+        "name": "Global Initiative of Academic Networks (GIAN)",
+        "ministry": "Ministry of Education",
+        "description": "To facilitate the engagement of international faculty in higher education institutions in India.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_16",
+        "name": "Eklavya Model Residential Schools (EMRS)",
+        "ministry": "Ministry of Tribal Affairs",
+        "description": "To provide quality education to tribal students in remote areas through residential schools.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_17",
+        "name": "National Means-cum-Merit Scholarship Scheme (NMMSS)",
+        "ministry": "Ministry of Education",
+        "description": "To provide scholarships to meritorious students from economically weaker sections to prevent dropout at the secondary stage.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "\u20b96,350 Cr"
+    },
+    {
+        "id": "EDUCATION_18",
+        "name": "Vidyanjali Yojana",
+        "ministry": "Ministry of Education",
+        "description": "To encourage the community and private sector to participate in the development of government schools.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "\u20b98,000 Cr"
+    },
+    {
+        "id": "EDUCATION_19",
+        "name": "Study in India",
+        "ministry": "Ministry of Education",
+        "description": "To attract international students to study in Indian educational institutions.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_20",
+        "name": "IMPacting Research Innovation and Technology (IMPRINT)",
+        "ministry": "Ministry of Education",
+        "description": "To address major engineering and technology challenges through research and innovation.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_21",
+        "name": "Prime Minister\u2019s Research Fellows (PMRF)",
+        "ministry": "Ministry of Education",
+        "description": "To attract the best talent into research programs in various institutes of India.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_22",
+        "name": "Saakshar Bharat Mission",
+        "ministry": "Ministry of Education",
+        "description": "To promote adult literacy and provide educational opportunities to non-literate adults.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "\u20b95,000 Cr"
+    },
+    {
+        "id": "EDUCATION_23",
+        "name": "Technical Education Quality Improvement Programme (TEQIP)",
+        "ministry": "Ministry of Education",
+        "description": "To improve the quality of technical education and enhance the employability of graduates.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_24",
+        "name": "National Digital Library of India (NDLI)",
+        "ministry": "Ministry of Education",
+        "description": "To provide a digital repository of educational resources to all citizens.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "\u20b938,000 Cr"
+    },
+    {
+        "id": "EDUCATION_25",
+        "name": "All India Council for Technical Education (AICTE) - Pragati Scholarship",
+        "ministry": "Ministry of Education",
+        "description": "To provide scholarships to meritorious girl students for pursuing technical education.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_26",
+        "name": "Pandit Deendayal Upadhyay Shramev Jayate Karyakram",
+        "ministry": "Ministry of Labour and Employment",
+        "description": "To enhance the skills of the workforce through vocational training and education.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_27",
+        "name": "Nai Udaan",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "To provide financial support to minority students for preparing for civil services examinations.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "\u20b93,500 Cr"
+    },
+    {
+        "id": "EDUCATION_28",
+        "name": "Scheme for Higher Education Youth in Apprenticeship and Skills (SHREYAS)",
+        "ministry": "Ministry of Education",
+        "description": "To provide industry apprenticeship opportunities to general graduates to enhance their employability.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "EDUCATION_29",
+        "name": "GIAN (Global Initiative of Academic Networks)",
+        "ministry": "Ministry of Education",
+        "description": "To tap the talent pool of scientists and entrepreneurs internationally to encourage their engagement with the institutes of Higher Education in India.",
+        "focus": "General",
+        "category": "EDUCATION",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_0",
+        "name": "Jal Jeevan Mission (JJM)",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To provide safe and adequate drinking water through individual household tap connections by 2024 to all households in rural India.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "\u20b969,926 Cr"
+    },
+    {
+        "id": "JAL SHAKTI_1",
+        "name": "Namami Gange Programme",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To clean and rejuvenate the Ganga River, ensuring its ecological and environmental well-being.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "\u20b93,500 Cr"
+    },
+    {
+        "id": "JAL SHAKTI_2",
+        "name": "Atal Bhujal Yojana (Atal Jal)",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To improve groundwater management through community participation and sustainable practices.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_3",
+        "name": "National Water Mission",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To ensure integrated water resource management, conservation, and optimal usage of water resources.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "\u20b91,275 Cr"
+    },
+    {
+        "id": "JAL SHAKTI_4",
+        "name": "Swachh Bharat Mission (Gramin) - Phase II",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To achieve Open Defecation Free (ODF) sustainability and improve solid and liquid waste management in rural areas.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "\u20b97,192 Cr"
+    },
+    {
+        "id": "JAL SHAKTI_5",
+        "name": "Pradhan Mantri Krishi Sinchai Yojana (PMKSY)",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To enhance water use efficiency in agriculture and expand irrigation coverage through various techniques.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "\u20b912,000 Cr"
+    },
+    {
+        "id": "JAL SHAKTI_6",
+        "name": "National Rural Drinking Water Programme (NRDWP)",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To provide safe and adequate water supply to rural areas through piped water and improved infrastructure.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "\u20b986,000 Cr"
+    },
+    {
+        "id": "JAL SHAKTI_7",
+        "name": "River Basin Management",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To manage and conserve river basins for sustainable development and ecological balance.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_8",
+        "name": "Accelerated Irrigation Benefits Programme (AIBP)",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To accelerate the completion of irrigation projects to ensure water supply to agriculture.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_9",
+        "name": "National Hydrology Project",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To improve the extent, quality, and accessibility of water resources information and to strengthen the capacity of water resource management institutions.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "\u20b9600 Cr"
+    },
+    {
+        "id": "JAL SHAKTI_10",
+        "name": "Dam Rehabilitation and Improvement Project (DRIP)",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To improve the safety and operational performance of selected dams in the country.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_11",
+        "name": "Interlinking of Rivers",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To link Indian rivers to ensure optimal utilization of water resources and reduce regional imbalances.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_12",
+        "name": "Ground Water Management and Regulation",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To regulate and manage groundwater resources to ensure their sustainable usage.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_13",
+        "name": "Flood Management and Border Areas Programme (FMBAP)",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To provide financial assistance for effective flood management and protection of riverbanks in border areas.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_14",
+        "name": "Repair, Renovation and Restoration (RRR) of Water Bodies",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To restore and rejuvenate traditional water bodies and improve their storage capacity.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_15",
+        "name": "Water Quality Monitoring and Surveillance Programme",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To monitor and improve the quality of drinking water in rural areas.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_16",
+        "name": "National Aquifer Mapping and Management Programme (NAQUIM)",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To delineate and characterize aquifers in the country to facilitate sustainable groundwater management.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_17",
+        "name": "Command Area Development and Water Management (CADWM)",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To improve the utilization of irrigation potential created and enhance agricultural productivity.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_18",
+        "name": "Central Sector Scheme for Ground Water Recharge and Water Conservation",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To enhance groundwater resources in over-exploited areas through recharge and conservation measures.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_19",
+        "name": "Polavaram Project",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To develop a multipurpose project on the Godavari River for irrigation, water supply, and hydropower.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_20",
+        "name": "Sustainable Water Resources Development",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To ensure the sustainable development and management of water resources across the country.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_21",
+        "name": "Water Resources Information System (WRIS)",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To provide a comprehensive and reliable water resources information system for informed decision-making.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_22",
+        "name": "Minor Irrigation Census",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To collect data on minor irrigation schemes for better planning and management.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_23",
+        "name": "National Ganga River Basin Authority (NGRBA)",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To plan and implement policies for the cleaning and conservation of the Ganga River.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_24",
+        "name": "Ganga Action Plan",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To clean and rejuvenate the Ganga River by controlling pollution and improving water quality.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_25",
+        "name": "Yamuna Action Plan",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To improve the water quality of the Yamuna River and address pollution control measures.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_26",
+        "name": "National Mission for Clean Ganga (NMCG)",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To ensure effective implementation of projects under the Namami Gange Programme.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "\u20b9459 Cr"
+    },
+    {
+        "id": "JAL SHAKTI_27",
+        "name": "Accelerated Rural Water Supply Programme (ARWSP)",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To ensure the provision of safe drinking water in rural areas.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "JAL SHAKTI_28",
+        "name": "Jal Kranti Abhiyan",
+        "ministry": "Ministry of Jal Shakti",
+        "description": "To consolidate water conservation and management initiatives through community participation.",
+        "focus": "General",
+        "category": "JAL SHAKTI",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Ministry of Food Processing_1",
+        "name": "Pradhan Mantri Kisan SAMPADA Yojana (PMKSY)",
+        "ministry": "Ministry of Food Processing",
+        "description": "To provide a mechanism to link agricultural production to \nthe market by bringing together farmers, processors, and \nretailers.",
+        "focus": "Supply Chain & Market \nOptimization",
+        "category": "Ministry of Food Processing",
+        "active": "Active",
+        "budget_allocation": "\u20b912,000 Cr"
+    },
+    {
+        "id": "Ministry of Food Processing_2",
+        "name": "PM Formalisation of Micro food processing \nEnterprises (PMFME) Scheme",
+        "ministry": "Ministry of Food Processing",
+        "description": "To promote the One District One Product (ODOP) approach \nto reap the benefits of scale in terms of procurement of \ninputs, availing common services, and marketing of products.\nTo provide seed capital to Self Help Groups (SHGs) and support \nfor common infrastructure, branding, and marketing.",
+        "focus": "SHG Support,\nInfrastructural Support at\nmicro level",
+        "category": "Ministry of Food Processing",
+        "active": "Active",
+        "budget_allocation": "\u20b92,000 Cr"
+    },
+    {
+        "id": "Ministry of Food Processing_3",
+        "name": "Operation Greens",
+        "ministry": "Ministry of Food Processing",
+        "description": "To promote farmer producers organizations, agri-logistics, \nprocessing facilities, and professional management.",
+        "focus": "Support to Farmers,\nLogistical Support,\nInfrastructural Support",
+        "category": "Ministry of Food Processing",
+        "active": "Active",
+        "budget_allocation": "\u20b9600 Cr"
+    },
+    {
+        "id": "Ministry of Food Processing_4",
+        "name": "Mega Food Park",
+        "ministry": "Ministry of Food Processing",
+        "description": "To ensure maximizing value addition, minimizing wastages, \nincreasing farmers' income, and creating employment \nopportunities, particularly in the rural sector.",
+        "focus": "Rural Sector Employment,\nMarket Place creation,",
+        "category": "Ministry of Food Processing",
+        "active": "No",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Ministry of Food Processing_5",
+        "name": "Cold Chain and Value Addition Infrastructure Scheme",
+        "ministry": "Ministry of Food Processing",
+        "description": "To facilitate the establishment of a strong cold chain facility for \nagricultural, horticultural, dairy, fish & marine, poultry & meat \nproducts.",
+        "focus": "Infrastructural Support",
+        "category": "Ministry of Food Processing",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Ministry of Food Processing_6",
+        "name": "Modernisation of Abattoirs",
+        "ministry": "Ministry of Food Processing",
+        "description": "To modernize and upgrade the existing abattoirs to improve \nthe quality and hygiene of meat production. To ensure \ncompliance with the food safety and quality standards.",
+        "focus": "Food Safety Improvement",
+        "category": "Ministry of Food Processing",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Ministry of Food Processing_7",
+        "name": "PM Formalisation of Micro food processing \nEnterprises (PMFME) Scheme",
+        "ministry": "Ministry of Food Processing",
+        "description": "To support the upgradation of individual micro food processing units. \nTo promote the One District One Product (ODOP)  approach to reap \nthe benefits of scale in terms of procurement of  inputs, availing \ncommon services, and marketing of products",
+        "focus": "Micro Unit support,\nRural Development and \nScaling",
+        "category": "Ministry of Food Processing",
+        "active": "Active",
+        "budget_allocation": "\u20b92,000 Cr"
+    },
+    {
+        "id": "Minority Affairs_1",
+        "name": "Pre-Matric Scholarship Scheme",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "Provides financial assistance to minority students from\n Class I to X to encourage education.",
+        "focus": "Financial Assistance",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "\u20b96,350 Cr"
+    },
+    {
+        "id": "Minority Affairs_2",
+        "name": "Post-Matric Scholarship Scheme",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "Offers scholarships for students from Class XI to PhD, \nsupporting higher education.",
+        "focus": "Financial Assistance",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "\u20b96,350 Cr"
+    },
+    {
+        "id": "Minority Affairs_3",
+        "name": "Merit-cum-Means Based Scholarship Scheme",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "Targets students pursuing professional and technical \ncourses at undergraduate and postgraduate levels.",
+        "focus": "Educational Support",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "\u20b96,350 Cr"
+    },
+    {
+        "id": "Minority Affairs_4",
+        "name": "Maulana Azad National Fellowship Scheme",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "Financial assistance for students pursuing higher education,\n particularly for those taking the CSIR-UGC NET exam.",
+        "focus": "Financial Assitance",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Minority Affairs_5",
+        "name": "Naya Savera",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "A free coaching scheme for students from minority \ncommunities to help them qualify for competitive examinations.",
+        "focus": "Educational Support",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "\u20b93,500 Cr"
+    },
+    {
+        "id": "Minority Affairs_6",
+        "name": "Padho Pardesh",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "Provides interest subsidies on educational loans for overseas \nstudies for students belonging to minority communities.",
+        "focus": "Financial Assistance",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Minority Affairs_7",
+        "name": "Nai Udaan",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "Support for minority candidates clearing preliminary \nexaminations for various competitive services.",
+        "focus": "Educational Support",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "\u20b93,500 Cr"
+    },
+    {
+        "id": "Minority Affairs_8",
+        "name": "Seekho Aur Kamao (Learn & Earn)",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "A skill development initiative aimed at youth aged 14-35 to \nenhance employability.",
+        "focus": "Skill Development",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Minority Affairs_9",
+        "name": "USTTAD",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "Focuses on upgrading skills and training in traditional arts and \ncrafts, providing a platform for artisans.",
+        "focus": "Skill Development",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Minority Affairs_10",
+        "name": "Nai Manzil",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "A scheme for providing formal education and skill training to \nschool dropouts.",
+        "focus": "Skill Development and \nEducational Support",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "\u20b93,500 Cr"
+    },
+    {
+        "id": "Minority Affairs_11",
+        "name": "Pradhan Mantri Jan Vikas Karyakram (PMJVK)",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "Aims to improve infrastructure in minority concentration areas, \nincluding education and health facilities.",
+        "focus": "Infrastructural Support",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "\u20b954,500 Cr"
+    },
+    {
+        "id": "Minority Affairs_12",
+        "name": "Hamari Dharohar",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "A scheme aimed at preserving the rich cultural heritage of \nminority communities.",
+        "focus": "Cultural Preservation",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Minority Affairs_13",
+        "name": "Jiyo Parsi",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "Focuses on reversing the declining population of Parsis in India \nthrough various interventions.",
+        "focus": "Population Control",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Minority Affairs_14",
+        "name": "Pradhan Mantri Virasat Ka Samvardhan (PM VIKAS)",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "An integrated scheme combining several initiatives to promote \nthe cultural heritage of minority communities and support \ntraditional crafts.",
+        "focus": "Cultural Preservation",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "\u20b960,000 Cr"
+    },
+    {
+        "id": "Minority Affairs_15",
+        "name": "National Minorities Development & Finance Corporation (NMDFC)",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "Provides concessional loans for self-employment and \nincome-generating ventures.",
+        "focus": "Financial Support",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Minority Affairs_16",
+        "name": "Equity to NMDFC",
+        "ministry": "Ministry of Minority Affairs",
+        "description": "Supports the financing of minority community projects to \nenhance economic opportunities.",
+        "focus": "Financial Support",
+        "category": "Minority Affairs",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "MSME_1",
+        "name": "Prime Minister\u2019s Employment \nGeneration Programme (PMEGP)",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises \n(MoMSME)",
+        "description": "To generate employment opportunities through the \nestablishment of new self-employment ventures. \nFinancial assistance for setting up new enterprises, \nwith a subsidy of 15% to 35% of the project cost, \ndepending on the category of the enterprise.",
+        "focus": "Financial Support",
+        "category": "MSME",
+        "active": "Yes",
+        "budget_allocation": "\u20b986,000 Cr"
+    },
+    {
+        "id": "MSME_2",
+        "name": "Credit Guarantee Scheme for Micro & \nSmall Enterprises (CGTMSE)",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises \n(MoMSME)",
+        "description": "To provide credit guarantees to banks and financial \ninstitutions for loans extended to micro and small \nenterprises. Encourages banks to lend to MSMEs \nwithout requiring collateral, thus improving access \nto finance.",
+        "focus": "Financial Support",
+        "category": "MSME",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "MSME_3",
+        "name": "Micro & Small Enterprises Cluster \nDevelopment Programme (MSE-CDP)",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises \n(MoMSME)",
+        "description": "To promote cluster-based development of MSMEs. \nFinancial assistance for infrastructure development, \ntechnology upgradation, and skill development.",
+        "focus": "Financial and \nInfrastrucutral Support",
+        "category": "MSME",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "MSME_4",
+        "name": "Scheme of Fund for Regeneration of \nTraditional Industries (SFURTI)",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises \n(MoMSME)",
+        "description": "To promote traditional industries through the \ndevelopment of clusters. Financial support for \ntechnology upgradation and marketing assistance.",
+        "focus": "Financial Support",
+        "category": "MSME",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "MSME_5",
+        "name": "National SC-ST Hub Scheme",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises \n(MoMSME)",
+        "description": "To promote entrepreneurship among Scheduled \nCastes and Scheduled Tribes.",
+        "focus": "Financial Support, Skill \nDevelopment, and \nMarketing support.",
+        "category": "MSME",
+        "active": "Yes",
+        "budget_allocation": "\u20b91,275 Cr"
+    },
+    {
+        "id": "MSME_6",
+        "name": "Entrepreneurship Skill Development \nProgramme (ESDP)",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises \n(MoMSME)",
+        "description": "To enhance the entrepreneurial skills of individuals. \nTraining programs to develop skills necessary for \nstarting and managing a business.",
+        "focus": "Skill Training",
+        "category": "MSME",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "MSME_7",
+        "name": "Self Reliant India (SRI) Fund",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises \n(MoMSME)",
+        "description": "To provide financial support to stressed MSMEs. \nCredit guarantee for subordinate debt to help \nMSMEs recover and grow.",
+        "focus": "Financial Support",
+        "category": "MSME",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "MSME_8",
+        "name": "Technology and Quality Upgradation \nSupport to MSMEs",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises \n(MoMSME)",
+        "description": "To promote the adoption of energy-efficient \ntechnologies. Financial assistance for upgrading \ntechnology and improving production processes.",
+        "focus": "Financial Support",
+        "category": "MSME",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "MSME_9",
+        "name": "ISO 9000 Certification and \nReimbursement Scheme",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises \n(MoMSME)",
+        "description": "To encourage MSMEs to obtain ISO 9000 certification. \nReimbursement of expenses incurred in obtaining the \ncertification.",
+        "focus": "Financial Support",
+        "category": "MSME",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "MSME_10",
+        "name": "Small Industry Cluster Development \nProgram Scheme",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises \n(MoMSME)",
+        "description": "To promote cluster-based development of small \nindustries.  Financial assistance for infrastructure \ndevelopment and capacity building.",
+        "focus": "Financial Support",
+        "category": "MSME",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "MSME_11",
+        "name": "Integrated Infrastructural \nDevelopment Schemes (IID)",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises \n(MoMSME)",
+        "description": "To develop industrial infrastructure in rural and \nsemi-urban areas. Financial support for the \nestablishment of industrial estates.",
+        "focus": "Financial and Infrastructural \nSupport",
+        "category": "MSME",
+        "active": "Yes",
+        "budget_allocation": "\u20b922,600 Cr"
+    },
+    {
+        "id": "MSME_12",
+        "name": "MSME Marketing Development \nAssistance (MDA) Scheme",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises \n(MoMSME)",
+        "description": "To assist MSMEs in marketing their products. \nFinancial support for marketing initiatives.",
+        "focus": "Marketing Support",
+        "category": "MSME",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "MSME_13",
+        "name": "International Cooperation (IC) Scheme",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises \n(MoMSME)",
+        "description": "Financial support to participate in international \nexhibitions, trade fairs, and buyer-seller meets. Focuses \non building the capacity of MSMEs, particularly \nfirst-time exporters, through training and development \nprograms. ",
+        "focus": "Financial Support, Skill \nDevelopment, and \nMarketing support.",
+        "category": "MSME",
+        "active": "Yes",
+        "budget_allocation": "\u20b938,000 Cr"
+    },
+    {
+        "id": "MSME_14",
+        "name": "TREAD (Trade Related Entrepreneurship \nAssistance and Development) for Women",
+        "ministry": "Ministry of Micro, Small and Medium Enterprises \n(MoMSME)",
+        "description": "Supports women entrepreneurs in trade with financial \nassistance and training.",
+        "focus": "Financial Support and Skill \nDevelopment",
+        "category": "MSME",
+        "active": "Yes",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Ministry of Consumer Affairs_1",
+        "name": "Aadhaar Enabled PDS (AePDS)",
+        "ministry": "Ministry of Consumer Affairs, Food & Public Distribution",
+        "description": "The AePDS scheme aims to digitize and streamline \nthe public distribution system (PDS) by linking ration \ncards to Aadhaar numbers. This helps improve \ntransparency and target benefits to eligible beneficiaries.",
+        "focus": "Digitization, \nIdentification of beneficiaries",
+        "category": "Ministry of Consumer Affairs",
+        "active": "Active",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Ministry of Consumer Affairs_2",
+        "name": "Active Inactive ARDs \n(Authorized Ration Depots)",
+        "ministry": "Ministry of Consumer Affairs, Food & Public Distribution",
+        "description": "This scheme tracks the active and inactive status of authorized \nration depots that distribute essential commodities through the \nPDS. It helps monitor the operational status of the distribution \nnetwork.",
+        "focus": "Distribution Network",
+        "category": "Ministry of Consumer Affairs",
+        "active": "Active",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Ministry of Consumer Affairs_3",
+        "name": "Defunct Ration Shops",
+        "ministry": "Ministry of Consumer Affairs, Food & Public Distribution",
+        "description": "Certain ration shops have become inactive or defunct over time, \noften due to lack of demand or operational issues. Monitoring \nand reviving these inactive shops is an ongoing challenge for the \nministry.",
+        "focus": "Revival of Defunct Shops",
+        "category": "Ministry of Consumer Affairs",
+        "active": "Active",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Ministry of Consumer Affairs_4",
+        "name": "Pradhan Mantri Garib Kalyan Anna Yojana \n(PMGKAY)",
+        "ministry": "Ministry of Consumer Affairs, Food & Public Distribution",
+        "description": "Under this scheme, free food grains are being distributed through \nthe Targeted Public Distribution System (TPDS) among priority \nhouseholds (PHH), Antyodaya Anna Yojana (AAY) and other eligible \nbeneficiaries under the National Food Security Act (NFSA).",
+        "focus": "Poverty & Hunger Reduction",
+        "category": "Ministry of Consumer Affairs",
+        "active": "Active",
+        "budget_allocation": "\u20b912,000 Cr"
+    },
+    {
+        "id": "Ministry of Consumer Affairs_5",
+        "name": "Sugar Subsidy under Public Distribution \nSystem",
+        "ministry": "Ministry of Consumer Affairs, Food & Public Distribution",
+        "description": "This provides subsidy for supplying sugar at a subsidized rate to \nfamilies covered under the Antyodaya Anna Yojana (AAY) through \nthe PDS.",
+        "focus": "Financial Support",
+        "category": "Ministry of Consumer Affairs",
+        "active": "Active",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Ministry of Consumer Affairs_6",
+        "name": "Assistance to States for Intra-State Movement \nof Foodgrains",
+        "ministry": "Ministry of Consumer Affairs, Food & Public Distribution",
+        "description": "This provides assistance to states for intra-state movement of food \ngrains and fair price shop (FPS) dealers' margins under the NFSA.",
+        "focus": "Logistical Support",
+        "category": "Ministry of Consumer Affairs",
+        "active": "Active",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Ministry of Consumer Affairs_7",
+        "name": "Fortification of Rice and its Distribution under \nPDS",
+        "ministry": "Ministry of Consumer Affairs, Food & Public Distribution",
+        "description": "This scheme aims to fortify rice distributed under the PDS with \nmicronutrients to address malnutrition.",
+        "focus": "Distribution Network",
+        "category": "Ministry of Consumer Affairs",
+        "active": "Active",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Ministry of Heavy Industry_1",
+        "name": "Faster Adoption and Manufacturing of \n(Hybrid and) Electric Vehicles in India \n(FAME-India) Scheme",
+        "ministry": "Ministry of Heavy Industry",
+        "description": "This scheme aims to promote the adoption of electric and \nhybrid vehicles in India. It provides demand incentives for \ne-2Ws, e-3Ws, e-4Ws and e-buses. As of December 2023, \nover 11.5 lakh electric vehicles have received subsidies \namounting to Rs. 5,228 crore under FAME-II. Over \n6,800 e-buses have been sanctioned or are being \ndeployed under this scheme.",
+        "focus": "Manufacturing Support",
+        "category": "Ministry of Heavy Industry",
+        "active": "Active",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Ministry of Heavy Industry_2",
+        "name": "Production Linked Incentive (PLI) Scheme \nfor Automobile and Auto Components",
+        "ministry": "Ministry of Heavy Industry",
+        "description": "The PLI scheme provides financial incentives to boost domestic \nmanufacturing of advanced automotive technology products. It \naims to attract investments, create economies of scale, build a \nrobust supply chain and reduce import dependence. The \nscheme has an outlay of Rs. 26,058 crore over 5 years.",
+        "focus": "Financial Assistance",
+        "category": "Ministry of Heavy Industry",
+        "active": "Active",
+        "budget_allocation": "\u20b96,200 Cr"
+    },
+    {
+        "id": "Ministry of Heavy Industry_3",
+        "name": "Production Linked Incentive (PLI) Scheme \nfor Advanced Chemistry Cell (ACC) Battery \nStorage",
+        "ministry": "Ministry of Heavy Industry",
+        "description": "To enhance India's manufacturing capabilities for ACC batteries, \nthe government approved a PLI scheme with an outlay of \nRs.18,100 crore over 7 years.",
+        "focus": "Manufacturing Support",
+        "category": "Ministry of Heavy Industry",
+        "active": "Active",
+        "budget_allocation": "\u20b96,200 Cr"
+    },
+    {
+        "id": "Ministry of Heavy Industry_4",
+        "name": "Scheme for Enhancement of Competitiveness \nin the Indian Capital Goods Sector",
+        "ministry": "Ministry of Heavy Industry",
+        "description": "This scheme aims to enhance the competitiveness of the Indian \ncapital goods sector by increasing investments, indigenizing \ntechnologies and creating common service infrastructure. \n32 projects with a total cost of Rs. 1,363.78 crore have been \nsanctioned so far under Phase-II of this scheme.",
+        "focus": "Market Expansion, \nTechnology Support, \nService Infrastructure",
+        "category": "Ministry of Heavy Industry",
+        "active": "Active",
+        "budget_allocation": "Check Dept"
+    },
+    {
+        "id": "Ministry of Heavy Industry_5",
+        "name": "GST Exemption Certificate Scheme",
+        "ministry": "Ministry of Heavy Industry",
+        "description": "The \"GST Exemption Certificate Scheme\" has been introduced \nby the Department of Heavy Industries, Ministry of Heavy \nIndustries for issuing certificates to Persons with Disabilities \n(PwDs) having a disability percentage equal to or greater than 40%. \nThe scheme provides GSC Concession to orthopedically disabled \npersons on purchase of a car.",
+        "focus": "Financial Assistance",
+        "category": "Ministry of Heavy Industry",
+        "active": "Active",
+        "budget_allocation": "Check Dept"
+    }
+]

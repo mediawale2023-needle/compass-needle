@@ -1,0 +1,1422 @@
+[
+  {
+    "station_number": "1",
+    "locality": "",
+    "building_name": ""
+  },
+  {
+    "station_number": "2",
+    "locality": "Dandapur",
+    "building_name": "Govt. Higher Primary School\nSouth Wing Dandapur"
+  },
+  {
+    "station_number": "3",
+    "locality": "Rajapur",
+    "building_name": "Govt.Higher Primary Kannada\nSchool New RCC Building"
+  },
+  {
+    "station_number": "4",
+    "locality": "Rajapur",
+    "building_name": "Rajapur\nGovt. Higher Primary School\nNew Building west side north\nWing Rajapur"
+  },
+  {
+    "station_number": "5",
+    "locality": "Rajapur",
+    "building_name": "Govt. High School South Side\n2nd Room Rajapur"
+  },
+  {
+    "station_number": "6",
+    "locality": "Rajapur",
+    "building_name": "Govt. High School South Side\n4th Room Rajapur"
+  },
+  {
+    "station_number": "7",
+    "locality": "Rajapur",
+    "building_name": "Govt. Higher Primary School\nWest Wing Room Mavinmuri\nTota Rajapur"
+  },
+  {
+    "station_number": "8",
+    "locality": "Rajapur",
+    "building_name": "Govt. Higher Primary School\nEast Wing Room Mavinmuri\nTota Rajapur"
+  },
+  {
+    "station_number": "9",
+    "locality": "Rajapur",
+    "building_name": "Govt. Higher Primary School\nRamapur Tota Rajapur"
+  },
+  {
+    "station_number": "10",
+    "locality": "Tukkanatti",
+    "building_name": "Govt higher Primary School\nRoom No 3 Tukkanatti"
+  },
+  {
+    "station_number": "11",
+    "locality": "Tukkanatti",
+    "building_name": "Govt higher Primary School\nRoom No 5 Tukkanatti"
+  },
+  {
+    "station_number": "12",
+    "locality": "Tukkanatti",
+    "building_name": "Govt. Higher Primary School\nNorth Wing Right side Room No\n1 Tukkanatti"
+  },
+  {
+    "station_number": "13",
+    "locality": "Tukkanatti",
+    "building_name": "Govt Lower Primary School\nDavakhane Maddi Tukkanatti"
+  },
+  {
+    "station_number": "14",
+    "locality": "Tukkanatti",
+    "building_name": "Akash Higher Primary School\nSouth Wing Room No 3\nTukkanatti"
+  },
+  {
+    "station_number": "15",
+    "locality": "Tukkanatti",
+    "building_name": "Govt higher Primary School\nBarithotaTukkanatti"
+  },
+  {
+    "station_number": "16",
+    "locality": "Tukkanatti",
+    "building_name": "Shri Shiddaroodh Kannada\nHigher Primary School Room\nNo 02 Tukkanatti"
+  },
+  {
+    "station_number": "17",
+    "locality": "Tukkanatti",
+    "building_name": "Shri Shiddaroodh Kannada\nHigher Primary School Room\nNo 05 Tukkanatti"
+  },
+  {
+    "station_number": "18",
+    "locality": "Naganur",
+    "building_name": "Village Accountant Office\nBuilding Naganur"
+  },
+  {
+    "station_number": "19",
+    "locality": "Naganur",
+    "building_name": "Town Panchayat Office,\nNaganur"
+  },
+  {
+    "station_number": "20",
+    "locality": "Naganur",
+    "building_name": "Govt Anganawadi building East\nWing Naganur"
+  },
+  {
+    "station_number": "21",
+    "locality": "Naganur",
+    "building_name": "Primary Agri. Produce Co-op\nBank Naganur"
+  },
+  {
+    "station_number": "22",
+    "locality": "Naganur",
+    "building_name": "Govt Kannada Higher Primary\nSchool Naganur"
+  },
+  {
+    "station_number": "23",
+    "locality": "Naganur",
+    "building_name": "Govt Pre University College\n(High School Section) Naganur"
+  },
+  {
+    "station_number": "24",
+    "locality": "Naganur",
+    "building_name": "Govt Pre University College\n(High School Section) Naganur"
+  },
+  {
+    "station_number": "25",
+    "locality": "Naganur",
+    "building_name": "Govt Kannada Higher Primary\nSchool Naganur"
+  },
+  {
+    "station_number": "26",
+    "locality": "Naganur",
+    "building_name": "Govt. Higher Primary School\nSouth Side Room Naganur"
+  },
+  {
+    "station_number": "27",
+    "locality": "Naganur",
+    "building_name": "Govt. Higher Primary School\nSouth Side Room Naganur"
+  },
+  {
+    "station_number": "28",
+    "locality": "Gurlapur",
+    "building_name": "Govt MLA Model higher\nprimary school west wing\nGurlapur"
+  },
+  {
+    "station_number": "29",
+    "locality": "Gurlapur",
+    "building_name": "Govt MLA Model Higher\nPrimary School New RCC\nBuilding West wing Room no 01\nGurlapur"
+  },
+  {
+    "station_number": "30",
+    "locality": "Gurlapur",
+    "building_name": "Govt MLA Model Higher\nPrimary school New RCC\nBuilding West wing Room no 03\nGurlapur"
+  },
+  {
+    "station_number": "31",
+    "locality": "Gurlapur",
+    "building_name": "Govt MLA Model Higher\nPrimary school New RCC\nBuilding Gurlapur"
+  },
+  {
+    "station_number": "32",
+    "locality": "Gurlapur",
+    "building_name": "Moulana Azad Model School\nMudalagi"
+  },
+  {
+    "station_number": "33",
+    "locality": "Mudalagi",
+    "building_name": "Govt Urdu higher primary\nschool south wing room no 1"
+  },
+  {
+    "station_number": "34",
+    "locality": "Mudalagi",
+    "building_name": "Mudalagi\nGovt Urdu higher primary\nschool south wing room no 2\nMudalagi"
+  },
+  {
+    "station_number": "35",
+    "locality": "Mudalagi",
+    "building_name": "Govt Urdu higher primary\nschool south wing room no 3"
+  },
+  {
+    "station_number": "36",
+    "locality": "Mudalagi",
+    "building_name": "Mudalagi\nGovt Urdu higher primary\nschool south wing room no 4"
+  },
+  {
+    "station_number": "37",
+    "locality": "Mudalagi",
+    "building_name": "Mudalagi\nGovt Urdu higher primary\nschool south wing room no 6\nMudalagi"
+  },
+  {
+    "station_number": "38",
+    "locality": "Mudalagi",
+    "building_name": "Govt Urdu higher primary\nschool New RCC Building room\nno 1 Mudalagi"
+  },
+  {
+    "station_number": "39",
+    "locality": "Mudalagi",
+    "building_name": "Govt Urdu higher primary\nschool New RCC Building room\nno 3 Mudalagi"
+  },
+  {
+    "station_number": "40",
+    "locality": "Mudalagi",
+    "building_name": "Govt Higher Primary Kannada\nGirls School Room no 4"
+  },
+  {
+    "station_number": "41",
+    "locality": "Mudalagi",
+    "building_name": "MGouvdta Hlaigghier Primary Kannada\nGirls School Room No 6"
+  },
+  {
+    "station_number": "42",
+    "locality": "Mudalagi",
+    "building_name": "Mudalagi\nGovt Higher Primary Kannada\nGirls School East Wing Room\nNo 7 Mudalagi"
+  },
+  {
+    "station_number": "43",
+    "locality": "Mudalagi",
+    "building_name": "Govt Higher Primary Kannada\nGirls School East Wing Room\nNo 7 Mudalagi"
+  },
+  {
+    "station_number": "44",
+    "locality": "Mudalagi",
+    "building_name": "TMC IB TMC office Mudalagi"
+  },
+  {
+    "station_number": "45",
+    "locality": "Mudalagi",
+    "building_name": "TMC Building TMC Mudalagi"
+  },
+  {
+    "station_number": "46",
+    "locality": "Mudalagi",
+    "building_name": "TMC Building (Revenue Section)\nTMC Mudalagi"
+  },
+  {
+    "station_number": "47",
+    "locality": "Mudalagi",
+    "building_name": "Govt Higher Primary School\nVidyanagar North wing Room\nno 01 Mudalagi"
+  },
+  {
+    "station_number": "48",
+    "locality": "Mudalagi",
+    "building_name": "Govt Higher Primary School\nVidyanagar North wing Room\nno 03 Mudalagi"
+  },
+  {
+    "station_number": "49",
+    "locality": "Mudalagi",
+    "building_name": "Shivabhodhrang Pre-University\nCollege Room No.8 Mudalgi"
+  },
+  {
+    "station_number": "50",
+    "locality": "Mudalagi",
+    "building_name": "Shivabhodhrang Pre-University\nCollege Room No.6 Mudalgi"
+  },
+  {
+    "station_number": "51",
+    "locality": "Mudalagi",
+    "building_name": "Govt Lower Primary School\nVijayanagar Mudalagi"
+  },
+  {
+    "station_number": "52",
+    "locality": "Mudalagi",
+    "building_name": "K H Sonwalakar Govt High\nSchool South wing East Room\nNo 01 Mudalagi"
+  },
+  {
+    "station_number": "53",
+    "locality": "Mudalagi",
+    "building_name": "K H Sonwalakar Govt High\nSchool South wing East\nRoom No 03 Mudalagi"
+  },
+  {
+    "station_number": "54",
+    "locality": "Mudalagi",
+    "building_name": "K H Sonwalakar Govt High\nSchool North wing East Room\nNo 01 Mudalagi"
+  },
+  {
+    "station_number": "55",
+    "locality": "Mudalagi",
+    "building_name": "K H Sonwalakar Govt High\nSchool North wing East\nRoom No 03 Mudalagi"
+  },
+  {
+    "station_number": "56",
+    "locality": "Hallur",
+    "building_name": "Govt Kannada / English\nmedium higher primary School"
+  },
+  {
+    "station_number": "57",
+    "locality": "Hallur",
+    "building_name": "HGaolvlut rKannada / English\nmedium higher primary School"
+  },
+  {
+    "station_number": "58",
+    "locality": "Hallur",
+    "building_name": "Hallur\nGovt Kannada / English\nmedium higher primary School\nHallur"
+  },
+  {
+    "station_number": "59",
+    "locality": "Hallur",
+    "building_name": "Govt Kannada / English\nMedium Higher Primary School"
+  },
+  {
+    "station_number": "60",
+    "locality": "Hallur",
+    "building_name": "Hallur\nGovt Kannada / English\nMedium Higher Primary School"
+  },
+  {
+    "station_number": "61",
+    "locality": "Hallur",
+    "building_name": "HGaolvlut.r Kannada Higher Primary\nSchool Hallur Cross"
+  },
+  {
+    "station_number": "62",
+    "locality": "Hallur",
+    "building_name": "Govt. Higher Primary School\nWest Side Room Gandhi Nagar\nHallur"
+  },
+  {
+    "station_number": "63",
+    "locality": "Hallur",
+    "building_name": "Govt. Higher Primary School\nHallur Cross south side"
+  },
+  {
+    "station_number": "64",
+    "locality": "Hallur",
+    "building_name": "Govt. Higher Primary School\n(Gandhi Nagar) west wing\nRoom No 2 Hallur"
+  },
+  {
+    "station_number": "65",
+    "locality": "Shivapur",
+    "building_name": "Govt Higher Primary School\nShivapur (H)"
+  },
+  {
+    "station_number": "66",
+    "locality": "Shivapur",
+    "building_name": "Govt Higher Primary School\nShivapur (H)"
+  },
+  {
+    "station_number": "67",
+    "locality": "Shivapur",
+    "building_name": "Govt. Higher primary School\nNorth wing Shivapur (H)"
+  },
+  {
+    "station_number": "68",
+    "locality": "Shivapur",
+    "building_name": "Govt. Higher primary School\nWest Side Middle Room\nShivapur (H)"
+  },
+  {
+    "station_number": "69",
+    "locality": "Shivapur",
+    "building_name": "Govt. Higher primary School\nWest wing RCC New Building\nShivapur (H)"
+  },
+  {
+    "station_number": "70",
+    "locality": "Khanatti",
+    "building_name": "Govt Higher Primary School RCC\nNew Building West wing Room\nno 01 Khanatti"
+  },
+  {
+    "station_number": "71",
+    "locality": "Khanatti",
+    "building_name": "Govt Higher Primary School RCC\nNew Building east wing Room\nno 02 Khanatti"
+  },
+  {
+    "station_number": "72",
+    "locality": "Munyal",
+    "building_name": "Govt. Higher primary School\nNorth wing RCC Building Room\nNo 1 Munyal"
+  },
+  {
+    "station_number": "73",
+    "locality": "Munyal",
+    "building_name": "Govt. Higher primary School\nSouth wing (RCC Building)\nMunyal"
+  },
+  {
+    "station_number": "74",
+    "locality": "Munyal",
+    "building_name": "Govt Higher Primary school RCC\nNew Building Right wing Swami\ntota Munyal"
+  },
+  {
+    "station_number": "75",
+    "locality": "Munyal",
+    "building_name": "Govt. Higher Primary School\nLeft Wing Swamy Tota Munnyal"
+  },
+  {
+    "station_number": "76",
+    "locality": "Rangapur",
+    "building_name": "Govt Higher Primary School\nNew RCC Building Rangapur"
+  },
+  {
+    "station_number": "77",
+    "locality": "Kamaladinni",
+    "building_name": "Govt. Higher Primary School\nNew building East Wing"
+  },
+  {
+    "station_number": "78",
+    "locality": "Kamaladinni",
+    "building_name": "Kamaldinni\nGovt. Higher Primary School\nNew building East Wing\nKamaldinni"
+  },
+  {
+    "station_number": "79",
+    "locality": "Patagundi",
+    "building_name": "Govt Higher Primary School RCC\nBuilding Patagundi"
+  },
+  {
+    "station_number": "80",
+    "locality": "Patagundi",
+    "building_name": "Govt. lower Primary School\nvittappanakodi Form School\nPatagundi"
+  },
+  {
+    "station_number": "81",
+    "locality": "Patagundi",
+    "building_name": "Govt. Higher Primary School\nNew RCC Building Naikar Tota\nWest Wing Room no 1 Patgundi"
+  },
+  {
+    "station_number": "82",
+    "locality": "Dharmatti",
+    "building_name": "Govt. Higher Primary School\nRCC building West wing middle\nRoom Dharmatti"
+  },
+  {
+    "station_number": "83",
+    "locality": "Dharmatti",
+    "building_name": "Govt. Higher Primary School\nSouth Wing RCC Building\nDharmatti"
+  },
+  {
+    "station_number": "84",
+    "locality": "Dharmatti",
+    "building_name": "Govt Higher Primary School\nUpaveer Thota Dharmatti"
+  },
+  {
+    "station_number": "85",
+    "locality": "Dharmatti",
+    "building_name": "Govt. Higher Primary School\nUpaveer Tota East Wing New\nBuilding Dharmatti"
+  },
+  {
+    "station_number": "86",
+    "locality": "Gujanatti",
+    "building_name": "Govt Higher Primary school\nNew RCC Building Gujanatti"
+  },
+  {
+    "station_number": "87",
+    "locality": "Gujanatti",
+    "building_name": "Govt Higher Primary school\nNew RCC Building Gujanatti"
+  },
+  {
+    "station_number": "88",
+    "locality": "Gujanatti",
+    "building_name": "Govt. Higher Primary School\nNewly Constructed RCC\nBuilding Mudhol maradi\nGujanatti"
+  },
+  {
+    "station_number": "89",
+    "locality": "Jakanatti",
+    "building_name": "Govt. Higher Primary School\nNew building Jokanatti"
+  },
+  {
+    "station_number": "90",
+    "locality": "Jokanatti",
+    "building_name": "Govt. Higher Primary School\nNew building North room\nJokanatti"
+  },
+  {
+    "station_number": "91",
+    "locality": "Kalloli",
+    "building_name": "Govt Higher Primary Boys\nSchool East Wing Kalloli"
+  },
+  {
+    "station_number": "92",
+    "locality": "Kalloli",
+    "building_name": "N.R.Patil College West Wing\nKallolli"
+  },
+  {
+    "station_number": "93",
+    "locality": "Kalloli",
+    "building_name": "N R Patil College East Wing\nRoom No 02 Kalloli"
+  },
+  {
+    "station_number": "94",
+    "locality": "Kalloli",
+    "building_name": "N R Patil College East Wing\nRoom No 03 Kalloli"
+  },
+  {
+    "station_number": "95",
+    "locality": "Kalloli",
+    "building_name": "Village Administrative Office\nKalloli"
+  },
+  {
+    "station_number": "96",
+    "locality": "Kalloli",
+    "building_name": "Govt Veternary Hospital South\nwing Kallolli"
+  },
+  {
+    "station_number": "97",
+    "locality": "Kalloli",
+    "building_name": "Town Panchayat Office Near\nanganawadi Building Kalloli"
+  },
+  {
+    "station_number": "98",
+    "locality": "Kalloli",
+    "building_name": "Samudaya bhavan Harijan Keri,\nKallolli"
+  },
+  {
+    "station_number": "99",
+    "locality": "Kalloli",
+    "building_name": "Govt. Higher Primary Kannada\nBoys School west wing Kallolli"
+  },
+  {
+    "station_number": "100",
+    "locality": "Kalloli",
+    "building_name": "Govt. Higher Primary Kannada\nBoys School New Building East\nwing Kallolli"
+  },
+  {
+    "station_number": "101",
+    "locality": "Kalloli",
+    "building_name": "Town Panchayat office meeting\nHall Kalloli"
+  },
+  {
+    "station_number": "102",
+    "locality": "Kalloli",
+    "building_name": "Govt. Higher Primary School\nNorth side new building\nHanamapur (Kallolli)"
+  },
+  {
+    "station_number": "103",
+    "locality": "Duradundi",
+    "building_name": "Gram Panchayat Office Newly\nConstructed RCC Building\nDurdundi"
+  },
+  {
+    "station_number": "104",
+    "locality": "Duradundi",
+    "building_name": "Gram Panchayat Office Old\nBuilding(Near Shri\nDurudundeshwar Math)"
+  },
+  {
+    "station_number": "105",
+    "locality": "Duradundi",
+    "building_name": "Durdundi\nSamudaya Kalika Kendra, Newly\nConstructed RCC Building\nDuradundi"
+  },
+  {
+    "station_number": "106",
+    "locality": "Durdundi",
+    "building_name": "OLD Govt Higher School RCC\nBuilding Duradundi"
+  },
+  {
+    "station_number": "107",
+    "locality": "Durdundi",
+    "building_name": "Old Govt High School RCC\nBuilding Right Wing Room\nDuradundi"
+  },
+  {
+    "station_number": "108",
+    "locality": "Durdundi",
+    "building_name": "Govt Kannada Higher Primary\nWest wing Duradundi"
+  },
+  {
+    "station_number": "109",
+    "locality": "Durdundi",
+    "building_name": "Govt Kannada Primary School\nNorth wing Duradundi"
+  },
+  {
+    "station_number": "110",
+    "locality": "Ganeshwadi",
+    "building_name": "Govt Kannada Higher Primary\nSchool RCC Building South Side\nGaneshawadi"
+  },
+  {
+    "station_number": "111",
+    "locality": "Ganeshwadi",
+    "building_name": "Govt. Higher Primary school\nRCC buildingWest side"
+  },
+  {
+    "station_number": "112",
+    "locality": "Badigwad",
+    "building_name": "Ganeshwadi\nGovt. Higher Primary School\nEast Wing Badigwad"
+  },
+  {
+    "station_number": "113",
+    "locality": "Badigwad",
+    "building_name": "Govt. Higher Primary School\nWest Wing Badigwad"
+  },
+  {
+    "station_number": "114",
+    "locality": "Badigwad",
+    "building_name": "Govt. Higher Primary School\nWest Side Last Room Badigwad"
+  },
+  {
+    "station_number": "115",
+    "locality": "Badigwad",
+    "building_name": "Govt. Higher Primary School\nNorth Wing Badigwad"
+  },
+  {
+    "station_number": "116",
+    "locality": "Arabhavi",
+    "building_name": "Pattan Panchayat Office\nArabhanvi"
+  },
+  {
+    "station_number": "117",
+    "locality": "Arabhavi",
+    "building_name": "Govt. Higher Kannada Girls\nSchool Newly Constructed RCC\nBuilding Arabhanvi"
+  },
+  {
+    "station_number": "118",
+    "locality": "Arabhavi",
+    "building_name": "Govt. Lower Primary Boys\nSchool Duradundeshwar nagar"
+  },
+  {
+    "station_number": "119",
+    "locality": "Arabhavi",
+    "building_name": "Arabhavi\nGOVERNMENT HIGHER\nKANNADA BOYS SCHOOL\nEASTERN ROOM OF OLD\nBUILDING ARABHAVI"
+  },
+  {
+    "station_number": "120",
+    "locality": "Arabhavi",
+    "building_name": "GOVERNMENT HIGHER\nPRIMARY KANNADA BOYS\nSCHOOL RCC BUILDING INDIRA\nNAGAR ARABHAVI"
+  },
+  {
+    "station_number": "121",
+    "locality": "Arabhavi",
+    "building_name": "Govt. Higher Urdu Boys\nSchool Arabhavi"
+  },
+  {
+    "station_number": "122",
+    "locality": "Arabhavi",
+    "building_name": "GOVERNMENT HIGHER\nPRIMARY KANNADA SCHOOL\nJAINAR KODI ARABHAVI"
+  },
+  {
+    "station_number": "123",
+    "locality": "Arabhavi",
+    "building_name": "GOVERNMENT KANNADA\nLOWER PRIMARY SCHOOL\n(ARABHAVI MATH) ARABHAVI"
+  },
+  {
+    "station_number": "124",
+    "locality": "Arabhavi",
+    "building_name": "Govt Higher Primary Kannada\nschool Sattigeri Thota Arabhavi"
+  },
+  {
+    "station_number": "125",
+    "locality": "Sanganakeri",
+    "building_name": "Govt. Higher primary School\nEast room Sanganakeri"
+  },
+  {
+    "station_number": "126",
+    "locality": "Sanganakeri",
+    "building_name": "Govt. Higher primary School\nWest room Sanganakeri"
+  },
+  {
+    "station_number": "127",
+    "locality": "Sanganakeri",
+    "building_name": "GOVERNMENT HIGHER\nPRIMARY URDU SCHOOL\nSOUTHERN ROOM\nSANAGANAKERI"
+  },
+  {
+    "station_number": "128",
+    "locality": "Sanganakeri",
+    "building_name": "Govt Kannada Higher Primary\nSchool Arabhavi Thota (bhyali\nBasappana gudi) Sanganakeri"
+  },
+  {
+    "station_number": "129",
+    "locality": "Lolasur",
+    "building_name": "Govt. Higher Kannada Primary\nSchool East Wing Room Lolasur"
+  },
+  {
+    "station_number": "130",
+    "locality": "Lolasur",
+    "building_name": "Govt. Higher Primary School\nNewly Constructed RCC\nBuilding West Wing Lolasur"
+  },
+  {
+    "station_number": "131",
+    "locality": "Basaligundi",
+    "building_name": "Govt. Higher Primary School\nWest Wing Basaligundi"
+  },
+  {
+    "station_number": "132",
+    "locality": "Basaligundi",
+    "building_name": "Govt. Higher Primary School\nEast Wing Basaligundi"
+  },
+  {
+    "station_number": "133",
+    "locality": "Nallanatti",
+    "building_name": "Govt. Higher Primary School\nNew Building South wing\nNallanatti"
+  },
+  {
+    "station_number": "134",
+    "locality": "Nallanatti",
+    "building_name": "Govt. Higher Primary School\nNew Building North wing\nNallanatti"
+  },
+  {
+    "station_number": "135",
+    "locality": "Nallanatti",
+    "building_name": "Govt. Higher primary School\nNew building,West Wing\nNallanatti"
+  },
+  {
+    "station_number": "136",
+    "locality": "Nallanatti",
+    "building_name": "Govt. Higher primary School\nNew building,East Wing\nNallanatti"
+  },
+  {
+    "station_number": "137",
+    "locality": "Balobal",
+    "building_name": "Govt. Higher Primary School\nEast Wing Balobal"
+  },
+  {
+    "station_number": "138",
+    "locality": "Balobal",
+    "building_name": "Govt. Higher Primary School\nWest Wing Balobal"
+  },
+  {
+    "station_number": "139",
+    "locality": "Balobal",
+    "building_name": "Govt. Higher primary School\nWest wing Balobal"
+  },
+  {
+    "station_number": "140",
+    "locality": "Balobal",
+    "building_name": "Govt. Higher primary School\nEast wing Balobal"
+  },
+  {
+    "station_number": "141",
+    "locality": "Birangaddi",
+    "building_name": "Govt. Higher Primary School\nSouth Wing Middle RCC\nBuilding Birangaddi"
+  },
+  {
+    "station_number": "142",
+    "locality": "Birangaddi",
+    "building_name": "Govt. Higher Primary School\nWest Side RCC Building\nBirangaddi"
+  },
+  {
+    "station_number": "143",
+    "locality": "Birangaddi",
+    "building_name": "Govt. Higher Primary School\nNorth Wing Birangaddi"
+  },
+  {
+    "station_number": "144",
+    "locality": "Birangaddi",
+    "building_name": "Govt. Higher Primary School\nNorth Wing Centre Room\nBirangaddi"
+  },
+  {
+    "station_number": "145",
+    "locality": "Hunshyal PG",
+    "building_name": "Govt Higher Primary school\nNew RCC Buildling Hunshyal PG"
+  },
+  {
+    "station_number": "146",
+    "locality": "Hunshyal PG",
+    "building_name": "Govt Higher Primary school\nNew RCC Buildling Hunshyal PG"
+  },
+  {
+    "station_number": "147",
+    "locality": "Hunshyal PG",
+    "building_name": "Govt. Higher Primary School\nCentre Room Hunshyal PG"
+  },
+  {
+    "station_number": "148",
+    "locality": "Hunshyal PG",
+    "building_name": "Govt. Higher Primary School\nSouth Wing RCC Building (extra\nroom) Hunshyal PG"
+  },
+  {
+    "station_number": "149",
+    "locality": "Hunshyal PG",
+    "building_name": "Govt Higher Primary Urdu\nSchool East Room (New village)\nHunashyal P.G"
+  },
+  {
+    "station_number": "150",
+    "locality": "Hunshyal PG",
+    "building_name": "Govt Higher Primary Urdu\nSchool West Room (New\nvillage) Hunashyal P.G"
+  },
+  {
+    "station_number": "151",
+    "locality": "Hunshyal PG",
+    "building_name": "Govt. Lower Primary School\nHunshyal PG (Tlalawarmardi)"
+  },
+  {
+    "station_number": "152",
+    "locality": "Waderhatti",
+    "building_name": "Kasturaba Balika Vidyalay South\nWing Second Room Waderhatti"
+  },
+  {
+    "station_number": "153",
+    "locality": "Waderhatti",
+    "building_name": "Govt. Kannada Higher Primary\nSchool North Wing Room No 1\nWaderhatti"
+  },
+  {
+    "station_number": "154",
+    "locality": "Waderhatti",
+    "building_name": "Nammura Govt higher Primary\nSchool New RCC Building\nWaderahatti"
+  },
+  {
+    "station_number": "155",
+    "locality": "Waderhatti",
+    "building_name": "Nammura Govt higher Primary\nSchool New RCC Building\nWaderahatti"
+  },
+  {
+    "station_number": "156",
+    "locality": "Waderhatti",
+    "building_name": "Govt. Higher primary School\nNew RCC Building North wing\nRoom No.1. Waderhatti"
+  },
+  {
+    "station_number": "157",
+    "locality": "Waderhatti",
+    "building_name": "Govt. Higher primary School\nRCC Building North wing Room\nNo.2. Waderhatti"
+  },
+  {
+    "station_number": "158",
+    "locality": "Waderhatti",
+    "building_name": "Kasturaba Balika Vidyalay South\nWing Middle Room Waderhatti"
+  },
+  {
+    "station_number": "159",
+    "locality": "Pulagaddi",
+    "building_name": "Govt. Higher Primary School\nSouth Wing RCC (left side)\nBuilding Pulagaddi"
+  },
+  {
+    "station_number": "160",
+    "locality": "Pulagaddi",
+    "building_name": "Govt. Higher Primary School\nSouth Wing (Right side) RCC\nBuilding Pulagaddi"
+  },
+  {
+    "station_number": "161",
+    "locality": "Mosaguppi",
+    "building_name": "Govt higher Primary School\nNew OSAT Building Masaguppi"
+  },
+  {
+    "station_number": "162",
+    "locality": "Mosaguppi",
+    "building_name": "Govt. Higher Primary School\nWest Wing Room Masaguppi"
+  },
+  {
+    "station_number": "163",
+    "locality": "Mosaguppi",
+    "building_name": "Govt. Higher Primary School\nNorth Wing RCC Building\nMasaguppi"
+  },
+  {
+    "station_number": "164",
+    "locality": "Mosaguppi",
+    "building_name": "GOVERNMENT HIGHER\nPRIMARY KANNADA SCHOOL\nMASAGUPPI TOTA MASAGUPPI"
+  },
+  {
+    "station_number": "165",
+    "locality": "Tigadi",
+    "building_name": "Govt. Higher primary school\nRoom No. 2 New building Tigadi"
+  },
+  {
+    "station_number": "166",
+    "locality": "Tigadi",
+    "building_name": "Govt. Higher primary school\nRoom No. 1 New building Tigadi"
+  },
+  {
+    "station_number": "167",
+    "locality": "Tigadi",
+    "building_name": "Govt. Lower Primary School\nNew RCC Building Tokaratti"
+  },
+  {
+    "station_number": "168",
+    "locality": "Sunadholi",
+    "building_name": "B V Naragund Govt Higher\nschool north side south room\nSunadholi"
+  },
+  {
+    "station_number": "169",
+    "locality": "Sunadholi",
+    "building_name": "B V Naragund Govt Higher\nschool East side west room no\n2 Sunadholi"
+  },
+  {
+    "station_number": "170",
+    "locality": "Sunadholi",
+    "building_name": "B V Naragund Govt Higher\nschool East side West room No\n3 Sunadholi"
+  },
+  {
+    "station_number": "171",
+    "locality": "Sunadholi",
+    "building_name": "Govt. Higher Primary School\nWest Wing Sunadholi cross\nSunadholi"
+  },
+  {
+    "station_number": "172",
+    "locality": "Sunadholi",
+    "building_name": "Govt. Higher Primary School\nWest Wing RCC Building\nSunadholi cross Sunadholi"
+  },
+  {
+    "station_number": "173",
+    "locality": "Bhairnatti",
+    "building_name": "Govt. Higher Primary School\nEast Wing Bhairnatti"
+  },
+  {
+    "station_number": "174",
+    "locality": "Bhairnatti",
+    "building_name": "Govt. Higher Primary School\nRCC Building South Wing"
+  },
+  {
+    "station_number": "175",
+    "locality": "Hosatti",
+    "building_name": "Bhairnatti\nGovt. Higher Primary School\nWest wing Room ( RCC New\nBuilding )Hosatti"
+  },
+  {
+    "station_number": "176",
+    "locality": "Hunshyal PY",
+    "building_name": "Govt. Higher Primary\nSchoolWest Wing Room No 7\n(New RCC Buidling ) Hunshyal\nPY"
+  },
+  {
+    "station_number": "177",
+    "locality": "Hunshyal PY",
+    "building_name": "Govt. Higher Primary\nSchoolWest Wing Room No 8\n(New RCC Buidling ) Hunshyal\nPY"
+  },
+  {
+    "station_number": "178",
+    "locality": "Bisankopp",
+    "building_name": "Govt. Higher Primary School\nWest Wing, (RCC New Building)\nBisankopp"
+  },
+  {
+    "station_number": "179",
+    "locality": "Bisankopp",
+    "building_name": "Govt. Higher Primary School\nWest Wing, (RCC New\nBuilding)Room No 2 Bisankopp"
+  },
+  {
+    "station_number": "180",
+    "locality": "Mannapur",
+    "building_name": "Anganwadi Centre, Near Laxmi\nTemple, Mannapur."
+  },
+  {
+    "station_number": "181",
+    "locality": "Dhavaleshwar",
+    "building_name": "Govt. Higher Primary School\nMaddi, South Room (RCC New\nBuilding ) Dhavaleshwar"
+  },
+  {
+    "station_number": "182",
+    "locality": "Dhavaleshwar",
+    "building_name": "Govt. Higher Primary School\nMaddi, West Wing Room (Old\nBuilding) Dhavaleshwar"
+  },
+  {
+    "station_number": "183",
+    "locality": "Aralimatti",
+    "building_name": "Govt. Higher Primary School\nWest Wing Room (RCC New\nbuilding ) Aralimatti"
+  },
+  {
+    "station_number": "184",
+    "locality": "Aralimatti",
+    "building_name": "Govt. Higher Primary School\nEast Wing Room (RCC New\nbuilding ) Aralimatti"
+  },
+  {
+    "station_number": "185",
+    "locality": "Awaradi",
+    "building_name": "Govt. Higher Primary School\nNorth wing East Room No. 2\nAwaradi"
+  },
+  {
+    "station_number": "186",
+    "locality": "Awaradi",
+    "building_name": "Govt. Higher Primary School\nWest wing Room No 1 Awaradi"
+  },
+  {
+    "station_number": "187",
+    "locality": "Hale Yargudri",
+    "building_name": "Govt. Lower Primary School\nSouth Wing Room, (RCC New\nBuilding ) Hale Yargudri"
+  },
+  {
+    "station_number": "188",
+    "locality": "Hosa Yargudri",
+    "building_name": "Govt. Higher Primary School\nWest Wing North Room (RCC\nNew Building ) Hosa Yaragudri"
+  },
+  {
+    "station_number": "189",
+    "locality": "Venkatapur",
+    "building_name": "Govt. Higher Primary School\nSouth wing East Room (RCC\nNew Building ) Venkatapur"
+  },
+  {
+    "station_number": "190",
+    "locality": "Venkatapur",
+    "building_name": "Govt. Higher Primary School\nEast wing (RCC Old Building )\nVenkatapur"
+  },
+  {
+    "station_number": "191",
+    "locality": "Kulagod",
+    "building_name": "Govt. Higher Primary School\nSouth Wing (RCC New Room )\nKulagod"
+  },
+  {
+    "station_number": "192",
+    "locality": "Kulagod",
+    "building_name": "Govt. Higher Primary School\nSouth Wing (RCC Beside of New\nRoom) Kulagod"
+  },
+  {
+    "station_number": "193",
+    "locality": "Kulagod",
+    "building_name": "Govt. Higher Primary School\nChinnar Angal Kendra, South\nWing East Room (RCC New\nBuilding) Kulagod"
+  },
+  {
+    "station_number": "194",
+    "locality": "Kulagod",
+    "building_name": "Govt. Higher Primary School\nChinnar Angal Kendra, East Side\nRoom (RCC New Building)\nKulagod"
+  },
+  {
+    "station_number": "195",
+    "locality": "Kulagod",
+    "building_name": "Govt. Higher Primary School\nChinnar Angal Kendra, South\nWing East Room No 2 (RCC New\nBuilding) Kulagod"
+  },
+  {
+    "station_number": "196",
+    "locality": "Kulagod",
+    "building_name": "Govt. Girls School, East Wing\nCentre Room (RCC New\nBuilding ) KulAgod"
+  },
+  {
+    "station_number": "197",
+    "locality": "Kulagod",
+    "building_name": "Govt. Boys School, North Wing\nCentre Room (RCC New\nBuilding ) Kulagod"
+  },
+  {
+    "station_number": "198",
+    "locality": "Laxmeshwar",
+    "building_name": "Govt Higher Primary School\nSouth Wing West Room\nLaxmeshwar"
+  },
+  {
+    "station_number": "199",
+    "locality": "Honkuppi",
+    "building_name": "Govt Higher Primary school\nWest wing right side Room no\nHonakuppi (RCC Building)"
+  },
+  {
+    "station_number": "200",
+    "locality": "Honkuppi",
+    "building_name": "Govt. Higher Primary School\nWest Wing Honkuppi"
+  },
+  {
+    "station_number": "201",
+    "locality": "Honkuppi",
+    "building_name": "Govt higher primary school\nwest wing RCC Building left side\nRoom Honakuppi"
+  },
+  {
+    "station_number": "202",
+    "locality": "Siddapurhatti",
+    "building_name": "Govt.Lower Primary School\n(RCC New Building )"
+  },
+  {
+    "station_number": "203",
+    "locality": "Khandratti",
+    "building_name": "SGiodvdta.Hpuigrhheart tPirimary School\nKhandratti"
+  },
+  {
+    "station_number": "204",
+    "locality": "Khandratti",
+    "building_name": "Govt Higher Primary School\nKhandratti"
+  },
+  {
+    "station_number": "205",
+    "locality": "Kaparatti",
+    "building_name": "Govt Higher Primary School\nKapratti"
+  },
+  {
+    "station_number": "206",
+    "locality": "Talakatnal",
+    "building_name": "Govt. Higher Primary School\nNorth Side Room New RCC\nBuilding Talakatnal"
+  },
+  {
+    "station_number": "207",
+    "locality": "Talakatnal",
+    "building_name": "Govt. Higher Primary School\nSouth Wing East Room (RCC\nNew Building) Talakatnal"
+  },
+  {
+    "station_number": "208",
+    "locality": "Talakatnal",
+    "building_name": "Gram Panchayat Samuday\nBhavan Talakatnal"
+  },
+  {
+    "station_number": "209",
+    "locality": "Talakatnal",
+    "building_name": "Gram Panchayat Office Meeting\nHall Talakatanal"
+  },
+  {
+    "station_number": "210",
+    "locality": "Udagatti",
+    "building_name": "Govt. Higher Primary School\nRight Side Udagatti"
+  },
+  {
+    "station_number": "211",
+    "locality": "Udagatti",
+    "building_name": "Govt. Higher Primary School\nLeft Side Udagatti"
+  },
+  {
+    "station_number": "212",
+    "locality": "Udagatti",
+    "building_name": "Govt. Higher Primary School\nWest Wing Room (RCC New\nbuilding) Udagatti"
+  },
+  {
+    "station_number": "213",
+    "locality": "Hadaginal",
+    "building_name": "Govt. Higher Primary School\n(RCC New building ) Hadaginal"
+  },
+  {
+    "station_number": "214",
+    "locality": "Hadaginal",
+    "building_name": "Govt. Higher Primary School\nSouth Wing Hadaginal"
+  },
+  {
+    "station_number": "215",
+    "locality": "Hadaginal",
+    "building_name": "Govt. Higher Primary School\nNorth Wing Hadaginal"
+  },
+  {
+    "station_number": "216",
+    "locality": "Kalarkopp",
+    "building_name": "Govt. Higher Primary School\n(RCC New Building) Kalarkopp"
+  },
+  {
+    "station_number": "217",
+    "locality": "Kalarkopp",
+    "building_name": "Govt. Higher Primary School\nSouth Wing (RCC New Building)\nKalarkopp"
+  },
+  {
+    "station_number": "218",
+    "locality": "Kalarkopp",
+    "building_name": "Govt. Lower Primary School\n(RCC New Building) Kalarkopp"
+  },
+  {
+    "station_number": "219",
+    "locality": "Melvanki",
+    "building_name": "CGroovsts. Higher Primary School\nsiddaroodh math RCC building\nnorth side Melvanki"
+  },
+  {
+    "station_number": "220",
+    "locality": "Melvanki",
+    "building_name": "Govt. Higher Primary School\nSouth Wing Room Melvanki"
+  },
+  {
+    "station_number": "221",
+    "locality": "Melvanki",
+    "building_name": "Govt. Higher Primary School\nNew Building North Wing\nMelvanki"
+  },
+  {
+    "station_number": "222",
+    "locality": "Melvanki",
+    "building_name": "Govt. Lower Primary School\nNew RCC Centre Building North\nWing Basavnagar Melvanki"
+  },
+  {
+    "station_number": "223",
+    "locality": "Melvanki",
+    "building_name": "Govt primary school\nBasavanagar melavanki"
+  },
+  {
+    "station_number": "224",
+    "locality": "Melvanki",
+    "building_name": "Govt. High School, East Wing\nCentre Room (RCC New\nBuilding ) Melavanki"
+  },
+  {
+    "station_number": "225",
+    "locality": "Melvanki",
+    "building_name": "Govt. Lower Primary School,\nSadashiv nagar Melavanki"
+  },
+  {
+    "station_number": "226",
+    "locality": "Melvanki",
+    "building_name": "Govt. Lower Primary School,\nEast Wing Sadashiv nagar"
+  },
+  {
+    "station_number": "227",
+    "locality": "Chigadolli",
+    "building_name": "Melavanki\nGovt.Higher Primary School\nChigadolli"
+  },
+  {
+    "station_number": "228",
+    "locality": "Adibatti",
+    "building_name": "Govt.Higher Primary School\nAdibatti"
+  },
+  {
+    "station_number": "229",
+    "locality": "Adibatti",
+    "building_name": "Govt.Higher Primary School\nAdibatti"
+  },
+  {
+    "station_number": "230",
+    "locality": "Sajjihal",
+    "building_name": "Sarva Shikshan Abhiyan New\nR.C.C Building Sajjihal"
+  },
+  {
+    "station_number": "231",
+    "locality": "Tapashi",
+    "building_name": "Govt. Higher Primary School\n(New RCC Building) West Wing\nTapashi"
+  },
+  {
+    "station_number": "232",
+    "locality": "Tapashi",
+    "building_name": "Govt. Higher Primary School\n(New RCC Building) East Wing\nTapashi"
+  },
+  {
+    "station_number": "233",
+    "locality": "Kemmankol",
+    "building_name": "Govt. Higher Primary School\n(RCC New Buidling ) Right Side\nRoom Kemmankol"
+  },
+  {
+    "station_number": "234",
+    "locality": "Kemmankol",
+    "building_name": "Govt Higher Primary School Nali\nKali Room Kemmankol"
+  },
+  {
+    "station_number": "235",
+    "locality": "Ningapur",
+    "building_name": "Govt higher Primary school\nningapur"
+  },
+  {
+    "station_number": "236",
+    "locality": "Bilkundi",
+    "building_name": "Govt. Higher Primary School\n(RCC New Buidling ) West wing\nBilkundi"
+  },
+  {
+    "station_number": "237",
+    "locality": "Bikundi",
+    "building_name": "Govt. Higher Primary School\n(RCC New Buidling ) East wing\nBilkundi"
+  },
+  {
+    "station_number": "238",
+    "locality": "Koujalgi",
+    "building_name": "Govt. Higher Girls Primary\nSchool East side Room No.1"
+  },
+  {
+    "station_number": "239",
+    "locality": "Koujalgi",
+    "building_name": "KGoouvjta. lHgiigher Girls Primary\nSchool East side Room No.2"
+  },
+  {
+    "station_number": "240",
+    "locality": "Koujalgi",
+    "building_name": "Koujalgi\nGovt. Higher Boys Primary\nSchool East Side Room No.1"
+  },
+  {
+    "station_number": "241",
+    "locality": "Koujalgi",
+    "building_name": "KGoouvjtl.a Hgiigher Boys Primary\nSchool East Side Room No.2"
+  },
+  {
+    "station_number": "242",
+    "locality": "Koujalgi",
+    "building_name": "Koujlagi\nGovt. Higher Primary Boys\nSchool Southside Room"
+  },
+  {
+    "station_number": "243",
+    "locality": "Koujalgi",
+    "building_name": "KGoouvjta Ilngdiipendent PU College\nKoujalagi"
+  },
+  {
+    "station_number": "244",
+    "locality": "Koujalgi",
+    "building_name": "Govt Indipendent PU College\nKoujalagi"
+  },
+  {
+    "station_number": "245",
+    "locality": "Koujalgi",
+    "building_name": "Govt Indipendent PU College\nKoujalagi"
+  },
+  {
+    "station_number": "246",
+    "locality": "Koujalgi",
+    "building_name": "Govt high school RCC New\nBuilding west wing room no 1\nKoujlagi"
+  },
+  {
+    "station_number": "247",
+    "locality": "Koujalgi",
+    "building_name": "Govt high school RCC New\nBuilding west wing room no 3\nKoujlagi"
+  },
+  {
+    "station_number": "248",
+    "locality": "Koujalgi",
+    "building_name": "Govt high school RCC New\nbuilding west wing room no 4\nKoujlagi"
+  },
+  {
+    "station_number": "249",
+    "locality": "Koujalgi",
+    "building_name": "Govt. Higher Primary Girls\nSchool (New RCC Building )\nRoom No.1 Koujlagi"
+  },
+  {
+    "station_number": "250",
+    "locality": "Koujalgi",
+    "building_name": "Govt. Higher Primary Girls\nSchool (New RCC Building )\nRoom No.2 Koujalagi"
+  },
+  {
+    "station_number": "251",
+    "locality": "Koujalgi",
+    "building_name": "Govt. Higher Primary Urdu\nSchool (New RCC Building\n)Koujlagi"
+  },
+  {
+    "station_number": "252",
+    "locality": "Raderhatti",
+    "building_name": "Govt. Higher Primary School\n(New RCC Building ) west Room\nRaderhatti"
+  },
+  {
+    "station_number": "253",
+    "locality": "Raderhatti",
+    "building_name": "Govt. Higher Primary School\n(New RCC Building ) East Wing\nRaderhatti"
+  },
+  {
+    "station_number": "254",
+    "locality": "Timmapur",
+    "building_name": "Govt. Higher Primary School\nEast wing Room No. 2 (New\nRCC Building )Timmapur"
+  },
+  {
+    "station_number": "255",
+    "locality": "Gulganjikopp",
+    "building_name": "Govt. Higher Primary School\nNew RCC Building\nGulaganjikoppa"
+  },
+  {
+    "station_number": "256",
+    "locality": "Yadawad",
+    "building_name": "Govt Higher Primary Urdu\nSchool East Wing Yadawad"
+  },
+  {
+    "station_number": "257",
+    "locality": "Yadawad",
+    "building_name": "Govt Higher Primary Urdu\nSchool West Wing Yadawad"
+  },
+  {
+    "station_number": "258",
+    "locality": "Yadawad",
+    "building_name": "Guru Neel Khantheshwar PU\nCollege South wing Room No. 2\n(9th B Class) Yadawad"
+  },
+  {
+    "station_number": "259",
+    "locality": "Yadawad",
+    "building_name": "Guru Neel Khantheshwar PU\nCollege South wing Middle\nRoom No. 2 Yadawad"
+  },
+  {
+    "station_number": "260",
+    "locality": "Yadawad",
+    "building_name": "Govt Higher Primary School\nYadawad (girisagar) East wing\nRoom no 03 Yadawad"
+  },
+  {
+    "station_number": "261",
+    "locality": "Yadawad",
+    "building_name": "Govt. Hihger Primary School\nYadawad (Girisagar)"
+  },
+  {
+    "station_number": "262",
+    "locality": "Yadawad",
+    "building_name": "Guru Neel Khantheshwar PU\nCollege North wing 2nd Room\n(8th B class ) Yadawad"
+  },
+  {
+    "station_number": "263",
+    "locality": "Yadawad",
+    "building_name": "Guru Neel Khantheshwar PU\nCollege North wing 1st Room\nYadawad"
+  },
+  {
+    "station_number": "264",
+    "locality": "Yadawad",
+    "building_name": "Govt Kannada Boys Higher\nPrimary School South Wing\nYadawad"
+  },
+  {
+    "station_number": "265",
+    "locality": "Yadawad",
+    "building_name": "Govt Kannada Girls Higher\nPrimary School West Wing\nroom No Yadawad"
+  },
+  {
+    "station_number": "266",
+    "locality": "Kamankatti",
+    "building_name": "Govt. Higher Primary School\nKamankatti"
+  },
+  {
+    "station_number": "267",
+    "locality": "Kamankatti",
+    "building_name": "Govt. Higher Primary School\nEast Wing Kamankatti"
+  },
+  {
+    "station_number": "268",
+    "locality": "Kopadatti",
+    "building_name": "Govt. Higher Primary School\nKopadatti"
+  },
+  {
+    "station_number": "269",
+    "locality": "Manommi",
+    "building_name": "Govt lower Primary school\nWeast sideRoom No 02"
+  },
+  {
+    "station_number": "270",
+    "locality": "Kalliguddi",
+    "building_name": "Manomi\nGovt. Higher Primary School\nEast wing (New RCC Building )\nKalliguddi"
+  },
+  {
+    "station_number": "271",
+    "locality": "Mannikeri",
+    "building_name": "Govt. Higher Primary School\nWest Wing (RCC New Building )\nMannikeri"
+  },
+  {
+    "station_number": "272",
+    "locality": "Mannikeri",
+    "building_name": "Govt. Higher Primary School\nEast Wing (RCC New Building )\nMannikeri"
+  },
+  {
+    "station_number": "273",
+    "locality": "Bagarnal",
+    "building_name": "Govt. Higher Primary School\nWest Wing Bagarnal"
+  },
+  {
+    "station_number": "274",
+    "locality": "Bagarnal",
+    "building_name": "Govt. Higher Primary School\nCentre Room Bagarnal"
+  },
+  {
+    "station_number": "275",
+    "locality": "Gosbal",
+    "building_name": "Govt. Higher Primary School\nWest Wing Second Room\nGosbal"
+  },
+  {
+    "station_number": "276",
+    "locality": "Gosbal",
+    "building_name": "Govt. Higher Primary School\nEast Wing Second Room Gosbal"
+  },
+  {
+    "station_number": "277",
+    "locality": "Betageri",
+    "building_name": "Govt. Higher Primary School\nEast Wing North room no.1\n(New RCC Building ) Betageri"
+  },
+  {
+    "station_number": "278",
+    "locality": "Betageri",
+    "building_name": "Govt. Higher Primary School\nEast Wing North room\nno.2(New RCC Building )"
+  },
+  {
+    "station_number": "279",
+    "locality": "Betageri",
+    "building_name": "Betageri\nGovt. Higher Primary School\nEast Wing South room (New\nRCC Building) Betageri"
+  },
+  {
+    "station_number": "280",
+    "locality": "Betageri",
+    "building_name": "Govt. Higher Primary Kannada\nBoys Centre School Betageri"
+  },
+  {
+    "station_number": "281",
+    "locality": "Betageri",
+    "building_name": "Govt. Higher Primary Kannada\nBoys Centre School Betageri"
+  },
+  {
+    "station_number": "258388",
+    "locality": "Total Voters",
+    "building_name": ""
+  },
+  {
+    "station_number": "0",
+    "locality": "New polling staion",
+    "building_name": ""
+  },
+  {
+    "station_number": "991",
+    "locality": "Average electoral per",
+    "building_name": ""
+  }
+]

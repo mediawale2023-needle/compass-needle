@@ -1,0 +1,1177 @@
+[
+  {
+    "station_number": "1",
+    "locality": "Kutarnatti",
+    "building_name": "1-Govt Lower Primary Kannada\nSchool, Kutarnatti"
+  },
+  {
+    "station_number": "2",
+    "locality": "Hirebudanur",
+    "building_name": "2-Govt Higher Primary Kannada\nSchool, New Building, East Side,\nHirebudanur"
+  },
+  {
+    "station_number": "3",
+    "locality": "Hirebudanur",
+    "building_name": "3-Govt Higher Primary Kannada\nSchool, New Building, North Side,\nHHiirreebbuuddaannuurr"
+  },
+  {
+    "station_number": "4",
+    "locality": "Malagali",
+    "building_name": "4-Govt Higher Primary School,\nMalagali"
+  },
+  {
+    "station_number": "5",
+    "locality": "Obaladinni",
+    "building_name": "5-Govt Lower Primary Kannada\nSchool, Obaladinni"
+  },
+  {
+    "station_number": "6",
+    "locality": "Chachadi",
+    "building_name": "6-Govt Higher Primary Kannada\nSchool,RCC Old Building, Left\nSide, Chachadi"
+  },
+  {
+    "station_number": "7",
+    "locality": "Chachadi",
+    "building_name": "7-Govt Higher Primary Kannada\nSchool,RCC Old Building, Right\nSide, Chachadi"
+  },
+  {
+    "station_number": "8",
+    "locality": "Chachadi",
+    "building_name": "8-Govt Higher Primary Kannada\nSchool, RCC New Building, Left\nSide, Chachadi"
+  },
+  {
+    "station_number": "9",
+    "locality": "Chachadi",
+    "building_name": "9-Govt Higher Primary Kannada\nSchool, RCC New Building, Right\nSide, Chachadi"
+  },
+  {
+    "station_number": "10",
+    "locality": "Chikkabudanur",
+    "building_name": "10-Govt Lower Primary Kannada\nSScchhooooll,, CChhiikkkkaabbuuddaannuurr"
+  },
+  {
+    "station_number": "11",
+    "locality": "Tadasalur",
+    "building_name": "11-Govt. Higher Primary School,\nNew Building, Tadasalur"
+  },
+  {
+    "station_number": "12",
+    "locality": "Tadasalur",
+    "building_name": "12-Gram Panchayat Office,\nTadasalur"
+  },
+  {
+    "station_number": "13",
+    "locality": "Halaki",
+    "building_name": "13-Govt Higher Primary Kannada\nSchool, New Building, Halaki"
+  },
+  {
+    "station_number": "14",
+    "locality": "Halaki Tanda",
+    "building_name": "14-Govt Lower Primary Kannada\nSchool, Halaki Tanda"
+  },
+  {
+    "station_number": "15",
+    "locality": "Hulikeri Tanda",
+    "building_name": "15-Govt Lower Primary Kannada\nSchool, Hulikeri Tanda"
+  },
+  {
+    "station_number": "16",
+    "locality": "Ramapur",
+    "building_name": "16-Govt.Higher Primary Kannada\nSchool, Ramapur"
+  },
+  {
+    "station_number": "17",
+    "locality": "Subbapur",
+    "building_name": "17-Govt.Higher Primary Kannada\nSchool, Shiv Nagar (Ramapur\nTande )"
+  },
+  {
+    "station_number": "18",
+    "locality": "Subbapur",
+    "building_name": "18-Govt.Higher Primary School,\nSubbapur"
+  },
+  {
+    "station_number": "806",
+    "locality": "Harugoppa",
+    "building_name": "19-Govt Higher Primary Kannada\nSchool, South Side, Middle Room,\nHarugoppa"
+  },
+  {
+    "station_number": "19",
+    "locality": "20 Sq. Mtr",
+    "building_name": "Single Door but\nspacious"
+  },
+  {
+    "station_number": "20",
+    "locality": "Harugoppa",
+    "building_name": "20-Govt Higher Primary Kannada\nSchool, Old Building, Right Side,\nHarugoppa"
+  },
+  {
+    "station_number": "21",
+    "locality": "Harugoppa",
+    "building_name": "21-Govt Higher Primary Kannada\nSchool, RCC New Building, Left\nSide, Harugoppa"
+  },
+  {
+    "station_number": "22",
+    "locality": "Gontamar",
+    "building_name": "22-Govt Lower Primary Kannada\nSchool, Gontamar"
+  },
+  {
+    "station_number": "2233",
+    "locality": "MMuuttaawwaadd",
+    "building_name": "23-Govt. Higher Primary Kannada\nSScchhooooll OOlldd BBuuiillddiinngg,, MMuuttaawwaadd"
+  },
+  {
+    "station_number": "24",
+    "locality": "Mutawad",
+    "building_name": "24-Govt.Higher Primary Kannada\nSchool New Building, Mutawad"
+  },
+  {
+    "station_number": "25",
+    "locality": "Inchal",
+    "building_name": "25-Govt.Higher Primary Kannada\nSchool (Right Side), Inchal"
+  },
+  {
+    "station_number": "26",
+    "locality": "Inchal",
+    "building_name": "26-Govt.Higher Primary Kannada\nSchool Left Side, Inchal"
+  },
+  {
+    "station_number": "27",
+    "locality": "Inchal",
+    "building_name": "27-Govt Lower Primary Urdu\nSchool, Inchal"
+  },
+  {
+    "station_number": "28",
+    "locality": "Inchal",
+    "building_name": "28-Govt.Higher Primary Kannada\nSchool Middle Side, Inchal"
+  },
+  {
+    "station_number": "29",
+    "locality": "Inchal",
+    "building_name": "29-Govt Higher Primary Kannada\nSchool, Old Building, Left Side,\nInchal"
+  },
+  {
+    "station_number": "1057",
+    "locality": "Inchal",
+    "building_name": "3300--GGoovvtt HHiigghheerr PPrriimmaarryy KKaannnnaaddaa\nSchool, Old Building, Right Side,\nInchal"
+  },
+  {
+    "station_number": "30",
+    "locality": "20 Sq. Mtr",
+    "building_name": "Single Door but\nspacious"
+  },
+  {
+    "station_number": "31",
+    "locality": "Markambi",
+    "building_name": "31-Govt Higher Primary Kannada\nSchool, North Side, Markambi"
+  },
+  {
+    "station_number": "32",
+    "locality": "Markambi",
+    "building_name": "32-Govt Higher Primary Kannada\nSchool, South Side, Markambi"
+  },
+  {
+    "station_number": "33",
+    "locality": "Hirekoppa",
+    "building_name": "33-Govt. Higher Primary Kannada\nSchool, Hirekoppa"
+  },
+  {
+    "station_number": "34",
+    "locality": "Muragod",
+    "building_name": "34-Govt Model Kannada Primary\nSchool, New Building, East Side,\nMuragod"
+  },
+  {
+    "station_number": "35",
+    "locality": "Muragod",
+    "building_name": "35-Govt Model Kannada Primary\nSchool, New Building, West Side,\nMuragod"
+  },
+  {
+    "station_number": "36",
+    "locality": "Muragod",
+    "building_name": "36-Govt Higher Primary Urdu\nSchool, South Side, Muragod"
+  },
+  {
+    "station_number": "37",
+    "locality": "Muragod",
+    "building_name": "37-Govt Higher Primary Urdu\nSchool, East Side, Muragod"
+  },
+  {
+    "station_number": "38",
+    "locality": "Muragod",
+    "building_name": "38-Govt Higher Primary Kannada\nSchool, IERI Building, Muragod"
+  },
+  {
+    "station_number": "39",
+    "locality": "Muragod",
+    "building_name": "39-Govt Model Kannada Primary\nSchool, (Old Building), Muragod"
+  },
+  {
+    "station_number": "40",
+    "locality": "Muragod",
+    "building_name": "40-Panchayat Office, Muragod"
+  },
+  {
+    "station_number": "41",
+    "locality": "Muragod",
+    "building_name": "41-Anaganawadi Center, Muragod"
+  },
+  {
+    "station_number": "42",
+    "locality": "Muragod",
+    "building_name": "42-Shri Mahantesh Comp Pre\nUniversity College , East Side,\nMuragod"
+  },
+  {
+    "station_number": "43",
+    "locality": "Muragod",
+    "building_name": "43-Shri Mahantesh Comp Pre\nUniversity College , North Side,\nLeft Wing, Muragod"
+  },
+  {
+    "station_number": "44",
+    "locality": "Muragod",
+    "building_name": "44-Shri Mahantesh Comp Pre\nUniversity College , North Side,\nRight Wing, Muragod"
+  },
+  {
+    "station_number": "1111",
+    "locality": "Rudrapur",
+    "building_name": "4455--GGoovvtt..HHiigghheerr PPrriimmaarryy SScchhooooll,,\nRudrapur"
+  },
+  {
+    "station_number": "45",
+    "locality": "20 Sq. Mtr",
+    "building_name": "Single Door but\nspacious"
+  },
+  {
+    "station_number": "46",
+    "locality": "Girinagar\n(Rudrapur Tanda)",
+    "building_name": "46-Govt. Lower Primary School,\nGirinagar (Rudrapur Tanda)"
+  },
+  {
+    "station_number": "47",
+    "locality": "Karimani",
+    "building_name": "47-Govt. Lower Primary School,\nKarimani"
+  },
+  {
+    "station_number": "48",
+    "locality": "Dundanakoppa",
+    "building_name": "48-Govt. Higher Primary Kannada\nBoys, School, Dundanakoppa"
+  },
+  {
+    "station_number": "49",
+    "locality": "Chikoppa K M",
+    "building_name": "49-Govt. Higher Primary Kannada\nSchool Right Side, Chikoppa K M"
+  },
+  {
+    "station_number": "50",
+    "locality": "Chikoppa K M",
+    "building_name": "50-Govt. Higher Primary School\nLeft Side, Chikoppa K M"
+  },
+  {
+    "station_number": "51",
+    "locality": "Bailhongal",
+    "building_name": "51-Govt Higher Primary Kannada\nSchool No.2 ( Near Gollar Kere ),\nWest Side. Bailhongal"
+  },
+  {
+    "station_number": "52",
+    "locality": "Bailhongal",
+    "building_name": "52-Pursabha (New Building),\nBailhongal"
+  },
+  {
+    "station_number": "53",
+    "locality": "Bailhongal",
+    "building_name": "53-District Public Library,\nBailhongal"
+  },
+  {
+    "station_number": "54",
+    "locality": "Bailhongal",
+    "building_name": "54-Pursabha (New Building) Staff\nRoom, Bailhongal"
+  },
+  {
+    "station_number": "55",
+    "locality": "Bailhongal",
+    "building_name": "55-Govt. Higher Primary Kannada\nSchool No.8 Basaveshwar Ashraya\nNagar, Left Side, Bailhongal"
+  },
+  {
+    "station_number": "56",
+    "locality": "Bailhongal",
+    "building_name": "56-Govt. Higher Primary School\nNo.8 Basaveshwar Ashraya Nagar,\nRight Side, Bailhongal"
+  },
+  {
+    "station_number": "57",
+    "locality": "Bailhongal",
+    "building_name": "57-Rait Bhavan, Bailhongal"
+  },
+  {
+    "station_number": "58",
+    "locality": "Bailhongal",
+    "building_name": "58-Moulana Abul Kalam Azad\nHigh School Right Side, Bailhongal"
+  },
+  {
+    "station_number": "59",
+    "locality": "Bailhongal",
+    "building_name": "59-Moulana Abul Kalam Azad\nHigh School, New Building,\nBailhongal"
+  },
+  {
+    "station_number": "60",
+    "locality": "Bailhongal",
+    "building_name": "60-Moulana Abul Kalam Azad\nHigh School Left Side, Bailhongal"
+  },
+  {
+    "station_number": "1050",
+    "locality": "Bailhongal",
+    "building_name": "6611--GGoovvtt.. HHiigghheerr PPrriimmaarryy UUrrdduu\nSchool No.4 Bagawan Chal,\nBailhongal"
+  },
+  {
+    "station_number": "61",
+    "locality": "20 Sq. Mtr",
+    "building_name": "Single Door but\nspacious"
+  },
+  {
+    "station_number": "62",
+    "locality": "Bailhongal",
+    "building_name": "62-Govt. Higher Primary Kannada\nSchool No.3 Roganavar Galli,\nBailhongal"
+  },
+  {
+    "station_number": "63",
+    "locality": "Bailhongal",
+    "building_name": "63-Anaganawadi Centre, Opp\nUrban Bank, Bailhongal"
+  },
+  {
+    "station_number": "64",
+    "locality": "Bailhongal",
+    "building_name": "64-Horticulture Office, Bailhongal"
+  },
+  {
+    "station_number": "65",
+    "locality": "Bailhongal",
+    "building_name": "65-Asst.Director of Agriculture\nOffice, Bailhongal"
+  },
+  {
+    "station_number": "66",
+    "locality": "Bailhongal",
+    "building_name": "66-Retired Govt. Employees\nBuilding, Bailhongal"
+  },
+  {
+    "station_number": "6677",
+    "locality": "BBaaiillhhoonnggaall",
+    "building_name": "67-M.L.A. Assembly Constituency\nModel Govt. Higher Primary Scool\nNNoo.. 44 OOlldd BBuuiillddiinngg RRiigghhtt SSiiddee,,\nBailhongal"
+  },
+  {
+    "station_number": "68",
+    "locality": "Bailhongal",
+    "building_name": "68-M.L.A. Assembly Constituency\nModel Govt. Higher Primary Scool\nNo. 4 Old Building Left Side,\nBailhongal"
+  },
+  {
+    "station_number": "69",
+    "locality": "Bailhongal",
+    "building_name": "69-M.L.A. Assembly Constituency\nModel Govt. Higher Primary Scool\nNo. 4 New Building Left Side,\nBailhongal"
+  },
+  {
+    "station_number": "70",
+    "locality": "Bailhongal",
+    "building_name": "70-M.L.A. Assembly Constituency\nModel Govt. Higher Primary Scool\nNo. 4 New Building Right Side,\nBailhongal"
+  },
+  {
+    "station_number": "71",
+    "locality": "Bailhongal",
+    "building_name": "71-Block Education Office's\nTraining Room, Bailhongal"
+  },
+  {
+    "station_number": "72",
+    "locality": "Bailhongal",
+    "building_name": "72-Block Education Officer's Staff\nRoom, Bailhongal"
+  },
+  {
+    "station_number": "73",
+    "locality": "Bailhongal",
+    "building_name": "73-Village Accountanat Office,\nBailhongal"
+  },
+  {
+    "station_number": "7744",
+    "locality": "BBaaiillhhoonnggaall",
+    "building_name": "74-Govt.Higher Primary Kannada\nSchool No.3 Moogi Galli, Bailhongal"
+  },
+  {
+    "station_number": "75",
+    "locality": "Bailhongal",
+    "building_name": "75-S.N.V.V.S. DV Deshanur\nKannada Meduim School Right\nSide, Bailhongal"
+  },
+  {
+    "station_number": "76",
+    "locality": "Bailhongal",
+    "building_name": "76-S.N.V.V.S. DV Deshanur\nKannada Meduim School Left Side,\nBailhongal"
+  },
+  {
+    "station_number": "77",
+    "locality": "Bailhongal",
+    "building_name": "77-Govt. Urdu Higher Priamry\nSchool No.3 New Line Right Side,\nBailhongal"
+  },
+  {
+    "station_number": "78",
+    "locality": "Bailhongal",
+    "building_name": "78-Govt. Urdu Higher Priamry\nSchool No.3 New Line Left Side,\nBailhongal"
+  },
+  {
+    "station_number": "79",
+    "locality": "Bailhongal",
+    "building_name": "79-Govt Higher Primary Kannada\nSchool, Near Gollar Keri, Left Side\n, Bailhongal"
+  },
+  {
+    "station_number": "80",
+    "locality": "Bailhongal",
+    "building_name": "80-Govt Higher Primary Kannada\nSchool, Near Gollar Keri, Right\nSide , Bailhongal"
+  },
+  {
+    "station_number": "81",
+    "locality": "Bailhongal",
+    "building_name": "81-Govt. Urdu Model School, Left\nSide, Bailhongal"
+  },
+  {
+    "station_number": "82",
+    "locality": "Bailhongal",
+    "building_name": "82-Govt. Urdu Model School, Right\nSide, Bailhongal"
+  },
+  {
+    "station_number": "974",
+    "locality": "Bailhongal",
+    "building_name": "83-Govt. Higher Primary Kannada\nBoys Model School No.1 Gundlur\nChal Right Side,Bailhongal"
+  },
+  {
+    "station_number": "83",
+    "locality": "20 Sq. Mtr",
+    "building_name": "Single Door but\nspacious"
+  },
+  {
+    "station_number": "84",
+    "locality": "Bailhongal",
+    "building_name": "84-Govt. Higher Primary Kannada\nBoys Model School No.1 Gundlur\nChal Left Side,Bailhongal"
+  },
+  {
+    "station_number": "85",
+    "locality": "Bailhongal",
+    "building_name": "85-Kannada High School\nRudrakshimath, Right Side,\nBailhongal"
+  },
+  {
+    "station_number": "86",
+    "locality": "Bailhongal",
+    "building_name": "86-Govt. Higher Primary Kannada\nBoys Model School No.1 Gundlur\nChal New Building,Right\nSide,Bailhongal"
+  },
+  {
+    "station_number": "87",
+    "locality": "Bailhongal",
+    "building_name": "87-Govt. Higher Primary Kannada\nBoys Model School No.1 Gundlur\nChal New Building,Left\nSide,Bailhongal"
+  },
+  {
+    "station_number": "88",
+    "locality": "Bailhongal",
+    "building_name": "88-Govt. Higher Primary Kannada\nSchool East Side, Indira Nagar,\nBailhongal"
+  },
+  {
+    "station_number": "89",
+    "locality": "Bailhongal",
+    "building_name": "89-Govt. Higher Primary Kannada\nSchool South Side, Right Wing,\nIndiranagar, Bailhongal"
+  },
+  {
+    "station_number": "1053",
+    "locality": "Bailhongal",
+    "building_name": "9900--GGoovvtt.. HHiigghheerr PPrriimmaarryy KKaannnnaaddaa\nSchool South Side, Left Wing,\nIndiranagar, Bailhongal"
+  },
+  {
+    "station_number": "90",
+    "locality": "20 Sq. Mtr",
+    "building_name": "SSiinnggllee DDoooorr bbuutt\nspacious"
+  },
+  {
+    "station_number": "91",
+    "locality": "Bailhongal",
+    "building_name": "91-Govt. Higher Primary Kannada\nSchool West Side, Indira Nagar,\nBailhongal"
+  },
+  {
+    "station_number": "92",
+    "locality": "Bailhongal",
+    "building_name": "92-Shri Maradi Basaveshwar High\nSchool, Right Side, Indiranagar,\nBailhongal"
+  },
+  {
+    "station_number": "93",
+    "locality": "Bailhongal",
+    "building_name": "93-Shri Maradi Basaveshwar High\nSchool, Left Side, Indiranagar,\nBailhongal"
+  },
+  {
+    "station_number": "94",
+    "locality": "Bailhongal",
+    "building_name": "94-Govt Urdu School, No 2,\nGondhali Galli, Bailhongal"
+  },
+  {
+    "station_number": "95",
+    "locality": "Bailwad",
+    "building_name": "95-Govt. Higher Primary Kannada\nSchool Right Side, Bailwad"
+  },
+  {
+    "station_number": "96",
+    "locality": "Bailwad",
+    "building_name": "96-Govt. Higher Primary Kannda\nSchool Left Side, Bailwad"
+  },
+  {
+    "station_number": "97",
+    "locality": "Chivatagundi",
+    "building_name": "97-Govt. Higher Primary Kannada\nSchool, Right Side Chivatagundi"
+  },
+  {
+    "station_number": "98",
+    "locality": "Chivatagundi",
+    "building_name": "98-Govt. Higher Primary Kannada\nSchool, Left Side Chivatagundi"
+  },
+  {
+    "station_number": "99",
+    "locality": "Sanikoppa",
+    "building_name": "99-Govt. Higher Primary Kannada\nSchool, Right Side, Sanikoppa"
+  },
+  {
+    "station_number": "100",
+    "locality": "Sanikoppa",
+    "building_name": "100-Govt. Higher Primary\nKannada School, Left Side,\nSanikoppa"
+  },
+  {
+    "station_number": "101",
+    "locality": "Devlapaur",
+    "building_name": "101-Govt Higher Primary Model\nSchool, Right Wing, Devalapur"
+  },
+  {
+    "station_number": "102",
+    "locality": "Devalapur",
+    "building_name": "102-Govt Higher Primary Model\nSchool, Left Wing, Devalapur"
+  },
+  {
+    "station_number": "103",
+    "locality": "Devalapur",
+    "building_name": "103-Govt High School, Right Wing,\nDevalapur"
+  },
+  {
+    "station_number": "104",
+    "locality": "Devalapur",
+    "building_name": "104-Govt High School, Left Wing,\nDevalapur"
+  },
+  {
+    "station_number": "105",
+    "locality": "Amatur",
+    "building_name": "105-Govt Higher Primary Kannada\nBoys School, Right Wing, Amatur"
+  },
+  {
+    "station_number": "106",
+    "locality": "Amatur",
+    "building_name": "106-Govt Higher Primary Kannada\nBoys School, Left Wing, Amatur"
+  },
+  {
+    "station_number": "107",
+    "locality": "Anigol",
+    "building_name": "107-Govt. Higher Primary\nKannada School, New Building,\nRight Side, Anigol"
+  },
+  {
+    "station_number": "108",
+    "locality": "Anigol",
+    "building_name": "108-Govt. Higher Primary\nKannada School, New Building,\nLLeefftt SSiiddee,, AAnniiggooll"
+  },
+  {
+    "station_number": "109",
+    "locality": "Anigol",
+    "building_name": "109-Govt High School, Anigol"
+  },
+  {
+    "station_number": "110",
+    "locality": "Hosur",
+    "building_name": "110-Government Lower Primary\nKannada School, Basaveshwar\nOni, Hosur"
+  },
+  {
+    "station_number": "111",
+    "locality": "Hosur",
+    "building_name": "111-Govt Higher Primary Kannada\nGirls School, Room No.4, Hosur"
+  },
+  {
+    "station_number": "112",
+    "locality": "Hosur",
+    "building_name": "112-Govt Higher Primary Kannada\nGirls School, Left Side, Hosur"
+  },
+  {
+    "station_number": "113",
+    "locality": "Hosur",
+    "building_name": "113-Govt Higher Primary Kannada\nGirls School, Front Room, Hosur"
+  },
+  {
+    "station_number": "114",
+    "locality": "Hosur",
+    "building_name": "114-Govt Higher Primary Kannada\nGirls School,Right Side, Hosur"
+  },
+  {
+    "station_number": "115",
+    "locality": "Hosur",
+    "building_name": "115-Shri Nilakanteshwar\nVidyavardhak Samste, Kannada\nHigher Primary School, Old\nBuilding, Right Side, Hosur"
+  },
+  {
+    "station_number": "116",
+    "locality": "Hosur",
+    "building_name": "116-Shri Nilakanteshwar\nVidyavardhak Samste, Kannada\nHigher Primary School, Old\nBuilding, Left Side, Hosur"
+  },
+  {
+    "station_number": "117",
+    "locality": "Hosur",
+    "building_name": "117-Shri Nilakanteshwar\nVidyavardhak Samste, Kannada\nHigher Primary School, New\nBuilding, Room No 1, Hosur"
+  },
+  {
+    "station_number": "111188",
+    "locality": "HHoossuurr",
+    "building_name": "118-Shri Nilakanteshwar\nVidyavardhak Samste, Kannada\nHigher Primary School, New\nBuilding, Room No 4, Hosur"
+  },
+  {
+    "station_number": "119",
+    "locality": "Sogal",
+    "building_name": "119-Govt Higher Primary Kananda\nSchool, Sogal"
+  },
+  {
+    "station_number": "120",
+    "locality": "Karlakatti",
+    "building_name": "120-Govt Lower Primary Kannada\nSchool Room No.1, Karlakatti"
+  },
+  {
+    "station_number": "121",
+    "locality": "Mallur",
+    "building_name": "121-Govt Higher Primary Kannada\nSchool, Right Wing, Mallur"
+  },
+  {
+    "station_number": "122",
+    "locality": "Mallur",
+    "building_name": "122-Govt Higher Primary Kannada\nSchool, Left Wing, Mallur"
+  },
+  {
+    "station_number": "123",
+    "locality": "Kagihal Tande",
+    "building_name": "123-Govt Lower Primary Kannada\nSchool, Kagihal Tande"
+  },
+  {
+    "station_number": "124",
+    "locality": "Matolli",
+    "building_name": "124-Govt. Higher Primary\nKannada School, Right Side\nMatolli"
+  },
+  {
+    "station_number": "125",
+    "locality": "Matolli",
+    "building_name": "125-Govt. Higher Primary\nKannada School, Left Side Matolli"
+  },
+  {
+    "station_number": "126",
+    "locality": "Ingalagi",
+    "building_name": "126-Govt. Higher Primary\nKannada School, Ingalagi"
+  },
+  {
+    "station_number": "127",
+    "locality": "Korikoppa",
+    "building_name": "127-Govt. Higher Primary\nKannada Boys School, Right Side,\nKorikoppa"
+  },
+  {
+    "station_number": "128",
+    "locality": "Korikoppa",
+    "building_name": "128-Govt. Higher Primary\nKannada Boys School, Left Side,\nKorikoppa"
+  },
+  {
+    "station_number": "129",
+    "locality": "Vakkund",
+    "building_name": "129-Govt. Higher Primary\nKannada Boys School Right Side,\nVakkund"
+  },
+  {
+    "station_number": "130",
+    "locality": "Vakkund",
+    "building_name": "130-Govt.Higher Primary Kannada\nBoys School Left Side, Vakkund"
+  },
+  {
+    "station_number": "807",
+    "locality": "Vakkund",
+    "building_name": "113311--GGoovvtt.. HHiigghh SScchhooooll,, RRiigghhtt SSiiddee,,\nVakkund"
+  },
+  {
+    "station_number": "131",
+    "locality": "20 Sq. Mtr",
+    "building_name": "Single Door but\nspacious"
+  },
+  {
+    "station_number": "132",
+    "locality": "Vakkund",
+    "building_name": "132-Govt. High School, Left Side,\nVakkund"
+  },
+  {
+    "station_number": "133",
+    "locality": "Vakkund",
+    "building_name": "133-Government Model Higher\nPrimary School, Left side,\nVakkundh"
+  },
+  {
+    "station_number": "134",
+    "locality": "Chikkamulakur\n(Nayanagar)",
+    "building_name": "134-Govt Higher Primary Kannada\nBoys School, Left Wing,\nChikkamulakur (Nayanagar)"
+  },
+  {
+    "station_number": "135",
+    "locality": "Bevinkoppa",
+    "building_name": "135-Govt Higher Primary Kannada\nSchool, Bevinkoppa"
+  },
+  {
+    "station_number": "136",
+    "locality": "Hiremulakur\n(Nayanagar)",
+    "building_name": "136-Govt High School, Right Side\nHiremulkur (Nayanagar)"
+  },
+  {
+    "station_number": "137",
+    "locality": "Hiremulakur\n((NNaayyaannaaggaarr))",
+    "building_name": "137-Govt High School, Left Side\nHHiirreemmuullkkuurr ((NNaayyaannaaggaarr))"
+  },
+  {
+    "station_number": "138",
+    "locality": "Sangolli",
+    "building_name": "138-Govt. Model Higher Primary\nKannada School, Left Side, Sangolli"
+  },
+  {
+    "station_number": "139",
+    "locality": "Sangolli",
+    "building_name": "139-Govt. Model Higher Primary\nKannada School,Right Side, Sangolli"
+  },
+  {
+    "station_number": "140",
+    "locality": "Sangolli",
+    "building_name": "140-Govt. Model Higher Primary\nKannada School, Middle Side,\nSangolli"
+  },
+  {
+    "station_number": "141",
+    "locality": "Gudadur",
+    "building_name": "141-Govt. Higher Primary\nKannada School, Gudadur"
+  },
+  {
+    "station_number": "142",
+    "locality": "Holinagalapur",
+    "building_name": "142-Govt. Model Primary Kannada\nSchool, Old Bulding, Holinagalapur"
+  },
+  {
+    "station_number": "143",
+    "locality": "Holinagalapur",
+    "building_name": "143-Govt.model Primary Kannada\nSchool, New Bulding, Holinagalapur"
+  },
+  {
+    "station_number": "144",
+    "locality": "Garajur",
+    "building_name": "144-Govt. Higher Primary School,\nGarajur"
+  },
+  {
+    "station_number": "145",
+    "locality": "Kenganur",
+    "building_name": "145-Govt. High School, Right Side,\nKenganur"
+  },
+  {
+    "station_number": "146",
+    "locality": "Kenganur",
+    "building_name": "146-Govt. High School, Left Side,\nKenganur"
+  },
+  {
+    "station_number": "147",
+    "locality": "Aravalli",
+    "building_name": "147-Govt. Higher Primary School,\nAravalli"
+  },
+  {
+    "station_number": "148",
+    "locality": "Jalikoppa",
+    "building_name": "148-Govt. Higher Primary School,\nJalikoppa"
+  },
+  {
+    "station_number": "149",
+    "locality": "Lingadalli",
+    "building_name": "149-Govt. Higher Primary\nKannada School, Lingadalli"
+  },
+  {
+    "station_number": "150",
+    "locality": "Budihal",
+    "building_name": "150-Govt. Higher Primary\nKannada School, Right Side,\nBudihal"
+  },
+  {
+    "station_number": "151",
+    "locality": "Budihal",
+    "building_name": "151-Govt. Higher Primary\nKannada School, Left Side, Budihal"
+  },
+  {
+    "station_number": "152",
+    "locality": "Mugabasav",
+    "building_name": "152-Govt. Higher Primary\nKannada School Right Side,\nMugabasav"
+  },
+  {
+    "station_number": "153",
+    "locality": "Mugabasav",
+    "building_name": "153- Government Higher Primary\nKannada School, New Building\n(Right Side), Mugabasava"
+  },
+  {
+    "station_number": "154",
+    "locality": "Yenagi",
+    "building_name": "154-Govt Higher Primary Kannada\nSchool, Yenagi"
+  },
+  {
+    "station_number": "155",
+    "locality": "Sutagatti",
+    "building_name": "155-Govt. Higher Primary School\nRight Side, Sutagatti"
+  },
+  {
+    "station_number": "156",
+    "locality": "Sutagatti",
+    "building_name": "156-Govt. Higher Primary School\nLeft Side, Sutagatti"
+  },
+  {
+    "station_number": "157",
+    "locality": "Hittanagi",
+    "building_name": "157-Govt Higher Primary Kannada\nSchool, Right Wing, Hittanagi"
+  },
+  {
+    "station_number": "158",
+    "locality": "Hittanagi",
+    "building_name": "158-Govt Higher Primary Kannada\nSchool, Left Wing, Hittanagi"
+  },
+  {
+    "station_number": "159",
+    "locality": "Yakkundi",
+    "building_name": "159-Govt. Higher Primary\nKannada Boys School, Left Side ,\nYakkundi"
+  },
+  {
+    "station_number": "160",
+    "locality": "Yakkundi",
+    "building_name": "160-Govt. Higher Primary\nKannada Boys School, Right Side ,\nYakkundi"
+  },
+  {
+    "station_number": "161",
+    "locality": "Yakkundi",
+    "building_name": "161-Govt Higher Primary Urdu\nSchool, Yakkundi"
+  },
+  {
+    "station_number": "162",
+    "locality": "Venkatesh Nagar\n(Karlakatti Tanda)",
+    "building_name": "162-Govt Lower Primary Kannada\nBoys School, Right Side Venkatesh\nNagar"
+  },
+  {
+    "station_number": "663333",
+    "locality": "Venkatesh Nagar\n(Karlakatti Tanda)",
+    "building_name": "163-Govt Lower Primary Kannada\nBBooyyss SScchhooooll,, LLeefftt SSiiddee VVeennkkaatteesshh\nNagar"
+  },
+  {
+    "station_number": "116633",
+    "locality": "2200 SSqq.. MMttrr",
+    "building_name": "spacious"
+  },
+  {
+    "station_number": "164",
+    "locality": "Dupadal",
+    "building_name": "164-Govt. Higher Primary\nKanndaSchool, Left Side,Dupadal"
+  },
+  {
+    "station_number": "165",
+    "locality": "Dupadal",
+    "building_name": "165-Govt. Higher Primary\nKanndaSchool, Right Side,\nDupadal"
+  },
+  {
+    "station_number": "166",
+    "locality": "Badli",
+    "building_name": "166- Govt upgrade Primary kannada\nSchool Right side Badlli"
+  },
+  {
+    "station_number": "167",
+    "locality": "Badli",
+    "building_name": "167- Govt upgrade Primary kannada\nSchool Left side Badlli"
+  },
+  {
+    "station_number": "168",
+    "locality": "Katral",
+    "building_name": "168-Govt. Higher Primary\nKannada School, Katral"
+  },
+  {
+    "station_number": "169",
+    "locality": "Aladakatti K.Y",
+    "building_name": "169-Govt Lower Primary Kannada\nSchool South Side New Building,\nAladakatti K.Y"
+  },
+  {
+    "station_number": "170",
+    "locality": "Singarkoppa",
+    "building_name": "170-Govt. Higher Primary School,\nRight Side, Singarkoppa"
+  },
+  {
+    "station_number": "171",
+    "locality": "Singarkoppa",
+    "building_name": "171-Govt. Higher Primary School,\nLeft Side, Singarkoppa"
+  },
+  {
+    "station_number": "172",
+    "locality": "Asundi",
+    "building_name": "172-Mallaprabha Education Society\nHigh School Asundi"
+  },
+  {
+    "station_number": "173",
+    "locality": "Asundi",
+    "building_name": "173-Govt Model Primary Kannada\nSchool Right Side, Asundi"
+  },
+  {
+    "station_number": "174",
+    "locality": "Asundi",
+    "building_name": "174-Govt Model Primary Kannada\nSchool Middle Side, Asundi"
+  },
+  {
+    "station_number": "175",
+    "locality": "Asundi",
+    "building_name": "175-Govt Model Primary Kannada\nSchool Left Side, Asundi"
+  },
+  {
+    "station_number": "176",
+    "locality": "Asundi",
+    "building_name": "176-Govt Model Primary Kannada\nSchool Left Side, Asundi"
+  },
+  {
+    "station_number": "177",
+    "locality": "Udakeri",
+    "building_name": "177-Government Model Primary\nKannada New Buidling (left side)\nSchool, , Udikeri"
+  },
+  {
+    "station_number": "178",
+    "locality": "Udakeri",
+    "building_name": "178-Shri Ramalingeshwar High\nSchool, Right Wing, Udakeri."
+  },
+  {
+    "station_number": "179",
+    "locality": "Udakeri",
+    "building_name": "179-Shri Ramalingeshwar High\nSchool, Left Wing, Udakeri"
+  },
+  {
+    "station_number": "180",
+    "locality": "Belawadi",
+    "building_name": "180-Veera Rani Mallamma\nGovernament Higher Primary\nKannada Girls School, Left Side,\nBelawadi"
+  },
+  {
+    "station_number": "181",
+    "locality": "Belawadi",
+    "building_name": "181-Veera Rani Mallamma\nGovernament Higher Primary\nKKaannnnaaddaa GGiirrllss SScchhooooll,,NNeeww\nBuilding, Belawadi"
+  },
+  {
+    "station_number": "182",
+    "locality": "Belawadi",
+    "building_name": "182-Veera Rani Mallamma\nGovernament Higher Primary\nKannada Girls School, Right Side,\nBelawadi"
+  },
+  {
+    "station_number": "183",
+    "locality": "Belawadi",
+    "building_name": "183-Veera Rani Mallamma\nSmaraka Composite Pre University\nCollege, Right Side, Belawadi"
+  },
+  {
+    "station_number": "184",
+    "locality": "Belawadi",
+    "building_name": "184-Shri Ishaprabhu Education\nSociety Shri I B Patil lower primary\nschool Belawadi"
+  },
+  {
+    "station_number": "185",
+    "locality": "Belawadi",
+    "building_name": "185- Shri Ishaprabhu Education\nSociety Veer rani Mallamma Smarak\ncomposite High school Belawadi"
+  },
+  {
+    "station_number": "118866",
+    "locality": "BBeellaawwaaddii",
+    "building_name": "186-Governament Higher Primary\nKKaannnnaaddaa BBooyyss SScchhooooll,, BBeellaawwaaddii"
+  },
+  {
+    "station_number": "187",
+    "locality": "Pattihal K.B.",
+    "building_name": "187-Govt.Higher Primary Kannada\nSchool (Left Side), Pattihal K.B."
+  },
+  {
+    "station_number": "188",
+    "locality": "Pattihal K.B.",
+    "building_name": "188-Govt.Higher Primary Kannada\nSchool (Middle Side), Pattihal K.B."
+  },
+  {
+    "station_number": "189",
+    "locality": "Pattihal K.B.",
+    "building_name": "189-Govt. Higher Primary\nKannada School (Right Side),\nPattihal K.B."
+  },
+  {
+    "station_number": "190",
+    "locality": "Siddasamudra",
+    "building_name": "190-Govt. Higher Primary\nKannada School Old Building,\nSiddasamudra"
+  },
+  {
+    "station_number": "191",
+    "locality": "Dodwad",
+    "building_name": "191-Assembly Constituency\nSaksharata Samiti Bailhongal\nMundvarike Kalika Kendra, Left\nSide, Dodwad"
+  },
+  {
+    "station_number": "1233",
+    "locality": "Dodwad",
+    "building_name": "119922--SShhrrii VVeeeerrbbhhaaddrreesshhwwaarr\nGurukula High School, Left Side,\nDodwad"
+  },
+  {
+    "station_number": "192",
+    "locality": "20 Sq. Mtr",
+    "building_name": "Single Door but\nspacious"
+  },
+  {
+    "station_number": "193",
+    "locality": "Dodwad",
+    "building_name": "193-Shri Veerbhadreshwar\nGurukula High School, Right Side,\nDodwad"
+  },
+  {
+    "station_number": "194",
+    "locality": "Dodwad",
+    "building_name": "194-Shri Veerbhadreshwar\nConvent Kannada Primary School,\nRight Side, Dodwad"
+  },
+  {
+    "station_number": "195",
+    "locality": "Dodwad",
+    "building_name": "195-Government Modle Primary\nKannada School, Right Side,\nDodwad"
+  },
+  {
+    "station_number": "119966",
+    "locality": "DDooddwwaadd",
+    "building_name": "196-Government Modle Primary\nKKaannnnaaddaa SScchhooooll,, LLeefftt SSiiddee,, DDooddwwaadd"
+  },
+  {
+    "station_number": "197",
+    "locality": "Dodwad",
+    "building_name": "197-Govt Pre-University College,\nDodwad"
+  },
+  {
+    "station_number": "198",
+    "locality": "Karikatti",
+    "building_name": "198-Govt. Higher Primary\nKannada School Room No. 2 New\nBuilding, Karikatti"
+  },
+  {
+    "station_number": "199",
+    "locality": "Karikatti",
+    "building_name": "199-Govt. Higher Primary\nKannada School Room No. 4 New\nBuilding, Karikatti"
+  },
+  {
+    "station_number": "200",
+    "locality": "Karikatti",
+    "building_name": "200-Govt. Higher Primary\nKannada School (West Wing),\nRoom No 9, old Building, Karikatti"
+  },
+  {
+    "station_number": "201",
+    "locality": "Karikatti",
+    "building_name": "201-Govt Higher Primary School,\nMMiiddddllee SSiiddee,, OOlldd BBuuiillddiinngg,, KKaarriikkaattttii"
+  },
+  {
+    "station_number": "202",
+    "locality": "Karikatti",
+    "building_name": "202-Govt. Higher Primary\nKannada School Room No. 6 New\nBuilding, Karikatti"
+  },
+  {
+    "station_number": "203",
+    "locality": "Nangundikoppa",
+    "building_name": "203-Nammura Government Lower\nprimary kannada School,\nNanagundikoppa"
+  },
+  {
+    "station_number": "204",
+    "locality": "Gudikatti",
+    "building_name": "204-Govt. Higher Primary\nKannada School, Right Side,\nGudikatti"
+  },
+  {
+    "station_number": "205",
+    "locality": "Gudikatti",
+    "building_name": "205-Govt. Higher Primary\nKannada School, Left Side,\nGudikatti"
+  },
+  {
+    "station_number": "206",
+    "locality": "Govankoppa",
+    "building_name": "206-Govt. Higher Primary Kannada\nSchool New Building, Middel side\nGovankoppa"
+  },
+  {
+    "station_number": "207",
+    "locality": "Govankoppa",
+    "building_name": "207-Govt. Higher Primary Kannada\nSchool, New Building, Left Side\nroom No 2, Govankoppa"
+  },
+  {
+    "station_number": "208",
+    "locality": "Govankoppa",
+    "building_name": "208-Govt. Higher Primary Kannda\nSchool, New Building, Left Side\nroom No 1, Govankoppa"
+  },
+  {
+    "station_number": "209",
+    "locality": "Budarkatti",
+    "building_name": "209-Govt. Higher Primary\nKannada School Right Side,\nBudarkatti"
+  },
+  {
+    "station_number": "210",
+    "locality": "Budarakatti",
+    "building_name": "210-Govt. Higher Primary\nKannada School Left Side,\nBudarkatti"
+  },
+  {
+    "station_number": "211",
+    "locality": "Budarakatti",
+    "building_name": "211-Shri Nilakanteshwar Vidya\nVardak Samste, High School ,\nBudarakatti"
+  },
+  {
+    "station_number": "212",
+    "locality": "Budarakatti",
+    "building_name": "212-Govt. Higher Primary\nKannada School Left Side, Corner\nRoom, Budarkatti"
+  },
+  {
+    "station_number": "213",
+    "locality": "Bidargaddi",
+    "building_name": "213-Govt. Higher Primary\nKannada Boys School, Bidargaddi"
+  },
+  {
+    "station_number": "214",
+    "locality": "Hirebellikatti",
+    "building_name": "214-Govt .Higher Primary\nKannada School, Hirebellikatti"
+  },
+  {
+    "station_number": "215",
+    "locality": "Tukarshigihalli",
+    "building_name": "215-Governament Model primary\nKannada School, Right Side,\nTurakaraSheegihalli"
+  },
+  {
+    "station_number": "956",
+    "locality": "Tukarshigihalli",
+    "building_name": "216-Governament Modle primary\nKannada School, Middle Side,\nTurakaraSheegihalli"
+  },
+  {
+    "station_number": "216",
+    "locality": "20 Sq. Mtr",
+    "building_name": "Single Door but\nspacious"
+  },
+  {
+    "station_number": "217",
+    "locality": "Tukarshigihalli",
+    "building_name": "217-Governament Modle primary\nKannada School, Left Side,\nTurakaraSheegihalli"
+  },
+  {
+    "station_number": "218",
+    "locality": "Kadasagatti",
+    "building_name": "218-Governament Lower Primary\nSchool, Kadasagatti"
+  },
+  {
+    "station_number": "219",
+    "locality": "Chikkabellikatti",
+    "building_name": "219-Govt Higher Primary Kannada\nSchool, Chikkabellikatti"
+  },
+  {
+    "station_number": "220",
+    "locality": "Kencharamanhal",
+    "building_name": "220-Govt Higher Primary Kannada\nSchool No.3, Kencharamanhal"
+  },
+  {
+    "station_number": "221",
+    "locality": "Yadalli",
+    "building_name": "221-Govt Higher Primary Kannada\nSScchhooooll RRiigghhtt SSiiddee,, YYaaddaallllii"
+  },
+  {
+    "station_number": "222",
+    "locality": "Yadalli",
+    "building_name": "222-Govt Higher Primary Kannada\nSchool Left Side, Yadalli"
+  },
+  {
+    "station_number": "223",
+    "locality": "Sangreshkoppa",
+    "building_name": "223-Govt. Higher Primary Kannada\nSchool East Side, Sangreshkoppa"
+  },
+  {
+    "station_number": "224",
+    "locality": "Sangreshkoppa",
+    "building_name": "224-Govt. Higher Primary Kannada\nSchool West Side, Sangreshkoppa"
+  },
+  {
+    "station_number": "197025",
+    "locality": "Total",
+    "building_name": ""
+  }
+]

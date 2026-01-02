@@ -1,0 +1,1462 @@
+[
+  {
+    "station_number": "1",
+    "locality": "",
+    "building_name": ""
+  },
+  {
+    "station_number": "2",
+    "locality": "Khanapur",
+    "building_name": "Shri Jagdguru shivlingeshwar High School\nLeft Wing Nandagaon"
+  },
+  {
+    "station_number": "3",
+    "locality": "Mutnal",
+    "building_name": "Govt. Kannada Boys School Middle Room No.3\nWest Wing Mutnal"
+  },
+  {
+    "station_number": "4",
+    "locality": "Mutnal",
+    "building_name": "Govt. Kannada Boys School Room No.1 East\nWing Mutnal"
+  },
+  {
+    "station_number": "5",
+    "locality": "Mutnal",
+    "building_name": "Govt. Kannada Girls School R.C.C Prayer Room\nNandagaon"
+  },
+  {
+    "station_number": "6",
+    "locality": "Nandagaon",
+    "building_name": "Govt. Kannada Higher Primary School, Prayer\nRoom Nandagaon"
+  },
+  {
+    "station_number": "7",
+    "locality": "Nandagaon",
+    "building_name": "Govt. Kannada Higher Primary School Front\nRoom Nandagaon"
+  },
+  {
+    "station_number": "8",
+    "locality": "Dhupadal",
+    "building_name": "Govt. Kannda Higher Primary School East\nwing left side room Dhoopadal"
+  },
+  {
+    "station_number": "9",
+    "locality": "Dhupadal",
+    "building_name": "Govt. Kannda Higher Primary School East\nwing right side room Dhoopadal"
+  },
+  {
+    "station_number": "10",
+    "locality": "Dhupadal",
+    "building_name": "Govt Kannda Higher Primary School north\nWing Dhoopadal"
+  },
+  {
+    "station_number": "11",
+    "locality": "Dhupadal",
+    "building_name": "Govt Kannada Higher Primary School North\nWing Room No.3 Dhupadal"
+  },
+  {
+    "station_number": "12",
+    "locality": "Dhupadal",
+    "building_name": "Govt Kannada Higher Primary School North\nWing Room No.1 Dhupadal"
+  },
+  {
+    "station_number": "13",
+    "locality": "Dhupadal",
+    "building_name": "Govt Kannada Higher Primary School Dhupadal"
+  },
+  {
+    "station_number": "14",
+    "locality": "Dhupadal",
+    "building_name": "Sri Duradundeshwar Boys High School South\nWing Dhoopadal (Ghataprabha)"
+  },
+  {
+    "station_number": "15",
+    "locality": "Dhupadal",
+    "building_name": "Sri Duradundeshwar Boys High School East\nWing Dhoopadal (Ghataprabha)"
+  },
+  {
+    "station_number": "16",
+    "locality": "Dhupadal",
+    "building_name": "Govt Higher Primary Kannada School East\nWing Dhupadal (Ghataprabha)"
+  },
+  {
+    "station_number": "17",
+    "locality": "Dhupadal",
+    "building_name": "Govt Higher Primary Kannada School North\nWing Dhupadal (Ghataprabha)"
+  },
+  {
+    "station_number": "18",
+    "locality": "Dhupadal",
+    "building_name": "Sri Duradundeshwar Girls High School East\nWing Dhoopadal (Ghataprabha)"
+  },
+  {
+    "station_number": "19",
+    "locality": "Dhupadal",
+    "building_name": "Sri Duradundeshwar Girls High School West\nWing Dhoopadal (Ghataprabha)"
+  },
+  {
+    "station_number": "20",
+    "locality": "Mallapur PG",
+    "building_name": "Govt Kannada Higher Primary School South\nWing Room No-3 Mallapur PG"
+  },
+  {
+    "station_number": "21",
+    "locality": "Mallapur PG",
+    "building_name": "Govt Kannada Boys Higher Primary School\nSouth Wing Room No-7 Mallapur PG"
+  },
+  {
+    "station_number": "22",
+    "locality": "Mallapur PG",
+    "building_name": "Govt Kannada Higher Boys Primary School\nNorth side Room No -3 Mallapur PG"
+  },
+  {
+    "station_number": "23",
+    "locality": "Mallapur PG",
+    "building_name": "Govt Kannada Higher Boys Primary School\nNorth side Room No -8 Mallapur PG"
+  },
+  {
+    "station_number": "24",
+    "locality": "Mallapur PG",
+    "building_name": "Govt.Kannda Boys Higher Primary School\nNorth side Room No-1 Mallapur PG"
+  },
+  {
+    "station_number": "25",
+    "locality": "Mallapur PG",
+    "building_name": "Govt. Kannda Boys Higher Primary School\nSouth Side Room Mallapur PG"
+  },
+  {
+    "station_number": "26",
+    "locality": "Mallapur PG",
+    "building_name": "Govt.Kannda Higher Primary school west side\nRoom No-1,New Building Mallapur PG"
+  },
+  {
+    "station_number": "27",
+    "locality": "Mallapur PG",
+    "building_name": "Govt. Kannda Boys Higher Primary school\nWest Side Room Mallapur PG"
+  },
+  {
+    "station_number": "28",
+    "locality": "Mallapur PG",
+    "building_name": "K R H Vidyavardhak Sangh Primary School\nWest Side Room No.2 Mallapur PG"
+  },
+  {
+    "station_number": "29",
+    "locality": "Mallapur PG",
+    "building_name": "K R H Vidyavardhak Sangh Primary School\nNorth Side Room No.1 Mallapur PG"
+  },
+  {
+    "station_number": "30",
+    "locality": "Mallapur PG",
+    "building_name": "Govt. Higher Urdu Primary School West wing\nNorth side room No-2 Mallapur PG"
+  },
+  {
+    "station_number": "31",
+    "locality": "Mallapur PG",
+    "building_name": "Govt. Higher Urdu Primary Boys School West\nwing South side room No-1 Mallapur PG"
+  },
+  {
+    "station_number": "32",
+    "locality": "Mallapur PG",
+    "building_name": "Govt. Urdu Primary School Right Wing\nMallapur PG"
+  },
+  {
+    "station_number": "33",
+    "locality": "Mallapur PG",
+    "building_name": "Govt. Urdu Primary School Left Wing Mallapur\nPG"
+  },
+  {
+    "station_number": "34",
+    "locality": "Mallapur PG",
+    "building_name": "Govt Higher Primary School Janata Plot New\nBuilding South Side Mallapur PG"
+  },
+  {
+    "station_number": "35",
+    "locality": "Mallapur PG",
+    "building_name": "Govt Higher Primary School Janata Plot west\nwing South Side Room No-4 Mallapur PG"
+  },
+  {
+    "station_number": "36",
+    "locality": "Pamaladinni",
+    "building_name": "Govt. Kannada Higher Primary School West\nWing Room No 1 Pamaldinni"
+  },
+  {
+    "station_number": "37",
+    "locality": "Pamaladinni",
+    "building_name": "Govt. Higher Primary School Room No-1\nPamaldinni"
+  },
+  {
+    "station_number": "38",
+    "locality": "Pamaladinni",
+    "building_name": "Govt. Higher Primary School East Wing Room\nNo 2 Pamaldinni"
+  },
+  {
+    "station_number": "39",
+    "locality": "Pamaladinni",
+    "building_name": "Govt. Higher Primary School East Wing Room\nNo 4 Pamaldinni"
+  },
+  {
+    "station_number": "40",
+    "locality": "Pamaladinni",
+    "building_name": "Govt. Higher Primary School West Wing\nPamaldinni"
+  },
+  {
+    "station_number": "41",
+    "locality": "Pamaladinni",
+    "building_name": "Govt. Higher Primary School East Wing Room\nNo 5 Pamaldinni"
+  },
+  {
+    "station_number": "42",
+    "locality": "Pamaladinni",
+    "building_name": "Govt. High School South Side Room No 1\nPamaldinni"
+  },
+  {
+    "station_number": "43",
+    "locality": "Pamaladinni",
+    "building_name": "Govt. High School South Side Room No. 3\nPamaladinni"
+  },
+  {
+    "station_number": "44",
+    "locality": "Pamaladinni",
+    "building_name": "Govt. High School South Side Room No 2\nPamaldinni"
+  },
+  {
+    "station_number": "45",
+    "locality": "Shindhikurabet",
+    "building_name": "Govt. Higher Kannada Girls School East Wing\nRCC Building Room No. 2 Shindhikurbet"
+  },
+  {
+    "station_number": "46",
+    "locality": "Shindhikurabet",
+    "building_name": "Govt. Higher Kannada Girls School East Wing\nRCC Building Room No.1 Shindhikurbet"
+  },
+  {
+    "station_number": "47",
+    "locality": "Shindhikurabet",
+    "building_name": "Govt. Kannada Girls School R.C.C. Building\nWest Wing Shindhikurbet"
+  },
+  {
+    "station_number": "48",
+    "locality": "Shindhikurabet",
+    "building_name": "Govt. Kannada Girls School R.C.C. Building\nEast Wing Shindhikurbet"
+  },
+  {
+    "station_number": "49",
+    "locality": "Shindhikurabet",
+    "building_name": "Govt. Kannada Girls School West Wing Room\nNO. 4 Shindhikurbet"
+  },
+  {
+    "station_number": "50",
+    "locality": "Shindhikurabet",
+    "building_name": "Govt Urdu Higher Primary School Middle\nWing RCC Building Shindhikurbet"
+  },
+  {
+    "station_number": "51",
+    "locality": "Shindhikurabet",
+    "building_name": "Govt Urdu Higher Primary School Left Wing\nR.C.C. Building Shindhikurbet"
+  },
+  {
+    "station_number": "52",
+    "locality": "Shindhikurabet",
+    "building_name": "Govt Urdu Higher Primary School New R.C.C.\nBuilding Shindhikurbet"
+  },
+  {
+    "station_number": "53",
+    "locality": "Shindhikurabet",
+    "building_name": "Govt. Higher Urdu Primary School South Wing\nShindhikurbet"
+  },
+  {
+    "station_number": "54",
+    "locality": "Shindhikurabet",
+    "building_name": "Govt. Higher Primary School South Wing\nShindhikurbet"
+  },
+  {
+    "station_number": "55",
+    "locality": "Shindhikurabet",
+    "building_name": "Govt. Higher Primary School South Wing Room\nNo.3 Shindhikurbet"
+  },
+  {
+    "station_number": "56",
+    "locality": "Shindhikurabet",
+    "building_name": "Govt. Higher Primary school Parameshwar\nmardi Shindhikurbet"
+  },
+  {
+    "station_number": "57",
+    "locality": "Shingalapur",
+    "building_name": "Govt. Higher Kannada Primary School\nShingalapur"
+  },
+  {
+    "station_number": "58",
+    "locality": "Shingalapur",
+    "building_name": "Govt. Lower Primary School Sugar Factory\nShingalapur"
+  },
+  {
+    "station_number": "59",
+    "locality": "Shingalapur",
+    "building_name": "Govt. Higher Primary School Shingalapur\nTakke, Kurubadaddi."
+  },
+  {
+    "station_number": "60",
+    "locality": "Konnur",
+    "building_name": "Sri Gurusiddeshwar Girls High school Room\nNo. 2 Konnur"
+  },
+  {
+    "station_number": "61",
+    "locality": "Konnur",
+    "building_name": "Govt Kannada Girls School East Wing Konnur"
+  },
+  {
+    "station_number": "62",
+    "locality": "Konnur",
+    "building_name": "Govt Kannada Girls School West Wing Konnur"
+  },
+  {
+    "station_number": "63",
+    "locality": "Konnur",
+    "building_name": "Govt Kannada Girls School East Wing Room\nNo. 2 Konnur"
+  },
+  {
+    "station_number": "64",
+    "locality": "Konnur",
+    "building_name": "Govt. Higher Primary School Konnur"
+  },
+  {
+    "station_number": "65",
+    "locality": "Konnur",
+    "building_name": "Govt. Higher Primary School Left Wing Konnur"
+  },
+  {
+    "station_number": "66",
+    "locality": "Konnur",
+    "building_name": "Govt. Urdu Higher Primary School East side\nKonnur"
+  },
+  {
+    "station_number": "67",
+    "locality": "Konnur",
+    "building_name": "Govt. Urdu Higher Primary School West side\nKonnur"
+  },
+  {
+    "station_number": "68",
+    "locality": "Konnur",
+    "building_name": "Govt. Higher Primary School East Wing Konnur"
+  },
+  {
+    "station_number": "69",
+    "locality": "Konnur",
+    "building_name": "Govt. Higher Primary School East Wing South\nSide Konnur"
+  },
+  {
+    "station_number": "70",
+    "locality": "Konnur",
+    "building_name": "Govt Kannada Girls School West Wing Konnur"
+  },
+  {
+    "station_number": "71",
+    "locality": "Konnur",
+    "building_name": "Govt Kannada Girls School West Wing (South\nSide Room) Konnur"
+  },
+  {
+    "station_number": "72",
+    "locality": "Maradimath",
+    "building_name": "Govt. Higher Primary School East Wing\nMaradimath"
+  },
+  {
+    "station_number": "73",
+    "locality": "Maradimath",
+    "building_name": "Shree Guru Siddeshwar ITI College Mardimath"
+  },
+  {
+    "station_number": "74",
+    "locality": "Naikwadi",
+    "building_name": "Govt.Higher Primary School West Wing\nNaikwadi"
+  },
+  {
+    "station_number": "75",
+    "locality": "Naikwadi",
+    "building_name": "Govt.Higher Primary School West Wing Right\nside Room Naikwadi"
+  },
+  {
+    "station_number": "76",
+    "locality": "Manikwadi",
+    "building_name": "Govt. Higher Primary School New Building\nManikwadi"
+  },
+  {
+    "station_number": "77",
+    "locality": "Manikwadi",
+    "building_name": "Govt. Higher Primary School Old Building\nManikwadi"
+  },
+  {
+    "station_number": "78",
+    "locality": "Manikwadi",
+    "building_name": "Govt. Higher Primary School New Building\nwest wing Manikwadi"
+  },
+  {
+    "station_number": "79",
+    "locality": "Gokak Falls",
+    "building_name": "The Volkart Academy Marathi Medium 8 th\nClass Gokak Falls"
+  },
+  {
+    "station_number": "80",
+    "locality": "Gokak Falls",
+    "building_name": "New Primary School Room No 16 Gokak Falls"
+  },
+  {
+    "station_number": "81",
+    "locality": "Gokak Falls",
+    "building_name": "New Primary School Room No 3 Gokak Falls"
+  },
+  {
+    "station_number": "82",
+    "locality": "Gokak Falls",
+    "building_name": "Central Library Welfare Centre Building Gokak\nFalls"
+  },
+  {
+    "station_number": "83",
+    "locality": "Gokak Falls",
+    "building_name": "Central Library Welfare Centre Building East\nWing Gokak Falls"
+  },
+  {
+    "station_number": "84",
+    "locality": "Gokak Falls",
+    "building_name": "Volkart Academy Urdu 10 th Class Room\nGokak Falls"
+  },
+  {
+    "station_number": "85",
+    "locality": "Gokak Falls",
+    "building_name": "Balwadi Welfare Center Building Gokak Falls"
+  },
+  {
+    "station_number": "86",
+    "locality": "Melmatti",
+    "building_name": "Govt Higher Primary School West Side East\nRoom Melmatti"
+  },
+  {
+    "station_number": "87",
+    "locality": "Melmatti",
+    "building_name": "Govt Higher Primary School South Side North\nRoom Melmatti"
+  },
+  {
+    "station_number": "88",
+    "locality": "Melmatti",
+    "building_name": "Govt. Higher Primary School Melmatti"
+  },
+  {
+    "station_number": "89",
+    "locality": "Melmatti",
+    "building_name": "T E S High School 8th Std Room East Side\nMelmatti"
+  },
+  {
+    "station_number": "90",
+    "locality": "Shivapur (K)",
+    "building_name": "Govt. Higher Primary School Shivapur (K)"
+  },
+  {
+    "station_number": "91",
+    "locality": "Shivapur (K)",
+    "building_name": "Govt. Higher Primary School Left Wing\nShivapur (K)"
+  },
+  {
+    "station_number": "92",
+    "locality": "Godachinamalki",
+    "building_name": "Govt. Higher Primary School Godachinamalki"
+  },
+  {
+    "station_number": "93",
+    "locality": "Godachinamalki",
+    "building_name": "Govt. Higher Primary school 2nd Room Noth\nside Godachinamalki"
+  },
+  {
+    "station_number": "94",
+    "locality": "Gokak",
+    "building_name": "Govt. New Secondary School Near Tahasildar\nOffice Room No 9 Gokak"
+  },
+  {
+    "station_number": "95",
+    "locality": "Gokak",
+    "building_name": "Govt. New Secondary School Near Tahasildar\nOffice Room No 10 Gokak"
+  },
+  {
+    "station_number": "96",
+    "locality": "Gokak",
+    "building_name": "Govt. New Secondary School Near Old\nTahasildar Office Room No 15 Gokak"
+  },
+  {
+    "station_number": "97",
+    "locality": "Gokak",
+    "building_name": "Govt. New Secondary School Near Old\nTahasildar Office North Side Room Gokak"
+  },
+  {
+    "station_number": "98",
+    "locality": "Gokak",
+    "building_name": "Govt. Girls SchoolNo. 1 Banagar galli Gokak"
+  },
+  {
+    "station_number": "99",
+    "locality": "Gokak",
+    "building_name": "Govt. Girls SchoolNo. 1 East Side Room\nBanagar galli Gokak"
+  },
+  {
+    "station_number": "100",
+    "locality": "Gokak",
+    "building_name": "Govt. Girls School No. 1 East Side Banagar\nGalli Gokak"
+  },
+  {
+    "station_number": "101",
+    "locality": "Gokak",
+    "building_name": "Govt. Girls School No. 1 6th Std West Side\nBanagar Galli Gokak"
+  },
+  {
+    "station_number": "102",
+    "locality": "Gokak",
+    "building_name": "Urdu Boys School No. 1 High school Road\nGokak"
+  },
+  {
+    "station_number": "103",
+    "locality": "Gokak",
+    "building_name": "Urdu Boys School No. 1 High school East Side\nRoom Gokak"
+  },
+  {
+    "station_number": "104",
+    "locality": "Gokak",
+    "building_name": "Village Chawadi West Side Gokak"
+  },
+  {
+    "station_number": "105",
+    "locality": "Gokak",
+    "building_name": "Village Chawadi Revenue Inspector Office North\nSide Gokak"
+  },
+  {
+    "station_number": "106",
+    "locality": "Gokak",
+    "building_name": "Govt Degree College Old Tahasildar Office East\nSide Room Gokak"
+  },
+  {
+    "station_number": "107",
+    "locality": "Gokak",
+    "building_name": "Govt Degree College Old Tahasildar Office West\nSide Room Gokak"
+  },
+  {
+    "station_number": "108",
+    "locality": "Gokak",
+    "building_name": "Marathi Primary Girls School No. 2 New\nBuilding (Chikkodi Building) Gokak"
+  },
+  {
+    "station_number": "109",
+    "locality": "Gokak",
+    "building_name": "C S Angadi B.Com College West Side Room\nGokak"
+  },
+  {
+    "station_number": "110",
+    "locality": "Gokak",
+    "building_name": "C S Angadi P U College Near Byali Kata West\nside Room No 1 Gokak"
+  },
+  {
+    "station_number": "111",
+    "locality": "Gokak",
+    "building_name": "C S Angadi P U College Near Byali Kata South\nside Room No 2 Gokak"
+  },
+  {
+    "station_number": "112",
+    "locality": "Gokak",
+    "building_name": "C S Angadi P U College Near Byali Kata East\nside Room No 3 Gokak"
+  },
+  {
+    "station_number": "113",
+    "locality": "Gokak",
+    "building_name": "C S Angadi P U College Near Byali Kata East\nside Room No 4 Gokak"
+  },
+  {
+    "station_number": "114",
+    "locality": "Gokak",
+    "building_name": "Govt. Higher Primary School Ghandi Nagar\nOpp. APMC Gokak"
+  },
+  {
+    "station_number": "115",
+    "locality": "Gokak",
+    "building_name": "Govt. Higher Primary School Ghandi Nagar Left\nwing Opp. APMC Gokak"
+  },
+  {
+    "station_number": "116",
+    "locality": "Gokak",
+    "building_name": "K.L.E. English Medium school west wing Room\nNo-1 Near Umarani Hospital Gokak"
+  },
+  {
+    "station_number": "117",
+    "locality": "Gokak",
+    "building_name": "K.L.E. English Medium school west wing Room\nNo-2 Near Umarani Hospital Gokak"
+  },
+  {
+    "station_number": "118",
+    "locality": "Gokak",
+    "building_name": "K.L.E. English Medium school Room No-3 Near\nUmarani Hospital Gokak"
+  },
+  {
+    "station_number": "119",
+    "locality": "Gokak",
+    "building_name": "K.L.E. English Medium school South Side\nRoom Near Umarani Hospital Gokak"
+  },
+  {
+    "station_number": "120",
+    "locality": "Gokak",
+    "building_name": "Dr. Babasaheb Ambedakar Bhavan Gokak"
+  },
+  {
+    "station_number": "121",
+    "locality": "Gokak",
+    "building_name": "Dr. Babasaheb Ambedakar Bhavan Gokak"
+  },
+  {
+    "station_number": "122",
+    "locality": "Gokak",
+    "building_name": "Mayur School Room No 25 Gokak"
+  },
+  {
+    "station_number": "123",
+    "locality": "Gokak",
+    "building_name": "Mayur School 7th B Std Room No 26 South\nSide Gokak"
+  },
+  {
+    "station_number": "124",
+    "locality": "Gokak",
+    "building_name": "Mayur School, Room No 26 Gokak"
+  },
+  {
+    "station_number": "125",
+    "locality": "Gokak",
+    "building_name": "Mayur School Room No 28 Gokak"
+  },
+  {
+    "station_number": "126",
+    "locality": "Gokak",
+    "building_name": "Govt Kannada Boys Higher Primary School\nBasava Nagar Room No-3 Gokak"
+  },
+  {
+    "station_number": "127",
+    "locality": "Gokak",
+    "building_name": "Govt Kannada Boys Higher Primary School\nBasava Nagar Room No-4 Gokak"
+  },
+  {
+    "station_number": "128",
+    "locality": "Gokak",
+    "building_name": "Mayur School Room No 27 RCC Building\nGokak"
+  },
+  {
+    "station_number": "129",
+    "locality": "Gokak",
+    "building_name": "K.L.E ITI College Near Byali Kata North Side\nRoom No 1 Gokak"
+  },
+  {
+    "station_number": "130",
+    "locality": "Gokak",
+    "building_name": "K.L.E ITI College Near Byali Kata North Side\nRoom No 3 Gokak"
+  },
+  {
+    "station_number": "131",
+    "locality": "Gokak",
+    "building_name": "Govt Kannada Boys Higher Primary School\nNorth Side Ningayya Nagar Gokak"
+  },
+  {
+    "station_number": "132",
+    "locality": "Gokak",
+    "building_name": "Office of Range Forest Officer Gokak"
+  },
+  {
+    "station_number": "133",
+    "locality": "Gokak",
+    "building_name": "Govt. Higher Primary School No.3 Gouli Galli\nGokak"
+  },
+  {
+    "station_number": "134",
+    "locality": "Gokak",
+    "building_name": "Govt. Higher Primary School No.3 North Side\nRoom Gouli Galli Gokak"
+  },
+  {
+    "station_number": "135",
+    "locality": "Gokak",
+    "building_name": "Govt. Higher Primary School Laxmi Extn East\nRoom No 1 Gokak"
+  },
+  {
+    "station_number": "136",
+    "locality": "Gokak",
+    "building_name": "Govt. New Higher Primary School West Room\nGokak"
+  },
+  {
+    "station_number": "137",
+    "locality": "Gokak",
+    "building_name": "New English School West Room No.16 Gokak"
+  },
+  {
+    "station_number": "138",
+    "locality": "Gokak",
+    "building_name": "New English School West Room No.15 Gokak"
+  },
+  {
+    "station_number": "139",
+    "locality": "Gokak",
+    "building_name": "New English School East Room side Gokak"
+  },
+  {
+    "station_number": "140",
+    "locality": "Gokak",
+    "building_name": "Abdul Kalam Azad Comp.Jr.College Science\nHall Gokak"
+  },
+  {
+    "station_number": "141",
+    "locality": "Gokak",
+    "building_name": "Abdul Kalam Azad Comp.Jr.College North Side\nRoom Gokak"
+  },
+  {
+    "station_number": "142",
+    "locality": "Gokak",
+    "building_name": "Office of Deputy Conservator of Forest Room\nNo.1 (Ghataprabha Div) Gokak"
+  },
+  {
+    "station_number": "143",
+    "locality": "Gokak",
+    "building_name": "Office of Deputy Conservator of Forest Room\nNo.2 (Ghataprabha Div) Gokak"
+  },
+  {
+    "station_number": "144",
+    "locality": "Gokak",
+    "building_name": "Abdul Kalam Azad Comp.Jr.College 8th Std\nRoom Gokak"
+  },
+  {
+    "station_number": "145",
+    "locality": "Gokak",
+    "building_name": "Abdul Kalam Azad Comp.Jr.College 10th Std\nRoom Gokak"
+  },
+  {
+    "station_number": "146",
+    "locality": "Gokak",
+    "building_name": "Govt Jr.College East Room No.1 Gokak"
+  },
+  {
+    "station_number": "147",
+    "locality": "Gokak",
+    "building_name": "Govt Jr.College East Room No.2 Gokak"
+  },
+  {
+    "station_number": "148",
+    "locality": "Gokak",
+    "building_name": "Govt Jr.College East Wing last room No.20\nGokak"
+  },
+  {
+    "station_number": "149",
+    "locality": "Gokak",
+    "building_name": "Netaji subash chandra Bosh vidya bharti\nsociety Room No-1 Near Kurubar Pool Gokak"
+  },
+  {
+    "station_number": "150",
+    "locality": "Gokak",
+    "building_name": "Netaji subash chandra Bosh vidya bharti\nsociety Room No-2 Near Kurubar Pool Gokak"
+  },
+  {
+    "station_number": "151",
+    "locality": "Gokak",
+    "building_name": "Netaji subash chandra Bosh Higher primary\nschool vidya bharti society Room No-3 Near\nKurubar Pool Gokak"
+  },
+  {
+    "station_number": "152",
+    "locality": "Gokak",
+    "building_name": "Netaji subash chandra Bosh Higher primary\nschool vidya bharti society Room No-4 Near\nKurubar Pool Gokak"
+  },
+  {
+    "station_number": "153",
+    "locality": "Gokak",
+    "building_name": "Govt Kannada Girls School No.2Ayyanbhanvi\nWest Side Gokak"
+  },
+  {
+    "station_number": "154",
+    "locality": "Gokak",
+    "building_name": "Govt. Higher Primary School No.1 Jalal Galli\nGokak"
+  },
+  {
+    "station_number": "155",
+    "locality": "Gokak",
+    "building_name": "Govt. Higher Primary School Jalal Galli East\nside Gokak"
+  },
+  {
+    "station_number": "156",
+    "locality": "Gokak",
+    "building_name": "Govt Degree College Old Tahasildar Office\nSouth Side Room No.1 Gokak"
+  },
+  {
+    "station_number": "157",
+    "locality": "Gokak",
+    "building_name": "Govt Degree College Old Tahasildar Office\nSouth Side Room No.2 Gokak"
+  },
+  {
+    "station_number": "158",
+    "locality": "Gokak",
+    "building_name": "Shankarling Library Gokak"
+  },
+  {
+    "station_number": "159",
+    "locality": "Gokak",
+    "building_name": "Shankarling Adarsh School 10th A Std East\nSide Banagar Galli Gokak"
+  },
+  {
+    "station_number": "160",
+    "locality": "Gokak",
+    "building_name": "Adarsh Shikshan Sanste, Room No. 1 Banagar\nGalli South side Gokak"
+  },
+  {
+    "station_number": "161",
+    "locality": "Gokak",
+    "building_name": "Adarsh Shikshan Sanste, Room No. 2 Banagar\nGalli North side Gokak"
+  },
+  {
+    "station_number": "162",
+    "locality": "Gokak",
+    "building_name": "Govt. Higher Primary School Laxmi Extn Room\nNo.7 Gokak"
+  },
+  {
+    "station_number": "163",
+    "locality": "Gokak",
+    "building_name": "Govt. Higher Primary School Laxmi Extn East\nSide Gokak"
+  },
+  {
+    "station_number": "164",
+    "locality": "Gokak",
+    "building_name": "Govt. Higher Primary School Laxmi Extn Room\nNo.6 Gokak"
+  },
+  {
+    "station_number": "165",
+    "locality": "Gokak",
+    "building_name": "Govt. Higher Primary School Markhanday\nNagar West Side Gokak"
+  },
+  {
+    "station_number": "166",
+    "locality": "Gokak",
+    "building_name": "Navajeevan Mission School LKG Room No. 1\nGokak"
+  },
+  {
+    "station_number": "167",
+    "locality": "Gokak",
+    "building_name": "Commercial Tax Office Falls Road Gokak"
+  },
+  {
+    "station_number": "168",
+    "locality": "Gokak",
+    "building_name": "Govt Higher Primary Kannada Boys school\nMarkandeya Nagar Room No-3 Gokak"
+  },
+  {
+    "station_number": "169",
+    "locality": "Gokak",
+    "building_name": "Govt. New Secondary School Near Old\nTahasildar Office 10th Class Room Gokak"
+  },
+  {
+    "station_number": "170",
+    "locality": "Gokak",
+    "building_name": "Govt.New Secondary School Near Tahasildar\nOffice West Side Gokak"
+  },
+  {
+    "station_number": "171",
+    "locality": "Maladinni",
+    "building_name": "Govt. Higher Primary School South Wing\nMaladinni"
+  },
+  {
+    "station_number": "172",
+    "locality": "Maladinni",
+    "building_name": "Govt. Higher Primary School South Side Room\nNo-2 Maladinni"
+  },
+  {
+    "station_number": "173",
+    "locality": "Maladinni",
+    "building_name": "Govt. Higher Primary School South Side Room\nNo-4 Maladinni"
+  },
+  {
+    "station_number": "174",
+    "locality": "Maladinni",
+    "building_name": "Govt. High School East Wing Room No.1\nMaladinni"
+  },
+  {
+    "station_number": "175",
+    "locality": "Upparatti",
+    "building_name": "Govt. Higher Primary School Upparatti"
+  },
+  {
+    "station_number": "176",
+    "locality": "Upparatti",
+    "building_name": "Govt. Higher Primary School East Wing 4th\nRoom Upparatti"
+  },
+  {
+    "station_number": "177",
+    "locality": "Upparatti",
+    "building_name": "Gram Panchayat Office Upparatti"
+  },
+  {
+    "station_number": "178",
+    "locality": "Upparatti",
+    "building_name": "Gram Panchayat Office East Side 2nd Room\nUpparatti"
+  },
+  {
+    "station_number": "179",
+    "locality": "Upparatti",
+    "building_name": "Govt. Higher Primary School West Side\nUpparatti"
+  },
+  {
+    "station_number": "180",
+    "locality": "Maradishivapur",
+    "building_name": "Govt. Higher Primary School North Side Mardi\nShivapur"
+  },
+  {
+    "station_number": "181",
+    "locality": "Maradishivapur",
+    "building_name": "Govt. Higher Primary School South Side RCC\nBuilding Mardi Shivapur"
+  },
+  {
+    "station_number": "182",
+    "locality": "Mamadapur",
+    "building_name": "Govt Kannada Girls School Mamadapur"
+  },
+  {
+    "station_number": "183",
+    "locality": "Mamadapur",
+    "building_name": "Govt Kannada Girls School Left Wing\nMamadapur"
+  },
+  {
+    "station_number": "184",
+    "locality": "Mamadapur",
+    "building_name": "Govt. Higher Primary School East wing\nMamadapur"
+  },
+  {
+    "station_number": "185",
+    "locality": "Mamadapur",
+    "building_name": "Govt. Higher Primary School Center Wing right\nside Mamadapur"
+  },
+  {
+    "station_number": "186",
+    "locality": "Mamadapur",
+    "building_name": "Govt. Higher Primary School Center Wing left\nside Mamadapur"
+  },
+  {
+    "station_number": "187",
+    "locality": "Mamadapur",
+    "building_name": "Govt. Higher Primary School Center Wing right\nside Mamadapur"
+  },
+  {
+    "station_number": "188",
+    "locality": "Mamadapur",
+    "building_name": "Gram Panchayat Office Mamadapur"
+  },
+  {
+    "station_number": "189",
+    "locality": "Mamadapur",
+    "building_name": "Govt. Higher Primary School Mamadapur"
+  },
+  {
+    "station_number": "190",
+    "locality": "Ajjanakatti",
+    "building_name": "Kannada Boys School Ajjankatti"
+  },
+  {
+    "station_number": "191",
+    "locality": "Dundanatti",
+    "building_name": "Govt. Higher Primary School Dundanatti"
+  },
+  {
+    "station_number": "192",
+    "locality": "Hulikatti",
+    "building_name": "Govt. Higher Primary School North Wing\nHoolikati"
+  },
+  {
+    "station_number": "193",
+    "locality": "Hulikatti",
+    "building_name": "Govt. Higher Primary School West Wing\nHoolikati"
+  },
+  {
+    "station_number": "194",
+    "locality": "Benachinamardi",
+    "building_name": "Govt. Higher Primary School South Wing\nBenachinmardi"
+  },
+  {
+    "station_number": "195",
+    "locality": "Benachinamardi",
+    "building_name": "Govt. Higher Primary School South Wing 2nd\nRoom Benachinmardi"
+  },
+  {
+    "station_number": "196",
+    "locality": "Benachinamardi",
+    "building_name": "Govt. Higher Primary School North Wing R.C.C.\nBuilding Room No-1 Benachinmardi"
+  },
+  {
+    "station_number": "197",
+    "locality": "Benachinamardi",
+    "building_name": "Govt. Higher Primary School North Wing R.C.C.\nBuilding Room NO-2 Benachinmardi"
+  },
+  {
+    "station_number": "198",
+    "locality": "Benachinamardi",
+    "building_name": "Govt. Higher Primary School West Wing\nBenachinmardi"
+  },
+  {
+    "station_number": "199",
+    "locality": "Benachinamardi",
+    "building_name": "Govt. Higher Primary School North Wing\nBenachinmardi"
+  },
+  {
+    "station_number": "200",
+    "locality": "Benachinamardi",
+    "building_name": "Govt. Higher Primary School New Building\nBenachinmaradi"
+  },
+  {
+    "station_number": "201",
+    "locality": "Kolavi",
+    "building_name": "Govt. Higher Primary School South Side West\nRoom New Building Kolavi"
+  },
+  {
+    "station_number": "202",
+    "locality": "Kolavi",
+    "building_name": "Govt Higher Primary School South Wing Kolavi"
+  },
+  {
+    "station_number": "203",
+    "locality": "Kolavi",
+    "building_name": "Govt. Higher Primary School North Wing East\nRoom Kolavi"
+  },
+  {
+    "station_number": "204",
+    "locality": "Kolavi",
+    "building_name": "Govt. Higher Primary School North Wing West\nRoom Kolavi"
+  },
+  {
+    "station_number": "205",
+    "locality": "Tavag",
+    "building_name": "Govt. Higher Primary School East Side Tavag"
+  },
+  {
+    "station_number": "206",
+    "locality": "Tavag",
+    "building_name": "Govt Higher Primary School North Wing Tavag"
+  },
+  {
+    "station_number": "207",
+    "locality": "Tavag",
+    "building_name": "Govt. Higher Primary Kannada Boys School\nWest Wing New Building Tavag"
+  },
+  {
+    "station_number": "208",
+    "locality": "Tavag",
+    "building_name": "Govt. Higher Primary Kannada Boys School\nWest Wing South Room New Building Tavag"
+  },
+  {
+    "station_number": "209",
+    "locality": "Kanasageri",
+    "building_name": "Govt. Higher Primary School New Building\nNuggal Kanasageri"
+  },
+  {
+    "station_number": "210",
+    "locality": "Kanasageri",
+    "building_name": "Govt. Lower Primary School Basav Nagar\nKanasageri"
+  },
+  {
+    "station_number": "211",
+    "locality": "Kadabagatti",
+    "building_name": "Govt. Higher Primary School Kadabagatti"
+  },
+  {
+    "station_number": "212",
+    "locality": "Benachinamardi (",
+    "building_name": "Govt. Higher Primary School South Wing\nU)\nBenchinmardi(U)"
+  },
+  {
+    "station_number": "213",
+    "locality": "Benachinamardi (",
+    "building_name": "Govt. Higher Primary School North Wing\nU)\nBenchinmardi(U)"
+  },
+  {
+    "station_number": "214",
+    "locality": "Urabinatti",
+    "building_name": "Govt. Higher Primary School East Wing\nUrabinhatti"
+  },
+  {
+    "station_number": "215",
+    "locality": "Urabinatti",
+    "building_name": "Govt. Higher Primary School South Wing\nUrabinhatti"
+  },
+  {
+    "station_number": "216",
+    "locality": "Shigiholi",
+    "building_name": "Govt. Higher Primary School Shigiholi"
+  },
+  {
+    "station_number": "217",
+    "locality": "Kundaragi",
+    "building_name": "Govt. Higher Primary School Right Wing Room\nNo.2 Kundargi"
+  },
+  {
+    "station_number": "218",
+    "locality": "Kundaragi",
+    "building_name": "Govt. Higher Primary School Right side Room\nWest Wing Kundargi"
+  },
+  {
+    "station_number": "219",
+    "locality": "Kundaragi",
+    "building_name": "Govt. Higher Primary School East Side Room\nKundargi"
+  },
+  {
+    "station_number": "220",
+    "locality": "Dasanatti",
+    "building_name": "Govt. Higher Primary School North Wing\nDasanahatti"
+  },
+  {
+    "station_number": "221",
+    "locality": "Dasanatti",
+    "building_name": "Govt. Higher Primary School North Wing Cetre\nRoom Dasanahatti"
+  },
+  {
+    "station_number": "222",
+    "locality": "Musalmari",
+    "building_name": "Govt.Higher Primary School Musalmari"
+  },
+  {
+    "station_number": "223",
+    "locality": "Mallapur S,A",
+    "building_name": "Govt. Higher Primary School North Side\nMallapur SA"
+  },
+  {
+    "station_number": "224",
+    "locality": "Mallapur S,A",
+    "building_name": "Govt. Higher Primary School East Side\nMallapur SA"
+  },
+  {
+    "station_number": "225",
+    "locality": "Gujanal",
+    "building_name": "Govt. Higher Primary School West Wing\nGujanal"
+  },
+  {
+    "station_number": "226",
+    "locality": "Gujanal",
+    "building_name": "Govt. Higher Primary School East Wing\nGujanal"
+  },
+  {
+    "station_number": "227",
+    "locality": "Malamardi",
+    "building_name": "Govt. Lower Primary School Malamardi"
+  },
+  {
+    "station_number": "228",
+    "locality": "Ankalagi",
+    "building_name": "New Anganwadi Builiding North Wing Market\nAnkalagi"
+  },
+  {
+    "station_number": "229",
+    "locality": "Ankalagi",
+    "building_name": "New Anganwadi BuilidingEast Wing Market\nAnkalagi"
+  },
+  {
+    "station_number": "230",
+    "locality": "Ankalagi",
+    "building_name": "Govt. Kannada Primary School East Wing Left\nSide Room Ankalagi"
+  },
+  {
+    "station_number": "231",
+    "locality": "Ankalagi",
+    "building_name": "Govt. Urdu Higher Primary School Anakalagi"
+  },
+  {
+    "station_number": "232",
+    "locality": "Ankalagi",
+    "building_name": "Govt. Higher Primary School 7th Class Room\nAnkalgi"
+  },
+  {
+    "station_number": "233",
+    "locality": "Ankalagi",
+    "building_name": "Govt. Higher Primary School 6th Class Room\nAnkalgi"
+  },
+  {
+    "station_number": "234",
+    "locality": "Ankalagi",
+    "building_name": "Govt. Higher Primary Girls School Room No. 5\nAnkalagi"
+  },
+  {
+    "station_number": "235",
+    "locality": "Ankalagi",
+    "building_name": "Govt. Kannada Girls School Room No. 3\nAnkalagi"
+  },
+  {
+    "station_number": "236",
+    "locality": "Lagameshwar",
+    "building_name": "Govt. Lower Primary School Lagameshwar\n(Ankalgi)"
+  },
+  {
+    "station_number": "237",
+    "locality": "Akkatangerahal",
+    "building_name": "Govt Higher Kannada Boys Primary School\nWest Wing Akkatangerhal"
+  },
+  {
+    "station_number": "238",
+    "locality": "Akkatangerahal",
+    "building_name": "Govt Kannada Boys Higher Primary School\nEast Wing Room No-1 Akkatangerhal"
+  },
+  {
+    "station_number": "239",
+    "locality": "Akkatangerahal",
+    "building_name": "Govt Higher Girls Primary School East Wing\nRoom No.4 Akkatangerhal"
+  },
+  {
+    "station_number": "240",
+    "locality": "Akkatangerahal",
+    "building_name": "Government Kannada Boys Higher Primary\nSchool East Wing Room No 3 Akkatangerhal"
+  },
+  {
+    "station_number": "241",
+    "locality": "Akkatangerahal",
+    "building_name": "High School New Building Akkatangerhal"
+  },
+  {
+    "station_number": "242",
+    "locality": "Dumurabinahatti",
+    "building_name": "Govt. Higher Primary School Dum Urabinhatti"
+  },
+  {
+    "station_number": "243",
+    "locality": "Iranatti",
+    "building_name": "Govt. Higher Primary School South Wing\nIranatti"
+  },
+  {
+    "station_number": "244",
+    "locality": "Iranatti",
+    "building_name": "Govt. Higher Primary School South Side West\nWing Iranatti"
+  },
+  {
+    "station_number": "245",
+    "locality": "Madaval",
+    "building_name": "Govt. Higher Primary School East Wing\nMadaval"
+  },
+  {
+    "station_number": "246",
+    "locality": "Madaval",
+    "building_name": "Govt. Higher Primary School West Wing\nMadaval"
+  },
+  {
+    "station_number": "247",
+    "locality": "TeLaginahatti",
+    "building_name": "Govt. Higher Primary School South Wing\nTelaginhatti"
+  },
+  {
+    "station_number": "248",
+    "locality": "TeLaginahatti",
+    "building_name": "Govt. Higher Primary School West Wing\nTelaginhatti"
+  },
+  {
+    "station_number": "249",
+    "locality": "K.Hosur",
+    "building_name": "Govt. Lower Primary School K.Hosur"
+  },
+  {
+    "station_number": "250",
+    "locality": "Kaitanal",
+    "building_name": "Govt. Higher Primary School Kaitnal"
+  },
+  {
+    "station_number": "251",
+    "locality": "Makkalageri",
+    "building_name": "Govt. Urdu Lower Primary School West Side\nMakkalageri"
+  },
+  {
+    "station_number": "252",
+    "locality": "Makkalageri",
+    "building_name": "Govt. Higher Primary School West Side\nMakkalageri"
+  },
+  {
+    "station_number": "253",
+    "locality": "Makkalageri",
+    "building_name": "Govt. Higher Primary School East Side\nMakkalageri"
+  },
+  {
+    "station_number": "254",
+    "locality": "Hanamapur",
+    "building_name": "Govt. Higher Primary School Hanamapur"
+  },
+  {
+    "station_number": "255",
+    "locality": "Hirehatti",
+    "building_name": "Govt. Higher Primary Kannada School Hirehatti"
+  },
+  {
+    "station_number": "256",
+    "locality": "Panchanayakanah",
+    "building_name": "Gatotivt. Lower Primary School Panchanaikanhatti"
+  },
+  {
+    "station_number": "257",
+    "locality": "Chikkanandi",
+    "building_name": "Govt. Higher Primary School New RCC Building\nRight Side Room Chikkanandi"
+  },
+  {
+    "station_number": "258",
+    "locality": "Chikkanandi",
+    "building_name": "Govt. Higher Primary School New RCC Building\nCentre Room Chikkanandi"
+  },
+  {
+    "station_number": "259",
+    "locality": "Chikkanandi",
+    "building_name": "Govt. Higher Primary School New RCC\nBuilding Left Side Room Chikkanandi"
+  },
+  {
+    "station_number": "260",
+    "locality": "Hirenandi",
+    "building_name": "Govt Higher Kannada and English Medium\nPrimary School West Side R.C.C Building\nMiddle Part Hirenandi"
+  },
+  {
+    "station_number": "261",
+    "locality": "Hirenandi",
+    "building_name": "Govt Higher Kannada and English Medium\nPrimary School North Side East Room\nHirenandi"
+  },
+  {
+    "station_number": "262",
+    "locality": "Hirenandi",
+    "building_name": "Govt Higher Kannada and English Medium\nPrimary School Anganwadi Side R.C.C Building\nWest Side South Room Hirenandi"
+  },
+  {
+    "station_number": "263",
+    "locality": "Hirenandi",
+    "building_name": "Govt Higher Kannada and English Medium\nPrimary School Anganwadi Side Room\nHirenandi"
+  },
+  {
+    "station_number": "264",
+    "locality": "Jamunal",
+    "building_name": "Govt. Higher Primary School Jamunal"
+  },
+  {
+    "station_number": "265",
+    "locality": "Shiltibhavi",
+    "building_name": "Govt. Higher Primary School New RCC Building\nNorth Side Shiltibhanvi"
+  },
+  {
+    "station_number": "266",
+    "locality": "Shiltibhavi",
+    "building_name": "Govt. Higher Primary School New RCC Building\nSouth Side Shiltibhanvi"
+  },
+  {
+    "station_number": "267",
+    "locality": "Pudakalakatti",
+    "building_name": "Govt. Higher Primary School New RCC Building\nPudakalkatti"
+  },
+  {
+    "station_number": "268",
+    "locality": "Gilihosur",
+    "building_name": "Govt. Higher Primary School Gilihosur"
+  },
+  {
+    "station_number": "269",
+    "locality": "Khanagaon",
+    "building_name": "Govt. Higher Primary School West Wing\nKhangaon"
+  },
+  {
+    "station_number": "270",
+    "locality": "Khanagaon",
+    "building_name": "Govt. Higher Primary School East Wing\nKhanagaon"
+  },
+  {
+    "station_number": "271",
+    "locality": "Gudanatti",
+    "building_name": "Govt. Higher Primary School Gudanatti"
+  },
+  {
+    "station_number": "272",
+    "locality": "Nabhapur",
+    "building_name": "Karnataka Public School North Side Room No.\n1 Nabhapur"
+  },
+  {
+    "station_number": "273",
+    "locality": "Nabhapur",
+    "building_name": "Karnataka Public School North Side Room No.\n4 Nabhapur"
+  },
+  {
+    "station_number": "274",
+    "locality": "Devagoudanahatti",
+    "building_name": "Govt PU College Khanagaon (Devegoudanhatti)"
+  },
+  {
+    "station_number": "275",
+    "locality": "Devagoudanahatti",
+    "building_name": "Karnataka Public School South Side Room No.\n4 Khanagaon"
+  },
+  {
+    "station_number": "276",
+    "locality": "Midakanatti",
+    "building_name": "Govt. Higher Primary School North Wing\nMidakanhatti"
+  },
+  {
+    "station_number": "277",
+    "locality": "Midakanatti",
+    "building_name": "Govt. Higher Primary School South Wing\nMidakanhatti"
+  },
+  {
+    "station_number": "278",
+    "locality": "Keshapanatti",
+    "building_name": "Govt. Higher Primary School Keshappanhatti"
+  },
+  {
+    "station_number": "279",
+    "locality": "Yelapatti",
+    "building_name": "Govt. Higher Primary School Yelapatti"
+  },
+  {
+    "station_number": "280",
+    "locality": "Panjanatti",
+    "building_name": "Govt. Lower Primary School Panjannati"
+  },
+  {
+    "station_number": "281",
+    "locality": "Arabhavidhavalatt",
+    "building_name": "iGovt. Lower Primary School Arabhavi-Davalatti"
+  },
+  {
+    "station_number": "282",
+    "locality": "Gada",
+    "building_name": "Govt. Higher Primary School Gada"
+  },
+  {
+    "station_number": "283",
+    "locality": "Rajanakatti",
+    "building_name": "Govt. Higher Primary School Rajankatti"
+  },
+  {
+    "station_number": "284",
+    "locality": "Yaddalagudda",
+    "building_name": "Govt. Higher Primary School Yaddalgudd"
+  },
+  {
+    "station_number": "285",
+    "locality": "Budihal",
+    "building_name": "Govt. Urdu Higher Primary School 2nd std\nRoom Bhudihal"
+  },
+  {
+    "station_number": "286",
+    "locality": "Budihal",
+    "building_name": "Govt. Higher Primary School 6th std Room\nBhudihal"
+  },
+  {
+    "station_number": "287",
+    "locality": "Suladhal",
+    "building_name": "Govt. Higher Primary School South Side Room\nNo 1 Suldhal"
+  },
+  {
+    "station_number": "288",
+    "locality": "Suladhal",
+    "building_name": "Govt. Higher Primary School 6th B Class Room\nSuldhal"
+  },
+  {
+    "station_number": "289",
+    "locality": "Suladhal",
+    "building_name": "Govt. Higher Primary School South Side Room\nNo 3 Suldhal"
+  },
+  {
+    "station_number": "290",
+    "locality": "Nelganti",
+    "building_name": "Govt. Lower Primary School New Building\nNelganti"
+  },
+  {
+    "station_number": "262069",
+    "locality": "1. Total number voters",
+    "building_name": ""
+  },
+  {
+    "station_number": "904",
+    "locality": "3. Average number of voters per polling\nstation",
+    "building_name": ""
+  }
+]

@@ -1,0 +1,1467 @@
+[
+  {
+    "station_number": "1",
+    "locality": "",
+    "building_name": ""
+  },
+  {
+    "station_number": "2",
+    "locality": "Atiwad",
+    "building_name": "Govt Higher Primary Marathi School, Right\nWing, Attiwad"
+  },
+  {
+    "station_number": "3",
+    "locality": "Bekkinakeri",
+    "building_name": "Govt. Higher Primary Marathi School Left\nwing, Bekkinkeri"
+  },
+  {
+    "station_number": "44",
+    "locality": "BBeekkkkiinnaakkeerrii",
+    "building_name": "Govt Higher Primary Marathi School, Right\nWWiinngg,, BBeekkkkiinnkkeerrii"
+  },
+  {
+    "station_number": "5",
+    "locality": "Bekkinakeri",
+    "building_name": "Govt Higher Primary Marathi School, Left\nWing, Bekkinkeri"
+  },
+  {
+    "station_number": "6",
+    "locality": "Basurte",
+    "building_name": "Govt Higher Primary Marathi School,"
+  },
+  {
+    "station_number": "7",
+    "locality": "Konewadi",
+    "building_name": "Basurte\nGovt Higher Primary Marathi School,\nKonewadi"
+  },
+  {
+    "station_number": "8",
+    "locality": "Gojage",
+    "building_name": "Govt Higher Primary Marathi School, Right\nWing,, Gojage"
+  },
+  {
+    "station_number": "9",
+    "locality": "Gojage",
+    "building_name": "Govt Higher Primary Marathi School, Left\nWing, Gojage"
+  },
+  {
+    "station_number": "10",
+    "locality": "Ambewadi",
+    "building_name": "Govt Higher Primary Marathi School, Right\nWWiinngg,, AAmmbbeewwaaddii"
+  },
+  {
+    "station_number": "11",
+    "locality": "Ambewadi",
+    "building_name": "Govt Higher Primary Marathi School, Left\nWing, Room No:12, Ambewadi"
+  },
+  {
+    "station_number": "12",
+    "locality": "Ambewadi",
+    "building_name": "Govt Higher Primary Marathi School, Left\nWing, Room No:13, Ambewadi"
+  },
+  {
+    "station_number": "13",
+    "locality": "Ambewadi",
+    "building_name": "Govt Higher Primary Marathi School, Left\nWing Side Room, Ambewadi"
+  },
+  {
+    "station_number": "14",
+    "locality": "Mannur",
+    "building_name": "Govt Higher Primary Marathi School, Room\nNo. 7, Left Wing, Mannur"
+  },
+  {
+    "station_number": "15",
+    "locality": "Mannur",
+    "building_name": "Govt Higher Primary Marathi School, Room\nNo. 9, Left Wing, Mannur"
+  },
+  {
+    "station_number": "16",
+    "locality": "Mannur",
+    "building_name": "Govt Higher Primary Marathi School, Room\nNNoo.. 44,, RRiigghhtt WWiinngg,, MMaannnnuurr"
+  },
+  {
+    "station_number": "17",
+    "locality": "Mannur",
+    "building_name": "Govt Higher Primary Marathi School, Room\nNo. 3, Right Wing, Mannur"
+  },
+  {
+    "station_number": "18",
+    "locality": "Uchagaon",
+    "building_name": "Sri Malekarani High School, Right Wing,\nUchagaon"
+  },
+  {
+    "station_number": "19",
+    "locality": "Uchagaon",
+    "building_name": "Govt. Higher Primary Marathi School, Right\nWing, Uchagaon"
+  },
+  {
+    "station_number": "20",
+    "locality": "Uchagaon",
+    "building_name": "Govt Urdu Higher Primary School,\nUchagaon"
+  },
+  {
+    "station_number": "21",
+    "locality": "Uchagaon",
+    "building_name": "Anganwadi School Room No 1, Uchagaon"
+  },
+  {
+    "station_number": "22",
+    "locality": "Uchagaon",
+    "building_name": "Swami Vivekanand Girls High School, Right\nWing, Uchagaon"
+  },
+  {
+    "station_number": "23",
+    "locality": "Uchagaon",
+    "building_name": "Swami Vivekanand Girls High School, Left\nWing, Uchagaon"
+  },
+  {
+    "station_number": "24",
+    "locality": "Kangrali BK",
+    "building_name": "Govt. Higher Primary Marathi School, New\nannexe building, Kangrali B.K"
+  },
+  {
+    "station_number": "25",
+    "locality": "Kangrali BK",
+    "building_name": "Govt. Higher Primary Marathi School, Right\nSide, Room No.1 Kangrali B.K"
+  },
+  {
+    "station_number": "26",
+    "locality": "Kangrali BK",
+    "building_name": "Govt. Higher Primary Marathi School, Right\nSide, Room No.2 Kangrali B.K"
+  },
+  {
+    "station_number": "27",
+    "locality": "Kangrali BK",
+    "building_name": "Govt. Higher Primary Marathi School,\nComputer Room, Kangrali B K."
+  },
+  {
+    "station_number": "28",
+    "locality": "Kangrali BK",
+    "building_name": "Govt. Higher Primary Marathi School,\nHead Master Room, Kangrali B K."
+  },
+  {
+    "station_number": "29",
+    "locality": "Kangrali BK",
+    "building_name": "Govt Higher Primary Kannada School,\nRoom No 7, Left Wing, Kangrali B K"
+  },
+  {
+    "station_number": "30",
+    "locality": "Kangrali BK",
+    "building_name": "Govt Higher Primary Kannada School,\nRoom No 8, Right Wing, Kangrali B K"
+  },
+  {
+    "station_number": "31",
+    "locality": "Kangrali BK",
+    "building_name": "Madhyamik Vidyalaya & Girls High School,\nRight Side Room No.2, Kangrali B.K"
+  },
+  {
+    "station_number": "32",
+    "locality": "Kangarli BK",
+    "building_name": "Madhyamik Vidyalaya & Girls High School,\nRight Side Room No.7"
+  },
+  {
+    "station_number": "33",
+    "locality": "Kangrali BK",
+    "building_name": "Govt Higher Primary Kannada School,\nRoom No 9, Right Wing, Kangrali B K"
+  },
+  {
+    "station_number": "34",
+    "locality": "KKaannggrraallii BBKK",
+    "building_name": "Govt Higher Primary Kannada School Room\nNNoo..1111 KKaannggrraallii BB KK"
+  },
+  {
+    "station_number": "35",
+    "locality": "Kangrali BK",
+    "building_name": "Govt. Kannada High School, Room No.1,\nKangrali B.K"
+  },
+  {
+    "station_number": "36",
+    "locality": "Kangrali BK",
+    "building_name": "Govt. Kannada High School, Room No.3,\nKangrali B.K"
+  },
+  {
+    "station_number": "37",
+    "locality": "Kangrali BK",
+    "building_name": "Govt. Kannada High School, Room No.5,\nKangrali B.K"
+  },
+  {
+    "station_number": "38",
+    "locality": "Kangrali KH",
+    "building_name": "Govt. Adarsh Marathi Boys School, Old\nBuilding Right Wing, Kangrali K H"
+  },
+  {
+    "station_number": "39",
+    "locality": "Kangrali KH",
+    "building_name": "Govt. Adarsh Marathi School, North Side\nRRoooomm,, KKaannggrraallii KK HH"
+  },
+  {
+    "station_number": "40",
+    "locality": "Kangrali KH",
+    "building_name": "Govt. Adarsh Marathi School, North Side\nNext Room Kangrali K H"
+  },
+  {
+    "station_number": "41",
+    "locality": "Kangrali KH",
+    "building_name": "Govt. Adarsh Marathi School, New Buillding\nRight Wing, Kangrali K H"
+  },
+  {
+    "station_number": "42",
+    "locality": "Kangrali KH",
+    "building_name": "Govt. Adarsh Higher Marathi Boys\nSchool,New Buillding , Left wing Kangrali K"
+  },
+  {
+    "station_number": "43",
+    "locality": "Kangrali KH",
+    "building_name": "Govt. Adarsh Higher Marathi Boys School,\nNew Buillding Middle room , Kangrali K H"
+  },
+  {
+    "station_number": "45",
+    "locality": "Kangrali KH",
+    "building_name": "Govt. Higher Primary Kannada School,\nRight Wing, Kangrali K H"
+  },
+  {
+    "station_number": "46",
+    "locality": "Kangrali KH",
+    "building_name": "Govt. Higher Primary Kannada School,\nMiddle Wing, Kangrali K H"
+  },
+  {
+    "station_number": "47",
+    "locality": "Kangrali KH",
+    "building_name": "Govt. Higher Primary Kannada School, Left\nWing, Kangrali K H"
+  },
+  {
+    "station_number": "48",
+    "locality": "Kangrali KH",
+    "building_name": "Govt. Higher Primary Kannada School, Left\nWing Side Room, Kangrali K H"
+  },
+  {
+    "station_number": "49",
+    "locality": "Kangrali KH",
+    "building_name": "Adhar Public School Room No.03\nSaratinagar Kangrali K. H"
+  },
+  {
+    "station_number": "5500",
+    "locality": "KKaannggrraallii KKHH",
+    "building_name": "Markandeya High School, North Side,\nKangrali K H"
+  },
+  {
+    "station_number": "51",
+    "locality": "Hindalaga",
+    "building_name": "Hindalaga High School, Room No.2,\nHindalaga"
+  },
+  {
+    "station_number": "52",
+    "locality": "Hindalaga",
+    "building_name": "Hindalaga High School, Room No.4,\nHindalaga"
+  },
+  {
+    "station_number": "53",
+    "locality": "Hindalaga",
+    "building_name": "Room No 3,Hindalaga High School,\nHindalaga"
+  },
+  {
+    "station_number": "54",
+    "locality": "Hindalaga",
+    "building_name": "Govt. Marathi Higher Primary School,\nRoom No.1 (Hall) Hindalaga"
+  },
+  {
+    "station_number": "55",
+    "locality": "Hindalaga",
+    "building_name": "Govt. Marathi Higher Primary School,\nRoom No.2, Hindalaga"
+  },
+  {
+    "station_number": "56",
+    "locality": "Hindalaga",
+    "building_name": "Govt. Marathi Higher Primary School,\nRoom No.4, Hindalaga"
+  },
+  {
+    "station_number": "57",
+    "locality": "Hindalaga",
+    "building_name": "Govt. Marathi Higher Primary School, Left\nWing, RooM No.6, Hindalaga"
+  },
+  {
+    "station_number": "58",
+    "locality": "Hindalaga",
+    "building_name": "Govt. Kannada Higher Primary School, Left\nWing, Room No.1, Vijayanagara, Hindalaga"
+  },
+  {
+    "station_number": "59",
+    "locality": "Hindalaga",
+    "building_name": "Govt. Marathi Higher Primary School, Left\nWing Room No.1, Vijayanagar, Hindalaga"
+  },
+  {
+    "station_number": "6600",
+    "locality": "VViijjaayyaannaaggaarr--\nHindalaga",
+    "building_name": "GGoovvtt.. MMaarraatthhii HHiigghheerr PPrriimmaarryy SScchhooooll,, LLeefftt\nWing, Room-2, Vijayanagar, Hindalaga"
+  },
+  {
+    "station_number": "61",
+    "locality": "Vijayanagar-\nHindalaga",
+    "building_name": "Govt Marathi Higher Primary School, Left\nWing, Side RoomVijay Nagar Hindalaga"
+  },
+  {
+    "station_number": "62",
+    "locality": "Vijayanagar,\nHindalaga",
+    "building_name": "Govt. Marathi Higher Primary School, Left\nWing Room-4, Vijayanagar, Hindalaga"
+  },
+  {
+    "station_number": "63",
+    "locality": "Vijayanagar,\nHindalaga",
+    "building_name": "Govt. Kannada Higher Primary School,\nRight Wing, Room No.5, Vijayanagar,\nHindalaga"
+  },
+  {
+    "station_number": "64",
+    "locality": "Vijayanagar,\nHindalaga",
+    "building_name": "Govt. Kannada Higher Primary School,\nRight Wing room No.4, Vijayanagar,"
+  },
+  {
+    "station_number": "65",
+    "locality": "Vijayanagar,\nHindalaga",
+    "building_name": "Govt. Lower Primary Marathi School, Right\nWing Room No.1, Laxminagar, Hindalaga"
+  },
+  {
+    "station_number": "66",
+    "locality": "Vijayanagar,\nHindalaga",
+    "building_name": "Govt. Lower Primary Marathi School, Right\nWing Room-2, Laxminagar, Hindalaga"
+  },
+  {
+    "station_number": "67",
+    "locality": "Laxmi Nagar\nHindalaga",
+    "building_name": "Govt. Kannada Higher Primary School,\nRight Wing, Room No.1, Hindalaga"
+  },
+  {
+    "station_number": "68",
+    "locality": "LLaaxxmmii NNaaggaarr\nHindalaga",
+    "building_name": "GGoovvtt.. KKaannnnaaddaa HHiigghheerr PPrriimmaarryy SScchhooooll,, LLeefftt\nWing, Room No.2, Hindalaga"
+  },
+  {
+    "station_number": "69",
+    "locality": "Hindalaga",
+    "building_name": "Govt. Kannada Higher Primary School, Left\nWing, Room No.4, Hindalaga"
+  },
+  {
+    "station_number": "70",
+    "locality": "Hindalaga",
+    "building_name": "Govt. Kannada Higher Primary School, Left\nWing, Room No.5, Hindalaga"
+  },
+  {
+    "station_number": "71",
+    "locality": "Sulage (U)",
+    "building_name": "Govt Higher Marathi Primary School, Right\nWing, Sulage (U)"
+  },
+  {
+    "station_number": "72",
+    "locality": "Sulage (U)",
+    "building_name": "Govt Higher Marathi Primary School, Right\nWing, Side Room, Sulage (U)"
+  },
+  {
+    "station_number": "73",
+    "locality": "Sulage (U)",
+    "building_name": "Govt Higher Marathi Primary School, Right\nWing, Next Room Sulage (U)"
+  },
+  {
+    "station_number": "74",
+    "locality": "Sulage (U)",
+    "building_name": "Govt Marathi Higher Primary School, New\nBuilding Right Wing, Sulaga (U)"
+  },
+  {
+    "station_number": "75",
+    "locality": "Sulage (U)",
+    "building_name": "GGoovvtt MMaarraatthhii HHiigghheerr PPrriimmaarryy SScchhooooll,, NNeeww\nBuilding Left Wing, Sulaga (U)"
+  },
+  {
+    "station_number": "76",
+    "locality": "Turamuri",
+    "building_name": "Govt Higher Marathi Primary School, Right\nwing, Turamuri"
+  },
+  {
+    "station_number": "77",
+    "locality": "Turamuri",
+    "building_name": "Govt Higher Marathi Primary School, Left\nWing, Turamuri"
+  },
+  {
+    "station_number": "78",
+    "locality": "Turamuri",
+    "building_name": "Govt Higher Marathi Primary School, Left\nWing, Side Room Turamuri"
+  },
+  {
+    "station_number": "79",
+    "locality": "Bachi",
+    "building_name": "Govt Higher Marathi Primary School, Room\nNo2, Bachi"
+  },
+  {
+    "station_number": "80",
+    "locality": "Benakanhalli",
+    "building_name": "Govt Higher Primary Marathi School,\nRoom No 1, Benakanhalli"
+  },
+  {
+    "station_number": "81",
+    "locality": "Benakanhalli",
+    "building_name": "Govt Higher Primary Marathi School, Room\nNo 2, Benakanhalli"
+  },
+  {
+    "station_number": "8822",
+    "locality": "BBeennaakkaannhhaallllii",
+    "building_name": "GGoovvtt HHiigghheerr PPrriimmaarryy MMaarraatthhii SScchhooooll,, RRoooomm\nNo 3, Benakanhalli"
+  },
+  {
+    "station_number": "83",
+    "locality": "Jyotinagar-\nBenakanhalli",
+    "building_name": "Govt Primary Marathi School, , Right Wing,\nJyoti Nagar, Benakanhalli"
+  },
+  {
+    "station_number": "84",
+    "locality": "Jyotinagar-\nBenakanhalli",
+    "building_name": "Govt Higher Primary Marathi School, Left\nWing, Jyoti Nagar, Benakanhalli"
+  },
+  {
+    "station_number": "85",
+    "locality": "Jyoti Nagar -\nBenakanhalli",
+    "building_name": "Govt Primary Marathi School, New\nBuilding Jyoti Nagar, Benkanhalli"
+  },
+  {
+    "station_number": "86",
+    "locality": "Ganeshpur -\nHindalga",
+    "building_name": "Govt. Higher Primary Marathi School, Back\nside Room No.5, Ganeshpur, Benakanahalli"
+  },
+  {
+    "station_number": "87",
+    "locality": "Ganeshpur -\nHindalga",
+    "building_name": "Govt. Higher Primary Marathi School,\nRoom No.1, Ganeshpur, Benakanahalli"
+  },
+  {
+    "station_number": "88",
+    "locality": "Ganeshpur -\nHindalga",
+    "building_name": "Govt Higher Primary Marathi School, Left\nWing, Ganeshpur - Hindalga"
+  },
+  {
+    "station_number": "8899",
+    "locality": "Ganeshpur -\nHHiinnddaallggaa",
+    "building_name": "Anganwadi Kendra, Near Siddhivinayak\nTTeemmppllee,, SSaarraasswwaatthhii NNaaggaarr,, GGaanneesshhppuurr,,\nBenakanahalli"
+  },
+  {
+    "station_number": "90",
+    "locality": "Ganeshpur -\nHindalga",
+    "building_name": "Anganwadi Kendra Back Side, Near\nSiddhivinayak Temple, Saraswathi Nagar,\nGaneshpur, Benakanahalli"
+  },
+  {
+    "station_number": "91",
+    "locality": "Kallehol",
+    "building_name": "Govt Higher Primary Marathi School, Left\nWing, Kallehol"
+  },
+  {
+    "station_number": "92",
+    "locality": "Kallehol",
+    "building_name": "Govt Higher Marathi Primary School, Right\nWing, Kallehol"
+  },
+  {
+    "station_number": "93",
+    "locality": "Kudremani",
+    "building_name": "Govt Higher Marathi Primary School, Right\nWing, Kudremani"
+  },
+  {
+    "station_number": "94",
+    "locality": "Kudremani",
+    "building_name": "Govt Kannada Higher Primary School,\nKudremani"
+  },
+  {
+    "station_number": "95",
+    "locality": "Kudremani",
+    "building_name": "Govt. Higher Marathi Primary School, Back\nside 1st Room, Kudremani"
+  },
+  {
+    "station_number": "96",
+    "locality": "Savagaon",
+    "building_name": "Govt. Higher Primary Marathi School, Left\nwing, Room No.4, Savagaon."
+  },
+  {
+    "station_number": "97",
+    "locality": "Savagaon",
+    "building_name": "Govt. Higher Primary Marathi School, Right\nwing, Room No.3, Savagaon."
+  },
+  {
+    "station_number": "98",
+    "locality": "Bokanur",
+    "building_name": "Govt. Higher Primary Marathi School,\nBoknur"
+  },
+  {
+    "station_number": "99",
+    "locality": "Belagundi",
+    "building_name": "Govt. MLA Model Higher Primary Marathi\nSchool, Room No-01, Belagundi"
+  },
+  {
+    "station_number": "100",
+    "locality": "Belagundi",
+    "building_name": "Govt. MLA Model Higher Primary Marathi\nSchool, Room No-02, Belagundi"
+  },
+  {
+    "station_number": "101",
+    "locality": "Belagundi",
+    "building_name": "Govt. MLA Model Higher Primary Marathi\nSchool, Room No-03, Belagundi"
+  },
+  {
+    "station_number": "110022",
+    "locality": "BBeellaagguunnddii",
+    "building_name": "Govt. MLA Model Higher Primary Marathi\nSScchhooooll,, RRoooomm NNoo--0044,, BBeellaagguunnddii"
+  },
+  {
+    "station_number": "103",
+    "locality": "Sonoli",
+    "building_name": "Govt. Higher Primary Marathi School, Right\nWing, Sonoli"
+  },
+  {
+    "station_number": "104",
+    "locality": "Sonoli",
+    "building_name": "Govt. Higher Primary Marathi School, Left\nWing, Sonoli"
+  },
+  {
+    "station_number": "105",
+    "locality": "Yalebail",
+    "building_name": "Govt Higher Marathi Primary School,\nYallebail"
+  },
+  {
+    "station_number": "106",
+    "locality": "Rakaskoppa",
+    "building_name": "Govt Higher Primary Marathi Boys School,\nRakaskopp"
+  },
+  {
+    "station_number": "107",
+    "locality": "Dhamane S\nBailur",
+    "building_name": "Govt Higher Primary Marathi School,\nDhamane S Bailur"
+  },
+  {
+    "station_number": "108",
+    "locality": "Hangaraga",
+    "building_name": "Govt Higher Primary Marathi School, Left\nWing, Hangarage"
+  },
+  {
+    "station_number": "109",
+    "locality": "Hangaraga",
+    "building_name": "Govt Higher Primary Marathi School, Right\nWing, Hangaraga"
+  },
+  {
+    "station_number": "110",
+    "locality": "Mandoli",
+    "building_name": "Govt Higher Primary Marathi School, New\nRR..CC..CC.. BBuuiillddiinngg RRoooomm NNoo 22,, MMaannddoollii"
+  },
+  {
+    "station_number": "111",
+    "locality": "Mandoli",
+    "building_name": "Govt Higher Primary Marathi School, New\nBuilding Right Side Room,Mandoli"
+  },
+  {
+    "station_number": "112",
+    "locality": "Mandoli",
+    "building_name": "Govt Higher Primary Marathi School, New\nBuilding Left Side Room,Mandoli"
+  },
+  {
+    "station_number": "113",
+    "locality": "Bijagarni",
+    "building_name": "Govt Higher Primary Marathi School, Right\nWing, Bijagarni"
+  },
+  {
+    "station_number": "114",
+    "locality": "Bijagarni",
+    "building_name": "Govt Higher Primary Marathi School, Left\nWing, Bijagarni"
+  },
+  {
+    "station_number": "115",
+    "locality": "Kawalewadi",
+    "building_name": "Govt Higher Marathi Primary School,\nKawalewadi"
+  },
+  {
+    "station_number": "116",
+    "locality": "Belavatti",
+    "building_name": "Govt. Higher Primary Marathi School Left\nWing Belavatti"
+  },
+  {
+    "station_number": "111177",
+    "locality": "BBeellaavvaattttii",
+    "building_name": "Govt. Higher Primary Marathi School Right\nWWiinngg BBeellaavvaattttii"
+  },
+  {
+    "station_number": "118",
+    "locality": "Bakanur",
+    "building_name": "Govt Higher Primary Marathi School,"
+  },
+  {
+    "station_number": "119",
+    "locality": "Badas Inam",
+    "building_name": "Bakanur\nGovt Higher Primary Marathi School, Badas\nInam"
+  },
+  {
+    "station_number": "120",
+    "locality": "Karle",
+    "building_name": "Govt Higher Primary Marathi School, Karle"
+  },
+  {
+    "station_number": "121",
+    "locality": "Navage",
+    "building_name": "Govt. Higher Primary Marathi School Left\nWing, Navage"
+  },
+  {
+    "station_number": "122",
+    "locality": "Bamanwadi",
+    "building_name": "Govt. Lower Primary Marathi School,\nBamanwadi"
+  },
+  {
+    "station_number": "123",
+    "locality": "Janewadi",
+    "building_name": "Govt. Higher Primary Marathi School,\nJJaanneewwaaddii"
+  },
+  {
+    "station_number": "124",
+    "locality": "Kuttalawadi",
+    "building_name": "Govt Marathi School, Kuttalwadi"
+  },
+  {
+    "station_number": "125",
+    "locality": "Bhadarawadi",
+    "building_name": "Govt Higher Primary Marathi School,\nBhadarwadi"
+  },
+  {
+    "station_number": "126",
+    "locality": "Kinaye",
+    "building_name": "Govt Marathi Higher Primary School, Left\nWing, Kinaye"
+  },
+  {
+    "station_number": "127",
+    "locality": "Kinaye",
+    "building_name": "Govt Marathi Higher Primary School, Right\nWing, Kinaye"
+  },
+  {
+    "station_number": "128",
+    "locality": "Ranakunde",
+    "building_name": "Govt Higher Primary Marathi School,\nRanakunde"
+  },
+  {
+    "station_number": "129",
+    "locality": "Santibastawad",
+    "building_name": "Govt Lower Primary Urdu School,,\nSantibastawad"
+  },
+  {
+    "station_number": "130",
+    "locality": "Santibastawad",
+    "building_name": "Govt Marathi Higher Primary School, Right\nWing, Side Room,Santibastwad"
+  },
+  {
+    "station_number": "131",
+    "locality": "Santibastawad",
+    "building_name": "Govt Marathi Higher Primary School, Left\nWing, Side Room,Santibastwad"
+  },
+  {
+    "station_number": "132",
+    "locality": "Santibastawad",
+    "building_name": "Govt Kannada Higher Primary School, Right\nWing, Side Room,Santibastwad"
+  },
+  {
+    "station_number": "133",
+    "locality": "Santibastawad",
+    "building_name": "Govt Higher Primary Kannada School, Left\nWing, Side Room, Santibastwad"
+  },
+  {
+    "station_number": "134",
+    "locality": "Rangadholi-\nGutti(RC)",
+    "building_name": "Govt Lower Primary Kannada School,,\nRangdholi-Gutti(RC)"
+  },
+  {
+    "station_number": "135",
+    "locality": "Waghawade",
+    "building_name": "Govt Higher Primary Marathi School,\nWaghawade"
+  },
+  {
+    "station_number": "136",
+    "locality": "Waghawade",
+    "building_name": "Govt. Higher Primary Marathi School Right\nwing Side Room Waghwade"
+  },
+  {
+    "station_number": "137",
+    "locality": "Waghawade",
+    "building_name": "Govt Higher Primary Marathi School New\nbuilding, Left side room, Waghawade"
+  },
+  {
+    "station_number": "138",
+    "locality": "Waghawade",
+    "building_name": "Govt Higher Primary Marathi School New\nbuilding, right side room, Waghawade"
+  },
+  {
+    "station_number": "139",
+    "locality": "Waghawade\n(Markandeya\nnagar (RC))",
+    "building_name": "Nammur Govt. Higher Primary Kannada\nSchool Markhandayya Nagar Left Wing Side\nRoom"
+  },
+  {
+    "station_number": "140",
+    "locality": "Waghawade\n(Markandeya\nnagar (RC))",
+    "building_name": "Nammur Govt. Higher Primary Kannada\nSchool Markhandayya Nagar Left Wing\nOpposite Room"
+  },
+  {
+    "station_number": "141",
+    "locality": "Sulage (Y)",
+    "building_name": "Govt Higher Primary Marathi School Sulaga"
+  },
+  {
+    "station_number": "142",
+    "locality": "Sulage (Y)",
+    "building_name": "(Y)\nGovt Higher Primary Marathi School Side\nRoom Sulaga (Y)"
+  },
+  {
+    "station_number": "143",
+    "locality": "Desur",
+    "building_name": "Govt Higher Primary Marathi School East\nSide Right wing, Desur"
+  },
+  {
+    "station_number": "144",
+    "locality": "Desur",
+    "building_name": "Govt Higher Primary Marathi School East\nSide Left Wing Desur"
+  },
+  {
+    "station_number": "145",
+    "locality": "Desur",
+    "building_name": "Govt Higher Primary Marathi School West\nSide Left Wing, Desur"
+  },
+  {
+    "station_number": "146",
+    "locality": "Desur",
+    "building_name": "Govt Higher Primary Kannada School West\nSide Right Wing, Desur"
+  },
+  {
+    "station_number": "147",
+    "locality": "Rajhunsgad",
+    "building_name": "Govt Higher Primary Marathi School, Right\nWing, Rajhunsgad"
+  },
+  {
+    "station_number": "148",
+    "locality": "Rajhunsgad",
+    "building_name": "Govt Higher Primary Marathi School, Left\nWing, Rajhunsgad"
+  },
+  {
+    "station_number": "149",
+    "locality": "Nandihalli",
+    "building_name": "Govt Higher Primary Kannada School,\nNandiahalli"
+  },
+  {
+    "station_number": "150",
+    "locality": "Nandihalli",
+    "building_name": "Govt Higher Primary Marathi School, Left\nWing, Nandihalli"
+  },
+  {
+    "station_number": "151",
+    "locality": "Nandihalli",
+    "building_name": "Govt Higher Primary Marathi School, Right\nWing, Nandihalli"
+  },
+  {
+    "station_number": "152",
+    "locality": "Nagenahatti",
+    "building_name": "Govt Higher Primary Marathi School,\nNagenahati"
+  },
+  {
+    "station_number": "153",
+    "locality": "Tummaraguddi",
+    "building_name": "Govt Higher Primary Kannada School, Right\nWing, Tummaraguddi"
+  },
+  {
+    "station_number": "115544",
+    "locality": "TTuummmmaarraagguuddddii",
+    "building_name": "GGoovvtt HHiigghheerr PPrriimmaarryy KKaannnnaaddaa SScchhooooll,, LLeefftt\nWing, Tummaraguddi"
+  },
+  {
+    "station_number": "155",
+    "locality": "Karikatti",
+    "building_name": "Govt Lower Primary Kannada School,,\nKarikati"
+  },
+  {
+    "station_number": "156",
+    "locality": "Khanagaon KH",
+    "building_name": "Govt Marathi Higher Primary Boys School,\nRight Wing, Side Room, Khangaon K H"
+  },
+  {
+    "station_number": "157",
+    "locality": "Khanagaon KH",
+    "building_name": "Govt Marathi Higher Primary School, Left\nWing, Side Room, Khanagaon K H"
+  },
+  {
+    "station_number": "158",
+    "locality": "Khanagaon BK",
+    "building_name": "Govt Kannada Higher Primary School, New\nbuilding, Khanagaon B.K"
+  },
+  {
+    "station_number": "159",
+    "locality": "Khanagaon BK",
+    "building_name": "Govt. Higher Primary Kannada School Side\nRoom Khangaon B K"
+  },
+  {
+    "station_number": "160",
+    "locality": "Chandur",
+    "building_name": "Govt Lower Primary Kannada School, Right\nWing, Chandur"
+  },
+  {
+    "station_number": "161",
+    "locality": "Sulebhavi",
+    "building_name": "Govt Higher Primary Kannada School, Right\nside 1st Room, Kalmeshwar Nagar,"
+  },
+  {
+    "station_number": "162",
+    "locality": "Sulebhavi",
+    "building_name": "Govt Higher Primary Kannada School, Left\nside 1st Room, Kalmeshwar Nagar,"
+  },
+  {
+    "station_number": "163",
+    "locality": "Sulebhavi",
+    "building_name": "Govt. Kannada High School, Room No-01,\nSulebhavi"
+  },
+  {
+    "station_number": "164",
+    "locality": "Sulebhavi",
+    "building_name": "Govt. Kannada High School, Room No-02,\nSulebhavi"
+  },
+  {
+    "station_number": "165",
+    "locality": "Sulebhavi",
+    "building_name": "Govt. Higher Primary Kannada School,\nRoom No-03, Sulebhavi"
+  },
+  {
+    "station_number": "166",
+    "locality": "Sulebhavi",
+    "building_name": "Govt. Higher Primary Kannada School,\nRoom No-04, Sulebhavi"
+  },
+  {
+    "station_number": "167",
+    "locality": "Sulebhavi",
+    "building_name": "Govt. Higher Primary Kannada School, Left\nWing Sulebhavi"
+  },
+  {
+    "station_number": "168",
+    "locality": "Sulebhavi",
+    "building_name": "Govt. Higher Primary Kannada School,\nRight Wing Sulebhavi"
+  },
+  {
+    "station_number": "169",
+    "locality": "Yaddalbhavihat\nti",
+    "building_name": "Govt Kannada boys School, Yadalbhavihatti"
+  },
+  {
+    "station_number": "170",
+    "locality": "Karadiguddi",
+    "building_name": "Govt Higher Primary Kannada School,\nRigthet Wing Karadiguddi"
+  },
+  {
+    "station_number": "171",
+    "locality": "Karadiguddi",
+    "building_name": "Govt Kannada Higher Primary School, Left\nWing, Karadiguddi"
+  },
+  {
+    "station_number": "172",
+    "locality": "Karadiguddi",
+    "building_name": "Govt Kannada Higher Primary School, Left\nWing, Side Room, Karadiguddi"
+  },
+  {
+    "station_number": "173",
+    "locality": "Marihal",
+    "building_name": "Govt. Urdu Higher Primary School, Left\nWing, Marihal"
+  },
+  {
+    "station_number": "174",
+    "locality": "Marihal",
+    "building_name": "Govt Primary Model Kannada School, Right\nwing Marihal"
+  },
+  {
+    "station_number": "175",
+    "locality": "Marihal",
+    "building_name": "Govt Model Primary Kannada School,\nMiddle Wing Marihal"
+  },
+  {
+    "station_number": "176",
+    "locality": "Marihal",
+    "building_name": "Govt Model Primary Kannada School,\nMiddle Wing Side Room, Marihal"
+  },
+  {
+    "station_number": "177",
+    "locality": "Marihal",
+    "building_name": "Govt Model Primary Kannada School, Left\nWing, Marihal"
+  },
+  {
+    "station_number": "178",
+    "locality": "Marihal",
+    "building_name": "Govt Model Primary Kannada School, Left\nWing, Side Room, Marihal"
+  },
+  {
+    "station_number": "179",
+    "locality": "Modaga",
+    "building_name": "Govt Kannada Higher Primary School, Right\nSide, Old Building, Modaga"
+  },
+  {
+    "station_number": "180",
+    "locality": "Modaga",
+    "building_name": "Govt Kannada Higher Primary School, Left\nSSiiddee RRoooomm,, OOlldd BBuuiillddiinngg,, MMooddaaggaa"
+  },
+  {
+    "station_number": "181",
+    "locality": "Modaga",
+    "building_name": "Govt Kannada Higher Primary School, Left\nWing, Modaga"
+  },
+  {
+    "station_number": "182",
+    "locality": "Modaga",
+    "building_name": "Govt Kannada Higher Primary School, Left\nWing, Side Room, Modaga"
+  },
+  {
+    "station_number": "183",
+    "locality": "Balekundri BK",
+    "building_name": "Govt. Higher Primary Urdu School, North\nSide,Room No.1, Balekundri B.K"
+  },
+  {
+    "station_number": "184",
+    "locality": "Balekundri BK",
+    "building_name": "Govt. Higher Primary Urdu School North\nSide Wing, Balekundari B. K"
+  },
+  {
+    "station_number": "185",
+    "locality": "Balekundri BK",
+    "building_name": "Govt Higher Primary Kannada School,\nSouth Wing, New Building, Balekundri B K"
+  },
+  {
+    "station_number": "186",
+    "locality": "Balekundri BK",
+    "building_name": "Govt Kannada Higher Primary School,\nSSoouutthh NNeeww BBuuiillddiinngg,, BBaalleekkuunnddrrii BBKK"
+  },
+  {
+    "station_number": "187",
+    "locality": "Balekundri BK",
+    "building_name": "Govt. Higher Primary Urdu School, Room\nNo.3, Balekundri B.K"
+  },
+  {
+    "station_number": "188",
+    "locality": "Balekundri BK",
+    "building_name": "Govt. Higher Primary Urdu School, Room\nNo.4, Balekundri B.K"
+  },
+  {
+    "station_number": "189",
+    "locality": "Balekundri KH",
+    "building_name": "Govt. Higher Primary Marathi School,\nMiddle Wing, Balekundri K H"
+  },
+  {
+    "station_number": "190",
+    "locality": "Balekundri KH",
+    "building_name": "Govt Higher Marathi Primary School,\nMiddle Wing, Balekundri KH"
+  },
+  {
+    "station_number": "191",
+    "locality": "Balekundri KH",
+    "building_name": "Govt Higher Primary Kannada School, New\nBuilding, Balekundri KH"
+  },
+  {
+    "station_number": "192",
+    "locality": "Balekundri KH",
+    "building_name": "Janata High School, Balekundari K H"
+  },
+  {
+    "station_number": "193",
+    "locality": "Balekundri KH",
+    "building_name": "Govt. Higher Primary Urdu School,\nBalekundri K.H"
+  },
+  {
+    "station_number": "194",
+    "locality": "Sambra",
+    "building_name": "Govt. High School, 1st Room, Mahadev\nNagar, Sambra"
+  },
+  {
+    "station_number": "195",
+    "locality": "Sambra",
+    "building_name": "GGoovvtt.. HHiigghheerr PPrriimmaarryy KKaannnnaaddaa BBooyyss SScchhooooll,,\nMiddle Wing, Sambra"
+  },
+  {
+    "station_number": "196",
+    "locality": "Sambra",
+    "building_name": "Govt Model Marathi Higher Primary School\nRight Wing West Side Sambra"
+  },
+  {
+    "station_number": "197",
+    "locality": "Sambra",
+    "building_name": "Govt. Higher Primary Kannada Boys School,\nWest Side Right wing Room ,Sambra"
+  },
+  {
+    "station_number": "198",
+    "locality": "Sambra",
+    "building_name": "Govt Model Higher Primary Marathi\nSchool, Right Wing, Sambra"
+  },
+  {
+    "station_number": "199",
+    "locality": "Sambra",
+    "building_name": "Govt. Higher Marathi School, Sambra"
+  },
+  {
+    "station_number": "200",
+    "locality": "Sambra",
+    "building_name": "Govt. High School, Left Wing Room,\nSambra"
+  },
+  {
+    "station_number": "201",
+    "locality": "Sambra",
+    "building_name": "Govt Model Higher Primary Marathi\nSchool, Western Side Right Wing, Sambra"
+  },
+  {
+    "station_number": "202",
+    "locality": "Mutaga",
+    "building_name": "Govt. Higher Primary Marathi School,\nMiddle side, Room No.1, Mutaga"
+  },
+  {
+    "station_number": "203",
+    "locality": "Mutaga",
+    "building_name": "Govt Marathi Higher Primary School, Left\nWing, Mutaga"
+  },
+  {
+    "station_number": "204",
+    "locality": "Mutaga",
+    "building_name": "Govt Marathi Higher Primary School, Left\nWing, Mutaga"
+  },
+  {
+    "station_number": "205",
+    "locality": "Mutaga",
+    "building_name": "Govt Marathi Higher Primary School, Left\nWing, Side Room,Mutaga"
+  },
+  {
+    "station_number": "206",
+    "locality": "Mutaga",
+    "building_name": "Govt. Higher Primary Kannada School Left\nWing, Mutaga"
+  },
+  {
+    "station_number": "207",
+    "locality": "Mutaga",
+    "building_name": "Govt. Higher Primary Kannada School Old\nBBuuiillddiinngg RRiigghhtt WWiinngg,, MMuuttaaggaa"
+  },
+  {
+    "station_number": "208",
+    "locality": "Mutaga",
+    "building_name": "Govt. Lower Primary Kannada School\nGokul Nagar Right wing, Mutaga"
+  },
+  {
+    "station_number": "209",
+    "locality": "Mutaga",
+    "building_name": "Govt. Lower Primary Kannada School\nGokul Nagar Left wing, Mutaga"
+  },
+  {
+    "station_number": "210",
+    "locality": "Mutaga",
+    "building_name": "Govt Higher Primary Kannada School, New\nBuilding Right Wing, Mutaga"
+  },
+  {
+    "station_number": "211",
+    "locality": "Nilaji",
+    "building_name": "Govt Higher Primary Marathi School, RCC\nBuilding, Nilaji"
+  },
+  {
+    "station_number": "212",
+    "locality": "Nilaji",
+    "building_name": "Govt Marathi Higher Primary School, Old\nBuilding, Nilaji"
+  },
+  {
+    "station_number": "213",
+    "locality": "Nilaji",
+    "building_name": "Govt. Higher Primary Marathi School Left\nSide, Nilaji"
+  },
+  {
+    "station_number": "214",
+    "locality": "Nilaji",
+    "building_name": "Govt. Higher Primary Marathi School Old\nBBuuiillddiinngg RRiigghhtt WWiinngg,, NNiillaajjii"
+  },
+  {
+    "station_number": "215",
+    "locality": "Honnihal",
+    "building_name": "Govt Higher Primary Kannada School,\nHonnihal"
+  },
+  {
+    "station_number": "216",
+    "locality": "Honnihal",
+    "building_name": "Govt Higher Primary Kannada School, Right\nWing, Honnihal"
+  },
+  {
+    "station_number": "217",
+    "locality": "Honnihal",
+    "building_name": "Govt Higher Primary Kannada School, Left\nWing, Honnihal"
+  },
+  {
+    "station_number": "218",
+    "locality": "Mavinkatti",
+    "building_name": "Govt Kannada Higher Primary School,\nRight Wing, Side Room, Mavinkatti"
+  },
+  {
+    "station_number": "219",
+    "locality": "Mavinkatti",
+    "building_name": "Govt Kannada Higher Primary School, Left\nWing, Side Room,Mavinkati"
+  },
+  {
+    "station_number": "220",
+    "locality": "Basarikatti",
+    "building_name": "Govt Higher Primary Marathi School, Right\nWing, Basarikati"
+  },
+  {
+    "station_number": "221",
+    "locality": "Basarikatti",
+    "building_name": "Govt Higher Primary Marathi School, Left\nWWiinngg,, BBaassaarriikkaattii"
+  },
+  {
+    "station_number": "222",
+    "locality": "Shindholi",
+    "building_name": "Govt Higher Primary School, Right Side\nRoom, Shindolli"
+  },
+  {
+    "station_number": "223",
+    "locality": "Shindholi",
+    "building_name": "Govt Higher Primary School, Left Side\nRoom, Shindolli"
+  },
+  {
+    "station_number": "224",
+    "locality": "Shindholi",
+    "building_name": "Govt Higher Primary School, Right Wing,\nRoom, Shindolli"
+  },
+  {
+    "station_number": "225",
+    "locality": "Shindholi",
+    "building_name": "Govt Higher Primary School, Left Wing,\nSide Room, Shindolli"
+  },
+  {
+    "station_number": "226",
+    "locality": "Mastmardi",
+    "building_name": "Govt Higher Kannada School, Right Wing,\nMastmardi"
+  },
+  {
+    "station_number": "227",
+    "locality": "Mastmardi",
+    "building_name": "Govt Higher Kannada School, Right Wing,\nSide Room, Mastmardi"
+  },
+  {
+    "station_number": "228",
+    "locality": "Sheganmatti",
+    "building_name": "Govt Higher Primary School, Right Wing,\nSheganamatti"
+  },
+  {
+    "station_number": "229",
+    "locality": "Chandanhosur",
+    "building_name": "Govt Higher Primary Kannada School, Left\nWing, Side Room, Chandanhosur"
+  },
+  {
+    "station_number": "230",
+    "locality": "Chandanhosur",
+    "building_name": "Govt Higher Primary Kannada School, Right\nWing, Side Room, Chandanhosur"
+  },
+  {
+    "station_number": "231",
+    "locality": "Tarihal",
+    "building_name": "Govt Higher Primary Kannada School, Left\nWing, Tarihal"
+  },
+  {
+    "station_number": "232",
+    "locality": "Tarihal",
+    "building_name": "Govt Higher Primary Kannada School, Left\nWing, Side Room,Tarihal"
+  },
+  {
+    "station_number": "233",
+    "locality": "Tarihal",
+    "building_name": "Govt Higher Primary Marathi School, Left\nWing, Tarihal"
+  },
+  {
+    "station_number": "234",
+    "locality": "Tarihal",
+    "building_name": "Govt Higher Primary Marathi School, Left\nWing, Side Room, Tarihal"
+  },
+  {
+    "station_number": "235",
+    "locality": "Halaga",
+    "building_name": "Gram Panchayat Office, Halaga"
+  },
+  {
+    "station_number": "236",
+    "locality": "Halaga",
+    "building_name": "Model Marathi Boys School, Left Wing,\nHalaga"
+  },
+  {
+    "station_number": "237",
+    "locality": "Halaga",
+    "building_name": "Model Marathi Boys School, Right Wing,\nHalaga"
+  },
+  {
+    "station_number": "223388",
+    "locality": "HHaallaaggaa",
+    "building_name": "GGoovvtt KKaannnnaaddaa SScchhooooll,, LLeefftt SSiiddee,, HHaallaaggaa .."
+  },
+  {
+    "station_number": "239",
+    "locality": "Halaga",
+    "building_name": "Govt Kannada School, Right Side, Halaga"
+  },
+  {
+    "station_number": "240",
+    "locality": "Halaga",
+    "building_name": "Govt Kannada School, Middle Side, Halaga"
+  },
+  {
+    "station_number": "241",
+    "locality": "Bastawad",
+    "building_name": "Govt Higher Primary Marathi School, RCC\nBuilding Left Wing, Bastwad"
+  },
+  {
+    "station_number": "242",
+    "locality": "Bastawad",
+    "building_name": "Govt Higher Kannada Primary School Left\nWing R.C.C.New Building, Bastwad"
+  },
+  {
+    "station_number": "243",
+    "locality": "Bastawad",
+    "building_name": "Govt Higher Kannada Primary School Right\nWing R.C.C.New Building, Bastwad"
+  },
+  {
+    "station_number": "224444",
+    "locality": "BBaassttaawwaadd",
+    "building_name": "GGoovvtt HHiigghheerr KKaannnnaaddaa BBooyyss SScchhooooll,, BBaassttwwaadd\nRCC New Building Middle Room Bastwad"
+  },
+  {
+    "station_number": "245",
+    "locality": "Bastawad",
+    "building_name": "Govt. Higher Kannada Primary School Right\nSide, Bastwad"
+  },
+  {
+    "station_number": "246",
+    "locality": "Bastawad",
+    "building_name": "Govt. Higher Kannada Primary School Left\nWing, Bastwad"
+  },
+  {
+    "station_number": "247",
+    "locality": "Kondaskoppa",
+    "building_name": "Govt Higher Kannada Boys School, Bastwad\nRCC New Building, Kondaskop"
+  },
+  {
+    "station_number": "248",
+    "locality": "Kondaskoppa",
+    "building_name": "Govt Higher Primary Marathi School,\nKondaskoppa"
+  },
+  {
+    "station_number": "249",
+    "locality": "Kamkaratti",
+    "building_name": "Govt Higher Primary Kannada School,\nKKaammkkaarraattttii"
+  },
+  {
+    "station_number": "250",
+    "locality": "Bassapur",
+    "building_name": "Govt Higher Kannada Primary School,\nBasapur"
+  },
+  {
+    "station_number": "251",
+    "locality": "Aralikatti",
+    "building_name": "Govt Higher Primary Kannada School, Left\nWing, Aralikatti"
+  },
+  {
+    "station_number": "252",
+    "locality": "Aralikatti",
+    "building_name": "Govt Higher Primary Kannada School, Right\nWing, Arlikatti"
+  },
+  {
+    "station_number": "253",
+    "locality": "Hulikatti",
+    "building_name": "Govt Higher Primary School, Right Wing,\nHulikatti"
+  },
+  {
+    "station_number": "254",
+    "locality": "Bagewadi",
+    "building_name": "Govt Higher Primary Kannada Girls School,\nRight Wing, Hirebagewadi"
+  },
+  {
+    "station_number": "255",
+    "locality": "Bagewadi",
+    "building_name": "Govt Higher Primary Kannada Girls School,\nRight Wing, Side Room,Bagewadi"
+  },
+  {
+    "station_number": "256",
+    "locality": "Bagewadi",
+    "building_name": "Govt Higher Primary Kannada Girls School,\n7th Class Room, Hirebagewadi"
+  },
+  {
+    "station_number": "257",
+    "locality": "Bagewadi",
+    "building_name": "Govt Higher Primary Kannada Girls School,\n7th Class Room, Left Wing, Hirebagewadi"
+  },
+  {
+    "station_number": "258",
+    "locality": "Bagewadi",
+    "building_name": "Govt Model Boys School, Room No 7\nHirebagewadi"
+  },
+  {
+    "station_number": "259",
+    "locality": "Bagewadi",
+    "building_name": "Govt Model Boys School, Left Wing, Room\nNo 9, Hirebagewadi"
+  },
+  {
+    "station_number": "260",
+    "locality": "Bagewadi",
+    "building_name": "Govt Model Kannada Boys School, Left\nWing, Hirebagewadi"
+  },
+  {
+    "station_number": "261",
+    "locality": "Bagewadi",
+    "building_name": "Govt Primary Model Kannada Boys School,\nHirebagewadi"
+  },
+  {
+    "station_number": "262",
+    "locality": "Bagewadi",
+    "building_name": "Govt. Lower Primary School, 4th Std Room\nKalarkoppa"
+  },
+  {
+    "station_number": "263",
+    "locality": "Bagewadi",
+    "building_name": "Govt Primary Model Kannada Boys School\nR.C.C Building Bagewadi"
+  },
+  {
+    "station_number": "264",
+    "locality": "Bagewadi",
+    "building_name": "Govt Primary Model Kannada Boys School,\nRCC Building, Left Wing Room\nHirebagewadi"
+  },
+  {
+    "station_number": "265",
+    "locality": "Bagewadi",
+    "building_name": "Govt. Higher Primary Kannada School,\nRight Wing, Ghandinagar Hirebagewadi"
+  },
+  {
+    "station_number": "266",
+    "locality": "Bagewadi",
+    "building_name": "Govt. Higher Primary Kannada School Left\nWing Room Ghandinagar Bagewadi"
+  },
+  {
+    "station_number": "267",
+    "locality": "Bagewadi",
+    "building_name": "Govt. Model Kannada Boys School, Right\nWing, Gandhinagar Hirebagewadi"
+  },
+  {
+    "station_number": "226688",
+    "locality": "KK.. KK.. KKooppppaa",
+    "building_name": "GGoovvtt HHiigghheerr PPrriimmaarryy KKaannnnaaddaa SScchhooooll,, LLeefftt\nWing, K K Koppa"
+  },
+  {
+    "station_number": "269",
+    "locality": "K. K. Koppa",
+    "building_name": "Govt Higher Primary Kannada School,\nMiddle Wing, K K Koppa"
+  },
+  {
+    "station_number": "270",
+    "locality": "K. K. Koppa",
+    "building_name": "Govt Higher Primary Kannada School, Right\nWing, Side Room, K K Koppa"
+  },
+  {
+    "station_number": "271",
+    "locality": "K. K. Koppa",
+    "building_name": "Govt Higher Primary Kannada School, Right\nWing, Compound Out Side Room, K K\nKoppa"
+  },
+  {
+    "station_number": "272",
+    "locality": "K. K. Koppa\n(Nagerhal)",
+    "building_name": "Govt Higher Primary Kannada School,\nNagerhal, K K Koppa"
+  },
+  {
+    "station_number": "273",
+    "locality": "Su-Halagimardi",
+    "building_name": "Govt Higher Primary Kannada School Su-\nHalagimardi"
+  },
+  {
+    "station_number": "227744",
+    "locality": "SSuu--HHaallaaggiimmaarrddii",
+    "building_name": "Govt Higher Primary Kannada School Right\nWing, Su-Halagimardi"
+  },
+  {
+    "station_number": "275",
+    "locality": "Mutnal",
+    "building_name": "Govt Model Primary Kannada School, Right\nWing, Mutnal"
+  },
+  {
+    "station_number": "276",
+    "locality": "Mutnal",
+    "building_name": "Govt Higher Primary Kannada School, Left\nWing, Mutnal"
+  },
+  {
+    "station_number": "277",
+    "locality": "Virappankoppa",
+    "building_name": "Govt Higher Primary Kannada School,\nVirakankoppa"
+  },
+  {
+    "station_number": "278",
+    "locality": "Bhendigeri",
+    "building_name": "Govt Model Primary Kannada School,\nRoom No-01, Bhendigeri"
+  },
+  {
+    "station_number": "279",
+    "locality": "Bhendigeri",
+    "building_name": "Govt Model Primary Kannada School,\nRoom No-02, Bhendigeri"
+  },
+  {
+    "station_number": "280",
+    "locality": "Bhendigeri",
+    "building_name": "Govt Model Primary Kannada School,\nRoom No-03, Bhendigeri"
+  },
+  {
+    "station_number": "281",
+    "locality": "Bhendigeri",
+    "building_name": "Govt Model Primary Kannada School,\nRoom No-04, Bhendigeri"
+  },
+  {
+    "station_number": "282",
+    "locality": "Badal-Ankalagi",
+    "building_name": "Govt Higher Primary Kannada School, Right\nWing, Badal Ankagali"
+  },
+  {
+    "station_number": "283",
+    "locality": "Badal-Ankalagi",
+    "building_name": "Govt Higher Primary Kannada School, Right\nWing, Side Room, Badal Ankagali"
+  },
+  {
+    "station_number": "284",
+    "locality": "Badal-Ankalagi",
+    "building_name": "Sri Chandrashekhar Lingappa Ankalagi\nGovt. Higher Primary Kannada School, Left\nSide Room No.1, Badal Ankalagi"
+  },
+  {
+    "station_number": "285",
+    "locality": "Badal-Ankalagi",
+    "building_name": "Sri Chandrashekhar Lingappa Ankalagi\nGovt. Higher Primary Kannada School,\nRight Side Room No.3, Badal Ankalagi"
+  },
+  {
+    "station_number": "286",
+    "locality": "Hulikavi",
+    "building_name": "Govt Kannada Higher Primary School,\nHulikavi"
+  },
+  {
+    "station_number": "287",
+    "locality": "Gejapati",
+    "building_name": "Govt Higher Primary Kannada School, Left\nWing, Gajapati"
+  },
+  {
+    "station_number": "288",
+    "locality": "Gejapati",
+    "building_name": "Govt Higher Primary Kannada School, Right\nWing, Gajapati"
+  },
+  {
+    "station_number": "289",
+    "locality": "Badas KH",
+    "building_name": "Govt Lower Primary Kannada School, Right\nWing, Badas KH"
+  },
+  {
+    "station_number": "290",
+    "locality": "Badas KH",
+    "building_name": "Govt Lower Primary Kannada School, Right\nWing, Front Room, Badas KH"
+  },
+  {
+    "station_number": "291",
+    "locality": "Badas KH",
+    "building_name": "Govt Lower Primary Kannada School, Left\nWWiinngg,, BBaaddaass KK HH"
+  },
+  {
+    "station_number": "292",
+    "locality": "Badas KH",
+    "building_name": "Govt Lower Primary Kannada School, Left\nWing, Side Room, Badas K H"
+  },
+  {
+    "station_number": "293",
+    "locality": "Kukadolli",
+    "building_name": "Govt Higher Primary Kannada School, Right\nWing, Kukadolli"
+  },
+  {
+    "station_number": "294",
+    "locality": "Kukadolli",
+    "building_name": "Govt Higher Primary Kannada School, Left\nWing, Kukadolli"
+  }
+]

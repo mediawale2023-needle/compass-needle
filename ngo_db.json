@@ -1,0 +1,122 @@
+[
+    {
+        "NGO_Name": "Seva Sadan Foundation",
+        "Darpan_ID": "MH/2023/47384",
+        "CSR_1_Number": "CSR1512563",
+        "Sector": "Education",
+        "Key_Contact": "Director",
+        "Phone": "+91-9841016995",
+        "Risk_Level": "Green",
+        "Compliance_Status": "Valid",
+        "Last_Audit": "2024-03-31",
+        "Capabilities": "Can handle projects up to \u20b947 Lakhs."
+    },
+    {
+        "NGO_Name": "Gram Vikas Samiti",
+        "Darpan_ID": "MH/2023/40616",
+        "CSR_1_Number": "CSR3419613",
+        "Sector": "Rural Dev",
+        "Key_Contact": "Director",
+        "Phone": "+91-9874528488",
+        "Risk_Level": "Green",
+        "Compliance_Status": "Valid",
+        "Last_Audit": "2022-03-31",
+        "Capabilities": "Can handle projects up to \u20b925 Lakhs."
+    },
+    {
+        "NGO_Name": "Urban Uplift Trust",
+        "Darpan_ID": "MH/2023/77269",
+        "CSR_1_Number": "CSR6661353",
+        "Sector": "Skill Dev",
+        "Key_Contact": "Director",
+        "Phone": "+91-9897077701",
+        "Risk_Level": "Red",
+        "Compliance_Status": "CSR-1 Expired",
+        "Last_Audit": "2023-03-31",
+        "Capabilities": "Can handle projects up to \u20b921 Lakhs."
+    },
+    {
+        "NGO_Name": "Jal Shakti Abhiyan Group",
+        "Darpan_ID": "MH/2023/63556",
+        "CSR_1_Number": "CSR5667536",
+        "Sector": "Water",
+        "Key_Contact": "Director",
+        "Phone": "+91-9816595212",
+        "Risk_Level": "Green",
+        "Compliance_Status": "Valid",
+        "Last_Audit": "2024-03-31",
+        "Capabilities": "Can handle projects up to \u20b913 Lakhs."
+    },
+    {
+        "NGO_Name": "Mahila Udyog Manch",
+        "Darpan_ID": "MH/2023/48529",
+        "CSR_1_Number": "CSR2097404",
+        "Sector": "Women Empowerment",
+        "Key_Contact": "Director",
+        "Phone": "+91-9879772442",
+        "Risk_Level": "Green",
+        "Compliance_Status": "Valid",
+        "Last_Audit": "2024-03-31",
+        "Capabilities": "Can handle projects up to \u20b910 Lakhs."
+    },
+    {
+        "NGO_Name": "Bright Future Society",
+        "Darpan_ID": "MH/2023/35757",
+        "CSR_1_Number": "CSR1303453",
+        "Sector": "Education",
+        "Key_Contact": "Director",
+        "Phone": "+91-9875487531",
+        "Risk_Level": "Yellow",
+        "Compliance_Status": "FCRA Pending",
+        "Last_Audit": "2024-03-31",
+        "Capabilities": "Can handle projects up to \u20b917 Lakhs."
+    },
+    {
+        "NGO_Name": "Green Earth Initiative",
+        "Darpan_ID": "MH/2023/33403",
+        "CSR_1_Number": "CSR9809198",
+        "Sector": "Environment",
+        "Key_Contact": "Director",
+        "Phone": "+91-9838101389",
+        "Risk_Level": "Green",
+        "Compliance_Status": "Valid",
+        "Last_Audit": "2023-03-31",
+        "Capabilities": "Can handle projects up to \u20b937 Lakhs."
+    },
+    {
+        "NGO_Name": "Jan Kalyan Trust",
+        "Darpan_ID": "MH/2023/51895",
+        "CSR_1_Number": "CSR7578088",
+        "Sector": "Health",
+        "Key_Contact": "Director",
+        "Phone": "+91-9874493626",
+        "Risk_Level": "Red",
+        "Compliance_Status": "Blacklisted by NITI Aayog",
+        "Last_Audit": "2023-03-31",
+        "Capabilities": "Can handle projects up to \u20b922 Lakhs."
+    },
+    {
+        "NGO_Name": "Tech for Rural India",
+        "Darpan_ID": "MH/2023/10230",
+        "CSR_1_Number": "CSR6177240",
+        "Sector": "Technology",
+        "Key_Contact": "Director",
+        "Phone": "+91-9878794579",
+        "Risk_Level": "Green",
+        "Compliance_Status": "Valid",
+        "Last_Audit": "2021-03-31",
+        "Capabilities": "Can handle projects up to \u20b947 Lakhs."
+    },
+    {
+        "NGO_Name": "Animal Care Unit",
+        "Darpan_ID": "MH/2023/69692",
+        "CSR_1_Number": "CSR5038909",
+        "Sector": "Animal Welfare",
+        "Key_Contact": "Director",
+        "Phone": "+91-9882917814",
+        "Risk_Level": "Yellow",
+        "Compliance_Status": "Audit Pending",
+        "Last_Audit": "2023-03-31",
+        "Capabilities": "Can handle projects up to \u20b918 Lakhs."
+    }
+]

@@ -1,0 +1,1287 @@
+[
+  {
+    "station_number": "2",
+    "locality": "",
+    "building_name": ""
+  },
+  {
+    "station_number": "1",
+    "locality": "Vishweshwarayya Nagar",
+    "building_name": "Govt. Model kannada Higher\nPrimary School No-26 Room\nNo-1 New Building\nVishweshwarayya Nagar"
+  },
+  {
+    "station_number": "3",
+    "locality": "Vishweshwarayya Nagar",
+    "building_name": "Govt.Model Kannada Higher\nPrimary School No 26 Old\nBuilding [Western side Room\nNo 5] Vishweshwarayya Nagar"
+  },
+  {
+    "station_number": "4",
+    "locality": "Vishweshwarayya Nagar",
+    "building_name": "K.G.I.D Office\nVishweshwarayya Nagar"
+  },
+  {
+    "station_number": "5",
+    "locality": "Vishweshwarayya Nagar",
+    "building_name": "K.G.I.D Office\nVishweshwarayya Nagar"
+  },
+  {
+    "station_number": "6",
+    "locality": "Kuvempu Nagar",
+    "building_name": "Govt. Kannada Lower Primary\nSchool [Left Wing] Kuvempu\nNagar"
+  },
+  {
+    "station_number": "7",
+    "locality": "Kuvempu Nagar",
+    "building_name": "Govt. Kannada Lower Primary\nSchool,(Right Wing),\nKuvempu Nagar"
+  },
+  {
+    "station_number": "8",
+    "locality": "Hanuman Nagar",
+    "building_name": "Govt. Kannada Higher Primary\nSchool Old Building [ Room\nNo-3] 2nd stage Hanuman\nNagar"
+  },
+  {
+    "station_number": "9",
+    "locality": "Hanuman Nagar",
+    "building_name": "Govt. Kannada Higher Primary\nSchool Old Building [Left Wing\nRoom No-2] 2nd stage\nHanuman Nagar"
+  },
+  {
+    "station_number": "10",
+    "locality": "Hanuman Nagar",
+    "building_name": "Govt. Kannada Higher Primary\nSchool Old Building [ Room\nNo-4] 2nd stage Hanuman\nNagar"
+  },
+  {
+    "station_number": "11",
+    "locality": "Hanuman Nagar",
+    "building_name": "Govt. Kannada Higher Prmary\nSchool Old Building [Left\nWing Room No-1] 2nd stage\nHanuman Nagar"
+  },
+  {
+    "station_number": "12",
+    "locality": "Hanuman Nagar",
+    "building_name": "Govt. Kannada Higher\nPrmary School New Building\n[Right Wing Room No-2] 2nd\nstage Hanuman Nagar"
+  },
+  {
+    "station_number": "13",
+    "locality": "Club Road",
+    "building_name": "Office of The Deputy Director\nof Public Instruction [Middle\nWing] Club Road."
+  },
+  {
+    "station_number": "14",
+    "locality": "Club Road",
+    "building_name": "Office of The Deputy\nDirector of Public Instruction\n[ Left Wing] Club Road"
+  },
+  {
+    "station_number": "15",
+    "locality": "Sangameshwar Nagar",
+    "building_name": "Govt.Kannada Higher\nPrimary School [Left wing]\nSangameshwar Nagar"
+  },
+  {
+    "station_number": "16",
+    "locality": "Sangameshwar Nagar",
+    "building_name": "Govt. Kannada Higher Primary\nSchool [Right wing]\nSangameshwar Nagar"
+  },
+  {
+    "station_number": "17",
+    "locality": "Shahu Nagar",
+    "building_name": "Govt. Kannada Lower\nPrimary School, 1st 2nd\nClass room (Partition1)\nShahu Nagar"
+  },
+  {
+    "station_number": "18",
+    "locality": "Shahu Nagar",
+    "building_name": "Govt. Kannada Lower\nPrimary School, [ Library\nRoom ] Shahu Nagar"
+  },
+  {
+    "station_number": "19",
+    "locality": "Shahu Nagar",
+    "building_name": "Govt.Kannada Lower Primary\nSchool, [Left wing, 4th Class\nRoom] Shahu Nagar,"
+  },
+  {
+    "station_number": "20",
+    "locality": "Shahu Nagar",
+    "building_name": "Govt.Kannada Lower Primary\nSchool, [Left wing, 5th Class\nRoom] Shahu Nagar,"
+  },
+  {
+    "station_number": "21",
+    "locality": "Shahu Nagar",
+    "building_name": "Govt. Marathi Lower Primary\nSchool [Middle wing] Shahu\nNagar"
+  },
+  {
+    "station_number": "22",
+    "locality": "Shahu Nagar",
+    "building_name": "Govt. Marathi Lower Primary\nSchool [Left wing] Shahu\nNagar"
+  },
+  {
+    "station_number": "23",
+    "locality": "A.P.M.C.Market Yard",
+    "building_name": "Agriculture Produce Marketing\nCommittee Meeting Hall\nA.P.M.C.Market Yard"
+  },
+  {
+    "station_number": "24",
+    "locality": "A.P.M.C.Market Yard",
+    "building_name": "Agriculture Produce Marketing\nCommittee [Development\nSection] A.P.M.C.Market Yard"
+  },
+  {
+    "station_number": "25",
+    "locality": "AzamNagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-11 [ left wing ]\nAzam Nagar"
+  },
+  {
+    "station_number": "26",
+    "locality": "AzamNagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-11 1st Class Room\nAzam Nagar"
+  },
+  {
+    "station_number": "27",
+    "locality": "Azam Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-11 [ left wing ]\nAzam Nagar"
+  },
+  {
+    "station_number": "28",
+    "locality": "Azam Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-11 II class room\nAzam Nagar"
+  },
+  {
+    "station_number": "29",
+    "locality": "Azam Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-11 [ left wing ]\nAzam Nagar"
+  },
+  {
+    "station_number": "30",
+    "locality": "Azam Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-11 [ Right wing ]\nAzam Nagar"
+  },
+  {
+    "station_number": "31",
+    "locality": "Azam Nagar",
+    "building_name": "Seventh Day Adventists\nEnglish Medium Primary &\nHigh School [western Wing]\nAzam Nagar"
+  },
+  {
+    "station_number": "32",
+    "locality": "Azam Nagar",
+    "building_name": "Seventh Day Adventists\nEnglish Medium Primary &\nHigh School [Eastern Wing]\nAzam Nagar"
+  },
+  {
+    "station_number": "33",
+    "locality": "Vaibhav Nagar",
+    "building_name": "Govt.Kannada Higher Primary\nSchool [Room No-6] Nali Kali\nClass Vaibhav Nagar,"
+  },
+  {
+    "station_number": "34",
+    "locality": "Vaibhav Nagar",
+    "building_name": "Govt.Kannada Higher Primary\nSchool [Room No-5] Nali Kali\nClass Vaibhav Nagar,"
+  },
+  {
+    "station_number": "35",
+    "locality": "Vaibhav Nagar",
+    "building_name": "Govt.Urdu Lower Primary\nSchool 5th class room\nVaibhav Nagar Belagavi"
+  },
+  {
+    "station_number": "36",
+    "locality": "Nehru Nagar",
+    "building_name": "Govt.Urdu Lower Primary\nSchool 5th class room\nVaibhav Nagar Belagavi"
+  },
+  {
+    "station_number": "37",
+    "locality": "Nehru Nagar",
+    "building_name": "Jawaharlal Nehru Medical\nCollege [ Ladies Common\nRoom] Left side Main Building\nNehru Nagar"
+  },
+  {
+    "station_number": "38",
+    "locality": "Nehru Nagar",
+    "building_name": "Jawaharlal Nehru Medical\nCollege,Main Building\n[Demonstration Room No-1]\nNehru Nagar"
+  },
+  {
+    "station_number": "39",
+    "locality": "Nehru Nagar",
+    "building_name": "Jawaharlal Nehru Medical\nCollege,Main Building [Room\nNo-14 Histology Old Class\nRoom ] Nehru Nagar"
+  },
+  {
+    "station_number": "40",
+    "locality": "Nehru Nagar",
+    "building_name": "Jawaharlal Nehru Medical\nCollege.Main Building Left\nSide [Demonstration Room No-\n2] Nehru Nagar"
+  },
+  {
+    "station_number": "41",
+    "locality": "Nehru Nagar",
+    "building_name": "New Department of hotel\nmanagement and catering\ntechnology Jawaraharlal\nNehru medical college Nehru\nnagar."
+  },
+  {
+    "station_number": "42",
+    "locality": "Muttyanatti",
+    "building_name": "Govt.Kannada Higher Primary\nSchool, New Building, 6th Std\nClass Room,Muttyanatti"
+  },
+  {
+    "station_number": "43",
+    "locality": "Muttyanatti",
+    "building_name": "Govt.Kannada Higher Primary\nSchool, New Building, 5th Std\nClass Room,Muttyanatti"
+  },
+  {
+    "station_number": "44",
+    "locality": "Yamanapur",
+    "building_name": "Govt. Marathi Lower Primary\nSchool(2nd Std Class Room),\nYamanapur"
+  },
+  {
+    "station_number": "45",
+    "locality": "Hindalco Colony",
+    "building_name": "Govt.Kannada Higher Primary\nSchool No-25 [ Left Wing]\nRoom No-2, Indal Colony"
+  },
+  {
+    "station_number": "46",
+    "locality": "Kanabargi",
+    "building_name": "Govt.Higher Primary Marathi\nSchool [ Right Wing ],Behind\nChurch Kulkarni\nGalli,Kanabargi"
+  },
+  {
+    "station_number": "47",
+    "locality": "Kanabargi",
+    "building_name": "Siddeshwar High School New\nBuilding [9th A Class\nRoom],Kanabargi"
+  },
+  {
+    "station_number": "48",
+    "locality": "Kanabargi",
+    "building_name": "Siddeshwar High School New\nBuilding [8th B Class\nRoom],Kanabargi"
+  },
+  {
+    "station_number": "49",
+    "locality": "Kanabargi",
+    "building_name": "Siddeshwar High School New\nBuilding [8th C Class\nRoom],Kanabargi"
+  },
+  {
+    "station_number": "50",
+    "locality": "Kanabargi",
+    "building_name": "Siddeshwar High School New\nBuilding [8th A Class\nRoom],Kanabargi"
+  },
+  {
+    "station_number": "51",
+    "locality": "Kanabargi",
+    "building_name": "Govt.Higher Primary Marathi\nSchool [ Computer\nroom],Behind Church Kulkarni\nGalli,Kanabargi"
+  },
+  {
+    "station_number": "52",
+    "locality": "Kanabargi",
+    "building_name": "Govt.Marathi Higher Primary\nSchool [office room ],Behind\nChurch Kulkarni\nGalli,Kanabargi"
+  },
+  {
+    "station_number": "53",
+    "locality": "Siddeshwar Nagar,Kanabargi",
+    "building_name": "Govt. Kannada Higher Primary\nSchool, New Building [7th A\nClass room right side\n].Siddeshwar Nagar,Kanabargi"
+  },
+  {
+    "station_number": "54",
+    "locality": "Siddeshwar Nagar,Kanabargi",
+    "building_name": "Govt. Kannada Higher Primary\nSchool, New Building [6th B\nClass Room].Siddeshwar\nNagar,Kanabargi"
+  },
+  {
+    "station_number": "55",
+    "locality": "Ramateerth Nagar",
+    "building_name": "Govt. Karnataka Public\nschool, (Right Side Building)\nRamateerth Nagar"
+  },
+  {
+    "station_number": "56",
+    "locality": "Ramateerth Nagar",
+    "building_name": "Govt. Karnataka Public school\n(Library Room Right Side\nBuilding)Ramateerth Nagar"
+  },
+  {
+    "station_number": "57",
+    "locality": "Ramateerth Nagar",
+    "building_name": "Govt. Public School,[Left Wing\n7th Std Room Right Side\nBuilding],Ramateerth Nagar"
+  },
+  {
+    "station_number": "58",
+    "locality": "Ramateerth Nagar",
+    "building_name": "Govt. Public School, 4th std\nRoom [Right Side Building],\nRamateerth Nagar"
+  },
+  {
+    "station_number": "59",
+    "locality": "Ramateerth Nagar",
+    "building_name": "Govt karnataka Public School\n[Right wing 7th std class\nroom]Ramateerth Nagar"
+  },
+  {
+    "station_number": "60",
+    "locality": "Ramateerth Nagar",
+    "building_name": "Govt.Public School , (9th\nClass Room Left Side\nBuilding) Ramateerth Nagar"
+  },
+  {
+    "station_number": "61",
+    "locality": "Ramateerth Nagar",
+    "building_name": "Govt. Public School,[Left Side\nBuilding] Ramateerth Nagar"
+  },
+  {
+    "station_number": "62",
+    "locality": "Ramateerth Nagar",
+    "building_name": "Govt. Public School, (10th\nClass Room, Left Side\nBuilding) Ramateerth Nagar"
+  },
+  {
+    "station_number": "63",
+    "locality": "Siddeshwar Nagar Kanbargi",
+    "building_name": "Govt.High School Room No-1[\nBeside Office\nRoom],Siddeshwar Nagar\nKanbargi"
+  },
+  {
+    "station_number": "64",
+    "locality": "Basavan Kudachi",
+    "building_name": "Govt. Kannada Higher Primary\nBoys School [Right\nWing,Room-1],Basavan\nKudachi"
+  },
+  {
+    "station_number": "65",
+    "locality": "Basavan Kudachi",
+    "building_name": "Govt. Higher Primary Marathi\nSchool [1st & 2nd Std Room\n],Basavan Kudachi"
+  },
+  {
+    "station_number": "66",
+    "locality": "Basavan Kudachi",
+    "building_name": "Govt.Kannada Higher Primary\nSchool [Right Wing,Nali Kali\nRoom ],Basavan Kudachi"
+  },
+  {
+    "station_number": "67",
+    "locality": "Basavan Kudachi",
+    "building_name": "Govt. Kannada Higher Primary\nSchool [Right Wing,4th Std\nRoom ] Basavan Kudachi"
+  },
+  {
+    "station_number": "68",
+    "locality": "Devraj Urs Colony,Basavan\nKudachi",
+    "building_name": "Govt. Kannada Lower Primary\nSchool, [Main Building] Devraj\nUrs Colony,Basavan Kudachi"
+  },
+  {
+    "station_number": "69",
+    "locality": "Devraj Urs Colony,Basavan\nKudachi",
+    "building_name": "Govt.Kannada Lower Primary\nSchool, [New Building] Devraj\nUrs Colony,Basavan Kudachi"
+  },
+  {
+    "station_number": "70",
+    "locality": "Alarwad",
+    "building_name": "Govt. Kannada Higher Primary\nSchool [New Building] Alarwad"
+  },
+  {
+    "station_number": "71",
+    "locality": "Alarwad",
+    "building_name": "Govt.Kannada Higher Primary\nSchool Old Building [Room No-\n3] Alarwad"
+  },
+  {
+    "station_number": "72",
+    "locality": "Alarwad",
+    "building_name": "Govt.Kannada Higher Primary\nSchool,Old Building [Room -2]\nAlarwad"
+  },
+  {
+    "station_number": "73",
+    "locality": "Mahantesh Nagar",
+    "building_name": "Karnataka State Co-Operative\nPoultry Federation Reginal\nCentre, Kanbargi Road"
+  },
+  {
+    "station_number": "74",
+    "locality": "Mahantesh Nagar",
+    "building_name": "Love Dale Primary School\n[Eastern wing,Room No-2],\nMahantesh Nagar"
+  },
+  {
+    "station_number": "75",
+    "locality": "Mahantesh Nagar",
+    "building_name": "Love Dale Primary School\n[Eastern wing,Room No-1],\nMahantesh Nagar"
+  },
+  {
+    "station_number": "76",
+    "locality": "Mahantesh Nagar",
+    "building_name": "Love Dale Primary School\nEastern wing Class Room No-\n6, Mahantesh Nagar"
+  },
+  {
+    "station_number": "77",
+    "locality": "Rukmini Nagar",
+    "building_name": "D.P.E.P. Urdu Primary School\n4 & 5th std class room,\nRukmini Nagar"
+  },
+  {
+    "station_number": "78",
+    "locality": "Rukmini Nagar",
+    "building_name": "D.P.E.P Urdu Primary School,\n1 & 2 std class room Rukmini\nNagar"
+  },
+  {
+    "station_number": "79",
+    "locality": "Rukmini Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool,(5th Std Class Room)\nRukmini Nagar"
+  },
+  {
+    "station_number": "80",
+    "locality": "Rukmini Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool,(3rd Std Class Room)\nnew building Rukmini Nagar"
+  },
+  {
+    "station_number": "81",
+    "locality": "Shivaji Nagar",
+    "building_name": "Office of Deputy Director of\nWomen & Child welfare\nDepartment, [Probation\nOfficer's Chamber],Shivaji\nNagar"
+  },
+  {
+    "station_number": "82",
+    "locality": "Shivaji Nagar",
+    "building_name": "Office of Deputy Director of\nWomen & Child welfare\nDepartment,Premises\nAnganwadi room,Shivaji Nagar"
+  },
+  {
+    "station_number": "83",
+    "locality": "Shivaji Nagar",
+    "building_name": "Office of Deputy Driector of\nWomen & Child Welfare\nOffice [Bhagya Laxmi Unit,\nLeft Side],Shivaji Nagar"
+  },
+  {
+    "station_number": "84",
+    "locality": "Shivaji Nagar",
+    "building_name": "District Disabled and Senior\nCitizen's welfare Office,Shivaji\nNagar"
+  },
+  {
+    "station_number": "85",
+    "locality": "Shivaji Nagar",
+    "building_name": "Office of Deputy Driector of\nWomen & Child Welfare\nOffice [Karnataka State\nWomen Development\nCorporation Section,North\nSide],Shivaji Nagar"
+  },
+  {
+    "station_number": "86",
+    "locality": "Old Gandhi Nagar",
+    "building_name": "Govt.Kannada Higher Primary\nSchool No-23 Old Gandhi\nNagar"
+  },
+  {
+    "station_number": "87",
+    "locality": "Old Gandhi Nagar",
+    "building_name": "Govt. Marathi Higher Primary\nSchool No-40 [Left Wing] Old\nGandhi Nagar"
+  },
+  {
+    "station_number": "88",
+    "locality": "Old Gandhi Nagar",
+    "building_name": "Govt. Marathi Higher Primary\nSchool No-40 [Right\nWing],Old Gandhi Nagar"
+  },
+  {
+    "station_number": "89",
+    "locality": "Old Gandhi Nagar",
+    "building_name": "Govt. Kannada Higher Primary\nSchool No 23 [Right Wing],Old\nGandhi Nagar"
+  },
+  {
+    "station_number": "90",
+    "locality": "Old Gandhi Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-10 New Building\n[Right Wing],Old Gandhi Nagar"
+  },
+  {
+    "station_number": "91",
+    "locality": "Old Gandhi Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-10 New Building\n[Left Wing] Old Gandhi Nagar"
+  },
+  {
+    "station_number": "92",
+    "locality": "Old Gandhi Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-l0 [Old\nBuilding,Cluster Resource\nCentre],Old Gandhi Nagar"
+  },
+  {
+    "station_number": "93",
+    "locality": "Old Gandhi Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-10 Old Building\n[Left Wing] Old Gandhi Nagar"
+  },
+  {
+    "station_number": "94",
+    "locality": "New Gandhi Nagar [Aman\nNagar]",
+    "building_name": "Govt.Urdu High School [Room\nNo-2],New Gandhi Nagar\n[Aman Nagar]"
+  },
+  {
+    "station_number": "95",
+    "locality": "New Gandhi Nagar [Aman\nNagar]",
+    "building_name": "Govt.Urdu High School 8th std\nclass room left wing half\nportion New Gandhi Nagar,\nAman Nagar"
+  },
+  {
+    "station_number": "96",
+    "locality": "New Gandhi Nagar [Aman\nNagar]",
+    "building_name": "Govt.Urdu High School [Room\nNo-3],New Gandhi Nagar\n[Aman Nagar]"
+  },
+  {
+    "station_number": "97",
+    "locality": "New Gandhi Nagar [Aman\nNagar]",
+    "building_name": "Govt.Urdu High School [Class\nRoom No-9] Left wing Half\nPortion,New Gandhi Nagar,\nAman Nagar"
+  },
+  {
+    "station_number": "98",
+    "locality": "New Gandhi Nagar [Aman\nNagar]",
+    "building_name": "Govt.Urdu High School [Room\nNo-4], New Gandhi Nagar\n[Aman Nagar]"
+  },
+  {
+    "station_number": "99",
+    "locality": "New Gandhi Nagar [Aman\nNagar]",
+    "building_name": "Govt.Urdu High School [Room\nNo-5],New Gandhi Nagar\n[Aman Nagar]"
+  },
+  {
+    "station_number": "100",
+    "locality": "New Gandhi Nagar [Aman\nNagar]",
+    "building_name": "Govt.Urdu High School [Room\nNo-5 Half Portion],New\nGandhi Nagar [Aman Nagar]"
+  },
+  {
+    "station_number": "101",
+    "locality": "Azad Nagar",
+    "building_name": "Al-ameen English Medium\nHigh School [8th B Class\nRoom ],Azad Nagar"
+  },
+  {
+    "station_number": "102",
+    "locality": "Azad Nagar",
+    "building_name": "Al-ameen English Medium\nHigh School [8th A Class\nRoom],Azad Nagar"
+  },
+  {
+    "station_number": "103",
+    "locality": "Azad Nagar",
+    "building_name": "Al-ameen English Medium\nHigh School [U KG Class\nRoom],Azad Nagar"
+  },
+  {
+    "station_number": "104",
+    "locality": "Azad Nagar",
+    "building_name": "Al-ameen English Medium\nHigh School [L KG Class\nRoom] Azad Nagar"
+  },
+  {
+    "station_number": "105",
+    "locality": "Azad Nagar",
+    "building_name": "Al-ameen English Medium\nHigh School Azad Nagar [1st\nStd Class Room],Azad Nagar"
+  },
+  {
+    "station_number": "106",
+    "locality": "New Gandhi Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-15, Gate left side\nfirst Room, New Gandhi Nagar"
+  },
+  {
+    "station_number": "107",
+    "locality": "New Gandhi Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-15[6th B Class\nRoom Right Side] New Gandhi\nNagar"
+  },
+  {
+    "station_number": "108",
+    "locality": "New Gandhi Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-15, Old Office left\nside room New Gandhi Nagar"
+  },
+  {
+    "station_number": "109",
+    "locality": "New Gandhi Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-15, New Office\nright side room New Gandhi\nNagar"
+  },
+  {
+    "station_number": "110",
+    "locality": "New Gandhi Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-15 New Gandhi\nNagar"
+  },
+  {
+    "station_number": "111",
+    "locality": "New Gandhi Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-15 Old Office room\nNew Gandhi Nagar"
+  },
+  {
+    "station_number": "112",
+    "locality": "Mali Galli",
+    "building_name": "Govt Marathi Higher Primary\nSchool No-4 [Right side,\nRoom No-2], Mali Galli"
+  },
+  {
+    "station_number": "113",
+    "locality": "Patil Galli",
+    "building_name": "Ushatai Gogte High School\nOffice [Room No-l],Patil Galli"
+  },
+  {
+    "station_number": "114",
+    "locality": "Patil Galli",
+    "building_name": "Ushatai Gogte High School\noffice [Room No-2],Patil Galli"
+  },
+  {
+    "station_number": "115",
+    "locality": "Patil Galli",
+    "building_name": "Govt. Marathi Boys\nSchool,(4th Std Room) Patil\nGalli"
+  },
+  {
+    "station_number": "116",
+    "locality": "Bhandur Galli",
+    "building_name": "Govt. Marathi Higher Primary\nSchool No-7 [Right Wing, 8th\nStd, Room No-2],Bhandur Galli"
+  },
+  {
+    "station_number": "117",
+    "locality": "Bhandur Galli",
+    "building_name": "Govt. Marathi Higher Primary\nSchool No-7 [Right Wing, 1th\nStd, Room No-4],Bhandur Galli"
+  },
+  {
+    "station_number": "118",
+    "locality": "Mahadwar Road",
+    "building_name": "Govt.Model Marathi Boys &\nGirls School No-12 Mahadwar\nRoad"
+  },
+  {
+    "station_number": "119",
+    "locality": "Mahadwar Road",
+    "building_name": "Govt. Model Marathi Boys &\nGirls School No-12 Mahadwar\nRoad"
+  },
+  {
+    "station_number": "120",
+    "locality": "Kapileshwar Road",
+    "building_name": "Office of the Sanitary\nInspector Beat No-5&6 [Left\nWing] Behind Kapileshwar\nTemple,Kapileshwar Road"
+  },
+  {
+    "station_number": "121",
+    "locality": "Mahadhwar Road",
+    "building_name": "Govt.Model Marathi Boys &\nGirls School No-12 Mahadwar\nRoad, [Right Wing, 7th Class\nRoom],Mahadwar Road"
+  },
+  {
+    "station_number": "122",
+    "locality": "Patil Galli",
+    "building_name": "Vithalacharya N Shivanagi\ngirls primary marathi medium\nschool ( Function hall), room\nno.1 Patil Galli"
+  },
+  {
+    "station_number": "123",
+    "locality": "Patil Galli",
+    "building_name": "Vithalacharya N Shivanagi\ngirls primary marathi medium\nschool ( Function hall), room\nno2 Patil Galli"
+  },
+  {
+    "station_number": "124",
+    "locality": "Fort road",
+    "building_name": "Bharatesh English Medium\nSchool UKG C Class room,\nnear Fort road Belagavi"
+  },
+  {
+    "station_number": "125",
+    "locality": "Fort road",
+    "building_name": "Bharatesh English Medium\nSchool UKG A Class room\nnear Fort road Belagavi"
+  },
+  {
+    "station_number": "126",
+    "locality": "Fort road",
+    "building_name": "Bharatesh English medium\nschool LKG B class room near\nfort road, Belagavi"
+  },
+  {
+    "station_number": "127",
+    "locality": "Camp",
+    "building_name": "St.Paul’s High School Main\nBuilding [North Side 9th C\nClass Room],Camp"
+  },
+  {
+    "station_number": "128",
+    "locality": "Camp",
+    "building_name": "St Paul’s High School,Main\nbuilding, [Xth A Class\nRoom],Camp"
+  },
+  {
+    "station_number": "129",
+    "locality": "Camp",
+    "building_name": "St Paul’s High School,Main\nbuilding,[Xth C Class\nRoom],Camp"
+  },
+  {
+    "station_number": "130",
+    "locality": "Camp",
+    "building_name": "St.Xavier High School [Left\nWing, LKG,UKG-B Room ],\nCamp"
+  },
+  {
+    "station_number": "131",
+    "locality": "Camp",
+    "building_name": "St.Xavier High School [1st C\nClass Room], Camp"
+  },
+  {
+    "station_number": "132",
+    "locality": "Camp",
+    "building_name": "St.Xavier High School [ 2nd A\nClass Room ], Camp"
+  },
+  {
+    "station_number": "133",
+    "locality": "Camp",
+    "building_name": "St.Xavier High School [ Right\nWing, 3rd A Class Room],\nCamp"
+  },
+  {
+    "station_number": "134",
+    "locality": "Camp",
+    "building_name": "St.Xavier High School [Right\nWing, 3rd C Class Room],\nCamp"
+  },
+  {
+    "station_number": "135",
+    "locality": "Camp",
+    "building_name": "St.Xavier High School [Right\nWing,4th A Class Room],\nCamp"
+  },
+  {
+    "station_number": "136",
+    "locality": "Camp",
+    "building_name": "St.Paul’s High School [5th B\nClass Room],Camp"
+  },
+  {
+    "station_number": "137",
+    "locality": "Camp",
+    "building_name": "Islamiya High School,[Right\nWing, Room No-1 ], Camp"
+  },
+  {
+    "station_number": "138",
+    "locality": "Camp",
+    "building_name": "Islamiya High School,[4th\nClass room],Camp"
+  },
+  {
+    "station_number": "139",
+    "locality": "Camp",
+    "building_name": "St.Anthony Kannada High\nSchool [ Room No-1], Camp"
+  },
+  {
+    "station_number": "140",
+    "locality": "Camp",
+    "building_name": "Cantonment Board English\nMedium School [ Right Wing\nRoom No-1] Cantonment\nOffice Compound, Camp"
+  },
+  {
+    "station_number": "141",
+    "locality": "Camp",
+    "building_name": "B.K.Model High School, New\nBuilding, [Left Wing, Xth C\nClass Room],Camp"
+  },
+  {
+    "station_number": "142",
+    "locality": "Killa[Fort]",
+    "building_name": "Office of the Minor Irrigation\nQuality Control Sub-Division\nOffice, Killa[Fort]"
+  },
+  {
+    "station_number": "143",
+    "locality": "College Road",
+    "building_name": "RLS College [Lecture Hall No-\n13] College Road"
+  },
+  {
+    "station_number": "144",
+    "locality": "Vishweshwarayya Nagar",
+    "building_name": "Office of the Assistant\nExecutive Engineer Karnataka\nUrban Water Supply and\nDrainage Board, (Left Wing\nEngineering Section Room )\nVishweshwarayya Nagar"
+  },
+  {
+    "station_number": "145",
+    "locality": "Vishweshwarayya Nagar",
+    "building_name": "Office of the Executive\nEngineer Karnataka Urban\nWater Supply and Drainage\nBoard, (Water supply Billing\nSection), Vishweshwarayya\nNagar"
+  },
+  {
+    "station_number": "146",
+    "locality": "Sadashiv Nagar",
+    "building_name": "Govt. Marathi Higher Primary\nSchool No-41 [ Room No-\n2],Sadashiv Nagar"
+  },
+  {
+    "station_number": "147",
+    "locality": "Sadashiv Nagar",
+    "building_name": "Govt. Kannada Higher Priamry\nSchool No-22 old Building\n[Angawadi Room],Sadashiv\nNagar"
+  },
+  {
+    "station_number": "148",
+    "locality": "Sadashiv Nagar",
+    "building_name": "Govt. Marathi Higher Primary\nSchool No-41 [Room No-3\nBeside office ],Sadashiv Nagar"
+  },
+  {
+    "station_number": "149",
+    "locality": "Sadashiv Nagar",
+    "building_name": "Govt. Kannada Higher Primary\nSchool No-22 Old Building\n[Right wing,Room No-\n2],Sadashiv Nagar"
+  },
+  {
+    "station_number": "150",
+    "locality": "Sadashiv Nagar",
+    "building_name": "Govt. Kannada Higher Primary\nSchool No-22 [ Office Room],\nSadashiv Nagar"
+  },
+  {
+    "station_number": "151",
+    "locality": "Sadashiv Nagar",
+    "building_name": "Govt.Kannada Higher Primary\nSchool No-22 Old Building\n[West wing, Room No-\n4],Sadashiv Nagar"
+  },
+  {
+    "station_number": "152",
+    "locality": "Sadashiv Nagar",
+    "building_name": "Govt Kannada Higher Primary\nSchool No.22 Old Building\n[Left Wing,Room No-\n5],Sadashiv Nagar"
+  },
+  {
+    "station_number": "153",
+    "locality": "Nehru Nagar",
+    "building_name": "Office of the Taluka.Social\nWelfare Officer [ Right\nside,Office Room ],Nehru\nNagar"
+  },
+  {
+    "station_number": "154",
+    "locality": "Nehru Nagar",
+    "building_name": "Office of the Taluka.Social\nWelfare Office[ Left\nSide],Nehru Nagar"
+  },
+  {
+    "station_number": "155",
+    "locality": "Ashok Nagar",
+    "building_name": "Govt Kannada Higher Primary\nSchool, 8th std class room\n(Corporation Building),Ashok\nNagar"
+  },
+  {
+    "station_number": "156",
+    "locality": "Ashok Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-13 [Left\nWing],Ashok Nagar"
+  },
+  {
+    "station_number": "157",
+    "locality": "Ashok Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-13 [Middle\nWing],Ashok Nagar"
+  },
+  {
+    "station_number": "158",
+    "locality": "Ashok Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No-13 [Right\nWing],Ashok Nagar"
+  },
+  {
+    "station_number": "159",
+    "locality": "Shivbasava Nagar",
+    "building_name": "Smt.G.G.Yallur,Kannada\nPrimary School,[ 7th A Class\nRoom],Shivabasava Nagar"
+  },
+  {
+    "station_number": "160",
+    "locality": "Shivabasava Nagar",
+    "building_name": "Smt.G.G.Yallur,Kannada\nPrimary School Building [L KG\nRoom ],Shivabasava Nagar"
+  },
+  {
+    "station_number": "161",
+    "locality": "Shivabasava Nagar",
+    "building_name": "Smt.G.G.Yallur,Kannada\nPrimary School, [7th B Class\nRoom],Shivabasava Nagar"
+  },
+  {
+    "station_number": "162",
+    "locality": "Shivabasava Nagar",
+    "building_name": "Smt.G.G.Yallur,Kannada\nPrimary School, [6th B Class\nRoom],Shivabasava Nagar"
+  },
+  {
+    "station_number": "163",
+    "locality": "Ram Nagar",
+    "building_name": "Govt.Primary Kannada Boys\nSchool,Ram Nagar"
+  },
+  {
+    "station_number": "164",
+    "locality": "Ram Nagar",
+    "building_name": "Govt.Urdu School No-14,Ram\nNagar"
+  },
+  {
+    "station_number": "165",
+    "locality": "Ram Nagar",
+    "building_name": "Govt. Lower Primary Marathi\nBoys School No-39[ Left\nWing],Ram Nagar"
+  },
+  {
+    "station_number": "166",
+    "locality": "Ram Nagar",
+    "building_name": "Govt. Lower Primary Marathi\nBoys School No-39 [ Office\nRoom], Ram Nagar"
+  },
+  {
+    "station_number": "167",
+    "locality": "Ram Nagar",
+    "building_name": "Govt.Lower Primary Marathi\nBoys School No-39 [Right\nWing],Ram Nagar"
+  },
+  {
+    "station_number": "168",
+    "locality": "Ram Nagar",
+    "building_name": "Govt. Kannada Higher Primary\nSchool Ram Nagar Belagavi"
+  },
+  {
+    "station_number": "169",
+    "locality": "Mission Compound",
+    "building_name": "Sherman Kannada Medium\nPrimary and High School [ Left\nWing,6th A Class Room]\nMission Compound"
+  },
+  {
+    "station_number": "170",
+    "locality": "Police Head Quarters",
+    "building_name": "Govt.Model Kannada Higher\nPrimary School No 21, [Left\nSide Room No 2],Police Head\nQuarters"
+  },
+  {
+    "station_number": "171",
+    "locality": "Mahantesh Nagar",
+    "building_name": "Govt.High School , [Library\nRoom],Mahantesh Nagar"
+  },
+  {
+    "station_number": "172",
+    "locality": "Mahantesh Nagar",
+    "building_name": "Govt.High School, [Room\nNo.3],Mahantesh Nagar"
+  },
+  {
+    "station_number": "173",
+    "locality": "Mahantesh Nagar",
+    "building_name": "Govt.Kannada Higher Primary\nSchool No 24,Old Building,[\nLeft Side Room No-\n4],Mahantesh Nagar"
+  },
+  {
+    "station_number": "174",
+    "locality": "Mahantesh Nagar",
+    "building_name": "Govt.Kannada Primary School\nNo 24,Old Main Building [ Left\nWing,Room No-\n06],Mahantesh Nagar"
+  },
+  {
+    "station_number": "175",
+    "locality": "Mahantesh Nagar",
+    "building_name": "Govt. Kannada Higher Primary\nSchool No 24,Old Main\nBuilding [Left Wing,Room No-\n07],Mahantesh Nagar"
+  },
+  {
+    "station_number": "176",
+    "locality": "Anjaneya Nagar",
+    "building_name": "Govt.Kannada Higher Primary\nSchool [Beside Office\nRoom],Anjaneya Nagar"
+  },
+  {
+    "station_number": "177",
+    "locality": "Mahantesh Nagar",
+    "building_name": "SGV-Mahesh P U College\n[Lecture Hall No-5], M M\nExtention, Mahantesh Nagar"
+  },
+  {
+    "station_number": "178",
+    "locality": "Mahantesh Nagar",
+    "building_name": "SGV-Mahesh P U College\n[Lecture Hall No-9], M M\nExtention, Mahantesh Nagar"
+  },
+  {
+    "station_number": "179",
+    "locality": "Mahantesh Nagar",
+    "building_name": "Office of the Veterinary\nOfficer, Veterinary Assistant\nTraining center, [Right Wing]\nKanbargi Road"
+  },
+  {
+    "station_number": "180",
+    "locality": "Mahantesh Nagar",
+    "building_name": "Office of the Veterinary\nOfficer, Veterinary Assistant\nTraining center, [Left Wing]\nKanbargi Road"
+  },
+  {
+    "station_number": "181",
+    "locality": "Mahantesh Nagar",
+    "building_name": "Govt.Kannada Higher Primary\nSchool No-24 New Building\n[Nali Kali Room,Right Wing\n],Mahantesh Nagar"
+  },
+  {
+    "station_number": "182",
+    "locality": "Mahantesh Nagar",
+    "building_name": "Govt.Kannada Higher Primary\nSchool No-24 New Building\n[Right Wing,6th Std Room],\nMahantesh Nagar"
+  },
+  {
+    "station_number": "183",
+    "locality": "Shri Nagar",
+    "building_name": "Govt. Kannada Higher Primary\nSchool [Office Room ],Shri\nNagar"
+  },
+  {
+    "station_number": "184",
+    "locality": "Shri Nagar",
+    "building_name": "Govt. Kannada Higher Primary\nSchool [Room No-2] Shri\nNagar"
+  },
+  {
+    "station_number": "185",
+    "locality": "Vantamuri Colony",
+    "building_name": "Govt . High Sschool Class\nRoom. No .10 Vantamuri\nColony."
+  },
+  {
+    "station_number": "186",
+    "locality": "Vantamuri Colony",
+    "building_name": "Govt . High Sschool Class\nRoom. No.9 Vantamuri Colony."
+  },
+  {
+    "station_number": "187",
+    "locality": "Vantamuri Colony",
+    "building_name": "Govt . High Sschool Drawing\nClass Room. Vantamuri\nColony."
+  },
+  {
+    "station_number": "188",
+    "locality": "Shivaji Nagar",
+    "building_name": "Office of the Joint Director of\nAgriculture,[Right Side\nGarage],Shivaji Nagar"
+  },
+  {
+    "station_number": "189",
+    "locality": "Shivaji Nagar",
+    "building_name": "Office of the Joint Director of\nAgriculture, [Left Side\nGarage],Shivaji Nagar"
+  },
+  {
+    "station_number": "190",
+    "locality": "Shivaji Nagar",
+    "building_name": "Office of the Deputy Director\nof Agricultural Marketing\n[Garage No-1],Shivaji Nagar"
+  },
+  {
+    "station_number": "191",
+    "locality": "Shivaji Nagar",
+    "building_name": "Office of the Deputy Director\nof Agricultural Marketing\n[Garage No-3],Shivaji Nagar"
+  },
+  {
+    "station_number": "192",
+    "locality": "Shivaji Nagar",
+    "building_name": "Govt.Marathi Higher Primay\nSchool No-27,[Room No-\n8],Shivaji Nagar"
+  },
+  {
+    "station_number": "193",
+    "locality": "Shivaji Nagar",
+    "building_name": "Govt Marathi Higher Primay\nSchool No-27,[Room No-\n7],Shivaji Nagar"
+  },
+  {
+    "station_number": "194",
+    "locality": "New Veerbhadra Nagar",
+    "building_name": "Govt.Urdu Higher Primary\nSchool,[1st Std Class\nRoom],New Veerbhadra Nagar"
+  },
+  {
+    "station_number": "195",
+    "locality": "New Veerabhadra Nagar",
+    "building_name": "Govt.Urdu Primary School [4th\nStd Class Room],New\nVeerbhadra Nagar"
+  },
+  {
+    "station_number": "196",
+    "locality": "New Veerabhadra Nagar",
+    "building_name": "Govt.Urdu Primary School [5th\nStd Class Room],New\nVeerbhadra Nagar"
+  },
+  {
+    "station_number": "197",
+    "locality": "Shivaji Nagar",
+    "building_name": "Govt Marathi Higher Primary\nSchool No-27 [Room No-5\n],Shivaji Nagar"
+  },
+  {
+    "station_number": "198",
+    "locality": "Shivaji Nagar",
+    "building_name": "Govt Marathi Higher Primary\nSchool No-27 Side Room\n,Shivaji Nagar"
+  },
+  {
+    "station_number": "199",
+    "locality": "Shivaji Nagar",
+    "building_name": "Govt.Marathi Higher Primary\nSchool No-27,[Room No-\n1],Shivaji Nagar"
+  },
+  {
+    "station_number": "200",
+    "locality": "Chavat galli",
+    "building_name": "Govt.Marathi Higher Primary\nSchool No 5 [Right\nWing],Chavat galli"
+  },
+  {
+    "station_number": "201",
+    "locality": "Chavat galli",
+    "building_name": "Govt.Marathi Higher Primary\nSchool No 5 [Right\nWing],Chavat galli"
+  },
+  {
+    "station_number": "202",
+    "locality": "Chavat Galli",
+    "building_name": "Govt.Marathi Higher Primary\nSchool No 5 [Entrance\nRoom],Chavat galli"
+  },
+  {
+    "station_number": "203",
+    "locality": "Chavat Galli",
+    "building_name": "Maratha Mandal High\nSchool,[Right Side,Room No-\n1],Chavat galli"
+  },
+  {
+    "station_number": "204",
+    "locality": "Shetti Galli",
+    "building_name": "Govt.Kannada Higher Primary\nSchool No-2, Old Building\n[Right wing Room No-1],Shetti\nGalli"
+  },
+  {
+    "station_number": "205",
+    "locality": "Shetti Galli",
+    "building_name": "Govt.Kannada Higher Primary\nSchool No-2 old Building[Left\nWing,Room No-3],Shetti Galli"
+  },
+  {
+    "station_number": "206",
+    "locality": "Shetti Galli",
+    "building_name": "Govt.Kannada Higher Primary\nSchool No-2 old Building [Left\nWing],Shetti Galli"
+  },
+  {
+    "station_number": "207",
+    "locality": "Shetti Galli",
+    "building_name": "Govt.Kannada Higher Primary\nSchool No-2 New\nBuilding[Right wing,Room No-\n2],Shetti Galli"
+  },
+  {
+    "station_number": "208",
+    "locality": "Chavat Galli",
+    "building_name": "Maratha Mandal High\nSchool.[Left Side Room No-\n3],Chavat Galli"
+  },
+  {
+    "station_number": "209",
+    "locality": "P.B.Road",
+    "building_name": "Office of Chief Conservator Of\nForest, (Meeting Hall) Forest\nCompound Belagavi ,Old\nP.B.Road"
+  },
+  {
+    "station_number": "210",
+    "locality": "P.B.Road",
+    "building_name": "Room No- 4, Office of Chief\nConservator Of Forest, Forest\nCompound Belagavi ,Old\nP.B.Road"
+  },
+  {
+    "station_number": "211",
+    "locality": "Tenginkeri Galli",
+    "building_name": "Govt.Urdu Higher Primary\nGirls School No-2,Tenginkeri\nGalli"
+  },
+  {
+    "station_number": "212",
+    "locality": "P B Road",
+    "building_name": "Enters Hall, Office Of Deputy\nConservator Of Forest , Forest\nCompound Belagavi Old\nP.B.Road"
+  },
+  {
+    "station_number": "213",
+    "locality": "Mali Galli",
+    "building_name": "Govt.Marathi Higher Primary\nSchool No-4, [Left wing, Room\nNo-1],Mali Galli"
+  },
+  {
+    "station_number": "214",
+    "locality": "Mali Galli",
+    "building_name": "Govt.Marathi Higher Primary\nSchool No 4 [Middle\nRoom],Mali Galli"
+  },
+  {
+    "station_number": "215",
+    "locality": "Bhandur Galli",
+    "building_name": "Govt.Marathi Higher Primary\nSchool No-7 [ Anganwadi,\nRoom No-5],Bhandur Galli"
+  },
+  {
+    "station_number": "216",
+    "locality": "Bhandur Galli",
+    "building_name": "Govt.Marathi Higher Primary\nSchool No-7[ Balawadi, Room\nNo-6],Bhandur Galli"
+  },
+  {
+    "station_number": "217",
+    "locality": "Fort road",
+    "building_name": "Bharatesh Kannada medium\nSchool 6th Std class room,\nnear fort road, Belagavi"
+  },
+  {
+    "station_number": "218",
+    "locality": "Ganapath Galli",
+    "building_name": "Govt.Model Higher Primary\nMarathi School No-2 [Room\nNo-9],Ganapath Galli"
+  },
+  {
+    "station_number": "219",
+    "locality": "Bhendi Bazar",
+    "building_name": "Basiban High School [Left\nwing,2nd Room],Bhendi Bazar"
+  },
+  {
+    "station_number": "220",
+    "locality": "Bhendi Bazar",
+    "building_name": "Basiban High School [Right\nwing,2nd Room],Bhendi Bazar"
+  },
+  {
+    "station_number": "221",
+    "locality": "Bhendi Bazar",
+    "building_name": "Basiban High School[Left\nwing,4th Room],Bhendi Bazar"
+  },
+  {
+    "station_number": "222",
+    "locality": "Bhendi Bazar",
+    "building_name": "Basiban Hgh School[Right\nwing,Room No-4],Bhendi\nBazar"
+  },
+  {
+    "station_number": "223",
+    "locality": "Khanjar Galli",
+    "building_name": "Govt.Urdu Girls School No-\n1,[Last Wing,Room No-\n1],Khanjar Galli"
+  },
+  {
+    "station_number": "224",
+    "locality": "Khanjar Galli",
+    "building_name": "Govt.Urdu Girls School\nNo.1,[Last Wing],Khanjar Galli"
+  },
+  {
+    "station_number": "225",
+    "locality": "Khanjar Galli",
+    "building_name": "Govt.Urdu Girls School\nNo.1,[Last Wing,Room No-\n3],Khanjar Galli"
+  },
+  {
+    "station_number": "226",
+    "locality": "Kacheri Galli",
+    "building_name": "UGS No 1 Urdu/English\nMedium School New Building\n5th Class room Khanjar Galli\nBelagavi"
+  },
+  {
+    "station_number": "227",
+    "locality": "Khanjar galli",
+    "building_name": "Govt. Urdu Girls School No-1\n,[Left Side Room No-\n2],Khanjar galli"
+  },
+  {
+    "station_number": "228",
+    "locality": "Khanjar Galli",
+    "building_name": "Govt.Urdu Girls School No-\n1,[Middle Wing],Khanjar galli"
+  },
+  {
+    "station_number": "229",
+    "locality": "Bhadakal Galli",
+    "building_name": "Govt.Model Kannada Girls\nSchool No-1,[North\nRoom],Bhadakal Galli"
+  },
+  {
+    "station_number": "230",
+    "locality": "Badakala Galli",
+    "building_name": "Govt. Model Kannada Girls\nSchool No-1,[South\nRoom],Bhadakal Galli"
+  },
+  {
+    "station_number": "231",
+    "locality": "Kacheri Galli, Road Belagavi",
+    "building_name": "Old Trafic police station north\nrange (right side room no.2)\nKacheri Galli, Belagavi"
+  },
+  {
+    "station_number": "232",
+    "locality": "Kakatives",
+    "building_name": "Govt. Sardar's High School\nUrdu Division (8th U Class\nRoom South facing Room)\nKakatives Road Belagavi"
+  },
+  {
+    "station_number": "233",
+    "locality": "Kakatives",
+    "building_name": "Govt.Sardar’s High School\nNew Building (Urdu Division\n9th U class room west side\nfacing) Kakatives road\nBelagavi"
+  },
+  {
+    "station_number": "234",
+    "locality": "Kakatives",
+    "building_name": "Govt.Sardar’s High School\nRight side (New Building)\nKakatives road Belagavi"
+  },
+  {
+    "station_number": "235",
+    "locality": "Kakatives",
+    "building_name": "Govt.College of Education\nB.Ed.college Physciology Lab\n(Left Side east facing Room)\nKaktives Road Belagavi"
+  },
+  {
+    "station_number": "236",
+    "locality": "Kakatives",
+    "building_name": "Govt.College of Education\nB.Ed.College Lecturer hall\n(Left side west facing Room)\nKakatives Road Belagavi"
+  },
+  {
+    "station_number": "237",
+    "locality": "Kakatives",
+    "building_name": "Govt.College of Education\nB.Ed.College Experimental\nLab (Right side Room)\nKakatives Road Belagavi"
+  },
+  {
+    "station_number": "238",
+    "locality": "Kakatives",
+    "building_name": "Govt.Urdu Higher Primary\nSchool No 1(Western Room\nNo 1) Kakatives Road Belagavi"
+  },
+  {
+    "station_number": "239",
+    "locality": "Kakatives",
+    "building_name": "Govt. Urdu Higher Primary\nSchool, No. l, 3rd Std Class\nRoom [Western Room ],\nKakatives Road Belagavi"
+  },
+  {
+    "station_number": "240",
+    "locality": "Risaldar Galli",
+    "building_name": "Govt. Marathi Higher Primary\nBoy's School No.21 (Middle\nwing room No.2 ) Gavali Galli\n( Bakri Mandi)"
+  },
+  {
+    "station_number": "241",
+    "locality": "Gavali Galli [Bakri\nmandi]",
+    "building_name": "Govt.Marathi Primary Boy's\nSchool No-20, [ Right Wing\nRoom No-1],Gavali Galli\n[Bakari Mandi]"
+  },
+  {
+    "station_number": "242",
+    "locality": "Gavali Galli [Bakri\nmandi]",
+    "building_name": "Govt.Marathi Higher Primary\nBoy's School No-29, [Middle\nwing, Room No-2 ],Gavali\nGalli [Bakari Mandi]"
+  },
+  {
+    "station_number": "243",
+    "locality": "Gavali Galli [Bakri\nmandi]",
+    "building_name": "Govt.Marathi Higher Primary\nBoy's School No-22, [Left\nwing, Room No-2],Gavali Galli\n[Bakari Mandi]"
+  },
+  {
+    "station_number": "244",
+    "locality": "Ganapath Galli",
+    "building_name": "Govt.Model Marathi Higher\nPrimary School No-2 [Left\nWing,Room No-5],Ganapath\nGalli"
+  },
+  {
+    "station_number": "245",
+    "locality": "Ganapath Galli",
+    "building_name": "Govt.Model Marathi Higher\nPrimary School No-2 [Left\nWing,Room No-3],Ganapath\nGalli"
+  },
+  {
+    "station_number": "246",
+    "locality": "Khade Bazar",
+    "building_name": "Office of the Hindi Prachar\nSabha, Hindi Bhuvan\nBelgaum, Khade Bazar"
+  },
+  {
+    "station_number": "247",
+    "locality": "Ganapath Galli",
+    "building_name": "Govt.Marathi Higher Primary\nSchool No-2,[Right Side,\nRoom No-8],Ganapath Galli"
+  },
+  {
+    "station_number": "248",
+    "locality": "Kelkar Bag",
+    "building_name": "Govt Kannada Higher Primary\nSchool No 9, [Right\nWing],Kelkar Bag"
+  },
+  {
+    "station_number": "249",
+    "locality": "Kelkar Bag",
+    "building_name": "Govt Kannada Higher Primary\nSchool No.9,[Left\nWing],Kelkar Bag"
+  },
+  {
+    "station_number": "250",
+    "locality": "Math Galli",
+    "building_name": "Fire Brigade Station\n[Corporation Building],Raviwar\nPeth"
+  },
+  {
+    "station_number": "251",
+    "locality": "Konwal Galli",
+    "building_name": "Govt.Marathi Boy's School No-\n28(Room No-1) Konwal Galli"
+  },
+  {
+    "station_number": "252",
+    "locality": "Konwal Galli",
+    "building_name": "Govt.Kannada Higher Primary\nSchool No-6,[Room No-\n2],Konwal Galli"
+  },
+  {
+    "station_number": "253",
+    "locality": "Maruti Galli,Kambli Koot",
+    "building_name": "Govt.Higher Primary Marathi\nmedium Boys School No.1\n(Anganawadi Kendra No.34)\nGanapat Galli Belagavi"
+  },
+  {
+    "station_number": "254",
+    "locality": "Maruti Galli,Kambli Koot",
+    "building_name": "Govt.Higher Primary Marathi\nmedium girls School No.1\n(Anganawadi Kendra No.205)\nMaruti Galli Belagavi"
+  },
+  {
+    "station_number": "255",
+    "locality": "Konwal Galli",
+    "building_name": "Govt Kannada Higher Primary\nSchool No-6, [Room No-\n4],Konwal Galli"
+  },
+  {
+    "station_number": "256",
+    "locality": "Konwal Galli",
+    "building_name": "City Corporation Office Guest\nHouse [Eastern Wing],Konwal\nGalli"
+  },
+  {
+    "station_number": "257",
+    "locality": "Konwal Galli",
+    "building_name": "City Corporation Office Guest\nHouse[Western wing],Konwal\nGalli"
+  }
+]

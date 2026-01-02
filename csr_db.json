@@ -1,0 +1,2270 @@
+[
+    {
+        "District": "Ahmednagar",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b979 L",
+            "2023-24": "\u20b986 L",
+            "2024-25": "\u20b982 L"
+        },
+        "Total_3Y": "\u20b9248 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Ahmednagar",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b955 L",
+            "2023-24": "\u20b960 L",
+            "2024-25": "\u20b957 L"
+        },
+        "Total_3Y": "\u20b9173 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Ahmednagar",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b922 L",
+            "2023-24": "\u20b924 L",
+            "2024-25": "\u20b923 L"
+        },
+        "Total_3Y": "\u20b969 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Ahmednagar",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b969 L",
+            "2023-24": "\u20b975 L",
+            "2024-25": "\u20b972 L"
+        },
+        "Total_3Y": "\u20b9217 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Ahmednagar",
+        "Company": "Sun Pharma",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "N/A",
+        "Spend_History": {
+            "2022-23": "\u20b90",
+            "2023-24": "\u20b90",
+            "2024-25": "\u20b90"
+        },
+        "Total_3Y": "\u20b90",
+        "Status": "\ud83d\udea8 ZERO SPEND (Violation)",
+        "Gap_Analysis": "CRITICAL: Operation exists but Funds missing."
+    },
+    {
+        "District": "Akola",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b948 L",
+            "2023-24": "\u20b952 L",
+            "2024-25": "\u20b950 L"
+        },
+        "Total_3Y": "\u20b9151 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Akola",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b979 L",
+            "2023-24": "\u20b986 L",
+            "2024-25": "\u20b982 L"
+        },
+        "Total_3Y": "\u20b9248 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Akola",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b975 L",
+            "2023-24": "\u20b982 L",
+            "2024-25": "\u20b978 L"
+        },
+        "Total_3Y": "\u20b9236 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Akola",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b930 L",
+            "2023-24": "\u20b933 L",
+            "2024-25": "\u20b931 L"
+        },
+        "Total_3Y": "\u20b994 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Amravati",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b975 L",
+            "2023-24": "\u20b982 L",
+            "2024-25": "\u20b978 L"
+        },
+        "Total_3Y": "\u20b9236 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Amravati",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b950 L",
+            "2023-24": "\u20b955 L",
+            "2024-25": "\u20b952 L"
+        },
+        "Total_3Y": "\u20b9157 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Amravati",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b956 L",
+            "2023-24": "\u20b961 L",
+            "2024-25": "\u20b958 L"
+        },
+        "Total_3Y": "\u20b9176 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Amravati",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b977 L",
+            "2023-24": "\u20b984 L",
+            "2024-25": "\u20b980 L"
+        },
+        "Total_3Y": "\u20b9242 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b941 L",
+            "2023-24": "\u20b945 L",
+            "2024-25": "\u20b943 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b916 L",
+            "2023-24": "\u20b917 L",
+            "2024-25": "\u20b916 L"
+        },
+        "Total_3Y": "\u20b950 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b933 L",
+            "2023-24": "\u20b936 L",
+            "2024-25": "\u20b934 L"
+        },
+        "Total_3Y": "\u20b9103 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b946 L",
+            "2023-24": "\u20b950 L",
+            "2024-25": "\u20b948 L"
+        },
+        "Total_3Y": "\u20b9144 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Aurangabad",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b997 L",
+            "2023-24": "\u20b997 L",
+            "2024-25": "\u20b997 L"
+        },
+        "Total_3Y": "\u20b9291 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Beed",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b924 L",
+            "2023-24": "\u20b926 L",
+            "2024-25": "\u20b925 L"
+        },
+        "Total_3Y": "\u20b975 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Beed",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b929 L",
+            "2023-24": "\u20b931 L",
+            "2024-25": "\u20b930 L"
+        },
+        "Total_3Y": "\u20b991 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Beed",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b956 L",
+            "2023-24": "\u20b961 L",
+            "2024-25": "\u20b958 L"
+        },
+        "Total_3Y": "\u20b9176 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Beed",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b951 L",
+            "2023-24": "\u20b956 L",
+            "2024-25": "\u20b953 L"
+        },
+        "Total_3Y": "\u20b9160 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Bhandara",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b949 L",
+            "2023-24": "\u20b953 L",
+            "2024-25": "\u20b951 L"
+        },
+        "Total_3Y": "\u20b9154 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Bhandara",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b969 L",
+            "2023-24": "\u20b975 L",
+            "2024-25": "\u20b972 L"
+        },
+        "Total_3Y": "\u20b9217 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Bhandara",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b934 L",
+            "2023-24": "\u20b937 L",
+            "2024-25": "\u20b935 L"
+        },
+        "Total_3Y": "\u20b9107 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Bhandara",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b943 L",
+            "2023-24": "\u20b947 L",
+            "2024-25": "\u20b945 L"
+        },
+        "Total_3Y": "\u20b9135 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Buldhana",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b975 L",
+            "2023-24": "\u20b982 L",
+            "2024-25": "\u20b978 L"
+        },
+        "Total_3Y": "\u20b9236 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Buldhana",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b946 L",
+            "2023-24": "\u20b950 L",
+            "2024-25": "\u20b948 L"
+        },
+        "Total_3Y": "\u20b9144 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Buldhana",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b953 L",
+            "2023-24": "\u20b958 L",
+            "2024-25": "\u20b955 L"
+        },
+        "Total_3Y": "\u20b9166 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Buldhana",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b952 L",
+            "2023-24": "\u20b957 L",
+            "2024-25": "\u20b954 L"
+        },
+        "Total_3Y": "\u20b9163 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Chandrapur",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b949 L",
+            "2023-24": "\u20b953 L",
+            "2024-25": "\u20b951 L"
+        },
+        "Total_3Y": "\u20b9154 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Chandrapur",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b918 L",
+            "2023-24": "\u20b919 L",
+            "2024-25": "\u20b918 L"
+        },
+        "Total_3Y": "\u20b956 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Chandrapur",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b938 L",
+            "2023-24": "\u20b941 L",
+            "2024-25": "\u20b939 L"
+        },
+        "Total_3Y": "\u20b9119 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Chandrapur",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b941 L",
+            "2023-24": "\u20b945 L",
+            "2024-25": "\u20b943 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Chandrapur",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b9240 L",
+            "2023-24": "\u20b9240 L",
+            "2024-25": "\u20b9240 L"
+        },
+        "Total_3Y": "\u20b9720 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Chandrapur",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b9124 L",
+            "2023-24": "\u20b9124 L",
+            "2024-25": "\u20b9124 L"
+        },
+        "Total_3Y": "\u20b9372 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Dhule",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b953 L",
+            "2023-24": "\u20b958 L",
+            "2024-25": "\u20b955 L"
+        },
+        "Total_3Y": "\u20b9166 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Dhule",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b978 L",
+            "2023-24": "\u20b985 L",
+            "2024-25": "\u20b981 L"
+        },
+        "Total_3Y": "\u20b9245 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Dhule",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b979 L",
+            "2023-24": "\u20b986 L",
+            "2024-25": "\u20b982 L"
+        },
+        "Total_3Y": "\u20b9248 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Dhule",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b946 L",
+            "2023-24": "\u20b950 L",
+            "2024-25": "\u20b948 L"
+        },
+        "Total_3Y": "\u20b9144 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Gadchiroli",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b960 L",
+            "2023-24": "\u20b966 L",
+            "2024-25": "\u20b963 L"
+        },
+        "Total_3Y": "\u20b9189 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Gadchiroli",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b942 L",
+            "2023-24": "\u20b946 L",
+            "2024-25": "\u20b944 L"
+        },
+        "Total_3Y": "\u20b9132 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Gadchiroli",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b916 L",
+            "2023-24": "\u20b917 L",
+            "2024-25": "\u20b916 L"
+        },
+        "Total_3Y": "\u20b950 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Gadchiroli",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b929 L",
+            "2023-24": "\u20b931 L",
+            "2024-25": "\u20b930 L"
+        },
+        "Total_3Y": "\u20b991 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Gondia",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b936 L",
+            "2023-24": "\u20b939 L",
+            "2024-25": "\u20b937 L"
+        },
+        "Total_3Y": "\u20b9113 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Gondia",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b937 L",
+            "2023-24": "\u20b940 L",
+            "2024-25": "\u20b938 L"
+        },
+        "Total_3Y": "\u20b9116 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Gondia",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b926 L",
+            "2023-24": "\u20b928 L",
+            "2024-25": "\u20b927 L"
+        },
+        "Total_3Y": "\u20b981 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Gondia",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b970 L",
+            "2023-24": "\u20b977 L",
+            "2024-25": "\u20b973 L"
+        },
+        "Total_3Y": "\u20b9220 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Hingoli",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b916 L",
+            "2023-24": "\u20b917 L",
+            "2024-25": "\u20b916 L"
+        },
+        "Total_3Y": "\u20b950 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Hingoli",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b969 L",
+            "2023-24": "\u20b975 L",
+            "2024-25": "\u20b972 L"
+        },
+        "Total_3Y": "\u20b9217 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Hingoli",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b968 L",
+            "2023-24": "\u20b974 L",
+            "2024-25": "\u20b971 L"
+        },
+        "Total_3Y": "\u20b9214 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Hingoli",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b972 L",
+            "2023-24": "\u20b979 L",
+            "2024-25": "\u20b975 L"
+        },
+        "Total_3Y": "\u20b9226 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Jalgaon",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b925 L",
+            "2023-24": "\u20b927 L",
+            "2024-25": "\u20b926 L"
+        },
+        "Total_3Y": "\u20b978 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Jalgaon",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b961 L",
+            "2023-24": "\u20b967 L",
+            "2024-25": "\u20b964 L"
+        },
+        "Total_3Y": "\u20b9192 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Jalgaon",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b968 L",
+            "2023-24": "\u20b974 L",
+            "2024-25": "\u20b971 L"
+        },
+        "Total_3Y": "\u20b9214 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Jalgaon",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b978 L",
+            "2023-24": "\u20b985 L",
+            "2024-25": "\u20b981 L"
+        },
+        "Total_3Y": "\u20b9245 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Jalna",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b926 L",
+            "2023-24": "\u20b928 L",
+            "2024-25": "\u20b927 L"
+        },
+        "Total_3Y": "\u20b981 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Jalna",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b954 L",
+            "2023-24": "\u20b959 L",
+            "2024-25": "\u20b956 L"
+        },
+        "Total_3Y": "\u20b9170 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Jalna",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b946 L",
+            "2023-24": "\u20b950 L",
+            "2024-25": "\u20b948 L"
+        },
+        "Total_3Y": "\u20b9144 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Jalna",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b946 L",
+            "2023-24": "\u20b950 L",
+            "2024-25": "\u20b948 L"
+        },
+        "Total_3Y": "\u20b9144 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Kolhapur",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b928 L",
+            "2023-24": "\u20b930 L",
+            "2024-25": "\u20b929 L"
+        },
+        "Total_3Y": "\u20b988 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Kolhapur",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b952 L",
+            "2023-24": "\u20b957 L",
+            "2024-25": "\u20b954 L"
+        },
+        "Total_3Y": "\u20b9163 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Kolhapur",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b963 L",
+            "2023-24": "\u20b969 L",
+            "2024-25": "\u20b966 L"
+        },
+        "Total_3Y": "\u20b9198 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Kolhapur",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b978 L",
+            "2023-24": "\u20b985 L",
+            "2024-25": "\u20b981 L"
+        },
+        "Total_3Y": "\u20b9245 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Latur",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b939 L",
+            "2023-24": "\u20b942 L",
+            "2024-25": "\u20b940 L"
+        },
+        "Total_3Y": "\u20b9122 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Latur",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b947 L",
+            "2023-24": "\u20b951 L",
+            "2024-25": "\u20b949 L"
+        },
+        "Total_3Y": "\u20b9148 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Latur",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b958 L",
+            "2023-24": "\u20b963 L",
+            "2024-25": "\u20b960 L"
+        },
+        "Total_3Y": "\u20b9182 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Latur",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b944 L",
+            "2023-24": "\u20b948 L",
+            "2024-25": "\u20b946 L"
+        },
+        "Total_3Y": "\u20b9138 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b938 L",
+            "2023-24": "\u20b941 L",
+            "2024-25": "\u20b939 L"
+        },
+        "Total_3Y": "\u20b9119 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b947 L",
+            "2023-24": "\u20b951 L",
+            "2024-25": "\u20b949 L"
+        },
+        "Total_3Y": "\u20b9148 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b926 L",
+            "2023-24": "\u20b928 L",
+            "2024-25": "\u20b927 L"
+        },
+        "Total_3Y": "\u20b981 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b978 L",
+            "2023-24": "\u20b985 L",
+            "2024-25": "\u20b981 L"
+        },
+        "Total_3Y": "\u20b9245 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b9206 L",
+            "2023-24": "\u20b9206 L",
+            "2024-25": "\u20b9206 L"
+        },
+        "Total_3Y": "\u20b9618 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Mumbai City",
+        "Company": "JSW Steel",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b9106 L",
+            "2023-24": "\u20b9106 L",
+            "2024-25": "\u20b9106 L"
+        },
+        "Total_3Y": "\u20b9318 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b938 L",
+            "2023-24": "\u20b941 L",
+            "2024-25": "\u20b939 L"
+        },
+        "Total_3Y": "\u20b9119 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b957 L",
+            "2023-24": "\u20b962 L",
+            "2024-25": "\u20b959 L"
+        },
+        "Total_3Y": "\u20b9179 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b956 L",
+            "2023-24": "\u20b961 L",
+            "2024-25": "\u20b958 L"
+        },
+        "Total_3Y": "\u20b9176 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b952 L",
+            "2023-24": "\u20b957 L",
+            "2024-25": "\u20b954 L"
+        },
+        "Total_3Y": "\u20b9163 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b9224 L",
+            "2023-24": "\u20b9224 L",
+            "2024-25": "\u20b9224 L"
+        },
+        "Total_3Y": "\u20b9672 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Mumbai Suburban",
+        "Company": "Sun Pharma",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b9287 L",
+            "2023-24": "\u20b9287 L",
+            "2024-25": "\u20b9287 L"
+        },
+        "Total_3Y": "\u20b9861 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b974 L",
+            "2023-24": "\u20b981 L",
+            "2024-25": "\u20b977 L"
+        },
+        "Total_3Y": "\u20b9233 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b928 L",
+            "2023-24": "\u20b930 L",
+            "2024-25": "\u20b929 L"
+        },
+        "Total_3Y": "\u20b988 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b930 L",
+            "2023-24": "\u20b933 L",
+            "2024-25": "\u20b931 L"
+        },
+        "Total_3Y": "\u20b994 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b941 L",
+            "2023-24": "\u20b945 L",
+            "2024-25": "\u20b943 L"
+        },
+        "Total_3Y": "\u20b9129 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b9240 L",
+            "2023-24": "\u20b9240 L",
+            "2024-25": "\u20b9240 L"
+        },
+        "Total_3Y": "\u20b9720 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Nagpur",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "N/A",
+        "Spend_History": {
+            "2022-23": "\u20b90",
+            "2023-24": "\u20b90",
+            "2024-25": "\u20b90"
+        },
+        "Total_3Y": "\u20b90",
+        "Status": "\ud83d\udea8 ZERO SPEND (Violation)",
+        "Gap_Analysis": "CRITICAL: Operation exists but Funds missing."
+    },
+    {
+        "District": "Nagpur",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b9293 L",
+            "2023-24": "\u20b9293 L",
+            "2024-25": "\u20b9293 L"
+        },
+        "Total_3Y": "\u20b9879 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Nanded",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b963 L",
+            "2023-24": "\u20b969 L",
+            "2024-25": "\u20b966 L"
+        },
+        "Total_3Y": "\u20b9198 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nanded",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b967 L",
+            "2023-24": "\u20b973 L",
+            "2024-25": "\u20b970 L"
+        },
+        "Total_3Y": "\u20b9211 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nanded",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b922 L",
+            "2023-24": "\u20b924 L",
+            "2024-25": "\u20b923 L"
+        },
+        "Total_3Y": "\u20b969 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nanded",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b934 L",
+            "2023-24": "\u20b937 L",
+            "2024-25": "\u20b935 L"
+        },
+        "Total_3Y": "\u20b9107 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nandurbar",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b961 L",
+            "2023-24": "\u20b967 L",
+            "2024-25": "\u20b964 L"
+        },
+        "Total_3Y": "\u20b9192 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nandurbar",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b950 L",
+            "2023-24": "\u20b955 L",
+            "2024-25": "\u20b952 L"
+        },
+        "Total_3Y": "\u20b9157 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nandurbar",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b975 L",
+            "2023-24": "\u20b982 L",
+            "2024-25": "\u20b978 L"
+        },
+        "Total_3Y": "\u20b9236 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nandurbar",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b962 L",
+            "2023-24": "\u20b968 L",
+            "2024-25": "\u20b965 L"
+        },
+        "Total_3Y": "\u20b9195 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nashik",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b923 L",
+            "2023-24": "\u20b925 L",
+            "2024-25": "\u20b924 L"
+        },
+        "Total_3Y": "\u20b972 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nashik",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b918 L",
+            "2023-24": "\u20b919 L",
+            "2024-25": "\u20b918 L"
+        },
+        "Total_3Y": "\u20b956 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nashik",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b935 L",
+            "2023-24": "\u20b938 L",
+            "2024-25": "\u20b936 L"
+        },
+        "Total_3Y": "\u20b9110 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nashik",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b972 L",
+            "2023-24": "\u20b979 L",
+            "2024-25": "\u20b975 L"
+        },
+        "Total_3Y": "\u20b9226 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Nashik",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b9294 L",
+            "2023-24": "\u20b9294 L",
+            "2024-25": "\u20b9294 L"
+        },
+        "Total_3Y": "\u20b9882 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Nashik",
+        "Company": "MahaGenco",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b9197 L",
+            "2023-24": "\u20b9197 L",
+            "2024-25": "\u20b9197 L"
+        },
+        "Total_3Y": "\u20b9591 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Osmanabad",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b934 L",
+            "2023-24": "\u20b937 L",
+            "2024-25": "\u20b935 L"
+        },
+        "Total_3Y": "\u20b9107 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Osmanabad",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b945 L",
+            "2023-24": "\u20b949 L",
+            "2024-25": "\u20b947 L"
+        },
+        "Total_3Y": "\u20b9141 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Osmanabad",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b970 L",
+            "2023-24": "\u20b977 L",
+            "2024-25": "\u20b973 L"
+        },
+        "Total_3Y": "\u20b9220 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Osmanabad",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b960 L",
+            "2023-24": "\u20b966 L",
+            "2024-25": "\u20b963 L"
+        },
+        "Total_3Y": "\u20b9189 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Palghar",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b948 L",
+            "2023-24": "\u20b952 L",
+            "2024-25": "\u20b950 L"
+        },
+        "Total_3Y": "\u20b9151 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Palghar",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b978 L",
+            "2023-24": "\u20b985 L",
+            "2024-25": "\u20b981 L"
+        },
+        "Total_3Y": "\u20b9245 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Palghar",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b922 L",
+            "2023-24": "\u20b924 L",
+            "2024-25": "\u20b923 L"
+        },
+        "Total_3Y": "\u20b969 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Palghar",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b924 L",
+            "2023-24": "\u20b926 L",
+            "2024-25": "\u20b925 L"
+        },
+        "Total_3Y": "\u20b975 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Parbhani",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b966 L",
+            "2023-24": "\u20b972 L",
+            "2024-25": "\u20b969 L"
+        },
+        "Total_3Y": "\u20b9207 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Parbhani",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b926 L",
+            "2023-24": "\u20b928 L",
+            "2024-25": "\u20b927 L"
+        },
+        "Total_3Y": "\u20b981 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Parbhani",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b931 L",
+            "2023-24": "\u20b934 L",
+            "2024-25": "\u20b932 L"
+        },
+        "Total_3Y": "\u20b997 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Parbhani",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b948 L",
+            "2023-24": "\u20b952 L",
+            "2024-25": "\u20b950 L"
+        },
+        "Total_3Y": "\u20b9151 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Pune",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b935 L",
+            "2023-24": "\u20b938 L",
+            "2024-25": "\u20b936 L"
+        },
+        "Total_3Y": "\u20b9110 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Pune",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b936 L",
+            "2023-24": "\u20b939 L",
+            "2024-25": "\u20b937 L"
+        },
+        "Total_3Y": "\u20b9113 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Pune",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b939 L",
+            "2023-24": "\u20b942 L",
+            "2024-25": "\u20b940 L"
+        },
+        "Total_3Y": "\u20b9122 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Pune",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b946 L",
+            "2023-24": "\u20b950 L",
+            "2024-25": "\u20b948 L"
+        },
+        "Total_3Y": "\u20b9144 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Pune",
+        "Company": "Mahindra & Mahindra",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b9187 L",
+            "2023-24": "\u20b9187 L",
+            "2024-25": "\u20b9187 L"
+        },
+        "Total_3Y": "\u20b9561 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Pune",
+        "Company": "Bajaj Auto",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b9296 L",
+            "2023-24": "\u20b9296 L",
+            "2024-25": "\u20b9296 L"
+        },
+        "Total_3Y": "\u20b9888 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Raigad",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b943 L",
+            "2023-24": "\u20b947 L",
+            "2024-25": "\u20b945 L"
+        },
+        "Total_3Y": "\u20b9135 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Raigad",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b953 L",
+            "2023-24": "\u20b958 L",
+            "2024-25": "\u20b955 L"
+        },
+        "Total_3Y": "\u20b9166 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Raigad",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b960 L",
+            "2023-24": "\u20b966 L",
+            "2024-25": "\u20b963 L"
+        },
+        "Total_3Y": "\u20b9189 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Raigad",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b980 L",
+            "2023-24": "\u20b988 L",
+            "2024-25": "\u20b984 L"
+        },
+        "Total_3Y": "\u20b9252 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Raigad",
+        "Company": "JSW Steel",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b9269 L",
+            "2023-24": "\u20b9269 L",
+            "2024-25": "\u20b9269 L"
+        },
+        "Total_3Y": "\u20b9807 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Ratnagiri",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b934 L",
+            "2023-24": "\u20b937 L",
+            "2024-25": "\u20b935 L"
+        },
+        "Total_3Y": "\u20b9107 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Ratnagiri",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b923 L",
+            "2023-24": "\u20b925 L",
+            "2024-25": "\u20b924 L"
+        },
+        "Total_3Y": "\u20b972 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Ratnagiri",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b947 L",
+            "2023-24": "\u20b951 L",
+            "2024-25": "\u20b949 L"
+        },
+        "Total_3Y": "\u20b9148 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Ratnagiri",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b935 L",
+            "2023-24": "\u20b938 L",
+            "2024-25": "\u20b936 L"
+        },
+        "Total_3Y": "\u20b9110 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Sangli",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b970 L",
+            "2023-24": "\u20b977 L",
+            "2024-25": "\u20b973 L"
+        },
+        "Total_3Y": "\u20b9220 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Sangli",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b979 L",
+            "2023-24": "\u20b986 L",
+            "2024-25": "\u20b982 L"
+        },
+        "Total_3Y": "\u20b9248 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Sangli",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b969 L",
+            "2023-24": "\u20b975 L",
+            "2024-25": "\u20b972 L"
+        },
+        "Total_3Y": "\u20b9217 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Sangli",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b949 L",
+            "2023-24": "\u20b953 L",
+            "2024-25": "\u20b951 L"
+        },
+        "Total_3Y": "\u20b9154 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Satara",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b938 L",
+            "2023-24": "\u20b941 L",
+            "2024-25": "\u20b939 L"
+        },
+        "Total_3Y": "\u20b9119 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Satara",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b933 L",
+            "2023-24": "\u20b936 L",
+            "2024-25": "\u20b934 L"
+        },
+        "Total_3Y": "\u20b9103 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Satara",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b945 L",
+            "2023-24": "\u20b949 L",
+            "2024-25": "\u20b947 L"
+        },
+        "Total_3Y": "\u20b9141 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Satara",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b916 L",
+            "2023-24": "\u20b917 L",
+            "2024-25": "\u20b916 L"
+        },
+        "Total_3Y": "\u20b950 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Sindhudurg",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b917 L",
+            "2023-24": "\u20b918 L",
+            "2024-25": "\u20b917 L"
+        },
+        "Total_3Y": "\u20b953 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Sindhudurg",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b916 L",
+            "2023-24": "\u20b917 L",
+            "2024-25": "\u20b916 L"
+        },
+        "Total_3Y": "\u20b950 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Sindhudurg",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b970 L",
+            "2023-24": "\u20b977 L",
+            "2024-25": "\u20b973 L"
+        },
+        "Total_3Y": "\u20b9220 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Sindhudurg",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b969 L",
+            "2023-24": "\u20b975 L",
+            "2024-25": "\u20b972 L"
+        },
+        "Total_3Y": "\u20b9217 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Solapur",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b964 L",
+            "2023-24": "\u20b970 L",
+            "2024-25": "\u20b967 L"
+        },
+        "Total_3Y": "\u20b9201 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Solapur",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b927 L",
+            "2023-24": "\u20b929 L",
+            "2024-25": "\u20b928 L"
+        },
+        "Total_3Y": "\u20b985 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Solapur",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b971 L",
+            "2023-24": "\u20b978 L",
+            "2024-25": "\u20b974 L"
+        },
+        "Total_3Y": "\u20b9223 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Solapur",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b929 L",
+            "2023-24": "\u20b931 L",
+            "2024-25": "\u20b930 L"
+        },
+        "Total_3Y": "\u20b991 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Thane",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b930 L",
+            "2023-24": "\u20b933 L",
+            "2024-25": "\u20b931 L"
+        },
+        "Total_3Y": "\u20b994 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Thane",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b945 L",
+            "2023-24": "\u20b949 L",
+            "2024-25": "\u20b947 L"
+        },
+        "Total_3Y": "\u20b9141 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Thane",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b954 L",
+            "2023-24": "\u20b959 L",
+            "2024-25": "\u20b956 L"
+        },
+        "Total_3Y": "\u20b9170 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Thane",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b957 L",
+            "2023-24": "\u20b962 L",
+            "2024-25": "\u20b959 L"
+        },
+        "Total_3Y": "\u20b9179 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Thane",
+        "Company": "JSW Steel",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b951 L",
+            "2023-24": "\u20b951 L",
+            "2024-25": "\u20b951 L"
+        },
+        "Total_3Y": "\u20b9153 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    },
+    {
+        "District": "Wardha",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Education",
+        "Spend_History": {
+            "2022-23": "\u20b935 L",
+            "2023-24": "\u20b938 L",
+            "2024-25": "\u20b936 L"
+        },
+        "Total_3Y": "\u20b9110 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Wardha",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b930 L",
+            "2023-24": "\u20b933 L",
+            "2024-25": "\u20b931 L"
+        },
+        "Total_3Y": "\u20b994 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Wardha",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b965 L",
+            "2023-24": "\u20b971 L",
+            "2024-25": "\u20b968 L"
+        },
+        "Total_3Y": "\u20b9204 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Wardha",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b949 L",
+            "2023-24": "\u20b953 L",
+            "2024-25": "\u20b951 L"
+        },
+        "Total_3Y": "\u20b9154 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Washim",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b948 L",
+            "2023-24": "\u20b952 L",
+            "2024-25": "\u20b950 L"
+        },
+        "Total_3Y": "\u20b9151 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Washim",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Rural Dev",
+        "Spend_History": {
+            "2022-23": "\u20b968 L",
+            "2023-24": "\u20b974 L",
+            "2024-25": "\u20b971 L"
+        },
+        "Total_3Y": "\u20b9214 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Washim",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b953 L",
+            "2023-24": "\u20b958 L",
+            "2024-25": "\u20b955 L"
+        },
+        "Total_3Y": "\u20b9166 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Washim",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Skill Dev",
+        "Spend_History": {
+            "2022-23": "\u20b979 L",
+            "2023-24": "\u20b986 L",
+            "2024-25": "\u20b982 L"
+        },
+        "Total_3Y": "\u20b9248 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Yavatmal",
+        "Company": "Reliance Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b925 L",
+            "2023-24": "\u20b927 L",
+            "2024-25": "\u20b926 L"
+        },
+        "Total_3Y": "\u20b978 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Yavatmal",
+        "Company": "Tata Trusts",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b923 L",
+            "2023-24": "\u20b925 L",
+            "2024-25": "\u20b924 L"
+        },
+        "Total_3Y": "\u20b972 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Yavatmal",
+        "Company": "HDFC Bank Parivartan",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Water",
+        "Spend_History": {
+            "2022-23": "\u20b978 L",
+            "2023-24": "\u20b985 L",
+            "2024-25": "\u20b981 L"
+        },
+        "Total_3Y": "\u20b9245 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Yavatmal",
+        "Company": "SBI Foundation",
+        "Type": "\ud83c\udf0d Remote (No Office)",
+        "Sector": "Health",
+        "Spend_History": {
+            "2022-23": "\u20b915 L",
+            "2023-24": "\u20b916 L",
+            "2024-25": "\u20b915 L"
+        },
+        "Total_3Y": "\u20b947 Lakhs",
+        "Status": "\u2705 Active Spender",
+        "Gap_Analysis": "Opportunity for Upscale"
+    },
+    {
+        "District": "Yavatmal",
+        "Company": "Western Coalfields",
+        "Type": "\ud83c\udfed Local (Factory/Office)",
+        "Sector": "Community Dev",
+        "Spend_History": {
+            "2022-23": "\u20b9276 L",
+            "2023-24": "\u20b9276 L",
+            "2024-25": "\u20b9276 L"
+        },
+        "Total_3Y": "\u20b9828 Lakhs",
+        "Status": "\u2705 Compliant",
+        "Gap_Analysis": "Good Standing"
+    }
+]
