@@ -1,22 +1,49 @@
 import streamlit as st
 import pandas as pd
-import requests
 import json
+import os
 from datetime import datetime
+from sqlalchemy import create_engine, text
 
-# --- CONFIG ---
-API_URL = "http://127.0.0.1:8000"
+# --- 1. DIRECT DATABASE CONNECTION SETUP ---
+# This replaces API_URL. It connects to Railway Postgres (if online) or SQLite (if local).
+
+@st.cache_resource
+def get_engine():
+    """Smart connection: Uses Railway Postgres if available, else local SQLite"""
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        # Fix for SQLAlchemy requiring 'postgresql' instead of 'postgres'
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
+        return create_engine(db_url)
+    return create_engine("sqlite:///needle.db")
 
 def fetch_cases(tenant_id):
-    """Fetch all cases for the tenant from the backend"""
+    """Fetch all cases for the tenant directly from the Database"""
     try:
-        resp = requests.get(f"{API_URL}/cases", params={"tenant_id": tenant_id})
-        if resp.status_code == 200:
-            return resp.json()
-    except Exception as e:
-        st.error(f"Connection Error: {e}")
-    return []
+        engine = get_engine()
+        
+        # We use a SQL query instead of an API call
+        # Note: If your table is named 'grievances', change 'cases' to 'grievances' below.
+        query = "SELECT * FROM cases WHERE tenant_id = :tid ORDER BY created_at DESC"
+        
+        # specific param mapping for safety
+        df = pd.read_sql(query, engine, params={"tid": tenant_id})
+        
+        # Convert DataFrame to a list of dictionaries (to match the old API format)
+        if not df.empty:
+            # Ensure created_at is a string for the datetime parsing later
+            df['created_at'] = df['created_at'].astype(str)
+            return df.to_dict('records')
+            
+        return []
 
+    except Exception as e:
+        st.error(f"Database Error: {e}")
+        return []
+
+# --- 2. RENDER FUNCTION (UI Logic) ---
 def render_sansadx(username):
     st.title("💬 SansadX: Grievance Inbox")
     
@@ -58,15 +85,36 @@ def render_sansadx(username):
             pass
         # --- GEO LOGIC END ---
 
+        # Safe extraction of fields (handles missing keys gracefully)
+        raw_msg = c.get("raw_message", "")
+        cat = c.get("category") or "General"
+        status = c.get("status", "new")
+        sender = c.get("user_phone", "Unknown")
+        c_id = c.get("id")
+        
+        # Date Parsing (Handle different formats if needed)
+        try:
+            time_str = c.get("created_at", "")
+            # Try parsing with microseconds
+            parsed_time = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%f")
+            formatted_time = parsed_time.strftime("%d %b %H:%M")
+        except ValueError:
+            try:
+                # Fallback: Try parsing without microseconds
+                parsed_time = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S")
+                formatted_time = parsed_time.strftime("%d %b %H:%M")
+            except:
+                formatted_time = time_str # Just show raw string if fail
+
         # Build the row for the table
         data.append({
-            "ID": c["id"],
-            "Received": datetime.strptime(c["created_at"], "%Y-%m-%dT%H:%M:%S.%f").strftime("%d %b %H:%M"),
-            "Sender": c["user_phone"],
-            "Category": c["category"] or "General",
+            "ID": c_id,
+            "Received": formatted_time,
+            "Sender": sender,
+            "Category": cat,
             "Location": geo_tag,           # The fixed location string
-            "Message": c["raw_message"],   # <--- The actual message content
-            "Status": c["status"],
+            "Message": raw_msg,   # <--- The actual message content
+            "Status": status,
             "Full_Meta": c.get("case_metadata") # Hidden column for inspector
         })
 
