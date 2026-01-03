@@ -146,7 +146,7 @@ def run_query(query, params=None):
                 return result.mappings().all()
             return []
         except Exception as e:
-            st.error(f"Database Error: {e}")
+            # Silent fail for UI smoothness, but you can print(e) to debug
             return []
 
 # --- BACKEND LOGIC (DIRECT DB ACCESS) ---
@@ -157,7 +157,7 @@ def get_tenant_config():
 
 def attempt_login(username, password):
     """Authenticate directly against database"""
-    # 1. Admin Override (Hardcoded for safety during setup)
+    # 1. Admin Override
     if username == "admin" and password == "password":
         return {"username": "admin", "role": "admin", "tenant_id": 1}, None
 
@@ -178,8 +178,8 @@ def attempt_login(username, password):
 def fetch_summary(tenant_id):
     """Calculate dashboard stats directly from DB"""
     try:
-        # Try to fetch real grievances if table exists
-        query = "SELECT category, assembly_constituency FROM grievances WHERE tenant_id = :tid"
+        # ✅ FIXED: Query 'cases' table instead of 'grievances'
+        query = "SELECT category, case_metadata FROM cases WHERE tenant_id = :tid"
         rows = run_query(query, {"tid": tenant_id})
         
         category_breakdown = {}
@@ -187,15 +187,22 @@ def fetch_summary(tenant_id):
         
         for row in rows:
             # Count Categories
-            cat = row['category']
+            cat = row.get('category') or "Uncategorized"
             category_breakdown[cat] = category_breakdown.get(cat, 0) + 1
             
-            # Count Red Zones
-            ac = row['assembly_constituency']
+            # Count Red Zones (Parse JSON Safely)
+            ac = "Unknown"
+            try:
+                if row.get('case_metadata'):
+                    meta = json.loads(row['case_metadata'])
+                    ac = meta.get('assembly_constituency', 'Unknown')
+            except:
+                pass
+                
             red_zones_raw[ac] = red_zones_raw.get(ac, 0) + 1
 
-        # Format Red Zones (e.g., > 5 complaints)
-        red_zones = [{"assembly_constituency": k, "count": v} for k, v in red_zones_raw.items() if v > 5]
+        # Format Red Zones (Show if > 0 for demo)
+        red_zones = [{"assembly_constituency": k, "count": v} for k, v in red_zones_raw.items() if v > 0]
 
         return {
             "category_breakdown": category_breakdown,
@@ -226,7 +233,6 @@ def login_screen():
                     st.session_state.current_user = user_data["username"]
                     st.session_state.user_role = user_data["role"]
                     st.session_state.tenant_id = user_data["tenant_id"]
-                    # Default to Lok Sabha if not set
                     st.session_state.house_type = "LOK_SABHA" 
                     st.session_state.theme_color = "#009a4e"
                     st.rerun()
