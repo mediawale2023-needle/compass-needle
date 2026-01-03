@@ -1,0 +1,9 @@
+# This file tells Railway exactly how to build the app
+[phases.setup]
+nixPkgs = ["python311"]
+
+[phases.install]
+cmds = ["python -m pip install -r requirements.txt"]
+
+[start]
+cmd = "streamlit run mp_dashboard.py --server.port $PORT --server.address 0.0.0.0"
