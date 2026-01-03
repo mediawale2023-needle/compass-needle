@@ -26,7 +26,9 @@ def fetch_cases(tenant_id):
         
         # We use a SQL query instead of an API call
         # Note: If your table is named 'grievances', change 'cases' to 'grievances' below.
-        query = "SELECT * FROM cases WHERE tenant_id = :tid ORDER BY created_at DESC"
+        #                           👇 Space is crucial here
+        
+query = "SELECT * FROM cases WHERE tenant_id = :tid ORDER BY created_at DESC"
         
         # specific param mapping for safety
         df = pd.read_sql(query, engine, params={"tid": tenant_id})
