@@ -1,5 +1,5 @@
 import streamlit as st
-import requests  # Kept for external APIs (News), but removed for internal login
+import requests  # Kept for external APIs (News)
 from streamlit_option_menu import option_menu
 from datetime import datetime, timedelta
 import os
@@ -153,8 +153,6 @@ def run_query(query, params=None):
 
 def get_tenant_config():
     """Fetch tenant config directly from DB"""
-    # Placeholder: In a real app, you'd fetch 'SELECT config FROM tenants WHERE id = :id'
-    # For now, returning default based on user
     return {"type": st.session_state.house_type}
 
 def attempt_login(username, password):
@@ -273,40 +271,7 @@ else:
         if st.button("🔒 Log Out"):
             st.session_state.authenticated = False
             st.rerun()
-
-# --- TEMP: ADD THIS TO SIDEBAR ---
-with st.sidebar:
-    st.divider()
-    if st.button("🚨 Load Jagdish Shettar Data"):
-        from modules.db_engine import get_engine
-        from sqlalchemy import text
-        import json
-        
-        try:
-            engine = get_engine()
-            with engine.connect() as conn:
-                # 1. Create Data
-                sample_meta = json.dumps({
-                    "location_resolved": True, 
-                    "matched_value": "Hubli-Dharwad Central", 
-                    "assembly_constituency": "Hubli-Dharwad Central"
-                })
-                
-                # 2. Insert SQL
-                sql = text("""
-                    INSERT INTO cases (tenant_id, user_phone, category, raw_message, status, case_metadata)
-                    VALUES 
-                    (1, '9980012345', 'Water', 'Severe water shortage in Gandhinagar area of Hubli.', 'new', :meta),
-                    (1, '9980054321', 'Roads', 'Potholes near the main bus stand are causing accidents.', 'progress', :meta),
-                    (1, '9980099887', 'Electricity', 'Transformer blown in Vidyanagar 2nd cross.', 'new', :meta);
-                """)
-                
-                conn.execute(sql, {"meta": sample_meta})
-                conn.commit()
-                st.success("✅ Data Loaded! Refresh the page.")
-        except Exception as e:
-            st.error(f"Error: {e}")
-            
+    
     # --- 📊 DASHBOARD: COMMAND CENTER ---
     if selected == "Dashboard":
         
