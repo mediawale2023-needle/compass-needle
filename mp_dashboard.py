@@ -4,6 +4,12 @@ from streamlit_option_menu import option_menu
 from datetime import datetime, timedelta
 import os
 import base64
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+# Fallback to localhost if not found
+API_URL = os.getenv("NEXT_PUBLIC_API_URL", "http://127.0.0.1:8000")
 
 # --- API CONFIG ---
 API_URL = "http://127.0.0.1:8000"
