@@ -17,3 +17,4 @@ deep-translator
 plotly
 python-docx
 apscheduler
+psycopg2-binary
