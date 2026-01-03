@@ -1,9 +1,11 @@
-# This file tells Railway exactly how to build the app
+# 1. SETUP: Force Python 3.11 (Stable & Fast)
 [phases.setup]
 nixPkgs = ["python311"]
 
+# 2. INSTALL: Install libraries during build (Saved to disk)
 [phases.install]
 cmds = ["python -m pip install -r requirements.txt"]
 
+# 3. START: Run the app immediately using the assigned Port
 [start]
-cmd = "streamlit run mp_dashboard.py --server.port $PORT --server.address 0.0.0.0"
+cmd = "python -m streamlit run mp_dashboard.py --server.port $PORT --server.address 0.0.0.0"
