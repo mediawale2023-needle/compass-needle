@@ -9,3 +9,11 @@ groq
 sqlalchemy
 google-generativeai
 pymupdf
+feedparser
+openpyxl
+lxml
+twilio
+deep-translator
+plotly
+python-docx
+apscheduler
