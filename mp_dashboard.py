@@ -1,18 +1,14 @@
 import streamlit as st
-import requests
+import requests  # Kept for external APIs (News), but removed for internal login
 from streamlit_option_menu import option_menu
 from datetime import datetime, timedelta
 import os
 import base64
-import os
+import json
 from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
+
 load_dotenv()
-
-# Fallback to localhost if not found
-API_URL = os.getenv("NEXT_PUBLIC_API_URL", "http://127.0.0.1:8000")
-
-# --- API CONFIG ---
-API_URL = "http://127.0.0.1:8000"
 
 # --- PAGE CONFIG ---
 st.set_page_config(
@@ -40,7 +36,7 @@ except ImportError as e:
     st.error(f"⚠️ System Boot Error: Missing Module. Details: {e}")
     st.stop()
 
-# --- SESSION STATE SETUP (SECURE LOGIN RESTORED) ---
+# --- SESSION STATE SETUP ---
 if 'authenticated' not in st.session_state: st.session_state.authenticated = False
 if 'current_user' not in st.session_state: st.session_state.current_user = ""
 if 'user_role' not in st.session_state: st.session_state.user_role = ""
@@ -126,32 +122,90 @@ def inject_custom_css(color_hex):
     </style>
     """, unsafe_allow_html=True)
 
-# --- BACKEND CONNECTORS ---
+# --- 🔌 DATABASE CONNECTION (SMART SWITCH) ---
+@st.cache_resource
+def get_db_engine():
+    """Connects to Railway Postgres if available, else Local SQLite"""
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        # Fix Postgres URL format for SQLAlchemy
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
+        return create_engine(db_url)
+    else:
+        # Local fallback
+        return create_engine("sqlite:///./needle.db")
+
+def run_query(query, params=None):
+    """Safe wrapper for database queries"""
+    engine = get_db_engine()
+    with engine.connect() as conn:
+        try:
+            result = conn.execute(text(query), params or {})
+            if result.returns_rows:
+                return result.mappings().all()
+            return []
+        except Exception as e:
+            st.error(f"Database Error: {e}")
+            return []
+
+# --- BACKEND LOGIC (DIRECT DB ACCESS) ---
+
 def get_tenant_config():
-    try:
-        response = requests.get(f"{API_URL}/tenant/config")
-        if response.status_code == 200: return response.json()
-        return {}
-    except: return {}
+    """Fetch tenant config directly from DB"""
+    # Placeholder: In a real app, you'd fetch 'SELECT config FROM tenants WHERE id = :id'
+    # For now, returning default based on user
+    return {"type": st.session_state.house_type}
 
 def attempt_login(username, password):
-    try:
-        payload = {"username": username, "password": password}
-        response = requests.post(f"{API_URL}/auth/login", json=payload)
-        if response.status_code == 200: return response.json(), None
-        elif response.status_code == 401: return None, "❌ Incorrect Username or Password"
-        else: return None, f"⚠️ Server Error ({response.status_code})"
-    except: return None, "🚫 Cannot connect to Backend."
+    """Authenticate directly against database"""
+    # 1. Admin Override (Hardcoded for safety during setup)
+    if username == "admin" and password == "password":
+        return {"username": "admin", "role": "admin", "tenant_id": 1}, None
 
-# ✅ Function to fetch dashboard stats
+    # 2. Database Check
+    query = "SELECT * FROM users WHERE username = :u AND password = :p"
+    users = run_query(query, {"u": username, "p": password})
+    
+    if users:
+        user = users[0]
+        return {
+            "username": user['username'],
+            "role": user.get('role', 'user'),
+            "tenant_id": user.get('tenant_id', 1)
+        }, None
+    
+    return None, "❌ Incorrect Username or Password"
+
 def fetch_summary(tenant_id):
+    """Calculate dashboard stats directly from DB"""
     try:
-        resp = requests.get(f"{API_URL}/dashboard/summary", params={"tenant_id": tenant_id})
-        if resp.status_code == 200:
-            return resp.json()
-    except Exception as e:
-        print(f"Fetch Error: {e}")
-    return {}
+        # Try to fetch real grievances if table exists
+        query = "SELECT category, assembly_constituency FROM grievances WHERE tenant_id = :tid"
+        rows = run_query(query, {"tid": tenant_id})
+        
+        category_breakdown = {}
+        red_zones_raw = {}
+        
+        for row in rows:
+            # Count Categories
+            cat = row['category']
+            category_breakdown[cat] = category_breakdown.get(cat, 0) + 1
+            
+            # Count Red Zones
+            ac = row['assembly_constituency']
+            red_zones_raw[ac] = red_zones_raw.get(ac, 0) + 1
+
+        # Format Red Zones (e.g., > 5 complaints)
+        red_zones = [{"assembly_constituency": k, "count": v} for k, v in red_zones_raw.items() if v > 5]
+
+        return {
+            "category_breakdown": category_breakdown,
+            "red_zones": red_zones
+        }
+    except Exception:
+        # Return empty structure if table doesn't exist yet
+        return {"category_breakdown": {}, "red_zones": []}
 
 # --- LOGIN SCREEN ---
 def login_screen():
@@ -168,24 +222,15 @@ def login_screen():
             password = st.text_input("Password", type="password")
             submit = st.form_submit_button("Log In", type="primary", use_container_width=True)
             if submit:
-                # Bypass login for admin (optional, keep if needed for testing)
-                if username == "admin" and password == "password":
-                    st.session_state.authenticated = True
-                    st.session_state.current_user = "admin"
-                    st.session_state.user_role = "admin"
-                    st.session_state.theme_color = "#009a4e"
-                    st.rerun()
-               
                 user_data, error_msg = attempt_login(username, password)
                 if user_data:
                     st.session_state.authenticated = True
                     st.session_state.current_user = user_data["username"]
                     st.session_state.user_role = user_data["role"]
                     st.session_state.tenant_id = user_data["tenant_id"]
-                    config = get_tenant_config()
-                    h_type = config.get("type", "LOK_SABHA")
-                    st.session_state.house_type = h_type
-                    st.session_state.theme_color = "#800000" if h_type == "RAJYA_SABHA" else "#009a4e"
+                    # Default to Lok Sabha if not set
+                    st.session_state.house_type = "LOK_SABHA" 
+                    st.session_state.theme_color = "#009a4e"
                     st.rerun()
                 else:
                     st.error(error_msg)
@@ -229,10 +274,43 @@ else:
             st.session_state.authenticated = False
             st.rerun()
 
+# --- TEMP: ADD THIS TO SIDEBAR ---
+with st.sidebar:
+    st.divider()
+    if st.button("🚨 Load Jagdish Shettar Data"):
+        from modules.db_engine import get_engine
+        from sqlalchemy import text
+        import json
+        
+        try:
+            engine = get_engine()
+            with engine.connect() as conn:
+                # 1. Create Data
+                sample_meta = json.dumps({
+                    "location_resolved": True, 
+                    "matched_value": "Hubli-Dharwad Central", 
+                    "assembly_constituency": "Hubli-Dharwad Central"
+                })
+                
+                # 2. Insert SQL
+                sql = text("""
+                    INSERT INTO cases (tenant_id, user_phone, category, raw_message, status, case_metadata)
+                    VALUES 
+                    (1, '9980012345', 'Water', 'Severe water shortage in Gandhinagar area of Hubli.', 'new', :meta),
+                    (1, '9980054321', 'Roads', 'Potholes near the main bus stand are causing accidents.', 'progress', :meta),
+                    (1, '9980099887', 'Electricity', 'Transformer blown in Vidyanagar 2nd cross.', 'new', :meta);
+                """)
+                
+                conn.execute(sql, {"meta": sample_meta})
+                conn.commit()
+                st.success("✅ Data Loaded! Refresh the page.")
+        except Exception as e:
+            st.error(f"Error: {e}")
+            
     # --- 📊 DASHBOARD: COMMAND CENTER ---
     if selected == "Dashboard":
         
-        # ✅ FETCH REAL DATA
+        # ✅ FETCH REAL DATA DIRECTLY FROM DB
         dashboard_data = fetch_summary(st.session_state.tenant_id)
         
         # Parse Breakdown
