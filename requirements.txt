@@ -1,8 +1,9 @@
 fastapi
 uvicorn
-sqlalchemy
 pandas
-groq
-requests
-python-dotenvstreamlit
+numpy
+python-dotenv
+streamlit
 streamlit-option-menu
+groq
+sqlalchemy
