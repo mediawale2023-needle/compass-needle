@@ -6,9 +6,9 @@ from requests.auth import HTTPBasicAuth
 # ==========================================
 # 🔐 SECURE CREDENTIALS (READS FROM RAILWAY)
 # ==========================================
-ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
-AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
-FROM_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER")
+ACCOUNT_SID = os.environ.get("AC6ce4ae5b2ad4a230e0b65d56da3b1610")
+AUTH_TOKEN = os.environ.get("b5e00ab263addd0c062c3acc47f7e93a")
+FROM_NUMBER = os.environ.get("whatsapp:+14155238886")
 
 def send_whatsapp_message(to_number, body_text):
     print(f"📡 Twilio Client: Attempting to send to {to_number}...")
