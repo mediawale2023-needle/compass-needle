@@ -17,3 +17,8 @@ altair
 uvicorn
 fastapi
 python-multipart
+deep-translator
+openpyxl
+lxml
+html5lib
+reportlab
