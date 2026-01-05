@@ -17,4 +17,8 @@ deep-translator
 plotly
 python-docx
 apscheduler
+psycopg2-binaryuvicorn
+fastapi
+python-multipart
+sqlalchemy
 psycopg2-binary
