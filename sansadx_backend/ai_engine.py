@@ -1,15 +1,10 @@
-# 1. Update ai_engine.py to use the smarter 70B model
-sed -i 's/llama-3.1-8b-instant/llama-3.3-70b-versatile/g' sansadx_backend/ai_engine.py
-
-# (If sed fails or you are on a different system, just overwrite the file below)
-cat > sansadx_backend/ai_engine.py <<EOF
 import os
 import requests
 import json
 import glob
 
 # ==========================================
-# 🧠 AI BRAIN: UPGRADED TO 70B (SMARTER)
+# 🧠 AI BRAIN: LLAMA 3.3 70B (The Smart One)
 # ==========================================
 SYSTEM_PROMPT = """
 You are the **Member of Parliament (MP)**.
@@ -136,7 +131,7 @@ def ask_groq_agent(user_message):
         JURISDICTION_CONTEXT=REAL_JURISDICTION_CONTEXT
     )
 
-    # UPDATED MODEL HERE 👇
+    # 🚀 USING THE SMART MODEL (70B)
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": formatted_prompt}],
@@ -151,4 +146,3 @@ def ask_groq_agent(user_message):
         return {"status": "ERROR"}
     except:
         return {"status": "ERROR"}
-EOF
