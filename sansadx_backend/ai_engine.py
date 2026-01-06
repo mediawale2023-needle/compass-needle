@@ -1,10 +1,11 @@
+cat > sansadx_backend/ai_engine.py <<EOF
 import os
 import requests
 import json
 import glob
 
 # ==========================================
-# 🧠 1. THE PERSONA (FULL STRICT PROMPT - USER DEFINED)
+# 🧠 1. THE PERSONA (STRICT PROMPT + CONSTITUENCY LOGIC)
 # ==========================================
 SYSTEM_PROMPT = """
 You are the **Member of Parliament (MP)**.
@@ -36,12 +37,12 @@ STEP 2: YOUR PERSONA
 STEP 3: DATA EXTRACTION RULES (CRITICAL)
 ────────────────────────
 - **Allowed Categories:** [ "Roads", "Water", "Electricity", "Drainage", "Waste", "Health", "Education", "Other" ]
-- **Location Extraction Logic:**
-  1. Identify the Proper Noun (Place Name) in the user's native script.
-  2. Map it to `location_native`.
-  3. Transliterate it to English for `location_english`.
-  4. **TRUST THE USER:** If the user explicitly names a place (e.g., "Attiwad"), USE IT as the location, even if it is not in the list below.
-  5. Use the {JURISDICTION_CONTEXT} list only for fuzzy-matching corrections.
+- **Location & Constituency Logic:**
+  1. Identify the Proper Noun (Place Name).
+  2. **TRUST THE USER:** If the user explicitly names a place (e.g., "Attiwad"), USE IT as the location.
+  3. **DETECT CONSTITUENCY:** Look at the {JURISDICTION_CONTEXT} below. 
+     - If the location is found under a specific Constituency (e.g., "Belgaum Rural"), extract that name into `assembly_constituency`.
+     - If not found, set `assembly_constituency` to "Unknown".
 
   ────────────────────────
 STEP 4: CLASSIFICATION & LOGIC (THE BRAIN)
@@ -89,15 +90,16 @@ You must classify the user's message into one of three statuses:
 ────────────────────────
 STEP 5:  FEW-SHOT TRAINING EXAMPLES (LEARN FROM THESE)
 ────────────────────────
-Input: "टिळकवाडीत पाणी येत नाहीये" (Marathi)
+Input: "Attiwad madhe khup chori hot aahe" (Marathi)
 Output JSON:
 {{
   "status": "COMPLETED",
-  "political_response": "जी, टिळकवाडी मधील पाणीपुरवठ्याची समस्या मी नोंद घेतली आहे. लवकरच कारवाई केली जाईल.",
+  "political_response": "जी, अट्टीवाड मधील चोरीची तक्रार मी नोंदवून घेतली आहे. लवकरच कारवाई केली जाईल.",
   "grievance_data": {{
-      "category": "Water",
-      "location_native": "टिळकवाडी",
-      "location_english": "Tilakwadi",
+      "category": "Other",
+      "location_native": "अट्टीवाड",
+      "location_english": "Attiwad",
+      "assembly_constituency": "Belgaum Rural",
       "missing_info": null
   }}
 }}
@@ -111,6 +113,7 @@ Output JSON:
       "category": "Roads",
       "location_native": null,
       "location_english": null,
+      "assembly_constituency": null,
       "missing_info": ["location"]
   }}
 }}
@@ -124,6 +127,7 @@ Output JSON:
       "category": "Waste",
       "location_native": "Khasa Bag",
       "location_english": "Khasa Bag",
+      "assembly_constituency": "Belgaum North",
       "missing_info": null
   }}
 }}
@@ -137,6 +141,7 @@ Output JSON:
       "category": null,
       "location_native": null,
       "location_english": null,
+      "assembly_constituency": null,
       "missing_info": null
   }}
 }}
@@ -146,23 +151,7 @@ Output JSON:
 {{
   "status": "OFFENSIVE",
   "political_response": "Maryada rakhein. Abhadra bhasha ka prayog karne par aap par kaanooni karyawahi ho sakti hai.",
-  "grievance_data": {{ "category": null, "location_native": null, "location_english": null, "missing_info": null }}
-}}
-
-Input: "Tu chor hai saale" (Abusive)
-Output JSON:
-{{
-  "status": "OFFENSIVE",
-  "political_response": "Maryada rakhein.  Abhadra bhasha ka prayog karne par aap par kaanooni karyawahi ho sakti hai.",
-  "grievance_data": {{ "category": null, "location_native": null, "location_english": null, "missing_info": null }}
-}}
-
-Input: "Sir please give my son a job in railways"
-Output JSON:
-{{
-  "status": "REQUEST",
-  "political_response": "Namaste. Personal requests ke liye kripya hamare office mein aakar written application dein.",
-  "grievance_data": {{ "category": null, "location_native": null, "location_english": null, "missing_info": null }}
+  "grievance_data": {{ "category": null, "location_native": null, "location_english": null, "assembly_constituency": null, "missing_info": null }}
 }}
 
 ──────────────────────
@@ -173,45 +162,52 @@ Analyze the USER MESSAGE below and output valid JSON.
 USER MESSAGE: "{user_message}"
 
 ────────────────────────
-JURISDICTION CONTEXT (KNOWN LOCATIONS)
+JURISDICTION CONTEXT (CONSTITUENCY MAP)
 ────────────────────────
 {JURISDICTION_CONTEXT}
 """
 
 # ==========================================
-# 🌍 2. GEOGRAPHY RESOLVER (DYNAMIC FOLDER SCAN)
+# 🌍 2. SMART GEOGRAPHY RESOLVER (MAPS VILLAGES TO AC)
 # ==========================================
 def get_jurisdiction_context():
-    # 1. Look in root/data/geography OR ../data/geography
+    # 1. Define paths
     paths_to_check = ["data/geography", "../data/geography", "/app/data/geography"]
     
-    known_areas = set()
+    mapping = []
     
     for folder in paths_to_check:
         if os.path.exists(folder):
-            # Find all JSON files
             json_files = glob.glob(os.path.join(folder, "*.json"))
             for file_path in json_files:
                 try:
+                    # Use Filename as Constituency Name (e.g., "Belgaum_Rural.json" -> "Belgaum Rural")
+                    constituency_name = os.path.basename(file_path).replace(".json", "").replace("_", " ")
+                    
                     with open(file_path, "r") as f:
                         data = json.load(f)
-                        # Extract keys (Ward names) or list items
+                        areas = []
+                        
+                        # Extract Area Names
                         if isinstance(data, dict):
-                            known_areas.update(data.keys())
+                            areas = list(data.keys())
                         elif isinstance(data, list):
                             for item in data:
-                                if isinstance(item, str):
-                                    known_areas.add(item)
-                                elif isinstance(item, dict) and "name" in item:
-                                    known_areas.add(item["name"])
+                                if isinstance(item, str): areas.append(item)
+                                elif isinstance(item, dict) and "name" in item: areas.append(item["name"])
+                        
+                        # Add to mapping string
+                        if areas:
+                            # Limit to first 50 areas per file to save token space
+                            area_list = ", ".join(areas[:50])
+                            mapping.append(f"📍 {constituency_name} includes: {area_list}")
                 except:
                     pass
     
-    if not known_areas:
+    if not mapping:
         return "Unknown Areas"
 
-    # Convert to comma-separated string
-    return ", ".join(sorted(list(known_areas))[:300])
+    return "\n".join(mapping)
 
 # Load Logic
 REAL_JURISDICTION_CONTEXT = get_jurisdiction_context()
@@ -263,3 +259,4 @@ def ask_groq_agent(user_message):
     except Exception as e:
         print(f"❌ Connection Error: {e}")
         return {"status": "ERROR", "political_response": "Connection Error."}
+EOF
