@@ -3,7 +3,7 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text  # Ensure 'text' is imported
 
 # --- 1. DIRECT DATABASE CONNECTION SETUP ---
 @st.cache_resource
@@ -25,11 +25,12 @@ def fetch_cases(tenant_id):
         if not tenant_id:
             tenant_id = 1
             
-        # Query
-        query = "SELECT * FROM cases WHERE tenant_id = :tid ORDER BY created_at DESC"
+        # ✅ FIX: Wrap query in text() for SQLAlchemy 2.0 compatibility
+        query = text("SELECT * FROM cases WHERE tenant_id = :tid ORDER BY created_at DESC")
         
-        # Run query
-        df = pd.read_sql(query, engine, params={"tid": tenant_id})
+        # ✅ FIX: Use a context manager for the connection
+        with engine.connect() as conn:
+            df = pd.read_sql(query, conn, params={"tid": tenant_id})
         
         if not df.empty:
             df['created_at'] = df['created_at'].astype(str)
@@ -38,6 +39,7 @@ def fetch_cases(tenant_id):
         return []
 
     except Exception as e:
+        # st.error(f"DB Error: {e}") # Uncomment to debug on frontend
         print(f"Database Error: {e}")
         return []
 
@@ -159,4 +161,10 @@ def render_sansadx(username):
         with c2:
             st.success(f"📍 **Location:** {row['Location']}")
             st.warning(f"🗳️ **Constituency:** {row['Constituency']}")
-            st.json(json.loads(row["Full_Meta"])) if row["Full_Meta"] else st.write("No metadata.")
+            if row["Full_Meta"]:
+                try:
+                    st.json(json.loads(row["Full_Meta"])) 
+                except:
+                    st.write("Metadata invalid.")
+            else:
+                st.write("No metadata.")

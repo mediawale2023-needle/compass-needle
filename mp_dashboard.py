@@ -1,5 +1,6 @@
 import streamlit as st
-import requests  # Kept for external APIs (News)
+import importlib  # <--- CRITICAL FOR RELOAD
+import requests
 from streamlit_option_menu import option_menu
 from datetime import datetime, timedelta
 import os
@@ -7,6 +8,13 @@ import base64
 import json
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
+
+# --- FORCE RELOAD MODULES ---
+# This ensures Streamlit loads your latest fixes in sansadx.py immediately
+import modules.sansadx 
+importlib.reload(modules.sansadx)
+from modules.sansadx import render_sansadx 
+# ----------------------------
 
 load_dotenv()
 
@@ -28,7 +36,7 @@ try:
     from modules.csr_projects import render_csr_projects
     from modules.csr_partners import render_csr_partners
     from modules.state_intel import render_state_intel
-    from modules.sansadx import render_sansadx
+    # render_sansadx is already imported above
     from modules.utils import track_action, show_download_button
     from modules.persistence import load_archives, delete_draft
     from modules.news_intel import fetch_news, analyze_sentiment
@@ -122,18 +130,16 @@ def inject_custom_css(color_hex):
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🔌 DATABASE CONNECTION (SMART SWITCH) ---
+# --- 🔌 DATABASE CONNECTION ---
 @st.cache_resource
 def get_db_engine():
     """Connects to Railway Postgres if available, else Local SQLite"""
     db_url = os.getenv("DATABASE_URL")
     if db_url:
-        # Fix Postgres URL format for SQLAlchemy
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
         return create_engine(db_url)
     else:
-        # Local fallback
         return create_engine("sqlite:///./needle.db")
 
 def run_query(query, params=None):
@@ -145,12 +151,10 @@ def run_query(query, params=None):
             if result.returns_rows:
                 return result.mappings().all()
             return []
-        except Exception as e:
-            # Silent fail for UI smoothness, but you can print(e) to debug
+        except Exception:
             return []
 
-# --- BACKEND LOGIC (DIRECT DB ACCESS) ---
-
+# --- BACKEND LOGIC ---
 def attempt_login(username, password):
     """Authenticate directly against database"""
     # 1. Admin Override
@@ -172,7 +176,7 @@ def attempt_login(username, password):
     return None, "❌ Incorrect Username or Password"
 
 def fetch_summary(tenant_id):
-    """Calculate dashboard stats directly from DB"""
+    """Calculate dashboard stats directly from DB for the Situation Room"""
     try:
         query = "SELECT category, case_metadata FROM cases WHERE tenant_id = :tid"
         rows = run_query(query, {"tid": tenant_id})
@@ -185,7 +189,7 @@ def fetch_summary(tenant_id):
             cat = row.get('category') or "Uncategorized"
             category_breakdown[cat] = category_breakdown.get(cat, 0) + 1
             
-            # Count Red Zones (Parse JSON Safely)
+            # Count Red Zones
             ac = "Unknown"
             try:
                 if row.get('case_metadata'):
@@ -194,13 +198,11 @@ def fetch_summary(tenant_id):
             except:
                 pass
             
-            # Only count actual locations, not 'Unknown' if you prefer
             if ac != "Unknown":
                 red_zones_raw[ac] = red_zones_raw.get(ac, 0) + 1
 
-        # Format Red Zones (Show if > 0)
+        # Format Red Zones
         red_zones = [{"assembly_constituency": k, "count": v} for k, v in red_zones_raw.items() if v > 0]
-        # Sort by count desc
         red_zones.sort(key=lambda x: x['count'], reverse=True)
 
         return {
