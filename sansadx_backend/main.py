@@ -8,9 +8,9 @@ from .ai_engine import ask_groq_agent
 
 app = FastAPI()
 
-# 🛠️ CRITICAL FIX: Use the Root Directory Database
-# This ensures Dashboard (frontend) and Backend share the SAME file.
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'sansadx.db')
+# 🛠️ CRITICAL FIX: Point to the Root Database
+# Go up one level (..) to escape 'sansadx_backend' folder
+DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'sansadx.db'))
 
 def init_db():
     try:
@@ -34,7 +34,7 @@ init_db()
 
 @app.get("/")
 def home():
-    return {"status": "online", "message": "Needle Backend V4 (Shared DB)"}
+    return {"status": "online", "message": "Needle Backend V10 (Root DB Fix)"}
 
 @app.post("/whatsapp/webhook")
 async def whatsapp_webhook(request: Request):
@@ -47,32 +47,28 @@ async def whatsapp_webhook(request: Request):
     if not message_body:
         return {"status": "ignored"}
 
-    print(f"📩 Incoming: {message_body} from {sender}")
+    print(f"�� Incoming: {message_body} from {sender}")
     send_typing_indicator(message_sid)
 
-    # 1. Ask AI
+    # 1. Ask AI (The 70B Brain)
     ai_result = ask_groq_agent(message_body)
     print(f"🧠 RAW AI RESPONSE: {json.dumps(ai_result)}")
 
-    # 2. Extract Data
+    # 2. Extract Data (Safely)
+    # Convert keys to lowercase to be safe
     keys = {k.lower(): v for k, v in ai_result.items()}
+    
     status = keys.get("status", "UNKNOWN").upper()
+    political_response = keys.get("political_response", "Namaste. I have received your message.")
+    
     grievance_data = keys.get("grievance_data", {})
-    political_response = keys.get("political_response")
+    if not grievance_data: grievance_data = {} # Safety
 
-    # 3. AUTO-CORRECTION (If AI failed to reply properly)
-    if not political_response or len(political_response) < 5:
-        if status == "COMPLETED":
-            cat = grievance_data.get("category", "issue")
-            loc = grievance_data.get("location_english", "your area")
-            political_response = f"Ji, I have noted the {cat} complaint in {loc}. You will be updated soon."
-        else:
-            political_response = "Namaste. I have received your message and will look into it."
-
-    # 4. SAVE TO DB (The Dashboard Fix)
+    # 3. SAVE TO DB (Only if Completed)
     if status == "COMPLETED":
         category = grievance_data.get("category", "Other")
-        location = grievance_data.get("location_english", "Unknown")
+        # Prefer English location, fallback to native, fallback to Unknown
+        location = grievance_data.get("location_english") or grievance_data.get("location_native") or "Unknown"
         
         try:
             conn = sqlite3.connect(DB_PATH)
@@ -83,11 +79,11 @@ async def whatsapp_webhook(request: Request):
                       (current_date, sender, category, location, "New", message_body))
             conn.commit()
             conn.close()
-            print(f"💾 SAVED TO ROOT DB: {category} in {location}")
+            print(f"💾 SAVED TO ROOT DB ({DB_PATH}): {category} in {location}")
         except Exception as e:
             print(f"❌ DB Write Error: {e}")
 
-    # 5. Send Reply
+    # 4. Send Reply
     send_whatsapp_message(sender, political_response)
 
     return {"status": "processed"}
