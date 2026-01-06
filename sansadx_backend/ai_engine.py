@@ -1,4 +1,3 @@
-cat > sansadx_backend/ai_engine.py <<EOF
 import os
 import requests
 import json
@@ -41,8 +40,8 @@ STEP 3: DATA EXTRACTION RULES (CRITICAL)
   1. Identify the Proper Noun (Place Name).
   2. **TRUST THE USER:** If the user explicitly names a place (e.g., "Attiwad"), USE IT as the location.
   3. **DETECT CONSTITUENCY:** Look at the {JURISDICTION_CONTEXT} below. 
-     - If the location is found under a specific Constituency (e.g., "Belgaum Rural"), extract that name into `assembly_constituency`.
-     - If not found, set `assembly_constituency` to "Unknown".
+     - If the location is found under a specific Constituency (e.g., "Belgaum Rural"), extract that name into .
+     - If not found, set  to "Unknown".
 
   ────────────────────────
 STEP 4: CLASSIFICATION & LOGIC (THE BRAIN)
@@ -259,4 +258,3 @@ def ask_groq_agent(user_message):
     except Exception as e:
         print(f"❌ Connection Error: {e}")
         return {"status": "ERROR", "political_response": "Connection Error."}
-EOF
