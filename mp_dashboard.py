@@ -151,10 +151,6 @@ def run_query(query, params=None):
 
 # --- BACKEND LOGIC (DIRECT DB ACCESS) ---
 
-def get_tenant_config():
-    """Fetch tenant config directly from DB"""
-    return {"type": st.session_state.house_type}
-
 def attempt_login(username, password):
     """Authenticate directly against database"""
     # 1. Admin Override
@@ -178,7 +174,6 @@ def attempt_login(username, password):
 def fetch_summary(tenant_id):
     """Calculate dashboard stats directly from DB"""
     try:
-        # ✅ FIXED: Query 'cases' table instead of 'grievances'
         query = "SELECT category, case_metadata FROM cases WHERE tenant_id = :tid"
         rows = run_query(query, {"tid": tenant_id})
         
@@ -198,18 +193,21 @@ def fetch_summary(tenant_id):
                     ac = meta.get('assembly_constituency', 'Unknown')
             except:
                 pass
-                
-            red_zones_raw[ac] = red_zones_raw.get(ac, 0) + 1
+            
+            # Only count actual locations, not 'Unknown' if you prefer
+            if ac != "Unknown":
+                red_zones_raw[ac] = red_zones_raw.get(ac, 0) + 1
 
-        # Format Red Zones (Show if > 0 for demo)
+        # Format Red Zones (Show if > 0)
         red_zones = [{"assembly_constituency": k, "count": v} for k, v in red_zones_raw.items() if v > 0]
+        # Sort by count desc
+        red_zones.sort(key=lambda x: x['count'], reverse=True)
 
         return {
             "category_breakdown": category_breakdown,
             "red_zones": red_zones
         }
     except Exception:
-        # Return empty structure if table doesn't exist yet
         return {"category_breakdown": {}, "red_zones": []}
 
 # --- LOGIN SCREEN ---
@@ -281,10 +279,8 @@ else:
     # --- 📊 DASHBOARD: COMMAND CENTER ---
     if selected == "Dashboard":
         
-        # ✅ FETCH REAL DATA DIRECTLY FROM DB
+        # ✅ FETCH SUMMARY (Highlights Only)
         dashboard_data = fetch_summary(st.session_state.tenant_id)
-        
-        # Parse Breakdown
         categories = dashboard_data.get("category_breakdown", {})
         red_zones = dashboard_data.get("red_zones", [])
         
@@ -292,22 +288,22 @@ else:
         if categories:
             top_category = max(categories, key=categories.get)
             ticker_msg = f"📢 Highest Volume: {top_category} ({categories[top_category]} reports)"
-            sub_msg = f"Total Grievances (24h): {sum(categories.values())}"
+            sub_msg = f"Total Grievances: {sum(categories.values())}"
         else:
             ticker_msg = "📢 No critical issues reported yet."
             sub_msg = "System is active and listening."
 
         # Parse Red Zones Text
         if red_zones:
-            red_zone_text = f"📍 {len(red_zones)} Red Zones Detected"
-            red_zone_detail = ", ".join([rz['assembly_constituency'] for rz in red_zones])
-            red_zone_class = "st.error"
+            top_3 = [rz['assembly_constituency'] for rz in red_zones[:3]]
+            red_zone_text = f"📍 {len(red_zones)} Active Red Zones"
+            red_zone_detail = ", ".join(top_3)
+            if len(red_zones) > 3: red_zone_detail += "..."
         else:
             red_zone_text = "📍 No Red Zones"
             red_zone_detail = "All areas normal"
-            red_zone_class = "st.success"
 
-        # ZONE 1: THE SITUATION ROOM
+        # ZONE 1: THE SITUATION ROOM (Highlights)
         st.markdown(f"<div class='widget-card'><div class='widget-title'>🔥 Situation Room (Constituency Intel)</div>", unsafe_allow_html=True)
         
         col_tick, col_map = st.columns([2, 1])
@@ -318,15 +314,14 @@ else:
             <div style='font-size:14px; color:#666;'>• {sub_msg}</div>
             """, unsafe_allow_html=True)
         with col_map:
-            st.caption("CRISIS MAP")
+            st.caption("RED ZONE ALERT")
             if red_zones:
-                st.error(f"{red_zone_text}\n\n({red_zone_detail})")
+                st.error(f"**{red_zone_text}**\n\n{red_zone_detail}")
             else:
-                st.success(red_zone_text)
+                st.success(f"**{red_zone_text}**\n\n{red_zone_detail}")
                 
         st.markdown("</div>", unsafe_allow_html=True)
 
-        # ZONE 2 & 4 (Left Column) | ZONE 3 (Right Column)
         c_left, c_right = st.columns([2, 1])
 
         with c_left:
@@ -346,7 +341,7 @@ else:
             
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # --- ZONE 4: MEDIA CENTRE (LIVE) ---
+            # --- ZONE 3: MEDIA CENTRE (LIVE) ---
             st.markdown(f"<div class='widget-card'><div class='widget-title'>📰 Media Centre (Live)</div>", unsafe_allow_html=True)
             
             # Create Tabs for National vs Local
@@ -404,7 +399,7 @@ else:
             st.markdown("</div>", unsafe_allow_html=True)
 
         with c_right:
-            # ZONE 3: REMINDERS / CALENDAR
+            # ZONE 4: REMINDERS / CALENDAR
             st.markdown(f"<div class='widget-card'><div class='widget-title'>🗓️ Calendar & Notes</div>", unsafe_allow_html=True)
             
             selected_date = st.date_input("Select Date", datetime.now(), label_visibility="collapsed")
