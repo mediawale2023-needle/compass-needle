@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn==0.30.0
 python-multipart
 requests
 python-dotenv
