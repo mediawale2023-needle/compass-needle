@@ -21,4 +21,5 @@ deep-translator
 openpyxl
 lxml
 html5lib
-reportlab
+reportlabuvicorn
+psycopg2-binary
