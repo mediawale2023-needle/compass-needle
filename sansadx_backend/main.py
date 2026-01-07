@@ -4,34 +4,49 @@ import os
 import json
 import datetime
 from sqlalchemy import create_engine, text
-from .twilio_client import send_whatsapp_message, send_typing_indicator
-from .ai_engine import ask_groq_agent
+from modules.twilio_client import send_whatsapp_message, send_typing_indicator
+from modules.ai_engine import ask_groq_agent
 
 app = FastAPI()
 
-# --- 1. CONNECT TO THE PERMANENT DATABASE (Postgres) ---
-# We use the DATABASE_URL provided by Railway
+# --- 1. CONNECT TO DATABASE ---
 DB_URL = os.getenv("DATABASE_URL")
-
-# Fallback for local testing if needed, but in Prod this uses Postgres
 if not DB_URL:
-    print("⚠️ WARNING: No DATABASE_URL found. Using local temp file (Data will be lost on restart).")
+    print("⚠️ WARNING: No DATABASE_URL found. Using local temp file.")
     engine = create_engine("sqlite:///./temp_local.db")
 else:
-    # Fix URL format for SQLAlchemy (Postgres requires 'postgresql://')
     if DB_URL.startswith("postgres://"):
         DB_URL = DB_URL.replace("postgres://", "postgresql://", 1)
     engine = create_engine(DB_URL)
 
-# --- 2. MEMORY SYSTEM (Context Manager) ---
+# --- 1.1 SELF-HEALING: ENSURE TABLE EXISTS ---
+def init_db():
+    try:
+        with engine.begin() as conn:
+            # We removed 'updated_at' to match your existing DB structure
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS cases (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER DEFAULT 1,
+                    user_phone TEXT,
+                    category TEXT,
+                    raw_message TEXT,
+                    status TEXT,
+                    case_metadata TEXT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+            """))
+            print("✅ Database: 'cases' table verified.")
+    except Exception as e:
+        print(f"❌ Database Init Failed: {e}")
+
+# Run this immediately on startup
+init_db()
+
+# --- 2. MEMORY SYSTEM ---
 def get_user_context(phone_number):
-    """
-    Checks DB to see if we already know this user's location/constituency.
-    Returns a context string to feed into the AI.
-    """
     try:
         with engine.connect() as conn:
-            # Look for the most recent message from this user that had a valid location
             query = text("""
                 SELECT case_metadata FROM cases 
                 WHERE user_phone = :phone 
@@ -48,75 +63,49 @@ def get_user_context(phone_number):
                     return f"KNOWN USER CONTEXT: User is from Location: {loc}, Constituency: {const}. DO NOT ask for location."
     except Exception as e:
         print(f"⚠️ Context Fetch Error: {e}")
-    
-    return "" # No context found, treat as new user
+    return ""
 
 # --- 3. WHATSAPP WEBHOOK ---
 @app.post("/whatsapp/webhook")
 async def whatsapp_webhook(request: Request):
     form_data = await request.form()
-    sender = form_data.get("From", "").replace("whatsapp:", "") # Clean number
+    sender = form_data.get("From", "").replace("whatsapp:", "")
     message_body = form_data.get("Body", "").strip()
-    message_sid = form_data.get("MessageSid")
 
     if not message_body: return {"status": "ignored"}
 
     print(f"📩 Incoming from {sender}: {message_body}")
-    
-    # Send "Typing..." status to WhatsApp so user knows we are thinking
-    try:
-        send_typing_indicator(message_sid)
-    except:
-        pass
 
-    # A. FETCH CONTEXT (The Memory Fix)
-    # We check if we know this person BEFORE asking the AI
+    # A. AI PROCESSING
     user_context = get_user_context(sender)
-    
-    # B. PREPARE PROMPT
-    # We combine the User's Message + The Hidden Context
     full_prompt = f"{user_context}\n\nUSER MESSAGE: {message_body}"
-
-    # C. ASK AI AGENT
     ai_result = ask_groq_agent(full_prompt)
-    print(f"🧠 AI Response: {json.dumps(ai_result)}")
 
-    # D. EXTRACT & NORMALIZE DATA
-    # Ensure keys exist even if AI missed them
+    # B. DATA PREP
     grievance = ai_result.get("grievance_data", {}) or {}
-    
     category = grievance.get("category", "General")
+    political_reply = ai_result.get("political_response", "Thank you.")
     status = ai_result.get("status", "new").lower()
-    political_reply = ai_result.get("political_response", "Thank you. We have received your message.")
-    
-    # Location Logic
-    specific_loc = grievance.get("location_english") or grievance.get("location_native") or ""
-    assembly = grievance.get("constituency") or ""
-    
-    # Construct Metadata JSON (Standard Format for Dashboard)
-    # We set 'location_resolved' to True only if we actually got data
-    has_location = bool(specific_loc or assembly)
     
     meta_data = {
         "user_intent": ai_result.get("user_intent", "complaint"),
-        "location_resolved": has_location, 
-        "matched_value": specific_loc,
-        "assembly_constituency": assembly,
+        "location_resolved": bool(grievance.get("location_english")), 
+        "matched_value": grievance.get("location_english") or "",
+        "assembly_constituency": grievance.get("constituency") or "",
         "summary": grievance.get("summary", message_body)
     }
 
-    # E. SAVE TO POSTGRES (The Persistence Fix)
-    # We write to the 'cases' table so the Dashboard sees it immediately
+    # C. SAVE TO POSTGRES (FIXED: Removed updated_at)
     try:
-        with engine.begin() as conn: # Transactional save
+        with engine.begin() as conn:
             conn.execute(
                 text("""
                     INSERT INTO cases 
-                    (tenant_id, user_phone, category, raw_message, status, case_metadata, created_at, updated_at)
-                    VALUES (:tid, :phone, :cat, :msg, :stat, :meta, NOW(), NOW())
+                    (tenant_id, user_phone, category, raw_message, status, case_metadata, created_at)
+                    VALUES (:tid, :phone, :cat, :msg, :stat, :meta, NOW())
                 """),
                 {
-                    "tid": 1, # Default Tenant
+                    "tid": 1,
                     "phone": sender,
                     "cat": category,
                     "msg": message_body,
@@ -124,17 +113,15 @@ async def whatsapp_webhook(request: Request):
                     "meta": json.dumps(meta_data)
                 }
             )
-            print(f"✅ Saved to Postgres: {sender} | {category}")
-            
+            print(f"✅ Saved to Postgres: {sender}")
     except Exception as e:
         print(f"❌ DB Save Failed: {e}")
 
-    # F. REPLY TO USER
+    # D. REPLY
+    # Note: If typing indicator fails (error 20001), we ignore it. It's optional.
     send_whatsapp_message("whatsapp:" + sender, political_reply)
-
     return {"status": "processed"}
 
-# --- 4. OPTIONAL: SIMPLE HEALTH CHECK ---
 @app.get("/")
 def health_check():
-    return {"status": "active", "system": "Needle Backend V2 (Postgres)"}
+    return {"status": "active", "system": "Needle Backend V4 (Stable)"}
