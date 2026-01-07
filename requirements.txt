@@ -21,6 +21,4 @@ deep-translator
 openpyxl
 lxml
 html5lib
-reportlabuvicorn
-psycopg2-binary
-# Force Deploy
+reportlab
