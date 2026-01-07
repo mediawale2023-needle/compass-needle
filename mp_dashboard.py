@@ -130,34 +130,42 @@ def inject_custom_css(color_hex):
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🔌 DATABASE CONNECTION ---
+# --- 🔌 DATABASE CONNECTION (FIXED FOR POSTGRES) ---
 @st.cache_resource
 def get_db_engine():
     """Connects to Railway Postgres if available, else Local SQLite"""
     db_url = os.getenv("DATABASE_URL")
     if db_url:
+        # 🛠️ Fix for SQLAlchemy: Postgres requires 'postgresql://'
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
         return create_engine(db_url)
     else:
+        # Fallback for local testing only
         return create_engine("sqlite:///./needle.db")
 
-def run_query(query, params=None):
+def run_query(query_str, params=None):
     """Safe wrapper for database queries"""
     engine = get_db_engine()
+    # Use 'with engine.connect()' for safe connection management
     with engine.connect() as conn:
         try:
-            result = conn.execute(text(query), params or {})
+            # text() is required for SQLAlchemy + Postgres
+            result = conn.execute(text(query_str), params or {})
+            
+            # .mappings().all() returns a list of dictionaries (cleaner than tuples)
             if result.returns_rows:
                 return result.mappings().all()
             return []
-        except Exception:
+        except Exception as e:
+            # Print error to logs so we can debug if it fails
+            print(f"❌ DB Query Error: {e}")
             return []
 
 # --- BACKEND LOGIC ---
 def attempt_login(username, password):
     """Authenticate directly against database"""
-    # 1. Admin Override
+    # 1. Admin Override (Backdoor for demo)
     if username == "admin" and password == "password":
         return {"username": "admin", "role": "admin", "tenant_id": 1}, None
 
@@ -178,6 +186,7 @@ def attempt_login(username, password):
 def fetch_summary(tenant_id):
     """Calculate dashboard stats directly from DB for the Situation Room"""
     try:
+        # We query the 'cases' table (Postgres)
         query = "SELECT category, case_metadata FROM cases WHERE tenant_id = :tid"
         rows = run_query(query, {"tid": tenant_id})
         
@@ -192,13 +201,17 @@ def fetch_summary(tenant_id):
             # Count Red Zones
             ac = "Unknown"
             try:
-                if row.get('case_metadata'):
-                    meta = json.loads(row['case_metadata'])
+                # Handle both String JSON and Dict JSON
+                meta = row.get('case_metadata')
+                if isinstance(meta, str):
+                    meta = json.loads(meta)
+                
+                if isinstance(meta, dict):
                     ac = meta.get('assembly_constituency', 'Unknown')
             except:
                 pass
             
-            if ac != "Unknown":
+            if ac and ac != "Unknown":
                 red_zones_raw[ac] = red_zones_raw.get(ac, 0) + 1
 
         # Format Red Zones
@@ -209,7 +222,8 @@ def fetch_summary(tenant_id):
             "category_breakdown": category_breakdown,
             "red_zones": red_zones
         }
-    except Exception:
+    except Exception as e:
+        print(f"❌ Fetch Summary Error: {e}")
         return {"category_breakdown": {}, "red_zones": []}
 
 # --- LOGIN SCREEN ---
