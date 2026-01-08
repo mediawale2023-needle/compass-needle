@@ -5,7 +5,7 @@ import json
 import datetime
 from sqlalchemy import create_engine, text
 # Now this import works because we are in the root folder!
-from modules.twilio_client import send_whatsapp_message, send_typing_indicator
+from twilio_client import send_whatsapp_message, send_typing_indicator
 from modules.ai_engine import ask_groq_agent
 
 app = FastAPI()
