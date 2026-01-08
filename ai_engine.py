@@ -170,50 +170,59 @@ JURISDICTION CONTEXT (CONSTITUENCY MAP)
 # 🌍 2. SMART GEOGRAPHY RESOLVER (MAPS VILLAGES TO AC)
 # ==========================================
 def get_jurisdiction_context():
-    # 1. Define paths
-    paths_to_check = ["data/geography", "../data/geography", "/app/data/geography"]
+    # 1. Define paths (Root geography, and data/geography)
+    paths_to_check = ["data/geography", "geography"]
     
     mapping = []
-    
+    print("DEBUG: Starting Geography Scan...") # Debug
+
     for folder in paths_to_check:
         if os.path.exists(folder):
+            # RECURSIVE SEARCH: Finds files in data/geography/belagavi/ etc.
             json_files = glob.glob(os.path.join(folder, "**", "*.json"), recursive=True)
+            print(f"DEBUG: Found {len(json_files)} JSON files in {folder}") 
+
             for file_path in json_files:
                 try:
-                    # Use Filename as Constituency Name (e.g., "Belgaum_Rural.json" -> "Belgaum Rural")
-                    constituency_name = os.path.basename(file_path).replace(".json", "").replace("_", " ")
+                    # Clean Filename (e.g., "belgaum_south.json" -> "Belgaum South")
+                    constituency_name = os.path.basename(file_path).replace(".json", "").replace("_", " ").title()
                     
                     with open(file_path, "r") as f:
                         data = json.load(f)
                         areas = []
                         
-                        # Extract Area Names
-                        if isinstance(data, dict):
-                            areas = list(data.keys())
-                        elif isinstance(data, list):
+                        # PARSING LOGIC: Look for 'locality'
+                        if isinstance(data, list):
                             for item in data:
-                                # Fix: Look for 'locality' or 'building_name' instead of 'name'
                                 if isinstance(item, dict):
+                                    # PRIORITIZE 'locality'
                                     if "locality" in item and item["locality"]:
                                         areas.append(item["locality"])
-                                    elif "building_name" in item:
+                                    # FALLBACK to 'building_name'
+                                    elif "building_name" in item and item["building_name"]:
                                         areas.append(item["building_name"])
-                            
-                            # Deduplicate areas (Because 'Kangrali BK' appears 10 times, we only want it once)
-                            areas = list(dict.fromkeys(areas))
                         
-                        # Add to mapping string
+                        # Clean Up: Remove duplicates and empty strings
+                        areas = list(set([a.strip() for a in areas if a and a.strip()]))
+                        
                         if areas:
-                            # Limit to first 250 areas per file to save token space
-                            area_list = ", ".join(areas[:250])
+                            # INCREASED LIMIT: Read 200 areas (covers most villages)
+                            area_list = ", ".join(areas[:200])
                             mapping.append(f"📍 {constituency_name} includes: {area_list}")
-                except:
+                            print(f"DEBUG: Loaded {constituency_name} with {len(areas)} areas.")
+                        else:
+                            print(f"DEBUG: {constituency_name} found but NO areas extracted.")
+
+                except Exception as e:
+                    print(f"DEBUG: Error reading {file_path}: {e}")
                     pass
     
     if not mapping:
+        print("DEBUG: No geography mapping created.")
         return "Unknown Areas"
 
-    return "\n".join(mapping)
+    full_context = "\n".join(mapping)
+    return full_context
 
 # Load Logic
 REAL_JURISDICTION_CONTEXT = get_jurisdiction_context()
