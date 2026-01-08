@@ -39,11 +39,11 @@ STEP 3: DATA EXTRACTION RULES (CRITICAL)
 - **Location & Constituency Logic:**
   1. Identify the Proper Noun (Place Name).
   2. **TRUST THE USER:** If the user explicitly names a place (e.g., "Attiwad"), USE IT as the location.
-  3. **DETECT CONSTITUENCY:** Look at the {JURISDICTION_CONTEXT} below. 
-     - If the location is found under a specific Constituency (e.g., "Belgaum Rural"), extract that name into .
-     - If not found, set  to "Unknown".
+  3. **DETECT CONSTITUENCY (MANDATORY LOOKUP):** - You MUST check the {JURISDICTION_CONTEXT} section at the bottom of this prompt.
+     - If the location matches a known area (e.g., "Attiwad"), extract the corresponding Constituency Name into the field "assembly_constituency".
+     - If the location is NOT found in the list, set "assembly_constituency": "Unknown".
 
-  ────────────────────────
+────────────────────────
 STEP 4: CLASSIFICATION & LOGIC (THE BRAIN)
 ────────────────────────
 You must classify the user's message into one of three statuses:
@@ -144,7 +144,7 @@ Output JSON:
       "missing_info": null
   }}
 }}
-──
+
 Input: "Mujhe sex chahiye"
 Output JSON:
 {{
@@ -161,7 +161,7 @@ Analyze the USER MESSAGE below and output valid JSON.
 USER MESSAGE: "{user_message}"
 
 ────────────────────────
-JURISDICTION CONTEXT (CONSTITUENCY MAP)
+JURISDICTION CONTEXT (LOOKUP TABLE)
 ────────────────────────
 {JURISDICTION_CONTEXT}
 """
@@ -169,76 +169,61 @@ JURISDICTION CONTEXT (CONSTITUENCY MAP)
 # ==========================================
 # 🌍 2. SMART GEOGRAPHY RESOLVER (MAPS VILLAGES TO AC)
 # ==========================================
+# ==========================================
+# 🌍 2. SMART GEOGRAPHY RESOLVER (THE FIX)
+# ==========================================
 def get_jurisdiction_context():
     mapping = []
-    
-    # DEBUG: Print exactly where we are running
+    # 1. Get the root folder of your project
     cwd = os.getcwd()
-    print(f"DEBUG: Current Working Directory is: {cwd}")
-
-    # 1. BRUTE FORCE SCAN: Walk through every folder starting from Root
-    print("DEBUG: Starting Deep Scan for constituency files...")
+    print(f"DEBUG: Starting Deep Scan from: {cwd}")
     
+    # 2. Walk through every single folder to find JSONs
     for root, dirs, files in os.walk(cwd):
         for filename in files:
             if filename.endswith(".json"):
-                file_path = os.path.join(root, filename)
-                
-                # Skip irrelevant files (like package configs)
-                if "node_modules" in file_path or "venv" in file_path or "lock" in filename:
+                # Skip system folders to be safe
+                if "node_modules" in root or "venv" in root or "git" in root:
                     continue
-
+                
+                file_path = os.path.join(root, filename)
                 try:
                     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                         data = json.load(f)
                         
-                        # 2. CHECK CONTENT: Does this JSON look like constituency data?
-                        # We check if it's a LIST and has "locality" or "station_number"
-                        is_valid_geo = False
+                        # 3. Check if it's a constituency file (has 'locality')
                         if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
                             if "locality" in data[0] or "station_number" in data[0]:
-                                is_valid_geo = True
-                        
-                        if is_valid_geo:
-                            # It is a constituency file!
-                            constituency_name = filename.replace(".json", "").replace("_", " ").title()
-                            print(f"DEBUG: MATCH FOUND! Processing {constituency_name} at {file_path}")
-                            
-                            areas = []
-                            for item in data:
-                                if isinstance(item, dict):
-                                    # Extract Locality
-                                    loc = item.get("locality", "")
-                                    if loc and isinstance(loc, str) and len(loc) > 2:
-                                        areas.append(loc.strip())
-                                    
-                                    # Fallback to Building Name if locality is empty
-                                    if not loc:
-                                        bldg = item.get("building_name", "")
-                                        if bldg and isinstance(bldg, str):
+                                
+                                # Extract Name (e.g., "Belgaum South")
+                                constituency_name = filename.replace(".json", "").replace("_", " ").title()
+                                
+                                # Extract Areas
+                                areas = []
+                                for item in data:
+                                    if isinstance(item, dict):
+                                        # Prioritize 'locality', fallback to 'building_name'
+                                        loc = item.get("locality", "")
+                                        if loc and len(loc) > 2:
+                                            areas.append(loc.strip())
+                                        elif (bldg := item.get("building_name")):
                                             areas.append(bldg.strip())
 
-                            # Deduplicate and Limit
-                            areas = list(set(areas))
-                            
-                            if areas:
-                                area_list = ", ".join(areas[:200]) # Increased limit
-                                mapping.append(f"📍 {constituency_name} includes: {area_list}")
-                                print(f"DEBUG: Successfully loaded {len(areas)} areas for {constituency_name}")
-                            else:
-                                print(f"DEBUG: File {filename} was valid but contained no readable areas.")
-                
-                except Exception as e:
-                    # Ignore errors for non-geo files
+                                # 4. Add to the Map (Limit 200 areas)
+                                areas = list(set(areas))
+                                if areas:
+                                    mapping.append(f"📍 {constituency_name} includes: {', '.join(areas[:200])}")
+                                    print(f"DEBUG: Loaded {constituency_name} with {len(areas)} areas.")
+
+                except Exception:
                     continue
 
     if not mapping:
-        print("CRITICAL ERROR: No geography files were found or parsed.")
-        return "Unknown Areas"
+        print("CRITICAL: No geography files found.")
+        return "No Jurisdiction Data Available."
 
-    print(f"DEBUG: Final Context created with {len(mapping)} constituencies.")
+    # Return the full map string
     return "\n".join(mapping)
-
 # Load Logic
 REAL_JURISDICTION_CONTEXT = get_jurisdiction_context()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
