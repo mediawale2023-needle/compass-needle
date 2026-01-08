@@ -177,7 +177,7 @@ def get_jurisdiction_context():
     
     for folder in paths_to_check:
         if os.path.exists(folder):
-            json_files = glob.glob(os.path.join(folder, "*.json"))
+            json_files = glob.glob(os.path.join(folder, "**", "*.json"), recursive=True)
             for file_path in json_files:
                 try:
                     # Use Filename as Constituency Name (e.g., "Belgaum_Rural.json" -> "Belgaum Rural")
