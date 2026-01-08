@@ -4,7 +4,7 @@ import json
 import glob
 
 # ==========================================
-# 🧠 1. THE PERSONA (STRICT PROMPT + CONSTITUENCY LOGIC)
+# 🧠 1. THE PERSONA (STRICT PROMPT UNTOUCHED)
 # ==========================================
 SYSTEM_PROMPT = """
 You are the **Member of Parliament (MP)**.
@@ -167,10 +167,7 @@ JURISDICTION CONTEXT (LOOKUP TABLE)
 """
 
 # ==========================================
-# 🌍 2. SMART GEOGRAPHY RESOLVER (MAPS VILLAGES TO AC)
-# ==========================================
-# ==========================================
-# 🌍 2. SMART GEOGRAPHY RESOLVER (THE FIX)
+# 🌍 2. SMART GEOGRAPHY RESOLVER
 # ==========================================
 def get_jurisdiction_context():
     mapping = []
@@ -224,6 +221,7 @@ def get_jurisdiction_context():
 
     # Return the full map string
     return "\n".join(mapping)
+
 # Load Logic
 REAL_JURISDICTION_CONTEXT = get_jurisdiction_context()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
@@ -264,7 +262,29 @@ def ask_groq_agent(user_message):
             content = response.json()["choices"][0]["message"]["content"]
             try:
                 # Force Parse JSON
-                return json.loads(content)
+                data = json.loads(content)
+
+                # ========================================================
+                # 🛠️ POST-PROCESSING (The Fix for Blank Columns)
+                # ========================================================
+                # This block automatically copies the nested constituency 
+                # to the top level, so the dashboard ALWAYS sees it.
+                if "grievance_data" in data:
+                    nested_constituency = data["grievance_data"].get("assembly_constituency")
+                    
+                    # 1. Copy to 'constituency' (Common key)
+                    if nested_constituency:
+                        data["constituency"] = nested_constituency
+                        
+                    # 2. Copy to 'assembly_constituency' (Alternate key)
+                    if nested_constituency:
+                        data["assembly_constituency"] = nested_constituency
+
+                # DEBUG LOG
+                print(f"DEBUG: Final Data -> Locality: {data.get('grievance_data', {}).get('location_english')} | Constituency: {data.get('constituency')}")
+
+                return data
+                
             except json.JSONDecodeError:
                 print("❌ AI returned invalid JSON:", content)
                 return {"status": "ERROR", "political_response": "Internal AI Error."}
