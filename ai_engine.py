@@ -204,8 +204,8 @@ def get_jurisdiction_context():
                         
                         # Add to mapping string
                         if areas:
-                            # Limit to first 50 areas per file to save token space
-                            area_list = ", ".join(areas[:50])
+                            # Limit to first 250 areas per file to save token space
+                            area_list = ", ".join(areas[:250])
                             mapping.append(f"📍 {constituency_name} includes: {area_list}")
                 except:
                     pass
