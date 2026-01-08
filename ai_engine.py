@@ -192,8 +192,15 @@ def get_jurisdiction_context():
                             areas = list(data.keys())
                         elif isinstance(data, list):
                             for item in data:
-                                if isinstance(item, str): areas.append(item)
-                                elif isinstance(item, dict) and "name" in item: areas.append(item["name"])
+                                # Fix: Look for 'locality' or 'building_name' instead of 'name'
+                                if isinstance(item, dict):
+                                    if "locality" in item and item["locality"]:
+                                        areas.append(item["locality"])
+                                    elif "building_name" in item:
+                                        areas.append(item["building_name"])
+                            
+                            # Deduplicate areas (Because 'Kangrali BK' appears 10 times, we only want it once)
+                            areas = list(dict.fromkeys(areas))
                         
                         # Add to mapping string
                         if areas:
