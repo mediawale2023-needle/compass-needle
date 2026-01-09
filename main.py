@@ -4,7 +4,6 @@ import os
 import json
 import datetime
 from sqlalchemy import create_engine, text
-# Now this import works because we are in the root folder!
 from twilio_client import send_whatsapp_message, send_typing_indicator
 from ai_engine import ask_groq_agent
 
@@ -80,17 +79,32 @@ async def whatsapp_webhook(request: Request):
     full_prompt = f"{user_context}\n\nUSER MESSAGE: {message_body}"
     ai_result = ask_groq_agent(full_prompt)
 
-    # B. DATA PREP
+    # B. DATA PREP (THE FIX IS HERE)
     grievance = ai_result.get("grievance_data", {}) or {}
     category = grievance.get("category", "General")
     political_reply = ai_result.get("political_response", "Thank you.")
     status = ai_result.get("status", "new").lower()
     
+    # 🚨 SHOTGUN EXTRACTION: Try ALL possible keys to capture the constituency
+    # 1. Try nested 'assembly_constituency' (Standard)
+    # 2. Try nested 'constituency' (Common variation)
+    # 3. Try top-level 'constituency' (If AI Engine put it outside)
+    # 4. Try top-level 'assembly_constituency' (Backup)
+    final_constituency = (
+        grievance.get("assembly_constituency") or 
+        grievance.get("constituency") or 
+        ai_result.get("constituency") or 
+        ai_result.get("assembly_constituency") or 
+        ""
+    )
+    
+    print(f"DEBUG: Saving Constituency -> '{final_constituency}'") # Debug Log
+
     meta_data = {
         "user_intent": ai_result.get("user_intent", "complaint"),
         "location_resolved": bool(grievance.get("location_english")), 
         "matched_value": grievance.get("location_english") or "",
-        "assembly_constituency": grievance.get("constituency") or "",
+        "assembly_constituency": final_constituency,  # <--- FIXED LINE
         "summary": grievance.get("summary", message_body)
     }
 
@@ -121,4 +135,4 @@ async def whatsapp_webhook(request: Request):
 
 @app.get("/")
 def health_check():
-    return {"status": "active", "system": "Needle Backend V5 (Root Fix)"}
+    return {"status": "active", "system": "Needle Backend V6 (Data Prep Fix)"}
