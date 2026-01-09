@@ -4,7 +4,7 @@ import json
 import glob
 
 # ==========================================
-# 1. THE PERSONA (EXACT ORIGINAL - RESTORES LANGUAGE)
+# 1. THE PERSONA (STRICT ORIGINAL - KEEPS MARATHI/HINDI PERFECT)
 # ==========================================
 SYSTEM_PROMPT = """
 You are the **Member of Parliament (MP)**.
@@ -227,7 +227,7 @@ REAL_JURISDICTION_CONTEXT = get_jurisdiction_context()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 # ==========================================
-# 3. AI EXECUTION
+# 3. AI EXECUTION (THE SHOTGUN FIX)
 # ==========================================
 def ask_groq_agent(user_message):
     if not GROQ_API_KEY:
@@ -265,16 +265,25 @@ def ask_groq_agent(user_message):
                 data = json.loads(content)
 
                 # ========================================================
-                # 🛠️ THE HIDDEN BRIDGE (This fills your column)
+                # 🛠️ THE SHOTGUN BRIDGE (Try ALL naming formats)
                 # ========================================================
-                # The AI puts the constituency INSIDE 'grievance_data'.
-                # Your dashboard expects it OUTSIDE. This lines fixes it.
+                # We extract the constituency from the nested box...
+                constituency = "Unknown"
                 if "grievance_data" in data:
-                    constituency = data["grievance_data"].get("assembly_constituency")
-                    if constituency:
-                        data["assembly_constituency"] = constituency # Fix for type 1 dashboard
-                        data["constituency"] = constituency          # Fix for type 2 dashboard
-                
+                    constituency = data["grievance_data"].get("assembly_constituency", "Unknown")
+
+                # ...and then we blast it to the top level in EVERY possible format.
+                # One of these WILL work with your dashboard.
+                if constituency and constituency != "Unknown":
+                    data["assembly_constituency"] = constituency  # Format 1
+                    data["constituency"] = constituency           # Format 2
+                    data["Constituency"] = constituency           # Format 3 (Capitalized)
+                    data["AC"] = constituency                     # Format 4 (Short)
+                    data["constituency_name"] = constituency      # Format 5 (Verbose)
+                    print(f"DEBUG: BLASTING CONSTITUENCY -> {constituency}")
+                else:
+                    print("DEBUG: AI returned Unknown constituency.")
+
                 return data
             except json.JSONDecodeError:
                 print("❌ AI returned invalid JSON:", content)
