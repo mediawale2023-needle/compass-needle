@@ -81,7 +81,7 @@ Output JSON:
 {{
   "user_intent": "offensive",
   "status": "OFFENSIVE",
-  "political_response": "ಮರ್ಯಾದೆ ಕಾಪಾಡಿ. ಅಸಭ್ಯ ಭಾಷೆ ಬಳಸಿದರೆ ಕಾನೂನು ಕ್ರಮ ಕೈಗೊಳ್ಳಲಾಗುವುದು.",
+  "political_response": "__WARN_KANNADA__",
   "grievance_data": {{ "category": null, "location_english": null, "assembly_constituency": null }}
 }}
 
