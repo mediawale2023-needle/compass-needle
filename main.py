@@ -9,17 +9,20 @@ from ai_engine import ask_groq_agent
 
 app = FastAPI()
 
-# --- 1. CONNECT TO DATABASE ---
+# ==========================================
+# 1. DATABASE CONNECTION
+# ==========================================
 DB_URL = os.getenv("DATABASE_URL")
 if not DB_URL:
     print("⚠️ WARNING: No DATABASE_URL found. Using local temp file.")
     engine = create_engine("sqlite:///./temp_local.db")
 else:
+    # Fix for Heroku/Railway Postgres URLs
     if DB_URL.startswith("postgres://"):
         DB_URL = DB_URL.replace("postgres://", "postgresql://", 1)
     engine = create_engine(DB_URL)
 
-# --- 1.1 SELF-HEALING: ENSURE TABLE EXISTS ---
+# --- SELF-HEALING: ENSURE TABLE EXISTS ---
 def init_db():
     try:
         with engine.begin() as conn:
@@ -41,10 +44,13 @@ def init_db():
 
 init_db()
 
-# --- 2. MEMORY SYSTEM ---
+# ==========================================
+# 2. CONTEXT MEMORY (PREVENTS REPEATED QUESTIONS)
+# ==========================================
 def get_user_context(phone_number):
     try:
         with engine.connect() as conn:
+            # Check if we already know this user's location from a previous resolved case
             query = text("""
                 SELECT case_metadata FROM cases 
                 WHERE user_phone = :phone 
@@ -63,7 +69,9 @@ def get_user_context(phone_number):
         print(f"⚠️ Context Fetch Error: {e}")
     return ""
 
-# --- 3. WHATSAPP WEBHOOK ---
+# ==========================================
+# 3. WHATSAPP WEBHOOK (THE CORE LOGIC)
+# ==========================================
 @app.post("/whatsapp/webhook")
 async def whatsapp_webhook(request: Request):
     form_data = await request.form()
@@ -74,37 +82,42 @@ async def whatsapp_webhook(request: Request):
 
     print(f"📩 Incoming from {sender}: {message_body}")
 
-    # A. AI PROCESSING
+    # A. GET CONTEXT & ASK AI
     user_context = get_user_context(sender)
     full_prompt = f"{user_context}\n\nUSER MESSAGE: {message_body}"
+    
+    # Call the AI Engine
     ai_result = ask_groq_agent(full_prompt)
 
-    # B. DATA PREP (THE FIX IS HERE)
+    # B. DATA PREP (INTENT & CONSTITUENCY HANDLING)
     grievance = ai_result.get("grievance_data", {}) or {}
+    
+    # 1. Capture the 5-Tab Intent (complaint, emergency, request, greeting, offensive)
+    user_intent = ai_result.get("user_intent", "complaint") 
+    
+    # 2. Capture Status & Category
+    status = ai_result.get("status", "new").lower()
     category = grievance.get("category", "General")
     political_reply = ai_result.get("political_response", "Thank you.")
-    status = ai_result.get("status", "new").lower()
-    
-    # 🚨 SHOTGUN EXTRACTION: Try ALL possible keys to capture the constituency
-    # 1. Try nested 'assembly_constituency' (Standard)
-    # 2. Try nested 'constituency' (Common variation)
-    # 3. Try top-level 'constituency' (If AI Engine put it outside)
-    # 4. Try top-level 'assembly_constituency' (Backup)
-    final_constituency = (
-        grievance.get("assembly_constituency") or 
-        grievance.get("constituency") or 
-        ai_result.get("constituency") or 
-        ai_result.get("assembly_constituency") or 
-        ""
-    )
-    
-    print(f"DEBUG: Saving Constituency -> '{final_constituency}'") # Debug Log
 
+    # 3. Capture Constituency (Shotgun Method - Catch it wherever it is)
+    # We only care about constituency if it's a Complaint or Emergency
+    final_constituency = None
+    if user_intent in ["complaint", "emergency"]:
+        final_constituency = (
+            grievance.get("assembly_constituency") or 
+            grievance.get("constituency") or 
+            ai_result.get("constituency") or 
+            ai_result.get("assembly_constituency") or 
+            None
+        )
+
+    # 4. Pack Metadata for the Dashboard
     meta_data = {
-        "user_intent": ai_result.get("user_intent", "complaint"),
+        "user_intent": user_intent,  # <--- CRITICAL FOR TABS
         "location_resolved": bool(grievance.get("location_english")), 
         "matched_value": grievance.get("location_english") or "",
-        "assembly_constituency": final_constituency,  # <--- FIXED LINE
+        "assembly_constituency": final_constituency,
         "summary": grievance.get("summary", message_body)
     }
 
@@ -122,17 +135,18 @@ async def whatsapp_webhook(request: Request):
                     "phone": sender,
                     "cat": category,
                     "msg": message_body,
-                    "stat": status,
+                    "stat": status,  # e.g., "completed", "offensive", "emergency"
                     "meta": json.dumps(meta_data)
                 }
             )
-            print(f"✅ Saved to Postgres: {sender}")
+            print(f"✅ Saved Intent: '{user_intent}' | Constituency: '{final_constituency}'")
     except Exception as e:
         print(f"❌ DB Save Failed: {e}")
 
+    # D. SEND REPLY
     send_whatsapp_message("whatsapp:" + sender, political_reply)
     return {"status": "processed"}
 
 @app.get("/")
 def health_check():
-    return {"status": "active", "system": "Needle Backend V6 (Data Prep Fix)"}
+    return {"status": "active", "system": "Needle Backend V7 (5-Tab Ready)"}
