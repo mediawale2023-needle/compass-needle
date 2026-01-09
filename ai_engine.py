@@ -2,9 +2,10 @@ import os
 import requests
 import json
 import glob
+import difflib  # Logic for Fuzzy Matching (Typos)
 
 # ==========================================
-# 1. THE PERSONA (WITH HARDCODED TEMPLATES + INTENT CLASSIFICATION)
+# 1. THE PERSONA
 # ==========================================
 SYSTEM_PROMPT = """
 You are the **Member of Parliament (MP)**.
@@ -137,8 +138,7 @@ def ask_groq_agent(user_message, tenant_id=1):
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
 
-    # NOTE: We removed JURISDICTION_CONTEXT from here to fix 'Server Busy' errors.
-    # The AI now only extracts the location name, and Python maps it below.
+    # We removed JURISDICTION_CONTEXT from here to fix 'Server Busy' errors.
     formatted_prompt = SYSTEM_PROMPT.format(user_message=user_message)
 
     payload = {
@@ -178,10 +178,11 @@ def ask_groq_agent(user_message, tenant_id=1):
                 final_loc_name = ai_loc
                 
                 if ai_loc in tenant_rules:
+                    # Case A: Perfect Exact Match
                     match_found = True
                 elif ai_loc:
-                    # Fuzzy Logic: Check for close matches (80% similarity)
-                    # This fixes "Vadgon" -> "Vadgaon"
+                    # Case B: Fuzzy Logic (Typos)
+                    # cutoff=0.8 means 80% similarity required. n=1 gets the single best match.
                     matches = difflib.get_close_matches(ai_loc, tenant_rules.keys(), n=1, cutoff=0.8)
                     if matches:
                         print(f"✨ Auto-Corrected: '{ai_loc}' -> '{matches[0]}'")
@@ -196,7 +197,7 @@ def ask_groq_agent(user_message, tenant_id=1):
                     data["constituency"] = correct_constituency
                     if "grievance_data" in data:
                         data["grievance_data"]["assembly_constituency"] = correct_constituency
-                        # Save the corrected spelling back to data
+                        # Save the corrected spelling back to data so the database is clean
                         data["grievance_data"]["location_english"] = final_loc_name.title()
                         
                     print(f"✅ Location Mapped: {final_loc_name} -> {correct_constituency}")
@@ -204,3 +205,36 @@ def ask_groq_agent(user_message, tenant_id=1):
             except Exception as e:
                 print(f"⚠️ Override Logic Warning: {e}") 
             # [END OF FIX] -------------------------------------------------
+
+            # -----------------------------------------------
+            # 🛡️ LANGUAGE SWAP LOGIC
+            # -----------------------------------------------
+            raw_resp = data.get("political_response", "")
+            if raw_resp in STATIC_RESPONSES:
+                data["political_response"] = STATIC_RESPONSES[raw_resp]
+
+            # 🛠️ CLEANUP LOGIC
+            intent = data.get("user_intent", "complaint")
+            
+            if intent in ["offensive", "greeting", "request"]:
+                data["assembly_constituency"] = None
+                data["constituency"] = None
+                if "grievance_data" in data:
+                    data["grievance_data"]["assembly_constituency"] = None
+                    data["grievance_data"]["location_english"] = None
+            else:
+                if "grievance_data" in data:
+                    const = data["grievance_data"].get("assembly_constituency")
+                    if const and const != "Unknown":
+                        data["assembly_constituency"] = const
+                        data["constituency"] = const
+            
+            return data
+            
+        except Exception as e:
+            print(f"❌ JSON Parse Error: {e}")
+            return {"status": "ERROR", "political_response": "AI Error."}
+            
+    except Exception as e:
+        print(f"❌ Connection Error: {e}")
+        return {"status": "ERROR", "political_response": "Connection Error."}
