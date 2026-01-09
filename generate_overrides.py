@@ -4,64 +4,61 @@ import glob
 
 # CONFIGURATION
 # ---------------------------------------------------------
-# Where are your geography JSON files located?
-DATA_FOLDER = "data"   # Change this if they are in the root folder (use ".")
-TENANT_ID = "1"        # The ID to assign these rules to
+# We look inside this folder AND all its sub-folders
+SEARCH_ROOT = "data/geography"  
+TENANT_ID = "1"
 # ---------------------------------------------------------
 
 def generate_rulebook():
-    print(f"🔍 Scanning folder: {DATA_FOLDER}...")
+    print(f"🔍 Scanning recursively starting from: {SEARCH_ROOT}...")
     
-    # 1. Initialize the Rulebook
     rulebook = {}
     
-    # 2. Find all JSON files
-    # This looks for files like "belgaum_rural.json", "ramdurg.json"
-    search_path = os.path.join(DATA_FOLDER, "*.json")
-    files = glob.glob(search_path)
+    # 1. Find ALL .json files recursively (using ** pattern)
+    # This finds data/geography/belagavi/north.json, data/geography/pune/south.json, etc.
+    search_pattern = os.path.join(SEARCH_ROOT, "**", "*.json")
+    files = glob.glob(search_pattern, recursive=True)
     
-    if not files:
-        # Fallback: Try looking in the current directory if 'data' is empty
-        print(f"⚠️ No files found in '{DATA_FOLDER}'. Checking root directory...")
-        files = glob.glob("*.json")
-        # Exclude system files
-        files = [f for f in files if f not in ["package.json", "tsconfig.json", "tenant_overrides.json"]]
+    # Safety: Exclude non-geography files if any exist
+    ignored_files = ["package.json", "tsconfig.json", "tenant_overrides.json"]
+    geo_files = [f for f in files if os.path.basename(f) not in ignored_files]
+    
+    print(f"✅ Found {len(geo_files)} geography files.")
 
-    print(f"✅ Found {len(files)} constituency files.")
-
-    # 3. Process each file
-    for file_path in files:
+    # 2. Process each file
+    total_locations = 0
+    
+    for file_path in geo_files:
         try:
             # Extract Constituency Name from Filename
-            # e.g., "data/belgaum_rural.json" -> "Belgaum Rural"
+            # e.g., "belgaum_rural.json" -> "Belgaum Rural"
             filename = os.path.basename(file_path)
             constituency_name = filename.replace(".json", "").replace("_", " ").title()
             
-            print(f"   Processing: {constituency_name}...")
+            print(f"   📂 Processing: {constituency_name}...")
+            count = 0
             
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 
-                # Check if it's the right format (List of objects)
+                # Verify standard format (List of objects)
                 if isinstance(data, list):
                     for entry in data:
-                        # We look for "locality" or "building_name"
-                        # We normalize it: lowercase + trimmed
+                        # Extract Locality (and normalize text)
+                        loc = str(entry.get("locality", "")).strip().lower()
                         
-                        loc = entry.get("locality", "").strip()
-                        if loc:
-                            rulebook[loc.lower()] = constituency_name
+                        # Rule: Add to book if name is valid (longer than 2 chars)
+                        if loc and len(loc) > 2:
+                            rulebook[loc] = constituency_name
+                            count += 1
                             
-                        # Optional: extracting from building name can be noisy, 
-                        # but helpful if locality is empty.
-                        # building = entry.get("building_name", "").split("\n")[0].strip()
-                        # if building:
-                        #    rulebook[building.lower()] = constituency_name
+            total_locations += count
+            print(f"      -> Added {count} locations.")
 
         except Exception as e:
             print(f"❌ Error reading {file_path}: {e}")
 
-    # 4. Save to tenant_overrides.json
+    # 3. Save to tenant_overrides.json in the MAIN folder
     final_output = {
         TENANT_ID: rulebook
     }
@@ -70,7 +67,7 @@ def generate_rulebook():
         json.dump(final_output, f, indent=2, ensure_ascii=False)
         
     print("---------------------------------------------------------")
-    print(f"✅ SUCCESS! Generated {len(rulebook)} location rules.")
+    print(f"✅ SUCCESS! Generated {total_locations} Master Rules.")
     print(f"📁 Saved to: tenant_overrides.json")
 
 if __name__ == "__main__":
