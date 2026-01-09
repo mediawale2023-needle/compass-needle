@@ -87,7 +87,8 @@ async def whatsapp_webhook(request: Request):
     full_prompt = f"{user_context}\n\nUSER MESSAGE: {message_body}"
     
     # Call the AI Engine
-    ai_result = ask_groq_agent(full_prompt)
+    # For now, default to 1. In the future, you can look this up based on the sender's phone number.
+    ai_result = ask_groq_agent(full_prompt, tenant_id=1)
 
     # B. DATA PREP (INTENT & CONSTITUENCY HANDLING)
     grievance = ai_result.get("grievance_data", {}) or {}
