@@ -34,11 +34,10 @@ STEP 2: PERSONA & LANGUAGE
 STEP 3: DATA EXTRACTION
 ────────────────────────
 - Allowed Categories: [ "Roads", "Water", "Electricity", "Drainage", "Waste", "Health", "Education", "Other" ]
-- **Location & Constituency Logic:**
-  1. **TRUST THE USER:** If they name a place, USE IT.
-  2. **MANDATORY LOOKUP:** Check the {JURISDICTION_CONTEXT} list below.
-     - If location found (e.g., "Attiwad" -> "Belgaum Rural"), extract "Belgaum Rural".
-     - **Output this name in the JSON exactly.**
+- **Location Logic:**
+  1. Extract the specific Area, Village, or Ward name mentioned by the user.
+  2. Put this extracted name in "location_english".
+  3. **Leave "assembly_constituency" as "Unknown"** (Our system will map it automatically).
 
 ────────────────────────
 STEP 4: CLASSIFICATION & RESPONSE (THE 5 TABS)
@@ -103,7 +102,7 @@ Output JSON:
   "grievance_data": {{
       "category": "Waste",
       "location_english": "Khasa Bag",
-      "assembly_constituency": "Belgaum North"
+      "assembly_constituency": "Unknown"
   }}
 }}
 
@@ -113,65 +112,34 @@ STEP 6: YOUR TASK
 Analyze the USER MESSAGE below and output valid JSON.
 
 USER MESSAGE: "{user_message}"
-
-────────────────────────
-JURISDICTION CONTEXT (LOOKUP TABLE)
-────────────────────────
-{JURISDICTION_CONTEXT}
 """
 
 # ==========================================
-# 2. SMART GEOGRAPHY RESOLVER (DEEP SCAN)
+# 2. CONFIGURATION & STATIC DATA
 # ==========================================
-def get_jurisdiction_context():
-    mapping = []
-    cwd = os.getcwd()
-    print(f"DEBUG: Scanning geography from: {cwd}")
-    
-    for root, dirs, files in os.walk(cwd):
-        for filename in files:
-            if filename.endswith(".json"):
-                if "node_modules" in root or "venv" in root: continue
-                
-                file_path = os.path.join(root, filename)
-                try:
-                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                        data = json.load(f)
-                        if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
-                            if "locality" in data[0] or "station_number" in data[0]:
-                                constituency_name = filename.replace(".json", "").replace("_", " ").title()
-                                areas = []
-                                for item in data:
-                                    if isinstance(item, dict):
-                                        loc = item.get("locality") or item.get("building_name")
-                                        if loc and len(loc) > 2: areas.append(loc.strip())
-
-                                areas = list(set(areas))
-                                if areas:
-                                    mapping.append(f"📍 {constituency_name} includes: {', '.join(areas[:250])}")
-                                    print(f"DEBUG: Loaded {constituency_name} ({len(areas)} areas)")
-                except Exception: continue
-
-    if not mapping: return "No Jurisdiction Data Available."
-    return "\n".join(mapping)
-
-REAL_JURISDICTION_CONTEXT = get_jurisdiction_context()
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
+STATIC_RESPONSES = {
+    "__WARN_HINDI__": "मर्यादा रखें। अभद्र भाषा का प्रयोग करने पर आप पर कानूनी कार्यवाही हो सकती है।",
+    "__WARN_MARATHI__": "मर्यादा राखा. अभद्र भाषेचा वापर केल्यास कायदेशीर कारवाई होऊ शकते.",
+    "__WARN_KANNADA__": "ಮರ್ಯಾದೆ ಕಾಪಾಡಿ. ಅಸಭ್ಯ ಭಾಷೆ ಬಳಸಿದರೆ ಕಾನೂನು ಕ್ರಮ ಕೈಗೊಳ್ಳಲಾಗುವುದು.",
+    "__WARN_ENGLISH__": "Maintain decorum. Legal action can be taken for abusive language."
+}
+
 # ==========================================
-# 3. AI EXECUTION (WITH CLEANUP BRIDGE)
+# 3. AI EXECUTION (LIGHTWEIGHT + PYTHON OVERRIDE)
 # ==========================================
-# [UPDATED FUNCTION] Accepts tenant_id (defaults to 1)
 def ask_groq_agent(user_message, tenant_id=1):
-    if not GROQ_API_KEY: return {"status": "ERROR", "political_response": "Server Error."}
+    if not GROQ_API_KEY: 
+        print("❌ ERROR: GROQ_API_KEY is missing.")
+        return {"status": "ERROR", "political_response": "Server Error."}
 
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
 
-    formatted_prompt = SYSTEM_PROMPT.format(
-        user_message=user_message,
-        JURISDICTION_CONTEXT=REAL_JURISDICTION_CONTEXT
-    )
+    # NOTE: We removed JURISDICTION_CONTEXT from here to fix 'Server Busy' errors.
+    # The AI now only extracts the location name, and Python maps it below.
+    formatted_prompt = SYSTEM_PROMPT.format(user_message=user_message)
 
     payload = {
         "model": "llama-3.3-70b-versatile",
@@ -182,61 +150,74 @@ def ask_groq_agent(user_message, tenant_id=1):
 
     try:
         response = requests.post(url, headers=headers, json=payload)
-        if response.status_code == 200:
-            content = response.json()["choices"][0]["message"]["content"]
+        
+        # Check for API Errors (like 400 Bad Request)
+        if response.status_code != 200:
+            print(f"⚠️ GROQ API ERROR: {response.status_code} - {response.text}")
+            return {"status": "ERROR", "political_response": "Server busy."}
+
+        content = response.json()["choices"][0]["message"]["content"]
+        
+        try:
+            data = json.loads(content)
+            
+            # [START OF MULTI-TENANT FIX] ----------------------------------
             try:
-                data = json.loads(content)
+                # 1. Load the Rulebook
+                with open("tenant_overrides.json", "r") as f:
+                    all_overrides = json.load(f)
                 
-                # [START OF MULTI-TENANT FIX] ----------------------------------
-                try:
-                    # 1. Load the Rulebook
-                    with open("tenant_overrides.json", "r") as f:
-                        all_overrides = json.load(f)
-                    
-                    # 2. Get Rules for THIS Tenant (Convert ID to string)
-                    # If tenant ID doesn't exist, return empty dict (no overrides)
-                    tenant_rules = all_overrides.get(str(tenant_id), {})
-                    
-                    # 3. Check Location against Tenant's Rules
-                    ai_loc = data.get("grievance_data", {}).get("location_english", "").lower().strip()
-                    
-                    if ai_loc in tenant_rules:
-                        correct_constituency = tenant_rules[ai_loc]
-                        # Apply the fix
-                        data["assembly_constituency"] = correct_constituency
-                        data["constituency"] = correct_constituency
-                        if "grievance_data" in data:
-                            data["grievance_data"]["assembly_constituency"] = correct_constituency
-                            
-                except Exception as e:
-                    # Fail silently if file missing or JSON error, so app doesn't crash
-                    print(f"⚠️ Override Error: {e}") 
-                # [END OF FIX] -------------------------------------------------
-
-                # -----------------------------------------------
-                # 🛡️ LANGUAGE SWAP LOGIC (Keep this)
-                # -----------------------------------------------
-                raw_resp = data.get("political_response", "")
-                if raw_resp in STATIC_RESPONSES:
-                    data["political_response"] = STATIC_RESPONSES[raw_resp]
-
-                # 🛠️ CLEANUP LOGIC (Keep this)
-                intent = data.get("user_intent", "complaint")
+                # 2. Get Rules for THIS Tenant
+                tenant_rules = all_overrides.get(str(tenant_id), {})
                 
-                if intent in ["offensive", "greeting", "request"]:
-                    data["assembly_constituency"] = None
-                    data["constituency"] = None
+                # 3. Check Location against Tenant's Rules
+                ai_loc = data.get("grievance_data", {}).get("location_english", "").lower().strip()
+                
+                if ai_loc in tenant_rules:
+                    correct_constituency = tenant_rules[ai_loc]
+                    
+                    # Apply the fix to all fields
+                    data["assembly_constituency"] = correct_constituency
+                    data["constituency"] = correct_constituency
                     if "grievance_data" in data:
-                        data["grievance_data"]["assembly_constituency"] = None
-                        data["grievance_data"]["location_english"] = None
-                else:
-                    if "grievance_data" in data:
-                        const = data["grievance_data"].get("assembly_constituency")
-                        if const and const != "Unknown":
-                            data["assembly_constituency"] = const
-                            data["constituency"] = const
-                
-                return data
-            except: return {"status": "ERROR", "political_response": "AI Error."}
-        else: return {"status": "ERROR", "political_response": "Server busy."}
-    except Exception: return {"status": "ERROR", "political_response": "Connection Error."}
+                        data["grievance_data"]["assembly_constituency"] = correct_constituency
+                    
+                    print(f"✅ Override Success: {ai_loc} -> {correct_constituency}")
+                        
+            except Exception as e:
+                # Fail silently if file missing or JSON error
+                print(f"⚠️ Override Logic Warning: {e}") 
+            # [END OF FIX] -------------------------------------------------
+
+            # -----------------------------------------------
+            # 🛡️ LANGUAGE SWAP LOGIC
+            # -----------------------------------------------
+            raw_resp = data.get("political_response", "")
+            if raw_resp in STATIC_RESPONSES:
+                data["political_response"] = STATIC_RESPONSES[raw_resp]
+
+            # 🛠️ CLEANUP LOGIC
+            intent = data.get("user_intent", "complaint")
+            
+            if intent in ["offensive", "greeting", "request"]:
+                data["assembly_constituency"] = None
+                data["constituency"] = None
+                if "grievance_data" in data:
+                    data["grievance_data"]["assembly_constituency"] = None
+                    data["grievance_data"]["location_english"] = None
+            else:
+                if "grievance_data" in data:
+                    const = data["grievance_data"].get("assembly_constituency")
+                    if const and const != "Unknown":
+                        data["assembly_constituency"] = const
+                        data["constituency"] = const
+            
+            return data
+            
+        except Exception as e:
+            print(f"❌ JSON Parse Error: {e}")
+            return {"status": "ERROR", "political_response": "AI Error."}
+            
+    except Exception as e:
+        print(f"❌ Connection Error: {e}")
+        return {"status": "ERROR", "political_response": "Connection Error."}
