@@ -67,7 +67,7 @@ def render_filtered_table(df, key_suffix):
 
 # --- 3. MAIN RENDER FUNCTION ---
 def render_sansadx(username):
-    st.title("💬 SansadX: Grievance Dashboard")
+    st.title("SansadX: Grievance Dashboard")
     
     # A. Fetch Data
     tenant_id = st.session_state.get('tenant_id', 1) 
@@ -152,36 +152,18 @@ def render_sansadx(username):
     df_greeting  = main_df[main_df['Intent'] == 'greeting']
     df_spam      = main_df[main_df['Intent'] == 'offensive']
 
-    # E. RENDER TABS WITH BADGES
+    # E. RENDER TABS (CLEAN & PROFESSIONAL)
+    # Complaints is FIRST (Default)
     t1, t2, t3, t4, t5 = st.tabs([
-        f"🚨 Emergency ({len(df_emergency)})",
-        f"📝 Complaints ({len(df_complaint)})",
-        f"🙋 Requests ({len(df_request)})",
-        f"👋 Greetings ({len(df_greeting)})",
-        f"🚫 Spam ({len(df_spam)})"
+        f"Complaints ({len(df_complaint)})",
+        f"Emergency ({len(df_emergency)})",
+        f"Requests ({len(df_request)})",
+        f"Greetings ({len(df_greeting)})",
+        f"Spam ({len(df_spam)})"
     ])
 
-    with t1: render_filtered_table(df_emergency, "emg")
-    with t2: render_filtered_table(df_complaint, "cmp")
+    with t1: render_filtered_table(df_complaint, "cmp")
+    with t2: render_filtered_table(df_emergency, "emg")
     with t3: render_filtered_table(df_request, "req")
     with t4: render_filtered_table(df_greeting, "grt")
     with t5: render_filtered_table(df_spam, "spm")
-
-    # F. INSPECTOR (Global)
-    st.divider()
-    if not main_df.empty:
-        st.subheader("🔎 Case Inspector")
-        case_options = main_df["ID"].tolist()
-        if case_options:
-            selected_id = st.selectbox("Select Case ID:", case_options, key="sx_inspect")
-            row = main_df[main_df["ID"] == selected_id].iloc[0]
-            
-            i1, i2 = st.columns(2)
-            with i1:
-                st.info(f"**From:** {row['Sender']}")
-                st.markdown(f"**Message:**\n> {row['Message']}")
-                st.caption(f"Time: {row['Time']} | Intent: {row['Intent']}")
-            with i2:
-                st.success(f"📍 **Location:** {row['Location']}")
-                st.warning(f"🗳️ **Constituency:** {row['Constituency']}")
-                st.json(row["Full_Meta"])
