@@ -161,7 +161,7 @@ def ask_groq_agent(user_message, tenant_id=1):
         try:
             data = json.loads(content)
             
-            # [START OF MULTI-TENANT FIX] ----------------------------------
+            # [START OF MULTI-TENANT FIX (WITH AUTO-CORRECT)] ----------------
             try:
                 # 1. Load the Rulebook
                 with open("tenant_overrides.json", "r") as f:
@@ -170,54 +170,37 @@ def ask_groq_agent(user_message, tenant_id=1):
                 # 2. Get Rules for THIS Tenant
                 tenant_rules = all_overrides.get(str(tenant_id), {})
                 
-                # 3. Check Location against Tenant's Rules
+                # 3. Get AI's guess
                 ai_loc = data.get("grievance_data", {}).get("location_english", "").lower().strip()
                 
+                # 4. SMART MATCHING (Exact or Fuzzy)
+                match_found = False
+                final_loc_name = ai_loc
+                
                 if ai_loc in tenant_rules:
-                    correct_constituency = tenant_rules[ai_loc]
+                    match_found = True
+                elif ai_loc:
+                    # Fuzzy Logic: Check for close matches (80% similarity)
+                    # This fixes "Vadgon" -> "Vadgaon"
+                    matches = difflib.get_close_matches(ai_loc, tenant_rules.keys(), n=1, cutoff=0.8)
+                    if matches:
+                        print(f"✨ Auto-Corrected: '{ai_loc}' -> '{matches[0]}'")
+                        final_loc_name = matches[0]
+                        match_found = True
+                
+                # 5. Apply the Fix
+                if match_found:
+                    correct_constituency = tenant_rules[final_loc_name]
                     
-                    # Apply the fix to all fields
                     data["assembly_constituency"] = correct_constituency
                     data["constituency"] = correct_constituency
                     if "grievance_data" in data:
                         data["grievance_data"]["assembly_constituency"] = correct_constituency
-                    
-                    print(f"✅ Override Success: {ai_loc} -> {correct_constituency}")
+                        # Save the corrected spelling back to data
+                        data["grievance_data"]["location_english"] = final_loc_name.title()
+                        
+                    print(f"✅ Location Mapped: {final_loc_name} -> {correct_constituency}")
                         
             except Exception as e:
-                # Fail silently if file missing or JSON error
                 print(f"⚠️ Override Logic Warning: {e}") 
             # [END OF FIX] -------------------------------------------------
-
-            # -----------------------------------------------
-            # 🛡️ LANGUAGE SWAP LOGIC
-            # -----------------------------------------------
-            raw_resp = data.get("political_response", "")
-            if raw_resp in STATIC_RESPONSES:
-                data["political_response"] = STATIC_RESPONSES[raw_resp]
-
-            # 🛠️ CLEANUP LOGIC
-            intent = data.get("user_intent", "complaint")
-            
-            if intent in ["offensive", "greeting", "request"]:
-                data["assembly_constituency"] = None
-                data["constituency"] = None
-                if "grievance_data" in data:
-                    data["grievance_data"]["assembly_constituency"] = None
-                    data["grievance_data"]["location_english"] = None
-            else:
-                if "grievance_data" in data:
-                    const = data["grievance_data"].get("assembly_constituency")
-                    if const and const != "Unknown":
-                        data["assembly_constituency"] = const
-                        data["constituency"] = const
-            
-            return data
-            
-        except Exception as e:
-            print(f"❌ JSON Parse Error: {e}")
-            return {"status": "ERROR", "political_response": "AI Error."}
-            
-    except Exception as e:
-        print(f"❌ Connection Error: {e}")
-        return {"status": "ERROR", "political_response": "Connection Error."}
