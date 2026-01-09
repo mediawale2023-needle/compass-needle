@@ -8,16 +8,23 @@ from pathlib import Path
 from datetime import datetime
 import hashlib
 import re
+import sys
 
 # --- Database Connection ---
-import sys
+# Ensure the backend folder is in path to import db.py
 sys.path.insert(0, str(Path(__file__).parent / "sansadx-backend"))
-from db import SessionLocal, Tenant, User, init_db
+try:
+    from db import SessionLocal, Tenant, User, init_db
+except ImportError:
+    # Fallback if the folder structure isn't perfect yet
+    st.error("Could not import 'db.py'. Please ensure 'sansadx-backend/db.py' exists.")
+    sys.exit(1)
 
 # --- Constants ---
 API_URL = "http://127.0.0.1:8000"
 GEOGRAPHY_BASE_PATH = Path(__file__).parent / "data" / "geography"
 METADATA_PATH = Path(__file__).parent / "data" / "constituency_metadata.json"
+OVERRIDES_PATH = Path("tenant_overrides.json")
 
 # --- Page Config ---
 st.set_page_config(
@@ -163,6 +170,24 @@ def ensure_admin_exists():
         return False
     finally:
         db.close()
+
+# --- Overrides (Rulebook) Functions ---
+def load_overrides() -> dict:
+    """Load the master rulebook for location mapping"""
+    if OVERRIDES_PATH.exists():
+        with open(OVERRIDES_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+def save_overrides(data: dict) -> bool:
+    """Save the master rulebook"""
+    try:
+        with open(OVERRIDES_PATH, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        st.error(f"Save error: {e}")
+        return False
 
 # --- PDF Parsing Functions ---
 def parse_polling_station_pdf(pdf_file) -> list:
@@ -414,7 +439,7 @@ def main():
         st.caption("Needle Admin v1.0")
     
     # Main Tabs
-    tab1, tab2, tab3 = st.tabs(["👥 MP Management", "🗺️ Geography Upload", "📋 Constituency Metadata"])
+    tab1, tab2, tab3, tab4 = st.tabs(["👥 MP Management", "🗺️ Geography Upload", "📋 Constituency Metadata", "🌍 Geography Rules"])
     
     # ===================
     # TAB 1: MP Management
@@ -714,6 +739,102 @@ def main():
                     st.json(data)
         else:
             st.info("No metadata saved yet.")
+
+    # ===================
+    # TAB 4: Geography Rules (The Fixer)
+    # ===================
+    with tab4:
+        st.header("🌍 Geography Rules (Overrides)")
+        st.caption("Fix 'Unknown' locations manually. These rules override the AI.")
+        
+        # 1. Load Data
+        overrides = load_overrides()
+        mps = get_all_mps()
+        
+        # 2. Select Tenant (MP)
+        if not mps:
+            st.warning("No MPs found. Please create an MP first.")
+        else:
+            # Create a lookup for Tenant Name -> ID
+            tenant_options = {f"{mp['mp_name']} ({mp['parliamentary_constituency']})": str(mp['tenant_id']) for mp in mps}
+            selected_mp_label = st.selectbox("Select MP to Manage Rules", options=list(tenant_options.keys()))
+            
+            if selected_mp_label:
+                selected_tenant_id = tenant_options[selected_mp_label]
+                
+                # Get rules for this specific tenant (or empty dict)
+                current_rules = overrides.get(selected_tenant_id, {})
+                
+                st.info(f"Currently managing **{len(current_rules)} custom rules** for this MP.")
+
+                # --- ADD / UPDATE RULE ---
+                st.subheader("➕ Add or Fix a Location")
+                col1, col2, col3 = st.columns([2, 2, 1])
+                
+                with col1:
+                    new_loc = st.text_input("Location Name (User Input)", placeholder="e.g. chennamma nagar")
+                    st.caption("Tip: Use lowercase. This is what the user types.")
+                
+                with col2:
+                    # Suggest the MP's main constituency as default
+                    target_constituency = st.text_input("Correct Constituency", value=mps[0]['parliamentary_constituency'])
+                
+                with col3:
+                    st.write("") # Spacer
+                    st.write("") # Spacer
+                    if st.button("Save Rule", use_container_width=True, type="primary"):
+                        if new_loc and target_constituency:
+                            # 1. Normalize Key
+                            key = new_loc.strip().lower()
+                            
+                            # 2. Update Data
+                            if selected_tenant_id not in overrides:
+                                overrides[selected_tenant_id] = {}
+                            
+                            overrides[selected_tenant_id][key] = target_constituency
+                            
+                            # 3. Save
+                            if save_overrides(overrides):
+                                st.success(f"✅ Mapped '{key}' -> '{target_constituency}'")
+                                st.rerun()
+                        else:
+                            st.error("Missing fields")
+
+                st.divider()
+
+                # --- VIEW & SEARCH RULES ---
+                st.subheader("🔍 Existing Rules")
+                search_q = st.text_input("Search rules...", placeholder="Type to filter locations")
+                
+                # Convert dict to DataFrame for display
+                if current_rules:
+                    rules_list = [{"Location (Input)": k, "Constituency (Output)": v} for k, v in current_rules.items()]
+                    df_rules = pd.DataFrame(rules_list)
+                    
+                    if search_q:
+                        df_rules = df_rules[df_rules["Location (Input)"].str.contains(search_q.lower())]
+                    
+                    # Editable Data Editor
+                    edited_df = st.data_editor(
+                        df_rules, 
+                        use_container_width=True, 
+                        num_rows="dynamic",
+                        key=f"editor_{selected_tenant_id}"
+                    )
+                    
+                    # Save changes from the table editor
+                    if st.button("💾 Save Table Changes"):
+                        # Convert back to dict format
+                        new_rules_dict = {}
+                        for index, row in edited_df.iterrows():
+                            if row["Location (Input)"] and row["Constituency (Output)"]:
+                                new_rules_dict[row["Location (Input)"]] = row["Constituency (Output)"]
+                        
+                        overrides[selected_tenant_id] = new_rules_dict
+                        save_overrides(overrides)
+                        st.success("✅ Bulk changes saved!")
+                else:
+                    st.info("No custom rules yet. Add one above!")
 
 if __name__ == "__main__":
     main()

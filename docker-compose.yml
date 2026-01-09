@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # 1. The Database
+  db:
+    image: postgres:15
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=sansad_admin
+      - POSTGRES_PASSWORD=secure_production_password
+      - POSTGRES_DB=sansadx_db
+    ports:
+      - "5435:5432"  # <--- CHANGED THIS (External Port 5435)
+    restart: always
+
+  # 2. The Backend API
+  api:
+    build: .
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://sansad_admin:secure_production_password@db/sansadx_db
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    depends_on:
+      - db
+
+  # 3. The Admin Dashboard
+  dashboard:
+    build: .
+    command: streamlit run admin_dashboard.py --server.port 8501 --server.address 0.0.0.0
+    volumes:
+      - .:/app
+    ports:
+      - "8501:8501"
+    environment:
+      - DATABASE_URL=postgresql://sansad_admin:secure_production_password@db/sansadx_db
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
