@@ -161,7 +161,8 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 # ==========================================
 # 3. AI EXECUTION (WITH CLEANUP BRIDGE)
 # ==========================================
-def ask_groq_agent(user_message):
+# [UPDATED FUNCTION] Accepts tenant_id (defaults to 1)
+def ask_groq_agent(user_message, tenant_id=1):
     if not GROQ_API_KEY: return {"status": "ERROR", "political_response": "Server Error."}
 
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -186,24 +187,54 @@ def ask_groq_agent(user_message):
             try:
                 data = json.loads(content)
                 
-                # 🛠️ CLEANUP: Wipe constituency for Non-Complaints
+                # [START OF MULTI-TENANT FIX] ----------------------------------
+                try:
+                    # 1. Load the Rulebook
+                    with open("tenant_overrides.json", "r") as f:
+                        all_overrides = json.load(f)
+                    
+                    # 2. Get Rules for THIS Tenant (Convert ID to string)
+                    # If tenant ID doesn't exist, return empty dict (no overrides)
+                    tenant_rules = all_overrides.get(str(tenant_id), {})
+                    
+                    # 3. Check Location against Tenant's Rules
+                    ai_loc = data.get("grievance_data", {}).get("location_english", "").lower().strip()
+                    
+                    if ai_loc in tenant_rules:
+                        correct_constituency = tenant_rules[ai_loc]
+                        # Apply the fix
+                        data["assembly_constituency"] = correct_constituency
+                        data["constituency"] = correct_constituency
+                        if "grievance_data" in data:
+                            data["grievance_data"]["assembly_constituency"] = correct_constituency
+                            
+                except Exception as e:
+                    # Fail silently if file missing or JSON error, so app doesn't crash
+                    print(f"⚠️ Override Error: {e}") 
+                # [END OF FIX] -------------------------------------------------
+
+                # -----------------------------------------------
+                # 🛡️ LANGUAGE SWAP LOGIC (Keep this)
+                # -----------------------------------------------
+                raw_resp = data.get("political_response", "")
+                if raw_resp in STATIC_RESPONSES:
+                    data["political_response"] = STATIC_RESPONSES[raw_resp]
+
+                # 🛠️ CLEANUP LOGIC (Keep this)
                 intent = data.get("user_intent", "complaint")
                 
                 if intent in ["offensive", "greeting", "request"]:
-                    # Force wipe geography logic so it doesn't show on map
                     data["assembly_constituency"] = None
                     data["constituency"] = None
                     if "grievance_data" in data:
                         data["grievance_data"]["assembly_constituency"] = None
                         data["grievance_data"]["location_english"] = None
-                
                 else:
-                    # 🛠️ DATA BRIDGE: Copy constituency for Complaints/Emergencies
                     if "grievance_data" in data:
                         const = data["grievance_data"].get("assembly_constituency")
                         if const and const != "Unknown":
                             data["assembly_constituency"] = const
-                            data["constituency"] = const # Double Safety
+                            data["constituency"] = const
                 
                 return data
             except: return {"status": "ERROR", "political_response": "AI Error."}
