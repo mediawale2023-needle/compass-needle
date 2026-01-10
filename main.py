@@ -1,3 +1,4 @@
+import os  # <--- THIS WAS MISSING
 import sentry_sdk
 from fastapi import FastAPI, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
