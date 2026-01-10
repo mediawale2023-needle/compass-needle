@@ -1,17 +1,14 @@
-import os  # <--- THIS WAS MISSING
+import os
 import sentry_sdk
 from fastapi import FastAPI, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
-# ... keep your other imports ...
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.ext.declarative import declarative_base
 
-# --- SENTRY CONFIGURATION ---
+# Initialize Sentry
 sentry_sdk.init(
     dsn="https://d3ce9f7d4b46c5a117e372925acfdbf2@o4510685197434880.ingest.us.sentry.io/4510685203857408",
-    
-    # Set traces_sample_rate to 1.0 to capture 100% of transactions for performance monitoring.
     traces_sample_rate=1.0,
-    
-    # Set profiles_sample_rate to 1.0 to profile 100% of sampled transactions.
     profiles_sample_rate=1.0,
 )
 # ----------------------------
