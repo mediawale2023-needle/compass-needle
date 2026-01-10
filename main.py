@@ -1,13 +1,23 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
-import os
-import json
-import datetime
-from sqlalchemy import create_engine, text
-from twilio_client import send_whatsapp_message, send_typing_indicator
-from ai_engine import ask_groq_agent
+import sentry_sdk
+from fastapi import FastAPI, Depends, HTTPException, Request
+from sqlalchemy.orm import Session
+# ... keep your other imports ...
+
+# --- SENTRY CONFIGURATION ---
+sentry_sdk.init(
+    dsn="https://d3ce9f7d4b46c5a117e372925acfdbf2@o4510685197434880.ingest.us.sentry.io/4510685203857408",
+    
+    # Set traces_sample_rate to 1.0 to capture 100% of transactions for performance monitoring.
+    traces_sample_rate=1.0,
+    
+    # Set profiles_sample_rate to 1.0 to profile 100% of sampled transactions.
+    profiles_sample_rate=1.0,
+)
+# ----------------------------
 
 app = FastAPI()
+
+# ... rest of your code ...
 
 # ==========================================
 # 1. DATABASE CONNECTION
