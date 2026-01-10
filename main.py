@@ -1,7 +1,7 @@
 import os
 import sentry_sdk
 from fastapi import FastAPI, Depends, HTTPException, Request
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text  # <--- Added 'text'
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 
