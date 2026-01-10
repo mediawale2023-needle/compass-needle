@@ -21,4 +21,6 @@ deep-translator
 openpyxl
 lxml
 html5lib
-reportlab# Force Rebuild 123
+reportlab
+sentry-sdk
+# Fixed dependencies
