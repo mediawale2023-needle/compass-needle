@@ -141,8 +141,8 @@ def get_db_engine():
             db_url = db_url.replace("postgres://", "postgresql://", 1)
         return create_engine(db_url)
     else:
-        # Fallback for local testing only
-        return create_engine("sqlite:///./needle.db")
+        # 🟢 FIX: Point to your actual local backup file
+        return create_engine("sqlite:///./sansadx.db")
 
 def run_query(query_str, params=None):
     """Safe wrapper for database queries"""
@@ -170,7 +170,8 @@ def attempt_login(username, password):
         return {"username": "admin", "role": "admin", "tenant_id": 1}, None
 
     # 2. Database Check
-    query = "SELECT * FROM users WHERE username = :u AND password = :p"
+    # 🟢 FIX: Changed 'password' to 'password_hash' to match your DB schema
+    query = "SELECT * FROM users WHERE username = :u AND password_hash = :p"
     users = run_query(query, {"u": username, "p": password})
     
     if users:

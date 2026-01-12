@@ -1,60 +1,50 @@
-import sys
 import os
-from sqlalchemy import create_engine
+import sys
+sys.path.append(os.getcwd())
+from sansadx_backend.db import Base, engine, Tenant, User
 from sqlalchemy.orm import sessionmaker
 
-# 1. SETUP PATHS (Critical to find the right DB)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-BACKEND_DIR = os.path.join(BASE_DIR, "sansadx_backend")
-sys.path.append(BACKEND_DIR)
+def create_super_admin():
+    print("---------------------------------------")
+    print("   👑 CREATING SUPER ADMIN (SANKET)")
+    print("---------------------------------------")
 
-# 2. IMPORT FROM YOUR CODE
-try:
-    from db import User, Tenant, Base
-except ImportError:
-    print("❌ Error: Could not find 'db.py'. Make sure you run this from the project root.")
-    sys.exit(1)
+    # Wipe and Recreate
+    print("🧹 Refreshing Database...")
+    try:
+        Base.metadata.drop_all(bind=engine)
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"Warning: {e}")
 
-# 3. CONNECT TO DATABASE
-DB_PATH = os.path.join(BACKEND_DIR, "needle.db")
-engine = create_engine(f"sqlite:///{DB_PATH}")
-SessionLocal = sessionmaker(bind=engine)
-db = SessionLocal()
+    # Connect
+    SessionLocal = sessionmaker(bind=engine)
+    db = SessionLocal()
 
-print(f"🔌 Connecting to: {DB_PATH}")
-
-# 4. CREATE TENANT (If missing)
-tenant = db.query(Tenant).first()
-if not tenant:
-    print("⚠️ No Tenant found. Creating 'Default Constituency'...")
-    tenant = Tenant(
+    # Create Tenant
+    print("🏢 Creating Tenant...")
+    system_tenant = Tenant(
         name="Needle HQ",
-        constituency="Headquarters",
-        whatsapp_number="14155238886", # Sandbox Number
-        config={"type": "LOK_SABHA"}
+        constituency="System",
+        whatsapp_number="system_admin_hq",
+        subscription_plan="SuperAdmin"
     )
-    db.add(tenant)
+    db.add(system_tenant)
     db.commit()
-    print("✅ Tenant Created.")
 
-# 5. CREATE ADMIN USER
-username = "admin"
-password = "password"
-
-user = db.query(User).filter(User.username == username).first()
-if user:
-    print(f"ℹ️ User '{username}' already exists. Updating password...")
-    user.password_hash = password # Resetting password
-    user.tenant_id = tenant.id
-else:
-    print(f"🆕 Creating new user '{username}'...")
-    user = User(
-        username=username,
-        password_hash=password,
-        role="admin",
-        tenant_id=tenant.id
+    # Create User
+    print("👤 Creating Admin User...")
+    admin_user = User(
+        tenant_id=system_tenant.id,
+        username="snktj1@gmail.com",
+        password_hash="ss@123",
+        role="admin"
     )
-    db.add(user)
+    db.add(admin_user)
+    db.commit()
 
-db.commit()
-print(f"🎉 SUCCESS! Login with -> Username: {username} | Password: {password}")
+    print("\n✅ SUCCESS! Login with: snktj1@gmail.com / ss@123")
+    print("---------------------------------------")
+
+if __name__ == "__main__":
+    create_super_admin()

@@ -1,3 +1,4 @@
+import os
 import json
 from sqlalchemy import create_engine, text
 
@@ -16,7 +17,7 @@ with engine.connect() as conn:
     # 2. RESTORE ADMIN LOGIN (Jagdish Shettar)
     print("👤 Restoring Admin Access...")
     conn.execute(text("""
-        INSERT INTO users (username, password, role, tenant_id) 
+        INSERT INTO users (username, password_hash, role, tenant_id) 
         VALUES ('admin', 'password', 'admin', 1)
         ON CONFLICT (username) DO NOTHING;
     """))
