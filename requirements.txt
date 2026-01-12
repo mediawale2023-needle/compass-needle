@@ -24,3 +24,5 @@ html5lib
 reportlab
 sentry-sdk
 # Fixed dependencies
+passlib[bcrypt]
+bcrypt
