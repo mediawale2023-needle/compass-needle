@@ -286,8 +286,9 @@ else:
     menu_options = ["Dashboard", "SansadX", "Co-Pilot", "Drafter", "PMB", "CSR Suite", "Schemes", "Archives", "Settings"]
     menu_icons = ["speedometer2", "whatsapp", "robot", "pen", "law", "buildings", "cash-coin", "archive", "gear"]
     
-    # 2. FILTER: If user is NOT the MP (Role is not 'admin'), remove sensitive features
-    if role != "admin":
+    # 2. FILTER: If user is NOT the MP or Admin, remove sensitive features
+    # ✅ FIX: Added "mp" to this list so they see the full menu
+    if role not in ["admin", "mp"]:
         # List of features to HIDE from Staff/PAs
         restricted_features = ["CSR Suite", "Schemes"]
         
