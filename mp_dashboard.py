@@ -268,6 +268,8 @@ def render_header(username, color):
     </div>
     """, unsafe_allow_html=True)
 
+# ... (Keep all imports and setup code exactly the same) ...
+
 # --- MAIN APP ---
 if not st.session_state.authenticated:
     login_screen()
@@ -279,12 +281,29 @@ else:
     
     render_header(username, color)
     
+    # --- 🛡️ ROLE-BASED MENU LOGIC ---
+    # 1. Start with the FULL menu (What the MP sees)
+    menu_options = ["Dashboard", "SansadX", "Co-Pilot", "Drafter", "PMB", "CSR Suite", "Schemes", "Archives", "Settings"]
+    menu_icons = ["speedometer2", "whatsapp", "robot", "pen", "law", "buildings", "cash-coin", "archive", "gear"]
+    
+    # 2. FILTER: If user is NOT the MP (Role is not 'admin'), remove sensitive features
+    if role != "admin":
+        # List of features to HIDE from Staff/PAs
+        restricted_features = ["CSR Suite", "Schemes"]
+        
+        # Remove them from the menu
+        for feature in restricted_features:
+            if feature in menu_options:
+                index = menu_options.index(feature)
+                menu_options.pop(index)
+                menu_icons.pop(index)
+
     with st.sidebar:
-        st.caption("NAVIGATION")
+        st.caption(f"NAVIGATION ({role.upper()})") # Useful to see your role
         selected = option_menu(
             menu_title=None,
-            options=["Dashboard", "SansadX", "Co-Pilot", "Drafter", "PMB", "CSR Suite", "Schemes", "Archives", "Settings"], 
-            icons=["speedometer2", "whatsapp", "robot", "pen", "law", "buildings", "cash-coin", "archive", "gear"], 
+            options=menu_options, 
+            icons=menu_icons, 
             default_index=0,
             styles={"nav-link-selected": {"background-color": color}}
         )
@@ -292,6 +311,8 @@ else:
         if st.button("🔒 Log Out"):
             st.session_state.authenticated = False
             st.rerun()
+            
+# ... (Rest of the routing logic remains the same) ...
     
     # --- 📊 DASHBOARD: COMMAND CENTER ---
     if selected == "Dashboard":

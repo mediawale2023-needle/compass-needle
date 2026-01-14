@@ -9,6 +9,10 @@ from datetime import datetime
 import hashlib
 import re
 import sys
+from dotenv import load_dotenv  # <--- Added to load .env variables
+
+# --- Load Environment Variables ---
+load_dotenv()
 
 # --- Database Connection ---
 # Ensure the backend folder is in path to import db.py
@@ -21,7 +25,8 @@ except ImportError:
     sys.exit(1)
 
 # --- Constants ---
-API_URL = "http://127.0.0.1:8000"
+# Updated to read from Environment, useful for deployment
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8000") 
 GEOGRAPHY_BASE_PATH = Path(__file__).parent / "data" / "geography"
 METADATA_PATH = Path(__file__).parent / "data" / "constituency_metadata.json"
 OVERRIDES_PATH = Path("tenant_overrides.json")
