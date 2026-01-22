@@ -1,3 +1,5 @@
+import extra_streamlit_components as stx
+from datetime import datetime, timedelta
 import streamlit as st
 import importlib  # <--- CRITICAL FOR RELOAD
 import requests
@@ -162,6 +164,13 @@ def run_query(query_str, params=None):
             print(f"❌ DB Query Error: {e}")
             return []
 
+# --- 🍪 COOKIE MANAGER SETUP (ADDED) ---
+@st.cache_resource(experimental_allow_widgets=True)
+def get_manager():
+    return stx.CookieManager()
+
+cookie_manager = get_manager()
+
 # --- BACKEND LOGIC ---
 def attempt_login(username, password):
     """Authenticate directly against database"""
@@ -183,6 +192,24 @@ def attempt_login(username, password):
         }, None
     
     return None, "❌ Incorrect Username or Password"
+
+# --- 🍪 COOKIE HELPER (ADDED) ---
+def get_user_from_cookie(username):
+    """Authenticate via Cookie (No Password Check)"""
+    if username == "admin":
+        return {"username": "admin", "role": "admin", "tenant_id": 1}
+    
+    query = "SELECT * FROM users WHERE username = :u"
+    users = run_query(query, {"u": username})
+    
+    if users:
+        user = users[0]
+        return {
+            "username": user['username'],
+            "role": user.get('role', 'user'),
+            "tenant_id": user.get('tenant_id', 1)
+        }
+    return None
 
 def fetch_summary(tenant_id):
     """Calculate dashboard stats directly from DB for the Situation Room"""
@@ -250,6 +277,10 @@ def login_screen():
                     st.session_state.tenant_id = user_data["tenant_id"]
                     st.session_state.house_type = "LOK_SABHA" 
                     st.session_state.theme_color = "#009a4e"
+                    
+                    # 🍪 SAVE COOKIE ON LOGIN (ADDED)
+                    cookie_manager.set("needle_user", username, expires_at=datetime.now() + timedelta(days=30))
+                    
                     st.rerun()
                 else:
                     st.error(error_msg)
@@ -271,6 +302,21 @@ def render_header(username, color):
 # ... (Keep all imports and setup code exactly the same) ...
 
 # --- MAIN APP ---
+
+# 🍪 AUTO-LOGIN VIA COOKIE (ADDED) ---
+if not st.session_state.authenticated:
+    cookie_user = cookie_manager.get(cookie="needle_user")
+    if cookie_user:
+        user_data = get_user_from_cookie(cookie_user)
+        if user_data:
+            st.session_state.authenticated = True
+            st.session_state.current_user = user_data["username"]
+            st.session_state.user_role = user_data["role"]
+            st.session_state.tenant_id = user_data["tenant_id"]
+            st.session_state.house_type = "LOK_SABHA" 
+            st.session_state.theme_color = "#009a4e"
+            st.rerun()
+
 if not st.session_state.authenticated:
     login_screen()
 else:
@@ -310,6 +356,8 @@ else:
         )
         st.divider()
         if st.button("🔒 Log Out"):
+            # 🍪 DELETE COOKIE ON LOGOUT (ADDED)
+            cookie_manager.delete("needle_user")
             st.session_state.authenticated = False
             st.rerun()
             
