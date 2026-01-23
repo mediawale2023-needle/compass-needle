@@ -271,6 +271,7 @@ def login_screen():
             if submit:
                 user_data, error_msg = attempt_login(username, password)
                 if user_data:
+                    # 1. Set Session State
                     st.session_state.authenticated = True
                     st.session_state.current_user = user_data["username"]
                     st.session_state.user_role = user_data["role"]
@@ -278,8 +279,13 @@ def login_screen():
                     st.session_state.house_type = "LOK_SABHA" 
                     st.session_state.theme_color = "#009a4e"
                     
-                    # 🍪 SAVE COOKIE ON LOGIN (ADDED)
+                    # 2. SAVE COOKIE
                     cookie_manager.set("needle_user", username, expires_at=datetime.now() + timedelta(days=30))
+                    
+                    # 3. CRITICAL WAIT: Give browser 1 second to actually save the cookie
+                    st.success("Login successful! Redirecting...")
+                    import time
+                    time.sleep(1)  # <--- THIS FIXES THE LOGOUT ISSUE
                     
                     st.rerun()
                 else:
@@ -303,20 +309,14 @@ def render_header(username, color):
 
 # --- MAIN APP ---
 
-# 🍪 AUTO-LOGIN VIA COOKIE (ROBUST VERSION) ---
+# 🍪 AUTO-LOGIN VIA COOKIE
+# We check this every time the script runs. 
+# If the browser has a cookie, we log them in automatically.
 if not st.session_state.authenticated:
-    import time  # 1. Import time module just for this check
-    
-    # 2. First attempt to get cookie
+    # 1. Get cookie (use the specific key 'needle_user')
     cookie_user = cookie_manager.get(cookie="needle_user")
     
-    # 3. CRITICAL FIX: If cookie is missing, wait 0.5 seconds and try again
-    # This gives the browser enough time to "hand over" the cookie after a refresh
-    if not cookie_user:
-        time.sleep(0.5)
-        cookie_user = cookie_manager.get(cookie="needle_user")
-
-    # 4. If we found it (on 1st or 2nd try), log them in
+    # 2. If cookie exists, validate and login
     if cookie_user:
         user_data = get_user_from_cookie(cookie_user)
         if user_data:
