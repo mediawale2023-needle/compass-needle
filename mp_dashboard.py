@@ -165,7 +165,6 @@ def run_query(query_str, params=None):
             return []
 
 # --- 🍪 COOKIE MANAGER SETUP (ADDED) ---
-@st.cache_resource
 def get_manager():
     return stx.CookieManager()
 
