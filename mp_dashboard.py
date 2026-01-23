@@ -165,6 +165,7 @@ def run_query(query_str, params=None):
             return []
 
 # --- 🍪 COOKIE MANAGER SETUP (ADDED) ---
+# Just remove the decorator completely
 def get_manager():
     return stx.CookieManager()
 
