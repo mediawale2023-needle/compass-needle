@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import os
 import base64
 import json
+import time # <--- ADDED: Necessary for the wait delays
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
@@ -282,10 +283,9 @@ def login_screen():
                     # 2. SAVE COOKIE
                     cookie_manager.set("needle_user", username, expires_at=datetime.now() + timedelta(days=30))
                     
-                    # 3. CRITICAL WAIT: Give browser 1 second to actually save the cookie
+                    # 3. CRITICAL WAIT: Give browser 1.5 seconds to actually save the cookie
                     st.success("Login successful! Redirecting...")
-                    import time
-                    time.sleep(1)  # <--- THIS FIXES THE LOGOUT ISSUE
+                    time.sleep(1.5)  # <--- INCREASED DELAY FOR SAFETY
                     
                     st.rerun()
                 else:
@@ -309,14 +309,20 @@ def render_header(username, color):
 
 # --- MAIN APP ---
 
-# 🍪 AUTO-LOGIN VIA COOKIE
+# 🍪 AUTO-LOGIN VIA COOKIE (ROBUST VERSION)
 # We check this every time the script runs. 
 # If the browser has a cookie, we log them in automatically.
 if not st.session_state.authenticated:
     # 1. Get cookie (use the specific key 'needle_user')
     cookie_user = cookie_manager.get(cookie="needle_user")
     
-    # 2. If cookie exists, validate and login
+    # 2. CRITICAL FIX: Retry logic for race conditions
+    # If cookie is None, the browser component might not be ready. Wait and try again.
+    if cookie_user is None:
+        time.sleep(0.5)
+        cookie_user = cookie_manager.get(cookie="needle_user")
+
+    # 3. If cookie exists (after retry), validate and login
     if cookie_user:
         user_data = get_user_from_cookie(cookie_user)
         if user_data:
