@@ -165,9 +165,9 @@ def run_query(query_str, params=None):
             return []
 
 # --- 🍪 COOKIE MANAGER SETUP (ADDED) ---
-# Just remove the decorator completely
 def get_manager():
-    return stx.CookieManager()
+    # ✅ Adding a key makes the component stable across refreshes
+    return stx.CookieManager(key="needle_cookies")
 
 cookie_manager = get_manager()
 
