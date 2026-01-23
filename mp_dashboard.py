@@ -303,9 +303,20 @@ def render_header(username, color):
 
 # --- MAIN APP ---
 
-# 🍪 AUTO-LOGIN VIA COOKIE (ADDED) ---
+# 🍪 AUTO-LOGIN VIA COOKIE (ROBUST VERSION) ---
 if not st.session_state.authenticated:
+    import time  # 1. Import time module just for this check
+    
+    # 2. First attempt to get cookie
     cookie_user = cookie_manager.get(cookie="needle_user")
+    
+    # 3. CRITICAL FIX: If cookie is missing, wait 0.5 seconds and try again
+    # This gives the browser enough time to "hand over" the cookie after a refresh
+    if not cookie_user:
+        time.sleep(0.5)
+        cookie_user = cookie_manager.get(cookie="needle_user")
+
+    # 4. If we found it (on 1st or 2nd try), log them in
     if cookie_user:
         user_data = get_user_from_cookie(cookie_user)
         if user_data:
