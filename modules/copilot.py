@@ -1,7 +1,40 @@
 import streamlit as st
 import pymupdf  
+import os
+from groq import Groq
 from modules.settings import get_valid_model, init_keys
 
+# --- 1. BACKEND FUNCTION (Fixes WhatsApp Error) ---
+def ask_groq_agent(prompt, tenant_id=1):
+    """
+    Standalone function for Backend (FastAPI/WhatsApp).
+    Does NOT use Streamlit session state.
+    """
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        return "⚠️ Error: GROQ_API_KEY not found in environment variables."
+
+    client = Groq(api_key=api_key)
+    
+    try:
+        completion = client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[
+                {"role": "system", "content": "You are a helpful political aide named 'Needle'. Keep answers concise (under 200 words) for WhatsApp."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=500,
+            top_p=1,
+            stream=False,
+            stop=None,
+        )
+        return completion.choices[0].message.content
+    except Exception as e:
+        print(f"❌ Groq Error: {e}")
+        return "I am currently overloaded. Please try again later."
+
+# --- 2. FRONTEND HELPER (PDF Extraction) ---
 def extract_structured_pages(uploaded_file):
     """Extracts text while preserving page numbers for citations."""
     try:
@@ -20,15 +53,16 @@ def extract_structured_pages(uploaded_file):
         st.error(f"Extraction Error: {e}")
         return []
 
+# --- 3. FRONTEND UI (Your PDF Research Tool) ---
 def render_copilot(username):
-    # --- 1. PERSISTENCE ---
+    # --- PERSISTENCE ---
     if 'pages_data' not in st.session_state: st.session_state.pages_data = []
     if 'copilot_filename' not in st.session_state: st.session_state.copilot_filename = ""
     if 'cp_result' not in st.session_state: st.session_state.cp_result = ""
 
     init_keys()
 
-    # --- 2. HEADER ---
+    # --- HEADER ---
     c_head1, c_head2 = st.columns([4, 1])
     with c_head1:
         st.title("🤖 Co-Pilot (Intelligent Research)")
@@ -42,7 +76,7 @@ def render_copilot(username):
 
     st.divider()
 
-    # --- 3. INPUT ---
+    # --- INPUT ---
     c1, c2 = st.columns([1, 1])
     with c1:
         if not st.session_state.pages_data:
@@ -61,7 +95,7 @@ def render_copilot(username):
         query = st.text_area("Research Query", placeholder="e.g., Critique this bill from an opposition viewpoint.", height=100)
         output_lang = st.selectbox("Output Language", ["English", "Hindi", "Marathi", "Kannada"], index=0)
 
-    # --- 4. ANALYSIS ---
+    # --- ANALYSIS ---
     if st.button("🚀 Run Analysis", type="primary", use_container_width=True):
         if not st.session_state.pages_data:
             st.error("Upload a PDF first.")
@@ -114,7 +148,7 @@ def render_copilot(username):
                     except Exception as e:
                         st.error(f"AI Error: {e}")
 
-    # --- 5. RESULT ---
+    # --- RESULT ---
     if st.session_state.cp_result:
         with st.container(border=True):
             st.markdown(st.session_state.cp_result)
