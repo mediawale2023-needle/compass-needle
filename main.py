@@ -1,3 +1,4 @@
+from modules.copilot import ask_groq_agent
 import os
 import sentry_sdk
 from fastapi import FastAPI, Depends, HTTPException, Request
