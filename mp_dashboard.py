@@ -54,6 +54,8 @@ if 'user_role' not in st.session_state: st.session_state.user_role = ""
 if 'tenant_id' not in st.session_state: st.session_state.tenant_id = None
 if 'house_type' not in st.session_state: st.session_state.house_type = "LOK_SABHA"
 if 'theme_color' not in st.session_state: st.session_state.theme_color = "#009a4e"
+# ✅ NEW: Add Constituency State
+if 'constituency' not in st.session_state: st.session_state.constituency = "India"
 
 # Calendar Notes State
 if 'calendar_notes' not in st.session_state:
@@ -177,7 +179,7 @@ def attempt_login(username, password):
     """Authenticate directly against database"""
     # 1. Admin Override (Backdoor for demo)
     if username == "admin" and password == "password":
-        return {"username": "admin", "role": "admin", "tenant_id": 1}, None
+        return {"username": "admin", "role": "admin", "tenant_id": 1, "constituency": "New Delhi"}, None
 
     # 2. Database Check
     # 🟢 FIX: Changed 'password' to 'password_hash' to match your DB schema
@@ -189,7 +191,9 @@ def attempt_login(username, password):
         return {
             "username": user['username'],
             "role": user.get('role', 'user'),
-            "tenant_id": user.get('tenant_id', 1)
+            "tenant_id": user.get('tenant_id', 1),
+            # ✅ NEW: Fetch Constituency
+            "constituency": user.get('constituency', 'India')
         }, None
     
     return None, "❌ Incorrect Username or Password"
@@ -198,7 +202,7 @@ def attempt_login(username, password):
 def get_user_from_cookie(username):
     """Authenticate via Cookie (No Password Check)"""
     if username == "admin":
-        return {"username": "admin", "role": "admin", "tenant_id": 1}
+        return {"username": "admin", "role": "admin", "tenant_id": 1, "constituency": "New Delhi"}
     
     query = "SELECT * FROM users WHERE username = :u"
     users = run_query(query, {"u": username})
@@ -208,7 +212,9 @@ def get_user_from_cookie(username):
         return {
             "username": user['username'],
             "role": user.get('role', 'user'),
-            "tenant_id": user.get('tenant_id', 1)
+            "tenant_id": user.get('tenant_id', 1),
+            # ✅ NEW: Fetch Constituency
+            "constituency": user.get('constituency', 'India')
         }
     return None
 
@@ -277,6 +283,8 @@ def login_screen():
                     st.session_state.current_user = user_data["username"]
                     st.session_state.user_role = user_data["role"]
                     st.session_state.tenant_id = user_data["tenant_id"]
+                    # ✅ SAVE LOCATION
+                    st.session_state.constituency = user_data["constituency"]
                     st.session_state.house_type = "LOK_SABHA" 
                     st.session_state.theme_color = "#009a4e"
                     
@@ -293,12 +301,15 @@ def login_screen():
 
 # --- HEADER ---
 def render_header(username, color):
+    # ✅ Show Constituency in Header
+    loc = st.session_state.get('constituency', 'India')
     st.markdown(f"""
     <div class="needle-header">
         <div class="needle-logo">
             <span>🪡</span> Needle
         </div>
         <div style="display: flex; gap: 20px; align-items: center; font-size: 14px; font-weight: 500;">
+            <span style="color: #666;">📍 {loc}</span>
             <span style="color: {color};">● Online</span>
             <span>{username.title()}</span>
         </div>
@@ -330,6 +341,8 @@ if not st.session_state.authenticated:
             st.session_state.current_user = user_data["username"]
             st.session_state.user_role = user_data["role"]
             st.session_state.tenant_id = user_data["tenant_id"]
+            # ✅ SAVE LOCATION
+            st.session_state.constituency = user_data["constituency"]
             st.session_state.house_type = "LOK_SABHA" 
             st.session_state.theme_color = "#009a4e"
             st.rerun()
@@ -480,7 +493,9 @@ else:
                 with c_lang:
                     local_lang = st.selectbox("Language", ["English", "Hindi", "Marathi", "Kannada", "Tamil"], label_visibility="collapsed")
                 with c_place:
-                    local_place = st.text_input("Place", value="Belagavi", label_visibility="collapsed")
+                    # ✅ AUTOMATIC: Uses session state constituency as default
+                    my_loc = st.session_state.get('constituency', 'India')
+                    local_place = st.text_input("Place", value=my_loc, label_visibility="collapsed")
 
                 # Fetch Local News
                 loc_query = f"{local_place}"
