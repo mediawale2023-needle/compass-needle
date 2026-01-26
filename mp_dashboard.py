@@ -1,33 +1,30 @@
 import extra_streamlit_components as stx
 from datetime import datetime, timedelta
 import streamlit as st
-import importlib  # <--- CRITICAL FOR RELOAD
+import importlib
 import requests
 from streamlit_option_menu import option_menu
-from datetime import datetime, timedelta
 import os
 import base64
 import json
-import time # <--- ADDED: Necessary for the wait delays
+import time
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
-# --- FORCE RELOAD MODULES ---
-# This ensures Streamlit loads your latest fixes in sansadx.py immediately
-import modules.sansadx 
-importlib.reload(modules.sansadx)
-from modules.sansadx import render_sansadx 
-# ----------------------------
-
-load_dotenv()
-
-# --- PAGE CONFIG ---
+# --- 1. PAGE CONFIG (MUST BE FIRST) ---
 st.set_page_config(
     page_title="Needle | MP Dashboard",
     page_icon="🇮🇳",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# --- 2. FORCE RELOAD MODULES (AFTER CONFIG) ---
+import modules.sansadx 
+importlib.reload(modules.sansadx)
+from modules.sansadx import render_sansadx 
+
+load_dotenv()
 
 # --- MODULE IMPORTS ---
 try:
@@ -39,7 +36,6 @@ try:
     from modules.csr_projects import render_csr_projects
     from modules.csr_partners import render_csr_partners
     from modules.state_intel import render_state_intel
-    # render_sansadx is already imported above
     from modules.utils import track_action, show_download_button
     from modules.persistence import load_archives, delete_draft
     from modules.news_intel import fetch_news, analyze_sentiment
@@ -54,8 +50,9 @@ if 'user_role' not in st.session_state: st.session_state.user_role = ""
 if 'tenant_id' not in st.session_state: st.session_state.tenant_id = None
 if 'house_type' not in st.session_state: st.session_state.house_type = "LOK_SABHA"
 if 'theme_color' not in st.session_state: st.session_state.theme_color = "#009a4e"
-# ✅ NEW: Add Constituency State
 if 'constituency' not in st.session_state: st.session_state.constituency = "India"
+# ✅ LOGOUT FLAG
+if 'logging_out' not in st.session_state: st.session_state.logging_out = False
 
 # Calendar Notes State
 if 'calendar_notes' not in st.session_state:
@@ -135,54 +132,40 @@ def inject_custom_css(color_hex):
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🔌 DATABASE CONNECTION (FIXED FOR POSTGRES) ---
+# --- 🔌 DATABASE CONNECTION ---
 @st.cache_resource
 def get_db_engine():
-    """Connects to Railway Postgres if available, else Local SQLite"""
     db_url = os.getenv("DATABASE_URL")
     if db_url:
-        # 🛠️ Fix for SQLAlchemy: Postgres requires 'postgresql://'
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
         return create_engine(db_url)
     else:
-        # 🟢 FIX: Point to your actual local backup file
         return create_engine("sqlite:///./sansadx.db")
 
 def run_query(query_str, params=None):
-    """Safe wrapper for database queries"""
     engine = get_db_engine()
-    # Use 'with engine.connect()' for safe connection management
     with engine.connect() as conn:
         try:
-            # text() is required for SQLAlchemy + Postgres
             result = conn.execute(text(query_str), params or {})
-            
-            # .mappings().all() returns a list of dictionaries (cleaner than tuples)
             if result.returns_rows:
                 return result.mappings().all()
             return []
         except Exception as e:
-            # Print error to logs so we can debug if it fails
             print(f"❌ DB Query Error: {e}")
             return []
 
-# --- 🍪 COOKIE MANAGER SETUP (ADDED) ---
+# --- 🍪 COOKIE MANAGER ---
 def get_manager():
-    # ✅ Adding a key makes the component stable across refreshes
     return stx.CookieManager(key="needle_cookies")
 
 cookie_manager = get_manager()
 
 # --- BACKEND LOGIC ---
 def attempt_login(username, password):
-    """Authenticate directly against database"""
-    # 1. Admin Override (Backdoor for demo)
     if username == "admin" and password == "password":
         return {"username": "admin", "role": "admin", "tenant_id": 1, "constituency": "New Delhi"}, None
 
-    # 2. Database Check
-    # 🟢 FIX: Changed 'password' to 'password_hash' to match your DB schema
     query = "SELECT * FROM users WHERE username = :u AND password_hash = :p"
     users = run_query(query, {"u": username, "p": password})
     
@@ -192,15 +175,12 @@ def attempt_login(username, password):
             "username": user['username'],
             "role": user.get('role', 'user'),
             "tenant_id": user.get('tenant_id', 1),
-            # ✅ NEW: Fetch Constituency
             "constituency": user.get('constituency', 'India')
         }, None
     
     return None, "❌ Incorrect Username or Password"
 
-# --- 🍪 COOKIE HELPER (ADDED) ---
 def get_user_from_cookie(username):
-    """Authenticate via Cookie (No Password Check)"""
     if username == "admin":
         return {"username": "admin", "role": "admin", "tenant_id": 1, "constituency": "New Delhi"}
     
@@ -213,15 +193,12 @@ def get_user_from_cookie(username):
             "username": user['username'],
             "role": user.get('role', 'user'),
             "tenant_id": user.get('tenant_id', 1),
-            # ✅ NEW: Fetch Constituency
             "constituency": user.get('constituency', 'India')
         }
     return None
 
 def fetch_summary(tenant_id):
-    """Calculate dashboard stats directly from DB for the Situation Room"""
     try:
-        # We query the 'cases' table (Postgres)
         query = "SELECT category, case_metadata FROM cases WHERE tenant_id = :tid"
         rows = run_query(query, {"tid": tenant_id})
         
@@ -229,36 +206,24 @@ def fetch_summary(tenant_id):
         red_zones_raw = {}
         
         for row in rows:
-            # Count Categories
             cat = row.get('category') or "Uncategorized"
             category_breakdown[cat] = category_breakdown.get(cat, 0) + 1
             
-            # Count Red Zones
             ac = "Unknown"
             try:
-                # Handle both String JSON and Dict JSON
                 meta = row.get('case_metadata')
-                if isinstance(meta, str):
-                    meta = json.loads(meta)
-                
-                if isinstance(meta, dict):
-                    ac = meta.get('assembly_constituency', 'Unknown')
-            except:
-                pass
+                if isinstance(meta, str): meta = json.loads(meta)
+                if isinstance(meta, dict): ac = meta.get('assembly_constituency', 'Unknown')
+            except: pass
             
             if ac and ac != "Unknown":
                 red_zones_raw[ac] = red_zones_raw.get(ac, 0) + 1
 
-        # Format Red Zones
         red_zones = [{"assembly_constituency": k, "count": v} for k, v in red_zones_raw.items() if v > 0]
         red_zones.sort(key=lambda x: x['count'], reverse=True)
 
-        return {
-            "category_breakdown": category_breakdown,
-            "red_zones": red_zones
-        }
+        return {"category_breakdown": category_breakdown, "red_zones": red_zones}
     except Exception as e:
-        print(f"❌ Fetch Summary Error: {e}")
         return {"category_breakdown": {}, "red_zones": []}
 
 # --- LOGIN SCREEN ---
@@ -278,30 +243,27 @@ def login_screen():
             if submit:
                 user_data, error_msg = attempt_login(username, password)
                 if user_data:
-                    # 1. Set Session State
                     st.session_state.authenticated = True
                     st.session_state.current_user = user_data["username"]
                     st.session_state.user_role = user_data["role"]
                     st.session_state.tenant_id = user_data["tenant_id"]
-                    # ✅ SAVE LOCATION
                     st.session_state.constituency = user_data["constituency"]
-                    st.session_state.house_type = "LOK_SABHA" 
+                    st.session_state.house_type = "LOK_SABHA"
                     st.session_state.theme_color = "#009a4e"
                     
-                    # 2. SAVE COOKIE
+                    # ✅ Clear Logout Flag on successful manual login
+                    st.session_state.logging_out = False 
+
                     cookie_manager.set("needle_user", username, expires_at=datetime.now() + timedelta(days=30))
                     
-                    # 3. CRITICAL WAIT: Give browser 1.5 seconds to actually save the cookie
                     st.success("Login successful! Redirecting...")
-                    time.sleep(1.5)  # <--- INCREASED DELAY FOR SAFETY
-                    
+                    time.sleep(1.5)
                     st.rerun()
                 else:
                     st.error(error_msg)
 
 # --- HEADER ---
 def render_header(username, color):
-    # ✅ Show Constituency in Header
     loc = st.session_state.get('constituency', 'India')
     st.markdown(f"""
     <div class="needle-header">
@@ -316,24 +278,16 @@ def render_header(username, color):
     </div>
     """, unsafe_allow_html=True)
 
-# ... (Keep all imports and setup code exactly the same) ...
-
 # --- MAIN APP ---
 
-# 🍪 AUTO-LOGIN VIA COOKIE (ROBUST VERSION)
-# We check this every time the script runs. 
-# If the browser has a cookie, we log them in automatically.
-if not st.session_state.authenticated:
-    # 1. Get cookie (use the specific key 'needle_user')
+# 🛑 AUTO-LOGIN (Respects Logout Flag)
+if not st.session_state.authenticated and not st.session_state.logging_out:
     cookie_user = cookie_manager.get(cookie="needle_user")
     
-    # 2. CRITICAL FIX: Retry logic for race conditions
-    # If cookie is None, the browser component might not be ready. Wait and try again.
     if cookie_user is None:
         time.sleep(0.5)
         cookie_user = cookie_manager.get(cookie="needle_user")
 
-    # 3. If cookie exists (after retry), validate and login
     if cookie_user:
         user_data = get_user_from_cookie(cookie_user)
         if user_data:
@@ -341,9 +295,7 @@ if not st.session_state.authenticated:
             st.session_state.current_user = user_data["username"]
             st.session_state.user_role = user_data["role"]
             st.session_state.tenant_id = user_data["tenant_id"]
-            # ✅ SAVE LOCATION
             st.session_state.constituency = user_data["constituency"]
-            st.session_state.house_type = "LOK_SABHA" 
             st.session_state.theme_color = "#009a4e"
             st.rerun()
 
@@ -357,18 +309,11 @@ else:
     
     render_header(username, color)
     
-    # --- 🛡️ ROLE-BASED MENU LOGIC ---
-    # 1. Start with the FULL menu (What the MP sees)
     menu_options = ["Dashboard", "SansadX", "Co-Pilot", "Drafter", "PMB", "CSR Suite", "Schemes", "Archives", "Settings"]
     menu_icons = ["speedometer2", "whatsapp", "robot", "pen", "law", "buildings", "cash-coin", "archive", "gear"]
     
-    # 2. FILTER: If user is NOT the MP or Admin, remove sensitive features
-    # ✅ FIX: Added "mp" to this list so they see the full menu
     if role not in ["admin", "mp"]:
-        # List of features to HIDE from Staff/PAs
         restricted_features = ["CSR Suite", "Schemes"]
-        
-        # Remove them from the menu
         for feature in restricted_features:
             if feature in menu_options:
                 index = menu_options.index(feature)
@@ -376,7 +321,7 @@ else:
                 menu_icons.pop(index)
 
     with st.sidebar:
-        st.caption(f"NAVIGATION ({role.upper()})") # Useful to see your role
+        st.caption(f"NAVIGATION ({role.upper()})")
         selected = option_menu(
             menu_title=None,
             options=menu_options, 
@@ -386,22 +331,18 @@ else:
         )
         st.divider()
         if st.button("🔒 Log Out"):
-            # 🍪 DELETE COOKIE ON LOGOUT (ADDED)
+            # ✅ LOGOUT FIX
             cookie_manager.delete("needle_user")
             st.session_state.authenticated = False
+            st.session_state.logging_out = True
+            time.sleep(1)
             st.rerun()
             
-# ... (Rest of the routing logic remains the same) ...
-    
-    # --- 📊 DASHBOARD: COMMAND CENTER ---
     if selected == "Dashboard":
-        
-        # ✅ FETCH SUMMARY (Highlights Only)
         dashboard_data = fetch_summary(st.session_state.tenant_id)
         categories = dashboard_data.get("category_breakdown", {})
         red_zones = dashboard_data.get("red_zones", [])
         
-        # Logic for Ticker
         if categories:
             top_category = max(categories, key=categories.get)
             ticker_msg = f"📢 Highest Volume: {top_category} ({categories[top_category]} reports)"
@@ -410,7 +351,6 @@ else:
             ticker_msg = "📢 No critical issues reported yet."
             sub_msg = "System is active and listening."
 
-        # Parse Red Zones Text
         if red_zones:
             top_3 = [rz['assembly_constituency'] for rz in red_zones[:3]]
             red_zone_text = f"📍 {len(red_zones)} Active Red Zones"
@@ -420,125 +360,71 @@ else:
             red_zone_text = "📍 No Red Zones"
             red_zone_detail = "All areas normal"
 
-        # ZONE 1: THE SITUATION ROOM (Highlights)
         st.markdown(f"<div class='widget-card'><div class='widget-title'>🔥 Situation Room (Constituency Intel)</div>", unsafe_allow_html=True)
-        
         col_tick, col_map = st.columns([2, 1])
         with col_tick:
             st.caption("BURNING ISSUES TICKER")
-            st.markdown(f"""
-            <div class='ticker-box'>{ticker_msg}</div>
-            <div style='font-size:14px; color:#666;'>• {sub_msg}</div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"<div class='ticker-box'>{ticker_msg}</div><div style='font-size:14px; color:#666;'>• {sub_msg}</div>", unsafe_allow_html=True)
         with col_map:
             st.caption("RED ZONE ALERT")
             if red_zones:
                 st.error(f"**{red_zone_text}**\n\n{red_zone_detail}")
             else:
                 st.success(f"**{red_zone_text}**\n\n{red_zone_detail}")
-                
         st.markdown("</div>", unsafe_allow_html=True)
 
         c_left, c_right = st.columns([2, 1])
-
         with c_left:
-            # ZONE 2: PARLIAMENTARY DESK
             st.markdown(f"<div class='widget-card'><div class='widget-title'>🏛️ Parliamentary Desk</div>", unsafe_allow_html=True)
-            
-            session_active = True 
-            if session_active:
-                st.info("📜 **Parliament is currently in Session**")
-                st.markdown("""
-                **Today's Business:**
-                1. **Question Hour:** Ministries of Commerce, Agriculture, and Textiles.
-                2. **Legislative Business:** Discussion on Energy Amendment Bill, 2025.
-                """)
-            else:
-                st.warning("🏛️ **Parliament is currently NOT in Session**")
-            
+            st.info("📜 **Parliament is currently in Session**")
+            st.markdown("**Today's Business:**\n1. Question Hour\n2. Legislative Business: Energy Amendment Bill")
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # --- ZONE 3: MEDIA CENTRE (LIVE) ---
             st.markdown(f"<div class='widget-card'><div class='widget-title'>📰 Media Centre (Live)</div>", unsafe_allow_html=True)
-            
-            # Create Tabs for National vs Local
             tab_nat, tab_loc = st.tabs(["🇮🇳 National", "📍 Local Pulse"])
             
-            # --- TAB 1: NATIONAL NEWS (English) ---
             with tab_nat:
                 nat_query = f"{username} politics"
                 news_nat = fetch_news(query=nat_query, language="English", limit=5)
-                
                 if news_nat:
                     for news in news_nat:
                         sent = analyze_sentiment(news['title'])
                         d_str = news['published'].strftime("%d %b")
-                        tag_class = f"news-tag-{sent}"
-                        
-                        st.markdown(f"""
-                        <div class='news-item'>
-                            <span class='news-date'>{d_str} | {news['source']}</span>
-                            <a href='{news['link']}' target='_blank' style='text-decoration:none; color:#333;'>
-                                {news['title']}
-                            </a>
-                            <span class='{tag_class}' style='font-size:0.7rem; float:right;'>{sent.upper()}</span>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        st.markdown(f"<div class='news-item'><span class='news-date'>{d_str} | {news['source']}</span><a href='{news['link']}' target='_blank' style='text-decoration:none; color:#333;'>{news['title']}</a><span style='float:right; font-size:10px;'>{sent}</span></div>", unsafe_allow_html=True)
                 else:
-                    st.caption("No national updates found.")
+                    st.caption("No national updates.")
 
-            # --- TAB 2: LOCAL PULSE (Vernacular) ---
             with tab_loc:
                 c_lang, c_place = st.columns([1, 1])
                 with c_lang:
                     local_lang = st.selectbox("Language", ["English", "Hindi", "Marathi", "Kannada", "Tamil"], label_visibility="collapsed")
                 with c_place:
-                    # ✅ AUTOMATIC: Uses session state constituency as default
                     my_loc = st.session_state.get('constituency', 'India')
                     local_place = st.text_input("Place", value=my_loc, label_visibility="collapsed")
 
-                # Fetch Local News
-                loc_query = f"{local_place}"
+                loc_query = f"{local_place} news"
                 news_loc = fetch_news(query=loc_query, language=local_lang, limit=5)
-                
                 if news_loc:
                     for news in news_loc:
                         d_str = news['published'].strftime("%d %b")
-                        st.markdown(f"""
-                        <div class='news-item'>
-                            <span class='news-date'>{d_str} | {news['source']}</span>
-                            <a href='{news['link']}' target='_blank' style='text-decoration:none; color:#333;'>
-                                {news['title']}
-                            </a>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        st.markdown(f"<div class='news-item'><span class='news-date'>{d_str} | {news['source']}</span><a href='{news['link']}' target='_blank' style='text-decoration:none; color:#333;'>{news['title']}</a></div>", unsafe_allow_html=True)
                 else:
-                    st.caption(f"No updates for {local_place} in {local_lang}.")
-
+                    st.caption(f"No updates for {local_place}.")
             st.markdown("</div>", unsafe_allow_html=True)
 
         with c_right:
-            # ZONE 4: REMINDERS / CALENDAR
             st.markdown(f"<div class='widget-card'><div class='widget-title'>🗓️ Calendar & Notes</div>", unsafe_allow_html=True)
-            
-            selected_date = st.date_input("Select Date", datetime.now(), label_visibility="collapsed")
-            date_key = selected_date.strftime("%Y-%m-%d")
-            
-            # Retrieve or Init notes
+            sel_date = st.date_input("Date", datetime.now(), label_visibility="collapsed")
+            d_key = sel_date.strftime("%Y-%m-%d")
             if 'calendar_notes' not in st.session_state: st.session_state.calendar_notes = {}
-            current_note = st.session_state.calendar_notes.get(date_key, "")
-            
-            st.caption(f"Notes for {selected_date.strftime('%d %B %Y')}:")
-            new_note = st.text_area("Notes", value=current_note, height=150, label_visibility="collapsed", key="note_area")
-            
+            c_note = st.session_state.calendar_notes.get(d_key, "")
+            st.caption(f"Notes for {sel_date.strftime('%d %b')}:")
+            n_note = st.text_area("Note", c_note, height=150, label_visibility="collapsed")
             if st.button("💾 Save Note", use_container_width=True):
-                st.session_state.calendar_notes[date_key] = new_note
-                st.toast("Note saved!")
+                st.session_state.calendar_notes[d_key] = n_note
                 st.rerun()
-
             st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- 🛠️ MODULE LOADING ---
     elif selected == "SansadX": render_sansadx(username)
     elif selected == "Co-Pilot": render_copilot(username)
     elif selected == "Drafter": render_drafter(username)
@@ -549,21 +435,14 @@ else:
         with t1: render_state_intel(username)
         with t2: render_csr_projects(username)
         with t3: render_csr_partners(username)
-    
     elif selected == "Schemes": render_matcher(username)
-    
     elif selected == "Archives":
-        st.title("📂 User Archives")
+        st.title("📂 Archives")
         archives = load_archives(username)
-        if not archives: st.info("No saved drafts.")
-        else:
-            for doc in archives:
-                with st.expander(f"📄 {doc['title']}"):
-                    st.text_area("Content", doc['content'], height=200)
-                    if st.button("Delete", key=f"del_{doc['id']}"): 
-                        delete_draft(username, doc['id'])
-                        st.rerun()
-
-    # --- ⚙️ SETTINGS ---
-    elif selected == "Settings":
-        render_settings()
+        for doc in archives:
+            with st.expander(doc['title']):
+                st.write(doc['content'])
+                if st.button("Delete", key=f"d_{doc['id']}"):
+                    delete_draft(username, doc['id'])
+                    st.rerun()
+    elif selected == "Settings": render_settings()
