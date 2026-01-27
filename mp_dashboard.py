@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. FORCE RELOAD MODULES (AFTER CONFIG) ---
+# --- 2. FORCE RELOAD MODULES ---
 import modules.sansadx 
 importlib.reload(modules.sansadx)
 from modules.sansadx import render_sansadx 
@@ -51,7 +51,6 @@ if 'tenant_id' not in st.session_state: st.session_state.tenant_id = None
 if 'house_type' not in st.session_state: st.session_state.house_type = "LOK_SABHA"
 if 'theme_color' not in st.session_state: st.session_state.theme_color = "#009a4e"
 if 'constituency' not in st.session_state: st.session_state.constituency = "India"
-# ✅ LOGOUT FLAG
 if 'logging_out' not in st.session_state: st.session_state.logging_out = False
 
 # Calendar Notes State
@@ -175,7 +174,7 @@ def attempt_login(username, password):
             "username": user['username'],
             "role": user.get('role', 'user'),
             "tenant_id": user.get('tenant_id', 1),
-            "constituency": user.get('constituency', 'India')
+            "constituency": user.get('constituency') or "India"
         }, None
     
     return None, "❌ Incorrect Username or Password"
@@ -193,7 +192,7 @@ def get_user_from_cookie(username):
             "username": user['username'],
             "role": user.get('role', 'user'),
             "tenant_id": user.get('tenant_id', 1),
-            "constituency": user.get('constituency', 'India')
+            "constituency": user.get('constituency') or "India"
         }
     return None
 
@@ -251,7 +250,6 @@ def login_screen():
                     st.session_state.house_type = "LOK_SABHA"
                     st.session_state.theme_color = "#009a4e"
                     
-                    # ✅ Clear Logout Flag on successful manual login
                     st.session_state.logging_out = False 
 
                     cookie_manager.set("needle_user", username, expires_at=datetime.now() + timedelta(days=30))
@@ -279,15 +277,11 @@ def render_header(username, color):
     """, unsafe_allow_html=True)
 
 # --- MAIN APP ---
-
-# 🛑 AUTO-LOGIN (Respects Logout Flag)
 if not st.session_state.authenticated and not st.session_state.logging_out:
     cookie_user = cookie_manager.get(cookie="needle_user")
-    
     if cookie_user is None:
         time.sleep(0.5)
         cookie_user = cookie_manager.get(cookie="needle_user")
-
     if cookie_user:
         user_data = get_user_from_cookie(cookie_user)
         if user_data:
@@ -302,6 +296,9 @@ if not st.session_state.authenticated and not st.session_state.logging_out:
 if not st.session_state.authenticated:
     login_screen()
 else:
+    # --- AUTHENTICATED ZONE ---
+    # The Auto-Refresh logic has been removed here to stop the infinite loop.
+    
     color = st.session_state.theme_color
     inject_custom_css(color)
     role = st.session_state.user_role
@@ -331,23 +328,13 @@ else:
         )
         st.divider()
         if st.button("🔒 Log Out"):
-            # ✅ LOGOUT FIX
             cookie_manager.delete("needle_user")
             st.session_state.authenticated = False
             st.session_state.logging_out = True
             time.sleep(1)
             st.rerun()
-
-
-    # 🔄 AUTO-REFRESH: If location is generic, re-check DB quietly
-    if st.session_state.constituency == "India":
-        fresh_user = get_user_from_cookie(st.session_state.current_user)
-        if fresh_user and fresh_user.get("constituency"):
-            st.session_state.constituency = fresh_user["constituency"]
-            st.rerun() # Refresh page with new location
-    
+            
     if selected == "Dashboard":
-        # ... rest of code
         dashboard_data = fetch_summary(st.session_state.tenant_id)
         categories = dashboard_data.get("category_breakdown", {})
         red_zones = dashboard_data.get("red_zones", [])
@@ -409,7 +396,7 @@ else:
                     local_lang = st.selectbox("Language", ["English", "Hindi", "Marathi", "Kannada", "Tamil"], label_visibility="collapsed")
                 with c_place:
                     my_loc = st.session_state.get('constituency', 'India')
-                    local_place = st.text_input("Place", value=my_loc, label_visibility="collapsed")
+                    local_place = st.text_input("Place", value=my_loc, label_visibility="collapsed", key=f"loc_pulse_{username}")
 
                 loc_query = f"{local_place} news"
                 news_loc = fetch_news(query=loc_query, language=local_lang, limit=5)
