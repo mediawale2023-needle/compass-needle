@@ -28,6 +28,56 @@ GEOGRAPHY_BASE_PATH = Path(__file__).parent / "data" / "geography"
 METADATA_PATH = Path(__file__).parent / "data" / "constituency_metadata.json"
 OVERRIDES_PATH = Path("tenant_overrides.json")
 
+# --- 🇮🇳 MASTER LIST OF 543 LOK SABHA SEATS ---
+ALL_CONSTITUENCIES = sorted([
+    "Adilabad", "Agra", "Ahmadnagar", "Ahmedabad East", "Ahmedabad West", "Ajmer", "Akbarpur", "Akola", "Alappuzha", "Alathur", "Aligarh", "Alipurduars", 
+    "Allahabad", "Almora", "Alwar", "Amalapuram", "Ambala", "Ambedkar Nagar", "Amethi", "Amravati", "Amreli", "Amritsar", "Amroha", "Anakapalli", 
+    "Anand", "Anandpur Sahib", "Anantapur", "Anantnag-Rajouri", "Andaman and Nicobar Islands", "Aonla", "Arakkonam", "Araku", "Arambagh", "Araria", 
+    "Arani", "Arunachal East", "Arunachal West", "Asansol", "Attingal", "Aurangabad (Bihar)", "Aurangabad (Maharashtra)", "Azamgarh", "Badaun", 
+    "Bagalkot", "Bageshwar", "Baghpat", "Bahraich", "Balaghat", "Balasore", "Ballia", "Balurghat", "Banaskantha", "Banda", "Bangalore Central", 
+    "Bangalore North", "Bangalore Rural", "Bangalore South", "Banka", "Banswara", "Barabanki", "Baramati", "Baramulla", "Barasat", "Bardhaman Durgapur", 
+    "Bardhaman Purba", "Bardoli", "Bareilly", "Barmer", "Barrackpore", "Barpeta", "Basirhat", "Bastar", "Basti", "Bathinda", "Beed", "Begusarai", 
+    "Belagavi", "Bellary", "Berhampore", "Berhampur", "Bhadohi", "Bhadrak", "Bhagalpur", "Bhagirath Place", "Bhandara-Gondiya", "Bharatpur", "Bharuch", 
+    "Bhavnagar", "Bhilwara", "Bhind", "Bhiwandi", "Bhiwani-Mahendragarh", "Bhopal", "Bhubaneswar", "Bidar", "Bijapur", "Bijnor", "Bikaner", "Bilaspur", 
+    "Birbhum", "Bishnupur", "Bolangir", "Bolpur", "Bongaigaon", "Buxar", "Cachar", "Chandigarh", "Chandni Chowk", "Chandrapur", "Chatra", "Chembur", 
+    "Chennai Central", "Chennai North", "Chennai South", "Chhhindwara", "Chhota Udaipur", "Chidambaram", "Chikkaballapur", "Chikkamagaluru", "Chitradurga", 
+    "Chittoor", "Chittorgarh", "Churu", "Coimbatore", "Cuddalore", "Cuttack", "Dadra and Nagar Haveli", "Daman and Diu", "Damoh", "Darbhanga", 
+    "Darjeeling", "Dausa", "Davangere", "Deoria", "Dewas", "Dhanbad", "Dhar", "Dharmapuri", "Dharwad", "Dhenkanal", "Dholpur", "Dhule", "Dibrugarh", 
+    "Dindigul", "Dindori", "Domariyaganj", "Dum Dum", "Dumka", "Durg", "Durgapur", "East Delhi", "Eluru", "Ernakulam", "Erode", "Etah", "Etawah", 
+    "Faizabad", "Faridabad", "Faridkot", "Farrukhabad", "Fatehgarh Sahib", "Fatehpur", "Fatehpur Sikri", "Firozabad", "Firozpur", "Gadchiroli-Chimur", 
+    "Guna", "Gurdaspur", "Gurgaon", "Guwahati", "Gwalior", "Hajipur", "Hamirpur (HP)", "Hamirpur (UP)", "Hassan", "Hathras", "Haveri", "Hazaribagh", 
+    "Hingoli", "Hisar", "Hooghly", "Hoshiarpur", "Howrah", "Hubli-Dharwad", "Hyderabad", "Idukki", "Imphal East", "Imphal West", "Indore", "Jabalpur", 
+    "Jadavpur", "Jagatsinghpur", "Jahanabad", "Jaipur", "Jaipur Rural", "Jaisalmer", "Jalandhar", "Jalgaon", "Jalna", "Jalpaiguri", "Jammu", "Jamnagar", 
+    "Jamui", "Janjgir-Champa", "Jaunpur", "Jehanabad", "Jhabua", "Jhajjar", "Jhalawar-Baran", "Jhansi", "Jhargram", "Jhunjhunu", "Jind", "Jodhpur", 
+    "Jorhat", "Junagadh", "Kairana", "Kakinada", "Kalaburagi", "Kalahandi", "Kallakurichi", "Kalyan Dombivli", "Kamrup", "Kanchipuram", "Kandhamal", 
+    "Kangra", "Kanker", "Kannauj", "Kanniyakumari", "Kannur", "Kanpur", "Kanthi", "Karakat", "Karauli-Dholpur", "Karimganj", "Karimnagar", "Karnal", 
+    "Karur", "Kasaragod", "Kathihar", "Kathua", "Katihar", "Kaushambi", "Kendrapara", "Keonjhar", "Khajuraho", "Khalilabad", "Khammam", "Khandwa", 
+    "Khargone", "Kheda", "Khiri", "Khunti", "Kishanganj", "Kodarma", "Kokrajhar", "Kolar", "Kolhapur", "Kolkata Dakshin", "Kolkata Uttar", "Kollam", 
+    "Koppal", "Koraput", "Korba", "Kota", "Kottayam", "Krishna", "Krishnagiri", "Krishnanagar", "Kurnool", "Kurukshetra", "Kushi Nagar", "Kutch", 
+    "Lakhimpur", "Lakshadweep", "Lalganj", "Latur", "Leh", "Lohardaga", "Lucknow", "Ludhiana", "Machhlishahr", "Madhepura", "Madhubani", "Madurai", 
+    "Maharajganj", "Mahasamund", "Mahbubabad", "Mahbubnagar", "Mahesana", "Mahrajganj", "Mainpuri", "Malappuram", "Maldaha Dakshin", "Maldaha Uttar", 
+    "Malkajgiri", "Mandi", "Mandla", "Mandsaur", "Mandya", "Mangaluru", "Mathura", "Mau", "Mayiladuthurai", "Medak", "Meerut", "Mehsana", "Midnapore", 
+    "Mirzapur", "Misrikh", "Modinagar", "Mohanlalganj", "Moradabad", "Morena", "Mumbai North", "Mumbai North Central", "Mumbai North East", 
+    "Mumbai North West", "Mumbai South", "Mumbai South Central", "Munger", "Murshidabad", "Muzaffarnagar", "Muzaffarpur", "Mysore", "Nabadwip", 
+    "Nagarkurnool", "Nagaur", "Nagapattinam", "Nagpur", "Nainital-Udhamsingh Nagar", "Nalanda", "Nalgonda", "Nanded", "Nandurbar", "Nandyal", 
+    "Narasaraopet", "Nashik", "Navsari", "Nawada", "Nawrangpur", "Nellore", "New Delhi", "Nizamabad", "North East Delhi", "North Goa", "North West Delhi", 
+    "Nowgong", "Ongole", "Osmanabad", "Padrauna", "Palakkad", "Palamu", "Palghar", "Pali", "Pallakad", "Panchmahal", "Panaji", "Panchkula", "Panipat", 
+    "Parbhani", "Patna Sahib", "Patan", "Pathanamthitta", "Patiala", "Pauri Garhwal", "Peddapalle", "Perambalur", "Phulpur", "Pilibhit", "Pithoragarh", 
+    "Pollachi", "Pondicherry", "Ponnani", "Porbandar", "Pratapgarh", "Pune", "Puri", "Purnia", "Purulia", "Raebareli", "Raichur", "Raiganj", "Raigarh", 
+    "Raipur", "Rajahmundry", "Rajampet", "Rajgarh", "Rajkot", "Rajmahal", "Rajnandgaon", "Rajouri", "Rajsamand", "Ramagundam", "Ramanathapuram", 
+    "Rampur", "Ranchi", "Ranaghat", "Ratlam", "Ratnagiri-Sindhudurg", "Raver", "Rewa", "Rewari", "Rohtak", "Rohtas", "Rourkela", "Rudrapur", "Sabarkantha", 
+    "Sagar", "Saharanpur", "Saharsa", "Sahibganj", "Saidapet", "Salem", "Samastipur", "Sambalpur", "Sambhal", "Sangli", "Sangrur", "Sant Kabir Nagar", 
+    "Saran", "Sarhali", "Sasaram", "Satara", "Satna", "Sawai Madhopur", "Secunderabad", "Serampore", "Shahdol", "Shahjahanpur", "Shajapur", "Shamli", 
+    "Sheikhpura", "Sheohar", "Shillong", "Shimla", "Shimoga", "Shiridi", "Shirur", "Shivagangai", "Shivamogga", "Shrawasti", "Siddharthnagar", "Sidhi", 
+    "Sikar", "Sikkim", "Silchar", "Siliguri", "Simdega", "Singhbhum", "Sipajhar", "Sirsa", "Sitamarhi", "Sitapur", "Sivaganga", "Siwan", "Solapur", 
+    "Somnath", "Sonipat", "South Delhi", "South Goa", "Sriperumbudur", "Srikakulam", "Srinagar", "Sultanpur", "Sundargarh", "Supaul", "Surat", 
+    "Surendranagar", "Surguja", "Tamluk", "Tenkasi", "Tezpur", "Thane", "Thanjavur", "The Nilgiris", "Theni", "Thiruvallur", "Thiruvananthapuram", 
+    "Thoothukkudi", "Thrissur", "Tikamgarh", "Tiruchirappalli", "Tirunelveli", "Tirupati", "Tiruppur", "Tiruvannamalai", "Tonk-Sawai Madhopur", 
+    "Trichy", "Tripura East", "Tripura West", "Tura", "Udaipur", "Udalguri", "Udhampur", "Udupi Chikmagalur", "Ujjain", "Uluberia", "Una", "Unnao", 
+    "Vadodara", "Vaishali", "Valmiki Nagar", "Valsad", "Varanasi", "Vellore", "Vidisha", "Vijayawada", "Viluppuram", "Virudhunagar", "Visakhapatnam", 
+    "Vizianagaram", "Warangal", "Wardha", "Wayanad", "West Delhi", "Yavatmal-Washim", "Zahirabad"
+])
+
 # --- Page Config ---
 st.set_page_config(
     page_title="Needle Admin Dashboard",
@@ -358,7 +408,10 @@ def main():
                 mp_name = st.text_input("MP Name *", placeholder="Hon. Shri/Smt...")
                 mp_username = st.text_input("Username *", placeholder="username")
                 mp_password = st.text_input("Password *", type="password")
-                mp_constituency = st.text_input("Parliamentary Constituency *", placeholder="e.g., Belagavi")
+                
+                # ✅ UPDATED: Selectbox with All Constituencies
+                mp_constituency = st.selectbox("Parliamentary Constituency *", options=ALL_CONSTITUENCIES, index=0)
+                
                 mp_whatsapp = st.text_input("WhatsApp Number", placeholder="+91...")
                 
                 if st.form_submit_button("Create MP", use_container_width=True):
@@ -381,13 +434,18 @@ def main():
                 
                 # Fetch current details for the selected user
                 current_mp_data = next((item for item in mps if item["username"] == selected_user), None)
-                curr_const = current_mp_data['parliamentary_constituency'] if current_mp_data else ""
+                curr_const = current_mp_data['parliamentary_constituency'] if current_mp_data else "New Delhi"
+                
+                # Determine Index for Selectbox
+                default_idx = 0
+                if curr_const in ALL_CONSTITUENCIES:
+                    default_idx = ALL_CONSTITUENCIES.index(curr_const)
 
                 with st.form("edit_mp_form"):
                     st.write(f"Editing: **{selected_user}**")
                     
-                    # 1. Edit Constituency
-                    new_const = st.text_input("Constituency (Local Pulse)", value=curr_const)
+                    # ✅ UPDATED: Selectbox with auto-select
+                    new_const = st.selectbox("Constituency (Local Pulse)", options=ALL_CONSTITUENCIES, index=default_idx)
                     
                     # 2. Reset Password
                     new_pass = st.text_input("New Password (Optional)", type="password", placeholder="Leave blank to keep current")
