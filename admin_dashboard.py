@@ -68,8 +68,7 @@ def get_all_mps() -> list:
         for t in tenants:
             users = db.query(User).filter(User.tenant_id == t.id).all()
             for u in users:
-                # ✅ UPDATED: Fetch constituency from User first (for Local Pulse), fallback to Tenant
-                # This ensures we see the specific location assigned to the login.
+                # Fetch constituency from User first (for Local Pulse), fallback to Tenant
                 user_constituency = getattr(u, 'constituency', None) or t.constituency or "India"
                 
                 result.append({
@@ -105,7 +104,7 @@ def create_mp(name: str, username: str, password: str, constituency: str, whatsa
         db.add(new_tenant)
         db.flush()
         
-        # ✅ UPDATED: Create User AND set Constituency
+        # Create User AND set Constituency
         new_user = User(
             tenant_id=new_tenant.id,
             username=username,
