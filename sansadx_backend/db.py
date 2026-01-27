@@ -30,7 +30,7 @@ class Tenant(Base):
     name = Column(String)
     constituency = Column(String)
     whatsapp_number = Column(String, unique=True)
-    subscription_plan = Column(String, default="Pro")  # <--- WE ENSURE THIS EXISTS
+    subscription_plan = Column(String, default="Pro")
     config = Column(JSON, default={})  
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -45,6 +45,7 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     password_hash = Column(String)
     role = Column(String)
+    constituency = Column(String, default="India")  # <--- ✅ ADDED THIS
     
     tenant = relationship("Tenant", back_populates="users")
 
@@ -61,6 +62,7 @@ class Case(Base):
     is_critical = Column(Boolean, default=False)
     response_to_citizen = Column(Text, nullable=True)
     notes_for_staff = Column(Text, nullable=True)
+    case_metadata = Column(JSON, nullable=True) # <--- ✅ ADDED THIS (Prevents Analytics Errors)
     created_at = Column(DateTime, default=datetime.utcnow)
     tenant = relationship("Tenant", back_populates="cases")
 
