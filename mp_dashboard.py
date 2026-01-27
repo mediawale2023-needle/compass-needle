@@ -337,8 +337,17 @@ else:
             st.session_state.logging_out = True
             time.sleep(1)
             st.rerun()
-            
+
+
+    # 🔄 AUTO-REFRESH: If location is generic, re-check DB quietly
+    if st.session_state.constituency == "India":
+        fresh_user = get_user_from_cookie(st.session_state.current_user)
+        if fresh_user and fresh_user.get("constituency"):
+            st.session_state.constituency = fresh_user["constituency"]
+            st.rerun() # Refresh page with new location
+    
     if selected == "Dashboard":
+        # ... rest of code
         dashboard_data = fetch_summary(st.session_state.tenant_id)
         categories = dashboard_data.get("category_breakdown", {})
         red_zones = dashboard_data.get("red_zones", [])
