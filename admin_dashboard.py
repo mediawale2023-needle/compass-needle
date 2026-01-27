@@ -45,7 +45,8 @@ ALL_CONSTITUENCIES = sorted([
     "Darjeeling", "Dausa", "Davangere", "Deoria", "Dewas", "Dhanbad", "Dhar", "Dharmapuri", "Dharwad", "Dhenkanal", "Dholpur", "Dhule", "Dibrugarh", 
     "Dindigul", "Dindori", "Domariyaganj", "Dum Dum", "Dumka", "Durg", "Durgapur", "East Delhi", "Eluru", "Ernakulam", "Erode", "Etah", "Etawah", 
     "Faizabad", "Faridabad", "Faridkot", "Farrukhabad", "Fatehgarh Sahib", "Fatehpur", "Fatehpur Sikri", "Firozabad", "Firozpur", "Gadchiroli-Chimur", 
-    "Guna", "Gurdaspur", "Gurgaon", "Guwahati", "Gwalior", "Hajipur", "Hamirpur (HP)", "Hamirpur (UP)", "Hassan", "Hathras", "Haveri", "Hazaribagh", 
+    "Gandhinagar", "Gautam Buddha Nagar", "Ghaziabad", "Ghazipur", "Giridih", "Godda", "Gopalganj", "Gorakhpur", "Gulbarga", "Guna", "Gurdaspur", "Gurgaon", # <--- Added Here
+    "Guwahati", "Gwalior", "Hajipur", "Hamirpur (HP)", "Hamirpur (UP)", "Hassan", "Hathras", "Haveri", "Hazaribagh", 
     "Hingoli", "Hisar", "Hooghly", "Hoshiarpur", "Howrah", "Hubli-Dharwad", "Hyderabad", "Idukki", "Imphal East", "Imphal West", "Indore", "Jabalpur", 
     "Jadavpur", "Jagatsinghpur", "Jahanabad", "Jaipur", "Jaipur Rural", "Jaisalmer", "Jalandhar", "Jalgaon", "Jalna", "Jalpaiguri", "Jammu", "Jamnagar", 
     "Jamui", "Janjgir-Champa", "Jaunpur", "Jehanabad", "Jhabua", "Jhajjar", "Jhalawar-Baran", "Jhansi", "Jhargram", "Jhunjhunu", "Jind", "Jodhpur", 
