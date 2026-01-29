@@ -2,52 +2,43 @@ import streamlit as st
 import pymupdf  
 import os
 import google.generativeai as genai
+from modules.settings import get_valid_model, init_keys
 from dotenv import load_dotenv
 
-# Load Environment Variables
+# Load Environment Variables (Crucial for Backend)
 load_dotenv()
 
-# --- HELPER: DIRECT MODEL LOADER (The Fix) ---
-def get_gemini_model():
-    """Directly configures and returns the model using the Env Variable."""
-    # 1. Try fetching from Environment (Best for Cloud)
-    api_key = os.getenv("GEMINI_API_KEY")
-    
-    # 2. Fallback to Session State (Best for Local testing)
-    if not api_key:
-        api_key = st.session_state.get("GLOBAL_GEMINI_KEY")
-
-    if not api_key:
-        return None
-
-    try:
-        genai.configure(api_key=api_key)
-        return genai.GenerativeModel('gemini-1.5-flash')
-    except Exception as e:
-        print(f"Gemini Connection Error: {e}")
-        return None
-
-# --- 1. BACKEND FUNCTION (WhatsApp/FastAPI) ---
+# --- 1. BACKEND FUNCTION (Replaced Groq with Gemini) ---
 def ask_agent(prompt, tenant_id=1):
     """
-    Standalone function for Backend.
+    Standalone function for Backend (FastAPI/WhatsApp).
+    Does NOT use Streamlit session state.
     Uses 'GEMINI_API_KEY' from environment variables.
     """
-    model = get_gemini_model()
-    if not model:
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
         return "⚠️ Error: GEMINI_API_KEY not found in environment variables."
 
     try:
-        # System instruction embedded in prompt for Flash model compatibility
+        genai.configure(api_key=api_key)
+        # Use Flash for speed in backend/chat responses
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # System instruction is embedded in the prompt for Flash model compatibility
         full_prompt = f"""
         System: You are a helpful political aide named 'Needle'. Keep answers concise (under 200 words) for WhatsApp.
         User: {prompt}
         """
+        
         response = model.generate_content(full_prompt)
         return response.text
     except Exception as e:
-        print(f"Backend Error: {e}")
+        print(f"❌ Gemini Backend Error: {e}")
         return "I am currently overloaded. Please try again later."
+
+# --- BACKWARDS COMPATIBILITY ALIAS ---
+# This line fixes the crash in main.py by mapping the old name to the new function
+ask_groq_agent = ask_agent 
 
 # --- 2. FRONTEND HELPER (PDF Extraction) ---
 def extract_structured_pages(uploaded_file):
@@ -74,6 +65,8 @@ def render_copilot(username):
     if 'pages_data' not in st.session_state: st.session_state.pages_data = []
     if 'copilot_filename' not in st.session_state: st.session_state.copilot_filename = ""
     if 'cp_result' not in st.session_state: st.session_state.cp_result = ""
+
+    init_keys()
 
     # --- HEADER ---
     c_head1, c_head2 = st.columns([4, 1])
@@ -110,60 +103,56 @@ def render_copilot(username):
 
     # --- ANALYSIS ---
     if st.button("🚀 Run Analysis", type="primary", use_container_width=True):
-        
-        # Load Model Just-in-Time
-        model = get_gemini_model()
-        
-        if not model:
-            st.error("⚠️ AI Model not connected. Please check Railway Variables.")
-        elif not st.session_state.pages_data:
+        if not st.session_state.pages_data:
             st.error("Upload a PDF first.")
         elif not query:
             st.error("Enter a query.")
         else:
             with st.spinner(f"Analyzing in {output_lang}..."):
-                # STEP 1: DETECT INTENT
-                classifier_prompt = f"Identify if this query is asking for a NEUTRAL summary, CRITICAL critique, or SUPPORTIVE view: '{query}'. Return only one word: NEUTRAL, CRITICAL, or SUPPORTIVE."
-                try:
-                    detected_intent = model.generate_content(classifier_prompt).text.strip().upper()
-                except:
-                    detected_intent = "NEUTRAL"
+                model = get_valid_model()
+                if model:
+                    # STEP 1: DETECT INTENT
+                    classifier_prompt = f"Identify if this query is asking for a NEUTRAL summary, CRITICAL critique, or SUPPORTIVE view: '{query}'. Return only one word: NEUTRAL, CRITICAL, or SUPPORTIVE."
+                    try:
+                        detected_intent = model.generate_content(classifier_prompt).text.strip().upper()
+                    except:
+                        detected_intent = "NEUTRAL"
 
-                # STEP 2: DEFINE LENS
-                lenses = {
-                    "CRITICAL": "LENS: Opposition Critic. Focus on loopholes, risks, and administrative failures.",
-                    "SUPPORTIVE": "LENS: Government Proponent. Focus on national interest, efficiency, and solutions.",
-                    "NEUTRAL": "LENS: Legislative Clerk. Focus on factual and balanced briefing."
-                }
-                active_lens = lenses.get(detected_intent, lenses["NEUTRAL"])
+                    # STEP 2: DEFINE LENS
+                    lenses = {
+                        "CRITICAL": "LENS: Opposition Critic. Focus on loopholes, risks, and administrative failures.",
+                        "SUPPORTIVE": "LENS: Government Proponent. Focus on national interest, efficiency, and solutions.",
+                        "NEUTRAL": "LENS: Legislative Clerk. Focus on factual and balanced briefing."
+                    }
+                    active_lens = lenses.get(detected_intent, lenses["NEUTRAL"])
 
-                # STEP 3: EXECUTE WITH LANGUAGE ENFORCEMENT
-                full_context = "".join([f"\n--- PAGE {p['page']} ---\n{p['content']}" for p in st.session_state.pages_data])
-                
-                prompt = f"""
-                {active_lens}
-                TASK: Answer the query based ONLY on the doc.
-                DOC: {st.session_state.copilot_filename}
-                CONTEXT: {full_context[:100000]}
-                
-                STRICT RULES:
-                1. LANGUAGE: You MUST write the entire response in {output_lang}. 
-                2. CITATIONS: Include [Page X] for every fact.
-                3. QUERY: {query}
-                
-                STRUCTURE:
-                # Briefing Note ({detected_intent})
-                ### 1. Executive Summary
-                ### 2. Legal/Political Analysis
-                ### 3. Recommendations
-                """
-                
-                try:
-                    resp = model.generate_content(prompt)
-                    st.session_state.cp_result = f"**Perspective: {detected_intent}**\n\n" + resp.text
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"AI Error: {e}")
+                    # STEP 3: EXECUTE WITH LANGUAGE ENFORCEMENT
+                    full_context = "".join([f"\n--- PAGE {p['page']} ---\n{p['content']}" for p in st.session_state.pages_data])
+                    
+                    prompt = f"""
+                    {active_lens}
+                    TASK: Answer the query based ONLY on the doc.
+                    DOC: {st.session_state.copilot_filename}
+                    CONTEXT: {full_context[:100000]}
+                    
+                    STRICT RULES:
+                    1. LANGUAGE: You MUST write the entire response in {output_lang}. 
+                    2. CITATIONS: Include [Page X] for every fact.
+                    3. QUERY: {query}
+                    
+                    STRUCTURE:
+                    # Briefing Note ({detected_intent})
+                    ### 1. Executive Summary
+                    ### 2. Legal/Political Analysis
+                    ### 3. Recommendations
+                    """
+                    
+                    try:
+                        resp = model.generate_content(prompt)
+                        st.session_state.cp_result = f"**Perspective: {detected_intent}**\n\n" + resp.text
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"AI Error: {e}")
 
     # --- RESULT ---
     if st.session_state.cp_result:
