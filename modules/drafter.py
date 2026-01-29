@@ -21,6 +21,7 @@ def save_draft_to_disk(content, subject, doc_type="Draft"):
     if not os.path.exists(folder): os.makedirs(folder)
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Sanitize filename
     safe_subject = "".join(c for c in subject if c.isalnum() or c in (' ','_')).strip().replace(" ", "_")[:20]
     filename = f"{folder}/{doc_type}_{timestamp}_{safe_subject}.txt"
     
@@ -30,10 +31,10 @@ def save_draft_to_disk(content, subject, doc_type="Draft"):
 # --- MAIN RENDERER ---
 def render_drafter(username):
     st.title("✍️ Smart Drafter")
-    init_keys() # Ensure API keys are loaded
+    init_keys() # Ensure API keys are loaded from Environment/Session
     
     profile = load_tenant_profile()
-    model = get_valid_model() # Load Gemini/AI Model
+    model = get_valid_model() # Load Gemini/AI Model securely
     
     # Updated Tabs (Removed Press Release)
     tab_letter, tab_pq = st.tabs(["📝 Official Letter", "🏛️ Parliamentary Question (PQ)"])
