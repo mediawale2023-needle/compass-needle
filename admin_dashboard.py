@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Database Connection ---
-sys.path.insert(0, str(Path(__file__).parent / "sansadx-backend"))
+sys.path.insert(0, str(Path(__file__).parent / "sansadx_backend"))
 try:
     from db import SessionLocal, Tenant, User, init_db
 except ImportError:
