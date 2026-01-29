@@ -73,9 +73,9 @@ def get_valid_model():
         
         # 1. Wishlist of models (Fastest -> Smartest)
         wishlist = [
-            "gemini-1.5-flash",       # Best for speed/cost
+            "gemini-2.5-flash",       # Best for speed/cost
             "gemini-1.5-pro",         # Best for complex reasoning
-            "gemini-pro"              # Fallback
+            "gemini-2.5-flash"              # Fallback
         ]
         
         # 2. Try to list models to verify connection
@@ -85,7 +85,7 @@ def get_valid_model():
             return None
 
         # 3. Return the generic generative model (It auto-selects best stable version)
-        return genai.GenerativeModel("gemini-1.5-flash")
+        return genai.GenerativeModel("gemini-2.5-flash")
             
     except Exception as e:
         print(f"Model Discovery Error: {e}")

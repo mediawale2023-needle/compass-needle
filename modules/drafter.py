@@ -3,7 +3,11 @@ import os
 import json
 import time
 from datetime import datetime
-from modules.settings import get_valid_model, init_keys
+import google.generativeai as genai
+from dotenv import load_dotenv
+
+# Load Environment Variables
+load_dotenv()
 
 # --- HELPER FUNCTIONS ---
 def load_tenant_profile():
@@ -21,21 +25,44 @@ def save_draft_to_disk(content, subject, doc_type="Draft"):
     if not os.path.exists(folder): os.makedirs(folder)
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    # Sanitize filename
     safe_subject = "".join(c for c in subject if c.isalnum() or c in (' ','_')).strip().replace(" ", "_")[:20]
     filename = f"{folder}/{doc_type}_{timestamp}_{safe_subject}.txt"
     
     with open(filename, "w", encoding="utf-8") as f: f.write(content)
     return filename
 
+def get_gemini_model():
+    """Directly configures and returns the model using the Env Variable."""
+    # 1. Try fetching from Environment (Best for Cloud)
+    api_key = os.getenv("GEMINI_API_KEY")
+    
+    # 2. Fallback to Session State (Best for Local testing if set in Settings)
+    if not api_key:
+        api_key = st.session_state.get("GLOBAL_GEMINI_KEY")
+
+    if not api_key:
+        return None
+
+    try:
+        genai.configure(api_key=api_key)
+        return genai.GenerativeModel('gemini-2.5-flash')
+    except Exception as e:
+        print(f"Gemini Error: {e}")
+        return None
+
 # --- MAIN RENDERER ---
 def render_drafter(username):
     st.title("✍️ Smart Drafter")
-    init_keys() # Ensure API keys are loaded from Environment/Session
     
+    # --- LOAD MODEL DIRECTLY ---
+    model = get_gemini_model()
     profile = load_tenant_profile()
-    model = get_valid_model() # Load Gemini/AI Model securely
     
+    if not model:
+        st.error("⚠️ AI Model not connected.")
+        st.info("Please add `GEMINI_API_KEY` to your Railway Variables or local .env file.")
+        return
+
     # Updated Tabs (Removed Press Release)
     tab_letter, tab_pq = st.tabs(["📝 Official Letter", "🏛️ Parliamentary Question (PQ)"])
 
@@ -53,7 +80,7 @@ def render_drafter(username):
             l_lang = st.selectbox("Language", profile.get("languages", ["English"]), key="l_lang")
             
             if st.button("✨ Draft Letter", type="primary", use_container_width=True):
-                if l_recipient and l_subject and model:
+                if l_recipient and l_subject:
                     with st.spinner("AI is drafting..."):
                         prompt = f"""
                         ROLE: You are {profile.get('mp_name')}, MP for {profile.get('constituency')}.
@@ -68,8 +95,6 @@ def render_drafter(username):
                             st.session_state["draft_letter"] = resp.text
                         except Exception as e:
                             st.error(f"AI Error: {e}")
-                elif not model:
-                    st.error("⚠️ AI Model not connected. Check Settings.")
                 else:
                     st.toast("⚠️ Please fill Recipient and Subject")
 
@@ -104,7 +129,7 @@ def render_drafter(username):
         pq_subject = st.text_input("Subject / Issue", placeholder="e.g. Delay in highway construction in Belagavi")
         
         if st.button("✨ Generate 5 PQ Options", type="primary", use_container_width=True):
-            if pq_subject and model:
+            if pq_subject:
                 with st.spinner("Analyzing Parliamentary Precedents & Formatting..."):
                     
                     # Engineered Prompt for 5 Distinct Options
@@ -137,8 +162,6 @@ def render_drafter(username):
                         st.session_state["pq_options"] = resp.text
                     except Exception as e:
                         st.error(f"AI Error: {e}")
-            elif not model:
-                st.error("⚠️ AI Model not connected.")
             else:
                 st.toast("⚠️ Enter a Subject")
 

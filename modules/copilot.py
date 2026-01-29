@@ -22,7 +22,7 @@ def ask_agent(prompt, tenant_id=1):
     try:
         genai.configure(api_key=api_key)
         # Use Flash for speed in backend/chat responses
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         # System instruction is embedded in the prompt for Flash model compatibility
         full_prompt = f"""
