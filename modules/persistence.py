@@ -1,11 +1,9 @@
 import streamlit as st
-import json
-import os
 from datetime import datetime
 from contextlib import contextmanager
+import sys
 
 # Import database components from db.py
-import sys
 sys.path.insert(0, '/app')
 from db import SessionLocal, Archive, DNASample, init_db
 
@@ -28,7 +26,6 @@ def load_archives(username):
     """Loads saved drafts for a specific user from PostgreSQL."""
     with get_db_session() as db:
         archives = db.query(Archive).filter(Archive.user == username).all()
-        # Return as list of dicts to maintain compatibility
         return [
             {
                 "id": a.id,
@@ -78,7 +75,6 @@ def load_dna_samples(username):
     """Loads all style templates for the user from PostgreSQL."""
     with get_db_session() as db:
         samples = db.query(DNASample).filter(DNASample.username == username).all()
-        # Return as list of dicts to maintain compatibility
         return [
             {
                 "id": s.id,
@@ -97,5 +93,4 @@ def delete_dna_sample(username, sample_id):
             DNASample.id == sample_id
         ).delete()
 
-# Initialize database tables on module import
-init_db()
+# init_db() removed from here to prevent 502 Bad Gateway blocking
