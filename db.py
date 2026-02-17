@@ -25,7 +25,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
-# --- 2. MODELS (EXACTLY AS REVERTED) ---
+# --- 2. CORE MODELS ---
 
 class Tenant(Base):
     __tablename__ = "tenants"
@@ -68,5 +68,28 @@ class Case(Base):
     
     tenant = relationship("Tenant", back_populates="cases")
 
+# --- 3. PERSISTENCE MODELS (Archives & DNA Samples) ---
+
+class Archive(Base):
+    """Stores saved drafts/archives for users."""
+    __tablename__ = "archives"
+    id = Column(Integer, primary_key=True, index=True)
+    user = Column(String, index=True)  # Indexed for fast lookups
+    date = Column(String)
+    category = Column(String, default="General")
+    title = Column(String)
+    content = Column(Text)  # Text type for long drafts
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class DNASample(Base):
+    """Stores style templates (DNA samples) for users."""
+    __tablename__ = "dna_samples"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, index=True)  # Indexed for fast lookups
+    title = Column(String)
+    content = Column(Text)  # Text type for long content
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# --- 4. DATABASE INITIALIZATION ---
 def init_db():
     Base.metadata.create_all(bind=engine)

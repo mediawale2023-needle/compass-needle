@@ -1,102 +1,100 @@
-import streamlit as st
-import json
-import os
+"import streamlit as st
 from datetime import datetime
+from contextlib import contextmanager
 
-ARCHIVE_FILE = "user_archives.json"
-DNA_FILE = "dna_bank.json"
+# Import database components from db.py
+import sys
+sys.path.insert(0, '/app')
+from db import SessionLocal, Archive, DNASample, init_db
+
+# --- DATABASE SESSION CONTEXT MANAGER ---
+@contextmanager
+def get_db_session():
+    \"\"\"Context manager for database sessions to prevent connection leaks.\"\"\"
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 # --- ARCHIVE FUNCTIONS (Drafts) ---
 def load_archives(username):
-    """Loads saved drafts for a specific user."""
-    if os.path.exists(ARCHIVE_FILE):
-        with open(ARCHIVE_FILE, 'r') as f:
-            try:
-                all_data = json.load(f)
-                return [d for d in all_data if d.get('user') == username]
-            except:
-                return []
-    return []
+    \"\"\"Loads saved drafts for a specific user from PostgreSQL.\"\"\"
+    with get_db_session() as db:
+        archives = db.query(Archive).filter(Archive.user == username).all()
+        # Return as list of dicts to maintain compatibility
+        return [
+            {
+                \"id\": a.id,
+                \"user\": a.user,
+                \"date\": a.date,
+                \"category\": a.category,
+                \"title\": a.title,
+                \"content\": a.content
+            }
+            for a in archives
+        ]
 
-def save_draft(username, title, content, category="General"):
-    """Saves a draft to the JSON file."""
-    if os.path.exists(ARCHIVE_FILE):
-        with open(ARCHIVE_FILE, 'r') as f:
-            try:
-                data = json.load(f)
-            except:
-                data = []
-    else:
-        data = []
+def save_draft(username, title, content, category=\"General\"):
+    \"\"\"Saves a draft to PostgreSQL.\"\"\"
+    with get_db_session() as db:
+        new_entry = Archive(
+            user=username,
+            date=datetime.now().strftime(\"%Y-%m-%d %H:%M\"),
+            category=category,
+            title=title,
+            content=content
+        )
+        db.add(new_entry)
     
-    new_entry = {
-        "id": int(datetime.now().timestamp()),
-        "user": username,
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "category": category,
-        "title": title,
-        "content": content
-    }
-    
-    data.append(new_entry)
-    
-    with open(ARCHIVE_FILE, 'w') as f:
-        json.dump(data, f, indent=4)
-    
-    st.toast(f"Saved to Archives: {title}", icon="💾")
+    st.toast(f\"Saved to Archives: {title}\", icon=\"💾\")
 
 def delete_draft(username, draft_id):
-    """Deletes a draft by ID."""
-    if os.path.exists(ARCHIVE_FILE):
-        with open(ARCHIVE_FILE, 'r') as f:
-            data = json.load(f)
-        
-        # Filter out the deleted one
-        data = [d for d in data if not (d.get('user') == username and d['id'] == draft_id)]
-        
-        with open(ARCHIVE_FILE, 'w') as f:
-            json.dump(data, f, indent=4)
+    \"\"\"Deletes a draft by ID from PostgreSQL.\"\"\"
+    with get_db_session() as db:
+        db.query(Archive).filter(
+            Archive.user == username,
+            Archive.id == draft_id
+        ).delete()
 
 # --- DNA BANK FUNCTIONS (Style Templates) ---
-def init_dna_bank():
-    if not os.path.exists(DNA_FILE):
-        with open(DNA_FILE, "w") as f:
-            json.dump([], f)
-
 def save_dna_sample(username, title, content):
-    """Saves a past letter as a style template."""
-    init_dna_bank()
-    with open(DNA_FILE, "r") as f:
-        bank = json.load(f)
-    
-    new_sample = {
-        "id": int(datetime.now().timestamp()),
-        "username": username,
-        "title": title,
-        "content": content
-    }
-    bank.append(new_sample)
-    
-    with open(DNA_FILE, "w") as f:
-        json.dump(bank, f)
+    \"\"\"Saves a past letter as a style template to PostgreSQL.\"\"\"
+    with get_db_session() as db:
+        new_sample = DNASample(
+            username=username,
+            title=title,
+            content=content
+        )
+        db.add(new_sample)
 
 def load_dna_samples(username):
-    """Loads all style templates for the user."""
-    init_dna_bank()
-    with open(DNA_FILE, "r") as f:
-        try:
-            bank = json.load(f)
-            return [doc for doc in bank if doc["username"] == username]
-        except:
-            return []
+    \"\"\"Loads all style templates for the user from PostgreSQL.\"\"\"
+    with get_db_session() as db:
+        samples = db.query(DNASample).filter(DNASample.username == username).all()
+        # Return as list of dicts to maintain compatibility
+        return [
+            {
+                \"id\": s.id,
+                \"username\": s.username,
+                \"title\": s.title,
+                \"content\": s.content
+            }
+            for s in samples
+        ]
 
 def delete_dna_sample(username, sample_id):
-    """Deletes a style template."""
-    init_dna_bank()
-    with open(DNA_FILE, "r") as f:
-        bank = json.load(f)
-    
-    bank = [doc for doc in bank if not (doc["username"] == username and doc["id"] == sample_id)]
-    
-    with open(DNA_FILE, "w") as f:
-        json.dump(bank, f)
+    \"\"\"Deletes a style template from PostgreSQL.\"\"\"
+    with get_db_session() as db:
+        db.query(DNASample).filter(
+            DNASample.username == username,
+            DNASample.id == sample_id
+        ).delete()
+
+# Initialize database tables on module import
+init_db()
+"
