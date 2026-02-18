@@ -277,7 +277,6 @@ def render_header(username, color):
     """, unsafe_allow_html=True)
 
 # --- MAIN APP ---
-# Modified Auth Check: Skip cookie retrieval if we are in the middle of logging out
 if not st.session_state.authenticated and not st.session_state.logging_out:
     cookie_user = cookie_manager.get(cookie="needle_user")
     if cookie_user is None:
@@ -327,17 +326,19 @@ else:
         )
         st.divider()
         if st.button("🔒 Log Out"):
-            # Robust Logout Fix
-            cookie_manager.delete("needle_user")
+            # Robust Logout Fix with check to avoid KeyError
+            try:
+                all_cookies = cookie_manager.get_all()
+                if all_cookies and "needle_user" in all_cookies:
+                    cookie_manager.delete("needle_user")
+            except Exception:
+                pass
             
-            # Clear critical session flags immediately
             st.session_state.authenticated = False
             st.session_state.logging_out = True
             
-            # Give the browser time to process cookie deletion before rerun
             time.sleep(1.2)
             
-            # Wipe the entire session state to be sure
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
                 
