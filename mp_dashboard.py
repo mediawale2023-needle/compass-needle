@@ -156,7 +156,7 @@ def run_query(query_str, params=None):
             return []
 
 # --- 🍪 COOKIE MANAGER ---
-@st.cache_resource
+# Cache removed to prevent CachedWidgetWarning
 def get_manager():
     return stx.CookieManager(key="needle_cookies_v2")
 
