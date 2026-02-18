@@ -299,23 +299,21 @@ def render_header(username, color):
     """, unsafe_allow_html=True)
 
 # --- MAIN APP ---
-# 🚪 LOGOUT GATE
+# 🚪 LOGOUT GATE: If logout was initiated, reset flags and show login screen directly
 if st.session_state.get('logout_confirmed', False):
-    st.markdown("""
-    <div style='text-align: center; margin-top: 100px;'>
-        <h2>🔒 Logged Out Successfully</h2>
-        <p style='color: #666;'>You have been securely logged out.</p>
-    </div>
-    """, unsafe_allow_html=True)
+    # Ensure cookie is deleted
+    try:
+        cookie_manager.delete("needle_user")
+    except:
+        pass
     
-    try: cookie_manager.delete("needle_user")
-    except: pass
+    # Reset flags so the login form can be displayed
+    st.session_state.logout_confirmed = False
+    st.session_state.logging_out = False
+    st.session_state.authenticated = False
     
-    if st.button("🔄 Login Again"):
-        st.session_state.logout_confirmed = False
-        st.session_state.logging_out = False
-        st.session_state.authenticated = False
-        st.rerun()
+    # Call the login screen and stop the rest of the app execution
+    login_screen()
     st.stop()
 
 # 🍪 COOKIE-BASED AUTO-LOGIN
