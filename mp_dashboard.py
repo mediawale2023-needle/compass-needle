@@ -277,6 +277,7 @@ def render_header(username, color):
     """, unsafe_allow_html=True)
 
 # --- MAIN APP ---
+# Modified Auth Check: Skip cookie retrieval if we are in the middle of logging out
 if not st.session_state.authenticated and not st.session_state.logging_out:
     cookie_user = cookie_manager.get(cookie="needle_user")
     if cookie_user is None:
@@ -297,8 +298,6 @@ if not st.session_state.authenticated:
     login_screen()
 else:
     # --- AUTHENTICATED ZONE ---
-    # The Auto-Refresh logic has been removed here to stop the infinite loop.
-    
     color = st.session_state.theme_color
     inject_custom_css(color)
     role = st.session_state.user_role
@@ -328,10 +327,20 @@ else:
         )
         st.divider()
         if st.button("🔒 Log Out"):
+            # Robust Logout Fix
             cookie_manager.delete("needle_user")
+            
+            # Clear critical session flags immediately
             st.session_state.authenticated = False
             st.session_state.logging_out = True
-            time.sleep(1)
+            
+            # Give the browser time to process cookie deletion before rerun
+            time.sleep(1.2)
+            
+            # Wipe the entire session state to be sure
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+                
             st.rerun()
             
     if selected == "Dashboard":
