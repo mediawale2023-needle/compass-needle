@@ -88,7 +88,11 @@ def get_user_context(phone_number):
             result = conn.execute(query, {"phone": phone_number}).fetchone()
             
             if result and result[0]:
-                meta = json.loads(result[0])
+                # --- TAD NECESSARY FIX: Handle both dict and string types ---
+                meta = result[0]
+                if isinstance(meta, str):
+                    meta = json.loads(meta)
+                
                 loc = meta.get("matched_value", "")
                 const = meta.get("assembly_constituency", "")
                 if loc or const:

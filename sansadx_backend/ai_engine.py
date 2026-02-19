@@ -123,6 +123,10 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         correct_constituency = tenant_rules[final_loc_name]
                         data["assembly_constituency"] = correct_constituency
                         data["constituency"] = correct_constituency
+                        
+                        # --- TAD NECESSARY: Force status to completed if location is matched ---
+                        data["status"] = "completed"
+                        
                         if "grievance_data" in data:
                             data["grievance_data"]["assembly_constituency"] = correct_constituency
                             data["grievance_data"]["location"] = final_loc_name # Set to official spelling
