@@ -1,8 +1,9 @@
 import streamlit as st
 import os
-import google.generativeai as genai
+from openai import OpenAI  # Switched from Gemini to OpenAI
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
+import time
 
 # Load env variables
 load_dotenv()
@@ -44,48 +45,29 @@ def update_profile(username, new_constituency, new_password=None):
 # --- 🧠 AI MODEL LOGIC ---
 def init_keys():
     """Ensures keys are loaded from Environment Variables."""
-    # 1. Try to get key from Environment (Local .env or Railway Variables)
-    env_key = os.getenv("GEMINI_API_KEY")
+    # Updated to look for OPENAI_API_KEY
+    env_key = os.getenv("OPENAI_API_KEY")
     
     if env_key:
-        st.session_state["GLOBAL_GEMINI_KEY"] = env_key
-        try:
-            genai.configure(api_key=env_key)
-        except Exception as e:
-            print(f"Gemini Config Error: {e}")
+        st.session_state["GLOBAL_OPENAI_KEY"] = env_key
     else:
-        # If no key found, warn the user
-        if "GLOBAL_GEMINI_KEY" not in st.session_state:
-            st.session_state["GLOBAL_GEMINI_KEY"] = None
+        if "GLOBAL_OPENAI_KEY" not in st.session_state:
+            st.session_state["GLOBAL_OPENAI_KEY"] = None
 
 def get_valid_model():
     """
-    Scans for the best available Gemini model using the secure key.
+    Initializes and returns the OpenAI client.
     """
     init_keys()
-    api_key = st.session_state.get("GLOBAL_GEMINI_KEY")
+    api_key = st.session_state.get("GLOBAL_OPENAI_KEY")
     
     if not api_key: 
         return None
     
     try:
-        genai.configure(api_key=api_key)
-        
-        # 1. Wishlist of models (Fastest -> Smartest)
-        wishlist = [
-            "gemini-2.5-flash",       # Best for speed/cost
-            "gemini-1.5-pro",         # Best for complex reasoning
-            "gemini-2.5-flash"              # Fallback
-        ]
-        
-        # 2. Try to list models to verify connection
-        try:
-            list(genai.list_models()) # Just to test auth
-        except:
-            return None
-
-        # 3. Return the generic generative model (It auto-selects best stable version)
-        return genai.GenerativeModel("gemini-2.5-flash")
+        # Initialize OpenAI Client
+        client = OpenAI(api_key=api_key)
+        return client
             
     except Exception as e:
         print(f"Model Discovery Error: {e}")
@@ -134,29 +116,34 @@ def render_settings():
     # --- TAB 2: AI CONFIG ---
     with tab_ai:
         init_keys()
-        current_key = st.session_state.get("GLOBAL_GEMINI_KEY", "")
+        current_key = st.session_state.get("GLOBAL_OPENAI_KEY", "")
         
         with st.container(border=True):
-            st.subheader("🔑 Google Gemini API Key")
+            st.subheader("🔑 OpenAI API Key")
             
             if current_key:
                 display_key = f"...{current_key[-6:]}"
                 st.success(f"✅ Key Loaded Securely (Ends in {display_key})")
                 
                 if st.button("🧪 Test Connection"):
-                    with st.spinner("Connecting to Google AI..."):
-                        model = get_valid_model()
-                        if model:
+                    with st.spinner("Connecting to OpenAI..."):
+                        client = get_valid_model()
+                        if client:
                             try:
-                                resp = model.generate_content("Hello")
-                                st.success(f"✅ Success! Connected to Gemini.")
+                                # Simple test call using gpt-4o-mini
+                                resp = client.chat.completions.create(
+                                    model="gpt-4o-mini",
+                                    messages=[{"role": "user", "content": "Hello"}],
+                                    max_tokens=5
+                                )
+                                st.success(f"✅ Success! Connected to OpenAI.")
                             except Exception as e:
                                 st.error(f"Connection failed: {e}")
                         else:
                             st.error("❌ Invalid Key or API Error.")
             else:
                 st.warning("⚠️ No API Key found.")
-                st.info("Add `GEMINI_API_KEY` to your `.env` file (Local) or Railway Variables (Cloud).")
+                st.info("Add `OPENAI_API_KEY` to your `.env` file (Local) or Railway Variables (Cloud).")
 
         st.divider()
         st.write("🟢 **System Status:** Online")
