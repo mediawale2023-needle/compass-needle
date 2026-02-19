@@ -78,16 +78,25 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             content = response.choices[0].message.content
             data = json.loads(content)
             
+            # 🛡️ NORMALIZATION: Ensure status is lowercase to match main.py logic
+            if "status" in data:
+                data["status"] = data["status"].lower()
+
             # [START OF MULTI-TENANT FIX (WITH AUTO-CORRECT)] ----------------
             try:
                 # 1. Load the Rulebook
-                with open("tenant_overrides.json", "r") as f:
+                # Using a safer path check for Railway
+                override_path = "tenant_overrides.json"
+                if not os.path.exists(override_path):
+                    override_path = "/app/tenant_overrides.json"
+
+                with open(override_path, "r") as f:
                     all_overrides = json.load(f)
                 
                 # 2. Get Rules for THIS Tenant
                 tenant_rules = all_overrides.get(str(tenant_id), {})
                 
-                # 3. Get AI's extracted location (v3 key is 'location')
+                # 3. Get AI's extracted location
                 ai_loc = data.get("grievance_data", {}).get("location", "")
                 if ai_loc:
                     ai_loc_clean = ai_loc.lower().strip()
@@ -96,13 +105,17 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                     match_found = False
                     final_loc_name = ai_loc_clean
                     
-                    if ai_loc_clean in tenant_rules:
+                    # Match against lower-case keys in tenant_rules
+                    tenant_keys_lower = {k.lower(): k for k in tenant_rules.keys()}
+                    
+                    if ai_loc_clean in tenant_keys_lower:
+                        final_loc_name = tenant_keys_lower[ai_loc_clean]
                         match_found = True
                     else:
-                        matches = difflib.get_close_matches(ai_loc_clean, tenant_rules.keys(), n=1, cutoff=0.8)
+                        matches = difflib.get_close_matches(ai_loc_clean, tenant_keys_lower.keys(), n=1, cutoff=0.7)
                         if matches:
-                            print(f"✨ Auto-Corrected: '{ai_loc_clean}' -> '{matches[0]}'")
-                            final_loc_name = matches[0]
+                            final_loc_name = tenant_keys_lower[matches[0]]
+                            print(f"✨ Auto-Corrected: '{ai_loc_clean}' -> '{final_loc_name}'")
                             match_found = True
                     
                     # 5. Apply the Fix
@@ -112,7 +125,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         data["constituency"] = correct_constituency
                         if "grievance_data" in data:
                             data["grievance_data"]["assembly_constituency"] = correct_constituency
-                            data["grievance_data"]["location"] = final_loc_name.title()
+                            data["grievance_data"]["location"] = final_loc_name # Set to official spelling
                             
                         print(f"✅ Location Mapped: {final_loc_name} -> {correct_constituency}")
                     else:
@@ -122,17 +135,12 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 print(f"⚠️ Override Logic Warning: {e}") 
             # [END OF FIX] -------------------------------------------------
 
-            # -----------------------------------------------
             # 🛡️ LANGUAGE SWAP LOGIC
-            # -----------------------------------------------
             raw_resp = data.get("political_response", "")
             if raw_resp in STATIC_RESPONSES:
                 data["political_response"] = STATIC_RESPONSES[raw_resp]
 
-            # -----------------------------------------------
             # 🛠️ MULTI-LABEL SYNC
-            # -----------------------------------------------
-            # Ensure categories is always a list for the database
             if "grievance_data" in data:
                 cats = data["grievance_data"].get("categories", [])
                 if isinstance(cats, str):
@@ -142,8 +150,8 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             
         except Exception as e:
             print(f"❌ JSON Parse Error: {e}")
-            return {"status": "ERROR", "political_response": "AI Error."}
+            return {"status": "error", "political_response": "AI Error."}
             
     except Exception as e:
         print(f"❌ OpenAI Connection Error: {e}")
-        return {"status": "ERROR", "political_response": "Connection Error."}
+        return {"status": "error", "political_response": "Connection Error."}

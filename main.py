@@ -128,7 +128,7 @@ async def whatsapp_webhook(request: Request):
     grievance = ai_result.get("grievance_data", {}) or {}
     
     # 1. Capture the status from OpenAI
-    status = ai_result.get("status", "new").lower()
+    status = str(ai_result.get("status", "new")).lower()
     
     # 2. Capture Category (Handling the list from v3.0 schema)
     categories = grievance.get("categories", ["General"])
