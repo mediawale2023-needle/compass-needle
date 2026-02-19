@@ -6,6 +6,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request
 from sqlalchemy import create_engine, text  # <--- Added 'text'
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
+from twilio.rest import Client # <--- Added for direct Twilio support
 
 # Initialize Sentry
 sentry_sdk.init(
@@ -16,6 +17,25 @@ sentry_sdk.init(
 # ----------------------------
 
 app = FastAPI()
+
+# ==========================================
+# 0. TWILIO HELPER (DIRECT DEFINITION TO FIX IMPORT ERROR)
+# ==========================================
+def send_whatsapp_message(to_number, body_text):
+    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+    from_number = os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
+    
+    if not account_sid or not auth_token:
+        print("❌ Twilio credentials missing in Environment Variables")
+        return
+
+    client = Client(account_sid, auth_token)
+    try:
+        client.messages.create(from_=from_number, body=body_text, to=to_number)
+        print(f"📤 Reply sent to {to_number}")
+    except Exception as e:
+        print(f"❌ Twilio Send Failed: {e}")
 
 # ==========================================
 # 1. DATABASE CONNECTION
@@ -157,9 +177,7 @@ async def whatsapp_webhook(request: Request):
         print(f"❌ DB Save Failed: {e}")
 
     # D. SEND REPLY
-    # Note: Ensure send_whatsapp_message is defined in your environment/imports
     try:
-        from modules.utils import send_whatsapp_message
         send_whatsapp_message("whatsapp:" + sender, political_reply)
     except Exception as e:
         print(f"⚠️ Reply function error: {e}")
