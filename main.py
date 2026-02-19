@@ -1,5 +1,6 @@
-from modules.copilot import ask_groq_agent
+from sansadx_backend.ai_engine import ask_chatgpt_agent  # <--- Updated from groq
 import os
+import json  # <--- Added missing import for metadata handling
 import sentry_sdk
 from fastapi import FastAPI, Depends, HTTPException, Request
 from sqlalchemy import create_engine, text  # <--- Added 'text'
@@ -15,8 +16,6 @@ sentry_sdk.init(
 # ----------------------------
 
 app = FastAPI()
-
-# ... rest of your code ...
 
 # ==========================================
 # 1. DATABASE CONNECTION
@@ -59,11 +58,11 @@ init_db()
 def get_user_context(phone_number):
     try:
         with engine.connect() as conn:
-            # Check if we already know this user's location from a previous resolved case
+            # FIX: Added CAST to TEXT for PostgreSQL compatibility with LIKE operator
             query = text("""
                 SELECT case_metadata FROM cases 
                 WHERE user_phone = :phone 
-                AND case_metadata LIKE '%location_resolved": true%'
+                AND CAST(case_metadata AS TEXT) LIKE '%location_resolved": true%'
                 ORDER BY created_at DESC LIMIT 1
             """)
             result = conn.execute(query, {"phone": phone_number}).fetchone()
@@ -95,40 +94,44 @@ async def whatsapp_webhook(request: Request):
     user_context = get_user_context(sender)
     full_prompt = f"{user_context}\n\nUSER MESSAGE: {message_body}"
     
-    # Call the AI Engine
-    # For now, default to 1. In the future, you can look this up based on the sender's phone number.
-    ai_result = ask_groq_agent(full_prompt, tenant_id=1)
+    # Call the AI Engine (OpenAI v3.0)
+    ai_result = ask_chatgpt_agent(full_prompt, tenant_id=1)
+
+    # FIX: Safety check to handle cases where ai_result might be returned as a string
+    if isinstance(ai_result, str):
+        try:
+            ai_result = json.loads(ai_result)
+        except:
+            ai_result = {"status": "INCOMPLETE", "political_response": ai_result, "grievance_data": {}}
 
     # B. DATA PREP (INTENT & CONSTITUENCY HANDLING)
     grievance = ai_result.get("grievance_data", {}) or {}
     
-    # 1. Capture the 5-Tab Intent (complaint, emergency, request, greeting, offensive)
-    user_intent = ai_result.get("user_intent", "complaint") 
-    
-    # 2. Capture Status & Category
+    # 1. Capture the status from OpenAI
     status = ai_result.get("status", "new").lower()
-    category = grievance.get("category", "General")
+    
+    # 2. Capture Category (Handling the list from v3.0 schema)
+    categories = grievance.get("categories", ["General"])
+    category = categories[0] if isinstance(categories, list) and categories else "General"
+    
     political_reply = ai_result.get("political_response", "Thank you.")
 
-    # 3. Capture Constituency (Shotgun Method - Catch it wherever it is)
-    # We only care about constituency if it's a Complaint or Emergency
-    final_constituency = None
-    if user_intent in ["complaint", "emergency"]:
-        final_constituency = (
-            grievance.get("assembly_constituency") or 
-            grievance.get("constituency") or 
-            ai_result.get("constituency") or 
-            ai_result.get("assembly_constituency") or 
-            None
-        )
+    # 3. Capture Constituency
+    final_constituency = (
+        grievance.get("assembly_constituency") or 
+        grievance.get("constituency") or 
+        ai_result.get("constituency") or 
+        ai_result.get("assembly_constituency") or 
+        None
+    )
 
     # 4. Pack Metadata for the Dashboard
     meta_data = {
-        "user_intent": user_intent,  # <--- CRITICAL FOR TABS
-        "location_resolved": bool(grievance.get("location_english")), 
-        "matched_value": grievance.get("location_english") or "",
+        "user_intent": status,
+        "location_resolved": status == "completed", 
+        "matched_value": grievance.get("location") or "",
         "assembly_constituency": final_constituency,
-        "summary": grievance.get("summary", message_body)
+        "summary": grievance.get("summary", message_body[:100])
     }
 
     # C. SAVE TO POSTGRES
@@ -145,18 +148,24 @@ async def whatsapp_webhook(request: Request):
                     "phone": sender,
                     "cat": category,
                     "msg": message_body,
-                    "stat": status,  # e.g., "completed", "offensive", "emergency"
+                    "stat": status,
                     "meta": json.dumps(meta_data)
                 }
             )
-            print(f"✅ Saved Intent: '{user_intent}' | Constituency: '{final_constituency}'")
+            print(f"✅ Saved Status: '{status}' | Constituency: '{final_constituency}'")
     except Exception as e:
         print(f"❌ DB Save Failed: {e}")
 
     # D. SEND REPLY
-    send_whatsapp_message("whatsapp:" + sender, political_reply)
+    # Note: Ensure send_whatsapp_message is defined in your environment/imports
+    try:
+        from modules.utils import send_whatsapp_message
+        send_whatsapp_message("whatsapp:" + sender, political_reply)
+    except Exception as e:
+        print(f"⚠️ Reply function error: {e}")
+        
     return {"status": "processed"}
 
 @app.get("/")
 def health_check():
-    return {"status": "active", "system": "Needle Backend V7 (5-Tab Ready)"}
+    return {"status": "active", "system": "Needle Backend V7 (OpenAI 3.0 Ready)"}
