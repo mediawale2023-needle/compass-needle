@@ -45,7 +45,7 @@ ALL_CONSTITUENCIES = sorted([
     "Darjeeling", "Dausa", "Davangere", "Deoria", "Dewas", "Dhanbad", "Dhar", "Dharmapuri", "Dharwad", "Dhenkanal", "Dholpur", "Dhule", "Dibrugarh", 
     "Dindigul", "Dindori", "Domariyaganj", "Dum Dum", "Dumka", "Durg", "Durgapur", "East Delhi", "Eluru", "Ernakulam", "Erode", "Etah", "Etawah", 
     "Faizabad", "Faridabad", "Faridkot", "Farrukhabad", "Fatehgarh Sahib", "Fatehpur", "Fatehpur Sikri", "Firozabad", "Firozpur", "Gadchiroli-Chimur", 
-    "Gandhinagar", "Gautam Buddha Nagar", "Ghaziabad", "Ghazipur", "Giridih", "Godda", "Gopalganj", "Gorakhpur", "Gulbarga", "Guna", "Gurdaspur", "Gurgaon", # <--- Added Here
+    "Gandhinagar", "Gautam Buddha Nagar", "Ghaziabad", "Ghazipur", "Giridih", "Godda", "Gopalganj", "Gorakhpur", "Gulbarga", "Guna", "Gurdaspur", "Gurgaon", 
     "Guwahati", "Gwalior", "Hajipur", "Hamirpur (HP)", "Hamirpur (UP)", "Hassan", "Hathras", "Haveri", "Hazaribagh", 
     "Hingoli", "Hisar", "Hooghly", "Hoshiarpur", "Howrah", "Hubli-Dharwad", "Hyderabad", "Idukki", "Imphal East", "Imphal West", "Indore", "Jabalpur", 
     "Jadavpur", "Jagatsinghpur", "Jahanabad", "Jaipur", "Jaipur Rural", "Jaisalmer", "Jalandhar", "Jalgaon", "Jalna", "Jalpaiguri", "Jammu", "Jamnagar", 
@@ -174,7 +174,7 @@ def create_mp(name: str, username: str, password: str, constituency: str, whatsa
         db.close()
 
 def update_mp_constituency(username: str, new_constituency: str) -> dict:
-    """✅ NEW: Update constituency for existing MP (User & Tenant)"""
+    """Update constituency for existing MP (User & Tenant)"""
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.username == username).first()
@@ -184,7 +184,7 @@ def update_mp_constituency(username: str, new_constituency: str) -> dict:
         # Update User level (Primary for Dashboard)
         user.constituency = new_constituency
         
-        # Update Tenant level (Optional, but good for consistency if 1:1)
+        # Update Tenant level
         if user.tenant_id:
             tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
             if tenant:
@@ -395,24 +395,20 @@ def main():
     tab1, tab2, tab3, tab4 = st.tabs(["👥 MP Management", "🗺️ Geography Upload", "📋 Constituency Metadata", "🌍 Geography Rules"])
     
     # ===================
-    # TAB 1: MP Management (UPDATED)
+    # TAB 1: MP Management
     # ===================
     with tab1:
         st.header("👥 MP Management")
         
         col1, col2 = st.columns([1, 1])
         
-        # --- Create MP ---
         with col1:
             st.subheader("➕ Create New MP")
             with st.form("create_mp_form"):
                 mp_name = st.text_input("MP Name *", placeholder="Hon. Shri/Smt...")
                 mp_username = st.text_input("Username *", placeholder="username")
                 mp_password = st.text_input("Password *", type="password")
-                
-                # ✅ UPDATED: Selectbox with All Constituencies
                 mp_constituency = st.selectbox("Parliamentary Constituency *", options=ALL_CONSTITUENCIES, index=0)
-                
                 mp_whatsapp = st.text_input("WhatsApp Number", placeholder="+91...")
                 
                 if st.form_submit_button("Create MP", use_container_width=True):
@@ -424,7 +420,6 @@ def main():
                         else: st.error(result.get('error'))
                     else: st.warning("⚠️ Fill all required fields")
         
-        # --- Edit Existing MP ---
         with col2:
             st.subheader("✏️ Manage Existing MP")
             mps = get_all_mps()
@@ -432,39 +427,24 @@ def main():
             
             if mp_usernames:
                 selected_user = st.selectbox("Select MP to Edit", mp_usernames)
-                
-                # Fetch current details for the selected user
                 current_mp_data = next((item for item in mps if item["username"] == selected_user), None)
                 curr_const = current_mp_data['parliamentary_constituency'] if current_mp_data else "New Delhi"
-                
-                # Determine Index for Selectbox
-                default_idx = 0
-                if curr_const in ALL_CONSTITUENCIES:
-                    default_idx = ALL_CONSTITUENCIES.index(curr_const)
+                default_idx = ALL_CONSTITUENCIES.index(curr_const) if curr_const in ALL_CONSTITUENCIES else 0
 
                 with st.form("edit_mp_form"):
                     st.write(f"Editing: **{selected_user}**")
-                    
-                    # ✅ UPDATED: Selectbox with auto-select
                     new_const = st.selectbox("Constituency (Local Pulse)", options=ALL_CONSTITUENCIES, index=default_idx)
-                    
-                    # 2. Reset Password
                     new_pass = st.text_input("New Password (Optional)", type="password", placeholder="Leave blank to keep current")
                     
                     if st.form_submit_button("💾 Save Changes", use_container_width=True):
-                        # Update Constituency
                         if new_const and new_const != curr_const:
                             c_res = update_mp_constituency(selected_user, new_const)
                             if c_res["success"]: st.success(f"✅ Constituency updated to: {new_const}")
                             else: st.error(f"❌ Failed to update constituency: {c_res.get('error')}")
-                        
-                        # Update Password
                         if new_pass:
                             p_res = reset_mp_password(selected_user, new_pass)
                             if p_res["success"]: st.success("✅ Password updated")
                             else: st.error("❌ Failed to update password")
-                            
-                        # Refresh
                         if (new_const and new_const != curr_const) or new_pass:
                             st.rerun()
             else:
@@ -473,18 +453,18 @@ def main():
         st.divider()
         st.subheader("📋 Registered MPs")
         if mps:
-            # Filter out admin
             mp_list = [mp for mp in mps if mp["role"] != "admin"]
             if mp_list:
                 df = pd.DataFrame(mp_list)
+                # --- TAD NECESSARY: ADDING tenant_id FOR VISIBILITY ---
                 st.dataframe(
-                    df[["mp_name", "username", "parliamentary_constituency", "whatsapp_number", "created_at"]], 
+                    df[["tenant_id", "mp_name", "username", "parliamentary_constituency", "whatsapp_number", "created_at"]], 
                     use_container_width=True, 
                     hide_index=True
                 )
 
     # ===================
-    # TAB 2: Geography Upload (PRESERVED)
+    # TAB 2: Geography Upload
     # ===================
     with tab2:
         st.header("🗺️ Geography Upload")
@@ -544,7 +524,7 @@ def main():
                                 except: pass
 
     # ===================
-    # TAB 3: Metadata (PRESERVED)
+    # TAB 3: Metadata
     # ===================
     with tab3:
         st.header("📋 Metadata")
@@ -563,14 +543,14 @@ def main():
                 except: st.error("Invalid JSON")
 
     # ===================
-    # TAB 4: Rules (PRESERVED)
+    # TAB 4: Rules
     # ===================
     with tab4:
         st.header("🌍 Geography Rules")
         overrides = load_overrides()
         mps = get_all_mps()
         if mps:
-            t_opts = {f"{m['mp_name']} ({m['parliamentary_constituency']})": str(m['tenant_id']) for m in mps}
+            t_opts = {f"{m['mp_name']} ({m['parliamentary_constituency']}) [ID: {m['tenant_id']}]": str(m['tenant_id']) for m in mps}
             sel_mp = st.selectbox("Select MP", list(t_opts.keys()))
             if sel_mp:
                 tid = t_opts[sel_mp]
@@ -578,7 +558,7 @@ def main():
                 
                 c1, c2, c3 = st.columns([2,2,1])
                 with c1: loc_in = st.text_input("Location (Input)")
-                with c2: const_out = st.text_input("Correct Constituency", value=mps[0]['parliamentary_constituency'])
+                with c2: const_out = st.text_input("Correct Constituency", value=next(m['parliamentary_constituency'] for m in mps if str(m['tenant_id']) == tid))
                 with c3: 
                     st.write("")
                     st.write("")
