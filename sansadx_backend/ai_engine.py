@@ -58,12 +58,18 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     # Fetch dynamic jurisdiction context
     real_jurisdiction_context = get_jurisdiction_context()
 
+    # --- TAD NECESSARY: Inject MP Persona & Professional Constraints ---
+    persona_instructions = """
+    STRICT RULES:
+    1. You are a Member of Parliament (MP) communicating with a citizen.
+    2. Maintain professional authority. DO NOT say 'it feels good' or 'I understand'.
+    3. NO PROMISES: Do not promise a specific action. State the grievance is 'noted and recorded'.
+    4. SCRIPT LOCK: Respond in the EXACT script used by the user (Hinglish or Devanagari).
+    5. Be concise (max 2 sentences).
+    """
+
     # Format the v3.0 prompt from prompts.py
-    formatted_prompt = SYSTEM_PROMPT.format(
-        user_message=user_message,
-        jurisdiction_context=real_jurisdiction_context,
-        taxonomy_categories=TAXONOMY_CATEGORIES
-    )
+    formatted_prompt = f"{persona_instructions}\n\n{SYSTEM_PROMPT.format(user_message=user_message, jurisdiction_context=real_jurisdiction_context, taxonomy_categories=TAXONOMY_CATEGORIES)}"
 
     try:
         # OpenAI Chat Completion Call with Strict JSON Mode
@@ -85,7 +91,6 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             # [START OF MULTI-TENANT FIX (WITH AUTO-CORRECT)] ----------------
             try:
                 # 1. Load the Rulebook
-                # Using a safer path check for Railway
                 override_path = "tenant_overrides.json"
                 if not os.path.exists(override_path):
                     override_path = "/app/tenant_overrides.json"
@@ -93,8 +98,8 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 with open(override_path, "r") as f:
                     all_overrides = json.load(f)
                 
-                # 2. Get Rules for THIS Tenant
-                tenant_rules = all_overrides.get(str(tenant_id), {})
+                # --- TAD NECESSARY: Fix path to 'geo_overrides' key ---
+                tenant_rules = all_overrides.get("geo_overrides", {}).get(str(tenant_id), {})
                 
                 # 3. Get AI's extracted location
                 ai_loc = data.get("grievance_data", {}).get("location", "")
@@ -112,7 +117,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         final_loc_name = tenant_keys_lower[ai_loc_clean]
                         match_found = True
                     else:
-                        matches = difflib.get_close_matches(ai_loc_clean, tenant_keys_lower.keys(), n=1, cutoff=0.7)
+                        matches = difflib.get_close_matches(ai_loc_clean, tenant_keys_lower.keys(), n=1, cutoff=0.75)
                         if matches:
                             final_loc_name = tenant_keys_lower[matches[0]]
                             print(f"✨ Auto-Corrected: '{ai_loc_clean}' -> '{final_loc_name}'")

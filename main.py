@@ -231,14 +231,18 @@ async def whatsapp_webhook(request: Request):
     except Exception as e:
         print(f"❌ DB Save Failed: {e}")
 
-    # D. SEND REPLY
-    try:
-        send_whatsapp_message("whatsapp:" + sender, political_reply)
-    except Exception as e:
-        print(f"⚠️ Reply function error: {e}")
+    # --- TAD NECESSARY: MP's Standardized Professional Response ---
+    if status == "completed":
+        # Check script (Hinglish/Latin vs Devanagari)
+        is_hindi_script = any(ord(char) > 127 for char in message_body)
         
-    return {"status": "processed"}
-
-@app.get("/")
-def health_check():
-    return {"status": "active", "system": "Needle Backend V7 (Deterministic Geo-Mapping)"}
+        if is_hindi_script:
+            # Formal Devanagari
+            political_reply = f"तिलकवाड़ी (Tilakwadi) से संबंधित आपकी समस्या नोट कर ली गई है। अपडेट आपको यहीं प्राप्त होगा।"
+        else:
+            # Formal Hinglish
+            political_reply = f"Aapki Tilakwadi se judi samasya note kar li gayi hai. aapko update milegi."
+    else:
+        # If the AI is still asking for details (INCOMPLETE)
+        # We let the AI generate the question, but keep it brief.
+        pass
