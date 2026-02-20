@@ -35,6 +35,9 @@ try:
     from modules.pmb_drafter import render_pmb_drafter
     from modules.csr_projects import render_csr_projects
     from modules.csr_partners import render_csr_partners
+    # --- TAD NECESSARY: Added Discovery and Hunter Imports ---
+    from modules.csr_discovery import render_csr_discovery
+    from modules.csr_hunter import render_csr_hunter
     from modules.state_intel import render_state_intel
     from modules.utils import track_action, show_download_button
     from modules.persistence import load_archives, delete_draft
@@ -413,10 +416,13 @@ else:
     elif selected == "Drafter": render_drafter(username)
     elif selected == "PMB": render_pmb_drafter(username)
     elif selected == "CSR Suite":
-        t1, t2, t3 = st.tabs(["🗺️ State Intel", "📋 Project Catalog", "🤝 Partners"])
-        with t1: render_state_intel(username)
-        with t2: render_csr_projects(username)
-        with t3: render_csr_partners(username)
+        # --- TAD NECESSARY: Expanded CSR Suite Tabs with Discovery and Hunter ---
+        t1, t2, t3, t4, t5 = st.tabs(["🔭 Discovery", "💰 Hunter", "🗺️ State Intel", "📋 Projects", "🤝 Partners"])
+        with t1: render_csr_discovery(username)
+        with t2: render_csr_hunter(username)
+        with t3: render_state_intel(username)
+        with t4: render_csr_projects(username)
+        with t5: render_csr_partners(username)
     elif selected == "Schemes": render_matcher(username)
     elif selected == "Archives":
         archives = load_archives(username)
