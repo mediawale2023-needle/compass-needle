@@ -225,15 +225,21 @@ async def whatsapp_webhook(request: Request):
     except Exception as e:
         print(f"❌ DB Save Failed: {e}")
 
-    # --- TAD NECESSARY: MP's Standardized Professional Response ---
+    # --- TAD NECESSARY: MP's Standardized Safe Response ---
     if status == "completed":
         is_hindi_script = any(ord(char) > 127 for char in message_body)
+        
         if is_hindi_script:
-            political_reply = f"आपकी समस्या (क्षेत्र: {final_constituency}) नोट कर ली गई है। उचित कार्यवाही के लिए इसे संबंधित विभाग को भेज दिया गया है। अपडेट आपको यहीं प्राप्त होगा।"
+            # Formal Devanagari - No mention of forwarding or constituency
+            political_reply = f"आपकी समस्या नोट कर ली गई है। जल्द ही आपको इस विषय पर अपडेट दिया जाएगा।"
         else:
-            political_reply = f"Aapki samasya (Constituency: {final_constituency}) note kar li gayi hai. Isse department ko bhej diya gaya hai. Aapko jald hi update milega."
+            # Formal Hinglish - Safe acknowledgment
+            political_reply = f"Aapki samasya note kar li gayi hai. Jald hi aapko is par update milega."
+    else:
+        # If INCOMPLETE, the AI generates a brief question for details
+        pass
 
-    # --- TAD NECESSARY: EXECUTE SEND ---
+    # --- EXECUTE SEND ---
     send_whatsapp_message(sender, political_reply)
         
     return {"status": "processed"}
