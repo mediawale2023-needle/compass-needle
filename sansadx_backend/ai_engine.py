@@ -9,8 +9,14 @@ from .prompts import SYSTEM_PROMPT, TAXONOMY_CATEGORIES
 # ==========================================
 # 1. CONFIGURATION
 # ==========================================
-# Initialize OpenAI Client
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+# --- TAD NECESSARY: Removed global client initialization to prevent Railway boot crash ---
+def get_client():
+    """Helper to safely initialize OpenAI client after environment variables load."""
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    return OpenAI(api_key=api_key)
 
 STATIC_RESPONSES = {
     "__WARN_HINDI__": "मर्यादा रखें। अभद्र भाषा का प्रयोग करने पर आप पर कानूनी कार्यवाही हो सकती है।",
@@ -51,9 +57,10 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     - Supports Multi-Label Categories
     - Integrated Fuzzy Geography Matching
     """
-    if not os.environ.get("OPENAI_API_KEY"): 
+    client = get_client()
+    if not client: 
         print("❌ ERROR: OPENAI_API_KEY is missing.")
-        return {"status": "ERROR", "political_response": "Server Error."}
+        return {"status": "ERROR", "political_response": "Server Error: API Key Missing."}
 
     # Fetch dynamic jurisdiction context
     real_jurisdiction_context = get_jurisdiction_context()
