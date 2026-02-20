@@ -156,7 +156,6 @@ def run_query(query_str, params=None):
             return []
 
 # --- 🍪 COOKIE MANAGER ---
-# Cache removed to prevent CachedWidgetWarning
 def get_manager():
     return stx.CookieManager(key="needle_cookies_v2")
 
@@ -218,12 +217,10 @@ def get_user_from_cookie(username):
         }
     return None
 
-# In your fetch_summary function inside mp_dashboard.py
 def fetch_summary(tenant_id):
-    # This automatically filters the dashboard to ONLY show the logged-in MP's data
-    query = "SELECT category, case_metadata FROM cases WHERE tenant_id = :tid"
-    rows = run_query(query, {"tid": tenant_id})
-    # ... rest of the logic
+    try:
+        query = "SELECT category, case_metadata FROM cases WHERE tenant_id = :tid"
+        rows = run_query(query, {"tid": tenant_id})
         
         category_breakdown = {}
         red_zones_raw = {}
@@ -235,9 +232,12 @@ def fetch_summary(tenant_id):
             ac = "Unknown"
             try:
                 meta = row.get('case_metadata')
-                if isinstance(meta, str): meta = json.loads(meta)
-                if isinstance(meta, dict): ac = meta.get('assembly_constituency', 'Unknown')
-            except: pass
+                if isinstance(meta, str): 
+                    meta = json.loads(meta)
+                if isinstance(meta, dict): 
+                    ac = meta.get('assembly_constituency', 'Unknown')
+            except: 
+                pass
             
             if ac and ac != "Unknown":
                 red_zones_raw[ac] = red_zones_raw.get(ac, 0) + 1
@@ -247,6 +247,7 @@ def fetch_summary(tenant_id):
 
         return {"category_breakdown": category_breakdown, "red_zones": red_zones}
     except Exception as e:
+        print(f"❌ Summary Fetch Error: {e}")
         return {"category_breakdown": {}, "red_zones": []}
 
 # --- LOGIN SCREEN ---
@@ -301,24 +302,17 @@ def render_header(username, color):
     """, unsafe_allow_html=True)
 
 # --- MAIN APP ---
-# 🚪 LOGOUT GATE: If logout was initiated, reset flags and show login screen directly
 if st.session_state.get('logout_confirmed', False):
-    # Ensure cookie is deleted
     try:
         cookie_manager.delete("needle_user")
     except:
         pass
-    
-    # Reset flags so the login form can be displayed
     st.session_state.logout_confirmed = False
     st.session_state.logging_out = False
     st.session_state.authenticated = False
-    
-    # Call the login screen and stop the rest of the app execution
     login_screen()
     st.stop()
 
-# 🍪 COOKIE-BASED AUTO-LOGIN
 if not st.session_state.get('authenticated', False) and not st.session_state.get('logging_out', False):
     cookie_user = cookie_manager.get(cookie="needle_user")
     if cookie_user is None:
@@ -338,7 +332,6 @@ if not st.session_state.get('authenticated', False) and not st.session_state.get
 if not st.session_state.authenticated:
     login_screen()
 else:
-    # --- AUTHENTICATED ZONE ---
     color = st.session_state.theme_color
     inject_custom_css(color)
     role = st.session_state.user_role
