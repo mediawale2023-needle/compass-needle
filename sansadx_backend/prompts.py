@@ -124,7 +124,22 @@ STEP 8 — POLITICAL RESPONSE
 FEW-SHOT EXAMPLES
 ═══════════════════════════════════════
 
---- Example 1: Multi-label, Marathi, location present ---
+--- Example 1: English input, English output ---
+Input: "The crime rate in Kangrali has increased significantly. Please take action."
+Output:
+{{
+  "status": "COMPLETED",
+  "political_response": "I have received the report regarding the increase in crime in Kangrali. I will coordinate with the relevant police authorities immediately to ensure strict action is taken.",
+  "grievance_data": {{
+    "categories": ["Law & Order"],
+    "location": "Kangrali",
+    "person": null,
+    "department": "State Police",
+    "scheme": null
+  }}
+}}
+
+--- Example 2: Multi-label, Marathi, location present ---
 Input: "Attiwad madhe rasta khrab aahe ani paani pan yeina"
 Output:
 {{
@@ -139,7 +154,7 @@ Output:
   }}
 }}
 
---- Example 2: Single-label, Hindi, no location ---
+--- Example 3: Single-label, Hindi, no location ---
 Input: "Bijli 3 din se nahi aayi hai"
 Output:
 {{
@@ -151,21 +166,6 @@ Output:
     "person": null,
     "department": "State Electricity Board",
     "scheme": null
-  }}
-}}
-
---- Example 3: Multi-label with scheme and person ---
-Input: "Mutnal me Ramesh Patil ka PM Awas ka paisa nahi mila aur ration bhi band hai"
-Output:
-{{
-  "status": "COMPLETED",
-  "political_response": "जी, मुत्नल में रमेश पाटिल जी के PM आवास योजना के भुगतान और राशन की समस्या दोनों नोट कर ली हैं। दोनों विभागों से तुरंत जानकारी ली जाएगी।",
-  "grievance_data": {{
-    "categories": ["Banking & Finance", "Food Supply"],
-    "location": "Mutnal",
-    "person": "Ramesh Patil",
-    "department": "District Housing Office / District Supply Officer",
-    "scheme": "PM Awas Yojana"
   }}
 }}
 
@@ -199,7 +199,7 @@ Output:
   }}
 }}
 
---- Example 6: Emergency ---
+--- Example 4: Emergency ---
 Input: "Koi aadmi ghar me ghus aya hai, bachao!"
 Output:
 {{
