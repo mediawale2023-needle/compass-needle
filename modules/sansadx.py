@@ -55,7 +55,7 @@ def render_filtered_table(df, key_suffix):
             "Category": st.column_config.TextColumn("Category", width="small"),
             "Location": st.column_config.TextColumn("Location", width="medium"),
             "Constituency": st.column_config.TextColumn("Constituency", width="medium"),
-            "Status": st.column_config.SelectboxColumn("Status", options=["new", "closed", "progress", "OFFENSIVE"], width="small"),
+            "Status": st.column_config.SelectboxColumn("Status", options=["new", "closed", "progress", "OFFENSIVE", "completed", "incomplete"], width="small"),
             "Message": st.column_config.TextColumn("Message", width="large"),
             "Full_Meta": None, # Hidden
             "Intent": None     # Hidden
@@ -83,6 +83,8 @@ def render_sansadx(username):
     for c in cases:
         specific_loc = "Unknown"
         assembly = ""
+        # TAD NECESSARY: Match status from main.py logic
+        db_status = str(c.get("status", "new")).lower()
         intent = "complaint" # Default
 
         # Parse Metadata
@@ -98,11 +100,17 @@ def render_sansadx(username):
                 assembly = meta.get("assembly_constituency", "")
             
             # Extract Intent (The Key Logic)
-            intent = meta.get("user_intent", "complaint")
+            intent = meta.get("user_intent", "complaint").lower()
             
-            # Fallback: If AI marked status OFFENSIVE but intent is missing
-            if c.get("status") == "OFFENSIVE":
+            # TAD NECESSARY: If status is 'completed' or 'incomplete', it belongs in Complaints
+            if db_status in ["completed", "incomplete"]:
+                intent = "complaint"
+            elif db_status == "offensive":
                 intent = "offensive"
+            elif db_status == "emergency":
+                intent = "emergency"
+            elif db_status == "irrelevant":
+                intent = "greeting"
 
         except Exception:
             pass
@@ -122,7 +130,7 @@ def render_sansadx(username):
             "Category": c.get("category") or "General",
             "Location": specific_loc,
             "Constituency": assembly,
-            "Status": c.get("status", "new"),
+            "Status": db_status,
             "Message": c.get("raw_message", ""),
             "Intent": intent, # Used for filtering tabs
             "Full_Meta": c.get("case_metadata")
@@ -153,7 +161,6 @@ def render_sansadx(username):
     df_spam      = main_df[main_df['Intent'] == 'offensive']
 
     # E. RENDER TABS (CLEAN & PROFESSIONAL)
-    # Complaints is FIRST (Default)
     t1, t2, t3, t4, t5 = st.tabs([
         f"Complaints ({len(df_complaint)})",
         f"Emergency ({len(df_emergency)})",
