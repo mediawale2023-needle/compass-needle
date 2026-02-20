@@ -110,29 +110,32 @@ async def whatsapp_webhook(request: Request):
     sender = form_data.get("From", "").replace("whatsapp:", "")
     message_body = form_data.get("Body", "").strip()
     
-    # --- TAD NECESSARY: Dynamic Tenant Detection ---
-    # We look at which Twilio Number received the message to identify the MP (Tenant)
+    # --- TAD NECESSARY: Dynamic Tenant Lookup ---
     receiver_number = form_data.get("To", "")
+    current_tenant = 1 # Default fallback
     
-    # Mapping Twilio numbers to Tenant IDs (Update these with your actual Twilio numbers)
-    tenant_map = {
-        "whatsapp:+14155238886": 1, # Default Twilio Sandbox or MP 1
-        "whatsapp:+919650787758": 5, # Example: Number for Tenant 5
-    }
-    current_tenant = tenant_map.get(receiver_number, 1) # Fallback to 1 if not mapped
+    try:
+        with engine.connect() as conn:
+            # Dynamically fetch the tenant_id associated with the receiving number
+            # Note: This assumes your 'users' table has a 'whatsapp_number' column
+            lookup_query = text("SELECT tenant_id FROM users WHERE whatsapp_number = :num LIMIT 1")
+            tenant_record = conn.execute(lookup_query, {"num": receiver_number}).fetchone()
+            if tenant_record:
+                current_tenant = tenant_record[0]
+    except Exception as e:
+        print(f"⚠️ Tenant Database Lookup Failed: {e}")
 
     if not message_body: return {"status": "ignored"}
 
-    print(f"📩 Incoming from {sender} to {receiver_number} (Tenant {current_tenant}): {message_body}")
+    print(f"📩 Incoming from {sender} to {receiver_number} (Resolved Tenant: {current_tenant})")
 
     # A. GET CONTEXT & ASK AI
     user_context = get_user_context(sender)
     full_prompt = f"{user_context}\n\nUSER MESSAGE: {message_body}"
     
-    # --- TAD NECESSARY: Pass the correct tenant_id to the AI Engine ---
+    # Pass the resolved dynamic tenant_id to the AI Engine
     ai_result = ask_chatgpt_agent(full_prompt, tenant_id=current_tenant)
 
-    # FIX: Safety check to handle cases where ai_result might be returned as a string
     if isinstance(ai_result, str):
         try:
             ai_result = json.loads(ai_result)
@@ -172,7 +175,7 @@ async def whatsapp_webhook(request: Request):
                     VALUES (:tid, :phone, :cat, :msg, :stat, :meta, NOW())
                 """),
                 {
-                    "tid": current_tenant, # --- TAD NECESSARY: Saved dynamically ---
+                    "tid": current_tenant, # Saved dynamically based on DB lookup
                     "phone": sender,
                     "cat": category,
                     "msg": message_body,
@@ -194,4 +197,4 @@ async def whatsapp_webhook(request: Request):
 
 @app.get("/")
 def health_check():
-    return {"status": "active", "system": "Needle Backend V7 (OpenAI 3.0 Ready)"}
+    return {"status": "active", "system": "Needle Backend V7 (Dynamic Routing Ready)"}
