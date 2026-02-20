@@ -38,8 +38,10 @@ def send_whatsapp_message(to_number, body_text):
 
     client = Client(account_sid, auth_token)
     try:
-        client.messages.create(from_=from_number, body=body_text, to=to_number)
-        print(f"📤 Reply sent to {to_number}")
+        # Ensure to_number has the whatsapp: prefix
+        formatted_to = to_number if to_number.startswith("whatsapp:") else f"whatsapp:{to_number}"
+        client.messages.create(from_=from_number, body=body_text, to=formatted_to)
+        print(f"📤 Reply sent to {formatted_to}")
     except Exception as e:
         print(f"❌ Twilio Send Failed: {e}")
 
@@ -171,19 +173,14 @@ async def whatsapp_webhook(request: Request):
 
     # --- TAD NECESSARY: Case-Insensitive JSON Lookup ---
     if location_name and overrides_data:
-        # Normalize the extracted location to lowercase and strip whitespace
         lookup_key = str(location_name).lower().strip()
-        
-        # Access the geo_overrides for the current tenant from your JSON structure
         geo_map = overrides_data.get("geo_overrides", {}).get(str(current_tenant), {})
-        
-        # Deterministic Overwrite: If location is in JSON, JSON value is used
         final_constituency = geo_map.get(lookup_key)
         
         if final_constituency:
             print(f"🎯 Local Map Match: {lookup_key} -> {final_constituency}")
 
-    # Fallback to AI extracted values or Python Resolver if JSON match failed
+    # Fallback logic
     if not final_constituency:
         final_constituency = (
             grievance.get("assembly_constituency") or 
@@ -191,13 +188,10 @@ async def whatsapp_webhook(request: Request):
             ai_result.get("constituency") or 
             ai_result.get("assembly_constituency")
         )
-        
-        # If still None/Unknown, try Python Module Resolver
         if (not final_constituency or final_constituency == "Unknown") and location_name:
             _, resolved_const = resolve_constituency(location_name, current_tenant)
             final_constituency = resolved_const if resolved_const != "Unknown" else None
 
-    # Final Safety Fallback
     if not final_constituency:
         final_constituency = "Unknown"
 
@@ -233,16 +227,17 @@ async def whatsapp_webhook(request: Request):
 
     # --- TAD NECESSARY: MP's Standardized Professional Response ---
     if status == "completed":
-        # Check script (Hinglish/Latin vs Devanagari)
         is_hindi_script = any(ord(char) > 127 for char in message_body)
-        
         if is_hindi_script:
-            # Formal Devanagari
-            political_reply = f"तिलकवाड़ी (Tilakwadi) से संबंधित आपकी समस्या नोट कर ली गई है। अपडेट आपको यहीं प्राप्त होगा।"
+            political_reply = f"आपकी समस्या (क्षेत्र: {final_constituency}) नोट कर ली गई है। उचित कार्यवाही के लिए इसे संबंधित विभाग को भेज दिया गया है। अपडेट आपको यहीं प्राप्त होगा।"
         else:
-            # Formal Hinglish
-            political_reply = f"Aapki Tilakwadi se judi samasya note kar li gayi hai. aapko update milegi."
-    else:
-        # If the AI is still asking for details (INCOMPLETE)
-        # We let the AI generate the question, but keep it brief.
-        pass
+            political_reply = f"Aapki samasya (Constituency: {final_constituency}) note kar li gayi hai. Isse department ko bhej diya gaya hai. Aapko jald hi update milega."
+
+    # --- TAD NECESSARY: EXECUTE SEND ---
+    send_whatsapp_message(sender, political_reply)
+        
+    return {"status": "processed"}
+
+@app.get("/")
+def health_check():
+    return {"status": "active", "system": "Needle Backend V7 (Deterministic Geo-Mapping)"}
