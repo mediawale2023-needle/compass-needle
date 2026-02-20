@@ -119,14 +119,15 @@ async def whatsapp_webhook(request: Request):
     # --- TAD NECESSARY: Dynamic Tenant Lookup with Local Override ---
     receiver_number = form_data.get("To", "")
     current_tenant = 1 # Default fallback
+    overrides_data = {}
     
     # Check JSON Override first
     try:
         if os.path.exists("tenant_overrides.json"):
             with open("tenant_overrides.json", "r") as f:
-                overrides = json.load(f)
-                if receiver_number in overrides:
-                    current_tenant = overrides[receiver_number]
+                overrides_data = json.load(f)
+                if receiver_number in overrides_data:
+                    current_tenant = overrides_data[receiver_number]
                     print(f"⚡ JSON Override Match: {receiver_number} -> Tenant {current_tenant}")
                 else:
                     raise Exception("No JSON Match")
@@ -167,7 +168,7 @@ async def whatsapp_webhook(request: Request):
     
     location_name = grievance.get("location")
 
-    # TAD NECESSARY: Geography Resolver Integration
+    # TAD NECESSARY: Geography Resolver Integration with JSON Fallback
     final_constituency = (
         grievance.get("assembly_constituency") or 
         grievance.get("constituency") or 
@@ -176,8 +177,15 @@ async def whatsapp_webhook(request: Request):
     )
     
     if not final_constituency and location_name:
+        # 1. Try Python Module Resolver
         _, resolved_const = resolve_constituency(location_name, current_tenant)
-        final_constituency = resolved_const
+        
+        # 2. TAD NECESSARY: Fallback to local JSON Geography Overrides
+        if (not resolved_const or resolved_const == "Unknown") and overrides_data:
+            geo_map = overrides_data.get("geo_overrides", {}).get(str(current_tenant), {})
+            final_constituency = geo_map.get(location_name.lower(), "Unknown")
+        else:
+            final_constituency = resolved_const
 
     meta_data = {
         "user_intent": status,
@@ -219,4 +227,4 @@ async def whatsapp_webhook(request: Request):
 
 @app.get("/")
 def health_check():
-    return {"status": "active", "system": "Needle Backend V7 (Dynamic Resolver Integrated)"}
+    return {"status": "active", "system": "Needle Backend V7 (Full Geo-Mapping Integrated)"}
