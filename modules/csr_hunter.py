@@ -1,9 +1,25 @@
 import streamlit as st
 import json
 import pandas as pd
-from langchain_groq import ChatGroq
+from openai import OpenAI
+import os
 from modules.persistence import save_draft
 from modules.utils import show_download_button, track_action
+
+# --- TAD NECESSARY: Initialize OpenAI Client ---
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+def ask_openai(prompt):
+    """Helper to maintain consistency with OpenAI across the project."""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"AI Error: {e}"
 
 def render_csr_hunter(username):
     st.header("💰 CSR Hunter (Maharashtra Edition)")
@@ -19,24 +35,23 @@ def render_csr_hunter(username):
         return
 
     # 2. Filter by District
-    # Get sorted list of districts
     all_districts = sorted(df['District'].unique())
     target_dist = st.selectbox("Select District", all_districts, index=all_districts.index("Mumbai South") if "Mumbai South" in all_districts else 0)
     
     # 3. Split Data
     dist_data = df[df['District'] == target_dist]
-    remote_df = dist_data[dist_data['Type'].str.contains("Remote")]
+    remote_df = dist_data[dist_data['Type'].str.contains("Remote", na=False)]
     
     # Identify Violators (Local + Zero Spend)
     violators_df = dist_data[
-        (dist_data['Type'].str.contains("Local")) & 
-        (dist_data['Status'].str.contains("ZERO SPEND"))
+        (dist_data['Type'].str.contains("Local", na=False)) & 
+        (dist_data['Status'].str.contains("ZERO SPEND", na=False))
     ]
     
     # Identify Compliant Locals
     compliant_local_df = dist_data[
-        (dist_data['Type'].str.contains("Local")) & 
-        (~dist_data['Status'].str.contains("ZERO SPEND"))
+        (dist_data['Type'].str.contains("Local", na=False)) & 
+        (~dist_data['Status'].str.contains("ZERO SPEND", na=False))
     ]
 
     # --- TABBED VIEW ---
@@ -60,26 +75,21 @@ def render_csr_hunter(username):
                     with c2:
                         st.write("#### ⚡ Action")
                         if st.button(f"Draft 'Upscale' Letter", key=f"rem_{idx}"):
-                            api_key = st.session_state.get('groq_api_key')
-                            if not api_key:
-                                st.error("Enter Groq Key in Sidebar.")
-                            else:
-                                with st.spinner("Drafting..."):
-                                    llm = ChatGroq(temperature=0.6, groq_api_key=api_key, model_name="llama-3.1-8b-instant")
-                                    prompt = f"""
-                                    Write a strategic letter from an MP to the CSR Head of {row['Company']}.
-                                    Context:
-                                    - Acknowledge {row['Total_3Y']} spent in {row['District']} over 3 years.
-                                    - Since they have no office here, this support is valued.
-                                    - Propose a meeting to double this impact for the next FY.
-                                    Tone: Gratitude leading to a bigger ask.
-                                    """
-                                    draft = llm.invoke(prompt).content
-                                    
-                                    st.text_area("Draft Letter", draft, height=250)
-                                    save_draft(username, f"Upscale: {row['Company']}", draft, "CSR Letter")
-                                    show_download_button(draft, f"CSR_{row['Company']}")
-                                    track_action(f"Drafted CSR Proposal for {row['Company']}")
+                            with st.spinner("Drafting with OpenAI..."):
+                                prompt = f"""
+                                Write a strategic letter from an MP to the CSR Head of {row['Company']}.
+                                Context:
+                                - Acknowledge {row['Total_3Y']} spent in {row['District']} over 3 years.
+                                - Since they have no office here, this support is valued.
+                                - Propose a meeting to double this impact for the next FY.
+                                Tone: Gratitude leading to a bigger ask.
+                                """
+                                draft = ask_openai(prompt)
+                                
+                                st.text_area("Draft Letter", draft, height=250)
+                                save_draft(username, f"Upscale: {row['Company']}", draft, "CSR Letter")
+                                show_download_button(draft, f"CSR_{row['Company']}")
+                                track_action(f"Drafted CSR Proposal for {row['Company']}")
 
     # --- TAB B: COMPLIANCE WATCHDOG (The Enforcer) ---
     with tab_watchdog:
@@ -94,20 +104,17 @@ def render_csr_hunter(username):
                     st.caption("Violation: Section 135 (Local Area Preference)")
                     
                     if st.button(f"Draft 'Show Cause' Notice", key=f"vio_{idx}"):
-                        api_key = st.session_state.get('groq_api_key')
-                        if api_key:
-                            with st.spinner("Drafting..."):
-                                llm = ChatGroq(temperature=0.6, groq_api_key=api_key, model_name="llama-3.1-8b-instant")
-                                prompt = f"""
-                                Write a stern D.O. Letter from MP to CEO of {row['Company']}.
-                                Subject: Zero CSR Spend in {row['District']} despite local operations.
-                                Context: MCA data shows ₹0 spend for 3 years. Demand immediate explanation and allocation.
-                                Tone: Formal, Authoritative.
-                                """
-                                draft = llm.invoke(prompt).content
-                                st.text_area("Notice Draft", draft, height=300)
-                                save_draft(username, f"Notice: {row['Company']}", draft, "Legal Notice")
-                                show_download_button(draft, f"Notice_{row['Company']}")
+                        with st.spinner("Drafting Notice..."):
+                            prompt = f"""
+                            Write a stern D.O. Letter from MP to CEO of {row['Company']}.
+                            Subject: Zero CSR Spend in {row['District']} despite local operations.
+                            Context: MCA data shows ₹0 spend for 3 years. Demand immediate explanation and allocation.
+                            Tone: Formal, Authoritative.
+                            """
+                            draft = ask_openai(prompt)
+                            st.text_area("Notice Draft", draft, height=300)
+                            save_draft(username, f"Notice: {row['Company']}", draft, "Legal Notice")
+                            show_download_button(draft, f"Notice_{row['Company']}")
 
     # --- TAB C: LOCAL DATA (Reference) ---
     with tab_local:

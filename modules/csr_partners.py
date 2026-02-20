@@ -1,9 +1,26 @@
 import streamlit as st
 import json
 import pandas as pd
-from modules.settings import get_valid_model, init_keys
+from openai import OpenAI
+import os
+from modules.settings import init_keys
 from modules.persistence import save_draft
 from modules.utils import show_download_button, track_action
+
+# --- TAD NECESSARY: Initialize OpenAI Client ---
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+def ask_openai(prompt):
+    """Helper to maintain consistency with OpenAI across the project."""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"AI Error: {e}"
 
 def render_csr_partners(username):
     st.header("🤝 CSR Implementation Partners")
@@ -24,7 +41,7 @@ def render_csr_partners(username):
         try:
             with open("ngo_db.json", "r") as f:
                 data = json.load(f)
-        except: pass # Use mock data if file missing
+        except: pass 
 
         # Load Corporates
         corp_list = ["Reliance Industries", "Tata Group", "HDFC Bank"]
@@ -44,8 +61,8 @@ def render_csr_partners(username):
     c1, c2, c3 = st.columns(3)
     c1.metric("Total NGOs", len(df))
     # Safe counting
-    green_count = len(df[df['Risk_Level'] == 'Green'])
-    red_count = len(df[df['Risk_Level'] == 'Red'])
+    green_count = len(df[df['Risk_Level'] == 'Green']) if 'Risk_Level' in df.columns else 0
+    red_count = len(df[df['Risk_Level'] == 'Red']) if 'Risk_Level' in df.columns else 0
     c2.metric("Verified (Green)", green_count)
     c3.metric("Blacklisted (Red)", red_count)
 
@@ -91,43 +108,31 @@ def render_csr_partners(username):
                 st.markdown("---")
                 st.write("**🔗 Connect to Corporate**")
                 
-                # Unique key for selectbox
                 target_corp = st.selectbox(f"Select Funder for {row['NGO_Name']}", corp_list, key=f"sel_{idx}_{row['NGO_Name']}")
                 
                 if st.button(f"Draft Recommendation Letter", key=f"rec_{idx}_{row['NGO_Name']}"):
-                    with st.spinner("Drafting Introduction (Gemini)..."):
-                        # 👇 CHANGED: Switched from Groq to Gemini
-                        model = get_valid_model()
+                    with st.spinner("Drafting Recommendation via OpenAI..."):
+                        prompt = f"""
+                        Write a formal 'Letter of Recommendation' from an Indian Member of Parliament to the CSR Head of {target_corp}.
                         
-                        if model:
-                            try:
-                                prompt = f"""
-                                Write a formal 'Letter of Recommendation' from an Indian MP to the CSR Head of {target_corp}.
-                                
-                                Subject: Recommending {row['NGO_Name']} for CSR Implementation in {row['Sector']}.
-                                
-                                Details:
-                                - The MP confirms that {row['NGO_Name']} is a vetted local partner with Valid CSR-1 ({row['CSR_1_Number']}).
-                                - They have a strong track record in {row['Sector']}.
-                                - This creates a trusted bridge between {target_corp}'s funds and ground execution.
-                                
-                                Tone: Professional endorsement.
-                                """
-                                response = model.generate_content(prompt)
-                                draft = response.text
-                                
-                                # Save & Download
-                                st.subheader("Draft Preview")
-                                with st.container(border=True):
-                                    st.text_area("Content", draft, height=250)
-                                    
-                                save_draft(username, f"Recommend: {row['NGO_Name']} to {target_corp}", draft, "Recommendation")
-                                show_download_button(draft, f"Rec_{row['NGO_Name']}")
-                                track_action(f"Recommended {row['NGO_Name']}")
-                                
-                            except Exception as e:
-                                st.error(f"AI Error: {e}")
-                        else:
-                            st.error("System Offline. Check Settings.")
+                        Subject: Recommending {row['NGO_Name']} for CSR Implementation in {row['Sector']}.
+                        
+                        Details:
+                        - The MP confirms that {row['NGO_Name']} is a vetted local partner with Valid CSR-1 ({row['CSR_1_Number']}).
+                        - They have a strong track record in {row['Sector']}.
+                        - This creates a trusted bridge between {target_corp}'s funds and ground execution.
+                        
+                        Tone: Professional endorsement, authoritative.
+                        """
+                        draft = ask_openai(prompt)
+                        
+                        # Save & Download
+                        st.subheader("Draft Preview")
+                        with st.container(border=True):
+                            st.text_area("Content", draft, height=250)
+                            
+                        save_draft(username, f"Recommend: {row['NGO_Name']} to {target_corp}", draft, "Recommendation")
+                        show_download_button(draft, f"Rec_{row['NGO_Name']}")
+                        track_action(f"Recommended {row['NGO_Name']}")
             else:
                 st.error("Cannot recommend this NGO due to compliance issues.")
