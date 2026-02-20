@@ -8,6 +8,12 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 from twilio.rest import Client # <--- Added for direct Twilio support
 
+# --- TAD NECESSARY: Import Geography Resolver ---
+try:
+    from modules.geography_resolver import resolve_constituency
+except ImportError:
+    def resolve_constituency(text, tenant_id): return None, None
+
 # Initialize Sentry
 sentry_sdk.init(
     dsn="https://d3ce9f7d4b46c5a117e372925acfdbf2@o4510685197434880.ingest.us.sentry.io/4510685203857408",
@@ -110,20 +116,30 @@ async def whatsapp_webhook(request: Request):
     sender = form_data.get("From", "").replace("whatsapp:", "")
     message_body = form_data.get("Body", "").strip()
     
-    # --- TAD NECESSARY: Dynamic Tenant Lookup ---
+    # --- TAD NECESSARY: Dynamic Tenant Lookup with Local Override ---
     receiver_number = form_data.get("To", "")
     current_tenant = 1 # Default fallback
     
+    # Check JSON Override first
     try:
-        with engine.connect() as conn:
-            # Dynamically fetch the tenant_id associated with the receiving number
-            # Note: This assumes your 'users' table has a 'whatsapp_number' column
-            lookup_query = text("SELECT tenant_id FROM users WHERE whatsapp_number = :num LIMIT 1")
-            tenant_record = conn.execute(lookup_query, {"num": receiver_number}).fetchone()
-            if tenant_record:
-                current_tenant = tenant_record[0]
-    except Exception as e:
-        print(f"⚠️ Tenant Database Lookup Failed: {e}")
+        if os.path.exists("tenant_overrides.json"):
+            with open("tenant_overrides.json", "r") as f:
+                overrides = json.load(f)
+                if receiver_number in overrides:
+                    current_tenant = overrides[receiver_number]
+                    print(f"⚡ JSON Override Match: {receiver_number} -> Tenant {current_tenant}")
+                else:
+                    raise Exception("No JSON Match")
+    except:
+        # Fallback to DB
+        try:
+            with engine.connect() as conn:
+                lookup_query = text("SELECT tenant_id FROM users WHERE whatsapp_number = :num LIMIT 1")
+                tenant_record = conn.execute(lookup_query, {"num": receiver_number}).fetchone()
+                if tenant_record:
+                    current_tenant = tenant_record[0]
+        except Exception as e:
+            print(f"⚠️ Tenant Database Lookup Failed: {e}")
 
     if not message_body: return {"status": "ignored"}
 
@@ -148,19 +164,25 @@ async def whatsapp_webhook(request: Request):
     categories = grievance.get("categories", ["General"])
     category = categories[0] if isinstance(categories, list) and categories else "General"
     political_reply = ai_result.get("political_response", "Thank you.")
+    
+    location_name = grievance.get("location")
 
+    # TAD NECESSARY: Geography Resolver Integration
     final_constituency = (
         grievance.get("assembly_constituency") or 
         grievance.get("constituency") or 
         ai_result.get("constituency") or 
-        ai_result.get("assembly_constituency") or 
-        None
+        ai_result.get("assembly_constituency")
     )
+    
+    if not final_constituency and location_name:
+        _, resolved_const = resolve_constituency(location_name, current_tenant)
+        final_constituency = resolved_const
 
     meta_data = {
         "user_intent": status,
-        "location_resolved": status == "completed", 
-        "matched_value": grievance.get("location") or "",
+        "location_resolved": bool(location_name), 
+        "matched_value": location_name or "",
         "assembly_constituency": final_constituency,
         "summary": grievance.get("summary", message_body[:100])
     }
@@ -175,7 +197,7 @@ async def whatsapp_webhook(request: Request):
                     VALUES (:tid, :phone, :cat, :msg, :stat, :meta, NOW())
                 """),
                 {
-                    "tid": current_tenant, # Saved dynamically based on DB lookup
+                    "tid": current_tenant, 
                     "phone": sender,
                     "cat": category,
                     "msg": message_body,
@@ -197,4 +219,4 @@ async def whatsapp_webhook(request: Request):
 
 @app.get("/")
 def health_check():
-    return {"status": "active", "system": "Needle Backend V7 (Dynamic Routing Ready)"}
+    return {"status": "active", "system": "Needle Backend V7 (Dynamic Resolver Integrated)"}
