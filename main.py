@@ -167,29 +167,43 @@ async def whatsapp_webhook(request: Request):
     political_reply = ai_result.get("political_response", "Thank you.")
     
     location_name = grievance.get("location")
+    final_constituency = None
 
-    # TAD NECESSARY: Geography Resolver Integration with JSON Fallback
-    final_constituency = (
-        grievance.get("assembly_constituency") or 
-        grievance.get("constituency") or 
-        ai_result.get("constituency") or 
-        ai_result.get("assembly_constituency")
-    )
-    
-    if not final_constituency and location_name:
-        # 1. Try Python Module Resolver
-        _, resolved_const = resolve_constituency(location_name, current_tenant)
+    # --- TAD NECESSARY: Case-Insensitive JSON Lookup ---
+    if location_name and overrides_data:
+        # Normalize the extracted location to lowercase and strip whitespace
+        lookup_key = str(location_name).lower().strip()
         
-        # 2. TAD NECESSARY: Fallback to local JSON Geography Overrides
-        if (not resolved_const or resolved_const == "Unknown") and overrides_data:
-            geo_map = overrides_data.get("geo_overrides", {}).get(str(current_tenant), {})
-            final_constituency = geo_map.get(location_name.lower(), "Unknown")
-        else:
-            final_constituency = resolved_const
+        # Access the geo_overrides for the current tenant from your JSON structure
+        geo_map = overrides_data.get("geo_overrides", {}).get(str(current_tenant), {})
+        
+        # Deterministic Overwrite: If location is in JSON, JSON value is used
+        final_constituency = geo_map.get(lookup_key)
+        
+        if final_constituency:
+            print(f"🎯 Local Map Match: {lookup_key} -> {final_constituency}")
+
+    # Fallback to AI extracted values or Python Resolver if JSON match failed
+    if not final_constituency:
+        final_constituency = (
+            grievance.get("assembly_constituency") or 
+            grievance.get("constituency") or 
+            ai_result.get("constituency") or 
+            ai_result.get("assembly_constituency")
+        )
+        
+        # If still None/Unknown, try Python Module Resolver
+        if (not final_constituency or final_constituency == "Unknown") and location_name:
+            _, resolved_const = resolve_constituency(location_name, current_tenant)
+            final_constituency = resolved_const if resolved_const != "Unknown" else None
+
+    # Final Safety Fallback
+    if not final_constituency:
+        final_constituency = "Unknown"
 
     meta_data = {
         "user_intent": status,
-        "location_resolved": bool(location_name), 
+        "location_resolved": bool(location_name and final_constituency != "Unknown"), 
         "matched_value": location_name or "",
         "assembly_constituency": final_constituency,
         "summary": grievance.get("summary", message_body[:100])
@@ -227,4 +241,4 @@ async def whatsapp_webhook(request: Request):
 
 @app.get("/")
 def health_check():
-    return {"status": "active", "system": "Needle Backend V7 (Full Geo-Mapping Integrated)"}
+    return {"status": "active", "system": "Needle Backend V7 (Deterministic Geo-Mapping)"}
