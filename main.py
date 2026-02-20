@@ -109,17 +109,28 @@ async def whatsapp_webhook(request: Request):
     form_data = await request.form()
     sender = form_data.get("From", "").replace("whatsapp:", "")
     message_body = form_data.get("Body", "").strip()
+    
+    # --- TAD NECESSARY: Dynamic Tenant Detection ---
+    # We look at which Twilio Number received the message to identify the MP (Tenant)
+    receiver_number = form_data.get("To", "")
+    
+    # Mapping Twilio numbers to Tenant IDs (Update these with your actual Twilio numbers)
+    tenant_map = {
+        "whatsapp:+14155238886": 1, # Default Twilio Sandbox or MP 1
+        "whatsapp:+919650787758": 5, # Example: Number for Tenant 5
+    }
+    current_tenant = tenant_map.get(receiver_number, 1) # Fallback to 1 if not mapped
 
     if not message_body: return {"status": "ignored"}
 
-    print(f"📩 Incoming from {sender}: {message_body}")
+    print(f"📩 Incoming from {sender} to {receiver_number} (Tenant {current_tenant}): {message_body}")
 
     # A. GET CONTEXT & ASK AI
     user_context = get_user_context(sender)
     full_prompt = f"{user_context}\n\nUSER MESSAGE: {message_body}"
     
-    # Call the AI Engine (OpenAI v3.0)
-    ai_result = ask_chatgpt_agent(full_prompt, tenant_id=1)
+    # --- TAD NECESSARY: Pass the correct tenant_id to the AI Engine ---
+    ai_result = ask_chatgpt_agent(full_prompt, tenant_id=current_tenant)
 
     # FIX: Safety check to handle cases where ai_result might be returned as a string
     if isinstance(ai_result, str):
@@ -130,17 +141,11 @@ async def whatsapp_webhook(request: Request):
 
     # B. DATA PREP (INTENT & CONSTITUENCY HANDLING)
     grievance = ai_result.get("grievance_data", {}) or {}
-    
-    # 1. Capture the status from OpenAI
     status = str(ai_result.get("status", "new")).lower()
-    
-    # 2. Capture Category (Handling the list from v3.0 schema)
     categories = grievance.get("categories", ["General"])
     category = categories[0] if isinstance(categories, list) and categories else "General"
-    
     political_reply = ai_result.get("political_response", "Thank you.")
 
-    # 3. Capture Constituency
     final_constituency = (
         grievance.get("assembly_constituency") or 
         grievance.get("constituency") or 
@@ -149,7 +154,6 @@ async def whatsapp_webhook(request: Request):
         None
     )
 
-    # 4. Pack Metadata for the Dashboard
     meta_data = {
         "user_intent": status,
         "location_resolved": status == "completed", 
@@ -168,7 +172,7 @@ async def whatsapp_webhook(request: Request):
                     VALUES (:tid, :phone, :cat, :msg, :stat, :meta, NOW())
                 """),
                 {
-                    "tid": 1,
+                    "tid": current_tenant, # --- TAD NECESSARY: Saved dynamically ---
                     "phone": sender,
                     "cat": category,
                     "msg": message_body,
@@ -176,7 +180,7 @@ async def whatsapp_webhook(request: Request):
                     "meta": json.dumps(meta_data)
                 }
             )
-            print(f"✅ Saved Status: '{status}' | Constituency: '{final_constituency}'")
+            print(f"✅ Saved Status: '{status}' | Tenant: {current_tenant} | Constituency: '{final_constituency}'")
     except Exception as e:
         print(f"❌ DB Save Failed: {e}")
 

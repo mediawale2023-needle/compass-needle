@@ -218,10 +218,12 @@ def get_user_from_cookie(username):
         }
     return None
 
+# In your fetch_summary function inside mp_dashboard.py
 def fetch_summary(tenant_id):
-    try:
-        query = "SELECT category, case_metadata FROM cases WHERE tenant_id = :tid"
-        rows = run_query(query, {"tid": tenant_id})
+    # This automatically filters the dashboard to ONLY show the logged-in MP's data
+    query = "SELECT category, case_metadata FROM cases WHERE tenant_id = :tid"
+    rows = run_query(query, {"tid": tenant_id})
+    # ... rest of the logic
         
         category_breakdown = {}
         red_zones_raw = {}
