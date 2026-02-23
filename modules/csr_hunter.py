@@ -95,7 +95,7 @@ def render_csr_hunter(username):
                     
                     with c2:
                         st.write("#### ⚡ Action")
-                        if st.button(f"Draft 'Upscale' Letter", key=f"rem_{idx}"):
+                        if st.button(f"Draft 'Upscale' Letter", key=f"hunter_rem_{idx}"):
                             with st.spinner("Drafting with OpenAI..."):
                                 prompt = f"""
                                 Write a strategic letter from an MP to the CSR Head of {row['Company']}.
@@ -124,7 +124,7 @@ def render_csr_hunter(username):
                     st.json(row.get('Spend_History', row.get('History', {})))
                     st.caption("Violation: Section 135 (Local Area Preference)")
                     
-                    if st.button(f"Draft 'Show Cause' Notice", key=f"vio_{idx}"):
+                    if st.button(f"Draft 'Show Cause' Notice", key=f"hunter_vio_{idx}"):
                         with st.spinner("Drafting Notice..."):
                             prompt = f"""
                             Write a stern D.O. Letter from MP to CEO of {row['Company']}.
