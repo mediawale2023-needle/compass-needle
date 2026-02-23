@@ -38,7 +38,8 @@ def get_live_gaps(tenant_id):
     try:
         with engine.connect() as conn:
             return conn.execute(query, {"tid": tenant_id}).fetchall()
-    except:
+    except Exception as e:
+        st.warning(f"Database query failed: {e}")
         return []
 
 def ask_openai(prompt):
@@ -80,30 +81,33 @@ def render_csr_discovery(username):
     gaps = get_live_gaps(tenant_id)
     if gaps:
         for gap in gaps:
+            gap_category = gap[0]
+            gap_volume = gap[1]
+            gap_area = gap[2]
             # --- TAD NECESSARY: Crisis Alert Badge Logic ---
-            if gap.volume >= 500:
+            if gap_volume >= 500:
                 badge = "🔴 **CRITICAL CRISIS (500+)**"
-            elif gap.volume >= 200:
+            elif gap_volume >= 200:
                 badge = "🟠 **MAJOR ISSUE (200+)**"
             else:
                 badge = "🟡 **HIGH DEMAND (100+)**"
 
             # Match company sector with grievance category
-            matches = df[df['Sector'].str.contains(gap.category, case=False, na=False)]
+            matches = df[df['Sector'].str.contains(gap_category, case=False, na=False)]
             if not matches.empty:
-                with st.expander(f"{badge} | {gap.category} in {gap.area}"):
-                    st.write(f"📊 **Data Source:** {gap.volume} unique citizen reports verified.")
+                with st.expander(f"{badge} | {gap_category} in {gap_area}"):
+                    st.write(f"📊 **Data Source:** {gap_volume} unique citizen reports verified.")
                     for _, corp in matches.head(3).iterrows():
                         col_a, col_b = st.columns([3, 1])
                         col_a.write(f"🏢 **{corp['Company']}** (Sector: {corp['Sector']})")
-                        if col_b.button("Pitch Generator", key=f"gen_{corp['Company']}_{gap.area}"):
+                        if col_b.button("Pitch Generator", key=f"gen_{corp['Company']}_{gap_area}"):
                             with st.spinner("Generating One-Click Pitch via OpenAI..."):
                                 prompt = f"""
                                 Act as a Senior Advisor to an Indian Member of Parliament. 
-                                Write a formal CSR Partnership Proposal for {corp['Company']} for a project in {gap.area}.
+                                Write a formal CSR Partnership Proposal for {corp['Company']} for a project in {gap_area}.
                                 
                                 Context:
-                                - Issue: {gap.category} (CRITICAL: Verified by {gap.volume} unique citizen reports).
+                                - Issue: {gap_category} (CRITICAL: Verified by {gap_volume} unique citizen reports).
                                 - Urgency: This is a high-volume community gap requiring immediate CSR intervention.
                                 
                                 Include: Concept Note, Impact KPIs (highlighting the 100+ verified complainants), SDG Mapping, and an MP Signature line.
@@ -117,6 +121,10 @@ def render_csr_discovery(username):
     st.divider()
 
     # 3. Original District Filter Logic
+    remote_df = pd.DataFrame()
+    local_df = pd.DataFrame()
+    target_dist = "Unknown"
+
     if 'District' in df.columns:
         all_districts = sorted(df['District'].unique())
         default_ix = all_districts.index("Mumbai South") if "Mumbai South" in all_districts else 0

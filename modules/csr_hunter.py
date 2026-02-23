@@ -45,24 +45,35 @@ def render_csr_hunter(username):
         return
 
     # 2. Filter by District
+    if 'District' not in df.columns:
+        st.error("⚠️ 'District' column not found in csr_db.json.")
+        return
+
     all_districts = sorted(df['District'].unique())
     target_dist = st.selectbox("Select District", all_districts, index=all_districts.index("Mumbai South") if "Mumbai South" in all_districts else 0)
     
     # 3. Split Data
     dist_data = df[df['District'] == target_dist]
-    remote_df = dist_data[dist_data['Type'].str.contains("Remote", na=False)]
-    
+
+    if 'Type' in dist_data.columns:
+        remote_df = dist_data[dist_data['Type'].str.contains("Remote", na=False)]
+    else:
+        remote_df = dist_data
+
     # Identify Violators (Local + Zero Spend)
-    violators_df = dist_data[
-        (dist_data['Type'].str.contains("Local", na=False)) & 
-        (dist_data['Status'].str.contains("ZERO SPEND", na=False))
-    ]
-    
-    # Identify Compliant Locals
-    compliant_local_df = dist_data[
-        (dist_data['Type'].str.contains("Local", na=False)) & 
-        (~dist_data['Status'].str.contains("ZERO SPEND", na=False))
-    ]
+    if 'Type' in dist_data.columns and 'Status' in dist_data.columns:
+        violators_df = dist_data[
+            (dist_data['Type'].str.contains("Local", na=False)) & 
+            (dist_data['Status'].str.contains("ZERO SPEND", na=False))
+        ]
+        # Identify Compliant Locals
+        compliant_local_df = dist_data[
+            (dist_data['Type'].str.contains("Local", na=False)) & 
+            (~dist_data['Status'].str.contains("ZERO SPEND", na=False))
+        ]
+    else:
+        violators_df = pd.DataFrame()
+        compliant_local_df = pd.DataFrame()
 
     # --- TABBED VIEW ---
     tab_remote, tab_watchdog, tab_local = st.tabs(["🌍 Remote Opportunities", "🚨 Compliance Watchdog", "🏭 Local Data"])
@@ -80,7 +91,7 @@ def render_csr_hunter(username):
                     with c1:
                         st.write(f"**Focus:** {row['Sector']}")
                         st.write("**Spending History:**")
-                        st.json(row['Spend_History'])
+                        st.json(row.get('Spend_History', row.get('History', {})))
                     
                     with c2:
                         st.write("#### ⚡ Action")
@@ -110,7 +121,7 @@ def render_csr_hunter(username):
             for idx, row in violators_df.iterrows():
                 with st.expander(f"❌ {row['Company']} (Factory Present)"):
                     st.write("**3-Year History:**")
-                    st.json(row['Spend_History'])
+                    st.json(row.get('Spend_History', row.get('History', {})))
                     st.caption("Violation: Section 135 (Local Area Preference)")
                     
                     if st.button(f"Draft 'Show Cause' Notice", key=f"vio_{idx}"):
@@ -129,4 +140,8 @@ def render_csr_hunter(username):
     # --- TAB C: LOCAL DATA (Reference) ---
     with tab_local:
         st.subheader(f"✅ Compliant Locals ({len(compliant_local_df)})")
-        st.dataframe(compliant_local_df[['Company', 'Sector', 'Total_3Y']])
+        display_cols = [c for c in ['Company', 'Sector', 'Total_3Y'] if c in compliant_local_df.columns]
+        if display_cols:
+            st.dataframe(compliant_local_df[display_cols])
+        else:
+            st.dataframe(compliant_local_df)

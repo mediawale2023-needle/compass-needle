@@ -10,32 +10,34 @@ def render_csr_projects(username):
     
     init_keys()
 
-    # 1. Load Data
+    # Fallback Mock Data if file is missing (Prevents Crash)
+    menu = [
+        {"Name": "Smart Classroom", "Code": "EDU01", "Cost_Per_Unit": "₹2.5L", "Cost_Raw": 250000, "Impact": "50 Students", "Specs": "75inch Panel, UPS", "Pitch": "Digital literacy for rural kids"},
+        {"Name": "Solar Street Light", "Code": "INF01", "Cost_Per_Unit": "₹25k", "Cost_Raw": 25000, "Impact": "Safety for 10 homes", "Specs": "20W LED, Lithium Bat", "Pitch": "Safety for women at night"},
+        {"Name": "RO Water Plant", "Code": "WAT01", "Cost_Per_Unit": "₹4.5L", "Cost_Raw": 450000, "Impact": "Whole Village", "Specs": "1000 LPH, SS Tank", "Pitch": "Clean water, disease free"}
+    ]
+    
+    # Try to load real file if exists
     try:
-        # Fallback Mock Data if file is missing (Prevents Crash)
-        menu = [
-            {"Name": "Smart Classroom", "Code": "EDU01", "Cost_Per_Unit": "₹2.5L", "Cost_Raw": 250000, "Impact": "50 Students", "Specs": "75inch Panel, UPS", "Pitch": "Digital literacy for rural kids"},
-            {"Name": "Solar Street Light", "Code": "INF01", "Cost_Per_Unit": "₹25k", "Cost_Raw": 25000, "Impact": "Safety for 10 homes", "Specs": "20W LED, Lithium Bat", "Pitch": "Safety for women at night"},
-            {"Name": "RO Water Plant", "Code": "WAT01", "Cost_Per_Unit": "₹4.5L", "Cost_Raw": 450000, "Impact": "Whole Village", "Specs": "1000 LPH, SS Tank", "Pitch": "Clean water, disease free"}
-        ]
-        
-        # Try to load real file if exists
-        try:
-            with open("project_menu.json", "r") as f:
-                menu = json.load(f)
-        except: pass
-        
-        # Company List
-        company_list = ["Reliance Industries", "Tata Group", "HDFC Bank", "Adani Foundation", "Infosys Foundation"]
-        try:
-            with open("csr_db.json", "r") as f:
-                companies = json.load(f)
-                company_list = [c['Company'] for c in companies]
-        except: pass
-            
+        with open("project_menu.json", "r") as f:
+            menu = json.load(f)
+    except FileNotFoundError:
+        pass  # Use fallback mock data
     except Exception as e:
-        st.error(f"Data Error: {e}")
-        return
+        st.warning(f"⚠️ Could not parse project_menu.json: {e}. Using default catalog.")
+    
+    # Company List
+    company_list = ["Reliance Industries", "Tata Group", "HDFC Bank", "Adani Foundation", "Infosys Foundation"]
+    try:
+        with open("csr_db.json", "r") as f:
+            companies = json.load(f)
+            company_list = [c.get('Company') for c in companies if c.get('Company')]
+            if not company_list:
+                company_list = ["Reliance Industries", "Tata Group", "HDFC Bank", "Adani Foundation", "Infosys Foundation"]
+    except FileNotFoundError:
+        pass  # Use fallback list
+    except Exception as e:
+        st.warning(f"⚠️ Could not parse csr_db.json: {e}. Using default company list.")
 
     # 2. The "Shopping Cart" Session
     if 'cart' not in st.session_state: st.session_state.cart = {}
@@ -60,6 +62,8 @@ def render_csr_projects(username):
                     if st.button("Add", key=f"add_{code}_{item.get('Name')}"):
                         if qty > 0:
                             cost = item.get('Cost_Raw', 0)
+                            if cost == 0:
+                                st.warning(f"⚠️ No cost data for {item.get('Name', 'this item')}. It will appear as ₹0.")
                             st.session_state.cart[code] = {
                                 "Name": item.get('Name', 'Project'),
                                 "Qty": qty,
