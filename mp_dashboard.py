@@ -167,7 +167,11 @@ def get_manager():
 cookie_manager = get_manager()
 
 # --- 🔐 COOKIE SIGNING ---
-_cookie_secret = os.getenv("COOKIE_SECRET", "needle-default-secret-change-me")
+_cookie_secret = os.getenv("COOKIE_SECRET")
+if not _cookie_secret:
+    import logging as _logging
+    _logging.warning("COOKIE_SECRET env var not set — using a random per-process secret. Sessions will NOT survive server restarts.")
+    _cookie_secret = os.urandom(32).hex()
 _cookie_signer = URLSafeSerializer(_cookie_secret)
 
 def sign_cookie(username: str) -> str:

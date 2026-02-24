@@ -513,13 +513,14 @@ def main():
     with tab4:
         st.header("🌍 Geography Rules")
         overrides = load_overrides()
+        geo_rules = overrides.get("geo_overrides", {})
         mps = get_all_mps()
         if mps:
             t_opts = {f"{m['mp_name']} ({m['parliamentary_constituency']}) [ID: {m['tenant_id']}]": str(m['tenant_id']) for m in mps}
             sel_mp = st.selectbox("Select MP", list(t_opts.keys()))
             if sel_mp:
                 tid = t_opts[sel_mp]
-                rules = overrides.get(tid, {})
+                rules = geo_rules.get(tid, {})
                 
                 c1, c2, c3 = st.columns([2,2,1])
                 with c1: loc_in = st.text_input("Location (Input)")
@@ -529,8 +530,9 @@ def main():
                     st.write("")
                     if st.button("Add Rule"):
                         if loc_in and const_out:
-                            if tid not in overrides: overrides[tid] = {}
-                            overrides[tid][loc_in.strip().lower()] = const_out
+                            if "geo_overrides" not in overrides: overrides["geo_overrides"] = {}
+                            if tid not in overrides["geo_overrides"]: overrides["geo_overrides"][tid] = {}
+                            overrides["geo_overrides"][tid][loc_in.strip().lower()] = const_out
                             save_overrides(overrides)
                             st.success("✅ Rule Added")
                             st.rerun()
@@ -540,7 +542,8 @@ def main():
                     edited = st.data_editor(df, use_container_width=True, num_rows="dynamic", key=f"ed_{tid}")
                     if st.button("💾 Save Table"):
                         new_r = {row["Input"]: row["Output"] for _, row in edited.iterrows() if row["Input"] and row["Output"]}
-                        overrides[tid] = new_r
+                        if "geo_overrides" not in overrides: overrides["geo_overrides"] = {}
+                        overrides["geo_overrides"][tid] = new_r
                         save_overrides(overrides)
                         st.success("✅ Saved")
         else: st.warning("Create MP first")
