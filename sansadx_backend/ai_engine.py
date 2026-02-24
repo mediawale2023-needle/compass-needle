@@ -50,7 +50,64 @@ def get_jurisdiction_context():
     return ", ".join(sorted(list(known_areas))[:300])
 
 # ==========================================
-# 3. AI EXECUTION (v3.0 ENGINE)
+# 3. LANGUAGE DETECTION (rule-based, pre-GPT)
+# ==========================================
+# Marathi words that do NOT appear in Hindi transliteration
+_MARATHI_MARKERS = {
+    "aahe", "ahe", "hotoy", "hota", "hoti", "hotey",
+    "madhe", "madhye", "mdhye",
+    "kela", "keli", "kele", "kelya",
+    "zala", "zali", "zale", "zalya",
+    "traas", "tras",
+    "yeina", "yena", "yet nahi",
+    "nahi aahe", "nahi ahe",
+    "aahet", "ahet",
+    "kadhla", "kadhi", "karun",
+    "sangayche", "sangitla", "sangto",
+    "khup", "mhanje", "mhanun",
+    "aaplyala", "tumhala", "amhala",
+    "pudhe", "shivar", "gaav",
+}
+
+_KANNADA_MARKERS = {
+    "ide", "illa", "alli", "maadi", "beku", "aithu",
+    "helri", "hogidhe", "bandilla", "kelsa",
+}
+
+def detect_input_language(message: str) -> str:
+    """Detect language from transliterated text using word markers.
+    Returns: 'Marathi', 'Kannada', 'English', 'Hindi', or 'Hinglish'.
+    """
+    words = set(message.lower().split())
+    text_lower = message.lower()
+
+    # Check Marathi markers (most specific first)
+    marathi_hits = sum(1 for m in _MARATHI_MARKERS if m in text_lower)
+    if marathi_hits >= 2:
+        return "Marathi"
+    
+    # Check Kannada markers
+    kannada_hits = sum(1 for m in _KANNADA_MARKERS if m in text_lower)
+    if kannada_hits >= 2:
+        return "Kannada"
+
+    # If mostly ASCII with no Indic markers, likely English
+    if all(ord(c) < 128 or c in ' \t\n' for c in message):
+        # Check for common Hindi/Hinglish words
+        hindi_markers = {"hai", "hain", "kya", "mein", "nahi", "bahut", "karo", "kijiye", "sahab"}
+        if words & hindi_markers:
+            return "Hinglish"
+        # Single Marathi marker might be enough if no Hindi markers
+        if marathi_hits >= 1:
+            return "Marathi"
+        return "English"
+    
+    # Devanagari / non-ASCII → let GPT handle
+    return "Hindi"
+
+
+# ==========================================
+# 4. AI EXECUTION (v3.0 ENGINE)
 # ==========================================
 def ask_chatgpt_agent(user_message, tenant_id=1):
     """
@@ -67,30 +124,34 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     # Fetch dynamic jurisdiction context
     real_jurisdiction_context = get_jurisdiction_context()
 
+    # --- Deterministic language detection ---
+    detected_lang = detect_input_language(user_message)
+
     # --- TAD NECESSARY: Inject MP Persona & Professional Constraints ---
-    persona_instructions = """
+    persona_instructions = f"""
     STRICT RULES:
     1. You are a Member of Parliament (MP) communicating with a citizen.
     2. NEVER mention 'departments', 'forwarding', or 'officials'.
     3. Maintain professional authority. DO NOT say 'it feels good' or 'I understand'.
     4. NO PROMISES: Do not promise a specific action. State the grievance is 'noted and recorded'.
-    5. LANGUAGE MIRROR: First detect the EXACT language of the user's message — Hindi, Marathi, Kannada, English, or Hinglish. Then respond in that SAME language. Do NOT default to Hindi. Key distinction: Marathi uses words like "aahe", "nahi", "hotoy", "madhe", "kela", "zala". Hindi uses "hai", "nahi", "ho raha", "mein", "kiya", "hua". If the user writes in Marathi, you MUST reply in Marathi.
-    6. Only If info is missing (location/area), ask for it directly: "Please provide the name of your area/village."
+    5. LANGUAGE: The citizen's message is in **{detected_lang}**. You MUST write your political_response in **{detected_lang}** only. Do NOT switch to Hindi or any other language. Set detected_language to "{detected_lang}".
+    6. Only If info is missing (location/area), ask for it directly in {detected_lang}.
     7. Be concise (max 2 sentences).
     """
 
     # Format the v3.0 system instructions from prompts.py
     system_instructions = f"{persona_instructions}\n\n{SYSTEM_PROMPT.format(user_message='{{MESSAGE_BELOW}}', jurisdiction_context=real_jurisdiction_context, taxonomy_categories=TAXONOMY_CATEGORIES)}"
 
+    # Prefix user message with detected language so GPT cannot miss it
+    tagged_message = f"[LANGUAGE: {detected_lang}]\n{user_message}"
+
     try:
         # OpenAI Chat Completion Call with Strict JSON Mode
-        # System role: classification instructions (higher authority)
-        # User role: citizen's raw message (keeps it separate)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_instructions},
-                {"role": "user", "content": user_message}
+                {"role": "user", "content": tagged_message}
             ],
             response_format={"type": "json_object"}
         )
