@@ -238,19 +238,9 @@ async def whatsapp_webhook(request: Request):
     except Exception as e:
         logger.error(f"DB Save Failed: {e}")
 
-    # --- TAD NECESSARY: MP's Standardized Safe Response ---
-    if status == "completed":
-        is_hindi_script = any(ord(char) > 127 for char in message_body)
-        
-        if is_hindi_script:
-            # Formal Devanagari - No mention of forwarding or constituency
-            political_reply = f"आपकी समस्या नोट कर ली गई है। जल्द ही आपको इस विषय पर अपडेट दिया जाएगा।"
-        else:
-            # Formal Hinglish - Safe acknowledgment
-            political_reply = f"Aapki samasya note kar li gayi hai. Jald hi aapko is par update milega."
-    else:
-        # If INCOMPLETE, the AI generates a brief question for details
-        pass
+    # political_reply is already set by the AI engine response above — use it as-is.
+    # The AI engine handles language detection and generates the response in the
+    # correct language (Marathi, Hindi, English, Kannada, etc.)
 
     # --- EXECUTE SEND ---
     send_whatsapp_message(sender, political_reply)
