@@ -31,7 +31,7 @@ CATEGORY_SECTOR_MAP = {
 def _get_engine():
     """Safely import the database engine."""
     try:
-        from main import engine
+        from db import engine
         return engine
     except ImportError:
         return None
