@@ -27,7 +27,9 @@ def load_data(selected_file):
 
     try:
         df = pd.read_csv(selected_file)
-        
+
+        # Deduplicate column names (some CSVs have repeated headers)
+        df = df.loc[:, ~df.columns.duplicated()]
         # 1. Identify Columns
         amt_col = next((c for c in df.columns if "Amount" in c or "Spent" in c or "Cost" in c), None)
         comp_col = next((c for c in df.columns if "Company" in c or "Name" in c), None)
