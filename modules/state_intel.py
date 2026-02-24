@@ -166,12 +166,20 @@ def render_state_intel(username):
 
     # --- PROJECT DETAILS ---
     with st.expander("📄 View Detailed Project breakdown", expanded=False):
-        cols = [c for c in [comp_col, sect_col, dist_col, amt_col] if c in df.columns]
-        desc = next((c for c in df.columns if "Project" in c or "Description" in c), None)
-        if desc and desc in df.columns:
-            cols.insert(1, desc)
+        try:
+            cols = [c for c in [comp_col, sect_col, dist_col, amt_col] if c in df.columns]
+            desc = next((c for c in df.columns if "Project" in c or "Description" in c), None)
+            if desc and desc in df.columns and desc not in cols:
+                cols.insert(1, desc)
+            # Remove any duplicate column names
+            cols = list(dict.fromkeys(cols))
 
-        if cols:
-            st.dataframe(df[cols].sort_values(by=amt_col, ascending=False) if amt_col in cols else df[cols], use_container_width=True)
-        else:
-            st.dataframe(df, use_container_width=True)
+            if cols and amt_col in cols:
+                st.dataframe(df[cols].sort_values(by=amt_col, ascending=False), use_container_width=True)
+            elif cols:
+                st.dataframe(df[cols], use_container_width=True)
+            else:
+                st.dataframe(df, use_container_width=True)
+        except Exception as e:
+            st.warning(f"Could not render project details: {e}")
+            st.dataframe(df.head(50), use_container_width=True)
