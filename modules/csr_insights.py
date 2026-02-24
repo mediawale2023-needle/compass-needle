@@ -80,7 +80,7 @@ def _render_company_database(username):
     with c1:
         if "District" in df.columns:
             all_districts = sorted(df["District"].unique())
-            default_ix = all_districts.index("Mumbai South") if "Mumbai South" in all_districts else 0
+            default_ix = all_districts.index("Belgaum") if "Belgaum" in all_districts else 0
             target_dist = st.selectbox("📍 Select District", all_districts, index=default_ix, key="insights_dist")
             df = df[df["District"] == target_dist]
         else:
@@ -163,7 +163,7 @@ def _render_compliance_watchdog(username):
     # District filter
     if "District" in df.columns:
         all_districts = sorted(df["District"].unique())
-        default_ix = all_districts.index("Mumbai South") if "Mumbai South" in all_districts else 0
+        default_ix = all_districts.index("Belgaum") if "Belgaum" in all_districts else 0
         target_dist = st.selectbox("📍 Select District", all_districts, index=default_ix, key="watchdog_dist")
         df = df[df["District"] == target_dist]
     else:

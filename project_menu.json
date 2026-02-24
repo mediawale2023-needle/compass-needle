@@ -1,0 +1,92 @@
+[
+    {
+        "Name": "Smart Classroom",
+        "Code": "EDU01",
+        "Cost_Per_Unit": "₹2.5L",
+        "Cost_Raw": 250000,
+        "Impact": "50 Students per classroom",
+        "Specs": "75-inch Interactive Panel, UPS, WiFi Router",
+        "Pitch": "Digital literacy for rural schools — aligns with NEP 2020"
+    },
+    {
+        "Name": "Solar Street Light",
+        "Code": "INF01",
+        "Cost_Per_Unit": "₹25K",
+        "Cost_Raw": 25000,
+        "Impact": "Safety for 10 homes per light",
+        "Specs": "20W LED, 40Ah Lithium Battery, Auto Dusk-Dawn",
+        "Pitch": "Women's safety at night — high visibility CSR branding"
+    },
+    {
+        "Name": "RO Water Plant",
+        "Code": "WAT01",
+        "Cost_Per_Unit": "₹4.5L",
+        "Cost_Raw": 450000,
+        "Impact": "Entire village (500+ families)",
+        "Specs": "1000 LPH capacity, SS Tank, TDS Controller",
+        "Pitch": "Clean drinking water — disease-free village, SDG 6"
+    },
+    {
+        "Name": "Community Toilet Block",
+        "Code": "SAN01",
+        "Cost_Per_Unit": "₹8L",
+        "Cost_Raw": 800000,
+        "Impact": "200+ families",
+        "Specs": "10-seat block, septic tank, rainwater harvesting",
+        "Pitch": "Swachh Bharat alignment — high CSR compliance value"
+    },
+    {
+        "Name": "Primary Health Sub-Centre",
+        "Code": "HLT01",
+        "Cost_Per_Unit": "₹15L",
+        "Cost_Raw": 1500000,
+        "Impact": "5,000+ population coverage",
+        "Specs": "2-room facility, basic diagnostic equipment, medicine storage",
+        "Pitch": "Rural healthcare access — CSR Schedule VII compliant"
+    },
+    {
+        "Name": "Borewell with Hand Pump",
+        "Code": "WAT02",
+        "Cost_Per_Unit": "₹1.5L",
+        "Cost_Raw": 150000,
+        "Impact": "100 families",
+        "Specs": "200ft bore, India Mark II hand pump, platform",
+        "Pitch": "Drought-proof water source — immediate community impact"
+    },
+    {
+        "Name": "Village Road (per km)",
+        "Code": "INF02",
+        "Cost_Per_Unit": "₹12L",
+        "Cost_Raw": 1200000,
+        "Impact": "Connectivity for 500+ residents",
+        "Specs": "WBM + Tar, 3.75m width, drains both sides",
+        "Pitch": "Last-mile connectivity — enables economic activity"
+    },
+    {
+        "Name": "Library & Reading Room",
+        "Code": "EDU02",
+        "Cost_Per_Unit": "₹3L",
+        "Cost_Raw": 300000,
+        "Impact": "200+ students",
+        "Specs": "500 books, furniture, 2 computers, WiFi",
+        "Pitch": "Knowledge centre — competitive exam preparation hub"
+    },
+    {
+        "Name": "Skill Training Centre",
+        "Code": "SKL01",
+        "Cost_Per_Unit": "₹10L",
+        "Cost_Raw": 1000000,
+        "Impact": "100 youth per batch",
+        "Specs": "Sewing machines, computers, tools, instructor for 1 year",
+        "Pitch": "Employment generation — measurable CSR outcome"
+    },
+    {
+        "Name": "Rainwater Harvesting System",
+        "Code": "WAT03",
+        "Cost_Per_Unit": "₹2L",
+        "Cost_Raw": 200000,
+        "Impact": "Recharges groundwater for 50 homes",
+        "Specs": "Rooftop collection, filter, 10000L storage tank",
+        "Pitch": "Water conservation — drought mitigation, SDG 6"
+    }
+]
