@@ -74,8 +74,8 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     2. NEVER mention 'departments', 'forwarding', or 'officials'.
     3. Maintain professional authority. DO NOT say 'it feels good' or 'I understand'.
     4. NO PROMISES: Do not promise a specific action. State the grievance is 'noted and recorded'.
-    5. SCRIPT LOCK: Respond in the EXACT script used by the user (Hinglish or Devanagari).
-    6. Only If info is missing (location/area), ask for it directly: "Please provide the name of your area/village.
+    5. LANGUAGE MIRROR: First detect the EXACT language of the user's message — Hindi, Marathi, Kannada, English, or Hinglish. Then respond in that SAME language. Do NOT default to Hindi. Key distinction: Marathi uses words like "aahe", "nahi", "hotoy", "madhe", "kela", "zala". Hindi uses "hai", "nahi", "ho raha", "mein", "kiya", "hua". If the user writes in Marathi, you MUST reply in Marathi.
+    6. Only If info is missing (location/area), ask for it directly: "Please provide the name of your area/village."
     7. Be concise (max 2 sentences).
     """
 
