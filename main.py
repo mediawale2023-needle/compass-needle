@@ -252,22 +252,31 @@ def health_check():
     return {"status": "active", "system": "Needle Backend V7 (Deterministic Geo-Mapping)"}
 
 @app.get("/seed-test-cases")
-def seed_test_cases(key: str = ""):
+def seed_test_cases(key: str = "", tid: int = 0):
     """Temporary endpoint to seed 200+ test cases for CSR pipeline testing. Remove after demo."""
     if key != "needle-demo-2024":
         return {"error": "unauthorized"}
     
-    from db import SessionLocal, Case
+    from db import SessionLocal, Case, Tenant
     from datetime import datetime, timedelta
     import random
     
     db = SessionLocal()
     
+    # Auto-detect tenant_id if not provided
+    if tid == 0:
+        first_tenant = db.query(Tenant).first()
+        tid = first_tenant.id if first_tenant else 1
+    
+    # Clean up any previous test data (seeded phones start with 9199)
+    db.query(Case).filter(Case.tenant_id == tid, Case.user_phone.like("9199%")).delete(synchronize_session=False)
+    db.commit()
+    
     # Define test clusters
     clusters = [
         {"category": "Water", "location": "Kelkar Bag", "count": 230},
         {"category": "Infrastructure (State)", "location": "Tilakwadi", "count": 210},
-        {"category": "Education (Central)", "location": "Shahapur", "count": 150},  # Below threshold — for monitoring
+        {"category": "Education (Central)", "location": "Shahapur", "count": 150},
     ]
     
     phones = [f"9199{i:07d}" for i in range(600)]
@@ -291,7 +300,7 @@ def seed_test_cases(key: str = ""):
         for i in range(cluster["count"]):
             msg_list = messages.get(cluster["category"], ["complaint about " + cluster["category"]])
             case = Case(
-                tenant_id=1,
+                tenant_id=tid,
                 user_phone=random.choice(phones),
                 raw_message=random.choice(msg_list),
                 category=cluster["category"],
@@ -310,6 +319,32 @@ def seed_test_cases(key: str = ""):
     
     return {
         "status": "seeded",
+        "tenant_id_used": tid,
         "total_cases": total_inserted,
         "clusters": [{"category": c["category"], "location": c["location"], "count": c["count"]} for c in clusters],
     }
+
+@app.get("/debug-tenants")
+def debug_tenants(key: str = ""):
+    """Temporary debug endpoint to check tenants and case counts."""
+    if key != "needle-demo-2024":
+        return {"error": "unauthorized"}
+    
+    from db import SessionLocal, Tenant, Case
+    from sqlalchemy import func
+    
+    db = SessionLocal()
+    tenants = db.query(Tenant).all()
+    
+    result = []
+    for t in tenants:
+        case_count = db.query(func.count(Case.id)).filter(Case.tenant_id == t.id).scalar()
+        result.append({
+            "id": t.id,
+            "name": t.name,
+            "constituency": t.constituency,
+            "cases": case_count,
+        })
+    
+    db.close()
+    return {"tenants": result}
