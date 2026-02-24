@@ -2,6 +2,7 @@ import os
 import requests
 import json
 import glob
+import logging
 import difflib  # Logic for Fuzzy Matching (Typos)
 from openai import OpenAI # Switch to OpenAI
 from .prompts import SYSTEM_PROMPT, TAXONOMY_CATEGORIES
@@ -9,6 +10,7 @@ from .prompts import SYSTEM_PROMPT, TAXONOMY_CATEGORIES
 # ==========================================
 # 1. CONFIGURATION
 # ==========================================
+logger = logging.getLogger("needle.ai_engine")
 
 # --- TAD NECESSARY: Removed global client initialization to prevent Railway boot crash ---
 def get_client():
@@ -59,7 +61,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     """
     client = get_client()
     if not client: 
-        print("❌ ERROR: OPENAI_API_KEY is missing.")
+        logger.error("OPENAI_API_KEY is missing.")
         return {"status": "ERROR", "political_response": "Server Error: API Key Missing."}
 
     # Fetch dynamic jurisdiction context
@@ -129,7 +131,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         matches = difflib.get_close_matches(ai_loc_clean, tenant_keys_lower.keys(), n=1, cutoff=0.75)
                         if matches:
                             final_loc_name = tenant_keys_lower[matches[0]]
-                            print(f"✨ Auto-Corrected: '{ai_loc_clean}' -> '{final_loc_name}'")
+                            logger.info(f"Auto-Corrected: '{ai_loc_clean}' -> '{final_loc_name}'")
                             match_found = True
                     
                     # 5. Apply the Fix
@@ -145,12 +147,12 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                             data["grievance_data"]["assembly_constituency"] = correct_constituency
                             data["grievance_data"]["location"] = final_loc_name # Set to official spelling
                             
-                        print(f"✅ Location Mapped: {final_loc_name} -> {correct_constituency}")
+                        logger.info(f"Location Mapped: {final_loc_name} -> {correct_constituency}")
                     else:
                         data["assembly_constituency"] = "Unknown"
                         
             except Exception as e:
-                print(f"⚠️ Override Logic Warning: {e}") 
+                logger.warning(f"Override Logic Warning: {e}") 
             # [END OF FIX] -------------------------------------------------
 
             # 🛡️ LANGUAGE SWAP LOGIC
@@ -167,9 +169,9 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             return data
             
         except Exception as e:
-            print(f"❌ JSON Parse Error: {e}")
+            logger.error(f"JSON Parse Error: {e}")
             return {"status": "error", "political_response": "AI Error."}
             
     except Exception as e:
-        print(f"❌ OpenAI Connection Error: {e}")
+        logger.error(f"OpenAI Connection Error: {e}")
         return {"status": "error", "political_response": "Connection Error."}

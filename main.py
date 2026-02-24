@@ -1,6 +1,7 @@
 from sansadx_backend.ai_engine import ask_chatgpt_agent  # <--- Updated from groq
 import os
-import json  # <--- Added missing import for metadata handling
+import json
+import logging
 import sentry_sdk
 from fastapi import FastAPI, Depends, HTTPException, Request
 from sqlalchemy import create_engine, text  # <--- Added 'text'
@@ -14,13 +15,23 @@ try:
 except ImportError:
     def resolve_constituency(text, tenant_id): return None, None
 
-# Initialize Sentry
-sentry_sdk.init(
-    dsn="https://d3ce9f7d4b46c5a117e372925acfdbf2@o4510685197434880.ingest.us.sentry.io/4510685203857408",
-    traces_sample_rate=1.0,
-    profiles_sample_rate=1.0,
-)
+# Initialize Sentry (from environment variable)
+sentry_dsn = os.getenv("SENTRY_DSN")
+if sentry_dsn:
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
+    )
 # ----------------------------
+
+# Configure structured logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger("needle.backend")
 
 app = FastAPI()
 
@@ -33,7 +44,7 @@ def send_whatsapp_message(to_number, body_text):
     from_number = os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
     
     if not account_sid or not auth_token:
-        print("❌ Twilio credentials missing in Environment Variables")
+        logger.error("Twilio credentials missing in Environment Variables")
         return
 
     client = Client(account_sid, auth_token)
@@ -41,16 +52,16 @@ def send_whatsapp_message(to_number, body_text):
         # Ensure to_number has the whatsapp: prefix
         formatted_to = to_number if to_number.startswith("whatsapp:") else f"whatsapp:{to_number}"
         client.messages.create(from_=from_number, body=body_text, to=formatted_to)
-        print(f"📤 Reply sent to {formatted_to}")
+        logger.info(f"Reply sent to {formatted_to}")
     except Exception as e:
-        print(f"❌ Twilio Send Failed: {e}")
+        logger.error(f"Twilio Send Failed: {e}")
 
 # ==========================================
 # 1. DATABASE CONNECTION
 # ==========================================
 DB_URL = os.getenv("DATABASE_URL")
 if not DB_URL:
-    print("⚠️ WARNING: No DATABASE_URL found. Using local temp file.")
+    logger.warning("No DATABASE_URL found. Using local temp file.")
     engine = create_engine("sqlite:///./temp_local.db")
 else:
     # Fix for Heroku/Railway Postgres URLs
@@ -74,9 +85,9 @@ def init_db():
                     created_at TIMESTAMP DEFAULT NOW()
                 );
             """))
-            print("✅ Database: 'cases' table verified.")
+            logger.info("Database: 'cases' table verified.")
     except Exception as e:
-        print(f"❌ Database Init Failed: {e}")
+        logger.error(f"Database Init Failed: {e}")
 
 init_db()
 
@@ -106,7 +117,7 @@ def get_user_context(phone_number):
                 if loc or const:
                     return f"KNOWN USER CONTEXT: User is from Location: {loc}, Constituency: {const}. DO NOT ask for location."
     except Exception as e:
-        print(f"⚠️ Context Fetch Error: {e}")
+        logger.warning(f"Context Fetch Error: {e}")
     return ""
 
 # ==========================================
@@ -130,7 +141,7 @@ async def whatsapp_webhook(request: Request):
                 overrides_data = json.load(f)
                 if receiver_number in overrides_data:
                     current_tenant = overrides_data[receiver_number]
-                    print(f"⚡ JSON Override Match: {receiver_number} -> Tenant {current_tenant}")
+                    logger.info(f"JSON Override Match: {receiver_number} -> Tenant {current_tenant}")
                 else:
                     raise Exception("No JSON Match")
     except:
@@ -142,11 +153,11 @@ async def whatsapp_webhook(request: Request):
                 if tenant_record:
                     current_tenant = tenant_record[0]
         except Exception as e:
-            print(f"⚠️ Tenant Database Lookup Failed: {e}")
+            logger.warning(f"Tenant Database Lookup Failed: {e}")
 
     if not message_body: return {"status": "ignored"}
 
-    print(f"📩 Incoming from {sender} to {receiver_number} (Resolved Tenant: {current_tenant})")
+    logger.info(f"Incoming from {sender} to {receiver_number} (Resolved Tenant: {current_tenant})")
 
     # A. GET CONTEXT & ASK AI
     user_context = get_user_context(sender)
@@ -175,10 +186,12 @@ async def whatsapp_webhook(request: Request):
     if location_name and overrides_data:
         lookup_key = str(location_name).lower().strip()
         geo_map = overrides_data.get("geo_overrides", {}).get(str(current_tenant), {})
-        final_constituency = geo_map.get(lookup_key)
+        # Case-insensitive lookup against geo_map keys
+        geo_map_lower = {k.lower(): v for k, v in geo_map.items()}
+        final_constituency = geo_map_lower.get(lookup_key)
         
         if final_constituency:
-            print(f"🎯 Local Map Match: {lookup_key} -> {final_constituency}")
+            logger.info(f"Local Map Match: {lookup_key} -> {final_constituency}")
 
     # Fallback logic
     if not final_constituency:
@@ -221,9 +234,9 @@ async def whatsapp_webhook(request: Request):
                     "meta": json.dumps(meta_data)
                 }
             )
-            print(f"✅ Saved Status: '{status}' | Tenant: {current_tenant} | Constituency: '{final_constituency}'")
+            logger.info(f"Saved Status: '{status}' | Tenant: {current_tenant} | Constituency: '{final_constituency}'")
     except Exception as e:
-        print(f"❌ DB Save Failed: {e}")
+        logger.error(f"DB Save Failed: {e}")
 
     # --- TAD NECESSARY: MP's Standardized Safe Response ---
     if status == "completed":

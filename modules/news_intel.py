@@ -20,6 +20,7 @@ def get_language_code(lang_name):
     return codes.get(lang_name, "en-IN")
 
 # 👇 This is the function main.py is looking for!
+@st.cache_data(ttl=900)
 def fetch_news(query, language="English", limit=5):
     """
     Fetches news based on Query + Language.

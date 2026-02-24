@@ -6,7 +6,7 @@ import requests
 import pdfplumber
 from pathlib import Path
 from datetime import datetime
-import hashlib
+import bcrypt
 import re
 import sys
 from dotenv import load_dotenv
@@ -29,55 +29,7 @@ METADATA_PATH = Path(__file__).parent / "data" / "constituency_metadata.json"
 OVERRIDES_PATH = Path("tenant_overrides.json")
 
 # --- 🇮🇳 MASTER LIST OF 543 LOK SABHA SEATS ---
-ALL_CONSTITUENCIES = sorted([
-    "Adilabad", "Agra", "Ahmadnagar", "Ahmedabad East", "Ahmedabad West", "Ajmer", "Akbarpur", "Akola", "Alappuzha", "Alathur", "Aligarh", "Alipurduars", 
-    "Allahabad", "Almora", "Alwar", "Amalapuram", "Ambala", "Ambedkar Nagar", "Amethi", "Amravati", "Amreli", "Amritsar", "Amroha", "Anakapalli", 
-    "Anand", "Anandpur Sahib", "Anantapur", "Anantnag-Rajouri", "Andaman and Nicobar Islands", "Aonla", "Arakkonam", "Araku", "Arambagh", "Araria", 
-    "Arani", "Arunachal East", "Arunachal West", "Asansol", "Attingal", "Aurangabad (Bihar)", "Aurangabad (Maharashtra)", "Azamgarh", "Badaun", 
-    "Bagalkot", "Bageshwar", "Baghpat", "Bahraich", "Balaghat", "Balasore", "Ballia", "Balurghat", "Banaskantha", "Banda", "Bangalore Central", 
-    "Bangalore North", "Bangalore Rural", "Bangalore South", "Banka", "Banswara", "Barabanki", "Baramati", "Baramulla", "Barasat", "Bardhaman Durgapur", 
-    "Bardhaman Purba", "Bardoli", "Bareilly", "Barmer", "Barrackpore", "Barpeta", "Basirhat", "Bastar", "Basti", "Bathinda", "Beed", "Begusarai", 
-    "Belagavi", "Bellary", "Berhampore", "Berhampur", "Bhadohi", "Bhadrak", "Bhagalpur", "Bhagirath Place", "Bhandara-Gondiya", "Bharatpur", "Bharuch", 
-    "Bhavnagar", "Bhilwara", "Bhind", "Bhiwandi", "Bhiwani-Mahendragarh", "Bhopal", "Bhubaneswar", "Bidar", "Bijapur", "Bijnor", "Bikaner", "Bilaspur", 
-    "Birbhum", "Bishnupur", "Bolangir", "Bolpur", "Bongaigaon", "Buxar", "Cachar", "Chandigarh", "Chandni Chowk", "Chandrapur", "Chatra", "Chembur", 
-    "Chennai Central", "Chennai North", "Chennai South", "Chhhindwara", "Chhota Udaipur", "Chidambaram", "Chikkaballapur", "Chikkamagaluru", "Chitradurga", 
-    "Chittoor", "Chittorgarh", "Churu", "Coimbatore", "Cuddalore", "Cuttack", "Dadra and Nagar Haveli", "Daman and Diu", "Damoh", "Darbhanga", 
-    "Darjeeling", "Dausa", "Davangere", "Deoria", "Dewas", "Dhanbad", "Dhar", "Dharmapuri", "Dharwad", "Dhenkanal", "Dholpur", "Dhule", "Dibrugarh", 
-    "Dindigul", "Dindori", "Domariyaganj", "Dum Dum", "Dumka", "Durg", "Durgapur", "East Delhi", "Eluru", "Ernakulam", "Erode", "Etah", "Etawah", 
-    "Faizabad", "Faridabad", "Faridkot", "Farrukhabad", "Fatehgarh Sahib", "Fatehpur", "Fatehpur Sikri", "Firozabad", "Firozpur", "Gadchiroli-Chimur", 
-    "Gandhinagar", "Gautam Buddha Nagar", "Ghaziabad", "Ghazipur", "Giridih", "Godda", "Gopalganj", "Gorakhpur", "Gulbarga", "Guna", "Gurdaspur", "Gurgaon", 
-    "Guwahati", "Gwalior", "Hajipur", "Hamirpur (HP)", "Hamirpur (UP)", "Hassan", "Hathras", "Haveri", "Hazaribagh", 
-    "Hingoli", "Hisar", "Hooghly", "Hoshiarpur", "Howrah", "Hubli-Dharwad", "Hyderabad", "Idukki", "Imphal East", "Imphal West", "Indore", "Jabalpur", 
-    "Jadavpur", "Jagatsinghpur", "Jahanabad", "Jaipur", "Jaipur Rural", "Jaisalmer", "Jalandhar", "Jalgaon", "Jalna", "Jalpaiguri", "Jammu", "Jamnagar", 
-    "Jamui", "Janjgir-Champa", "Jaunpur", "Jehanabad", "Jhabua", "Jhajjar", "Jhalawar-Baran", "Jhansi", "Jhargram", "Jhunjhunu", "Jind", "Jodhpur", 
-    "Jorhat", "Junagadh", "Kairana", "Kakinada", "Kalaburagi", "Kalahandi", "Kallakurichi", "Kalyan Dombivli", "Kamrup", "Kanchipuram", "Kandhamal", 
-    "Kangra", "Kanker", "Kannauj", "Kanniyakumari", "Kannur", "Kanpur", "Kanthi", "Karakat", "Karauli-Dholpur", "Karimganj", "Karimnagar", "Karnal", 
-    "Karur", "Kasaragod", "Kathihar", "Kathua", "Katihar", "Kaushambi", "Kendrapara", "Keonjhar", "Khajuraho", "Khalilabad", "Khammam", "Khandwa", 
-    "Khargone", "Kheda", "Khiri", "Khunti", "Kishanganj", "Kodarma", "Kokrajhar", "Kolar", "Kolhapur", "Kolkata Dakshin", "Kolkata Uttar", "Kollam", 
-    "Koppal", "Koraput", "Korba", "Kota", "Kottayam", "Krishna", "Krishnagiri", "Krishnanagar", "Kurnool", "Kurukshetra", "Kushi Nagar", "Kutch", 
-    "Lakhimpur", "Lakshadweep", "Lalganj", "Latur", "Leh", "Lohardaga", "Lucknow", "Ludhiana", "Machhlishahr", "Madhepura", "Madhubani", "Madurai", 
-    "Maharajganj", "Mahasamund", "Mahbubabad", "Mahbubnagar", "Mahesana", "Mahrajganj", "Mainpuri", "Malappuram", "Maldaha Dakshin", "Maldaha Uttar", 
-    "Malkajgiri", "Mandi", "Mandla", "Mandsaur", "Mandya", "Mangaluru", "Mathura", "Mau", "Mayiladuthurai", "Medak", "Meerut", "Mehsana", "Midnapore", 
-    "Mirzapur", "Misrikh", "Modinagar", "Mohanlalganj", "Moradabad", "Morena", "Mumbai North", "Mumbai North Central", "Mumbai North East", 
-    "Mumbai North West", "Mumbai South", "Mumbai South Central", "Munger", "Murshidabad", "Muzaffarnagar", "Muzaffarpur", "Mysore", "Nabadwip", 
-    "Nagarkurnool", "Nagaur", "Nagapattinam", "Nagpur", "Nainital-Udhamsingh Nagar", "Nalanda", "Nalgonda", "Nanded", "Nandurbar", "Nandyal", 
-    "Narasaraopet", "Nashik", "Navsari", "Nawada", "Nawrangpur", "Nellore", "New Delhi", "Nizamabad", "North East Delhi", "North Goa", "North West Delhi", 
-    "Nowgong", "Ongole", "Osmanabad", "Padrauna", "Palakkad", "Palamu", "Palghar", "Pali", "Pallakad", "Panchmahal", "Panaji", "Panchkula", "Panipat", 
-    "Parbhani", "Patna Sahib", "Patan", "Pathanamthitta", "Patiala", "Pauri Garhwal", "Peddapalle", "Perambalur", "Phulpur", "Pilibhit", "Pithoragarh", 
-    "Pollachi", "Pondicherry", "Ponnani", "Porbandar", "Pratapgarh", "Pune", "Puri", "Purnia", "Purulia", "Raebareli", "Raichur", "Raiganj", "Raigarh", 
-    "Raipur", "Rajahmundry", "Rajampet", "Rajgarh", "Rajkot", "Rajmahal", "Rajnandgaon", "Rajouri", "Rajsamand", "Ramagundam", "Ramanathapuram", 
-    "Rampur", "Ranchi", "Ranaghat", "Ratlam", "Ratnagiri-Sindhudurg", "Raver", "Rewa", "Rewari", "Rohtak", "Rohtas", "Rourkela", "Rudrapur", "Sabarkantha", 
-    "Sagar", "Saharanpur", "Saharsa", "Sahibganj", "Saidapet", "Salem", "Samastipur", "Sambalpur", "Sambhal", "Sangli", "Sangrur", "Sant Kabir Nagar", 
-    "Saran", "Sarhali", "Sasaram", "Satara", "Satna", "Sawai Madhopur", "Secunderabad", "Serampore", "Shahdol", "Shahjahanpur", "Shajapur", "Shamli", 
-    "Sheikhpura", "Sheohar", "Shillong", "Shimla", "Shimoga", "Shiridi", "Shirur", "Shivagangai", "Shivamogga", "Shrawasti", "Siddharthnagar", "Sidhi", 
-    "Sikar", "Sikkim", "Silchar", "Siliguri", "Simdega", "Singhbhum", "Sipajhar", "Sirsa", "Sitamarhi", "Sitapur", "Sivaganga", "Siwan", "Solapur", 
-    "Somnath", "Sonipat", "South Delhi", "South Goa", "Sriperumbudur", "Srikakulam", "Srinagar", "Sultanpur", "Sundargarh", "Supaul", "Surat", 
-    "Surendranagar", "Surguja", "Tamluk", "Tenkasi", "Tezpur", "Thane", "Thanjavur", "The Nilgiris", "Theni", "Thiruvallur", "Thiruvananthapuram", 
-    "Thoothukkudi", "Thrissur", "Tikamgarh", "Tiruchirappalli", "Tirunelveli", "Tirupati", "Tiruppur", "Tiruvannamalai", "Tonk-Sawai Madhopur", 
-    "Trichy", "Tripura East", "Tripura West", "Tura", "Udaipur", "Udalguri", "Udhampur", "Udupi Chikmagalur", "Ujjain", "Uluberia", "Una", "Unnao", 
-    "Vadodara", "Vaishali", "Valmiki Nagar", "Valsad", "Varanasi", "Vellore", "Vidisha", "Vijayawada", "Viluppuram", "Virudhunagar", "Visakhapatnam", 
-    "Vizianagaram", "Warangal", "Wardha", "Wayanad", "West Delhi", "Yavatmal-Washim", "Zahirabad"
-])
+from modules.constituencies import ALL_CONSTITUENCIES
 
 # --- Page Config ---
 st.set_page_config(
@@ -95,8 +47,19 @@ if 'admin_user' not in st.session_state:
 
 # --- Helper Functions ---
 def hash_password(password: str) -> str:
-    """Simple password hashing for storage"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash password using bcrypt for secure storage"""
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    """Verify password against stored hash. Supports bcrypt and legacy plaintext fallback."""
+    # Try bcrypt first
+    try:
+        if stored_hash.startswith('$2b$') or stored_hash.startswith('$2a$'):
+            return bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
+    except Exception:
+        pass
+    # Fallback: legacy plaintext match
+    return stored_hash == password
 
 def verify_admin_login(username: str, password: str) -> dict:
     """Verify admin credentials against the database"""
@@ -104,24 +67,26 @@ def verify_admin_login(username: str, password: str) -> dict:
     try:
         user = db.query(User).filter(User.username == username).first()
         if user and user.role in ("admin", "super_admin", "sysadmin"):
-            if user.password_hash == password or user.password_hash == hash_password(password):
+            if verify_password(password, user.password_hash):
+                # Auto-rehash legacy passwords to bcrypt
+                if not (user.password_hash.startswith('$2b$') or user.password_hash.startswith('$2a$')):
+                    user.password_hash = hash_password(password)
+                    db.commit()
                 return {"success": True, "username": user.username, "tenant_id": user.tenant_id}
         return {"success": False}
     finally:
         db.close()
 
 def get_all_mps() -> list:
-    """Get all MPs with User-level Constituency data"""
+    """Get all MPs with User-level Constituency data (single query)"""
+    from sqlalchemy.orm import joinedload
     db = SessionLocal()
     try:
-        tenants = db.query(Tenant).all()
+        tenants = db.query(Tenant).options(joinedload(Tenant.users)).all()
         result = []
         for t in tenants:
-            users = db.query(User).filter(User.tenant_id == t.id).all()
-            for u in users:
-                # Fetch constituency from User first (for Local Pulse), fallback to Tenant
+            for u in t.users:
                 user_constituency = getattr(u, 'constituency', None) or t.constituency or "India"
-                
                 result.append({
                     "tenant_id": t.id,
                     "user_id": u.id,
@@ -159,7 +124,7 @@ def create_mp(name: str, username: str, password: str, constituency: str, whatsa
         new_user = User(
             tenant_id=new_tenant.id,
             username=username,
-            password_hash=password,
+            password_hash=hash_password(password),
             role="mp",
             constituency=constituency # Critical for Local Pulse
         )
@@ -206,7 +171,7 @@ def reset_mp_password(username: str, new_password: str) -> dict:
         if not user:
             return {"success": False, "error": "User not found"}
         
-        user.password_hash = new_password
+        user.password_hash = hash_password(new_password)
         db.commit()
         return {"success": True}
     except Exception as e:
@@ -231,7 +196,7 @@ def ensure_admin_exists():
                 db.flush()
             
             admin_user = User(
-                tenant_id=admin_tenant.id, username="sysadmin", password_hash="admin123", role="admin"
+                tenant_id=admin_tenant.id, username="sysadmin", password_hash=hash_password("admin123"), role="admin"
             )
             db.add(admin_user)
             db.commit()

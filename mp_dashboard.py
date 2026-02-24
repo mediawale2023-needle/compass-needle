@@ -8,6 +8,8 @@ import os
 import base64
 import json
 import time
+import bcrypt
+from itsdangerous import URLSafeSerializer
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
@@ -164,6 +166,21 @@ def get_manager():
 
 cookie_manager = get_manager()
 
+# --- 🔐 COOKIE SIGNING ---
+_cookie_secret = os.getenv("COOKIE_SECRET", "needle-default-secret-change-me")
+_cookie_signer = URLSafeSerializer(_cookie_secret)
+
+def sign_cookie(username: str) -> str:
+    """Sign a username for secure cookie storage."""
+    return _cookie_signer.dumps(username)
+
+def unsign_cookie(signed_value: str):
+    """Verify and extract username from signed cookie. Returns None if invalid."""
+    try:
+        return _cookie_signer.loads(signed_value)
+    except Exception:
+        return None
+
 # --- 🚪 LOGOUT HELPER ---
 def perform_logout():
     """Robust logout: Clears session state and deletes cookie."""
@@ -186,27 +203,46 @@ def perform_logout():
 
 # --- BACKEND LOGIC ---
 def attempt_login(username, password):
-    if username == "admin" and password == "password":
-        return {"username": "admin", "role": "admin", "tenant_id": 1, "constituency": "New Delhi"}, None
-
-    query = "SELECT * FROM users WHERE username = :u AND password_hash = :p"
-    users = run_query(query, {"u": username, "p": password})
+    query = "SELECT * FROM users WHERE username = :u"
+    users = run_query(query, {"u": username})
     
     if users:
         user = users[0]
-        return {
-            "username": user['username'],
-            "role": user.get('role', 'user'),
-            "tenant_id": user.get('tenant_id', 1),
-            "constituency": user.get('constituency') or "India"
-        }, None
+        stored_hash = user.get('password_hash', '')
+        password_valid = False
+        
+        # Try bcrypt first
+        try:
+            if stored_hash.startswith('$2b$') or stored_hash.startswith('$2a$'):
+                password_valid = bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
+        except Exception:
+            pass
+        
+        # Fallback: legacy plaintext match
+        if not password_valid:
+            password_valid = (stored_hash == password)
+        
+        if password_valid:
+            # Auto-rehash legacy passwords to bcrypt
+            if not (stored_hash.startswith('$2b$') or stored_hash.startswith('$2a$')):
+                try:
+                    new_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                    engine = get_db_engine()
+                    with engine.begin() as conn:
+                        conn.execute(text("UPDATE users SET password_hash = :h WHERE username = :u"), {"h": new_hash, "u": username})
+                except Exception:
+                    pass
+            
+            return {
+                "username": user['username'],
+                "role": user.get('role', 'user'),
+                "tenant_id": user.get('tenant_id', 1),
+                "constituency": user.get('constituency') or "India"
+            }, None
     
     return None, "❌ Incorrect Username or Password"
 
 def get_user_from_cookie(username):
-    if username == "admin":
-        return {"username": "admin", "role": "admin", "tenant_id": 1, "constituency": "New Delhi"}
-    
     query = "SELECT * FROM users WHERE username = :u"
     users = run_query(query, {"u": username})
     
@@ -280,7 +316,7 @@ def login_screen():
                     st.session_state.house_type = "LOK_SABHA"
                     st.session_state.theme_color = "#009a4e"
 
-                    cookie_manager.set("needle_user", username, expires_at=datetime.now() + timedelta(days=30))
+                    cookie_manager.set("needle_user", sign_cookie(username), expires_at=datetime.now() + timedelta(days=30))
                     
                     st.success("Login successful! Redirecting...")
                     time.sleep(1)
@@ -317,20 +353,22 @@ if st.session_state.get('logout_confirmed', False):
     st.stop()
 
 if not st.session_state.get('authenticated', False) and not st.session_state.get('logging_out', False):
-    cookie_user = cookie_manager.get(cookie="needle_user")
-    if cookie_user is None:
+    cookie_token = cookie_manager.get(cookie="needle_user")
+    if cookie_token is None:
         time.sleep(0.5)
-        cookie_user = cookie_manager.get(cookie="needle_user")
-    if cookie_user:
-        user_data = get_user_from_cookie(cookie_user)
-        if user_data:
-            st.session_state.authenticated = True
-            st.session_state.current_user = user_data["username"]
-            st.session_state.user_role = user_data["role"]
-            st.session_state.tenant_id = user_data["tenant_id"]
-            st.session_state.constituency = user_data["constituency"]
-            st.session_state.theme_color = "#009a4e"
-            st.rerun()
+        cookie_token = cookie_manager.get(cookie="needle_user")
+    if cookie_token:
+        cookie_user = unsign_cookie(cookie_token)
+        if cookie_user:
+            user_data = get_user_from_cookie(cookie_user)
+            if user_data:
+                st.session_state.authenticated = True
+                st.session_state.current_user = user_data["username"]
+                st.session_state.user_role = user_data["role"]
+                st.session_state.tenant_id = user_data["tenant_id"]
+                st.session_state.constituency = user_data["constituency"]
+                st.session_state.theme_color = "#009a4e"
+                st.rerun()
 
 if not st.session_state.authenticated:
     login_screen()

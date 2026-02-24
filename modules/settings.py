@@ -3,6 +3,7 @@ import os
 from openai import OpenAI  # Switched from Gemini to OpenAI
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
+import bcrypt
 import time
 
 # Load env variables
@@ -29,7 +30,7 @@ def update_profile(username, new_constituency, new_password=None):
     # If password is provided, add it to query
     if new_password:
         sql += ", password_hash = :p"
-        params["p"] = new_password 
+        params["p"] = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
     sql += " WHERE username = :u"
     
