@@ -97,26 +97,30 @@ def render_state_intel(username):
     with st.container():
         c1, c2 = st.columns(2)
         with c1:
-            selected_state = st.selectbox("📍 Select State", ["All India"] + sorted(ALL_INDIA_STATES))
-        
-        if selected_state != "All India":
-            df = df[df[state_col] == selected_state]
-            
+            if state_col in df.columns:
+                selected_state = st.selectbox("📍 Select State", ["All India"] + sorted(ALL_INDIA_STATES))
+                if selected_state != "All India":
+                    df = df[df[state_col] == selected_state]
+            else:
+                selected_state = "All India"
+
         with c2:
-            sectors = sorted(df[sect_col].dropna().unique().tolist()) if not df.empty else []
-            selected_sector = st.multiselect("🏥 Select Sector", sectors)
-            
-        if selected_sector:
-            df = df[df[sect_col].isin(selected_sector)]
+            if sect_col in df.columns:
+                sectors = sorted(df[sect_col].dropna().unique().tolist()) if not df.empty else []
+                selected_sector = st.multiselect("🏥 Select Sector", sectors)
+                if selected_sector:
+                    df = df[df[sect_col].isin(selected_sector)]
+            else:
+                selected_sector = []
 
     st.divider()
 
     # --- METRICS ---
-    total_spend = df[amt_col].sum()
-    active_companies = df[comp_col].nunique()
-    
+    total_spend = df[amt_col].sum() if amt_col in df.columns else 0
+    active_companies = df[comp_col].nunique() if comp_col in df.columns else 0
+
     # Calculate Top Spender
-    if not df.empty:
+    if not df.empty and comp_col in df.columns and amt_col in df.columns:
         top_company = df.groupby(comp_col)[amt_col].sum().idxmax()
     else:
         top_company = "N/A"
@@ -140,7 +144,7 @@ def render_state_intel(username):
     # --- LEADERBOARD ---
     st.subheader(f"🏢 Who is spending in {selected_state}?")
     
-    if not df.empty:
+    if not df.empty and comp_col in df.columns and amt_col in df.columns:
         leaderboard = (
             df.groupby(comp_col)[[amt_col]]
             .sum()
@@ -155,11 +159,17 @@ def render_state_intel(username):
             use_container_width=True,
             column_config={"Total Spent (Cr)": st.column_config.NumberColumn(format="₹ %.2f Cr")}
         )
+    else:
+        st.info("No company data available for leaderboard.")
 
     # --- PROJECT DETAILS ---
     with st.expander("📄 View Detailed Project breakdown", expanded=False):
-        cols = [comp_col, sect_col, dist_col, amt_col]
+        cols = [c for c in [comp_col, sect_col, dist_col, amt_col] if c in df.columns]
         desc = next((c for c in df.columns if "Project" in c or "Description" in c), None)
-        if desc: cols.insert(1, desc)
-            
-        st.dataframe(df[cols].sort_values(by=amt_col, ascending=False), use_container_width=True)
+        if desc and desc in df.columns:
+            cols.insert(1, desc)
+
+        if cols:
+            st.dataframe(df[cols].sort_values(by=amt_col, ascending=False) if amt_col in cols else df[cols], use_container_width=True)
+        else:
+            st.dataframe(df, use_container_width=True)
