@@ -37,10 +37,9 @@ try:
     from modules.pmb_drafter import render_pmb_drafter
     from modules.csr_projects import render_csr_projects
     from modules.csr_partners import render_csr_partners
-    # --- TAD NECESSARY: Added Discovery and Hunter Imports ---
-    from modules.csr_discovery import render_csr_discovery
-    from modules.csr_hunter import render_csr_hunter
-    from modules.state_intel import render_state_intel
+    from modules.csr_insights import render_csr_insights
+    from modules.csr_proposals import render_csr_proposals
+    from modules.csr_pipeline import get_csr_candidates
     from modules.utils import track_action, show_download_button
     from modules.persistence import load_archives, delete_draft
     from modules.news_intel import fetch_news, analyze_sentiment
@@ -431,6 +430,17 @@ else:
                 st.success(f"📍 All areas normal")
         st.markdown("</div>", unsafe_allow_html=True)
 
+        # --- CSR Funding Indicator ---
+        try:
+            csr_candidates = get_csr_candidates(st.session_state.tenant_id)
+            if csr_candidates:
+                st.markdown(f"<div class='widget-card'><div class='widget-title'>💰 CSR Funding Pipeline</div>", unsafe_allow_html=True)
+                st.warning(f"🚨 **{len(csr_candidates)} issue(s)** have crossed the 200-complaint threshold and qualify for CSR-funded intervention.")
+                st.caption("Go to **CSR Suite → Proposals** to generate data-backed pitches.")
+                st.markdown("</div>", unsafe_allow_html=True)
+        except Exception:
+            pass  # Pipeline not yet populated
+
         c_left, c_right = st.columns([2, 1])
         with c_left:
             st.markdown(f"<div class='widget-card'><div class='widget-title'>🏛️ Parliamentary Desk</div>", unsafe_allow_html=True)
@@ -458,13 +468,11 @@ else:
     elif selected == "Drafter": render_drafter(username)
     elif selected == "PMB": render_pmb_drafter(username)
     elif selected == "CSR Suite":
-        # --- TAD NECESSARY: Expanded CSR Suite Tabs with Discovery and Hunter ---
-        t1, t2, t3, t4, t5 = st.tabs(["🔭 Discovery", "💰 Hunter", "🗺️ State Intel", "📋 Projects", "🤝 Partners"])
-        with t1: render_csr_discovery(username)
-        with t2: render_csr_hunter(username)
-        with t3: render_state_intel(username)
-        with t4: render_csr_projects(username)
-        with t5: render_csr_partners(username)
+        t1, t2, t3, t4 = st.tabs(["📊 Insights", "🚨 Proposals", "🛠️ Projects", "🤝 Partners"])
+        with t1: render_csr_insights(username)
+        with t2: render_csr_proposals(username)
+        with t3: render_csr_projects(username)
+        with t4: render_csr_partners(username)
     elif selected == "Schemes": render_matcher(username)
     elif selected == "Archives":
         archives = load_archives(username)

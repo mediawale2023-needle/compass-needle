@@ -6,31 +6,9 @@ import os
 from modules.settings import init_keys
 from modules.persistence import save_draft
 from modules.utils import show_download_button, track_action
+from modules.ai_helpers import get_openai_client, ask_openai
 
 # --- TAD NECESSARY: Removed global client initialization to prevent Railway boot crash ---
-
-def get_openai_client():
-    """Helper to safely initialize OpenAI client after environment variables load."""
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        return None
-    return OpenAI(api_key=api_key)
-
-def ask_openai(prompt):
-    """Helper to maintain consistency with OpenAI across the project."""
-    client = get_openai_client()
-    if not client:
-        return "⚠️ OpenAI API Key not configured. Please check Railway Variables."
-    
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"AI Error: {e}"
 
 def render_csr_partners(username):
     st.header("🤝 CSR Implementation Partners")
