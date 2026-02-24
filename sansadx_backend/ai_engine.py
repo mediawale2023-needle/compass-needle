@@ -79,14 +79,19 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     7. Be concise (max 2 sentences).
     """
 
-    # Format the v3.0 prompt from prompts.py
-    formatted_prompt = f"{persona_instructions}\n\n{SYSTEM_PROMPT.format(user_message=user_message, jurisdiction_context=real_jurisdiction_context, taxonomy_categories=TAXONOMY_CATEGORIES)}"
+    # Format the v3.0 system instructions from prompts.py
+    system_instructions = f"{persona_instructions}\n\n{SYSTEM_PROMPT.format(user_message='{{MESSAGE_BELOW}}', jurisdiction_context=real_jurisdiction_context, taxonomy_categories=TAXONOMY_CATEGORIES)}"
 
     try:
         # OpenAI Chat Completion Call with Strict JSON Mode
+        # System role: classification instructions (higher authority)
+        # User role: citizen's raw message (keeps it separate)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "user", "content": formatted_prompt}],
+            messages=[
+                {"role": "system", "content": system_instructions},
+                {"role": "user", "content": user_message}
+            ],
             response_format={"type": "json_object"}
         )
         

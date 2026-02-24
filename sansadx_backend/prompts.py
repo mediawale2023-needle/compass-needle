@@ -251,4 +251,6 @@ KNOWN LOCATIONS IN THIS CONSTITUENCY
 CITIZEN'S MESSAGE (classify this now)
 ═══════════════════════════════════════
 {user_message}
+
+IMPORTANT FINAL REMINDER: Before writing political_response, you MUST first set detected_language by analyzing the citizen's message above. If the message contains Marathi words (aahe, hotoy, madhe, traas, yeina, ani, kela, zala), set detected_language to "Marathi" and write the response in Marathi. Do NOT default to Hindi.
 """
