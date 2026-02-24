@@ -250,3 +250,66 @@ async def whatsapp_webhook(request: Request):
 @app.get("/")
 def health_check():
     return {"status": "active", "system": "Needle Backend V7 (Deterministic Geo-Mapping)"}
+
+@app.get("/seed-test-cases")
+def seed_test_cases(key: str = ""):
+    """Temporary endpoint to seed 200+ test cases for CSR pipeline testing. Remove after demo."""
+    if key != "needle-demo-2024":
+        return {"error": "unauthorized"}
+    
+    from db import SessionLocal, Case
+    from datetime import datetime, timedelta
+    import random
+    
+    db = SessionLocal()
+    
+    # Define test clusters
+    clusters = [
+        {"category": "Water", "location": "Kelkar Bag", "count": 230},
+        {"category": "Infrastructure (State)", "location": "Tilakwadi", "count": 210},
+        {"category": "Education (Central)", "location": "Shahapur", "count": 150},  # Below threshold — for monitoring
+    ]
+    
+    phones = [f"9199{i:07d}" for i in range(600)]
+    messages = {
+        "Water": [
+            "paani nahi aahe ithe", "water supply band aahe", "nali tutli aahe",
+            "paani khup ghan yeto", "borewell band padla", "tanker yena",
+        ],
+        "Infrastructure (State)": [
+            "rasta khrab aahe", "khade aahet rastawar", "street light nahi",
+            "drain tuti aahe", "footpath tutla", "road pudhe kharab",
+        ],
+        "Education (Central)": [
+            "school madhe teacher nahi", "classroom tutla", "toilet nahi school la",
+            "mid day meal nahi milto", "school building juna aahe",
+        ],
+    }
+    
+    total_inserted = 0
+    for cluster in clusters:
+        for i in range(cluster["count"]):
+            msg_list = messages.get(cluster["category"], ["complaint about " + cluster["category"]])
+            case = Case(
+                tenant_id=1,
+                user_phone=random.choice(phones),
+                raw_message=random.choice(msg_list),
+                category=cluster["category"],
+                status="completed",
+                location=cluster["location"],
+                ward=cluster["location"],
+                is_critical=(i % 20 == 0),
+                response_to_citizen="Noted",
+                created_at=datetime.utcnow() - timedelta(days=random.randint(1, 90)),
+            )
+            db.add(case)
+            total_inserted += 1
+    
+    db.commit()
+    db.close()
+    
+    return {
+        "status": "seeded",
+        "total_cases": total_inserted,
+        "clusters": [{"category": c["category"], "location": c["location"], "count": c["count"]} for c in clusters],
+    }
