@@ -15,11 +15,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Database Connection ---
-sys.path.insert(0, str(Path(__file__).parent / "sansadx_backend"))
+# Import from root db.py (NOT sansadx_backend/db.py) to use the same sansadx.db as mp_dashboard
 try:
     from db import SessionLocal, Tenant, User, init_db
 except ImportError:
-    st.error("Could not import 'db.py'. Please ensure 'sansadx-backend/db.py' exists.")
+    st.error("Could not import 'db.py'. Please ensure 'db.py' exists in the project root.")
     sys.exit(1)
 
 # --- Constants ---
@@ -78,7 +78,7 @@ def verify_admin_login(username: str, password: str) -> dict:
         db.close()
 
 def get_all_mps() -> list:
-    """Get all MPs with User-level Constituency data (single query)"""
+    """Get all MPs with User-level data (single query)"""
     from sqlalchemy.orm import joinedload
     db = SessionLocal()
     try:
@@ -91,8 +91,10 @@ def get_all_mps() -> list:
                     "tenant_id": t.id,
                     "user_id": u.id,
                     "mp_name": t.name,
+                    "display_name": getattr(u, 'display_name', None) or t.name,
                     "username": u.username,
                     "role": u.role,
+                    "house": getattr(u, 'house', None) or "Lok Sabha",
                     "parliamentary_constituency": user_constituency, 
                     "whatsapp_number": t.whatsapp_number,
                     "created_at": t.created_at.strftime("%Y-%m-%d") if t.created_at else "N/A"
@@ -101,8 +103,8 @@ def get_all_mps() -> list:
     finally:
         db.close()
 
-def create_mp(name: str, username: str, password: str, constituency: str, whatsapp_number: str = "") -> dict:
-    """Create a new MP (Tenant + User) with Constituency"""
+def create_mp(name: str, username: str, password: str, constituency: str, whatsapp_number: str = "", house: str = "Lok Sabha", display_name: str = "") -> dict:
+    """Create a new MP (Tenant + User) with Constituency, House, and Display Name"""
     db = SessionLocal()
     try:
         existing_user = db.query(User).filter(User.username == username).first()
@@ -115,18 +117,20 @@ def create_mp(name: str, username: str, password: str, constituency: str, whatsa
             constituency=constituency,
             whatsapp_number=whatsapp_number or f"temp_{datetime.now().timestamp()}",
             subscription_plan="Pro",
-            config={"language": "English", "type": "LOK_SABHA", "map_enabled": True}
+            config={"language": "English", "type": house.upper().replace(" ", "_"), "map_enabled": True}
         )
         db.add(new_tenant)
         db.flush()
         
-        # Create User AND set Constituency
+        # Create User with House and Display Name
         new_user = User(
             tenant_id=new_tenant.id,
             username=username,
             password_hash=hash_password(password),
             role="mp",
-            constituency=constituency # Critical for Local Pulse
+            constituency=constituency,
+            house=house,
+            display_name=display_name or name
         )
         db.add(new_user)
         db.commit()
@@ -368,22 +372,32 @@ def main():
         col1, col2 = st.columns([1, 1])
         
         with col1:
-            st.subheader("➕ Create New MP")
+            st.subheader("Add New MP")
             with st.form("create_mp_form"):
                 mp_name = st.text_input("MP Name *", placeholder="Hon. Shri/Smt...")
+                mp_display = st.text_input("Display Name", placeholder="Name shown in dashboard (defaults to MP Name)")
+                mp_house = st.selectbox("House *", options=["Lok Sabha", "Rajya Sabha"], index=0)
                 mp_username = st.text_input("Username *", placeholder="username")
                 mp_password = st.text_input("Password *", type="password")
-                mp_constituency = st.selectbox("Parliamentary Constituency *", options=ALL_CONSTITUENCIES, index=0)
+                if mp_house == "Lok Sabha":
+                    mp_constituency = st.selectbox("Parliamentary Constituency *", options=ALL_CONSTITUENCIES, index=0)
+                else:
+                    mp_constituency = st.text_input("State / Nominated", placeholder="e.g. Maharashtra")
                 mp_whatsapp = st.text_input("WhatsApp Number", placeholder="+91...")
                 
                 if st.form_submit_button("Create MP", use_container_width=True):
-                    if mp_name and mp_username and mp_password and mp_constituency:
-                        result = create_mp(mp_name, mp_username, mp_password, mp_constituency, mp_whatsapp)
+                    if mp_name and mp_username and mp_password:
+                        result = create_mp(
+                            mp_name, mp_username, mp_password,
+                            mp_constituency or "India", mp_whatsapp,
+                            house=mp_house,
+                            display_name=mp_display or mp_name
+                        )
                         if result["success"]:
-                            st.success(f"✅ Created MP '{mp_name}'")
+                            st.success(f"Created MP '{mp_name}' ({mp_house})")
                             st.rerun()
                         else: st.error(result.get('error'))
-                    else: st.warning("⚠️ Fill all required fields")
+                    else: st.warning("Fill all required fields")
         
         with col2:
             st.subheader("✏️ Manage Existing MP")
@@ -416,14 +430,13 @@ def main():
                 st.info("No MPs found.")
         
         st.divider()
-        st.subheader("📋 Registered MPs")
+        st.subheader("Registered MPs")
         if mps:
             mp_list = [mp for mp in mps if mp["role"] != "admin"]
             if mp_list:
                 df = pd.DataFrame(mp_list)
-                # --- TAD NECESSARY: ADDING tenant_id FOR VISIBILITY ---
                 st.dataframe(
-                    df[["tenant_id", "mp_name", "username", "parliamentary_constituency", "whatsapp_number", "created_at"]], 
+                    df[["tenant_id", "display_name", "username", "house", "parliamentary_constituency", "whatsapp_number", "created_at"]], 
                     use_container_width=True, 
                     hide_index=True
                 )

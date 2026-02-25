@@ -50,10 +50,11 @@ except ImportError as e:
 # --- SESSION STATE SETUP ---
 if 'authenticated' not in st.session_state: st.session_state.authenticated = False
 if 'current_user' not in st.session_state: st.session_state.current_user = ""
+if 'display_name' not in st.session_state: st.session_state.display_name = ""
 if 'user_role' not in st.session_state: st.session_state.user_role = ""
 if 'tenant_id' not in st.session_state: st.session_state.tenant_id = None
-if 'house_type' not in st.session_state: st.session_state.house_type = "LOK_SABHA"
-if 'theme_color' not in st.session_state: st.session_state.theme_color = "#009a4e"
+if 'house_type' not in st.session_state: st.session_state.house_type = "Lok Sabha"
+if 'theme_color' not in st.session_state: st.session_state.theme_color = "#006a4d"
 if 'constituency' not in st.session_state: st.session_state.constituency = "India"
 if 'logging_out' not in st.session_state: st.session_state.logging_out = False
 if 'logout_confirmed' not in st.session_state: st.session_state.logout_confirmed = False
@@ -188,7 +189,7 @@ def unsign_cookie(signed_value: str):
 def perform_logout():
     """Robust logout: Clears session state and deletes cookie."""
     keys_to_clear = [
-        'authenticated', 'current_user', 'user_role', 'tenant_id',
+        'authenticated', 'current_user', 'display_name', 'user_role', 'tenant_id',
         'house_type', 'theme_color', 'constituency', 'calendar_notes'
     ]
     for key in keys_to_clear:
@@ -205,6 +206,12 @@ def perform_logout():
     return True
 
 # --- BACKEND LOGIC ---
+# --- HOUSE → THEME MAPPING ---
+HOUSE_THEMES = {
+    "Lok Sabha": "#006a4d",
+    "Rajya Sabha": "#8d153a",
+}
+
 def attempt_login(username, password):
     query = "SELECT * FROM users WHERE username = :u"
     users = run_query(query, {"u": username})
@@ -236,11 +243,15 @@ def attempt_login(username, password):
                 except Exception:
                     pass
             
+            house = user.get('house') or "Lok Sabha"
             return {
                 "username": user['username'],
+                "display_name": user.get('display_name') or user['username'].title(),
                 "role": user.get('role', 'user'),
                 "tenant_id": user.get('tenant_id', 1),
-                "constituency": user.get('constituency') or "India"
+                "constituency": user.get('constituency') or "India",
+                "house": house,
+                "theme_color": HOUSE_THEMES.get(house, "#006a4d"),
             }, None
     
     return None, " Incorrect Username or Password"
@@ -251,11 +262,15 @@ def get_user_from_cookie(username):
     
     if users:
         user = users[0]
+        house = user.get('house') or "Lok Sabha"
         return {
             "username": user['username'],
+            "display_name": user.get('display_name') or user['username'].title(),
             "role": user.get('role', 'user'),
             "tenant_id": user.get('tenant_id', 1),
-            "constituency": user.get('constituency') or "India"
+            "constituency": user.get('constituency') or "India",
+            "house": house,
+            "theme_color": HOUSE_THEMES.get(house, "#006a4d"),
         }
     return None
 
@@ -313,11 +328,12 @@ def login_screen():
                     st.session_state.logout_confirmed = False
                     st.session_state.authenticated = True
                     st.session_state.current_user = user_data["username"]
+                    st.session_state.display_name = user_data["display_name"]
                     st.session_state.user_role = user_data["role"]
                     st.session_state.tenant_id = user_data["tenant_id"]
                     st.session_state.constituency = user_data["constituency"]
-                    st.session_state.house_type = "LOK_SABHA"
-                    st.session_state.theme_color = "#009a4e"
+                    st.session_state.house_type = user_data["house"]
+                    st.session_state.theme_color = user_data["theme_color"]
 
                     cookie_manager.set("needle_user", sign_cookie(username), expires_at=datetime.now() + timedelta(days=30))
                     
@@ -330,15 +346,17 @@ def login_screen():
 # --- HEADER ---
 def render_header(username, color):
     loc = st.session_state.get('constituency', 'India')
+    name = st.session_state.get('display_name') or username.title()
+    house = st.session_state.get('house_type', 'Lok Sabha')
     st.markdown(f"""
     <div class="needle-header">
         <div class="needle-logo">
             <span></span> Needle
         </div>
         <div style="display: flex; gap: 20px; align-items: center; font-size: 14px; font-weight: 500;">
-            <span style="color: #666;"> {loc}</span>
+            <span style="color: #666;">{house} · {loc}</span>
             <span style="color: {color};">● Online</span>
-            <span>{username.title()}</span>
+            <span>{name}</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -367,10 +385,12 @@ if not st.session_state.get('authenticated', False) and not st.session_state.get
             if user_data:
                 st.session_state.authenticated = True
                 st.session_state.current_user = user_data["username"]
+                st.session_state.display_name = user_data["display_name"]
                 st.session_state.user_role = user_data["role"]
                 st.session_state.tenant_id = user_data["tenant_id"]
                 st.session_state.constituency = user_data["constituency"]
-                st.session_state.theme_color = "#009a4e"
+                st.session_state.house_type = user_data["house"]
+                st.session_state.theme_color = user_data["theme_color"]
                 st.rerun()
 
 if not st.session_state.authenticated:

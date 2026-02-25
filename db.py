@@ -45,9 +45,12 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"))
-    username = Column(String, unique=True, index=True) # We will store email here
+    username = Column(String, unique=True, index=True)
     password_hash = Column(String)
     role = Column(String)
+    constituency = Column(String, default="India")
+    house = Column(String, default="Lok Sabha")       # Lok Sabha | Rajya Sabha
+    display_name = Column(String, nullable=True)       # e.g. "Jagadish Shettar"
     
     tenant = relationship("Tenant", back_populates="users")
 
