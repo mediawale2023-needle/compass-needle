@@ -400,7 +400,7 @@ else:
             default_index=0, styles={"nav-link-selected": {"background-color": color}}
         )
         st.divider()
-        if st.button("🔒 Log Out", use_container_width=True):
+        if st.button("Log Out", use_container_width=True):
             perform_logout()
             st.rerun()
             
@@ -411,13 +411,13 @@ else:
         
         if categories:
             top_category = max(categories, key=categories.get)
-            ticker_msg = f"📢 Highest Volume: {top_category} ({categories[top_category]} reports)"
+            ticker_msg = f"Highest Volume: {top_category} ({categories[top_category]} reports)"
             sub_msg = f"Total Grievances: {sum(categories.values())}"
         else:
-            ticker_msg = "📢 No critical issues reported yet."
+            ticker_msg = "No critical issues reported yet."
             sub_msg = "System is active and listening."
 
-        st.markdown(f"<div class='widget-card'><div class='widget-title'>🔥 Situation Room (Constituency Intel)</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='widget-card'><div class='widget-title'>Situation Room (Constituency Intel)</div>", unsafe_allow_html=True)
         col_tick, col_map = st.columns([2, 1])
         with col_tick:
             st.caption("BURNING ISSUES TICKER")
@@ -425,17 +425,17 @@ else:
         with col_map:
             st.caption("RED ZONE ALERT")
             if red_zones:
-                st.error(f"📍 {len(red_zones)} Active Red Zones")
+                st.error(f"{len(red_zones)} Active Red Zones")
             else:
-                st.success(f"📍 All areas normal")
+                st.success(f"All areas normal")
         st.markdown("</div>", unsafe_allow_html=True)
 
         # --- CSR Funding Indicator ---
         try:
             csr_candidates = get_csr_candidates(st.session_state.tenant_id)
             if csr_candidates:
-                st.markdown(f"<div class='widget-card'><div class='widget-title'>💰 CSR Funding Pipeline</div>", unsafe_allow_html=True)
-                st.warning(f"🚨 **{len(csr_candidates)} issue(s)** have crossed the 200-complaint threshold and qualify for CSR-funded intervention.")
+                st.markdown(f"<div class='widget-card'><div class='widget-title'>CSR Funding Pipeline</div>", unsafe_allow_html=True)
+                st.warning(f"**{len(csr_candidates)} issue(s)** have crossed the 200-complaint threshold and qualify for CSR-funded intervention.")
                 st.caption("Go to **CSR Suite → Proposals** to generate data-backed pitches.")
                 st.markdown("</div>", unsafe_allow_html=True)
         except Exception:
@@ -443,12 +443,12 @@ else:
 
         c_left, c_right = st.columns([2, 1])
         with c_left:
-            st.markdown(f"<div class='widget-card'><div class='widget-title'>🏛️ Parliamentary Desk</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='widget-card'><div class='widget-title'>Parliamentary Desk</div>", unsafe_allow_html=True)
             st.info("📜 **Parliament is currently in Session**")
             st.markdown("</div>", unsafe_allow_html=True)
 
-            st.markdown(f"<div class='widget-card'><div class='widget-title'>📰 Media Centre (Live)</div>", unsafe_allow_html=True)
-            tab_nat, tab_loc = st.tabs(["🇮🇳 National", "📍 Local Pulse"])
+            st.markdown(f"<div class='widget-card'><div class='widget-title'>Media Centre</div>", unsafe_allow_html=True)
+            tab_nat, tab_loc = st.tabs(["National", "Local Pulse"])
 
             # Load MP profile for name-based queries
             try:
@@ -462,7 +462,7 @@ else:
                 mp_constituency = ""
 
             with tab_nat:
-                st.caption(f"📡 **{mp_display_name}** in national media")
+                st.caption(f"**{mp_display_name}** in national media")
                 news_nat = fetch_news(query=f'"{mp_display_name}"', limit=8)
                 if news_nat:
                     for news in news_nat:
@@ -490,7 +490,7 @@ else:
             st.markdown("</div>", unsafe_allow_html=True)
 
         with c_right:
-            st.markdown(f"<div class='widget-card'><div class='widget-title'>🗓️ Calendar & Notes</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='widget-card'><div class='widget-title'>Calendar & Notes</div>", unsafe_allow_html=True)
             sel_date = st.date_input("Date", datetime.now(), label_visibility="collapsed")
             if st.button("💾 Save Note", use_container_width=True):
                 st.rerun()
@@ -501,7 +501,7 @@ else:
     elif selected == "Drafter": render_drafter(username)
     elif selected == "PMB": render_pmb_drafter(username)
     elif selected == "CSR Suite":
-        t1, t2, t3, t4 = st.tabs(["📊 Insights", "🚨 Proposals", "🛠️ Projects", "🤝 Partners"])
+        t1, t2, t3, t4 = st.tabs(["Insights", "Proposals", "Projects", "Partners"])
         with t1: render_csr_insights(username)
         with t2: render_csr_proposals(username)
         with t3: render_csr_projects(username)

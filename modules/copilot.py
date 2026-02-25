@@ -9,63 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ============================================================
-# PARLIAMENTARY STYLING
-# ============================================================
-
-COPILOT_CSS = """
-<style>
-    /* Parliamentary green accents */
-    .copilot-header {
-        border-bottom: 3px solid #006a4d;
-        padding-bottom: 12px;
-        margin-bottom: 24px;
-    }
-    .copilot-header h1 {
-        font-size: 1.6rem;
-        font-weight: 600;
-        color: #1a1a1a;
-        letter-spacing: 0.02em;
-    }
-    .copilot-header p {
-        font-size: 0.85rem;
-        color: #666;
-        margin-top: -8px;
-    }
-    .doc-badge {
-        background: #f5f5f5;
-        border-left: 4px solid #006a4d;
-        padding: 12px 16px;
-        border-radius: 0 4px 4px 0;
-        margin-bottom: 16px;
-    }
-    .doc-badge strong {
-        color: #006a4d;
-    }
-    .result-container {
-        border: 1px solid #e0e0e0;
-        border-radius: 4px;
-        padding: 24px;
-        background: #fafafa;
-        line-height: 1.7;
-    }
-    .chat-user {
-        background: #f0f7f4;
-        border-left: 3px solid #006a4d;
-        padding: 8px 12px;
-        margin: 6px 0;
-        border-radius: 0 4px 4px 0;
-        font-weight: 500;
-    }
-    .section-label {
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        color: #888;
-        margin-bottom: 8px;
-    }
-</style>
-"""
+from modules.ui_theme import inject_theme, page_header, section_label, status_badge
 
 # ============================================================
 # RAJBHASHA INSTRUCTIONS
@@ -172,7 +116,7 @@ ask_groq_agent = ask_agent
 def render_copilot(username):
     """Document Co-Pilot — two tabs: Analyse + Ask."""
 
-    st.markdown(COPILOT_CSS, unsafe_allow_html=True)
+    inject_theme()
 
     # --- Session State ---
     if 'pages_data' not in st.session_state:
@@ -187,12 +131,7 @@ def render_copilot(username):
         st.session_state.copilot_chat_history = []
 
     # --- Header ---
-    st.markdown("""
-    <div class="copilot-header">
-        <h1>Document Co-Pilot</h1>
-        <p>Strategic Intelligence for Parliamentary Use</p>
-    </div>
-    """, unsafe_allow_html=True)
+    page_header("Document Co-Pilot", "Strategic Intelligence for Parliamentary Use")
 
     col_spacer, col_btn = st.columns([5, 1])
     with col_btn:
@@ -230,12 +169,7 @@ def render_copilot(username):
         return
 
     # --- Document Loaded ---
-    st.markdown(f"""
-    <div class="doc-badge">
-        <strong>Active Document:</strong> {st.session_state.copilot_filename}
-        &nbsp;&middot;&nbsp; {len(st.session_state.pages_data)} pages
-    </div>
-    """, unsafe_allow_html=True)
+    status_badge(f"<strong>Active Document:</strong> {st.session_state.copilot_filename} &middot; {len(st.session_state.pages_data)} pages")
 
     col_spacer2, col_change = st.columns([5, 1])
     with col_change:

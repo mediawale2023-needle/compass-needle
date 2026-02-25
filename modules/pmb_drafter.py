@@ -1,10 +1,11 @@
 import streamlit as st
 import time
+from modules.ui_theme import inject_theme, page_header, section_label
 
 # NOTE: The function must accept 'username' as an argument to match main.py
 def render_pmb_drafter(username):
-    st.markdown("## 📜 Private Member's Bill (PMB) Studio")
-    st.caption(f"Draft legislative bills for Parliament (Lok Sabha / Rajya Sabha) | User: {username}")
+    inject_theme()
+    page_header("Private Member's Bill Studio", "Draft legislative bills for Parliament")
     
     # --- Session State for Draft ---
     if "pmb_data" not in st.session_state:
@@ -42,7 +43,7 @@ def render_pmb_drafter(username):
         st.caption("List the main provisions you want to enact.")
         clause_input = st.text_area("Clauses (Bullet points)", height=150, placeholder="- Define 'Heat Wave'\n- Mandate cool roofs for commercial buildings\n- Create a 'Heat Relief Fund'")
 
-        if st.button("🚀 Generate Legislative Draft", type="primary"):
+        if st.button("Generate Legislative Draft", type="primary"):
             if topic and objectives:
                 with st.spinner("Consulting Parliamentary precedents..."):
                     time.sleep(2) # Mocking AI generation time
@@ -111,7 +112,7 @@ def display_draft():
     """, unsafe_allow_html=True)
     
     st.download_button(
-        "📥 Download as .DOCX", 
+        "Download as .DOCX", 
         data=f"Draft Bill: {data['title']}", 
         file_name=f"{data['title']}.txt"
     )

@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 import google.generativeai as genai
 from dotenv import load_dotenv
+from modules.ui_theme import inject_theme, page_header, section_label
 
 load_dotenv()
 
@@ -299,7 +300,8 @@ def generate_reference_number(ministry_code="GEN"):
 # ============================================================
 
 def render_drafter(username):
-    st.title("✍️ Smart Drafter")
+    inject_theme()
+    page_header("Smart Drafter", "Draft formal letters and parliamentary questions")
     st.caption("Parliamentary-Grade Document Generator | Powered by AI")
 
     # Load model and profile
@@ -321,7 +323,7 @@ def render_drafter(username):
             st.write(f"**House:** {profile.get('house', 'Lok Sabha')}")
             st.write(f"**Party:** {profile.get('party', 'Independent')}")
 
-    tab_letter, tab_pq = st.tabs(["📝 Official Letter", "🏛️ Parliamentary Question (PQ)"])
+    tab_letter, tab_pq = st.tabs(["Official Letter", "Parliamentary Question"])
 
     # ==========================================================
     # TAB 1: OFFICIAL LETTER (Enhanced)
@@ -333,7 +335,7 @@ def render_drafter(username):
         
         with c1:
             # RECIPIENT SECTION
-            st.markdown("###### 📬 Recipient Details")
+            section_label("Recipient Details")
             l_recipient_type = st.selectbox(
                 "Recipient Type", 
                 ["Cabinet Minister", "Minister of State", "Secretary to GoI", 
@@ -349,7 +351,7 @@ def render_drafter(username):
                 placeholder="e.g., Ministry of Railways, Rail Bhavan, New Delhi"
             )
 
-            st.markdown("###### 📄 Letter Content")
+            section_label("Letter Content")
             l_subject = st.text_input(
                 "Subject", 
                 placeholder="e.g., Urgent need for platform extension at Belagavi Railway Station"
@@ -364,7 +366,7 @@ def render_drafter(username):
                 placeholder="• Platform too short for 24-coach trains\n• 3 accidents in last 6 months\n• Request inspection by Railway Board"
             )
             
-            st.markdown("###### ⚙️ Settings")
+            section_label("Settings")
             settings_col1, settings_col2 = st.columns(2)
             with settings_col1:
                 l_lang = st.selectbox(
@@ -430,7 +432,7 @@ Date: {datetime.now().strftime("%d %B %Y")}
                     st.warning("⚠️ Please fill Recipient Name and Subject")
 
         with c2:
-            st.markdown("###### 📄 Preview")
+            section_label("Preview")
             
             if "draft_letter" in st.session_state:
                 letter_content = st.session_state["draft_letter"]
@@ -492,7 +494,7 @@ Date: {datetime.now().strftime("%d %B %Y")}
         pq_col1, pq_col2 = st.columns([1, 1])
         
         with pq_col1:
-            st.markdown("###### 🎯 Target")
+            section_label("Target")
             pq_ministry = st.selectbox(
                 "Ministry", 
                 list(MINISTRY_CONTEXT.keys()),
@@ -514,7 +516,7 @@ Date: {datetime.now().strftime("%d %B %Y")}
                 key="pq_loc"
             )
             
-            st.markdown("###### ⚙️ Question Type")
+            section_label("Question Type")
             pq_type = st.radio(
                 "Question Focus",
                 ["Balanced (All aspects)", "Fund Utilization Focus", "Timeline & Accountability Focus", "Data & Statistics Focus"],
@@ -595,7 +597,7 @@ Will the Minister of {pq_ministry.replace('Ministry of ', '')} be pleased to sta
                     st.warning("⚠️ Please enter the subject/issue")
 
         with pq_col2:
-            st.markdown("###### 📄 Generated Options")
+            section_label("Generated Options")
             
             if "pq_options" in st.session_state:
                 pq_content = st.session_state["pq_options"]

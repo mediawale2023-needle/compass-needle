@@ -18,7 +18,9 @@ from modules.state_intel import render_state_intel
 
 def render_csr_insights(username):
     """Render the unified CSR Insights tab."""
-    st.header("📊 CSR Insights")
+    from modules.ui_theme import inject_theme, page_header
+    inject_theme()
+    st.header("CSR Insights")
     st.caption("Research CSR companies, track spending, and identify funding opportunities.")
 
     tab_companies, tab_watchdog, tab_analytics = st.tabs([
@@ -67,7 +69,7 @@ def _load_csr_data():
 
 def _render_company_database(username):
     """Browse and filter CSR companies by district, sector, and type."""
-    st.subheader("🏢 CSR Company Database")
+    st.subheader("CSR Company Database")
     st.info("Browse companies spending in your district. Identify remote spenders for upscale requests.")
 
     df = _load_csr_data()
@@ -147,7 +149,7 @@ def _render_company_database(username):
 
 def _render_compliance_watchdog(username):
     """Track companies with zero CSR spend despite local operations."""
-    st.subheader("🚨 Compliance Watchdog")
+    st.subheader("Compliance Watchdog")
     st.info("Companies with local operations but ZERO CSR spend (Section 135 violation).")
 
     df = _load_csr_data()

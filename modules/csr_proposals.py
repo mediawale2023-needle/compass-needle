@@ -20,7 +20,9 @@ from modules.utils import show_download_button, track_action
 
 def render_csr_proposals(username):
     """Render the CSR Proposals tab — data-backed funding opportunities from citizen complaints."""
-    st.header("🚨 CSR Proposals")
+    from modules.ui_theme import inject_theme
+    inject_theme()
+    st.header("CSR Proposals")
     st.caption("Grievance clusters that qualify for CSR-funded intervention. Data-backed, ready to pitch.")
 
     tenant_id = st.session_state.get("tenant_id", 1)
@@ -42,7 +44,7 @@ def render_csr_proposals(username):
     # ═══════════════════════════════════════
     # SECTION A: CSR-READY CLUSTERS (≥200)
     # ═══════════════════════════════════════
-    st.subheader("🟢 CSR-Ready (Qualified for Proposal)")
+    st.subheader("CSR-Ready (Qualified for Proposal)")
 
     candidates = get_csr_candidates(tenant_id)
 
@@ -89,7 +91,7 @@ def render_csr_proposals(username):
                                 proposal = generate_csr_proposal(
                                     cluster, company.get("Company", "Unknown"), constituency
                                 )
-                                st.subheader("📄 Generated Proposal")
+                                st.subheader("Generated Proposal")
                                 with st.container(border=True):
                                     st.markdown(proposal)
 
@@ -114,7 +116,7 @@ def render_csr_proposals(username):
     # SECTION B: MONITORING (100-199)
     # ═══════════════════════════════════════
     st.divider()
-    st.subheader("📊 Monitoring Pipeline (Approaching Threshold)")
+    st.subheader("Monitoring Pipeline (Approaching Threshold)")
 
     monitoring = get_monitoring_clusters(tenant_id)
 

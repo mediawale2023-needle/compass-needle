@@ -17,7 +17,9 @@ except ImportError:
 # --- TAD NECESSARY: Removed global client initialization to prevent Railway boot crash ---
 
 def render_csr_discovery(username):
-    st.header("🔭 CSR Funding Discovery")
+    from modules.ui_theme import inject_theme
+    inject_theme()
+    st.header("CSR Funding Discovery")
     st.caption("Identify companies spending in your district *without* a local office (Remote Spenders).")
 
     tenant_id = st.session_state.get('tenant_id', 1)
@@ -33,7 +35,7 @@ def render_csr_discovery(username):
 
     # 2. Strategic Matching Section (THE SIGNATURE FEATURE)
     st.divider()
-    st.subheader("🎯 Live Strategic Matches")
+    st.subheader("Live Strategic Matches")
     st.info("Matching high-volume grievances with CSR-eligible companies.")
     
     gaps = get_live_gaps(tenant_id)
@@ -72,7 +74,7 @@ def render_csr_discovery(username):
                                 Tone: Professional, authoritative, and data-driven.
                                 """
                                 pitch = ask_openai(prompt)
-                                st.markdown("### 📄 Generated Proposal")
+                                st.markdown("### Generated Proposal")
                                 st.container(border=True).markdown(pitch)
                                 show_download_button(pitch, f"Pitch_{corp['Company']}")
             
@@ -97,7 +99,7 @@ def render_csr_discovery(username):
             local_df = pd.DataFrame()
 
     # --- SECTION A: REMOTE SPENDERS ---
-    st.subheader(f"🌍 Remote Spenders ({len(remote_df)})")
+    st.subheader(f"Remote Spenders ({len(remote_df)})")
     if not remote_df.empty:
         for idx, row in remote_df.iterrows():
             company = row.get('Company', 'Unknown Company')
@@ -117,7 +119,7 @@ def render_csr_discovery(username):
 
     # --- SECTION B: LOCAL SPENDERS ---
     st.divider()
-    st.subheader(f"🏭 Local Operations ({len(local_df)})")
+    st.subheader(f"Local Operations ({len(local_df)})")
     if not local_df.empty and 'Status' in local_df.columns:
         violators = local_df[local_df['Status'].str.contains("ZERO SPEND", na=False)]
         if not violators.empty:

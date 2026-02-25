@@ -11,7 +11,9 @@ from modules.ai_helpers import get_openai_client, ask_openai
 # --- TAD NECESSARY: Removed global client initialization to prevent Railway boot crash ---
 
 def render_csr_partners(username):
-    st.header("🤝 CSR Implementation Partners")
+    from modules.ui_theme import inject_theme
+    inject_theme()
+    st.header("CSR Implementation Partners")
     st.caption("Vetted NGO Registry. Match Corporates with Trusted Locals.")
 
     init_keys()

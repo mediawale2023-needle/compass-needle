@@ -10,7 +10,9 @@ from modules.ai_helpers import get_openai_client, ask_openai
 # --- TAD NECESSARY: Removed global client initialization to prevent Railway boot crash ---
 
 def render_csr_hunter(username):
-    st.header("💰 CSR Hunter (Maharashtra Edition)")
+    from modules.ui_theme import inject_theme
+    inject_theme()
+    st.header("CSR Hunter (Maharashtra Edition)")
     st.caption("Track 3-year spending history & Identify 'Remote' vs 'Local' opportunities.")
 
     # 1. Load Data
@@ -54,7 +56,7 @@ def render_csr_hunter(username):
         compliant_local_df = pd.DataFrame()
 
     # --- TABBED VIEW ---
-    tab_remote, tab_watchdog, tab_local = st.tabs(["🌍 Remote Opportunities", "🚨 Compliance Watchdog", "🏭 Local Data"])
+    tab_remote, tab_watchdog, tab_local = st.tabs(["Remote Opportunities", "Compliance Watchdog", "Local Data"])
 
     # --- TAB A: REMOTE SPENDERS (The Upscale Opportunity) ---
     with tab_remote:
@@ -117,7 +119,7 @@ def render_csr_hunter(username):
 
     # --- TAB C: LOCAL DATA (Reference) ---
     with tab_local:
-        st.subheader(f"✅ Compliant Locals ({len(compliant_local_df)})")
+        st.subheader(f"Compliant Locals ({len(compliant_local_df)})")
         display_cols = [c for c in ['Company', 'Sector', 'Total_3Y'] if c in compliant_local_df.columns]
         if display_cols:
             st.dataframe(compliant_local_df[display_cols])

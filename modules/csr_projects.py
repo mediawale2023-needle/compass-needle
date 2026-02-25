@@ -5,7 +5,9 @@ from modules.persistence import save_draft
 from modules.utils import show_download_button, track_action
 
 def render_csr_projects(username):
-    st.header("📋 CSR Project Catalog")
+    from modules.ui_theme import inject_theme
+    inject_theme()
+    st.header("CSR Project Catalog")
     st.caption("Pitch ready-to-deploy products to corporates.")
     
     init_keys()
@@ -74,7 +76,7 @@ def render_csr_projects(username):
 
     # 4. The Cart & Generator
     with col_cart:
-        st.subheader("📝 Your Proposal")
+        st.subheader("Your Proposal")
         
         if not st.session_state.cart:
             st.info("Select projects to build a proposal.")

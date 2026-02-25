@@ -13,6 +13,7 @@ import pandas as pd
 import json
 import os
 import re
+from modules.ui_theme import inject_theme, page_header, section_label
 
 # ============================================================
 # DATA LOADING
@@ -186,7 +187,8 @@ CITIZEN_SCHEME_MAP = {
 
 def render_matcher(username):
     """Render the Fund Intelligence HQ."""
-    st.title("🏛️ Fund Intelligence HQ")
+    inject_theme()
+    page_header("Fund Intelligence HQ", "Ministry budgets, scheme search, and citizen eligibility")
     st.caption("Every government scheme, every ministry budget, every funding opportunity — at your fingertips.")
 
     df = load_schemes_data()
@@ -207,10 +209,10 @@ def render_matcher(username):
     m3.metric("💰 Total Allocation", f"₹{total_budget:,.0f} Cr")
 
     tab_overview, tab_radar, tab_finder, tab_citizen = st.tabs([
-        "📊 Ministry Overview",
-        "💰 Fund Radar",
-        "🎯 Scheme Finder",
-        "👤 Citizen Matcher",
+        "Ministry Overview",
+        "Fund Radar",
+        "Scheme Finder",
+        "Citizen Matcher",
     ])
 
     with tab_overview:
@@ -232,7 +234,7 @@ def render_matcher(username):
 
 def _render_fund_radar(df):
     """Ministry-wise budget dashboard — where is the money?"""
-    st.subheader("💰 Fund Radar")
+    st.subheader("Fund Radar")
     st.info("**Which ministry has the biggest budget?** Sorted by allocation. Click any ministry to see its schemes.")
 
     ministry_summary = _get_ministry_summary(df)
@@ -279,7 +281,7 @@ def _render_fund_radar(df):
 
 def _render_scheme_finder(df, kaggle_df):
     """Unified search + filter + detail cards for all schemes."""
-    st.subheader("🎯 Scheme Finder")
+    st.subheader("Scheme Finder")
     st.info("**Search any scheme by name, keyword, or problem.** Use filters to narrow down.")
 
     # Search bar (prominent)
@@ -375,7 +377,7 @@ def _render_scheme_finder(df, kaggle_df):
 
             if not kaggle_hits.empty:
                 st.divider()
-                st.markdown(f"##### 📡 {len(kaggle_hits)} more from Extended Database (3,400 schemes)")
+                st.markdown(f"##### {len(kaggle_hits)} more from Extended Database (3,400 schemes)")
                 for _, km in kaggle_hits.iterrows():
                     badge = "🇮🇳 Central" if km.get("level") == "Central" else "🏛️ State"
                     with st.expander(f"{badge} | {km['scheme_name']}"):
@@ -394,7 +396,7 @@ def _render_scheme_finder(df, kaggle_df):
 
 def _render_citizen_matcher(df, kaggle_df):
     """Enter a citizen's profile → get all applicable schemes."""
-    st.subheader("👤 Citizen Eligibility Matcher")
+    st.subheader("Citizen Eligibility Matcher")
     st.info("**Select a citizen's profile** and instantly see every scheme they qualify for.")
 
     # Citizen profile inputs
@@ -473,7 +475,7 @@ def _render_citizen_matcher(df, kaggle_df):
 
     # Primary matches (with budget data)
     if not matched.empty:
-        st.markdown(f"##### 💰 Central Schemes with Budget Data ({len(matched)})")
+        st.markdown(f"##### Central Schemes with Budget Data ({len(matched)})")
         for _, scheme in matched.iterrows():
             budget_str = scheme.get("budget_allocation", "N/A")
             with st.expander(f"✅ **{scheme['name']}** — {budget_str}"):
@@ -482,7 +484,7 @@ def _render_citizen_matcher(df, kaggle_df):
     # Kaggle matches (extended database)
     if not kaggle_matched.empty:
         st.divider()
-        st.markdown(f"##### 📡 Extended Matches ({len(kaggle_matched)} found, showing top 15)")
+        st.markdown(f"##### Extended Matches ({len(kaggle_matched)} found, showing top 15)")
         for _, km in kaggle_matched.head(15).iterrows():
             badge = "🇮🇳" if km.get("level") == "Central" else "🏛️"
             with st.expander(f"{badge} {km['scheme_name']}"):
@@ -503,11 +505,11 @@ def _render_citizen_matcher(df, kaggle_df):
 
 def _render_ministry_overview(df):
     """Analytics and charts for scheme data."""
-    st.subheader("📊 Ministry Overview")
+    st.subheader("Ministry Overview")
     st.info("**Big picture view** of government funding across all ministries.")
 
     # Top 10 ministries by budget
-    st.markdown("##### 🏛️ Top 10 Ministries by Budget")
+    st.markdown("##### Top 10 Ministries by Budget")
     ministry_summary = _get_ministry_summary(df)
 
     if not ministry_summary.empty:
@@ -522,7 +524,7 @@ def _render_ministry_overview(df):
     st.divider()
 
     # Top 10 highest budget schemes
-    st.markdown("##### 💰 Top 10 Highest-Budget Schemes")
+    st.markdown("##### Top 10 Highest-Budget Schemes")
     top_schemes = df.nlargest(10, "budget_numeric")[
         ["name", "ministry", "budget_allocation", "budget_numeric"]
     ].reset_index(drop=True)
@@ -536,13 +538,13 @@ def _render_ministry_overview(df):
     col_l, col_r = st.columns(2)
 
     with col_l:
-        st.markdown("##### 📂 By Category")
+        st.markdown("##### By Category")
         if "category" in df.columns:
             cat_counts = df["category"].value_counts()
             st.bar_chart(cat_counts)
 
     with col_r:
-        st.markdown("##### 🎯 By Focus Area")
+        st.markdown("##### By Focus Area")
         if "focus" in df.columns:
             focus_counts = df["focus"].value_counts().head(10)
             st.bar_chart(focus_counts)

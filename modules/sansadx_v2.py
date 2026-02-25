@@ -111,7 +111,9 @@ def get_ai_response(user_query, df_context, locale_hindi=False):
 # 3. MAIN UI: HYBRID LAYOUT (Solves UX Split)
 # ============================================================
 def render_sansadx(username):
-    st.title("🚀 SansadX Command Center")
+    from modules.ui_theme import inject_theme, page_header
+    inject_theme()
+    page_header("SansadX Command Center", "Grievance management and AI aide")
     
     # A. Load Data
     tenant_id = st.session_state.get('tenant_id', 1)
@@ -122,7 +124,7 @@ def render_sansadx(username):
     
     # --- LEFT COLUMN: DATA DASHBOARD ---
     with col_data:
-        st.subheader("📋 Live Grievances")
+        st.subheader("Live Grievances")
         
         if df.empty:
             st.info("No data found.")
@@ -157,7 +159,7 @@ def render_sansadx(username):
 
     # --- RIGHT COLUMN: INTELLIGENT AIDE ---
     with col_chat:
-        st.subheader("🤖 AI Aide")
+        st.subheader("AI Aide")
         with st.container(border=True):
             # Settings
             use_hindi = st.toggle("🇮🇳 Rajbhasha Mode")
