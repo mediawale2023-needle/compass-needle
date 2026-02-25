@@ -257,7 +257,8 @@ def render_copilot(username):
         st.session_state.analysis_result = ""
     if 'analysis_type' not in st.session_state:
         st.session_state.analysis_type = ""
-    
+    if 'copilot_chat_history' not in st.session_state:
+        st.session_state.copilot_chat_history = []  # [{"role": "user"/"model", "parts": ["..."]}]
     # --- HEADER ---
     header_col1, header_col2 = st.columns([4, 1])
     with header_col1:
@@ -269,6 +270,7 @@ def render_copilot(username):
             st.session_state.copilot_filename = ""
             st.session_state.analysis_result = ""
             st.session_state.analysis_type = ""
+            st.session_state.copilot_chat_history = []
             st.rerun()
     
     st.divider()
@@ -319,6 +321,7 @@ def render_copilot(username):
             st.session_state.pages_data = []
             st.session_state.copilot_filename = ""
             st.session_state.analysis_result = ""
+            st.session_state.copilot_chat_history = []
             st.rerun()
     
     st.divider()
@@ -401,8 +404,12 @@ def render_copilot(username):
                 
                 try:
                     response = model.generate_content(prompt)
-                    st.session_state.analysis_result = response.text
+                    result_text = response.text
+                    st.session_state.analysis_result = result_text
                     st.session_state.analysis_type = "Legislative_Scrutiny"
+                    # Append to chat history for follow-up context
+                    st.session_state.copilot_chat_history.append({"role": "user", "parts": [f"[Legislative Scrutiny Analysis requested]"]})
+                    st.session_state.copilot_chat_history.append({"role": "model", "parts": [result_text]})
                     st.rerun()
                 except Exception as e:
                     st.error(f"Analysis Error: {e}")
@@ -500,8 +507,11 @@ STYLE GUIDELINES:
                 
                 try:
                     response = model.generate_content(prompt)
-                    st.session_state.analysis_result = response.text
+                    result_text = response.text
+                    st.session_state.analysis_result = result_text
                     st.session_state.analysis_type = "Floor_Strategy"
+                    st.session_state.copilot_chat_history.append({"role": "user", "parts": [f"[Floor Strategy requested — {stance} position, {floor_time} min]"]})
+                    st.session_state.copilot_chat_history.append({"role": "model", "parts": [result_text]})
                     st.rerun()
                 except Exception as e:
                     st.error(f"Analysis Error: {e}")
@@ -595,8 +605,11 @@ GEOGRAPHIC FOCUS: {', '.join(impact_geo)}
                 
                 try:
                     response = model.generate_content(prompt)
-                    st.session_state.analysis_result = response.text
+                    result_text = response.text
+                    st.session_state.analysis_result = result_text
                     st.session_state.analysis_type = "Impact_Assessment"
+                    st.session_state.copilot_chat_history.append({"role": "user", "parts": [f"[Impact Assessment requested]"]})
+                    st.session_state.copilot_chat_history.append({"role": "model", "parts": [result_text]})
                     st.rerun()
                 except Exception as e:
                     st.error(f"Analysis Error: {e}")
@@ -606,12 +619,28 @@ GEOGRAPHIC FOCUS: {', '.join(impact_geo)}
     # ==========================================================
     with tab_custom:
         st.markdown("#### 💬 Ask Anything About This Document")
-        st.caption("Free-form queries with citation-backed responses.")
+        st.caption("Conversational — ask follow-ups without re-uploading. The AI remembers your previous questions and analyses.")
         
-        custom_query = st.text_area(
+        # Show conversation history
+        chat_history = st.session_state.copilot_chat_history
+        if chat_history:
+            with st.container(height=350):
+                for msg in chat_history:
+                    role = msg["role"]
+                    text = msg["parts"][0] if msg["parts"] else ""
+                    if role == "user":
+                        st.markdown(f"**🧑 You:** {text}")
+                    else:
+                        # Truncate long model responses in the history view
+                        preview = text[:300] + "..." if len(text) > 300 else text
+                        with st.expander(f"🤖 Co-Pilot Response", expanded=False):
+                            st.markdown(text)
+            st.caption(f"💬 {len([m for m in chat_history if m['role'] == 'user'])} questions in this session")
+        
+        # Input area
+        custom_query = st.text_input(
             "Your Question",
-            placeholder="e.g., What are the penalty provisions? How does this compare to the 2019 version? What loopholes exist for corporates?",
-            height=100,
+            placeholder="e.g., What's the budget implication of clause 3? How does Section 14 affect farmers?",
             key="custom_query"
         )
         
@@ -629,7 +658,16 @@ GEOGRAPHIC FOCUS: {', '.join(impact_geo)}
                 key="custom_style"
             )
         
-        if st.button("🚀 Get Answer", type="primary", use_container_width=True, key="btn_custom"):
+        btn_col1, btn_col2 = st.columns([3, 1])
+        with btn_col1:
+            send_pressed = st.button("🚀 Ask", type="primary", use_container_width=True, key="btn_custom")
+        with btn_col2:
+            if st.button("🗑️ Clear Chat", use_container_width=True, key="btn_clear_chat"):
+                st.session_state.copilot_chat_history = []
+                st.session_state.analysis_result = ""
+                st.rerun()
+        
+        if send_pressed:
             if not custom_query:
                 st.warning("Please enter a question.")
             else:
@@ -644,14 +682,12 @@ GEOGRAPHIC FOCUS: {', '.join(impact_geo)}
                         "Bullet Points Only": "Respond ONLY in bullet points, no prose."
                     }
                     
-                    prompt = f"""
+                    system_prompt = f"""
 You are a Senior Legislative Research Officer analyzing a parliamentary document.
 
 DOCUMENT: {st.session_state.copilot_filename}
 DOCUMENT TEXT:
 {context}
-
-USER QUERY: {custom_query}
 
 STRICT RULES:
 1. Answer ONLY based on the document content
@@ -663,12 +699,21 @@ STRICT RULES:
 
 {lang_instruction}
 
-Provide a well-structured response.
+You have access to the full conversation history. Use previous analyses and Q&A to give contextual, relevant answers to follow-up questions.
 """
                     
+                    # Build conversation for Gemini with history
+                    # Gemini chat expects alternating user/model messages
                     try:
-                        response = model.generate_content(prompt)
-                        st.session_state.analysis_result = response.text
+                        chat = model.start_chat(history=chat_history)
+                        response = chat.send_message(f"{system_prompt}\n\nUSER QUERY: {custom_query}")
+                        result_text = response.text
+                        
+                        # Append to history
+                        st.session_state.copilot_chat_history.append({"role": "user", "parts": [custom_query]})
+                        st.session_state.copilot_chat_history.append({"role": "model", "parts": [result_text]})
+                        
+                        st.session_state.analysis_result = result_text
                         st.session_state.analysis_type = "Custom_Query"
                         st.rerun()
                     except Exception as e:
