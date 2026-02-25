@@ -206,12 +206,15 @@ def render_matcher(username):
     m2.metric("🏛️ Ministries", f"{total_ministries}")
     m3.metric("💰 Total Allocation", f"₹{total_budget:,.0f} Cr")
 
-    tab_radar, tab_finder, tab_citizen, tab_overview = st.tabs([
+    tab_overview, tab_radar, tab_finder, tab_citizen = st.tabs([
+        "📊 Ministry Overview",
         "💰 Fund Radar",
         "🎯 Scheme Finder",
         "👤 Citizen Matcher",
-        "📊 Ministry Overview",
     ])
+
+    with tab_overview:
+        _render_ministry_overview(df)
 
     with tab_radar:
         _render_fund_radar(df)
@@ -221,9 +224,6 @@ def render_matcher(username):
 
     with tab_citizen:
         _render_citizen_matcher(df, kaggle_df)
-
-    with tab_overview:
-        _render_ministry_overview(df)
 
 
 # ============================================================
