@@ -10,8 +10,8 @@ from datetime import datetime, timedelta
 from modules.ai_helpers import ask_openai
 
 # --- CONFIGURATION ---
-CSR_PROPOSAL_THRESHOLD = 200  # Minimum complaints to qualify for CSR proposal
-CSR_MONITOR_THRESHOLD = 100   # Minimum complaints to start monitoring
+CSR_PROPOSAL_THRESHOLD = 200 # Minimum complaints to qualify for CSR proposal
+CSR_MONITOR_THRESHOLD = 100 # Minimum complaints to start monitoring
 
 # Category → CSR Sector mapping
 CATEGORY_SECTOR_MAP = {
@@ -104,7 +104,7 @@ def match_companies(csr_sector, csr_data):
         company_sector = company.get("Sector", "")
         if csr_sector.lower() in company_sector.lower() or company_sector.lower() in csr_sector.lower():
             matches.append(company)
-    return matches[:5]  # Top 5 matches
+    return matches[:5] # Top 5 matches
 
 
 def generate_csr_proposal(cluster, company_name, constituency="the constituency"):

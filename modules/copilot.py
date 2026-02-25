@@ -2,7 +2,7 @@ import streamlit as st
 import os
 import json
 import google.generativeai as genai
-import pymupdf  # Requires: pip install pymupdf
+import pymupdf # Requires: pip install pymupdf
 from io import BytesIO
 from datetime import datetime
 from dotenv import load_dotenv

@@ -126,7 +126,7 @@ def _score_relevance(title, context):
     for kw in context["location_keywords"]:
         if kw in title_lower:
             score += 50
-            break  # One match is enough
+            break # One match is enough
 
     # MP name mentioned
     if context["mp_name"] and context["mp_name"].lower() in title_lower:
@@ -204,14 +204,14 @@ def fetch_constituency_news(language="English", limit=10):
     # Queries targeting LOCAL media and regional coverage
     queries = []
     for name in alt_names:
-        queries.append(f'"{name}" news today')                  # Constituency headlines
-        queries.append(f'"{name}" latest')                      # Recent local stories
+        queries.append(f'"{name}" news today') # Constituency headlines
+        queries.append(f'"{name}" latest') # Recent local stories
         if mp_name:
-            queries.append(f'"{mp_name}" "{name}"')             # MP mentioned in local context
+            queries.append(f'"{mp_name}" "{name}"') # MP mentioned in local context
 
     # MP name in regional/local outlets specifically
     if mp_name:
-        queries.append(f'"{mp_name}" {state}')                  # MP + state (filters to regional)
+        queries.append(f'"{mp_name}" {state}') # MP + state (filters to regional)
 
     # Fetch across English + local languages for true local coverage
     all_items = []
@@ -230,7 +230,7 @@ def fetch_constituency_news(language="English", limit=10):
 
     # Local language queries (Kannada, Marathi, etc.) for true local pulse
     local_langs = [l for l in languages if l != "English"] if languages else []
-    for lang in local_langs[:2]:  # Max 2 local languages
+    for lang in local_langs[:2]: # Max 2 local languages
         for name in alt_names:
             lang_items = _fetch_rss(f"{name}", lang, limit=5)
             for item in lang_items:
@@ -262,10 +262,10 @@ def fetch_categorized_news(language="English"):
         return {}
 
     categories = {
-        "🏛️ Constituency": f"{constituency} {state}",
-        "🏗️ Development": f"{constituency} development infrastructure project",
-        "📜 Parliament": f"parliament lok sabha {state}",
-        "💰 Budget & Schemes": f"government scheme fund {state}",
+        " Constituency": f"{constituency} {state}",
+        " Development": f"{constituency} development infrastructure project",
+        " Parliament": f"parliament lok sabha {state}",
+        " Budget & Schemes": f"government scheme fund {state}",
     }
 
     result = {}

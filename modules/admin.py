@@ -36,7 +36,7 @@ def update_client_config(tenant_id, new_config_dict):
 
 # --- MAIN RENDERER ---
 def render_master_admin():
-    st.title("⚡ Needle Master Admin")
+    st.title(" Needle Master Admin")
     st.caption("SaaS Super-Controller | Multi-Tenant Management")
     
     # 1. METRICS
@@ -57,7 +57,7 @@ def render_master_admin():
 
     # --- LEFT COLUMN: CLIENT SELECTOR ---
     with col_left:
-        st.subheader("👥 Client List")
+        st.subheader(" Client List")
         if tenants:
             df = pd.DataFrame(tenants)
             # Radio button acts as the "Selector"
@@ -74,10 +74,10 @@ def render_master_admin():
     # --- RIGHT COLUMN: EDITOR ---
     with col_right:
         if client:
-            st.subheader(f"⚙️ Managing: {client['name']}")
+            st.subheader(f" Managing: {client['name']}")
             
             # TABS: View vs Edit
-            t1, t2 = st.tabs(["🔍 View Details", "✏️ JSON Config Editor"])
+            t1, t2 = st.tabs([" View Details", " JSON Config Editor"])
             
             # TAB 1: READ ONLY
             with t1:
@@ -101,25 +101,25 @@ def render_master_admin():
                     height=400
                 )
                 
-                if st.button("💾 Save Config", type="primary"):
+                if st.button(" Save Config", type="primary"):
                     try:
                         # Validate syntax before sending
                         clean_config = json.loads(new_json_str)
                         
                         # Send to Backend
                         if update_client_config(client['id'], clean_config):
-                            st.success("✅ Saved! The Client's dashboard is updated.")
+                            st.success(" Saved! The Client's dashboard is updated.")
                             st.rerun()
                         else:
                             st.error("Backend Error: Could not save.")
                             
                     except json.JSONDecodeError:
-                        st.error("❌ Invalid JSON. Check for missing commas or brackets.")
+                        st.error(" Invalid JSON. Check for missing commas or brackets.")
 
     st.divider()
     
     # --- BOTTOM: ONBOARDING ---
-    with st.expander("➕ Onboard New Client"):
+    with st.expander(" Onboard New Client"):
         c1, c2, c3 = st.columns(3)
         new_name = c1.text_input("Name")
         new_const = c2.text_input("Constituency")

@@ -18,7 +18,7 @@ def ask_openai(prompt, temperature=0.7):
     """Send a prompt to GPT-4o-mini and return the response text."""
     client = get_openai_client()
     if not client:
-        return "⚠️ OpenAI API Key not configured. Please check Railway Variables."
+        return " OpenAI API Key not configured. Please check Railway Variables."
 
     try:
         response = client.chat.completions.create(

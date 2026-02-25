@@ -12,7 +12,7 @@ def generate_fallback():
     with open('modules/fallback_schemes.json', 'w') as f:
         json.dump(fallback, f, indent=2)
     
-    print(f"✅ Generated fallback: {len(fallback)} schemes")
+    print(f" Generated fallback: {len(fallback)} schemes")
 
 if __name__ == "__main__":
     generate_fallback()

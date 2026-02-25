@@ -30,7 +30,7 @@ def render_csr_discovery(username):
             data = json.load(f)
         df = pd.DataFrame(data)
     except FileNotFoundError:
-        st.error("⚠️ Database 'csr_discovery.json' not found.")
+        st.error(" Database 'csr_discovery.json' not found.")
         return
 
     # 2. Strategic Matching Section (THE SIGNATURE FEATURE)
@@ -46,20 +46,20 @@ def render_csr_discovery(username):
             gap_area = gap[2]
             # --- TAD NECESSARY: Crisis Alert Badge Logic ---
             if gap_volume >= 500:
-                badge = "🔴 **CRITICAL CRISIS (500+)**"
+                badge = " **CRITICAL CRISIS (500+)**"
             elif gap_volume >= 200:
-                badge = "🟠 **MAJOR ISSUE (200+)**"
+                badge = " **MAJOR ISSUE (200+)**"
             else:
-                badge = "🟡 **HIGH DEMAND (100+)**"
+                badge = " **HIGH DEMAND (100+)**"
 
             # Match company sector with grievance category
             matches = df[df['Sector'].str.contains(gap_category, case=False, na=False)]
             if not matches.empty:
                 with st.expander(f"{badge} | {gap_category} in {gap_area}"):
-                    st.write(f"📊 **Data Source:** {gap_volume} unique citizen reports verified.")
+                    st.write(f" **Data Source:** {gap_volume} unique citizen reports verified.")
                     for _, corp in matches.head(3).iterrows():
                         col_a, col_b = st.columns([3, 1])
-                        col_a.write(f"🏢 **{corp['Company']}** (Sector: {corp['Sector']})")
+                        col_a.write(f" **{corp['Company']}** (Sector: {corp['Sector']})")
                         if col_b.button("Pitch Generator", key=f"gen_{corp['Company']}_{gap_area}"):
                             with st.spinner("Generating One-Click Pitch via OpenAI..."):
                                 prompt = f"""
@@ -104,7 +104,7 @@ def render_csr_discovery(username):
         for idx, row in remote_df.iterrows():
             company = row.get('Company', 'Unknown Company')
             total = row.get('Total_3Y', 'N/A')
-            with st.expander(f"💰 {company} | 3-Year Total: {total}"):
+            with st.expander(f" {company} | 3-Year Total: {total}"):
                 c1, c2 = st.columns([1, 1])
                 with c1:
                     st.write(f"**Focus Sector:** {row.get('Sector', 'General')}")
@@ -123,9 +123,9 @@ def render_csr_discovery(username):
     if not local_df.empty and 'Status' in local_df.columns:
         violators = local_df[local_df['Status'].str.contains("ZERO SPEND", na=False)]
         if not violators.empty:
-            st.error(f"🚨 ALERT: {len(violators)} Companies with ZERO CSR Spend!")
+            st.error(f" ALERT: {len(violators)} Companies with ZERO CSR Spend!")
             for idx, row in violators.iterrows():
-                with st.expander(f"❌ {row.get('Company', 'Unknown')}"):
+                with st.expander(f" {row.get('Company', 'Unknown')}"):
                     if st.button(f"Draft Notice", key=f"vio_{idx}"):
                         with st.spinner("Drafting Notice..."):
                             draft = ask_openai(f"Draft a stern MP notice to {row['Company']} for zero CSR spend in their local area of operation.")

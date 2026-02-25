@@ -36,7 +36,7 @@ def fetch_cases(tenant_id):
         return []
 
     except Exception as e:
-        print(f"❌ SansadX DB Error: {e}")
+        print(f" SansadX DB Error: {e}")
         return []
 
 # --- 2. HELPER: RENDER TABLE ---
@@ -58,7 +58,7 @@ def render_filtered_table(df, key_suffix):
             "Status": st.column_config.SelectboxColumn("Status", options=["new", "closed", "progress", "OFFENSIVE", "completed", "incomplete"], width="small"),
             "Message": st.column_config.TextColumn("Message", width="large"),
             "Full_Meta": None, # Hidden
-            "Intent": None     # Hidden
+            "Intent": None # Hidden
         },
         use_container_width=True,
         hide_index=True,
@@ -74,8 +74,8 @@ def render_sansadx(username):
     cases = fetch_cases(tenant_id)
     
     if not cases:
-        st.info("📭 Inbox is empty. Waiting for new messages...")
-        if st.button("🔄 Check for New Messages"): st.rerun()
+        st.info(" Inbox is empty. Waiting for new messages...")
+        if st.button(" Check for New Messages"): st.rerun()
         return
 
     # B. Process Data & Extract Intent
@@ -140,10 +140,10 @@ def render_sansadx(username):
 
     # C. Global Filters (Apply to all tabs)
     c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
-    with c1: search = st.text_input("🔍 Search", placeholder="Search content...", key="sx_search")
+    with c1: search = st.text_input(" Search", placeholder="Search content...", key="sx_search")
     with c2: filter_const = st.selectbox("Constituency", ["All"] + list(main_df["Constituency"].unique()), key="sx_const")
     with c4: 
-        if st.button("🔄 Refresh", use_container_width=True): st.rerun()
+        if st.button(" Refresh", use_container_width=True): st.rerun()
 
     # Apply Search/Constituency Filters first
     if search:
@@ -156,9 +156,9 @@ def render_sansadx(username):
     # D. SPLIT DATAFRAMES BY INTENT
     df_emergency = main_df[main_df['Intent'] == 'emergency']
     df_complaint = main_df[main_df['Intent'] == 'complaint']
-    df_request   = main_df[main_df['Intent'] == 'request']
-    df_greeting  = main_df[main_df['Intent'] == 'greeting']
-    df_spam      = main_df[main_df['Intent'] == 'offensive']
+    df_request = main_df[main_df['Intent'] == 'request']
+    df_greeting = main_df[main_df['Intent'] == 'greeting']
+    df_spam = main_df[main_df['Intent'] == 'offensive']
 
     # E. RENDER TABS (CLEAN & PROFESSIONAL)
     t1, t2, t3, t4, t5 = st.tabs([

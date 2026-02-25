@@ -20,7 +20,7 @@ def get_engine():
     """
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        db_url = "sqlite:///sansadx.db"  # Unified local DB name
+        db_url = "sqlite:///sansadx.db" # Unified local DB name
     
     # SQLAlchemy requires 'postgresql://', Railway gives 'postgres://'
     if db_url.startswith("postgres://"):
@@ -76,7 +76,7 @@ def get_ai_response(user_query, df_context, locale_hindi=False):
     Pandas RAG: Feeds the dataframe stats to the AI.
     """
     api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key: return "⚠️ AI Error: API Key missing."
+    if not api_key: return " AI Error: API Key missing."
 
     # 1. Generate Context from Data (The "Sight")
     total = len(df_context)
@@ -152,7 +152,7 @@ def render_sansadx(username):
             
             # Detect Changes & Save
             # (Streamlit data_editor handling is complex; simple loop for demo)
-            if st.button("💾 Save Changes"):
+            if st.button(" Save Changes"):
                 # In a real app, diff 'edited_df' vs 'df' and run updates
                 # For this demo, we assume manual row ID updates via Chat or separate API
                 st.success("Changes captured (DB Write enabled in backend).")
@@ -162,7 +162,7 @@ def render_sansadx(username):
         st.subheader("AI Aide")
         with st.container(border=True):
             # Settings
-            use_hindi = st.toggle("🇮🇳 Rajbhasha Mode")
+            use_hindi = st.toggle(" Rajbhasha Mode")
             
             # Chat History
             if "sx_chat" not in st.session_state:

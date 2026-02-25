@@ -21,12 +21,12 @@ def render_csr_hunter(username):
             data = json.load(f)
         df = pd.DataFrame(data)
     except FileNotFoundError:
-        st.error("⚠️ Database 'csr_db.json' not found. Please upload it.")
+        st.error(" Database 'csr_db.json' not found. Please upload it.")
         return
 
     # 2. Filter by District
     if 'District' not in df.columns:
-        st.error("⚠️ 'District' column not found in csr_db.json.")
+        st.error(" 'District' column not found in csr_db.json.")
         return
 
     all_districts = sorted(df['District'].unique())
@@ -66,7 +66,7 @@ def render_csr_hunter(username):
             st.warning("No remote spenders found in this district.")
         else:
             for idx, row in remote_df.iterrows():
-                with st.expander(f"💰 {row['Company']} | 3-Year: {row['Total_3Y']}"):
+                with st.expander(f" {row['Company']} | 3-Year: {row['Total_3Y']}"):
                     c1, c2 = st.columns([1, 1])
                     with c1:
                         st.write(f"**Focus:** {row['Sector']}")
@@ -74,7 +74,7 @@ def render_csr_hunter(username):
                         st.json(row.get('Spend_History', row.get('History', {})))
                     
                     with c2:
-                        st.write("#### ⚡ Action")
+                        st.write("#### Action")
                         if st.button(f"Draft 'Upscale' Letter", key=f"hunter_rem_{idx}"):
                             with st.spinner("Drafting with OpenAI..."):
                                 prompt = f"""
@@ -97,9 +97,9 @@ def render_csr_hunter(username):
         if violators_df.empty:
             st.success(f"No CSR violations found in {target_dist}!")
         else:
-            st.error(f"🚨 ALERT: {len(violators_df)} Local Companies with ZERO CSR Spend!")
+            st.error(f" ALERT: {len(violators_df)} Local Companies with ZERO CSR Spend!")
             for idx, row in violators_df.iterrows():
-                with st.expander(f"❌ {row['Company']} (Factory Present)"):
+                with st.expander(f" {row['Company']} (Factory Present)"):
                     st.write("**3-Year History:**")
                     st.json(row.get('Spend_History', row.get('History', {})))
                     st.caption("Violation: Section 135 (Local Area Preference)")

@@ -24,9 +24,9 @@ def render_csr_insights(username):
     st.caption("Research CSR companies, track spending, and identify funding opportunities.")
 
     tab_companies, tab_watchdog, tab_analytics = st.tabs([
-        "🏢 Company Database",
-        "🚨 Compliance Watchdog",
-        "🗺️ State Analytics",
+        " Company Database",
+        " Compliance Watchdog",
+        " State Analytics",
     ])
 
     with tab_companies:
@@ -74,7 +74,7 @@ def _render_company_database(username):
 
     df = _load_csr_data()
     if df.empty:
-        st.error("⚠️ No CSR data found. Upload 'csr_db.json' or 'csr_discovery.json'.")
+        st.error(" No CSR data found. Upload 'csr_db.json' or 'csr_discovery.json'.")
         return
 
     # Filters
@@ -83,7 +83,7 @@ def _render_company_database(username):
         if "District" in df.columns:
             all_districts = sorted(df["District"].unique())
             default_ix = all_districts.index("Belgaum") if "Belgaum" in all_districts else 0
-            target_dist = st.selectbox("📍 Select District", all_districts, index=default_ix, key="insights_dist")
+            target_dist = st.selectbox(" Select District", all_districts, index=default_ix, key="insights_dist")
             df = df[df["District"] == target_dist]
         else:
             target_dist = "Unknown"
@@ -91,7 +91,7 @@ def _render_company_database(username):
     with c2:
         if "Sector" in df.columns:
             sectors = ["All"] + sorted(df["Sector"].dropna().unique().tolist())
-            sel_sector = st.selectbox("🏥 Filter by Sector", sectors, key="insights_sector")
+            sel_sector = st.selectbox(" Filter by Sector", sectors, key="insights_sector")
             if sel_sector != "All":
                 df = df[df["Sector"] == sel_sector]
 
@@ -108,13 +108,13 @@ def _render_company_database(username):
     st.divider()
 
     # Remote Spenders — The upscale opportunity
-    st.write(f"**🌍 Remote Spenders ({len(remote_df)})** — Companies spending here without a local office")
+    st.write(f"** Remote Spenders ({len(remote_df)})** — Companies spending here without a local office")
 
     if not remote_df.empty:
         for idx, row in remote_df.iterrows():
             company = row.get("Company", "Unknown")
             total = row.get("Total_3Y", "N/A")
-            with st.expander(f"💰 {company} | 3-Year: {total}"):
+            with st.expander(f" {company} | 3-Year: {total}"):
                 c1, c2 = st.columns([2, 1])
                 with c1:
                     st.write(f"**Sector:** {row.get('Sector', 'General')}")
@@ -139,7 +139,7 @@ def _render_company_database(username):
     # Local Operations
     st.divider()
     if not local_df.empty:
-        st.write(f"**🏭 Local Operations ({len(local_df)})**")
+        st.write(f"** Local Operations ({len(local_df)})**")
         display_cols = [c for c in ["Company", "Sector", "Total_3Y", "Status"] if c in local_df.columns]
         if display_cols:
             st.dataframe(local_df[display_cols], use_container_width=True)
@@ -166,7 +166,7 @@ def _render_compliance_watchdog(username):
     if "District" in df.columns:
         all_districts = sorted(df["District"].unique())
         default_ix = all_districts.index("Belgaum") if "Belgaum" in all_districts else 0
-        target_dist = st.selectbox("📍 Select District", all_districts, index=default_ix, key="watchdog_dist")
+        target_dist = st.selectbox(" Select District", all_districts, index=default_ix, key="watchdog_dist")
         df = df[df["District"] == target_dist]
     else:
         target_dist = "Unknown"
@@ -177,14 +177,14 @@ def _render_compliance_watchdog(username):
     ]
 
     if violators.empty:
-        st.success(f"✅ No CSR violations found in {target_dist}!")
+        st.success(f" No CSR violations found in {target_dist}!")
         return
 
-    st.error(f"🚨 ALERT: {len(violators)} companies with ZERO CSR spend in {target_dist}!")
+    st.error(f" ALERT: {len(violators)} companies with ZERO CSR spend in {target_dist}!")
 
     for idx, row in violators.iterrows():
         company = row.get("Company", "Unknown")
-        with st.expander(f"❌ {company} (Factory Present)"):
+        with st.expander(f" {company} (Factory Present)"):
             st.write("**3-Year History:**")
             history = row.get("Spend_History", row.get("History", {}))
             if isinstance(history, dict):

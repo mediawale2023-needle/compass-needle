@@ -16,7 +16,7 @@ from sqlalchemy import create_engine, text
 # --- 1. PAGE CONFIG (MUST BE FIRST) ---
 st.set_page_config(
     page_title="Needle | MP Dashboard",
-    page_icon="🇮🇳",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -44,7 +44,7 @@ try:
     from modules.persistence import load_archives, delete_draft
     from modules.news_intel import fetch_news, analyze_sentiment, fetch_constituency_news, fetch_categorized_news
 except ImportError as e:
-    st.error(f"⚠️ System Boot Error: Missing Module. Details: {e}")
+    st.error(f" System Boot Error: Missing Module. Details: {e}")
     st.stop()
 
 # --- SESSION STATE SETUP ---
@@ -64,7 +64,7 @@ if 'calendar_notes' not in st.session_state:
         datetime.now().strftime("%Y-%m-%d"): "Meeting with Party President at 4 PM."
     }
 
-# --- 🎨 THEME ENGINE ---
+# --- THEME ENGINE ---
 def inject_custom_css(color_hex):
     st.markdown(f"""
     <style>
@@ -136,7 +136,7 @@ def inject_custom_css(color_hex):
     </style>
     """, unsafe_allow_html=True)
 
-# --- 🔌 DATABASE CONNECTION ---
+# --- DATABASE CONNECTION ---
 @st.cache_resource
 def get_db_engine():
     db_url = os.getenv("DATABASE_URL")
@@ -156,16 +156,16 @@ def run_query(query_str, params=None):
                 return result.mappings().all()
             return []
         except Exception as e:
-            print(f"❌ DB Query Error: {e}")
+            print(f" DB Query Error: {e}")
             return []
 
-# --- 🍪 COOKIE MANAGER ---
+# --- COOKIE MANAGER ---
 def get_manager():
     return stx.CookieManager(key="needle_cookies_v2")
 
 cookie_manager = get_manager()
 
-# --- 🔐 COOKIE SIGNING ---
+# --- COOKIE SIGNING ---
 _cookie_secret = os.getenv("COOKIE_SECRET")
 if not _cookie_secret:
     import logging as _logging
@@ -184,7 +184,7 @@ def unsign_cookie(signed_value: str):
     except Exception:
         return None
 
-# --- 🚪 LOGOUT HELPER ---
+# --- LOGOUT HELPER ---
 def perform_logout():
     """Robust logout: Clears session state and deletes cookie."""
     keys_to_clear = [
@@ -243,7 +243,7 @@ def attempt_login(username, password):
                 "constituency": user.get('constituency') or "India"
             }, None
     
-    return None, "❌ Incorrect Username or Password"
+    return None, " Incorrect Username or Password"
 
 def get_user_from_cookie(username):
     query = "SELECT * FROM users WHERE username = :u"
@@ -289,7 +289,7 @@ def fetch_summary(tenant_id):
 
         return {"category_breakdown": category_breakdown, "red_zones": red_zones}
     except Exception as e:
-        print(f"❌ Summary Fetch Error: {e}")
+        print(f" Summary Fetch Error: {e}")
         return {"category_breakdown": {}, "red_zones": []}
 
 # --- LOGIN SCREEN ---
@@ -333,10 +333,10 @@ def render_header(username, color):
     st.markdown(f"""
     <div class="needle-header">
         <div class="needle-logo">
-            <span>🪡</span> Needle
+            <span></span> Needle
         </div>
         <div style="display: flex; gap: 20px; align-items: center; font-size: 14px; font-weight: 500;">
-            <span style="color: #666;">📍 {loc}</span>
+            <span style="color: #666;"> {loc}</span>
             <span style="color: {color};">● Online</span>
             <span>{username.title()}</span>
         </div>
@@ -439,12 +439,12 @@ else:
                 st.caption("Go to **CSR Suite → Proposals** to generate data-backed pitches.")
                 st.markdown("</div>", unsafe_allow_html=True)
         except Exception:
-            pass  # Pipeline not yet populated
+            pass # Pipeline not yet populated
 
         c_left, c_right = st.columns([2, 1])
         with c_left:
             st.markdown(f"<div class='widget-card'><div class='widget-title'>Parliamentary Desk</div>", unsafe_allow_html=True)
-            st.info("📜 **Parliament is currently in Session**")
+            st.info(" **Parliament is currently in Session**")
             st.markdown("</div>", unsafe_allow_html=True)
 
             st.markdown(f"<div class='widget-card'><div class='widget-title'>Media Centre</div>", unsafe_allow_html=True)
@@ -467,18 +467,18 @@ else:
                 if news_nat:
                     for news in news_nat:
                         sent = analyze_sentiment(news['title'])
-                        badge = '🟢' if sent == 'pos' else '🔴' if sent == 'neg' else '⚪'
+                        badge = '' if sent == 'pos' else '' if sent == 'neg' else ''
                         st.markdown(f"<div class='news-item'>{badge} <a href='{news['link']}'>{news['title']}</a></div>", unsafe_allow_html=True)
                 else:
                     st.caption("No national coverage found today.")
 
             with tab_loc:
-                st.caption(f"📰 Local newspapers & regional media about **{mp_display_name}** and **{mp_constituency}**")
+                st.caption(f" Local newspapers & regional media about **{mp_display_name}** and **{mp_constituency}**")
                 local_news = fetch_constituency_news(limit=8)
                 if local_news:
                     for news in local_news:
                         sent = news.get('sentiment', 'neu')
-                        badge = '🟢' if sent == 'pos' else '🔴' if sent == 'neg' else '⚪'
+                        badge = '' if sent == 'pos' else '' if sent == 'neg' else ''
                         pub = news.get('published')
                         date_str = pub.strftime('%d %b') if hasattr(pub, 'strftime') else ''
                         source = news.get('source', '')
@@ -492,7 +492,7 @@ else:
         with c_right:
             st.markdown(f"<div class='widget-card'><div class='widget-title'>Calendar & Notes</div>", unsafe_allow_html=True)
             sel_date = st.date_input("Date", datetime.now(), label_visibility="collapsed")
-            if st.button("💾 Save Note", use_container_width=True):
+            if st.button(" Save Note", use_container_width=True):
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 

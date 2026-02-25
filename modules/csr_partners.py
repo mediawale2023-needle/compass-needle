@@ -30,9 +30,9 @@ def render_csr_partners(username):
         with open("ngo_db.json", "r") as f:
             data = json.load(f)
     except FileNotFoundError:
-        pass  # Use fallback mock data
+        pass # Use fallback mock data
     except Exception as e:
-        st.warning(f"⚠️ Could not parse ngo_db.json: {e}. Using default data.")
+        st.warning(f" Could not parse ngo_db.json: {e}. Using default data.")
 
     # Load Corporates
     corp_list = ["Reliance Industries", "Tata Group", "HDFC Bank"]
@@ -43,9 +43,9 @@ def render_csr_partners(username):
             if not corp_list:
                 corp_list = ["Reliance Industries", "Tata Group", "HDFC Bank"]
     except FileNotFoundError:
-        pass  # Use fallback list
+        pass # Use fallback list
     except Exception as e:
-        st.warning(f"⚠️ Could not parse csr_db.json: {e}. Using default company list.")
+        st.warning(f" Could not parse csr_db.json: {e}. Using default company list.")
 
     df = pd.DataFrame(data)
 
@@ -76,13 +76,13 @@ def render_csr_partners(username):
         # Color Code the Card
         risk = row.get('Risk_Level', 'Yellow')
         if risk == 'Green':
-            icon = "✅"
+            icon = ""
             color = "green"
         elif risk == 'Yellow':
-            icon = "⚠️"
+            icon = ""
             color = "orange"
         else:
-            icon = "🚫"
+            icon = ""
             color = "red"
 
         with st.expander(f"{icon} {ngo_name} ({row.get('Sector', 'General')})"):
@@ -99,7 +99,7 @@ def render_csr_partners(username):
             # 5. The "Matchmaker"
             if risk == 'Green':
                 st.markdown("---")
-                st.write("**🔗 Connect to Corporate**")
+                st.write("** Connect to Corporate**")
                 
                 target_corp = st.selectbox(f"Select Funder for {ngo_name}", corp_list, key=f"sel_{idx}_{ngo_name}")
                 

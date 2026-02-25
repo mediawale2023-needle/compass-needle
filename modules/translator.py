@@ -3,18 +3,18 @@ from groq import Groq
 import os
 
 def render_translator(username):
-    st.markdown("## 🗣️ Bhashini: Neural Translator")
+    st.markdown("## Bhashini: Neural Translator")
     st.caption("AI-Powered Translation for Official Legislative Correspondence")
 
     # Layout
     col_input, col_output = st.columns(2)
 
     with col_input:
-        st.subheader("📝 Source Text")
+        st.subheader(" Source Text")
         source_text = st.text_area("Paste English or Regional text here...", height=300)
 
     with col_output:
-        st.subheader("🎯 Target Output")
+        st.subheader(" Target Output")
         
         # Language Selector
         target_lang = st.selectbox(
@@ -27,13 +27,13 @@ def render_translator(username):
         tone = st.radio("Tone", ["Formal (Official)", "Conversational (Social Media)"], horizontal=True)
 
         # Action Button
-        if st.button("🚀 Translate Now", type="primary", use_container_width=True):
+        if st.button(" Translate Now", type="primary", use_container_width=True):
             if not source_text:
                 st.warning("Please enter text to translate.")
             else:
                 api_key = st.session_state.get('groq_api_key')
                 if not api_key:
-                    st.error("⚠️ Groq API Key missing. Please set it in the Sidebar.")
+                    st.error(" Groq API Key missing. Please set it in the Sidebar.")
                 else:
                     try:
                         with st.spinner(f"Translating to {target_lang}..."):
@@ -60,13 +60,13 @@ def render_translator(username):
                             
                             translated_text = completion.choices[0].message.content
                             st.text_area("Result", value=translated_text, height=300)
-                            st.success("✅ Translation Complete")
+                            st.success(" Translation Complete")
                             
                     except Exception as e:
                         st.error(f"Translation Error: {e}")
 
     # History / Notes
-    with st.expander("ℹ️ Translation Tips"):
+    with st.expander(" Translation Tips"):
         st.markdown("""
         * **Formal:** Use for letters to Ministers, official press releases.
         * **Conversational:** Use for WhatsApp replies, Tweets, or public addresses.

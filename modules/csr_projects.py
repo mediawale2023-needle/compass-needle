@@ -24,9 +24,9 @@ def render_csr_projects(username):
         with open("project_menu.json", "r") as f:
             menu = json.load(f)
     except FileNotFoundError:
-        pass  # Use fallback mock data
+        pass # Use fallback mock data
     except Exception as e:
-        st.warning(f"⚠️ Could not parse project_menu.json: {e}. Using default catalog.")
+        st.warning(f" Could not parse project_menu.json: {e}. Using default catalog.")
     
     # Company List
     company_list = ["Reliance Industries", "Tata Group", "HDFC Bank", "Adani Foundation", "Infosys Foundation"]
@@ -37,9 +37,9 @@ def render_csr_projects(username):
             if not company_list:
                 company_list = ["Reliance Industries", "Tata Group", "HDFC Bank", "Adani Foundation", "Infosys Foundation"]
     except FileNotFoundError:
-        pass  # Use fallback list
+        pass # Use fallback list
     except Exception as e:
-        st.warning(f"⚠️ Could not parse csr_db.json: {e}. Using default company list.")
+        st.warning(f" Could not parse csr_db.json: {e}. Using default company list.")
 
     # 2. The "Shopping Cart" Session
     if 'cart' not in st.session_state: st.session_state.cart = {}
@@ -50,12 +50,12 @@ def render_csr_projects(username):
     with col_catalog:
         st.subheader("Select Projects")
         for item in menu:
-            with st.expander(f"🛠️ {item.get('Name', 'Project')} ({item.get('Cost_Per_Unit', 'N/A')})"):
+            with st.expander(f" {item.get('Name', 'Project')} ({item.get('Cost_Per_Unit', 'N/A')})"):
                 c1, c2 = st.columns([3, 1])
                 with c1:
                     st.write(f"**Impact:** {item.get('Impact', '')}")
                     st.caption(f"**Specs:** {item.get('Specs', '')}")
-                    st.info(f"💡 *{item.get('Pitch', '')}*")
+                    st.info(f" *{item.get('Pitch', '')}*")
                 with c2:
                     code = item.get('Code', 'UNKNOWN')
                     # Use a unique key for every input to avoid duplicate ID errors
@@ -65,7 +65,7 @@ def render_csr_projects(username):
                         if qty > 0:
                             cost = item.get('Cost_Raw', 0)
                             if cost == 0:
-                                st.warning(f"⚠️ No cost data for {item.get('Name', 'this item')}. It will appear as ₹0.")
+                                st.warning(f" No cost data for {item.get('Name', 'this item')}. It will appear as ₹0.")
                             st.session_state.cart[code] = {
                                 "Name": item.get('Name', 'Project'),
                                 "Qty": qty,
@@ -95,9 +95,9 @@ def render_csr_projects(username):
             
             target_comp = st.selectbox("Pitch To:", company_list)
             
-            if st.button("🚀 Generate DPR", type="primary"):
+            if st.button(" Generate DPR", type="primary"):
                 with st.spinner("Writing Detailed Project Report (Gemini)..."):
-                    # 👇 CHANGED: Switched from Groq to Gemini
+                    # CHANGED: Switched from Groq to Gemini
                     model = get_valid_model()
                     
                     if model:

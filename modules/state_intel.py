@@ -58,27 +58,27 @@ def load_data(selected_file):
         return pd.DataFrame(), None
 
 def render_state_intel(username):
-    st.subheader("🗺️ CSR Intelligence Hub")
+    st.subheader(" CSR Intelligence Hub")
 
     # --- SETTINGS SECTION ---
-    with st.expander("🛠️ Data Settings", expanded=True):
+    with st.expander(" Data Settings", expanded=True):
         c1, c2 = st.columns([3, 1])
         
         # File Selector
         all_files = get_all_csv_files()
         if not all_files:
-            st.error("❌ No CSV files found! Please check your folder.")
+            st.error(" No CSV files found! Please check your folder.")
             return
 
         with c1:
             # Auto-select the 2025 report if available
             default_idx = next((i for i, f in enumerate(all_files) if "2025" in f), 0)
-            selected_file = st.selectbox("📂 Select Data Source:", all_files, index=default_idx)
+            selected_file = st.selectbox(" Select Data Source:", all_files, index=default_idx)
             
         # Cache Clear
         with c2:
             st.write("") 
-            if st.button("🧹 Clear Cache"):
+            if st.button(" Clear Cache"):
                 st.cache_data.clear()
                 st.rerun()
 
@@ -100,7 +100,7 @@ def render_state_intel(username):
         c1, c2 = st.columns(2)
         with c1:
             if state_col in df.columns:
-                selected_state = st.selectbox("📍 Select State", ["All India"] + sorted(ALL_INDIA_STATES))
+                selected_state = st.selectbox(" Select State", ["All India"] + sorted(ALL_INDIA_STATES))
                 if selected_state != "All India":
                     df = df[df[state_col] == selected_state]
             else:
@@ -109,7 +109,7 @@ def render_state_intel(username):
         with c2:
             if sect_col in df.columns:
                 sectors = sorted(df[sect_col].dropna().unique().tolist()) if not df.empty else []
-                selected_sector = st.multiselect("🏥 Select Sector", sectors)
+                selected_sector = st.multiselect(" Select Sector", sectors)
                 if selected_sector:
                     df = df[df[sect_col].isin(selected_sector)]
             else:
@@ -128,13 +128,13 @@ def render_state_intel(username):
         top_company = "N/A"
 
     m1, m2, m3 = st.columns(3)
-    m1.metric("💰 Total Available Funds", f"₹{total_spend:,.2f} Cr")
-    m2.metric("🏢 Active Companies", active_companies)
+    m1.metric(" Total Available Funds", f"₹{total_spend:,.2f} Cr")
+    m2.metric(" Active Companies", active_companies)
     
     with m3:
         st.markdown(f"""
         <div style="border:1px solid #e0e0e0; padding:10px; border-radius:5px; background-color:white;">
-            <div style="font-size:0.8rem; color:#666;">🏆 Leading Donor</div>
+            <div style="font-size:0.8rem; color:#666;"> Leading Donor</div>
             <div style="font-size:1.0rem; font-weight:600; color:#0f172a; line-height:1.2; margin-top:5px; word-wrap: break-word;">
                 {top_company}
             </div>
@@ -144,7 +144,7 @@ def render_state_intel(username):
     st.divider()
 
     # --- LEADERBOARD ---
-    st.subheader(f"🏢 Who is spending in {selected_state}?")
+    st.subheader(f" Who is spending in {selected_state}?")
     
     if not df.empty and comp_col in df.columns and amt_col in df.columns:
         leaderboard = (
@@ -165,7 +165,7 @@ def render_state_intel(username):
         st.info("No company data available for leaderboard.")
 
     # --- PROJECT DETAILS ---
-    with st.expander("📄 View Detailed Project breakdown", expanded=False):
+    with st.expander(" View Detailed Project breakdown", expanded=False):
         try:
             cols = [c for c in [comp_col, sect_col, dist_col, amt_col] if c in df.columns]
             desc = next((c for c in df.columns if "Project" in c or "Description" in c), None)

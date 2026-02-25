@@ -52,7 +52,7 @@ def render_csr_proposals(username):
         st.success(f"**{len(candidates)} clusters** have crossed the {CSR_PROPOSAL_THRESHOLD}-complaint threshold.")
 
         for i, cluster in enumerate(candidates):
-            badge = "🔴 CRITICAL" if cluster["volume"] >= 500 else "🟠 MAJOR" if cluster["volume"] >= 300 else "🟢 QUALIFIED"
+            badge = " CRITICAL" if cluster["volume"] >= 500 else " MAJOR" if cluster["volume"] >= 300 else " QUALIFIED"
 
             with st.expander(
                 f"{badge} | {cluster['category']} in {cluster['area']} — {cluster['volume']} complaints",
@@ -76,7 +76,7 @@ def render_csr_proposals(username):
                 # Matched companies
                 matches = match_companies(cluster["csr_sector"], csr_data)
                 if matches:
-                    st.write("**🏢 Matched CSR Companies:**")
+                    st.write("** Matched CSR Companies:**")
                     company_names = [m.get("Company", "Unknown") for m in matches]
 
                     for j, company in enumerate(matches):
@@ -84,7 +84,7 @@ def render_csr_proposals(username):
                         col_a.write(f"• **{company.get('Company', 'Unknown')}** — {company.get('Sector', 'General')}")
 
                         if col_b.button(
-                            "📄 Generate DPR",
+                            " Generate DPR",
                             key=f"dpr_{i}_{j}_{company.get('Company', '')}",
                         ):
                             with st.spinner(f"Generating proposal for {company.get('Company')}..."):

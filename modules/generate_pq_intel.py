@@ -3,7 +3,7 @@ import random
 from datetime import datetime, timedelta
 
 def generate_pq_intelligence():
-    print("🏛️ Minting Parliamentary Question (PQ) Database...")
+    print(" Minting Parliamentary Question (PQ) Database...")
 
     # Ministries that run Schemes (NOT Corporate stuff)
     ministries = [
@@ -56,7 +56,7 @@ def generate_pq_intelligence():
     with open("questions_db.json", "w") as f:
         json.dump(pq_db, f, indent=4)
         
-    print(f"✅ Generated {len(pq_db)} Parliamentary Intelligence Records.")
+    print(f" Generated {len(pq_db)} Parliamentary Intelligence Records.")
 
 if __name__ == "__main__":
     generate_pq_intelligence()

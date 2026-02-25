@@ -142,7 +142,7 @@ Before outputting, review every sentence and ask: "Did the user provide this fac
 
 PLACEHOLDER FORMAT:
 - Missing number: [DATA REQUIRED]
-- Missing date: [DATE TO BE VERIFIED]  
+- Missing date: [DATE TO BE VERIFIED] 
 - Missing scheme: [RELEVANT SCHEME NAME]
 - Missing name: [OFFICER NAME/DESIGNATION]
 - Missing amount: [₹ AMOUNT TO BE VERIFIED]
@@ -201,28 +201,28 @@ def scan_for_fabrications(generated_text, user_input):
     today = datetime.now()
     safe_numbers = user_numbers | {
         str(today.year), str(today.day), str(today.month),
-        str(today.year - 1), str(today.year - 2),  # recent years
+        str(today.year - 1), str(today.year - 2), # recent years
     }
     
     # Find numbers in AI output not in user input
-    ai_numbers = re.findall(r'\b(\d{2,})\b', generated_text)  # 2+ digit numbers only
+    ai_numbers = re.findall(r'\b(\d{2,})\b', generated_text) # 2+ digit numbers only
     for num in ai_numbers:
         if num not in safe_numbers:
-            flags.append(f"⚠️ Number `{num}` — not found in your input. Verify this.")
+            flags.append(f" Number `{num}` — not found in your input. Verify this.")
     
     # Find percentage claims
     pct_matches = re.findall(r'(\d+\.?\d*\s*%)', generated_text)
     for pct in pct_matches:
         pct_num = re.findall(r'\d+', pct)[0]
         if pct_num not in safe_numbers:
-            flags.append(f"⚠️ Percentage `{pct}` — AI-generated. Verify this.")
+            flags.append(f" Percentage `{pct}` — AI-generated. Verify this.")
     
     # Find rupee amounts
     rupee_matches = re.findall(r'₹[\s]?[\d,.]+\s*(?:Crore|Lakh|crore|lakh|Cr|L)', generated_text)
     for amt in rupee_matches:
         amt_nums = re.findall(r'\d+', amt)
         if any(n not in safe_numbers for n in amt_nums):
-            flags.append(f"⚠️ Amount `{amt}` — AI-generated. Verify this.")
+            flags.append(f" Amount `{amt}` — AI-generated. Verify this.")
     
     # Deduplicate
     return list(dict.fromkeys(flags))
@@ -309,12 +309,12 @@ def render_drafter(username):
     profile = load_tenant_profile()
 
     if not model:
-        st.error("⚠️ AI Model not connected.")
+        st.error(" AI Model not connected.")
         st.info("Please add `GEMINI_API_KEY` to your environment variables.")
         return
 
     # Display MP context
-    with st.expander("📋 Current MP Profile", expanded=False):
+    with st.expander(" Current MP Profile", expanded=False):
         col1, col2 = st.columns(2)
         with col1:
             st.write(f"**Name:** {profile.get('mp_name')}")
@@ -383,7 +383,7 @@ def render_drafter(username):
                 )
 
             # GENERATE BUTTON
-            if st.button("✨ Generate Letter", type="primary", use_container_width=True):
+            if st.button(" Generate Letter", type="primary", use_container_width=True):
                 if l_recipient_name and l_subject:
                     with st.spinner("Drafting parliamentary-grade letter..."):
                         tone_config = TONE_PRESETS[l_tone]
@@ -429,7 +429,7 @@ Date: {datetime.now().strftime("%d %B %Y")}
                         except Exception as e:
                             st.error(f"Generation Error: {e}")
                 else:
-                    st.warning("⚠️ Please fill Recipient Name and Subject")
+                    st.warning(" Please fill Recipient Name and Subject")
 
         with c2:
             section_label("Preview")
@@ -443,14 +443,14 @@ Date: {datetime.now().strftime("%d %B %Y")}
                 fabrication_flags = scan_for_fabrications(letter_content, user_raw)
                 
                 if fabrication_flags:
-                    st.error(f"🚨 **FABRICATION ALERT:** {len(fabrication_flags)} items need verification")
+                    st.error(f" **FABRICATION ALERT:** {len(fabrication_flags)} items need verification")
                     with st.expander("View flagged items", expanded=True):
                         for flag in fabrication_flags:
                             st.write(flag)
                 elif has_placeholders:
-                    st.warning("⚠️ **VERIFICATION REQUIRED:** This draft contains placeholders marked with [...]. Replace before sending.")
+                    st.warning(" **VERIFICATION REQUIRED:** This draft contains placeholders marked with [...]. Replace before sending.")
                 else:
-                    st.success("✅ No fabrication detected. Still verify before sending.")
+                    st.success(" No fabrication detected. Still verify before sending.")
                 
                 st.text_area(
                     "Generated Letter",
@@ -462,24 +462,24 @@ Date: {datetime.now().strftime("%d %B %Y")}
                 # Action buttons
                 b1, b2, b3 = st.columns(3)
                 with b1:
-                    if st.button("💾 Save to Archives", key="save_letter"):
+                    if st.button(" Save to Archives", key="save_letter"):
                         filename = save_draft_to_disk(letter_content, l_subject, "Letter")
                         st.success(f"Saved: {filename}")
                 with b2:
                     st.download_button(
-                        "📥 Download (.txt)", 
+                        " Download (.txt)", 
                         letter_content, 
                         file_name=f"Letter_{l_subject[:15].replace(' ', '_')}.txt"
                     )
                 with b3:
-                    if st.button("🔄 Regenerate", key="regen_letter"):
+                    if st.button(" Regenerate", key="regen_letter"):
                         if "draft_letter" in st.session_state:
                             del st.session_state["draft_letter"]
                         st.rerun()
                 
                 # Audit trail
                 if "letter_meta" in st.session_state:
-                    with st.expander("📊 Audit Trail", expanded=False):
+                    with st.expander(" Audit Trail", expanded=False):
                         meta = st.session_state["letter_meta"]
                         st.caption(f"Generated: {meta.get('generated_at', 'N/A')}")
                         st.caption(f"Subject: {meta.get('subject', 'N/A')}")
@@ -502,7 +502,7 @@ Date: {datetime.now().strftime("%d %B %Y")}
             )
             
             # Show ministry context
-            st.info(f"💡 **Relevant Context:** {MINISTRY_CONTEXT.get(pq_ministry, '')}")
+            st.info(f" **Relevant Context:** {MINISTRY_CONTEXT.get(pq_ministry, '')}")
             
             pq_subject = st.text_input(
                 "Issue/Subject", 
@@ -531,7 +531,7 @@ Date: {datetime.now().strftime("%d %B %Y")}
             )
             
             # GENERATE BUTTON
-            if st.button("✨ Generate 5 PQ Options", type="primary", use_container_width=True, key="gen_pq"):
+            if st.button(" Generate 5 PQ Options", type="primary", use_container_width=True, key="gen_pq"):
                 if pq_subject:
                     with st.spinner("Analyzing Parliamentary precedents..."):
                         focus_instruction = {
@@ -594,7 +594,7 @@ Will the Minister of {pq_ministry.replace('Ministry of ', '')} be pleased to sta
                         except Exception as e:
                             st.error(f"Generation Error: {e}")
                 else:
-                    st.warning("⚠️ Please enter the subject/issue")
+                    st.warning(" Please enter the subject/issue")
 
         with pq_col2:
             section_label("Generated Options")
@@ -608,26 +608,26 @@ Will the Minister of {pq_ministry.replace('Ministry of ', '')} be pleased to sta
                 pq_flags = scan_for_fabrications(pq_content, pq_user_raw)
                 
                 if pq_flags:
-                    st.error(f"🚨 **FABRICATION ALERT:** {len(pq_flags)} items need verification")
+                    st.error(f" **FABRICATION ALERT:** {len(pq_flags)} items need verification")
                     with st.expander("View flagged items", expanded=True):
                         for flag in pq_flags:
                             st.write(flag)
                 elif has_placeholders:
-                    st.warning("⚠️ **VERIFICATION REQUIRED:** Contains placeholders that need data.")
+                    st.warning(" **VERIFICATION REQUIRED:** Contains placeholders that need data.")
                 
                 # Split into options
                 options = pq_content.split("---")
                 
                 for i, opt in enumerate(options):
                     opt = opt.strip()
-                    if len(opt) > 50:  # Valid option
+                    if len(opt) > 50: # Valid option
                         # Extract title
                         if "**OPTION" in opt:
                             title = opt.split("**")[1] if "**" in opt else f"Option {i}"
                         else:
                             title = f"Option {i}"
                             
-                        with st.expander(f"📄 {title}", expanded=(i == 1)):
+                        with st.expander(f" {title}", expanded=(i == 1)):
                             st.text_area(
                                 "Question Text",
                                 value=opt,
@@ -638,12 +638,12 @@ Will the Minister of {pq_ministry.replace('Ministry of ', '')} be pleased to sta
                             
                             opt_col1, opt_col2 = st.columns(2)
                             with opt_col1:
-                                if st.button("💾 Save", key=f"save_pq_{i}"):
+                                if st.button(" Save", key=f"save_pq_{i}"):
                                     filename = save_draft_to_disk(opt, pq_subject, f"PQ_Option{i}")
                                     st.success(f"Saved!")
                             with opt_col2:
                                 st.download_button(
-                                    "📥 Download", 
+                                    " Download", 
                                     opt, 
                                     file_name=f"PQ_{pq_subject[:10]}_Opt{i}.txt",
                                     key=f"dl_pq_{i}"
@@ -651,7 +651,7 @@ Will the Minister of {pq_ministry.replace('Ministry of ', '')} be pleased to sta
                 
                 # Audit trail
                 if "pq_meta" in st.session_state:
-                    with st.expander("📊 Audit Trail", expanded=False):
+                    with st.expander(" Audit Trail", expanded=False):
                         meta = st.session_state["pq_meta"]
                         st.caption(f"Ministry: {meta.get('ministry', 'N/A')}")
                         st.caption(f"Generated: {meta.get('generated_at', 'N/A')}")
@@ -662,7 +662,7 @@ Will the Minister of {pq_ministry.replace('Ministry of ', '')} be pleased to sta
     # ==========================================================
     st.divider()
     st.caption("""
-    ⚠️ **IMPORTANT DISCLAIMER:** All documents generated by this tool are DRAFTS requiring human verification.
+     **IMPORTANT DISCLAIMER:** All documents generated by this tool are DRAFTS requiring human verification.
     - Verify all statistics, dates, and figures before official use
     - Placeholders marked [...] MUST be replaced with verified data
     - This tool does not guarantee accuracy of AI-generated content

@@ -37,7 +37,7 @@ def update_client_config(tenant_id, new_config_dict):
 
 # --- MAIN RENDERER ---
 def render_master_admin():
-    st.title("⚡ Needle Master Admin")
+    st.title(" Needle Master Admin")
     st.caption("SaaS Super-Controller | Multi-Tenant Management")
     
     # 1. METRICS
@@ -50,7 +50,7 @@ def render_master_admin():
     st.divider()
 
     # 2. CLIENT TABLE (The Trigger)
-    st.subheader("👥 Active Clients")
+    st.subheader(" Active Clients")
     
     tenants = fetch_tenants()
     if not tenants:
@@ -59,14 +59,14 @@ def render_master_admin():
     else:
         df = pd.DataFrame(tenants)
         
-        # 🧠 INTERACTIVE TABLE
+        # INTERACTIVE TABLE
         # "on_select='rerun'" makes the app reload instantly when you click a row
         selection = st.dataframe(
             df[["id", "name", "constituency", "whatsapp_number", "subscription_plan"]],
             use_container_width=True,
             hide_index=True,
-            on_select="rerun",           # <--- THE MAGIC
-            selection_mode="single-row"  # Only one client at a time
+            on_select="rerun", # <--- THE MAGIC
+            selection_mode="single-row" # Only one client at a time
         )
         
         # 3. HANDLE SELECTION
@@ -80,13 +80,13 @@ def render_master_admin():
     # 4. INSPECTOR PANE (Conditional Render)
     if client:
         st.markdown("---") # Visual separator
-        st.info(f"🔍 Inspecting: **{client['name']}**")
+        st.info(f" Inspecting: **{client['name']}**")
         
         c_left, c_right = st.columns([1, 2])
         
         # --- VIEW DETAILS ---
         with c_left:
-            st.markdown("### 📋 Profile")
+            st.markdown("### Profile")
             st.text_input("Name", value=client['name'], disabled=True)
             st.text_input("Constituency", value=client['constituency'], disabled=True)
             st.text_input("Bot Number", value=client['whatsapp_number'], disabled=True)
@@ -94,10 +94,10 @@ def render_master_admin():
 
         # --- EDITOR ---
         with c_right:
-            st.markdown("### ⚙️ Configuration (JSON)")
+            st.markdown("### Configuration (JSON)")
             
             # TABS: View vs Edit
-            t_view, t_edit = st.tabs(["👁️ View Config", "✏️ Edit Config"])
+            t_view, t_edit = st.tabs([" View Config", " Edit Config"])
             
             with t_view:
                 st.json(client.get("config", {}), expanded=False)
@@ -111,26 +111,26 @@ def render_master_admin():
                     height=300
                 )
                 
-                if st.button("💾 Save Changes", type="primary"):
+                if st.button(" Save Changes", type="primary"):
                     try:
                         clean_config = json.loads(new_json_str)
                         if update_client_config(client['id'], clean_config):
-                            st.toast("✅ Config Updated!", icon="💾")
+                            st.toast(" Config Updated!", icon="")
                             time.sleep(1)
                             st.rerun()
                         else:
                             st.error("Backend Error.")
                     except json.JSONDecodeError:
-                        st.error("❌ Invalid JSON.")
+                        st.error(" Invalid JSON.")
 
     else:
         # Helper text when nothing is selected
         if tenants:
-            st.caption("👆 Click on a row above to view details and edit configuration.")
+            st.caption(" Click on a row above to view details and edit configuration.")
 
     # 5. ONBOARDING (Always at bottom)
     st.divider()
-    with st.expander("➕ Onboard New Client"):
+    with st.expander(" Onboard New Client"):
         c1, c2, c3 = st.columns(3)
         new_name = c1.text_input("Name")
         new_const = c2.text_input("Constituency")

@@ -50,7 +50,7 @@ def save_draft(username, title, content, category="General"):
         )
         db.add(new_entry)
     
-    st.toast(f"Saved to Archives: {title}", icon="💾")
+    st.toast(f"Saved to Archives: {title}", icon="")
 
 def delete_draft(username, draft_id):
     """Deletes a draft by ID from PostgreSQL."""

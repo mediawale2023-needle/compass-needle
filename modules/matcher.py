@@ -3,10 +3,10 @@ Fund Intelligence HQ — The MP's most powerful funding tool.
 Answers: "Which ministry has money, which scheme fits, and how do I get it?"
 
 Tabs:
-1. 💰 Fund Radar — Ministry-wise budget dashboard
-2. 🎯 Scheme Finder — Search + filter + detailed cards
-3. 👤 Citizen Matcher — Enter citizen profile → get applicable schemes
-4. 📊 Ministry Overview — Analytics & charts
+1. Fund Radar — Ministry-wise budget dashboard
+2. Scheme Finder — Search + filter + detailed cards
+3. Citizen Matcher — Enter citizen profile → get applicable schemes
+4. Ministry Overview — Analytics & charts
 """
 import streamlit as st
 import pandas as pd
@@ -112,28 +112,28 @@ def _render_scheme_card(scheme, kaggle_df, button_prefix="s"):
             st.divider()
             benefits = str(kaggle_match.get("benefits", ""))
             if benefits and benefits != "nan":
-                st.markdown(f"**💰 Benefits:** {benefits[:500]}")
+                st.markdown(f"** Benefits:** {benefits[:500]}")
             eligibility = str(kaggle_match.get("eligibility", ""))
             if eligibility and eligibility != "nan":
-                st.markdown(f"**✅ Eligibility:** {eligibility[:500]}")
+                st.markdown(f"** Eligibility:** {eligibility[:500]}")
             docs = str(kaggle_match.get("documents", ""))
             if docs and docs != "nan":
-                st.markdown(f"**📄 Documents:** {docs[:300]}")
+                st.markdown(f"** Documents:** {docs[:300]}")
             application = str(kaggle_match.get("application", ""))
             if application and application != "nan":
-                with st.expander("📝 How to Apply"):
+                with st.expander(" How to Apply"):
                     st.write(application[:800])
 
     with col_b:
         st.metric("Budget", budget_str)
-        if st.button("✉️ Draft Letter", key=f"{button_prefix}_{scheme.get('id', '')}"):
+        if st.button(" Draft Letter", key=f"{button_prefix}_{scheme.get('id', '')}"):
             st.session_state["prefill_drafter"] = {
                 "scheme": scheme.get("name", ""),
                 "ministry": scheme.get("ministry", ""),
                 "budget": budget_str,
                 "description": scheme.get("description", ""),
             }
-            st.success("✅ Saved! Go to **Drafter** →")
+            st.success(" Saved! Go to **Drafter** →")
 
 
 # ============================================================
@@ -195,7 +195,7 @@ def render_matcher(username):
     kaggle_df = load_kaggle_data()
 
     if df.empty:
-        st.error("⚠️ No scheme data found. Please ensure `schemes_db.json` is present.")
+        st.error(" No scheme data found. Please ensure `schemes_db.json` is present.")
         return
 
     # Quick stats bar
@@ -204,9 +204,9 @@ def render_matcher(username):
     total_budget = df["budget_numeric"].sum() if "budget_numeric" in df.columns else 0
 
     m1, m2, m3 = st.columns(3)
-    m1.metric("📋 Total Schemes", f"{total_schemes}")
-    m2.metric("🏛️ Ministries", f"{total_ministries}")
-    m3.metric("💰 Total Allocation", f"₹{total_budget:,.0f} Cr")
+    m1.metric(" Total Schemes", f"{total_schemes}")
+    m2.metric(" Ministries", f"{total_ministries}")
+    m3.metric(" Total Allocation", f"₹{total_budget:,.0f} Cr")
 
     tab_overview, tab_radar, tab_finder, tab_citizen = st.tabs([
         "Ministry Overview",
@@ -250,11 +250,11 @@ def _render_fund_radar(df):
         top = row["top_scheme"]
 
         if budget >= 10000:
-            heat = "🟢"
+            heat = ""
         elif budget >= 1000:
-            heat = "🟡"
+            heat = ""
         else:
-            heat = "🔴"
+            heat = ""
 
         with st.expander(
             f"{heat} **{ministry}** — ₹{budget:,.0f} Cr | {count} schemes",
@@ -286,7 +286,7 @@ def _render_scheme_finder(df, kaggle_df):
 
     # Search bar (prominent)
     search_query = st.text_input(
-        "🔍 Search",
+        " Search",
         placeholder="e.g., water supply, farmer loan, women empowerment, road construction...",
         key="scheme_search",
     )
@@ -295,15 +295,15 @@ def _render_scheme_finder(df, kaggle_df):
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         all_ministries = ["All"] + sorted(df["ministry"].dropna().unique().tolist())
-        sel_ministry = st.selectbox("🏛️ Ministry", all_ministries, key="sf_ministry")
+        sel_ministry = st.selectbox(" Ministry", all_ministries, key="sf_ministry")
     with c2:
         all_categories = ["All"] + sorted(df["category"].dropna().unique().tolist())
-        sel_category = st.selectbox("📂 Category", all_categories, key="sf_category")
+        sel_category = st.selectbox(" Category", all_categories, key="sf_category")
     with c3:
         all_focus = ["All"] + sorted(df["focus"].dropna().unique().tolist())
-        sel_focus = st.selectbox("🎯 Focus", all_focus, key="sf_focus")
+        sel_focus = st.selectbox(" Focus", all_focus, key="sf_focus")
     with c4:
-        sort_by = st.selectbox("📊 Sort", ["Budget ↓", "Budget ↑", "Name A-Z"], key="sf_sort")
+        sort_by = st.selectbox(" Sort", ["Budget ↓", "Budget ↑", "Name A-Z"], key="sf_sort")
 
     # Apply filters
     results = df.copy()
@@ -340,7 +340,7 @@ def _render_scheme_finder(df, kaggle_df):
     st.divider()
 
     if len(results) > 0:
-        st.success(f"✅ **{len(results)}** schemes found.")
+        st.success(f" **{len(results)}** schemes found.")
 
         # Paginate
         page_size = 15
@@ -355,7 +355,7 @@ def _render_scheme_finder(df, kaggle_df):
             budget_str = scheme.get("budget_allocation", "N/A")
             budget_num = scheme.get("budget_numeric", 0)
 
-            icon = "🟢" if budget_num >= 10000 else "🟡" if budget_num >= 1000 else "🔵"
+            icon = "" if budget_num >= 10000 else "" if budget_num >= 1000 else ""
 
             with st.expander(f"{icon} **{scheme['name']}** — {budget_str} | {scheme.get('ministry', '')[:40]}"):
                 _render_scheme_card(scheme, kaggle_df, button_prefix="find")
@@ -379,15 +379,15 @@ def _render_scheme_finder(df, kaggle_df):
                 st.divider()
                 st.markdown(f"##### {len(kaggle_hits)} more from Extended Database (3,400 schemes)")
                 for _, km in kaggle_hits.iterrows():
-                    badge = "🇮🇳 Central" if km.get("level") == "Central" else "🏛️ State"
+                    badge = " Central" if km.get("level") == "Central" else " State"
                     with st.expander(f"{badge} | {km['scheme_name']}"):
                         st.write(f"**Category:** {km.get('schemeCategory', 'N/A')}")
-                        for field, label in [("benefits", "💰 Benefits"), ("eligibility", "✅ Eligibility"), ("application", "📝 How to Apply")]:
+                        for field, label in [("benefits", " Benefits"), ("eligibility", " Eligibility"), ("application", " How to Apply")]:
                             val = str(km.get(field, ""))
                             if val and val != "nan":
                                 st.write(f"**{label}:** {val[:500]}")
     else:
-        st.warning("⚠️ No schemes found. Try a broader search or reset filters.")
+        st.warning(" No schemes found. Try a broader search or reset filters.")
 
 
 # ============================================================
@@ -403,7 +403,7 @@ def _render_citizen_matcher(df, kaggle_df):
     c1, c2 = st.columns(2)
     with c1:
         selected_groups = st.multiselect(
-            "👥 Citizen belongs to:",
+            " Citizen belongs to:",
             list(CITIZEN_SCHEME_MAP.keys()),
             default=["BPL Families"],
             key="citizen_groups",
@@ -471,14 +471,14 @@ def _render_citizen_matcher(df, kaggle_df):
         profile_str += f" | {location}"
 
     total_found = len(matched) + min(len(kaggle_matched), 15)
-    st.success(f"🎯 **{total_found}** schemes found for: **{profile_str}**")
+    st.success(f" **{total_found}** schemes found for: **{profile_str}**")
 
     # Primary matches (with budget data)
     if not matched.empty:
         st.markdown(f"##### Central Schemes with Budget Data ({len(matched)})")
         for _, scheme in matched.iterrows():
             budget_str = scheme.get("budget_allocation", "N/A")
-            with st.expander(f"✅ **{scheme['name']}** — {budget_str}"):
+            with st.expander(f" **{scheme['name']}** — {budget_str}"):
                 _render_scheme_card(scheme, kaggle_df, button_prefix="cit")
 
     # Kaggle matches (extended database)
@@ -486,13 +486,13 @@ def _render_citizen_matcher(df, kaggle_df):
         st.divider()
         st.markdown(f"##### Extended Matches ({len(kaggle_matched)} found, showing top 15)")
         for _, km in kaggle_matched.head(15).iterrows():
-            badge = "🇮🇳" if km.get("level") == "Central" else "🏛️"
+            badge = "" if km.get("level") == "Central" else ""
             with st.expander(f"{badge} {km['scheme_name']}"):
                 for field, label in [
-                    ("benefits", "💰 Benefits"),
-                    ("eligibility", "✅ Eligibility"),
-                    ("application", "📝 How to Apply"),
-                    ("documents", "📄 Documents"),
+                    ("benefits", " Benefits"),
+                    ("eligibility", " Eligibility"),
+                    ("application", " How to Apply"),
+                    ("documents", " Documents"),
                 ]:
                     val = str(km.get(field, ""))
                     if val and val != "nan":

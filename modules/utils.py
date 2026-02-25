@@ -31,7 +31,7 @@ def show_download_button(text_content, filename_prefix="needle_draft"):
                 cursor: pointer; 
                 color: #31333F; 
                 font-size: 14px;">
-                ⬇️ Download .txt
+                 Download .txt
             </button></a>
         </div>
         '''
@@ -65,5 +65,5 @@ def perform_translation(text, target_language_name):
         return translated_text
     except Exception as e:
         # If it fails, show the error so we know WHY it failed
-        st.warning(f"⚠️ Translation Failed: {e}")
+        st.warning(f" Translation Failed: {e}")
         return text # Fallback to English
