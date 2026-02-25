@@ -42,7 +42,7 @@ try:
     from modules.csr_pipeline import get_csr_candidates
     from modules.utils import track_action, show_download_button
     from modules.persistence import load_archives, delete_draft
-    from modules.news_intel import fetch_news, analyze_sentiment
+    from modules.news_intel import fetch_news, analyze_sentiment, fetch_constituency_news, fetch_categorized_news
 except ImportError as e:
     st.error(f"⚠️ System Boot Error: Missing Module. Details: {e}")
     st.stop()
@@ -448,12 +448,25 @@ else:
             st.markdown("</div>", unsafe_allow_html=True)
 
             st.markdown(f"<div class='widget-card'><div class='widget-title'>📰 Media Centre (Live)</div>", unsafe_allow_html=True)
-            tab_nat, tab_loc = st.tabs(["🇮🇳 National", "📍 Local Pulse"])
+            tab_loc, tab_nat = st.tabs(["📍 My Constituency", "🇮🇳 National"])
+            with tab_loc:
+                local_news = fetch_constituency_news(limit=8)
+                if local_news:
+                    for news in local_news:
+                        sent = news.get('sentiment', 'neu')
+                        badge = '🟢' if sent == 'pos' else '🔴' if sent == 'neg' else '⚪'
+                        rel = news.get('relevance', 0)
+                        rel_tag = f" <span style='font-size:10px;color:#888;'>({rel}% relevant)</span>" if rel > 0 else ""
+                        st.markdown(f"<div class='news-item'>{badge} <a href='{news['link']}'>{news['title']}</a>{rel_tag}</div>", unsafe_allow_html=True)
+                else:
+                    st.caption("No local news found.")
             with tab_nat:
-                news_nat = fetch_news(query=f"{username} politics", limit=5)
+                news_nat = fetch_news(query="India parliament lok sabha", limit=5)
                 if news_nat:
                     for news in news_nat:
-                        st.markdown(f"<div class='news-item'><a href='{news['link']}'>{news['title']}</a></div>", unsafe_allow_html=True)
+                        sent = analyze_sentiment(news['title'])
+                        badge = '🟢' if sent == 'pos' else '🔴' if sent == 'neg' else '⚪'
+                        st.markdown(f"<div class='news-item'>{badge} <a href='{news['link']}'>{news['title']}</a></div>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
         with c_right:
