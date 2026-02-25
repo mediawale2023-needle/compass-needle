@@ -34,7 +34,7 @@ ALL_CONSTITUENCIES = sorted([
     "Mumbai North West", "Mumbai South", "Mumbai South Central", "Munger", "Murshidabad", "Muzaffarnagar", "Muzaffarpur", "Mysore", "Nabadwip", 
     "Nagarkurnool", "Nagaur", "Nagapattinam", "Nagpur", "Nainital-Udhamsingh Nagar", "Nalanda", "Nalgonda", "Nanded", "Nandurbar", "Nandyal", 
     "Narasaraopet", "Nashik", "Navsari", "Nawada", "Nawrangpur", "Nellore", "New Delhi", "Nizamabad", "North East Delhi", "North Goa", "North West Delhi", 
-    "Nowgong", "Ongole", "Osmanabad", "Padrauna", "Palakkad", "Palamu", "Palghar", "Pali", "Pallakad", "Panchmahal", "Panaji", "Panchkula", "Panipat", 
+    "Nowgong", "Ongole", "Osmanabad", "Padrauna", "Palakkad", "Palamu", "Palghar", "Pali", "Panchmahal", "Panaji", "Panchkula", "Panipat", 
     "Parbhani", "Patna Sahib", "Patan", "Pathanamthitta", "Patiala", "Pauri Garhwal", "Peddapalle", "Perambalur", "Phulpur", "Pilibhit", "Pithoragarh", 
     "Pollachi", "Pondicherry", "Ponnani", "Porbandar", "Pratapgarh", "Pune", "Puri", "Purnia", "Purulia", "Raebareli", "Raichur", "Raiganj", "Raigarh", 
     "Raipur", "Rajahmundry", "Rajampet", "Rajgarh", "Rajkot", "Rajmahal", "Rajnandgaon", "Rajouri", "Rajsamand", "Ramagundam", "Ramanathapuram", 
@@ -42,11 +42,11 @@ ALL_CONSTITUENCIES = sorted([
     "Sagar", "Saharanpur", "Saharsa", "Sahibganj", "Saidapet", "Salem", "Samastipur", "Sambalpur", "Sambhal", "Sangli", "Sangrur", "Sant Kabir Nagar", 
     "Saran", "Sarhali", "Sasaram", "Satara", "Satna", "Sawai Madhopur", "Secunderabad", "Serampore", "Shahdol", "Shahjahanpur", "Shajapur", "Shamli", 
     "Sheikhpura", "Sheohar", "Shillong", "Shimla", "Shimoga", "Shiridi", "Shirur", "Shivagangai", "Shivamogga", "Shrawasti", "Siddharthnagar", "Sidhi", 
-    "Sikar", "Sikkim", "Silchar", "Siliguri", "Simdega", "Singhbhum", "Sipajhar", "Sirsa", "Sitamarhi", "Sitapur", "Sivaganga", "Siwan", "Solapur", 
+    "Sikar", "Sikkim", "Silchar", "Siliguri", "Simdega", "Singhbhum", "Sipajhar", "Sirsa", "Sitamarhi", "Sitapur", "Siwan", "Solapur", 
     "Somnath", "Sonipat", "South Delhi", "South Goa", "Sriperumbudur", "Srikakulam", "Srinagar", "Sultanpur", "Sundargarh", "Supaul", "Surat", 
     "Surendranagar", "Surguja", "Tamluk", "Tenkasi", "Tezpur", "Thane", "Thanjavur", "The Nilgiris", "Theni", "Thiruvallur", "Thiruvananthapuram", 
     "Thoothukkudi", "Thrissur", "Tikamgarh", "Tiruchirappalli", "Tirunelveli", "Tirupati", "Tiruppur", "Tiruvannamalai", "Tonk-Sawai Madhopur", 
-    "Trichy", "Tripura East", "Tripura West", "Tura", "Udaipur", "Udalguri", "Udhampur", "Udupi Chikmagalur", "Ujjain", "Uluberia", "Una", "Unnao", 
+    "Tripura East", "Tripura West", "Tura", "Udaipur", "Udalguri", "Udhampur", "Udupi Chikmagalur", "Ujjain", "Uluberia", "Una", "Unnao", 
     "Vadodara", "Vaishali", "Valmiki Nagar", "Valsad", "Varanasi", "Vellore", "Vidisha", "Vijayawada", "Viluppuram", "Virudhunagar", "Visakhapatnam", 
     "Vizianagaram", "Warangal", "Wardha", "Wayanad", "West Delhi", "Yavatmal-Washim", "Zahirabad"
 ])
