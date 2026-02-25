@@ -104,14 +104,47 @@ TONE: NEUTRAL & FACTUAL (Official Correspondence)
     }
 }
 
-# Hallucination safety rules
+# Hallucination safety rules — HARD CONSTRAINTS
 HALLUCINATION_GUARDRAILS = """
-CRITICAL DATA ACCURACY RULES:
-1. If you do not have a SPECIFIC statistic (number, date, amount), use placeholder: [INSERT DATA HERE]
-2. If referencing a scheme/act, use: [VERIFY: Scheme Name and Year]
-3. If mentioning a budget figure, use: [VERIFY: ₹XX Crore as per Budget 20XX-XX]
-4. NEVER invent: casualty numbers, financial figures, dates of events, or names
-5. Add this footer if ANY placeholder used: "⚠️ Note: Placeholders marked [...] require verification before sending."
+═══════════════════════════════════════════════════════════════
+ABSOLUTE PROHIBITIONS (ZERO TOLERANCE — VIOLATION = FAILURE):
+═══════════════════════════════════════════════════════════════
+
+1. NEVER invent ANY number, statistic, figure, percentage, or amount.
+   - If user did NOT provide a number → use: [DATA REQUIRED]
+   - If user mentioned a rough number → use exactly their number, no rounding or embellishing
+
+2. NEVER invent ANY date, year, or timeline.
+   - Only dates allowed: today's date (for the letter header) and dates the user explicitly provided
+   - For past events → use: [DATE TO BE VERIFIED]
+
+3. NEVER name ANY government scheme, act, or policy UNLESS:
+   - The user explicitly wrote it in their input, OR
+   - You are 100% certain it exists (PM-KISAN, MGNREGA, Ayushman Bharat are safe)
+   - If uncertain → use: [RELEVANT SCHEME NAME]
+
+4. NEVER fabricate names of officials, officers, or organizations.
+   - Only use names the user explicitly provided
+
+5. NEVER add opinions, political commentary, or emotional claims.
+   - No "thousands suffer", no "grave injustice", no "complete failure"
+   - ONLY state what the user provided. If the user gave emotional language, you may use it.
+
+6. NEVER invent incident details, accident reports, or case studies.
+   - If user says "3 accidents" → you may say "3 reported incidents" 
+   - If user says "accidents" (no number) → say "reported incidents" with NO number
+
+MANDATORY SELF-CHECK:
+Before outputting, review every sentence and ask: "Did the user provide this fact?"
+- If YES → keep it
+- If NO → replace with [PLACEHOLDER] or remove the sentence entirely
+
+PLACEHOLDER FORMAT:
+- Missing number: [DATA REQUIRED]
+- Missing date: [DATE TO BE VERIFIED]  
+- Missing scheme: [RELEVANT SCHEME NAME]
+- Missing name: [OFFICER NAME/DESIGNATION]
+- Missing amount: [₹ AMOUNT TO BE VERIFIED]
 """
 
 # Parliamentary Question format
@@ -133,23 +166,65 @@ RULES:
 - Part (e) must ask for TIMELINE
 """
 
-# Ministry-specific context
+# Ministry-specific context — ONLY use if user mentions these schemes explicitly
 MINISTRY_CONTEXT = {
-    "Ministry of Railways": "Reference relevant schemes: PM Gati Shakti, Vande Bharat, Kavach system, Station Redevelopment",
-    "Ministry of Road Transport & Highways": "Reference: Bharatmala Pariyojana, NHAI projects, road safety initiatives",
-    "Ministry of Jal Shakti": "Reference: Jal Jeevan Mission, AMRUT, Namami Gange, Dam Rehabilitation",
-    "Ministry of Agriculture": "Reference: PM-KISAN, MSP policy, e-NAM, Soil Health Card",
-    "Ministry of Finance": "Reference: Budget allocations, GST matters, fiscal policy, PM Mudra Yojana",
-    "Ministry of Home Affairs": "Reference: Border security, internal security, police modernization, disaster response",
-    "Ministry of Health & Family Welfare": "Reference: Ayushman Bharat, PM-JAY, immunization, AIIMS expansion",
-    "Ministry of Education": "Reference: NEP 2020, PM SHRI Schools, Samagra Shiksha, higher education",
-    "Ministry of External Affairs": "Reference: Visa matters, diaspora welfare, bilateral relations",
-    "Ministry of Rural Development": "Reference: MGNREGA, PMAY-G, DAY-NRLM, Pradhan Mantri Gram Sadak Yojana"
+    "Ministry of Railways": "Known schemes (cite ONLY if user mentions): PM Gati Shakti, Vande Bharat, Kavach. Do NOT invent statistics about any scheme.",
+    "Ministry of Road Transport & Highways": "Known schemes (cite ONLY if user mentions): Bharatmala Pariyojana, NHAI. Do NOT invent road lengths, costs, or timelines.",
+    "Ministry of Jal Shakti": "Known schemes (cite ONLY if user mentions): Jal Jeevan Mission, AMRUT, Namami Gange. Do NOT invent coverage numbers.",
+    "Ministry of Agriculture": "Known schemes (cite ONLY if user mentions): PM-KISAN, e-NAM, MSP. Do NOT invent beneficiary counts.",
+    "Ministry of Finance": "Known schemes (cite ONLY if user mentions): GST, PM Mudra Yojana. Do NOT invent budget figures.",
+    "Ministry of Home Affairs": "Topics: Border security, internal security, police modernization. Do NOT invent casualty or incident numbers.",
+    "Ministry of Health & Family Welfare": "Known schemes (cite ONLY if user mentions): Ayushman Bharat, PM-JAY. Do NOT invent patient or hospital numbers.",
+    "Ministry of Education": "Known schemes (cite ONLY if user mentions): NEP 2020, PM SHRI Schools, Samagra Shiksha. Do NOT invent enrollment figures.",
+    "Ministry of External Affairs": "Topics: Visa matters, diaspora welfare. Do NOT invent case numbers.",
+    "Ministry of Rural Development": "Known schemes (cite ONLY if user mentions): MGNREGA, PMAY-G, PMGSY. Do NOT invent beneficiary or expenditure numbers."
 }
 
 # ============================================================
 # HELPER FUNCTIONS
 # ============================================================
+
+import re
+
+def scan_for_fabrications(generated_text, user_input):
+    """
+    Post-generation check: finds numbers, dates, and percentages in the
+    AI output that were NOT present in the user's original input.
+    Returns a list of flagged items.
+    """
+    flags = []
+    
+    # Extract all numbers from user input (to know what's "safe")
+    user_numbers = set(re.findall(r'\d+', user_input or ""))
+    # Always allow today's date components
+    today = datetime.now()
+    safe_numbers = user_numbers | {
+        str(today.year), str(today.day), str(today.month),
+        str(today.year - 1), str(today.year - 2),  # recent years
+    }
+    
+    # Find numbers in AI output not in user input
+    ai_numbers = re.findall(r'\b(\d{2,})\b', generated_text)  # 2+ digit numbers only
+    for num in ai_numbers:
+        if num not in safe_numbers:
+            flags.append(f"⚠️ Number `{num}` — not found in your input. Verify this.")
+    
+    # Find percentage claims
+    pct_matches = re.findall(r'(\d+\.?\d*\s*%)', generated_text)
+    for pct in pct_matches:
+        pct_num = re.findall(r'\d+', pct)[0]
+        if pct_num not in safe_numbers:
+            flags.append(f"⚠️ Percentage `{pct}` — AI-generated. Verify this.")
+    
+    # Find rupee amounts
+    rupee_matches = re.findall(r'₹[\s]?[\d,.]+\s*(?:Crore|Lakh|crore|lakh|Cr|L)', generated_text)
+    for amt in rupee_matches:
+        amt_nums = re.findall(r'\d+', amt)
+        if any(n not in safe_numbers for n in amt_nums):
+            flags.append(f"⚠️ Amount `{amt}` — AI-generated. Verify this.")
+    
+    # Deduplicate
+    return list(dict.fromkeys(flags))
 
 def load_tenant_profile():
     """Loads MP details from local JSON profile."""
@@ -358,12 +433,22 @@ Date: {datetime.now().strftime("%d %B %Y")}
             st.markdown("###### 📄 Preview")
             
             if "draft_letter" in st.session_state:
-                # Show verification warning if placeholders exist
                 letter_content = st.session_state["draft_letter"]
                 has_placeholders = "[" in letter_content and "]" in letter_content
                 
-                if has_placeholders:
-                    st.warning("⚠️ **VERIFICATION REQUIRED:** This draft contains placeholders marked with [...]. Please verify all data before sending.")
+                # Fabrication scan
+                user_raw = f"{l_subject} {l_reference} {l_points}"
+                fabrication_flags = scan_for_fabrications(letter_content, user_raw)
+                
+                if fabrication_flags:
+                    st.error(f"🚨 **FABRICATION ALERT:** {len(fabrication_flags)} items need verification")
+                    with st.expander("View flagged items", expanded=True):
+                        for flag in fabrication_flags:
+                            st.write(flag)
+                elif has_placeholders:
+                    st.warning("⚠️ **VERIFICATION REQUIRED:** This draft contains placeholders marked with [...]. Replace before sending.")
+                else:
+                    st.success("✅ No fabrication detected. Still verify before sending.")
                 
                 st.text_area(
                     "Generated Letter",
@@ -516,7 +601,16 @@ Will the Minister of {pq_ministry.replace('Ministry of ', '')} be pleased to sta
                 pq_content = st.session_state["pq_options"]
                 has_placeholders = "[" in pq_content and "]" in pq_content
                 
-                if has_placeholders:
+                # Fabrication scan for PQs
+                pq_user_raw = f"{pq_subject} {pq_location}"
+                pq_flags = scan_for_fabrications(pq_content, pq_user_raw)
+                
+                if pq_flags:
+                    st.error(f"🚨 **FABRICATION ALERT:** {len(pq_flags)} items need verification")
+                    with st.expander("View flagged items", expanded=True):
+                        for flag in pq_flags:
+                            st.write(flag)
+                elif has_placeholders:
                     st.warning("⚠️ **VERIFICATION REQUIRED:** Contains placeholders that need data.")
                 
                 # Split into options
