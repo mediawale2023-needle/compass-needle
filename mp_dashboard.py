@@ -448,25 +448,41 @@ else:
             st.markdown("</div>", unsafe_allow_html=True)
 
             st.markdown(f"<div class='widget-card'><div class='widget-title'>📰 Media Centre (Live)</div>", unsafe_allow_html=True)
-            tab_loc, tab_nat = st.tabs(["📍 My Constituency", "🇮🇳 National"])
-            with tab_loc:
-                local_news = fetch_constituency_news(limit=8)
-                if local_news:
-                    for news in local_news:
-                        sent = news.get('sentiment', 'neu')
-                        badge = '🟢' if sent == 'pos' else '🔴' if sent == 'neg' else '⚪'
-                        rel = news.get('relevance', 0)
-                        rel_tag = f" <span style='font-size:10px;color:#888;'>({rel}% relevant)</span>" if rel > 0 else ""
-                        st.markdown(f"<div class='news-item'>{badge} <a href='{news['link']}'>{news['title']}</a>{rel_tag}</div>", unsafe_allow_html=True)
-                else:
-                    st.caption("No local news found.")
+            tab_nat, tab_loc = st.tabs(["🇮🇳 National", "📍 Local Pulse"])
+
+            # Load MP profile for name-based queries
+            try:
+                import json as _json
+                with open("tenant_profile.json", "r") as _f:
+                    _prof = _json.load(_f)
+                mp_display_name = _prof.get("mp_name", username)
+                mp_constituency = _prof.get("constituency", "")
+            except Exception:
+                mp_display_name = username
+                mp_constituency = ""
+
             with tab_nat:
-                news_nat = fetch_news(query="India parliament lok sabha", limit=5)
+                st.caption(f"📡 **{mp_display_name}** in national media")
+                news_nat = fetch_news(query=f'"{mp_display_name}"', limit=8)
                 if news_nat:
                     for news in news_nat:
                         sent = analyze_sentiment(news['title'])
                         badge = '🟢' if sent == 'pos' else '🔴' if sent == 'neg' else '⚪'
                         st.markdown(f"<div class='news-item'>{badge} <a href='{news['link']}'>{news['title']}</a></div>", unsafe_allow_html=True)
+                else:
+                    st.caption("No national coverage found today.")
+
+            with tab_loc:
+                st.caption(f"📡 **{mp_display_name}** + **{mp_constituency}** in local media")
+                local_news = fetch_constituency_news(limit=8)
+                if local_news:
+                    for news in local_news:
+                        sent = news.get('sentiment', 'neu')
+                        badge = '🟢' if sent == 'pos' else '🔴' if sent == 'neg' else '⚪'
+                        st.markdown(f"<div class='news-item'>{badge} <a href='{news['link']}'>{news['title']}</a></div>", unsafe_allow_html=True)
+                else:
+                    st.caption("No local coverage found today.")
+
             st.markdown("</div>", unsafe_allow_html=True)
 
         with c_right:
