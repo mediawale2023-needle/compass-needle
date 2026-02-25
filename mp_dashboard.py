@@ -473,7 +473,7 @@ else:
                     st.caption("No national coverage found today.")
 
             with tab_loc:
-                st.caption(f"📡 **{mp_display_name}** + **{mp_constituency}** in local media")
+                st.caption(f"📰 Local newspapers & regional media about **{mp_display_name}** and **{mp_constituency}**")
                 local_news = fetch_constituency_news(limit=8)
                 if local_news:
                     for news in local_news:

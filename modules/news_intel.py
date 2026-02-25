@@ -64,6 +64,7 @@ def _load_constituency_context():
         "state": state,
         "mp_name": mp_name,
         "key_facts": key_facts,
+        "languages": profile.get("languages", []),
         "location_keywords": location_keywords,
         "fact_keywords": fact_keywords,
     }
@@ -181,35 +182,45 @@ def fetch_news(query, language="English", limit=5):
 @st.cache_data(ttl=900)
 def fetch_constituency_news(language="English", limit=10):
     """
-    Fetch news specifically for the MP's constituency.
-    Runs multiple targeted queries and merges + deduplicates results.
+    Fetch LOCAL news about the MP and constituency — from local newspapers,
+    regional TV channels, and digital media. Not generic national results.
     """
     context = _load_constituency_context()
     constituency = context["constituency"]
     state = context["state"]
     mp_name = context["mp_name"]
+    languages = context.get("languages", [])
 
     if not constituency:
         return []
 
-    # Multiple targeted queries for broader coverage
-    queries = [
-        f"{constituency} {state}",                    # "Belagavi Karnataka"
-        f"{constituency} development project",        # Development news
-        f"{constituency} MP",                         # MP-related news
-        f"{state} government scheme",                 # State scheme news
-    ]
-    if mp_name:
-        queries.append(mp_name)                       # MP by name
+    # Alternate spellings for broader local coverage
+    alt_names = [constituency]
+    if constituency.lower() == "belagavi":
+        alt_names.append("Belgaum")
+    elif constituency.lower() == "belgaum":
+        alt_names.append("Belagavi")
 
-    # Fetch from all queries
+    # Queries targeting LOCAL media and regional coverage
+    queries = []
+    for name in alt_names:
+        queries.append(f'"{name}" news today')                  # Constituency headlines
+        queries.append(f'"{name}" latest')                      # Recent local stories
+        if mp_name:
+            queries.append(f'"{mp_name}" "{name}"')             # MP mentioned in local context
+
+    # MP name in regional/local outlets specifically
+    if mp_name:
+        queries.append(f'"{mp_name}" {state}')                  # MP + state (filters to regional)
+
+    # Fetch across English + local languages for true local coverage
     all_items = []
     seen_titles = set()
 
+    # English queries
     for q in queries:
-        items = _fetch_rss(q, language, limit=8)
+        items = _fetch_rss(q, "English", limit=6)
         for item in items:
-            # Deduplicate by title similarity
             title_key = item["title"][:50].lower()
             if title_key not in seen_titles:
                 seen_titles.add(title_key)
@@ -217,7 +228,21 @@ def fetch_constituency_news(language="English", limit=10):
                 item["sentiment"] = analyze_sentiment(item["title"])
                 all_items.append(item)
 
-    # Sort by relevance (highest first), then by date
+    # Local language queries (Kannada, Marathi, etc.) for true local pulse
+    local_langs = [l for l in languages if l != "English"] if languages else []
+    for lang in local_langs[:2]:  # Max 2 local languages
+        for name in alt_names:
+            lang_items = _fetch_rss(f"{name}", lang, limit=5)
+            for item in lang_items:
+                title_key = item["title"][:50].lower()
+                if title_key not in seen_titles:
+                    seen_titles.add(title_key)
+                    item["relevance"] = _score_relevance(item["title"], context)
+                    item["sentiment"] = analyze_sentiment(item["title"])
+                    item["source"] = item.get("source", "") + f" ({lang})"
+                    all_items.append(item)
+
+    # Sort: highest relevance first, then most recent
     all_items.sort(key=lambda x: (x["relevance"], x["published"]), reverse=True)
 
     return all_items[:limit]
