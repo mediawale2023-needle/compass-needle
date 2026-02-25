@@ -242,8 +242,8 @@ def fetch_constituency_news(language="English", limit=10):
                     item["source"] = item.get("source", "") + f" ({lang})"
                     all_items.append(item)
 
-    # Sort: highest relevance first, then most recent
-    all_items.sort(key=lambda x: (x["relevance"], x["published"]), reverse=True)
+    # Sort: latest first (date descending)
+    all_items.sort(key=lambda x: x["published"], reverse=True)
 
     return all_items[:limit]
 

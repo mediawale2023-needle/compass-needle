@@ -479,7 +479,11 @@ else:
                     for news in local_news:
                         sent = news.get('sentiment', 'neu')
                         badge = '🟢' if sent == 'pos' else '🔴' if sent == 'neg' else '⚪'
-                        st.markdown(f"<div class='news-item'>{badge} <a href='{news['link']}'>{news['title']}</a></div>", unsafe_allow_html=True)
+                        pub = news.get('published')
+                        date_str = pub.strftime('%d %b') if hasattr(pub, 'strftime') else ''
+                        source = news.get('source', '')
+                        meta = f" <span style='font-size:11px;color:#888;'>{date_str} · {source}</span>" if date_str else ""
+                        st.markdown(f"<div class='news-item'>{badge} <a href='{news['link']}'>{news['title']}</a>{meta}</div>", unsafe_allow_html=True)
                 else:
                     st.caption("No local coverage found today.")
 
