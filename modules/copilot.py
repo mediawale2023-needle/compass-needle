@@ -10,111 +10,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ============================================================
-# CONFIGURATION & PROMPTS (SOPHISTICATED VERSION)
+# CONFIGURATION & PROMPTS
 # ============================================================
-
-LEGISLATIVE_SCRUTINY_PROMPT = """
-ROLE: Senior Legislative Research Officer.
-TASK: Conduct a "Legislative Scrutiny" (Clause-by-Clause Analysis) on the provided document.
-GOAL: Identify clauses that require parliamentary attention due to legal ambiguity, public impact, or implementation risks.
-
-DOCUMENT: {filename}
-CONTEXT:
-{context}
-
-OUTPUT FORMAT (Strict Markdown Table):
-| Clause/Section | Scrutiny Score (1-10) | Legislative Concern (Precise) | Parliamentary Argument (For the Floor) | Citation (Page/Para) |
-|---|---|---|---|---|
-| Sec 12(a) | 9/10 | Ambiguity regarding executive powers | "This provision grants excessive delegated legislation powers." | [Page 12, Para 3] |
-
-REQUIREMENTS:
-1. Identify significant clauses based on the requested depth.
-2. Scrutiny Score: 10 = Constitutional/Public Interest Risk, 1 = Minor Procedural Detail.
-3. CITATION IS MANDATORY: You must cite the specific Page Number or Section Number.
-4. Tone: Formal, Legalistic, and Objective.
-5. Language: {language}
-"""
-
-FLOOR_STRATEGY_PROMPT = """
-ROLE: Parliamentary Strategy Advisor.
-TASK: Draft a "Floor Intervention Note" (Debate Brief) for the Member of Parliament.
-
-DOCUMENT: {filename}
-POSITION: {stance}
-SPEAKING TIME: {speaking_time} Minutes
-LANGUAGE: {language}
-
-CONTEXT:
-{context}
-
-STRUCTURE:
-
-# 🏛️ PARLIAMENTARY INTERVENTION BRIEF
-
-## 1. OPENING SUBMISSION (30 Seconds)
-(A formal, dignified opening statement establishing the MP's position)
-
-## 2. SUBSTANTIVE ARGUMENTS
-* **Point 1:** [Primary Contention]
-    * *The Argument:* [Legal/Policy basis]
-    * *Evidence:* [Quote specific text & Citation]
-    * *Key Phrase:* [A formal rhetorical point for the record]
-
-* **Point 2:** [Secondary Contention]
-    * ... (Same format)
-
-* **Point 3:** [Constituency Relevance]
-    * *Local Implication:* How this specifically impacts the development or welfare of the constituency.
-
-## 3. ANTICIPATED COUNTER-ARGUMENTS
-| If the Government/Opposition argues... | The Rebuttal should be... |
-|---|---|
-| [Predict opposing view] | [Your factual counter-point with evidence] |
-
-## 4. CONCLUDING REMARKS
-(A strong, statesman-like conclusion summarizing the demand)
-"""
-
-IMPACT_ASSESSMENT_PROMPT = """
-ROLE: Policy Impact Assessor.
-TASK: Conduct a "Socio-Economic Impact Assessment".
-GOAL: Map the beneficiaries and adversely affected groups based on the text.
-
-DOCUMENT: {filename}
-LANGUAGE: {language}
-
-FOCUS AREAS:
-{focus_areas}
-
-CONTEXT:
-{context}
-
-OUTPUT FORMAT:
-
-### 📊 SOCIO-ECONOMIC IMPACT MATRIX
-
-**🟢 BENEFICIARY GROUPS (Positive Impact)**
-* **[Sector/Demographic]**
-    * *Rationale:* [Explanation of benefit]
-    * *Citation:* [Evidence from text]
-
-**🔴 AFFECTED GROUPS (Adverse Impact)**
-* **[Sector/Demographic]**
-    * *Concern:* [Explanation of risk/cost]
-    * *Citation:* [Evidence from text]
-
-**⚖️ POLITICAL & SOCIAL CALCULUS**
-* **Public Sentiment:** [Assessment of general public reaction]
-* **Administrative Feasibility:** [Assessment of implementation challenges]
-* **Constituency Implication:** [Specific impact on local voters]
-
-STRICT RULES:
-1. Be OBJECTIVE - this is analysis, not advocacy
-2. EVERY impact claim must reference [Page X] from document
-3. If estimating numbers not in document, clearly mark: [ESTIMATE - VERIFY]
-4. Include BOTH positive and negative impacts regardless of political stance
-5. The Political Calculus section should be analytical, not prescriptive
-"""
 
 # Rajbhasha (Formal Hindi) Instructions
 RAJBHASHA_INSTRUCTIONS = """
@@ -246,9 +143,9 @@ ask_groq_agent = ask_agent
 # ============================================================
 
 def render_copilot(username):
-    """Main Co-Pilot UI with three analysis modes."""
+    """Main Co-Pilot UI — two tabs: Analyse + Ask."""
     
-    # --- SESSION STATE INITIALIZATION ---
+    # --- SESSION STATE ---
     if 'pages_data' not in st.session_state:
         st.session_state.pages_data = []
     if 'copilot_filename' not in st.session_state:
@@ -258,7 +155,8 @@ def render_copilot(username):
     if 'analysis_type' not in st.session_state:
         st.session_state.analysis_type = ""
     if 'copilot_chat_history' not in st.session_state:
-        st.session_state.copilot_chat_history = []  # [{"role": "user"/"model", "parts": ["..."]}]
+        st.session_state.copilot_chat_history = []
+    
     # --- HEADER ---
     header_col1, header_col2 = st.columns([4, 1])
     with header_col1:
@@ -275,7 +173,7 @@ def render_copilot(username):
     
     st.divider()
     
-    # --- DOCUMENT UPLOAD SECTION ---
+    # --- DOCUMENT UPLOAD ---
     if not st.session_state.pages_data:
         st.markdown("### 📄 Upload Document")
         
@@ -302,15 +200,13 @@ def render_copilot(username):
             st.markdown("**Supported Documents:**")
             st.caption("• Bills & Acts")
             st.caption("• Ordinances")
-            st.caption("• Standing Committee Reports")
+            st.caption("• Committee Reports")
             st.caption("• Policy Documents")
             st.caption("• Budget Documents")
         
         return  # Stop here if no document
     
-    # --- DOCUMENT LOADED: SHOW ANALYSIS OPTIONS ---
-    
-    # Document info bar
+    # --- DOCUMENT LOADED ---
     doc_col1, doc_col2, doc_col3 = st.columns([3, 1, 1])
     with doc_col1:
         st.success(f"📄 **Active Document:** {st.session_state.copilot_filename}")
@@ -326,13 +222,8 @@ def render_copilot(username):
     
     st.divider()
     
-    # --- ANALYSIS TABS ---
-    tab_scrutiny, tab_floor, tab_impact, tab_custom = st.tabs([
-        "🔍 Legislative Scrutiny (विधायी समीक्षा)",
-        "🎤 Floor Strategy (सदन की रणनीति)", 
-        "📊 Socio-Economic Impact (सामाजिक-आर्थिक प्रभाव)",
-        "💬 Custom Query"
-    ])
+    # --- TWO TABS: ANALYSE + ASK ---
+    tab_analyse, tab_ask = st.tabs(["🔍 Analyse", "💬 Ask"])
     
     model = get_gemini_model()
     
@@ -341,285 +232,89 @@ def render_copilot(username):
         return
     
     # ==========================================================
-    # TAB 1: LEGISLATIVE SCRUTINY (विधायी समीक्षा)
+    # TAB 1: ANALYSE
     # ==========================================================
-    with tab_scrutiny:
-        st.markdown("#### 🔍 Clause-by-Clause Legal Risk Analysis")
-        st.caption("Identify constitutional risks, implementation gaps, and political vulnerabilities in each clause.")
+    with tab_analyse:
+        st.markdown("#### 🔍 Comprehensive Document Analysis")
+        st.caption("One-click analysis: legal risks, key clauses, stakeholder impact, and talking points.")
         
-        scr_col1, scr_col2 = st.columns([1, 1])
-        
-        with scr_col1:
-            scr_language = st.selectbox(
-                "Output Language",
+        col1, col2 = st.columns(2)
+        with col1:
+            analyse_language = st.selectbox(
+                "Language",
                 ["English", "Hindi (राजभाषा)", "Bilingual"],
-                key="scr_lang"
+                key="analyse_lang"
             )
-            
-            scr_focus = st.multiselect(
-                "Focus Areas",
-                [
-                    "Constitutional Validity",
-                    "Fundamental Rights Impact",
-                    "Federalism Concerns",
-                    "Delegation of Powers",
-                    "Implementation Feasibility",
-                    "Judicial Vulnerability"
-                ],
-                default=["Constitutional Validity", "Fundamental Rights Impact"],
-                key="scr_focus"
+        with col2:
+            analyse_depth = st.radio(
+                "Depth",
+                ["Quick Scan", "Comprehensive"],
+                index=0,
+                horizontal=True,
+                key="analyse_depth"
             )
         
-        with scr_col2:
-            scr_depth = st.radio(
-                "Analysis Depth",
-                ["Quick Scan (Top 5 Clauses)", "Standard (Top 10 Clauses)", "Comprehensive (All Significant Clauses)"],
-                index=1,
-                key="scr_depth"
-            )
-            
-            st.info("💡 **Tip:** Quick Scan is ideal for first review. Comprehensive for detailed committee work.")
-        
-        if st.button("🔍 Run Legislative Scrutiny", type="primary", use_container_width=True, key="btn_scrutiny"):
-            with st.spinner("⚖️ Analyzing clauses for legal and political risks..."):
+        if st.button("🔍 Analyse Document", type="primary", use_container_width=True, key="btn_analyse"):
+            with st.spinner("⚖️ Analysing document — clauses, risks, impact, and strategy..."):
                 context = get_document_context(st.session_state.pages_data)
                 
-                lang_instruction = ""
-                if "Hindi" in scr_language:
-                    lang_instruction = RAJBHASHA_INSTRUCTIONS
+                lang_instruction = RAJBHASHA_INSTRUCTIONS if "Hindi" in analyse_language else ""
+                depth_note = "Focus on top 5 most significant findings." if analyse_depth == "Quick Scan" else "Be comprehensive — cover all significant findings."
                 
-                depth_instruction = {
-                    "Quick Scan (Top 5 Clauses)": "Focus only on the TOP 5 most significant/controversial clauses.",
-                    "Standard (Top 10 Clauses)": "Analyze the TOP 10 most significant clauses.",
-                    "Comprehensive (All Significant Clauses)": "Analyze ALL significant clauses comprehensively."
-                }
-                
-                prompt = LEGISLATIVE_SCRUTINY_PROMPT.format(
-                    filename=st.session_state.copilot_filename,
-                    context=context,
-                    language=scr_language.split()[0]
-                )
-                
-                prompt += f"\n\nADDITIONAL INSTRUCTIONS:\n- Depth: {depth_instruction.get(scr_depth, '')}\n- Focus Areas: {', '.join(scr_focus)}\n{lang_instruction}"
-                
-                try:
-                    response = model.generate_content(prompt)
-                    result_text = response.text
-                    st.session_state.analysis_result = result_text
-                    st.session_state.analysis_type = "Legislative_Scrutiny"
-                    # Append to chat history for follow-up context
-                    st.session_state.copilot_chat_history.append({"role": "user", "parts": [f"[Legislative Scrutiny Analysis requested]"]})
-                    st.session_state.copilot_chat_history.append({"role": "model", "parts": [result_text]})
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Analysis Error: {e}")
-    
-    # ==========================================================
-    # TAB 2: FLOOR STRATEGY (सदन की रणनीति)
-    # ==========================================================
-    with tab_floor:
-        st.markdown("#### 🎤 Parliamentary Debate Preparation")
-        st.caption("Complete preparation kit for intervention on the Floor of the House.")
-        
-        floor_col1, floor_col2 = st.columns([1, 1])
-        
-        with floor_col1:
-            floor_stance = st.radio(
-                "Your Position",
-                [
-                    "🔴 OPPOSITION (Oppose the Bill/Policy)",
-                    "🟢 SUPPORT (Defend the Bill/Policy)",
-                    "🟡 NEUTRAL (Seek Clarifications/Amendments)"
-                ],
-                key="floor_stance"
-            )
-            
-            floor_time = st.slider(
-                "Speaking Time (minutes)",
-                min_value=2,
-                max_value=15,
-                value=5,
-                key="floor_time"
-            )
-        
-        with floor_col2:
-            floor_language = st.selectbox(
-                "Output Language",
-                ["English", "Hindi (राजभाषा)", "Bilingual"],
-                key="floor_lang"
-            )
-            
-            floor_style = st.selectbox(
-                "Oratory Style",
-                [
-                    "Aggressive & Confrontational",
-                    "Measured & Persuasive", 
-                    "Data-Driven & Technical",
-                    "Emotional & Public-Oriented"
-                ],
-                key="floor_style"
-            )
-        
-        floor_specific = st.text_area(
-            "Specific Points to Cover (Optional)",
-            placeholder="e.g., Focus on Section 14 (Government exemption), mention recent RTI findings...",
-            height=80,
-            key="floor_specific"
-        )
-        
-        if st.button("🎤 Generate Floor Strategy", type="primary", use_container_width=True, key="btn_floor"):
-            with st.spinner("🏛️ Preparing your parliamentary intervention..."):
-                context = get_document_context(st.session_state.pages_data)
-                
-                # Extract stance keyword
-                stance_map = {
-                    "🔴 OPPOSITION": "OPPOSITION",
-                    "🟢 SUPPORT": "SUPPORT",
-                    "🟡 NEUTRAL": "NEUTRAL-QUESTIONING"
-                }
-                stance = next((v for k, v in stance_map.items() if k in floor_stance), "NEUTRAL")
-                
-                lang_instruction = ""
-                if "Hindi" in floor_language:
-                    lang_instruction = RAJBHASHA_INSTRUCTIONS
-                
-                prompt = FLOOR_STRATEGY_PROMPT.format(
-                    filename=st.session_state.copilot_filename,
-                    context=context,
-                    stance=stance,
-                    speaking_time=floor_time,
-                    language=floor_language.split()[0]
-                )
-                
-                prompt += f"""
+                prompt = f"""
+ROLE: Senior Parliamentary Research Officer.
+TASK: Provide a complete intelligence briefing on this document for a Member of Parliament.
 
-ADDITIONAL INSTRUCTIONS:
-- Oratory Style: {floor_style}
-- Specific Focus: {floor_specific if floor_specific else "None specified - use judgment"}
+DOCUMENT: {st.session_state.copilot_filename}
+
+{context}
+
+PRODUCE THE FOLLOWING SECTIONS:
+
+## 📋 EXECUTIVE SUMMARY
+A 3-4 line summary of what this document is about and why it matters.
+
+## ⚠️ KEY RISKS & RED FLAGS
+| Clause/Section | Risk Level (🔴🟡🟢) | Issue | Why It Matters | Citation |
+|---|---|---|---|---|
+(Identify clauses with legal ambiguity, constitutional concerns, or implementation risks)
+
+## 👥 WHO IS AFFECTED
+- **Beneficiaries:** Who gains and how
+- **Adversely Affected:** Who loses and how
+- **Constituency Impact:** How this affects the MP's voters
+
+## 🎤 TALKING POINTS (For Parliament Floor)
+3-5 ready-to-use arguments the MP can deploy in debate — both FOR and AGAINST positions.
+
+## 💡 RECOMMENDED ACTION
+What should the MP do? (Support/Oppose/Seek amendments — with specific suggestions)
+
+RULES:
+1. {depth_note}
+2. EVERY claim must cite [Page X]
+3. If inferring, mark [INFERENCE]
+4. Language: {analyse_language.split()[0]}
 {lang_instruction}
-
-STYLE GUIDELINES:
-- "Aggressive & Confrontational": Use strong language, rhetorical questions, challenge the government directly
-- "Measured & Persuasive": Balanced tone, acknowledge merits, then present concerns
-- "Data-Driven & Technical": Focus on statistics, legal precedents, expert opinions
-- "Emotional & Public-Oriented": Connect to common citizen, use storytelling, invoke national interest
 """
                 
                 try:
                     response = model.generate_content(prompt)
                     result_text = response.text
                     st.session_state.analysis_result = result_text
-                    st.session_state.analysis_type = "Floor_Strategy"
-                    st.session_state.copilot_chat_history.append({"role": "user", "parts": [f"[Floor Strategy requested — {stance} position, {floor_time} min]"]})
+                    st.session_state.analysis_type = "Document_Analysis"
+                    st.session_state.copilot_chat_history.append({"role": "user", "parts": ["Analyse this document comprehensively."]})
                     st.session_state.copilot_chat_history.append({"role": "model", "parts": [result_text]})
                     st.rerun()
                 except Exception as e:
                     st.error(f"Analysis Error: {e}")
     
     # ==========================================================
-    # TAB 3: SOCIO-ECONOMIC IMPACT (सामाजिक-आर्थिक प्रभाव)
+    # TAB 2: ASK
     # ==========================================================
-    with tab_impact:
-        st.markdown("#### 📊 Objective Stakeholder & Impact Analysis")
-        st.caption("Who benefits? Who loses? What's the political calculus?")
-        
-        impact_col1, impact_col2 = st.columns([1, 1])
-        
-        with impact_col1:
-            impact_language = st.selectbox(
-                "Output Language",
-                ["English", "Hindi (राजभाषा)", "Bilingual"],
-                key="impact_lang"
-            )
-            
-            impact_focus = st.multiselect(
-                "Focus Sectors",
-                [
-                    "Agriculture & Rural",
-                    "Industry & Manufacturing",
-                    "Services & IT",
-                    "MSMEs",
-                    "Banking & Finance",
-                    "Healthcare",
-                    "Education",
-                    "Environment"
-                ],
-                default=["Agriculture & Rural", "MSMEs"],
-                key="impact_focus"
-            )
-        
-        with impact_col2:
-            impact_demo = st.multiselect(
-                "Focus Demographics",
-                [
-                    "Women",
-                    "SC/ST Communities",
-                    "OBC",
-                    "Minorities",
-                    "Youth (18-35)",
-                    "Senior Citizens",
-                    "Differently Abled",
-                    "Urban Poor",
-                    "Rural Population"
-                ],
-                default=["Women", "SC/ST Communities", "Youth (18-35)"],
-                key="impact_demo"
-            )
-            
-            impact_geo = st.multiselect(
-                "Geographic Focus",
-                [
-                    "Metro Cities",
-                    "Tier 2/3 Cities",
-                    "Rural Areas",
-                    "Tribal Areas",
-                    "Border Regions",
-                    "Aspirational Districts"
-                ],
-                default=["Rural Areas", "Aspirational Districts"],
-                key="impact_geo"
-            )
-        
-        if st.button("📊 Generate Impact Assessment", type="primary", use_container_width=True, key="btn_impact"):
-            with st.spinner("📈 Analyzing socio-economic impacts across stakeholders..."):
-                context = get_document_context(st.session_state.pages_data)
-                
-                lang_instruction = ""
-                if "Hindi" in impact_language:
-                    lang_instruction = RAJBHASHA_INSTRUCTIONS
-                
-                focus_areas = f"""
-SECTORS TO ANALYZE: {', '.join(impact_focus)}
-DEMOGRAPHICS TO ANALYZE: {', '.join(impact_demo)}
-GEOGRAPHIC FOCUS: {', '.join(impact_geo)}
-"""
-                
-                prompt = IMPACT_ASSESSMENT_PROMPT.format(
-                    filename=st.session_state.copilot_filename,
-                    context=context,
-                    focus_areas=focus_areas,
-                    language=impact_language.split()[0]
-                )
-                
-                prompt += f"\n{lang_instruction}"
-                
-                try:
-                    response = model.generate_content(prompt)
-                    result_text = response.text
-                    st.session_state.analysis_result = result_text
-                    st.session_state.analysis_type = "Impact_Assessment"
-                    st.session_state.copilot_chat_history.append({"role": "user", "parts": [f"[Impact Assessment requested]"]})
-                    st.session_state.copilot_chat_history.append({"role": "model", "parts": [result_text]})
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Analysis Error: {e}")
-    
-    # ==========================================================
-    # TAB 4: CUSTOM QUERY
-    # ==========================================================
-    with tab_custom:
+    with tab_ask:
         st.markdown("#### 💬 Ask Anything About This Document")
-        st.caption("Conversational — ask follow-ups without re-uploading. The AI remembers your previous questions and analyses.")
+        st.caption("The AI remembers your analysis and previous questions.")
         
         # Show conversation history
         chat_history = st.session_state.copilot_chat_history
@@ -631,36 +326,21 @@ GEOGRAPHIC FOCUS: {', '.join(impact_geo)}
                     if role == "user":
                         st.markdown(f"**🧑 You:** {text}")
                     else:
-                        # Truncate long model responses in the history view
-                        preview = text[:300] + "..." if len(text) > 300 else text
-                        with st.expander(f"🤖 Co-Pilot Response", expanded=False):
+                        with st.expander("🤖 Co-Pilot Response", expanded=False):
                             st.markdown(text)
             st.caption(f"💬 {len([m for m in chat_history if m['role'] == 'user'])} questions in this session")
+        else:
+            st.info("💡 **Tip:** Run Analyse first, then ask follow-ups here — *'What about clause 3?'* or *'How does this affect farmers?'*")
         
-        # Input area
         custom_query = st.text_input(
             "Your Question",
-            placeholder="e.g., What's the budget implication of clause 3? How does Section 14 affect farmers?",
+            placeholder="e.g., What's the budget implication of clause 3?",
             key="custom_query"
         )
         
-        custom_col1, custom_col2 = st.columns(2)
-        with custom_col1:
-            custom_language = st.selectbox(
-                "Output Language",
-                ["English", "Hindi (राजभाषा)"],
-                key="custom_lang"
-            )
-        with custom_col2:
-            custom_style = st.selectbox(
-                "Response Style",
-                ["Detailed Analysis", "Brief Summary", "Bullet Points Only"],
-                key="custom_style"
-            )
-        
         btn_col1, btn_col2 = st.columns([3, 1])
         with btn_col1:
-            send_pressed = st.button("🚀 Ask", type="primary", use_container_width=True, key="btn_custom")
+            send_pressed = st.button("🚀 Ask", type="primary", use_container_width=True, key="btn_ask")
         with btn_col2:
             if st.button("🗑️ Clear Chat", use_container_width=True, key="btn_clear_chat"):
                 st.session_state.copilot_chat_history = []
@@ -671,45 +351,29 @@ GEOGRAPHIC FOCUS: {', '.join(impact_geo)}
             if not custom_query:
                 st.warning("Please enter a question.")
             else:
-                with st.spinner("🔎 Searching document for answers..."):
+                with st.spinner("🔎 Searching document..."):
                     context = get_document_context(st.session_state.pages_data)
                     
-                    lang_instruction = RAJBHASHA_INSTRUCTIONS if "Hindi" in custom_language else ""
-                    
-                    style_instruction = {
-                        "Detailed Analysis": "Provide a comprehensive, detailed response with full explanations.",
-                        "Brief Summary": "Keep the response concise, under 300 words.",
-                        "Bullet Points Only": "Respond ONLY in bullet points, no prose."
-                    }
-                    
                     system_prompt = f"""
-You are a Senior Legislative Research Officer analyzing a parliamentary document.
+You are a Senior Legislative Research Officer. Answer based ONLY on this document.
 
 DOCUMENT: {st.session_state.copilot_filename}
-DOCUMENT TEXT:
 {context}
 
-STRICT RULES:
-1. Answer ONLY based on the document content
-2. EVERY claim must have [Page X] citation
-3. If the answer is not in the document, say: "This information is not found in the document."
-4. If you need to infer, clearly mark: [INFERENCE - not explicitly stated]
-5. Language: {custom_language.split()[0]}
-6. Style: {style_instruction.get(custom_style, '')}
+RULES:
+1. EVERY claim must cite [Page X]
+2. If not in the document: "This information is not found in the document."
+3. If inferring: mark [INFERENCE]
+4. Be concise and actionable.
 
-{lang_instruction}
-
-You have access to the full conversation history. Use previous analyses and Q&A to give contextual, relevant answers to follow-up questions.
+You have the full conversation history — give contextual answers to follow-ups.
 """
                     
-                    # Build conversation for Gemini with history
-                    # Gemini chat expects alternating user/model messages
                     try:
                         chat = model.start_chat(history=chat_history)
                         response = chat.send_message(f"{system_prompt}\n\nUSER QUERY: {custom_query}")
                         result_text = response.text
                         
-                        # Append to history
                         st.session_state.copilot_chat_history.append({"role": "user", "parts": [custom_query]})
                         st.session_state.copilot_chat_history.append({"role": "model", "parts": [result_text]})
                         
@@ -720,18 +384,15 @@ You have access to the full conversation history. Use previous analyses and Q&A 
                         st.error(f"Query Error: {e}")
     
     # ==========================================================
-    # RESULTS DISPLAY SECTION
+    # RESULTS DISPLAY
     # ==========================================================
     if st.session_state.analysis_result:
         st.divider()
         
-        # Results header
         result_header_col1, result_header_col2 = st.columns([3, 1])
         with result_header_col1:
             analysis_labels = {
-                "Legislative_Scrutiny": "🔍 विधायी समीक्षा | Legislative Scrutiny Results",
-                "Floor_Strategy": "🎤 सदन की रणनीति | Floor Strategy Brief",
-                "Impact_Assessment": "📊 सामाजिक-आर्थिक प्रभाव | Impact Assessment",
+                "Document_Analysis": "🔍 Document Analysis Results",
                 "Custom_Query": "💬 Query Response"
             }
             st.markdown(f"### {analysis_labels.get(st.session_state.analysis_type, 'Analysis Results')}")
@@ -742,7 +403,7 @@ You have access to the full conversation history. Use previous analyses and Q&A 
                 st.session_state.analysis_type = ""
                 st.rerun()
         
-        # Check for verification warnings
+        # Verification warnings
         result_text = st.session_state.analysis_result
         has_verify_tags = "[VERIFY" in result_text or "[ESTIMATE" in result_text or "[INFERENCE" in result_text
         
@@ -786,9 +447,7 @@ You have access to the full conversation history. Use previous analyses and Q&A 
             st.caption(f"**Pages Analyzed:** {len(st.session_state.pages_data)}")
             st.caption("**Status:** DRAFT - Requires Verification Before Official Use")
     
-    # ==========================================================
-    # FOOTER DISCLAIMER
-    # ==========================================================
+    # --- FOOTER ---
     st.divider()
     st.caption("""
     ⚠️ **IMPORTANT DISCLAIMER:** All analyses generated by this tool are for research and preparation purposes only.
