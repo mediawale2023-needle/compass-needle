@@ -81,7 +81,7 @@ def get_keywords(text: str) -> set:
         "market", "park", "garden", "society", "sector", "block", "camp",
         "gate", "bridge", "school", "college", "hospital", "temple",
         "masjid", "church", "railway", "bus", "stop", "circle", "square",
-        # Indian location generic (cause false matches across assemblies)
+        # Indian location generic
         "bazar", "bazaar", "peth", "pet", "galli", "gali", "wadi", "wada",
         "gaon", "goan", "pada", "pura", "pur", "abad", "ghat", "khurd",
         "budruk", "tarf", "road", "marg", "path", "math", "devi",
@@ -90,6 +90,13 @@ def get_keywords(text: str) -> set:
         "building", "room", "hall", "office", "depot", "vaccine",
         "number", "polling", "booth", "average", "voters",
         "total", "part", "page", "list",
+        # Complaint language (Hindi/Marathi/Kannada/English)
+        "classroom", "toilet", "rasta", "kharab", "nahi", "aahe",
+        "milto", "madhe", "teacher", "tutla", "tutli", "band",
+        "paani", "supply", "drain", "khade", "footpath", "light",
+        "phone", "call", "please", "help", "urgent", "request",
+        "complaint", "regarding", "about", "from", "this", "that",
+        "very", "much", "also", "here", "there", "where", "when",
     }
     return {w for w in words if len(w) >= 4 and w not in stopwords}
 
