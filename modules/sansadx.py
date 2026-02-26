@@ -23,8 +23,6 @@ def fetch_cases(tenant_id):
         engine = get_engine()
         if not tenant_id: tenant_id = 1
         
-        print(f"[SANSADX DEBUG] Engine URL: {engine.url}, tenant_id: {tenant_id}")
-        
         # Query all cases
         query = text("SELECT * FROM cases WHERE tenant_id = :tid ORDER BY created_at DESC")
         
@@ -32,17 +30,13 @@ def fetch_cases(tenant_id):
             result = conn.execute(query, {"tid": tenant_id})
             df = pd.DataFrame(result.fetchall(), columns=result.keys())
         
-        print(f"[SANSADX DEBUG] Rows returned: {len(df)}")
-        
         if not df.empty:
             df['created_at'] = df['created_at'].astype(str)
             return df.to_dict('records')
         return []
 
     except Exception as e:
-        print(f"[SANSADX DEBUG] DB Error: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"SansadX DB Error: {e}")
         return []
 
 # --- 2. HELPER: RENDER TABLE ---
