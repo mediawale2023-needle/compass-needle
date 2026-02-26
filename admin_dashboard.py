@@ -650,42 +650,157 @@ def save_overrides(data):
     except: return False
 
 def parse_polling_station_pdf(pdf_file):
+    """Parse Election Commission polling station PDF — handles diverse formats."""
     stations = []
+    debug_info = {"pages": 0, "tables_found": 0, "text_pages": 0, "raw_rows": 0}
+    
     try:
         with pdfplumber.open(pdf_file) as pdf:
-            for page in pdf.pages:
-                tables = page.extract_tables()
+            debug_info["pages"] = len(pdf.pages)
+            
+            for page_num, page in enumerate(pdf.pages, 1):
+                # Try table extraction first (with relaxed settings)
+                table_settings = {
+                    "vertical_strategy": "lines",
+                    "horizontal_strategy": "lines",
+                    "snap_tolerance": 5,
+                    "join_tolerance": 5,
+                }
+                tables = page.extract_tables(table_settings)
+                
+                # If lines-based extraction fails, try text-based
+                if not tables:
+                    table_settings_text = {
+                        "vertical_strategy": "text",
+                        "horizontal_strategy": "text",
+                    }
+                    tables = page.extract_tables(table_settings_text)
+                
                 if tables:
+                    debug_info["tables_found"] += len(tables)
                     for table in tables:
                         for row in table:
-                            if row and len(row) >= 2:
-                                s = extract_station_from_row(row)
-                                if s: stations.append(s)
+                            if not row: continue
+                            debug_info["raw_rows"] += 1
+                            s = extract_station_from_row(row)
+                            if s: stations.append(s)
                 else:
+                    # Fallback: extract raw text
                     text = page.extract_text()
-                    if text: stations.extend(extract_stations_from_text(text))
-    except Exception as e: st.error(f"PDF error: {e}")
+                    if text:
+                        debug_info["text_pages"] += 1
+                        stations.extend(extract_stations_from_text(text))
+    
+    except Exception as e:
+        st.error(f"PDF error: {e}")
+        import traceback
+        st.code(traceback.format_exc())
+    
+    # Show debug info
+    with st.expander("Parse Debug Info", expanded=False):
+        st.json(debug_info)
+        st.write(f"Raw stations extracted: {len(stations)}")
+    
+    # Dedup — keep all entries, generate station numbers if missing
+    result = []
     seen = set()
-    return [s for s in stations if s.get("station_number") and s["station_number"] not in seen and not seen.add(s["station_number"])]
+    auto_num = 1
+    for s in stations:
+        # Generate station number if missing
+        if not s.get("station_number"):
+            s["station_number"] = str(auto_num)
+            auto_num += 1
+        
+        key = f"{s['station_number']}_{s.get('locality', '')}"
+        if key not in seen:
+            seen.add(key)
+            result.append(s)
+    
+    return result
 
 def extract_station_from_row(row):
-    cleaned = [str(cell).strip() if cell else "" for cell in row]
+    """Extract station data from a table row — handles diverse ECI PDF formats."""
+    if not row: return None
+    
+    # Clean all cells
+    cleaned = []
+    for cell in row:
+        c = str(cell).strip() if cell else ""
+        # Handle multi-line cells (common in ECI PDFs)
+        c = c.replace("\n", " ").strip()
+        cleaned.append(c)
+    
+    # Skip header/empty rows
+    skip_words = {"station", "number", "part", "polling", "booth", "name", "address", "building",
+                  "sl.no", "sl no", "serial", "location", "constituency", "total", "page", "sr.no"}
+    row_text = " ".join(cleaned).lower()
+    if any(w in row_text for w in skip_words) and not any(c.isdigit() and len(c) <= 4 for c in cleaned[:3]):
+        return None
+    
     num, loc, bldg = "", "", ""
+    
     for cell in cleaned:
-        if re.match(r'^\d+$', cell) and not num: num = cell
-        elif len(cell) > 3 and not cell.isdigit():
-            if not loc: loc = cell
-            elif not bldg: bldg = cell
-    if num or loc: return {"station_number": num, "locality": loc, "building_name": bldg}
+        if not cell: continue
+        
+        # Station number: 1-4 digits, possibly with leading zeros or dots
+        if not num and re.match(r'^\d{1,4}\.?$', cell.strip('.')):
+            num = cell.strip('.')
+        # Text cell — assign to locality then building
+        elif len(cell) > 2 and not cell.replace('.', '').replace(',', '').isdigit():
+            if not loc:
+                loc = cell
+            elif not bldg:
+                bldg = cell
+    
+    # Accept if we got at least a locality (station number may be missing in some formats)
+    if loc:
+        return {"station_number": num, "locality": loc, "building_name": bldg}
     return None
 
 def extract_stations_from_text(text):
+    """Extract station data from raw text — handles multiple ECI formats."""
     stations = []
-    for line in text.split('\n'):
+    lines = text.split('\n')
+    
+    # Multiple patterns for ECI PDF formats
+    patterns = [
+        # "1 - Location Name"  or  "1: Location Name"
+        re.compile(r'(\d{1,4})\s*[-:\.]\s*(.+)'),
+        # "Station 1 - Location" or "Station No. 1 Location"
+        re.compile(r'(?:Station|Booth|Part)\s*(?:No\.?\s*)?(\d{1,4})\s*[-:\.]\s*(.+)', re.IGNORECASE),
+        # "1. Location Name, Building"
+        re.compile(r'^(\d{1,4})\.\s+(.+)'),
+        # "001 Location Name" (number then space then text)
+        re.compile(r'^(\d{1,4})\s{2,}(.+)'),
+    ]
+    
+    for line in lines:
         line = line.strip()
-        if not line: continue
-        match = re.match(r'(\d+)\s*[-:]\s*(.+)', line) or re.match(r'Station\s*(\d+)\s*[-:]?\s*(.+)', line)
-        if match: stations.append({"station_number": match.group(1), "locality": match.group(2).strip(), "building_name": ""})
+        if not line or len(line) < 5: continue
+        
+        # Skip obvious headers
+        if any(h in line.lower() for h in ["station name", "part number", "page ", "total ", "polling station list"]):
+            continue
+        
+        for pat in patterns:
+            match = pat.match(line)
+            if match:
+                num = match.group(1)
+                rest = match.group(2).strip()
+                
+                # Split on comma for locality/building
+                parts = [p.strip() for p in rest.split(",", 1)]
+                loc = parts[0] if parts else rest
+                bldg = parts[1] if len(parts) > 1 else ""
+                
+                if len(loc) > 2:
+                    stations.append({
+                        "station_number": num,
+                        "locality": loc,
+                        "building_name": bldg
+                    })
+                break
+    
     return stations
 
 def get_parliamentary_constituencies():
