@@ -1141,8 +1141,34 @@ def main():
     with tab_geo:
         st.markdown('<div class="section-title">Upload Polling Station Data</div>', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
-        with col1: p_const = st.text_input("Parliamentary Constituency", key="geo_p")
-        with col2: a_const = st.text_input("Assembly Constituency", key="geo_a")
+
+        with col1:
+            p_const = st.selectbox(
+                "Parliamentary Constituency",
+                options=[""] + ALL_CONSTITUENCIES,
+                index=0,
+                key="geo_p",
+                help="Select the Lok Sabha constituency"
+            )
+
+        with col2:
+            if p_const:
+                # Show existing assemblies for this PC + option to add new
+                existing_assemblies = get_assembly_constituencies(p_const)
+                assembly_options = existing_assemblies + ["➕ Add New Assembly..."]
+                a_selection = st.selectbox(
+                    "Assembly Constituency",
+                    options=assembly_options,
+                    index=0 if existing_assemblies else len(assembly_options) - 1,
+                    key="geo_a_select",
+                )
+                if a_selection == "➕ Add New Assembly...":
+                    a_const = st.text_input("New Assembly Name", key="geo_a_new", placeholder="e.g. Belgaum Uttar")
+                else:
+                    a_const = a_selection
+            else:
+                st.selectbox("Assembly Constituency", options=["Select a Parliamentary Constituency first"], disabled=True, key="geo_a_disabled")
+                a_const = ""
 
         uploaded_pdf = st.file_uploader("Upload Election Commission PDF", type=["pdf"])
         if uploaded_pdf and p_const and a_const:
@@ -1184,6 +1210,7 @@ def main():
             for p in pl:
                 with st.expander(f"🏛️ {p}"):
                     al = get_assembly_constituencies(p)
+                    st.caption(f"{len(al)} assembly constituencies")
                     for a in al:
                         cx, cd = st.columns([4, 1])
                         with cx: st.write(f"**{a}** ({len(load_geography_data(p, a))} locations)")
