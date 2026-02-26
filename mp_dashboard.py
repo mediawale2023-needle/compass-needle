@@ -43,6 +43,7 @@ try:
     from modules.utils import track_action, show_download_button
     from modules.persistence import load_archives, delete_draft
     from modules.news_intel import fetch_news, analyze_sentiment, fetch_constituency_news, fetch_categorized_news
+    from modules.profile_loader import load_tenant_profile as load_mp_profile
 except ImportError as e:
     st.error(f" System Boot Error: Missing Module. Details: {e}")
     st.stop()
@@ -481,16 +482,10 @@ else:
             st.markdown(f"<div class='widget-card'><div class='widget-title'>Media Centre</div>", unsafe_allow_html=True)
             tab_nat, tab_loc = st.tabs(["National", "Local Pulse"])
 
-            # Load MP profile for name-based queries
-            try:
-                import json as _json
-                with open("tenant_profile.json", "r") as _f:
-                    _prof = _json.load(_f)
-                mp_display_name = _prof.get("mp_name", username)
-                mp_constituency = _prof.get("constituency", "")
-            except Exception:
-                mp_display_name = username
-                mp_constituency = ""
+            # Load MP profile for name-based queries (per-tenant from DB)
+            _prof = load_mp_profile(st.session_state.get("tenant_id"))
+            mp_display_name = _prof.get("mp_name") or username
+            mp_constituency = _prof.get("constituency", "")
 
             with tab_nat:
                 st.caption(f"**{mp_display_name}** in national media")
@@ -505,7 +500,7 @@ else:
 
             with tab_loc:
                 st.caption(f" Local newspapers & regional media about **{mp_display_name}** and **{mp_constituency}**")
-                local_news = fetch_constituency_news(limit=8)
+                local_news = fetch_constituency_news(tenant_id=st.session_state.get("tenant_id"), limit=8)
                 if local_news:
                     for news in local_news:
                         sent = news.get('sentiment', 'neu')

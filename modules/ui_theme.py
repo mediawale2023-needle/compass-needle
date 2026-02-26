@@ -26,10 +26,9 @@ PALETTES = {
 
 
 def _get_house():
-    """Read house from tenant_profile.json. Defaults to Lok Sabha."""
+    """Read house from session state (set at login). Defaults to Lok Sabha."""
     try:
-        with open("tenant_profile.json", "r") as f:
-            return json.load(f).get("house", "Lok Sabha")
+        return st.session_state.get("house_type", "Lok Sabha")
     except Exception:
         return "Lok Sabha"
 

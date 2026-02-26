@@ -228,21 +228,9 @@ def scan_for_fabrications(generated_text, user_input):
     return list(dict.fromkeys(flags))
 
 def load_tenant_profile():
-    """Loads MP details from local JSON profile."""
-    file_path = "tenant_profile.json"
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {
-        "mp_name": "Member of Parliament",
-        "constituency": "India",
-        "house": "Lok Sabha",
-        "party": "Independent",
-        "languages": ["English", "Hindi"]
-    }
+    """Loads MP details from DB (per-tenant) or falls back to local JSON profile."""
+    from modules.profile_loader import load_tenant_profile as _load
+    return _load()
 
 
 def save_draft_to_disk(content, subject, doc_type="Draft"):

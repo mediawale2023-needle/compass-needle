@@ -13,19 +13,17 @@ import json
 import os
 import re
 
+from modules.profile_loader import load_tenant_profile
+
 
 # ============================================================
 # CONSTITUENCY CONTEXT
 # ============================================================
 
 @st.cache_data(ttl=3600)
-def _load_constituency_context():
+def _load_constituency_context(tenant_id=None):
     """Load MP profile to build constituency-aware search terms."""
-    try:
-        with open("tenant_profile.json", "r", encoding="utf-8") as f:
-            profile = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        profile = {}
+    profile = load_tenant_profile(tenant_id)
 
     constituency = profile.get("constituency", "")
     state = profile.get("state", "")
@@ -36,11 +34,11 @@ def _load_constituency_context():
     location_keywords = set()
     if constituency:
         location_keywords.add(constituency.lower())
-        # Handle alternative spellings (Belagavi/Belgaum)
-        if constituency.lower() == "belagavi":
-            location_keywords.add("belgaum")
-        elif constituency.lower() == "belgaum":
-            location_keywords.add("belagavi")
+
+    # Add alt_names from profile (e.g. Belagavi/Belgaum)
+    for alt in profile.get("alt_names", []):
+        location_keywords.add(alt.lower())
+
     if state:
         location_keywords.add(state.lower())
     if mp_name:
@@ -67,6 +65,7 @@ def _load_constituency_context():
         "languages": profile.get("languages", []),
         "location_keywords": location_keywords,
         "fact_keywords": fact_keywords,
+        "alt_names": profile.get("alt_names", []),
     }
 
 
@@ -180,12 +179,12 @@ def fetch_news(query, language="English", limit=5):
 
 
 @st.cache_data(ttl=900)
-def fetch_constituency_news(language="English", limit=10):
+def fetch_constituency_news(tenant_id=None, language="English", limit=10):
     """
     Fetch LOCAL news about the MP and constituency — from local newspapers,
     regional TV channels, and digital media. Not generic national results.
     """
-    context = _load_constituency_context()
+    context = _load_constituency_context(tenant_id)
     constituency = context["constituency"]
     state = context["state"]
     mp_name = context["mp_name"]
@@ -196,10 +195,9 @@ def fetch_constituency_news(language="English", limit=10):
 
     # Alternate spellings for broader local coverage
     alt_names = [constituency]
-    if constituency.lower() == "belagavi":
-        alt_names.append("Belgaum")
-    elif constituency.lower() == "belgaum":
-        alt_names.append("Belagavi")
+    for alt in context.get("alt_names", []):
+        if alt.lower() != constituency.lower():
+            alt_names.append(alt)
 
     # Queries targeting LOCAL media and regional coverage
     queries = []
@@ -249,12 +247,12 @@ def fetch_constituency_news(language="English", limit=10):
 
 
 @st.cache_data(ttl=900)
-def fetch_categorized_news(language="English"):
+def fetch_categorized_news(tenant_id=None, language="English"):
     """
     Fetch news organized into constituency-relevant categories.
     Returns dict with categories as keys.
     """
-    context = _load_constituency_context()
+    context = _load_constituency_context(tenant_id)
     constituency = context["constituency"]
     state = context["state"]
 

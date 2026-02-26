@@ -17,7 +17,7 @@ load_dotenv()
 # --- Database Connection ---
 # Import from root db.py (NOT sansadx_backend/db.py) to use the same sansadx.db as mp_dashboard
 try:
-    from db import SessionLocal, Tenant, User, init_db
+    from db import SessionLocal, Tenant, User, TenantProfile, init_db
 except ImportError:
     st.error("Could not import 'db.py'. Please ensure 'db.py' exists in the project root.")
     sys.exit(1)
@@ -103,8 +103,8 @@ def get_all_mps() -> list:
     finally:
         db.close()
 
-def create_mp(name: str, username: str, password: str, constituency: str, whatsapp_number: str = "", house: str = "Lok Sabha", display_name: str = "") -> dict:
-    """Create a new MP (Tenant + User) with Constituency, House, and Display Name"""
+def create_mp(name: str, username: str, password: str, constituency: str, whatsapp_number: str = "", house: str = "Lok Sabha", display_name: str = "", state: str = "", party: str = "Independent", key_facts: list = None, languages: list = None, alt_names: list = None) -> dict:
+    """Create a new MP (Tenant + User + TenantProfile) with full profile data"""
     db = SessionLocal()
     try:
         existing_user = db.query(User).filter(User.username == username).first()
@@ -133,6 +133,25 @@ def create_mp(name: str, username: str, password: str, constituency: str, whatsa
             display_name=display_name or name
         )
         db.add(new_user)
+        
+        # Create TenantProfile
+        profile_data = {
+            "key_facts": key_facts or [],
+            "languages": languages or ["English", "Hindi"],
+            "vocabulary_guide": {},
+            "sovereignty_rules": "",
+            "alt_names": alt_names or [],
+        }
+        new_profile = TenantProfile(
+            tenant_id=new_tenant.id,
+            mp_name=display_name or name,
+            constituency=constituency,
+            state=state,
+            house=house,
+            party=party,
+            profile_data=profile_data,
+        )
+        db.add(new_profile)
         db.commit()
         
         return {"success": True, "tenant_id": new_tenant.id, "user_id": new_user.id}
@@ -383,18 +402,35 @@ def main():
                     mp_constituency = st.selectbox("Parliamentary Constituency *", options=ALL_CONSTITUENCIES, index=0)
                 else:
                     mp_constituency = st.text_input("State / Nominated", placeholder="e.g. Maharashtra")
+                mp_state = st.text_input("State *", placeholder="e.g. Karnataka, Maharashtra")
+                mp_party = st.text_input("Party", placeholder="e.g. BJP, INC (defaults to Independent)")
                 mp_whatsapp = st.text_input("WhatsApp Number", placeholder="+91...")
+                
+                st.caption("PROFILE DATA (for News & Drafter)")
+                mp_languages = st.text_input("Languages (comma-separated)", placeholder="English, Hindi, Kannada", value="English, Hindi")
+                mp_key_facts = st.text_area("Key Facts (one per line)", placeholder="Major industrial hub\nBorder district\nKey crops: wheat, rice", height=100)
+                mp_alt_names = st.text_input("Alt Names (comma-separated)", placeholder="e.g. Belagavi, Belgaum", help="Alternate spellings for constituency used in news search")
                 
                 if st.form_submit_button("Create MP", use_container_width=True):
                     if mp_name and mp_username and mp_password:
+                        # Parse comma-separated fields
+                        langs = [l.strip() for l in mp_languages.split(",") if l.strip()] if mp_languages else ["English", "Hindi"]
+                        facts = [f.strip() for f in mp_key_facts.strip().split("\n") if f.strip()] if mp_key_facts else []
+                        alts = [a.strip() for a in mp_alt_names.split(",") if a.strip()] if mp_alt_names else []
+                        
                         result = create_mp(
                             mp_name, mp_username, mp_password,
                             mp_constituency or "India", mp_whatsapp,
                             house=mp_house,
-                            display_name=mp_display or mp_name
+                            display_name=mp_display or mp_name,
+                            state=mp_state,
+                            party=mp_party or "Independent",
+                            key_facts=facts,
+                            languages=langs,
+                            alt_names=alts,
                         )
                         if result["success"]:
-                            st.success(f"Created MP '{mp_name}' ({mp_house})")
+                            st.success(f"Created MP '{mp_name}' ({mp_house}) with full profile")
                             st.rerun()
                         else: st.error(result.get('error'))
                     else: st.warning("Fill all required fields")

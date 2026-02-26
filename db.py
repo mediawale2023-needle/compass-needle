@@ -93,6 +93,21 @@ class DNASample(Base):
     content = Column(Text)  # Text type for long content
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class TenantProfile(Base):
+    """Per-tenant profile: constituency context, news keywords, drafter identity."""
+    __tablename__ = "tenant_profiles"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), unique=True, index=True)
+    mp_name = Column(String)
+    constituency = Column(String)
+    state = Column(String)
+    house = Column(String, default="Lok Sabha")
+    party = Column(String, default="Independent")
+    profile_data = Column(JSON, default={})  # key_facts, languages, vocabulary_guide, sovereignty_rules, alt_names
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    tenant = relationship("Tenant", backref="profile")
+
 # --- 4. DATABASE INITIALIZATION ---
 def init_db():
     Base.metadata.create_all(bind=engine)
