@@ -23,6 +23,8 @@ def fetch_cases(tenant_id):
         engine = get_engine()
         if not tenant_id: tenant_id = 1
         
+        print(f"[SANSADX DEBUG] Engine URL: {engine.url}, tenant_id: {tenant_id}")
+        
         # Query all cases
         query = text("SELECT * FROM cases WHERE tenant_id = :tid ORDER BY created_at DESC")
         
@@ -30,13 +32,17 @@ def fetch_cases(tenant_id):
             result = conn.execute(query, {"tid": tenant_id})
             df = pd.DataFrame(result.fetchall(), columns=result.keys())
         
+        print(f"[SANSADX DEBUG] Rows returned: {len(df)}")
+        
         if not df.empty:
             df['created_at'] = df['created_at'].astype(str)
             return df.to_dict('records')
         return []
 
     except Exception as e:
-        print(f" SansadX DB Error: {e}")
+        print(f"[SANSADX DEBUG] DB Error: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 # --- 2. HELPER: RENDER TABLE ---
@@ -70,12 +76,16 @@ def render_sansadx(username):
     st.title("SansadX: Grievance Dashboard")
     
     # A. Fetch Data
-    tenant_id = st.session_state.get('tenant_id', 1) 
+    tenant_id = st.session_state.get('tenant_id', 1)
+    
+    # DEBUG: Show what's happening
+    st.caption(f"🔍 Debug: tenant_id={tenant_id}, engine={get_engine().url}")
+    
     cases = fetch_cases(tenant_id)
     
     if not cases:
-        st.info(" Inbox is empty. Waiting for new messages...")
-        if st.button(" Check for New Messages"): st.rerun()
+        st.warning(f"Inbox empty for tenant_id={tenant_id}. DB: {get_engine().url}")
+        if st.button("Check for New Messages"): st.rerun()
         return
 
     # B. Process Data & Extract Intent
