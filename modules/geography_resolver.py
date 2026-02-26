@@ -69,9 +69,10 @@ def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text.lower().strip())
 
 def get_keywords(text: str) -> set:
-    """Get significant words >= 3 chars."""
+    """Get significant words >= 4 chars, excluding generic location/complaint terms."""
     words = normalize(text).split()
     stopwords = {
+        # English generic
         "road", "street", "near", "opp", "opposite", "behind", "front", 
         "main", "cross", "lane", "area", "colony", "city", 
         "town", "village", "taluk", "district", "state", "ward", "zone",
@@ -80,8 +81,17 @@ def get_keywords(text: str) -> set:
         "market", "park", "garden", "society", "sector", "block", "camp",
         "gate", "bridge", "school", "college", "hospital", "temple",
         "masjid", "church", "railway", "bus", "stop", "circle", "square",
+        # Indian location generic (cause false matches across assemblies)
+        "bazar", "bazaar", "peth", "pet", "galli", "gali", "wadi", "wada",
+        "gaon", "goan", "pada", "pura", "pur", "abad", "ghat", "khurd",
+        "budruk", "tarf", "road", "marg", "path", "math", "devi",
+        "maharaj", "govt", "government", "primary", "high", "english",
+        "medium", "kannada", "marathi", "urdu", "hindi",
+        "building", "room", "hall", "office", "depot", "vaccine",
+        "number", "polling", "booth", "average", "voters",
+        "total", "part", "page", "list",
     }
-    return {w for w in words if len(w) >= 3 and w not in stopwords}
+    return {w for w in words if len(w) >= 4 and w not in stopwords}
 
 def similarity_score(a: str, b: str) -> float:
     """Returns a score between 0 and 100 indicating how similar two strings are."""
@@ -111,8 +121,8 @@ def load_geography_index() -> bool:
                 _geography_index["assemblies"][assembly] = {"parl": parl_name, "entries": []}
 
             for s in stations:
-                raw_loc = s.get("locality", "")
-                raw_bldg = s.get("building_name", "")
+                raw_loc = s.get("locality", "").replace("\n", " ").strip()
+                raw_bldg = s.get("building_name", "").replace("\n", " ").strip()
                 station = str(s.get("station_number", "")).strip()
                 
                 # Pre-calculate normalized versions for speed
@@ -173,12 +183,14 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
                 score = 90
                 match_type = "spaceless"
 
-            # C. FUZZY KEYWORD MATCH (Fixes Typos)
+            # C. FUZZY KEYWORD MATCH (Fixes Typos — strict threshold, long words only)
             else:
                 for uk in user_keywords:
+                    if len(uk) < 5: continue  # Skip short words for fuzzy
                     for dk in entry["keywords"]:
+                        if len(dk) < 5: continue
                         sim = similarity_score(uk, dk)
-                        if sim > 85:
+                        if sim > 92:
                             score = sim
                             match_type = f"fuzzy ({uk}~{dk})"
                             break
