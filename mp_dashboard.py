@@ -363,17 +363,28 @@ def render_header(username, color):
 
 # --- MAIN APP ---
 if st.session_state.get('logout_confirmed', False):
+    # Force-clear the cookie from browser via JS (belt-and-suspenders)
+    st.markdown(
+        "<script>document.cookie='needle_user=; Max-Age=0; path=/;';</script>",
+        unsafe_allow_html=True,
+    )
     try:
         cookie_manager.delete("needle_user")
     except:
         pass
     st.session_state.logout_confirmed = False
-    st.session_state.logging_out = False
+    st.session_state.logging_out = True   # Keep True to block cookie auto-login on next rerun
     st.session_state.authenticated = False
     login_screen()
     st.stop()
 
-if not st.session_state.get('authenticated', False) and not st.session_state.get('logging_out', False):
+if not st.session_state.get('authenticated', False):
+    # Skip cookie auto-login if we just logged out
+    if st.session_state.get('logging_out', False):
+        st.session_state.logging_out = False
+        login_screen()
+        st.stop()
+
     cookie_token = cookie_manager.get(cookie="needle_user")
     if cookie_token is None:
         time.sleep(0.5)
