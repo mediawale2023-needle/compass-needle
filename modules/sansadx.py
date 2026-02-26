@@ -77,14 +77,10 @@ def render_sansadx(username):
     
     # A. Fetch Data
     tenant_id = st.session_state.get('tenant_id', 1)
-    
-    # DEBUG: Show what's happening
-    st.caption(f"🔍 Debug: tenant_id={tenant_id}, engine={get_engine().url}")
-    
     cases = fetch_cases(tenant_id)
     
     if not cases:
-        st.warning(f"Inbox empty for tenant_id={tenant_id}. DB: {get_engine().url}")
+        st.info("Inbox is empty. Waiting for new messages...")
         if st.button("Check for New Messages"): st.rerun()
         return
 
