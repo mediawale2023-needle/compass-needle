@@ -75,7 +75,11 @@ def get_keywords(text: str) -> set:
         "road", "street", "near", "opp", "opposite", "behind", "front", 
         "main", "cross", "lane", "area", "colony", "city", 
         "town", "village", "taluk", "district", "state", "ward", "zone",
-        "problem", "issue", "water", "logging", "broken", "bad"
+        "problem", "issue", "water", "logging", "broken", "bad",
+        "east", "west", "north", "south", "station", "nagar", "chowk",
+        "market", "park", "garden", "society", "sector", "block", "camp",
+        "gate", "bridge", "school", "college", "hospital", "temple",
+        "masjid", "church", "railway", "bus", "stop", "circle", "square",
     }
     return {w for w in words if len(w) >= 3 and w not in stopwords}
 
@@ -206,9 +210,47 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
     }
 
 # --- WRAPPERS ---
+def _get_tenant_constituency(tenant_id):
+    """Look up the parliamentary constituency for a given tenant_id."""
+    if not tenant_id:
+        return None
+    try:
+        # Try tenant_overrides.json first
+        override_paths = [
+            PROJECT_ROOT / "tenant_overrides.json",
+            Path("tenant_overrides.json").resolve(),
+        ]
+        for op in override_paths:
+            if op.exists():
+                with open(op, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                # Check if constituency is stored in overrides
+                tenant_data = data.get("tenants", {}).get(str(tenant_id), {})
+                if tenant_data.get("constituency"):
+                    return tenant_data["constituency"]
+    except Exception:
+        pass
+    
+    # Fallback: look up from DB
+    try:
+        from db import SessionLocal, Tenant
+        db = SessionLocal()
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if tenant and tenant.constituency:
+            db.close()
+            return tenant.constituency
+        db.close()
+    except Exception:
+        pass
+    
+    return None
+
 def enrich_grievance_with_location(grievance: Dict, tenant_id: Optional[int] = None) -> Dict:
     text = grievance.get("raw_message") or ""
-    res = resolve_location(text, scope_parliamentary=None, tenant_id=tenant_id)
+    # Auto-scope by tenant's parliamentary constituency
+    scope = _get_tenant_constituency(tenant_id) if tenant_id else None
+    logger.info(f"Enriching grievance for tenant={tenant_id}, scope={scope}")
+    res = resolve_location(text, scope_parliamentary=scope, tenant_id=tenant_id)
     grievance["geography"] = res
     return grievance
 
