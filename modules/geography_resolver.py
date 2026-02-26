@@ -1,7 +1,7 @@
 """
-Geography Resolver (FINAL - INTELLIGENT MATCHING)
-1. Checks Overrides (God Mode).
-2. Exact Substring Match.
+Geography Resolver (MULTI-TENANT)
+1. Checks Overrides from tenant_overrides.json (per tenant_id).
+2. Exact Substring Match against geography index.
 3. Spaceless Match (Fixes "Shahunagar" vs "Shahu Nagar").
 4. Fuzzy Typos Match (Fixes "Tilkwadi" vs "Tilakwadi").
 """
@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 import re
 import string
-from difflib import SequenceMatcher # <--- The Magic Library for Typos
+from difflib import SequenceMatcher
 
 # --- CONFIG & PATHS ---
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -34,18 +34,27 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ==========================================
-# 🛑 MANUAL OVERRIDES
+# TENANT-AWARE OVERRIDES (loaded from tenant_overrides.json)
 # ==========================================
-MANUAL_OVERRIDES = {
-    "tilakwadi": "Belgaum Dakshin",
-    "club road": "Belgaum Uttar",
-    "camp": "Belgaum Uttar",
-    "vadgaon": "Belgaum Dakshin",
-    "shahapur": "Belgaum Dakshin",
-    "hindalga": "Belgaum Rural"
-}
 
-PRIORITY_ASSEMBLIES = ["Belgaum Dakshin", "Belgaum South", "Belgaum Uttar", "Belgaum North"]
+def _load_tenant_overrides(tenant_id):
+    """Load geo_overrides for a specific tenant from tenant_overrides.json."""
+    override_paths = [
+        PROJECT_ROOT / "tenant_overrides.json",
+        Path("tenant_overrides.json").resolve(),
+        Path("/app/tenant_overrides.json"),
+    ]
+    for op in override_paths:
+        if op.exists():
+            try:
+                with open(op, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                geo_overrides = data.get("geo_overrides", {}).get(str(tenant_id), {})
+                return geo_overrides
+            except Exception:
+                pass
+    return {}
+
 
 _geography_index = {
     "assemblies": {},
@@ -66,7 +75,7 @@ def get_keywords(text: str) -> set:
         "road", "street", "near", "opp", "opposite", "behind", "front", 
         "main", "cross", "lane", "area", "colony", "city", 
         "town", "village", "taluk", "district", "state", "ward", "zone",
-        "problem", "issue", "water", "logging", "broken", "bad" # Add grievance words to ignore
+        "problem", "issue", "water", "logging", "broken", "bad"
     }
     return {w for w in words if len(w) >= 3 and w not in stopwords}
 
@@ -79,7 +88,7 @@ def load_geography_index() -> bool:
     global _geography_index
     if not GEOGRAPHY_BASE_PATH: return False
 
-    print(f"📍 INDEXING GEOGRAPHY FROM: {GEOGRAPHY_BASE_PATH}")
+    print(f"INDEXING GEOGRAPHY FROM: {GEOGRAPHY_BASE_PATH}")
     _geography_index["assemblies"] = {}
     files_loaded = 0
 
@@ -112,32 +121,34 @@ def load_geography_index() -> bool:
                     _geography_index["assemblies"][assembly]["entries"].append({
                         "orig_name": raw_loc,
                         "norm_name": norm_loc,
-                        "spaceless_name": norm_loc.replace(" ", ""), # For "Shahu Nagar" -> "shahunagar" match
+                        "spaceless_name": norm_loc.replace(" ", ""),
                         "station": station,
                         "keywords": keywords
                     })
             files_loaded += 1
-            print(f"   ✔ Indexed {assembly}: {len(stations)} locations")
+            print(f"   Indexed {assembly}: {len(stations)} locations")
 
     _geography_index["loaded"] = True
     return files_loaded > 0
 
 # --- RESOLVER ---
-def resolve_location(text: str, scope_parliamentary: Optional[str] = None) -> Dict[str, Any]:
+def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenant_id: Optional[int] = None) -> Dict[str, Any]:
     if not text: return {"location_resolved": False}
     if not _geography_index["loaded"]: load_geography_index()
 
     clean_text = normalize(text)
-    spaceless_text = clean_text.replace(" ", "") # "shahunagarroad"
+    spaceless_text = clean_text.replace(" ", "")
     user_keywords = get_keywords(text)
     
-    print(f"🔎 RESOLVING: '{clean_text}'")
+    print(f"RESOLVING: '{clean_text}' (tenant={tenant_id})")
 
-    # 1. OVERRIDES
-    for k, v in MANUAL_OVERRIDES.items():
-        if k in clean_text:
-            print(f"   🚨 OVERRIDE: {k} -> {v}")
-            return {"location_resolved": True, "assembly_constituency": v, "matched_value": k.title(), "confidence": "god_mode"}
+    # 1. TENANT-SPECIFIC OVERRIDES (from tenant_overrides.json)
+    if tenant_id is not None:
+        tenant_overrides = _load_tenant_overrides(tenant_id)
+        for k, v in tenant_overrides.items():
+            if k.lower() in clean_text:
+                print(f"   OVERRIDE (tenant {tenant_id}): {k} -> {v}")
+                return {"location_resolved": True, "assembly_constituency": v, "matched_value": k.title(), "confidence": "god_mode"}
 
     candidates = []
 
@@ -149,13 +160,11 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None) -> Di
             match_type = "none"
 
             # A. EXACT SUBSTRING (Highest Quality)
-            # "Tilakwadi" in "Tilakwadi Road"
             if entry["norm_name"] and entry["norm_name"] in clean_text:
                 score = 100 - len(entry["norm_name"]) + 50
                 match_type = "exact"
             
             # B. SPACELESS MATCH (Fixes "Shahunagar")
-            # "shahunagar" in "shahunagarbroken"
             elif entry["spaceless_name"] and len(entry["spaceless_name"]) > 4 and entry["spaceless_name"] in spaceless_text:
                 score = 90
                 match_type = "spaceless"
@@ -164,13 +173,12 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None) -> Di
             else:
                 for uk in user_keywords:
                     for dk in entry["keywords"]:
-                        # Check similarity (e.g. "Shahunagar" vs "Shahu")
                         sim = similarity_score(uk, dk)
-                        if sim > 85: # 85% Match required (allows 1-2 letter mistakes)
+                        if sim > 85:
                             score = sim
                             match_type = f"fuzzy ({uk}~{dk})"
-                            break # Found a good keyword match, stop checking this entry
-            
+                            break
+
             if score > 60:
                 candidates.append({
                     "assembly": assembly,
@@ -183,15 +191,11 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None) -> Di
     if not candidates:
         return {"location_resolved": False}
 
-    # D. TIE BREAKER (City Priority)
-    for c in candidates:
-        if c["assembly"] in PRIORITY_ASSEMBLIES:
-            c["score"] += 15
-
+    # D. TIE BREAKER — no hardcoded priority, just use score
     candidates.sort(key=lambda x: x["score"], reverse=True)
     winner = candidates[0]
 
-    print(f"   🏆 WINNER: {winner['name']} ({winner['assembly']}) - Score: {winner['score']:.1f} [{winner['type']}]")
+    print(f"   WINNER: {winner['name']} ({winner['assembly']}) - Score: {winner['score']:.1f} [{winner['type']}]")
     
     return {
         "location_resolved": True,
@@ -202,9 +206,9 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None) -> Di
     }
 
 # --- WRAPPERS ---
-def enrich_grievance_with_location(grievance: Dict) -> Dict:
+def enrich_grievance_with_location(grievance: Dict, tenant_id: Optional[int] = None) -> Dict:
     text = grievance.get("raw_message") or ""
-    res = resolve_location(text, scope_parliamentary=None)
+    res = resolve_location(text, scope_parliamentary=None, tenant_id=tenant_id)
     grievance["geography"] = res
     return grievance
 

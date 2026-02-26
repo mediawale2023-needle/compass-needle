@@ -30,12 +30,16 @@ STATIC_RESPONSES = {
 # ==========================================
 # 2. GEOGRAPHY RESOLVER (MASTER CONTEXT)
 # ==========================================
-def get_jurisdiction_context():
-    paths = ["data/geography", "../data/geography", "/app/data/geography"]
+def get_jurisdiction_context(tenant_id=1):
+    """Build a list of known areas from geography data and tenant overrides."""
     known_areas = set()
+
+    # 1. Load from geography JSON files
+    paths = ["data/geography", "../data/geography", "/app/data/geography"]
     for folder in paths:
         if os.path.exists(folder):
-            for file_path in glob.glob(os.path.join(folder, "*.json")):
+            # Check for all JSON files (both flat and nested)
+            for file_path in glob.glob(os.path.join(folder, "**", "*.json"), recursive=True):
                 try:
                     with open(file_path, "r") as f:
                         data = json.load(f)
@@ -43,10 +47,24 @@ def get_jurisdiction_context():
                         elif isinstance(data, list):
                             for item in data:
                                 if isinstance(item, str): known_areas.add(item)
-                                elif isinstance(item, dict) and "name" in item: known_areas.add(item["name"])
+                                elif isinstance(item, dict):
+                                    if "locality" in item: known_areas.add(item["locality"])
+                                    elif "name" in item: known_areas.add(item["name"])
                 except: pass
-    
-    if not known_areas: return "Attiwad, Mutnal, Tilakwadi, Belgaum" 
+
+    # 2. Load from tenant_overrides.json (tenant-specific locations)
+    override_paths = ["tenant_overrides.json", "/app/tenant_overrides.json"]
+    for op in override_paths:
+        if os.path.exists(op):
+            try:
+                with open(op, "r") as f:
+                    overrides = json.load(f)
+                tenant_geo = overrides.get("geo_overrides", {}).get(str(tenant_id), {})
+                known_areas.update(tenant_geo.keys())
+            except: pass
+            break
+
+    if not known_areas: return ""
     return ", ".join(sorted(list(known_areas))[:300])
 
 # ==========================================
@@ -121,8 +139,8 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
         logger.error("OPENAI_API_KEY is missing.")
         return {"status": "ERROR", "political_response": "Server Error: API Key Missing."}
 
-    # Fetch dynamic jurisdiction context
-    real_jurisdiction_context = get_jurisdiction_context()
+    # Fetch dynamic jurisdiction context (scoped to this tenant)
+    real_jurisdiction_context = get_jurisdiction_context(tenant_id=tenant_id)
 
     # --- Deterministic language detection ---
     detected_lang = detect_input_language(user_message)
