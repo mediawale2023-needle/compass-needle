@@ -44,6 +44,8 @@ if 'admin_authenticated' not in st.session_state:
     st.session_state.admin_authenticated = False
 if 'admin_user' not in st.session_state:
     st.session_state.admin_user = None
+if 'show_settings' not in st.session_state:
+    st.session_state.show_settings = False
 
 # ─────────────────────────────────────────
 # PREMIUM CSS
@@ -244,8 +246,8 @@ def inject_premium_css():
         .stTabs [data-baseweb="tab-list"] {
             background: #ffffff;
             border-radius: 12px;
-            padding: 4px;
-            gap: 4px;
+            padding: 6px 8px;
+            gap: 8px;
             border: 1px solid #e2ebe5;
         }
         .stTabs [data-baseweb="tab"] {
@@ -253,6 +255,7 @@ def inject_premium_css():
             color: #6b7f76;
             font-weight: 500;
             font-size: 0.82rem;
+            padding: 10px 20px;
         }
         .stTabs [aria-selected="true"] {
             background: rgba(0, 106, 77, 0.08) !important;
@@ -575,6 +578,60 @@ def ensure_admin_exists():
     except Exception: db.rollback()
     finally: db.close()
 
+def get_all_editors() -> list:
+    """Get all editor users."""
+    db = SessionLocal()
+    try:
+        editors = db.query(User).filter(User.role == "editor").all()
+        return [{
+            "id": e.id,
+            "username": e.username,
+            "tenant_id": e.tenant_id,
+            "display_name": getattr(e, 'display_name', None) or e.username,
+            "house": getattr(e, 'house', None) or "",
+        } for e in editors]
+    finally:
+        db.close()
+
+def create_editor(username: str, password: str, display_name: str = "", permissions: list = None) -> dict:
+    """Create an editor user with restricted permissions."""
+    db = SessionLocal()
+    try:
+        if db.query(User).filter(User.username == username).first():
+            return {"success": False, "error": "Username already exists"}
+        # Editors are attached to the System Admin tenant
+        admin_tenant = db.query(Tenant).filter(Tenant.name == "System Admin").first()
+        if not admin_tenant:
+            return {"success": False, "error": "System Admin tenant not found. Login first."}
+        new_editor = User(
+            tenant_id=admin_tenant.id,
+            username=username,
+            password_hash=hash_password(password),
+            role="editor",
+            display_name=display_name or username,
+        )
+        db.add(new_editor)
+        db.commit()
+        return {"success": True, "user_id": new_editor.id}
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}
+    finally:
+        db.close()
+
+def delete_editor(user_id: int) -> dict:
+    """Delete an editor user."""
+    db = SessionLocal()
+    try:
+        db.query(User).filter(User.id == user_id, User.role == "editor").delete()
+        db.commit()
+        return {"success": True}
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}
+    finally:
+        db.close()
+
 
 # ─────────────────────────────────────────
 # GEOGRAPHY & OVERRIDES HELPERS
@@ -760,28 +817,102 @@ def main():
         return
 
     # ── HEADER ──
-    st.markdown(f"""
-    <div class="dash-header">
-        <div>
-            <h1>Needle Command Center</h1>
-            <div class="subtitle">Multi-tenant MP management, geography, and system configuration</div>
+    hdr_left, hdr_right = st.columns([6, 1])
+    with hdr_left:
+        st.markdown("""
+        <div class="dash-header">
+            <div>
+                <h1>Needle Command Center</h1>
+                <div class="subtitle">Multi-tenant MP management, geography, and system configuration</div>
+            </div>
         </div>
-        <span class="badge">ADMIN v2.0</span>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+    with hdr_right:
+        st.write("")
+        if st.button("⚙️ Settings", use_container_width=True):
+            st.session_state.show_settings = not st.session_state.show_settings
+            st.rerun()
+        if st.button("Logout", use_container_width=True):
+            st.session_state.admin_authenticated = False
+            st.rerun()
+
+    # ══════════════════════════════════════
+    # SETTINGS PAGE (overlays main content)
+    # ══════════════════════════════════════
+    if st.session_state.show_settings:
+        st.markdown('<div class="section-title">Settings</div>', unsafe_allow_html=True)
+        if st.button("← Back to Dashboard"):
+            st.session_state.show_settings = False
+            st.rerun()
+
+        settings_col1, settings_col2 = st.columns([1, 1])
+
+        # --- Admin Password Reset ---
+        with settings_col1:
+            st.markdown('<div class="glass-panel"><h3>Reset Admin Password</h3></div>', unsafe_allow_html=True)
+            with st.form("reset_admin_pw"):
+                adm_current = st.text_input("Current Password", type="password")
+                adm_new = st.text_input("New Password", type="password")
+                adm_confirm = st.text_input("Confirm New Password", type="password")
+                if st.form_submit_button("Update Password", use_container_width=True, type="primary"):
+                    if not adm_current or not adm_new:
+                        st.warning("Fill all fields")
+                    elif adm_new != adm_confirm:
+                        st.error("Passwords don't match")
+                    else:
+                        # Verify current password
+                        v = verify_admin_login(st.session_state.admin_user, adm_current)
+                        if v["success"]:
+                            res = reset_mp_password(st.session_state.admin_user, adm_new)
+                            if res["success"]:
+                                st.success("Admin password updated")
+                            else:
+                                st.error(res.get("error"))
+                        else:
+                            st.error("Current password is incorrect")
+
+        # --- Editor Management ---
+        with settings_col2:
+            st.markdown('<div class="glass-panel"><h3>Editors (Restricted Access)</h3></div>', unsafe_allow_html=True)
+            st.caption("Editors can view MP data and geography but cannot create/delete MPs or change settings.")
+
+            # Create Editor
+            with st.form("create_editor_form"):
+                ed_username = st.text_input("Editor Username *", placeholder="editor_name")
+                ed_display = st.text_input("Display Name", placeholder="Editor display name")
+                ed_password = st.text_input("Password *", type="password")
+                if st.form_submit_button("Create Editor", use_container_width=True, type="primary"):
+                    if ed_username and ed_password:
+                        res = create_editor(ed_username, ed_password, display_name=ed_display)
+                        if res["success"]:
+                            st.success(f"Editor '{ed_username}' created")
+                            st.rerun()
+                        else:
+                            st.error(res.get("error"))
+                    else:
+                        st.warning("Username and password required")
+
+            # List Editors
+            editors = get_all_editors()
+            if editors:
+                st.markdown("---")
+                st.markdown(f"**{len(editors)} editor(s)**")
+                for ed in editors:
+                    ec1, ec2 = st.columns([4, 1])
+                    with ec1:
+                        st.markdown(f"**{ed['display_name']}** &nbsp; `@{ed['username']}`", unsafe_allow_html=True)
+                    with ec2:
+                        if st.button("Remove", key=f"del_ed_{ed['id']}"):
+                            delete_editor(ed['id'])
+                            st.rerun()
+            else:
+                st.info("No editors created yet.")
+
+        return  # Don't show main tabs when in settings
 
     # ── STATS ──
     stats = get_system_stats()
     render_stat_cards(stats)
-
-    # ── SIDEBAR ──
-    with st.sidebar:
-        st.markdown(f"**{st.session_state.admin_user}**")
-        st.caption("System Administrator")
-        st.divider()
-        if st.button("Logout", use_container_width=True):
-            st.session_state.admin_authenticated = False
-            st.rerun()
 
     # ── TABS ──
     tab_mp, tab_profile, tab_geo, tab_rules = st.tabs([
@@ -792,74 +923,75 @@ def main():
     # TAB 1: MP MANAGEMENT
     # ══════════════════════════════════════
     with tab_mp:
-        col_left, col_right = st.columns([1.3, 1])
+        # Existing MPs — main view
+        st.markdown('<div class="section-title">Members of Parliament</div>', unsafe_allow_html=True)
+        mps = get_all_mps()
+        mp_list = [mp for mp in mps if mp["role"] != "admin"]
 
-        with col_left:
-            st.markdown('<div class="section-title">Registered Members of Parliament</div>', unsafe_allow_html=True)
-            mps = get_all_mps()
-            mp_list = [mp for mp in mps if mp["role"] != "admin"]
+        if mp_list:
+            search = st.text_input("Search MPs", placeholder="Search by name, constituency, or username...", label_visibility="collapsed")
+            if search:
+                s = search.lower()
+                mp_list = [m for m in mp_list if s in m["display_name"].lower() or s in m["username"].lower() or s in m["parliamentary_constituency"].lower()]
 
-            if mp_list:
-                # Search
-                search = st.text_input("Search MPs", placeholder="Search by name, constituency, or username...", label_visibility="collapsed")
-                if search:
-                    s = search.lower()
-                    mp_list = [m for m in mp_list if s in m["display_name"].lower() or s in m["username"].lower() or s in m["parliamentary_constituency"].lower()]
-
-                for mp in mp_list:
+            # Render as card grid (3 columns)
+            cols = st.columns(3)
+            for i, mp in enumerate(mp_list):
+                with cols[i % 3]:
                     profile = get_mp_profile(mp["tenant_id"])
                     render_mp_card(mp, profile)
-            else:
-                st.info("No MPs registered yet.")
+        else:
+            st.info("No MPs registered yet. Use the form below to add one.")
 
-        with col_right:
-            st.markdown('<div class="section-title">Add New MP</div>', unsafe_allow_html=True)
-            st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-            with st.form("create_mp_form"):
-                mp_name = st.text_input("MP Full Name *", placeholder="Hon. Shri/Smt...")
-                mp_display = st.text_input("Display Name", placeholder="Dashboard display name")
-                mp_house = st.selectbox("House *", ["Lok Sabha", "Rajya Sabha"])
-                c1, c2 = st.columns(2)
-                with c1: mp_username = st.text_input("Username *", placeholder="username")
-                with c2: mp_password = st.text_input("Password *", type="password")
+        # Add New MP — collapsible
+        st.markdown("---")
+        with st.expander("➕ Add New MP", expanded=False):
+            c_form_left, c_form_right = st.columns([1, 1])
+            with c_form_left:
+                with st.form("create_mp_form"):
+                    mp_name = st.text_input("MP Full Name *", placeholder="Hon. Shri/Smt...")
+                    mp_display = st.text_input("Display Name", placeholder="Dashboard display name")
+                    mp_house = st.selectbox("House *", ["Lok Sabha", "Rajya Sabha"])
+                    c1, c2 = st.columns(2)
+                    with c1: mp_username = st.text_input("Username *", placeholder="username")
+                    with c2: mp_password = st.text_input("Password *", type="password")
 
-                if mp_house == "Lok Sabha":
-                    mp_constituency = st.selectbox("Parliamentary Constituency *", ALL_CONSTITUENCIES)
-                else:
-                    mp_constituency = st.text_input("State/Nominated", placeholder="e.g. Maharashtra")
-
-                c3, c4 = st.columns(2)
-                with c3: mp_state = st.text_input("State *", placeholder="e.g. Karnataka")
-                with c4: mp_party = st.text_input("Party", placeholder="e.g. BJP, INC")
-                mp_whatsapp = st.text_input("WhatsApp", placeholder="+91...")
-
-                st.markdown("---")
-                st.caption("PROFILE DATA")
-                mp_languages = st.text_input("Languages", placeholder="English, Hindi, Kannada", value="English, Hindi")
-                mp_key_facts = st.text_area("Key Facts (one per line)", placeholder="Major industrial hub\nBorder district", height=80)
-                mp_alt_names = st.text_input("Alt Constituency Names", placeholder="Belagavi, Belgaum")
-
-                if st.form_submit_button("Create MP", use_container_width=True, type="primary"):
-                    if mp_name and mp_username and mp_password:
-                        langs = [l.strip() for l in mp_languages.split(",") if l.strip()] if mp_languages else ["English", "Hindi"]
-                        facts = [f.strip() for f in mp_key_facts.strip().split("\n") if f.strip()] if mp_key_facts else []
-                        alts = [a.strip() for a in mp_alt_names.split(",") if a.strip()] if mp_alt_names else []
-
-                        result = create_mp(
-                            mp_name, mp_username, mp_password,
-                            mp_constituency or "India", mp_whatsapp,
-                            house=mp_house, display_name=mp_display or mp_name,
-                            state=mp_state, party=mp_party or "Independent",
-                            key_facts=facts, languages=langs, alt_names=alts,
-                        )
-                        if result["success"]:
-                            st.success(f"Created {mp_name}")
-                            st.rerun()
-                        else:
-                            st.error(result.get("error"))
+                    if mp_house == "Lok Sabha":
+                        mp_constituency = st.selectbox("Parliamentary Constituency *", ALL_CONSTITUENCIES)
                     else:
-                        st.warning("Fill all required fields")
-            st.markdown('</div>', unsafe_allow_html=True)
+                        mp_constituency = st.text_input("State/Nominated", placeholder="e.g. Maharashtra")
+
+                    c3, c4 = st.columns(2)
+                    with c3: mp_state = st.text_input("State *", placeholder="e.g. Karnataka")
+                    with c4: mp_party = st.text_input("Party", placeholder="e.g. BJP, INC")
+                    mp_whatsapp = st.text_input("WhatsApp", placeholder="+91...")
+
+                    st.markdown("---")
+                    st.caption("PROFILE DATA")
+                    mp_languages = st.text_input("Languages", placeholder="English, Hindi, Kannada", value="English, Hindi")
+                    mp_key_facts = st.text_area("Key Facts (one per line)", placeholder="Major industrial hub\nBorder district", height=80)
+                    mp_alt_names = st.text_input("Alt Constituency Names", placeholder="Belagavi, Belgaum")
+
+                    if st.form_submit_button("Create MP", use_container_width=True, type="primary"):
+                        if mp_name and mp_username and mp_password:
+                            langs = [l.strip() for l in mp_languages.split(",") if l.strip()] if mp_languages else ["English", "Hindi"]
+                            facts = [f.strip() for f in mp_key_facts.strip().split("\n") if f.strip()] if mp_key_facts else []
+                            alts = [a.strip() for a in mp_alt_names.split(",") if a.strip()] if mp_alt_names else []
+
+                            result = create_mp(
+                                mp_name, mp_username, mp_password,
+                                mp_constituency or "India", mp_whatsapp,
+                                house=mp_house, display_name=mp_display or mp_name,
+                                state=mp_state, party=mp_party or "Independent",
+                                key_facts=facts, languages=langs, alt_names=alts,
+                            )
+                            if result["success"]:
+                                st.success(f"Created {mp_name}")
+                                st.rerun()
+                            else:
+                                st.error(result.get("error"))
+                        else:
+                            st.warning("Fill all required fields")
 
     # ══════════════════════════════════════
     # TAB 2: PROFILE EDITOR
