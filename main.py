@@ -309,6 +309,12 @@ def seed_test_cases(key: str = "", tid: int = 0):
                 ward=cluster["location"],
                 is_critical=(i % 20 == 0),
                 response_to_citizen="Noted",
+                case_metadata=json.dumps({
+                    "user_intent": "complaint",
+                    "location_resolved": True,
+                    "matched_value": cluster["location"],
+                    "assembly_constituency": cluster["location"],
+                }),
                 created_at=datetime.utcnow() - timedelta(days=random.randint(1, 90)),
             )
             db.add(case)

@@ -67,6 +67,7 @@ class Case(Base):
     is_critical = Column(Boolean, default=False)
     response_to_citizen = Column(Text, nullable=True)
     notes_for_staff = Column(Text, nullable=True)
+    case_metadata = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     tenant = relationship("Tenant", back_populates="cases")

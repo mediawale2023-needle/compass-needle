@@ -115,6 +115,12 @@ def render_sansadx(username):
         except Exception:
             pass
 
+        # FALLBACK: If case_metadata was empty, use location/ward columns
+        if specific_loc == "Unknown" and c.get("location"):
+            specific_loc = str(c.get("location", "")).title()
+        if not assembly and c.get("ward"):
+            assembly = str(c.get("ward", ""))
+
         # Formatting
         time_str = str(c.get("created_at", ""))
         try:
