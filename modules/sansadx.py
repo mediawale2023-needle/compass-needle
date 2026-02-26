@@ -8,14 +8,14 @@ from sqlalchemy import create_engine, text
 # --- 1. DIRECT DATABASE CONNECTION SETUP ---
 @st.cache_resource
 def get_engine():
-    """Smart connection: Uses Railway Postgres if available, else local SQLite"""
+    """Smart connection: Uses Railway Postgres if available, else local SQLite (same as db.py)"""
     db_url = os.getenv("DATABASE_URL")
     if db_url:
         # Fix for SQLAlchemy: Postgres requires 'postgresql://'
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
         return create_engine(db_url)
-    return create_engine("sqlite:///needle.db")
+    return create_engine("sqlite:///./sansadx.db")
 
 def fetch_cases(tenant_id):
     """Fetch all cases for the tenant directly from the Database"""
