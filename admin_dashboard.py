@@ -15,9 +15,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Database Connection ---
-# Import from root db.py (NOT sansadx_backend/db.py) to use the same sansadx.db as mp_dashboard
 try:
-    from db import SessionLocal, Tenant, User, TenantProfile, init_db
+    from db import SessionLocal, Tenant, User, TenantProfile, Case, init_db
 except ImportError:
     st.error("Could not import 'db.py'. Please ensure 'db.py' exists in the project root.")
     sys.exit(1)
@@ -28,47 +27,311 @@ GEOGRAPHY_BASE_PATH = Path(__file__).parent / "data" / "geography"
 METADATA_PATH = Path(__file__).parent / "data" / "constituency_metadata.json"
 OVERRIDES_PATH = Path("tenant_overrides.json")
 
-# --- 🇮🇳 MASTER LIST OF 543 LOK SABHA SEATS ---
 from modules.constituencies import ALL_CONSTITUENCIES
 
 # --- Page Config ---
 st.set_page_config(
-    page_title="Needle Admin Dashboard",
+    page_title="Needle Command Center",
     page_icon="⚙️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# --- Session State ---
+# ─────────────────────────────────────────
+# SESSION STATE
+# ─────────────────────────────────────────
 if 'admin_authenticated' not in st.session_state:
     st.session_state.admin_authenticated = False
 if 'admin_user' not in st.session_state:
     st.session_state.admin_user = None
 
-# --- Helper Functions ---
+# ─────────────────────────────────────────
+# PREMIUM CSS
+# ─────────────────────────────────────────
+def inject_premium_css():
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        /* Global — White + Emerald Green (Lok Sabha) */
+        html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+        .stApp { background: #f8faf9; }
+        
+        /* Hide Streamlit defaults */
+        #MainMenu, footer, header { visibility: hidden; }
+        .block-container { padding-top: 1rem; }
+        
+        /* Dashboard Header */
+        .dash-header {
+            background: linear-gradient(135deg, #006a4d 0%, #00875f 50%, #006a4d 100%);
+            border-radius: 16px;
+            padding: 1.8rem 2rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(0, 106, 77, 0.15);
+        }
+        .dash-header h1 {
+            color: #ffffff;
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.5px;
+        }
+        .dash-header .subtitle {
+            color: rgba(255,255,255,0.7);
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+        .dash-header .badge {
+            background: rgba(255,255,255,0.2);
+            color: #ffffff;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Stat Cards */
+        .stat-row { display: flex; gap: 16px; margin-bottom: 1.5rem; }
+        .stat-card {
+            flex: 1;
+            background: #ffffff;
+            border: 1px solid #e8efe9;
+            border-radius: 14px;
+            padding: 1.2rem 1.4rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+        .stat-card:hover {
+            border-color: #006a4d;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 106, 77, 0.08);
+        }
+        .stat-card .stat-icon {
+            font-size: 1.4rem;
+            margin-bottom: 6px;
+        }
+        .stat-card .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #1a2e28;
+            line-height: 1;
+        }
+        .stat-card .stat-label {
+            color: #6b7f76;
+            font-size: 0.78rem;
+            font-weight: 500;
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+        .stat-accent-indigo .stat-value { color: #006a4d; }
+        .stat-accent-green .stat-value { color: #059669; }
+        .stat-accent-amber .stat-value { color: #d97706; }
+        .stat-accent-rose .stat-value { color: #8d153a; }
+        .stat-accent-cyan .stat-value { color: #0891b2; }
+        
+        /* Glass Panels */
+        .glass-panel {
+            background: #ffffff;
+            border: 1px solid #e2ebe5;
+            border-radius: 14px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+        }
+        .glass-panel h3 {
+            color: #1a2e28;
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 0 0 1rem 0;
+        }
+        
+        /* MP Cards */
+        .mp-card {
+            background: #ffffff;
+            border: 1px solid #e2ebe5;
+            border-radius: 12px;
+            padding: 1rem 1.2rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+        .mp-card:hover {
+            border-color: #006a4d;
+            box-shadow: 0 4px 12px rgba(0, 106, 77, 0.08);
+        }
+        .mp-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1rem;
+            color: white;
+            flex-shrink: 0;
+        }
+        .mp-avatar-ls { background: linear-gradient(135deg, #006a4d, #00875f); }
+        .mp-avatar-rs { background: linear-gradient(135deg, #8d153a, #b91c50); }
+        .mp-info { flex: 1; }
+        .mp-info .mp-name { color: #1a2e28; font-weight: 600; font-size: 0.9rem; }
+        .mp-info .mp-meta { color: #6b7f76; font-size: 0.75rem; margin-top: 2px; }
+        .mp-tag {
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .tag-ls { background: rgba(0, 106, 77, 0.08); color: #006a4d; }
+        .tag-rs { background: rgba(141, 21, 58, 0.08); color: #8d153a; }
+        
+        /* Section Headers */
+        .section-title {
+            color: #006a4d;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e2ebe5;
+        }
+        
+        /* Profile Completeness */
+        .completeness-bar {
+            background: #e8efe9;
+            border-radius: 6px;
+            height: 6px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .completeness-fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.5s ease;
+        }
+        .fill-good { background: linear-gradient(90deg, #006a4d, #059669); }
+        .fill-mid { background: linear-gradient(90deg, #d97706, #f59e0b); }
+        .fill-low { background: linear-gradient(90deg, #dc2626, #ef4444); }
+        
+        /* Form Styling */
+        .stTextInput > label, .stTextArea > label, .stSelectbox > label {
+            color: #4a635a !important;
+            font-size: 0.78rem !important;
+            font-weight: 500 !important;
+        }
+        .stTextInput input, .stTextArea textarea {
+            background: #f8faf9 !important;
+            border-color: #d4e0d9 !important;
+            color: #1a2e28 !important;
+            border-radius: 10px !important;
+        }
+        .stTextInput input:focus, .stTextArea textarea:focus {
+            border-color: #006a4d !important;
+            box-shadow: 0 0 0 2px rgba(0, 106, 77, 0.12) !important;
+        }
+        
+        /* Tabs */
+        .stTabs [data-baseweb="tab-list"] {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 4px;
+            gap: 4px;
+            border: 1px solid #e2ebe5;
+        }
+        .stTabs [data-baseweb="tab"] {
+            border-radius: 8px;
+            color: #6b7f76;
+            font-weight: 500;
+            font-size: 0.82rem;
+        }
+        .stTabs [aria-selected="true"] {
+            background: rgba(0, 106, 77, 0.08) !important;
+            color: #006a4d !important;
+        }
+        
+        /* Buttons */
+        .stButton > button {
+            border-radius: 10px !important;
+            font-weight: 600 !important;
+            font-size: 0.82rem !important;
+            transition: all 0.2s ease !important;
+        }
+        .stButton > button:hover {
+            transform: translateY(-1px) !important;
+        }
+        .stButton > button[kind="primary"] {
+            background: linear-gradient(135deg, #006a4d, #00875f) !important;
+            border: none !important;
+            color: white !important;
+        }
+        
+        /* Login */
+        .login-container {
+            max-width: 400px;
+            margin: 80px auto;
+            background: #ffffff;
+            border: 1px solid #e2ebe5;
+            border-radius: 20px;
+            padding: 2.5rem;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+        }
+        .login-title {
+            color: #006a4d;
+            font-size: 1.4rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 0.3rem;
+        }
+        .login-subtitle {
+            color: #6b7f76;
+            font-size: 0.82rem;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        /* Data Tables */
+        .stDataFrame { border-radius: 12px; overflow: hidden; }
+        
+        /* Dividers */
+        hr { border-color: #e2ebe5 !important; }
+        
+        /* Expanders */
+        .streamlit-expanderHeader { color: #1a2e28 !important; font-weight: 600 !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────
+# HELPER FUNCTIONS
+# ─────────────────────────────────────────
+
 def hash_password(password: str) -> str:
-    """Hash password using bcrypt for secure storage"""
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 def verify_password(password: str, stored_hash: str) -> bool:
-    """Verify password against stored hash. Supports bcrypt and legacy plaintext fallback."""
-    # Try bcrypt first
     try:
         if stored_hash.startswith('$2b$') or stored_hash.startswith('$2a$'):
             return bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8'))
     except Exception:
         pass
-    # Fallback: legacy plaintext match
     return stored_hash == password
 
 def verify_admin_login(username: str, password: str) -> dict:
-    """Verify admin credentials against the database"""
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.username == username).first()
         if user and user.role in ("admin", "super_admin", "sysadmin"):
             if verify_password(password, user.password_hash):
-                # Auto-rehash legacy passwords to bcrypt
                 if not (user.password_hash.startswith('$2b$') or user.password_hash.startswith('$2a$')):
                     user.password_hash = hash_password(password)
                     db.commit()
@@ -78,7 +341,6 @@ def verify_admin_login(username: str, password: str) -> dict:
         db.close()
 
 def get_all_mps() -> list:
-    """Get all MPs with User-level data (single query)"""
     from sqlalchemy.orm import joinedload
     db = SessionLocal()
     try:
@@ -86,7 +348,6 @@ def get_all_mps() -> list:
         result = []
         for t in tenants:
             for u in t.users:
-                user_constituency = getattr(u, 'constituency', None) or t.constituency or "India"
                 result.append({
                     "tenant_id": t.id,
                     "user_id": u.id,
@@ -95,7 +356,7 @@ def get_all_mps() -> list:
                     "username": u.username,
                     "role": u.role,
                     "house": getattr(u, 'house', None) or "Lok Sabha",
-                    "parliamentary_constituency": user_constituency, 
+                    "parliamentary_constituency": getattr(u, 'constituency', None) or t.constituency or "India",
                     "whatsapp_number": t.whatsapp_number,
                     "created_at": t.created_at.strftime("%Y-%m-%d") if t.created_at else "N/A"
                 })
@@ -103,80 +364,85 @@ def get_all_mps() -> list:
     finally:
         db.close()
 
-def create_mp(name: str, username: str, password: str, constituency: str, whatsapp_number: str = "", house: str = "Lok Sabha", display_name: str = "", state: str = "", party: str = "Independent", key_facts: list = None, languages: list = None, alt_names: list = None) -> dict:
-    """Create a new MP (Tenant + User + TenantProfile) with full profile data"""
+def get_system_stats() -> dict:
+    """Get aggregate system statistics."""
     db = SessionLocal()
     try:
-        existing_user = db.query(User).filter(User.username == username).first()
-        if existing_user:
-            return {"success": False, "error": "Username already exists"}
-        
-        # Create Tenant
-        new_tenant = Tenant(
-            name=name,
-            constituency=constituency,
-            whatsapp_number=whatsapp_number or f"temp_{datetime.now().timestamp()}",
-            subscription_plan="Pro",
-            config={"language": "English", "type": house.upper().replace(" ", "_"), "map_enabled": True}
-        )
-        db.add(new_tenant)
-        db.flush()
-        
-        # Create User with House and Display Name
-        new_user = User(
-            tenant_id=new_tenant.id,
-            username=username,
-            password_hash=hash_password(password),
-            role="mp",
-            constituency=constituency,
-            house=house,
-            display_name=display_name or name
-        )
-        db.add(new_user)
-        
-        # Create TenantProfile
-        profile_data = {
-            "key_facts": key_facts or [],
-            "languages": languages or ["English", "Hindi"],
-            "vocabulary_guide": {},
-            "sovereignty_rules": "",
-            "alt_names": alt_names or [],
+        from sqlalchemy import func
+        total_mps = db.query(User).filter(User.role == "mp").count()
+        ls_count = db.query(User).filter(User.role == "mp", User.house == "Lok Sabha").count()
+        rs_count = db.query(User).filter(User.role == "mp", User.house == "Rajya Sabha").count()
+        total_profiles = db.query(TenantProfile).count()
+        try:
+            total_cases = db.query(Case).count()
+        except Exception:
+            total_cases = 0
+        return {
+            "total_mps": total_mps,
+            "lok_sabha": ls_count,
+            "rajya_sabha": rs_count,
+            "total_profiles": total_profiles,
+            "total_cases": total_cases,
         }
-        new_profile = TenantProfile(
-            tenant_id=new_tenant.id,
-            mp_name=display_name or name,
-            constituency=constituency,
-            state=state,
-            house=house,
-            party=party,
-            profile_data=profile_data,
-        )
-        db.add(new_profile)
-        db.commit()
-        
-        return {"success": True, "tenant_id": new_tenant.id, "user_id": new_user.id}
-    except Exception as e:
-        db.rollback()
-        return {"success": False, "error": str(e)}
     finally:
         db.close()
 
-def update_mp_constituency(username: str, new_constituency: str) -> dict:
-    """Update constituency for existing MP (User & Tenant)"""
+def get_mp_profile(tenant_id: int) -> dict:
+    """Get TenantProfile for a given tenant_id."""
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.username == username).first()
-        if not user:
-            return {"success": False, "error": "User not found"}
+        profile = db.query(TenantProfile).filter(TenantProfile.tenant_id == tenant_id).first()
+        if profile:
+            extra = profile.profile_data or {}
+            return {
+                "exists": True,
+                "mp_name": profile.mp_name or "",
+                "constituency": profile.constituency or "",
+                "state": profile.state or "",
+                "house": profile.house or "Lok Sabha",
+                "party": profile.party or "Independent",
+                "key_facts": extra.get("key_facts", []),
+                "languages": extra.get("languages", ["English", "Hindi"]),
+                "alt_names": extra.get("alt_names", []),
+                "sovereignty_rules": extra.get("sovereignty_rules", ""),
+                "vocabulary_guide": extra.get("vocabulary_guide", {}),
+            }
+        return {"exists": False}
+    finally:
+        db.close()
+
+def save_mp_profile(tenant_id: int, data: dict) -> dict:
+    """Create or update TenantProfile for a tenant."""
+    db = SessionLocal()
+    try:
+        profile = db.query(TenantProfile).filter(TenantProfile.tenant_id == tenant_id).first()
         
-        # Update User level (Primary for Dashboard)
-        user.constituency = new_constituency
+        profile_data = {
+            "key_facts": data.get("key_facts", []),
+            "languages": data.get("languages", ["English", "Hindi"]),
+            "alt_names": data.get("alt_names", []),
+            "sovereignty_rules": data.get("sovereignty_rules", ""),
+            "vocabulary_guide": data.get("vocabulary_guide", {}),
+        }
         
-        # Update Tenant level
-        if user.tenant_id:
-            tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
-            if tenant:
-                tenant.constituency = new_constituency
+        if profile:
+            profile.mp_name = data.get("mp_name", profile.mp_name)
+            profile.constituency = data.get("constituency", profile.constituency)
+            profile.state = data.get("state", profile.state)
+            profile.house = data.get("house", profile.house)
+            profile.party = data.get("party", profile.party)
+            profile.profile_data = profile_data
+        else:
+            profile = TenantProfile(
+                tenant_id=tenant_id,
+                mp_name=data.get("mp_name", ""),
+                constituency=data.get("constituency", ""),
+                state=data.get("state", ""),
+                house=data.get("house", "Lok Sabha"),
+                party=data.get("party", "Independent"),
+                profile_data=profile_data,
+            )
+            db.add(profile)
         
         db.commit()
         return {"success": True}
@@ -186,14 +452,102 @@ def update_mp_constituency(username: str, new_constituency: str) -> dict:
     finally:
         db.close()
 
-def reset_mp_password(username: str, new_password: str) -> dict:
-    """Reset an MP's password"""
+def calculate_profile_completeness(profile: dict) -> int:
+    """Calculate profile completeness percentage."""
+    if not profile.get("exists"):
+        return 0
+    fields = ["mp_name", "constituency", "state", "party"]
+    score = sum(1 for f in fields if profile.get(f))
+    if profile.get("key_facts"):
+        score += 1
+    if profile.get("languages") and len(profile["languages"]) > 1:
+        score += 1
+    if profile.get("alt_names"):
+        score += 1
+    if profile.get("sovereignty_rules"):
+        score += 1
+    return int((score / 8) * 100)
+
+def create_mp(name, username, password, constituency, whatsapp_number="", house="Lok Sabha", display_name="", state="", party="Independent", key_facts=None, languages=None, alt_names=None) -> dict:
+    db = SessionLocal()
+    try:
+        existing_user = db.query(User).filter(User.username == username).first()
+        if existing_user:
+            return {"success": False, "error": "Username already exists"}
+        
+        new_tenant = Tenant(
+            name=name, constituency=constituency,
+            whatsapp_number=whatsapp_number or f"temp_{datetime.now().timestamp()}",
+            subscription_plan="Pro",
+            config={"language": "English", "type": house.upper().replace(" ", "_"), "map_enabled": True}
+        )
+        db.add(new_tenant)
+        db.flush()
+        
+        new_user = User(
+            tenant_id=new_tenant.id, username=username,
+            password_hash=hash_password(password), role="mp",
+            constituency=constituency, house=house,
+            display_name=display_name or name
+        )
+        db.add(new_user)
+        
+        profile_data = {
+            "key_facts": key_facts or [], "languages": languages or ["English", "Hindi"],
+            "vocabulary_guide": {}, "sovereignty_rules": "", "alt_names": alt_names or [],
+        }
+        new_profile = TenantProfile(
+            tenant_id=new_tenant.id, mp_name=display_name or name,
+            constituency=constituency, state=state, house=house,
+            party=party, profile_data=profile_data,
+        )
+        db.add(new_profile)
+        db.commit()
+        return {"success": True, "tenant_id": new_tenant.id, "user_id": new_user.id}
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}
+    finally:
+        db.close()
+
+def delete_mp(tenant_id: int) -> dict:
+    """Delete an MP (User + Tenant + TenantProfile)."""
+    db = SessionLocal()
+    try:
+        db.query(TenantProfile).filter(TenantProfile.tenant_id == tenant_id).delete()
+        db.query(User).filter(User.tenant_id == tenant_id).delete()
+        db.query(Tenant).filter(Tenant.id == tenant_id).delete()
+        db.commit()
+        return {"success": True}
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}
+    finally:
+        db.close()
+
+def update_mp_constituency(username, new_constituency):
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.username == username).first()
         if not user:
             return {"success": False, "error": "User not found"}
-        
+        user.constituency = new_constituency
+        if user.tenant_id:
+            tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
+            if tenant: tenant.constituency = new_constituency
+        db.commit()
+        return {"success": True}
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}
+    finally:
+        db.close()
+
+def reset_mp_password(username, new_password):
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        if not user: return {"success": False, "error": "User not found"}
         user.password_hash = hash_password(new_password)
         db.commit()
         return {"success": True}
@@ -204,7 +558,6 @@ def reset_mp_password(username: str, new_password: str) -> dict:
         db.close()
 
 def ensure_admin_exists():
-    """Ensure at least one admin user exists for login"""
     db = SessionLocal()
     try:
         admin = db.query(User).filter(User.role == "admin").first()
@@ -217,32 +570,29 @@ def ensure_admin_exists():
                 )
                 db.add(admin_tenant)
                 db.flush()
-            
-            admin_user = User(
-                tenant_id=admin_tenant.id, username="sysadmin", password_hash=hash_password("admin123"), role="admin"
-            )
-            db.add(admin_user)
+            db.add(User(tenant_id=admin_tenant.id, username="sysadmin", password_hash=hash_password("admin123"), role="admin"))
             db.commit()
-    except Exception:
-        db.rollback()
-    finally:
-        db.close()
+    except Exception: db.rollback()
+    finally: db.close()
 
-# --- Overrides (Rulebook) Functions ---
-def load_overrides() -> dict:
+
+# ─────────────────────────────────────────
+# GEOGRAPHY & OVERRIDES HELPERS
+# ─────────────────────────────────────────
+
+def load_overrides():
     if OVERRIDES_PATH.exists():
         with open(OVERRIDES_PATH, 'r', encoding='utf-8') as f: return json.load(f)
     return {}
 
-def save_overrides(data: dict) -> bool:
+def save_overrides(data):
     try:
         with open(OVERRIDES_PATH, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         return True
-    except Exception as e: return False
+    except: return False
 
-# --- PDF Parsing Functions ---
-def parse_polling_station_pdf(pdf_file) -> list:
+def parse_polling_station_pdf(pdf_file):
     stations = []
     try:
         with pdfplumber.open(pdf_file) as pdf:
@@ -252,21 +602,16 @@ def parse_polling_station_pdf(pdf_file) -> list:
                     for table in tables:
                         for row in table:
                             if row and len(row) >= 2:
-                                station_data = extract_station_from_row(row)
-                                if station_data: stations.append(station_data)
+                                s = extract_station_from_row(row)
+                                if s: stations.append(s)
                 else:
                     text = page.extract_text()
                     if text: stations.extend(extract_stations_from_text(text))
     except Exception as e: st.error(f"PDF error: {e}")
     seen = set()
-    unique = []
-    for s in stations:
-        if s.get("station_number") and s["station_number"] not in seen:
-            seen.add(s["station_number"])
-            unique.append(s)
-    return unique
+    return [s for s in stations if s.get("station_number") and s["station_number"] not in seen and not seen.add(s["station_number"])]
 
-def extract_station_from_row(row: list) -> dict:
+def extract_station_from_row(row):
     cleaned = [str(cell).strip() if cell else "" for cell in row]
     num, loc, bldg = "", "", ""
     for cell in cleaned:
@@ -277,7 +622,7 @@ def extract_station_from_row(row: list) -> dict:
     if num or loc: return {"station_number": num, "locality": loc, "building_name": bldg}
     return None
 
-def extract_stations_from_text(text: str) -> list:
+def extract_stations_from_text(text):
     stations = []
     for line in text.split('\n'):
         line = line.strip()
@@ -286,316 +631,489 @@ def extract_stations_from_text(text: str) -> list:
         if match: stations.append({"station_number": match.group(1), "locality": match.group(2).strip(), "building_name": ""})
     return stations
 
-# --- Geography File Functions ---
-def get_parliamentary_constituencies() -> list:
+def get_parliamentary_constituencies():
     GEOGRAPHY_BASE_PATH.mkdir(parents=True, exist_ok=True)
     return [d.name for d in GEOGRAPHY_BASE_PATH.iterdir() if d.is_dir()]
 
-def get_assembly_constituencies(parliamentary: str) -> list:
+def get_assembly_constituencies(parliamentary):
     path = GEOGRAPHY_BASE_PATH / parliamentary
     if not path.exists(): return []
     return [f.stem for f in path.glob("*.json")]
 
-def save_geography_data(parliamentary: str, assembly: str, data: list) -> bool:
+def save_geography_data(parliamentary, assembly, data):
     try:
         path = GEOGRAPHY_BASE_PATH / parliamentary
         path.mkdir(parents=True, exist_ok=True)
         with open(path / f"{assembly}.json", 'w', encoding='utf-8') as f: json.dump(data, f, indent=2, ensure_ascii=False)
         return True
-    except Exception: return False
+    except: return False
 
-def load_geography_data(parliamentary: str, assembly: str) -> list:
+def load_geography_data(parliamentary, assembly):
     filepath = GEOGRAPHY_BASE_PATH / parliamentary / f"{assembly}.json"
     if filepath.exists():
         with open(filepath, 'r', encoding='utf-8') as f: return json.load(f)
     return []
 
-# --- Metadata Functions ---
-def load_metadata() -> dict:
+def load_metadata():
     if METADATA_PATH.exists():
         with open(METADATA_PATH, 'r', encoding='utf-8') as f: return json.load(f)
     return {}
 
-def save_metadata(data: dict) -> bool:
+def save_metadata(data):
     try:
         METADATA_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(METADATA_PATH, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2, ensure_ascii=False)
         return True
-    except Exception: return False
+    except: return False
 
-# --- Custom CSS ---
-def inject_css():
-    st.markdown("""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-        html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-        .admin-header { 
-            background: linear-gradient(135deg, #1e3a5f 0%, #0d2137 100%); 
-            padding: 1.5rem; 
-            border-radius: 10px; 
-            margin-bottom: 2rem;
-            color: white;
-        }
-        .admin-header h1 { color: white; margin: 0; }
-        .admin-header p { color: #a0c4e8; margin: 0.5rem 0 0 0; }
-    </style>
+
+# ─────────────────────────────────────────
+# RENDER: STAT CARDS
+# ─────────────────────────────────────────
+def render_stat_cards(stats):
+    st.markdown(f"""
+    <div class="stat-row">
+        <div class="stat-card stat-accent-indigo">
+            <div class="stat-icon">👥</div>
+            <div class="stat-value">{stats['total_mps']}</div>
+            <div class="stat-label">Total MPs</div>
+        </div>
+        <div class="stat-card stat-accent-green">
+            <div class="stat-icon">🏛️</div>
+            <div class="stat-value">{stats['lok_sabha']}</div>
+            <div class="stat-label">Lok Sabha</div>
+        </div>
+        <div class="stat-card stat-accent-rose">
+            <div class="stat-icon">🏛️</div>
+            <div class="stat-value">{stats['rajya_sabha']}</div>
+            <div class="stat-label">Rajya Sabha</div>
+        </div>
+        <div class="stat-card stat-accent-amber">
+            <div class="stat-icon">📋</div>
+            <div class="stat-value">{stats['total_profiles']}</div>
+            <div class="stat-label">Profiles</div>
+        </div>
+        <div class="stat-card stat-accent-cyan">
+            <div class="stat-icon">📩</div>
+            <div class="stat-value">{stats['total_cases']}</div>
+            <div class="stat-label">Total Cases</div>
+        </div>
+    </div>
     """, unsafe_allow_html=True)
 
-# --- Main Application ---
+
+# ─────────────────────────────────────────
+# RENDER: MP CARD
+# ─────────────────────────────────────────
+def render_mp_card(mp, profile=None):
+    initials = "".join([w[0] for w in mp["display_name"].split()[:2]]).upper()
+    house = mp.get("house", "Lok Sabha")
+    avatar_cls = "mp-avatar-ls" if house == "Lok Sabha" else "mp-avatar-rs"
+    tag_cls = "tag-ls" if house == "Lok Sabha" else "tag-rs"
+    tag_label = "LS" if house == "Lok Sabha" else "RS"
+    
+    completeness = calculate_profile_completeness(profile) if profile else 0
+    fill_cls = "fill-good" if completeness >= 70 else "fill-mid" if completeness >= 40 else "fill-low"
+    
+    st.markdown(f"""
+    <div class="mp-card">
+        <div class="mp-avatar {avatar_cls}">{initials}</div>
+        <div class="mp-info">
+            <div class="mp-name">{mp['display_name']}</div>
+            <div class="mp-meta">@{mp['username']} · {mp['parliamentary_constituency']}</div>
+            <div class="completeness-bar"><div class="completeness-fill {fill_cls}" style="width: {completeness}%"></div></div>
+        </div>
+        <span class="mp-tag {tag_cls}">{tag_label}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────
+# MAIN APPLICATION
+# ─────────────────────────────────────────
 def main():
-    inject_css()
+    inject_premium_css()
     init_db()
     ensure_admin_exists()
-    
-    # Login Screen
+
+    # ── LOGIN ──
     if not st.session_state.admin_authenticated:
-        st.markdown("<div style='text-align: center; margin-top: 100px;'><h1>⚙️ Needle Admin Dashboard</h1><p>Administrative Control Panel</p></div>", unsafe_allow_html=True)
-        _, col, _ = st.columns([1, 1, 1])
+        st.markdown("""
+        <div class="login-container">
+            <div class="login-title">Needle Command Center</div>
+            <div class="login-subtitle">Administrative Control Panel</div>
+        </div>
+        """, unsafe_allow_html=True)
+        _, col, _ = st.columns([1.2, 1, 1.2])
         with col:
             with st.form("admin_login"):
-                u = st.text_input("Username")
-                p = st.text_input("Password", type="password")
-                if st.form_submit_button("Login", use_container_width=True):
+                u = st.text_input("Username", placeholder="admin username")
+                p = st.text_input("Password", type="password", placeholder="password")
+                if st.form_submit_button("Sign In", use_container_width=True, type="primary"):
                     res = verify_admin_login(u, p)
                     if res["success"]:
                         st.session_state.admin_authenticated = True
                         st.session_state.admin_user = res["username"]
                         st.rerun()
-                    else: st.error("❌ Invalid credentials")
+                    else:
+                        st.error("Invalid credentials")
         return
-    
-    # Dashboard Header
-    st.markdown("""
-    <div class="admin-header">
-        <h1>⚙️ Needle Admin Dashboard</h1>
-        <p>Manage MPs, Geography Data, and System Configuration</p>
+
+    # ── HEADER ──
+    st.markdown(f"""
+    <div class="dash-header">
+        <div>
+            <h1>Needle Command Center</h1>
+            <div class="subtitle">Multi-tenant MP management, geography, and system configuration</div>
+        </div>
+        <span class="badge">ADMIN v2.0</span>
     </div>
     """, unsafe_allow_html=True)
-    
+
+    # ── STATS ──
+    stats = get_system_stats()
+    render_stat_cards(stats)
+
+    # ── SIDEBAR ──
     with st.sidebar:
-        st.write(f"Logged in as: **{st.session_state.admin_user}**")
-        if st.button("🚪 Logout", use_container_width=True):
+        st.markdown(f"**{st.session_state.admin_user}**")
+        st.caption("System Administrator")
+        st.divider()
+        if st.button("Logout", use_container_width=True):
             st.session_state.admin_authenticated = False
             st.rerun()
-        st.divider()
-        st.caption("Needle Admin v1.1")
-    
-    tab1, tab2, tab3, tab4 = st.tabs(["👥 MP Management", "🗺️ Geography Upload", "📋 Constituency Metadata", "🌍 Geography Rules"])
-    
-    # ===================
-    # TAB 1: MP Management
-    # ===================
-    with tab1:
-        st.header("👥 MP Management")
-        
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            st.subheader("Add New MP")
+
+    # ── TABS ──
+    tab_mp, tab_profile, tab_geo, tab_rules = st.tabs([
+        "MP Management", "Profile Editor", "Geography Upload", "Geography Rules"
+    ])
+
+    # ══════════════════════════════════════
+    # TAB 1: MP MANAGEMENT
+    # ══════════════════════════════════════
+    with tab_mp:
+        col_left, col_right = st.columns([1.3, 1])
+
+        with col_left:
+            st.markdown('<div class="section-title">Registered Members of Parliament</div>', unsafe_allow_html=True)
+            mps = get_all_mps()
+            mp_list = [mp for mp in mps if mp["role"] != "admin"]
+
+            if mp_list:
+                # Search
+                search = st.text_input("Search MPs", placeholder="Search by name, constituency, or username...", label_visibility="collapsed")
+                if search:
+                    s = search.lower()
+                    mp_list = [m for m in mp_list if s in m["display_name"].lower() or s in m["username"].lower() or s in m["parliamentary_constituency"].lower()]
+
+                for mp in mp_list:
+                    profile = get_mp_profile(mp["tenant_id"])
+                    render_mp_card(mp, profile)
+            else:
+                st.info("No MPs registered yet.")
+
+        with col_right:
+            st.markdown('<div class="section-title">Add New MP</div>', unsafe_allow_html=True)
+            st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
             with st.form("create_mp_form"):
-                mp_name = st.text_input("MP Name *", placeholder="Hon. Shri/Smt...")
-                mp_display = st.text_input("Display Name", placeholder="Name shown in dashboard (defaults to MP Name)")
-                mp_house = st.selectbox("House *", options=["Lok Sabha", "Rajya Sabha"], index=0)
-                mp_username = st.text_input("Username *", placeholder="username")
-                mp_password = st.text_input("Password *", type="password")
+                mp_name = st.text_input("MP Full Name *", placeholder="Hon. Shri/Smt...")
+                mp_display = st.text_input("Display Name", placeholder="Dashboard display name")
+                mp_house = st.selectbox("House *", ["Lok Sabha", "Rajya Sabha"])
+                c1, c2 = st.columns(2)
+                with c1: mp_username = st.text_input("Username *", placeholder="username")
+                with c2: mp_password = st.text_input("Password *", type="password")
+
                 if mp_house == "Lok Sabha":
-                    mp_constituency = st.selectbox("Parliamentary Constituency *", options=ALL_CONSTITUENCIES, index=0)
+                    mp_constituency = st.selectbox("Parliamentary Constituency *", ALL_CONSTITUENCIES)
                 else:
-                    mp_constituency = st.text_input("State / Nominated", placeholder="e.g. Maharashtra")
-                mp_state = st.text_input("State *", placeholder="e.g. Karnataka, Maharashtra")
-                mp_party = st.text_input("Party", placeholder="e.g. BJP, INC (defaults to Independent)")
-                mp_whatsapp = st.text_input("WhatsApp Number", placeholder="+91...")
-                
-                st.caption("PROFILE DATA (for News & Drafter)")
-                mp_languages = st.text_input("Languages (comma-separated)", placeholder="English, Hindi, Kannada", value="English, Hindi")
-                mp_key_facts = st.text_area("Key Facts (one per line)", placeholder="Major industrial hub\nBorder district\nKey crops: wheat, rice", height=100)
-                mp_alt_names = st.text_input("Alt Names (comma-separated)", placeholder="e.g. Belagavi, Belgaum", help="Alternate spellings for constituency used in news search")
-                
-                if st.form_submit_button("Create MP", use_container_width=True):
+                    mp_constituency = st.text_input("State/Nominated", placeholder="e.g. Maharashtra")
+
+                c3, c4 = st.columns(2)
+                with c3: mp_state = st.text_input("State *", placeholder="e.g. Karnataka")
+                with c4: mp_party = st.text_input("Party", placeholder="e.g. BJP, INC")
+                mp_whatsapp = st.text_input("WhatsApp", placeholder="+91...")
+
+                st.markdown("---")
+                st.caption("PROFILE DATA")
+                mp_languages = st.text_input("Languages", placeholder="English, Hindi, Kannada", value="English, Hindi")
+                mp_key_facts = st.text_area("Key Facts (one per line)", placeholder="Major industrial hub\nBorder district", height=80)
+                mp_alt_names = st.text_input("Alt Constituency Names", placeholder="Belagavi, Belgaum")
+
+                if st.form_submit_button("Create MP", use_container_width=True, type="primary"):
                     if mp_name and mp_username and mp_password:
-                        # Parse comma-separated fields
                         langs = [l.strip() for l in mp_languages.split(",") if l.strip()] if mp_languages else ["English", "Hindi"]
                         facts = [f.strip() for f in mp_key_facts.strip().split("\n") if f.strip()] if mp_key_facts else []
                         alts = [a.strip() for a in mp_alt_names.split(",") if a.strip()] if mp_alt_names else []
-                        
+
                         result = create_mp(
                             mp_name, mp_username, mp_password,
                             mp_constituency or "India", mp_whatsapp,
-                            house=mp_house,
-                            display_name=mp_display or mp_name,
-                            state=mp_state,
-                            party=mp_party or "Independent",
-                            key_facts=facts,
-                            languages=langs,
-                            alt_names=alts,
+                            house=mp_house, display_name=mp_display or mp_name,
+                            state=mp_state, party=mp_party or "Independent",
+                            key_facts=facts, languages=langs, alt_names=alts,
                         )
                         if result["success"]:
-                            st.success(f"Created MP '{mp_name}' ({mp_house}) with full profile")
+                            st.success(f"Created {mp_name}")
                             st.rerun()
-                        else: st.error(result.get('error'))
-                    else: st.warning("Fill all required fields")
-        
-        with col2:
-            st.subheader("✏️ Manage Existing MP")
-            mps = get_all_mps()
-            mp_usernames = [mp["username"] for mp in mps if mp["role"] != "admin"]
-            
-            if mp_usernames:
-                selected_user = st.selectbox("Select MP to Edit", mp_usernames)
-                current_mp_data = next((item for item in mps if item["username"] == selected_user), None)
-                curr_const = current_mp_data['parliamentary_constituency'] if current_mp_data else "New Delhi"
-                default_idx = ALL_CONSTITUENCIES.index(curr_const) if curr_const in ALL_CONSTITUENCIES else 0
+                        else:
+                            st.error(result.get("error"))
+                    else:
+                        st.warning("Fill all required fields")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-                with st.form("edit_mp_form"):
-                    st.write(f"Editing: **{selected_user}**")
-                    new_const = st.selectbox("Constituency (Local Pulse)", options=ALL_CONSTITUENCIES, index=default_idx)
-                    new_pass = st.text_input("New Password (Optional)", type="password", placeholder="Leave blank to keep current")
-                    
-                    if st.form_submit_button("💾 Save Changes", use_container_width=True):
-                        if new_const and new_const != curr_const:
-                            c_res = update_mp_constituency(selected_user, new_const)
-                            if c_res["success"]: st.success(f"✅ Constituency updated to: {new_const}")
-                            else: st.error(f"❌ Failed to update constituency: {c_res.get('error')}")
+    # ══════════════════════════════════════
+    # TAB 2: PROFILE EDITOR
+    # ══════════════════════════════════════
+    with tab_profile:
+        mps = get_all_mps()
+        mp_list = [mp for mp in mps if mp["role"] != "admin"]
+
+        if not mp_list:
+            st.info("No MPs registered. Create one first.")
+        else:
+            mp_options = {f"{m['display_name']} (@{m['username']})": m for m in mp_list}
+            selected_label = st.selectbox("Select MP to Edit", list(mp_options.keys()))
+            selected_mp = mp_options[selected_label]
+            tid = selected_mp["tenant_id"]
+
+            profile = get_mp_profile(tid)
+            completeness = calculate_profile_completeness(profile)
+            fill_cls = "fill-good" if completeness >= 70 else "fill-mid" if completeness >= 40 else "fill-low"
+
+            # Profile completeness header
+            st.markdown(f"""
+            <div class="glass-panel">
+                <h3>Profile: {selected_mp['display_name']}</h3>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="flex: 1;">
+                        <div class="completeness-bar" style="height: 8px;">
+                            <div class="completeness-fill {fill_cls}" style="width: {completeness}%"></div>
+                        </div>
+                    </div>
+                    <span style="color: {'#34d399' if completeness >= 70 else '#fbbf24' if completeness >= 40 else '#f87171'}; font-weight: 700; font-size: 0.9rem;">{completeness}%</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            col_a, col_b = st.columns([1, 1])
+
+            with col_a:
+                st.markdown('<div class="section-title">Identity & Credentials</div>', unsafe_allow_html=True)
+                with st.form("edit_identity"):
+                    e_name = st.text_input("MP Name", value=profile.get("mp_name", selected_mp["display_name"]))
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        curr_const = selected_mp["parliamentary_constituency"]
+                        if selected_mp["house"] == "Lok Sabha":
+                            idx = ALL_CONSTITUENCIES.index(curr_const) if curr_const in ALL_CONSTITUENCIES else 0
+                            e_const = st.selectbox("Constituency", ALL_CONSTITUENCIES, index=idx)
+                        else:
+                            e_const = st.text_input("Constituency", value=profile.get("constituency", curr_const))
+                    with c2:
+                        e_state = st.text_input("State", value=profile.get("state", ""))
+
+                    c3, c4 = st.columns(2)
+                    with c3:
+                        house_opts = ["Lok Sabha", "Rajya Sabha"]
+                        e_house = st.selectbox("House", house_opts, index=house_opts.index(profile.get("house", selected_mp["house"])))
+                    with c4:
+                        e_party = st.text_input("Party", value=profile.get("party", "Independent"))
+
+                    st.markdown("---")
+                    new_pass = st.text_input("Reset Password", type="password", placeholder="Leave blank to keep current")
+
+                    if st.form_submit_button("Save Identity", use_container_width=True, type="primary"):
+                        # Save profile
+                        save_data = {
+                            "mp_name": e_name, "constituency": e_const, "state": e_state,
+                            "house": e_house, "party": e_party,
+                            "key_facts": profile.get("key_facts", []),
+                            "languages": profile.get("languages", ["English", "Hindi"]),
+                            "alt_names": profile.get("alt_names", []),
+                            "sovereignty_rules": profile.get("sovereignty_rules", ""),
+                            "vocabulary_guide": profile.get("vocabulary_guide", {}),
+                        }
+                        res = save_mp_profile(tid, save_data)
+                        if res["success"]:
+                            st.success("Identity saved")
+                        else:
+                            st.error(res.get("error"))
+
+                        # Update constituency on User/Tenant too
+                        if e_const != curr_const:
+                            update_mp_constituency(selected_mp["username"], e_const)
+
+                        # Reset password if provided
                         if new_pass:
-                            p_res = reset_mp_password(selected_user, new_pass)
-                            if p_res["success"]: st.success("✅ Password updated")
-                            else: st.error("❌ Failed to update password")
-                        if (new_const and new_const != curr_const) or new_pass:
-                            st.rerun()
-            else:
-                st.info("No MPs found.")
-        
-        st.divider()
-        st.subheader("Registered MPs")
-        if mps:
-            mp_list = [mp for mp in mps if mp["role"] != "admin"]
-            if mp_list:
-                df = pd.DataFrame(mp_list)
-                st.dataframe(
-                    df[["tenant_id", "display_name", "username", "house", "parliamentary_constituency", "whatsapp_number", "created_at"]], 
-                    use_container_width=True, 
-                    hide_index=True
-                )
+                            p_res = reset_mp_password(selected_mp["username"], new_pass)
+                            if p_res["success"]:
+                                st.success("Password updated")
 
-    # ===================
-    # TAB 2: Geography Upload
-    # ===================
-    with tab2:
-        st.header("🗺️ Geography Upload")
+                        st.rerun()
+
+            with col_b:
+                st.markdown('<div class="section-title">News & Drafter Profile</div>', unsafe_allow_html=True)
+                with st.form("edit_profile_data"):
+                    e_langs = st.text_input("Languages (comma-separated)", value=", ".join(profile.get("languages", ["English", "Hindi"])))
+                    e_facts = st.text_area("Key Facts (one per line)", value="\n".join(profile.get("key_facts", [])), height=120)
+                    e_alts = st.text_input("Alt Constituency Names (comma-separated)", value=", ".join(profile.get("alt_names", [])))
+                    e_sovereignty = st.text_area("Sovereignty Rules", value=profile.get("sovereignty_rules", ""), height=80, help="Special rules for the AI drafter (e.g. border stance)")
+
+                    if st.form_submit_button("Save Profile Data", use_container_width=True, type="primary"):
+                        langs = [l.strip() for l in e_langs.split(",") if l.strip()]
+                        facts = [f.strip() for f in e_facts.strip().split("\n") if f.strip()]
+                        alts = [a.strip() for a in e_alts.split(",") if a.strip()]
+
+                        save_data = {
+                            "mp_name": profile.get("mp_name", e_name if 'e_name' in dir() else ""),
+                            "constituency": profile.get("constituency", ""),
+                            "state": profile.get("state", ""),
+                            "house": profile.get("house", "Lok Sabha"),
+                            "party": profile.get("party", "Independent"),
+                            "key_facts": facts,
+                            "languages": langs,
+                            "alt_names": alts,
+                            "sovereignty_rules": e_sovereignty,
+                            "vocabulary_guide": profile.get("vocabulary_guide", {}),
+                        }
+                        res = save_mp_profile(tid, save_data)
+                        if res["success"]:
+                            st.success("Profile data saved")
+                        else:
+                            st.error(res.get("error"))
+                        st.rerun()
+
+            # Danger Zone
+            st.markdown("---")
+            with st.expander("Danger Zone", expanded=False):
+                st.warning(f"Permanently delete **{selected_mp['display_name']}** and all their data?")
+                c_del1, c_del2 = st.columns([3, 1])
+                with c_del1:
+                    confirm_text = st.text_input("Type the username to confirm", placeholder=selected_mp["username"])
+                with c_del2:
+                    st.write("")
+                    if st.button("Delete MP", type="primary", use_container_width=True):
+                        if confirm_text == selected_mp["username"]:
+                            res = delete_mp(tid)
+                            if res["success"]:
+                                st.success("Deleted successfully")
+                                st.rerun()
+                            else:
+                                st.error(res.get("error"))
+                        else:
+                            st.error("Username doesn't match")
+
+    # ══════════════════════════════════════
+    # TAB 3: GEOGRAPHY UPLOAD
+    # ══════════════════════════════════════
+    with tab_geo:
+        st.markdown('<div class="section-title">Upload Polling Station Data</div>', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1: p_const = st.text_input("Parliamentary Constituency", key="geo_p")
         with col2: a_const = st.text_input("Assembly Constituency", key="geo_a")
-        
+
         uploaded_pdf = st.file_uploader("Upload Election Commission PDF", type=["pdf"])
         if uploaded_pdf and p_const and a_const:
-            if st.button("🔍 Parse PDF", use_container_width=True):
+            if st.button("Parse PDF", use_container_width=True, type="primary"):
                 with st.spinner("Parsing..."):
                     stations = parse_polling_station_pdf(uploaded_pdf)
                     if stations:
                         st.session_state['parsed_stations'] = stations
                         st.session_state['curr_p'] = p_const
                         st.session_state['curr_a'] = a_const
-                        st.success(f"✅ Extracted {len(stations)} stations")
-                    else: st.warning("⚠️ No data found")
+                        st.success(f"Extracted {len(stations)} stations")
+                    else:
+                        st.warning("No data found")
 
         if 'parsed_stations' in st.session_state:
             st.divider()
-            st.subheader("✏️ Edit JSON")
             json_str = json.dumps(st.session_state['parsed_stations'], indent=2, ensure_ascii=False)
-            edited_json = st.text_area("JSON Editor", value=json_str, height=400)
-            
+            edited_json = st.text_area("JSON Editor", value=json_str, height=350)
             c1, c2 = st.columns(2)
             with c1:
-                if st.button("💾 Save", use_container_width=True, type="primary"):
+                if st.button("Save", use_container_width=True, type="primary"):
                     try:
                         data = json.loads(edited_json)
                         if save_geography_data(st.session_state['curr_p'], st.session_state['curr_a'], data):
-                            st.success("✅ Saved!")
+                            st.success("Saved!")
                             del st.session_state['parsed_stations']
-                            try: requests.post(f"{API_URL}/geography/reload") 
+                            try: requests.post(f"{API_URL}/geography/reload")
                             except: pass
                     except: st.error("Invalid JSON")
             with c2:
-                if st.button("🗑️ Discard"): 
+                if st.button("Discard"):
                     del st.session_state['parsed_stations']
                     st.rerun()
 
         st.divider()
-        st.subheader("📁 Saved Files")
+        st.markdown('<div class="section-title">Saved Geography Files</div>', unsafe_allow_html=True)
         pl = get_parliamentary_constituencies()
         if pl:
             for p in pl:
                 with st.expander(f"🏛️ {p}"):
                     al = get_assembly_constituencies(p)
                     for a in al:
-                        cx, cd = st.columns([4,1])
-                        with cx: st.write(f"**{a}** ({len(load_geography_data(p, a))} locs)")
+                        cx, cd = st.columns([4, 1])
+                        with cx: st.write(f"**{a}** ({len(load_geography_data(p, a))} locations)")
                         with cd:
-                            if st.button("🗑️", key=f"del_{p}_{a}"):
-                                try: 
+                            if st.button("Delete", key=f"del_{p}_{a}"):
+                                try:
                                     os.remove(GEOGRAPHY_BASE_PATH / p / f"{a}.json")
                                     st.rerun()
                                 except: pass
+        else:
+            st.info("No geography data uploaded yet.")
 
-    # ===================
-    # TAB 3: Metadata
-    # ===================
-    with tab3:
-        st.header("📋 Metadata")
-        meta = load_metadata()
-        plist = get_parliamentary_constituencies()
-        sel_p = st.selectbox("Select Constituency", [""] + plist) if plist else st.text_input("Enter Constituency")
-        
-        if sel_p:
-            curr_data = meta.get(sel_p, {"mp_name":"", "party":"", "district":"", "state":""})
-            m_json = st.text_area("Metadata JSON", value=json.dumps(curr_data, indent=2), height=400)
-            if st.button("💾 Save Metadata", type="primary"):
-                try:
-                    meta[sel_p] = json.loads(m_json)
-                    save_metadata(meta)
-                    st.success("✅ Saved")
-                except: st.error("Invalid JSON")
-
-    # ===================
-    # TAB 4: Rules
-    # ===================
-    with tab4:
-        st.header("🌍 Geography Rules")
+    # ══════════════════════════════════════
+    # TAB 4: GEOGRAPHY RULES
+    # ══════════════════════════════════════
+    with tab_rules:
+        st.markdown('<div class="section-title">Geography Override Rules (per MP)</div>', unsafe_allow_html=True)
         overrides = load_overrides()
         geo_rules = overrides.get("geo_overrides", {})
         mps = get_all_mps()
-        if mps:
-            t_opts = {f"{m['mp_name']} ({m['parliamentary_constituency']}) [ID: {m['tenant_id']}]": str(m['tenant_id']) for m in mps}
+        mp_list = [m for m in mps if m["role"] != "admin"]
+
+        if mp_list:
+            t_opts = {f"{m['display_name']} — {m['parliamentary_constituency']} [ID {m['tenant_id']}]": str(m['tenant_id']) for m in mp_list}
             sel_mp = st.selectbox("Select MP", list(t_opts.keys()))
             if sel_mp:
                 tid = t_opts[sel_mp]
                 rules = geo_rules.get(tid, {})
-                
-                c1, c2, c3 = st.columns([2,2,1])
-                with c1: loc_in = st.text_input("Location (Input)")
-                with c2: const_out = st.text_input("Correct Constituency", value=next(m['parliamentary_constituency'] for m in mps if str(m['tenant_id']) == tid))
-                with c3: 
+
+                st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+                st.markdown(f"<h3>Add New Rule</h3>", unsafe_allow_html=True)
+                c1, c2, c3 = st.columns([2, 2, 1])
+                with c1: loc_in = st.text_input("Location Input", placeholder="e.g. tilakwadi")
+                with c2: const_out = st.text_input("Maps To (Assembly Constituency)", placeholder="e.g. Belgaum Dakshin")
+                with c3:
                     st.write("")
                     st.write("")
-                    if st.button("Add Rule"):
+                    if st.button("Add Rule", type="primary", use_container_width=True):
                         if loc_in and const_out:
                             if "geo_overrides" not in overrides: overrides["geo_overrides"] = {}
                             if tid not in overrides["geo_overrides"]: overrides["geo_overrides"][tid] = {}
                             overrides["geo_overrides"][tid][loc_in.strip().lower()] = const_out
                             save_overrides(overrides)
-                            st.success("✅ Rule Added")
+                            st.success("Rule added")
                             st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
 
                 if rules:
-                    df = pd.DataFrame([{"Input": k, "Output": v} for k,v in rules.items()])
+                    st.markdown(f"**{len(rules)} rules** for this MP")
+                    df = pd.DataFrame([{"Location": k, "Assembly Constituency": v} for k, v in rules.items()])
                     edited = st.data_editor(df, use_container_width=True, num_rows="dynamic", key=f"ed_{tid}")
-                    if st.button("💾 Save Table"):
-                        new_r = {row["Input"]: row["Output"] for _, row in edited.iterrows() if row["Input"] and row["Output"]}
+                    if st.button("Save Table", type="primary"):
+                        new_r = {row["Location"]: row["Assembly Constituency"] for _, row in edited.iterrows() if row["Location"] and row["Assembly Constituency"]}
                         if "geo_overrides" not in overrides: overrides["geo_overrides"] = {}
                         overrides["geo_overrides"][tid] = new_r
                         save_overrides(overrides)
-                        st.success("✅ Saved")
-        else: st.warning("Create MP first")
+                        st.success("Saved")
+                else:
+                    st.info("No rules defined for this MP yet.")
+        else:
+            st.info("Create an MP first.")
+
 
 if __name__ == "__main__":
     main()
