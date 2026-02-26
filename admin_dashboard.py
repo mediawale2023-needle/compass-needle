@@ -817,6 +817,12 @@ def save_geography_data(parliamentary, assembly, data):
         path = GEOGRAPHY_BASE_PATH / parliamentary
         path.mkdir(parents=True, exist_ok=True)
         with open(path / f"{assembly}.json", 'w', encoding='utf-8') as f: json.dump(data, f, indent=2, ensure_ascii=False)
+        # Auto-generate overrides for all tenants after upload
+        try:
+            from modules.geography_resolver import auto_generate_overrides
+            auto_generate_overrides()
+        except Exception as e:
+            print(f"Override auto-gen warning: {e}")
         return True
     except: return False
 

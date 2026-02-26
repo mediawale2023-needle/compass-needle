@@ -272,3 +272,120 @@ def get_index_stats() -> Dict[str, int]:
 def reload_index():
     _geography_index["loaded"] = False
     return load_geography_index()
+
+# ==========================================
+# AUTO-GENERATE OVERRIDES FROM GEOGRAPHY DATA
+# ==========================================
+def auto_generate_overrides():
+    """
+    Scans all geography JSON files, extracts unique locality→assembly mappings,
+    and writes them to tenant_overrides.json keyed by tenant_id.
+    
+    - Looks up tenant_id by matching constituency name to geography folder name
+    - Preserves manually-added overrides (manual entries take priority)
+    - Cleans newlines and deduplicates
+    """
+    if not GEOGRAPHY_BASE_PATH or not GEOGRAPHY_BASE_PATH.exists():
+        logger.warning("Geography base path not found, cannot auto-generate overrides")
+        return {"error": "Geography path not found"}
+    
+    # Load existing overrides to preserve manual entries
+    overrides_path = PROJECT_ROOT / "tenant_overrides.json"
+    existing_data = {}
+    if overrides_path.exists():
+        try:
+            with open(overrides_path, "r", encoding="utf-8") as f:
+                existing_data = json.load(f)
+        except Exception:
+            existing_data = {}
+    
+    # Preserve non-geo_overrides keys (like WhatsApp mappings)
+    preserved_keys = {k: v for k, v in existing_data.items() if k != "geo_overrides"}
+    existing_geo = existing_data.get("geo_overrides", {})
+    
+    # Look up tenant_ids by constituency name from DB
+    constituency_to_tenant = {}
+    try:
+        from db import SessionLocal, Tenant
+        db = SessionLocal()
+        tenants = db.query(Tenant).all()
+        for t in tenants:
+            if t.constituency and t.constituency != "System":
+                constituency_to_tenant[t.constituency] = t.id
+        db.close()
+    except Exception as e:
+        logger.warning(f"Could not load tenants from DB: {e}")
+    
+    # Scan geography folders
+    new_geo_overrides = {}
+    stats = {}
+    
+    for parl_dir in sorted(GEOGRAPHY_BASE_PATH.iterdir()):
+        if not parl_dir.is_dir():
+            continue
+        
+        parl_name = parl_dir.name  # e.g., "Belagavi", "Kalyan Dombivli"
+        tenant_id = constituency_to_tenant.get(parl_name)
+        
+        if not tenant_id:
+            logger.info(f"No tenant found for constituency '{parl_name}', skipping override generation")
+            continue
+        
+        tid_str = str(tenant_id)
+        overrides_map = {}
+        
+        for json_file in sorted(parl_dir.glob("*.json")):
+            assembly_name = json_file.stem  # e.g., "Belgaum Uttar"
+            
+            try:
+                with open(json_file, "r", encoding="utf-8") as f:
+                    stations = json.load(f)
+            except Exception:
+                continue
+            
+            if not isinstance(stations, list):
+                continue
+            
+            for station in stations:
+                # Extract locality (primary) and building parts
+                locality = station.get("locality", "").replace("\n", " ").strip()
+                
+                if not locality or len(locality) < 3:
+                    continue
+                
+                # Normalize the key (lowercase, clean)
+                key = locality.lower().strip()
+                key = re.sub(r'\s+', ' ', key)
+                
+                # Skip if too generic (single common word)
+                if key in {"east", "west", "north", "south", "ward", "room", "hall"}:
+                    continue
+                
+                # Only add if not already mapped (first occurrence wins)
+                if key not in overrides_map:
+                    overrides_map[key] = assembly_name
+        
+        # Merge: existing manual overrides take priority over auto-generated
+        existing_tenant_overrides = existing_geo.get(tid_str, {})
+        merged = {**overrides_map, **existing_tenant_overrides}  # manual wins
+        
+        new_geo_overrides[tid_str] = merged
+        stats[parl_name] = {
+            "tenant_id": tenant_id,
+            "auto_generated": len(overrides_map),
+            "manual_preserved": len(existing_tenant_overrides),
+            "total": len(merged),
+        }
+    
+    # Write the final overrides file
+    final_data = {**preserved_keys, "geo_overrides": new_geo_overrides}
+    
+    try:
+        with open(overrides_path, "w", encoding="utf-8") as f:
+            json.dump(final_data, f, indent=2, ensure_ascii=False)
+        logger.info(f"Auto-generated overrides written to {overrides_path}")
+    except Exception as e:
+        logger.error(f"Failed to write overrides: {e}")
+        return {"error": str(e)}
+    
+    return {"success": True, "stats": stats}
