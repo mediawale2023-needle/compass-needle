@@ -1036,8 +1036,8 @@ def main():
     render_stat_cards(stats)
 
     # ── TABS ──
-    tab_mp, tab_profile, tab_geo, tab_rules = st.tabs([
-        "MP Management", "Profile Editor", "Geography Upload", "Geography Rules"
+    tab_mp, tab_profile, tab_geo, tab_rules, tab_intel = st.tabs([
+        "MP Management", "Profile Editor", "Geography Upload", "Geography Rules", "Case Intelligence"
     ])
 
     # ══════════════════════════════════════
@@ -1393,6 +1393,13 @@ def main():
                     st.info("No rules defined for this MP yet.")
         else:
             st.info("Create an MP first.")
+
+    # ══════════════════════════════════════
+    # TAB 5: CASE INTELLIGENCE
+    # ══════════════════════════════════════
+    with tab_intel:
+        from modules.case_intelligence import render_case_intelligence
+        render_case_intelligence()
 
 
 if __name__ == "__main__":
