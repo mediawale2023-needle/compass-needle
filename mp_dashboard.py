@@ -12,6 +12,7 @@ import bcrypt
 from itsdangerous import URLSafeSerializer
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
+from db import init_db as _init_db
 
 # --- 1. PAGE CONFIG (MUST BE FIRST) ---
 st.set_page_config(
@@ -20,6 +21,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# --- Ensure all DB tables exist (including tenant_profiles) ---
+_init_db()
 
 # --- 2. FORCE RELOAD MODULES ---
 import modules.sansadx 
