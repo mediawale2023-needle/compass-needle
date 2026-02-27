@@ -1,6 +1,8 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@theme {
+:root {
   /* Lok Sabha — official green */
   --color-ls: #006a4d;
   --color-ls-light: #e8f5f0;
