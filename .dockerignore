@@ -1,0 +1,17 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.git/
+.gitignore
+node_modules/
+frontend/
+.next/
+*.db
+*.sqlite3
+backups/
+.DS_Store
+.streamlit/
+*.md
+docker-compose.yml
