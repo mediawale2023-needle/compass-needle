@@ -4,14 +4,17 @@ FROM node:18-alpine
 # Set the working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy package.json only (not package-lock.json — it has wrong native bindings)
+COPY package.json ./
 
-# Install dependencies
+# Fresh install to get correct native bindings for Linux
 RUN npm install
 
 # Copy the rest of the frontend code
 COPY . .
+
+# Remove any macOS-specific lock files that might have been copied
+RUN rm -f package-lock.json
 
 # Build the Next.js app
 RUN npm run build
