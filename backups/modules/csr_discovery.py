@@ -127,4 +127,4 @@ def render_csr_discovery(username):
             with st.expander("View Compliant Local Companies"):
                 # Select only columns that exist
                 cols_to_show = [c for c in ['Company', 'Sector', 'Total_3Y'] if c in compliant.columns]
-                st.dataframe(compliant[cols_to_show], use_container_width=True)
+                st.dataframe(compliant[cols_to_show], width="stretch")

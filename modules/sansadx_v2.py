@@ -147,7 +147,7 @@ def render_sansadx(username):
                 disabled=["id", "created_at", "user_phone"],
                 hide_index=True,
                 key="data_editor",
-                use_container_width=True
+                width="stretch"
             )
             
             # Detect Changes & Save

@@ -153,7 +153,7 @@ def _render_platform_health():
                 "Last Login": last_str,
                 "Status": "🟢 Active" if last and last_str != "Never" else "⚪ Never logged in",
             })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
     else:
         st.info("No MP activity data.")
 
@@ -296,7 +296,7 @@ def _render_case_explorer():
             "Created": st.column_config.TextColumn("Created", width="small"),
             "Critical": st.column_config.TextColumn("!", width="small"),
         },
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 
@@ -397,7 +397,7 @@ def _render_grievance_analytics():
             GROUP BY category ORDER BY count DESC
         """)
         if cat_vol:
-            st.dataframe(pd.DataFrame(cat_vol), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(cat_vol), width="stretch", hide_index=True)
 
     with col_r:
         st.markdown("**Status Distribution**")
@@ -407,7 +407,7 @@ def _render_grievance_analytics():
             GROUP BY status ORDER BY count DESC
         """)
         if status_vol:
-            st.dataframe(pd.DataFrame(status_vol), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(status_vol), width="stretch", hide_index=True)
 
     st.markdown("####")
 
@@ -441,7 +441,7 @@ def _render_grievance_analytics():
                 "Resolved Cases": r["resolved_cases"],
                 "Avg Resolution Time": time_str,
             })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
     else:
         st.info("No resolution data available yet (no cases have been resolved with timestamps).")
 

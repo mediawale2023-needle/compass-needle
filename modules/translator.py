@@ -27,7 +27,7 @@ def render_translator(username):
         tone = st.radio("Tone", ["Formal (Official)", "Conversational (Social Media)"], horizontal=True)
 
         # Action Button
-        if st.button(" Translate Now", type="primary", use_container_width=True):
+        if st.button(" Translate Now", type="primary", width="stretch"):
             if not source_text:
                 st.warning("Please enter text to translate.")
             else:

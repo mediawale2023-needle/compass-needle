@@ -102,4 +102,4 @@ def render_sansadx(username):
     else:
         filtered_df = df
         
-    st.dataframe(filtered_df[["created_at", "area", "category", "status", "notes_for_staff"]], use_container_width=True)
+    st.dataframe(filtered_df[["created_at", "area", "category", "status", "notes_for_staff"]], width="stretch")

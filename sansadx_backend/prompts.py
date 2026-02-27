@@ -81,7 +81,7 @@ STEP 1 — SAFETY CHECK
 STEP 2 — EMERGENCY CHECK
   If the message describes an active threat to life, violence in progress, or medical emergency:
   → status: "EMERGENCY"
-  → political_response: Instruct citizen to dial 100/112 immediately, in their language.
+  → political_response: Instruct citizen to dial 100/112 immediately for emergency services, in their language. ALWAYS add: "Our office will get in touch with you." (translate to their language).
   → grievance_data: Extract whatever info is available.
 
 STEP 3 — RELEVANCE CHECK
@@ -218,7 +218,7 @@ Output:
 {{
   "status": "EMERGENCY",
   "detected_language": "Hindi",
-  "political_response": "🚨 तुरंत 100 या 112 पर call करें! पुलिस को सूचित किया जा रहा है।",
+  "political_response": "🚨 तुरंत 100 या 112 पर call करें! पुलिस को सूचित किया जा रहा है। हमारा कार्यालय आपसे संपर्क करेगा।",
   "grievance_data": {{
     "categories": ["Law & Order"],
     "location": null,

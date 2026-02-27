@@ -224,8 +224,14 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         data["assembly_constituency"] = correct_constituency
                         data["constituency"] = correct_constituency
                         
-                        # --- TAD NECESSARY: Force status to completed if location is matched ---
-                        data["status"] = "completed"
+                        # --- FIXED: Only set completed if NOT emergency or offensive ---
+                        original_status = data.get("status", "").lower()
+                        if original_status not in ("emergency", "offensive"):
+                            data["status"] = "completed"
+                        
+                        # Set is_critical for emergency cases
+                        if original_status == "emergency":
+                            data["is_critical"] = True
                         
                         if "grievance_data" in data:
                             data["grievance_data"]["assembly_constituency"] = correct_constituency

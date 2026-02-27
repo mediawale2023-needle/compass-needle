@@ -63,7 +63,7 @@ def render_master_admin():
         # "on_select='rerun'" makes the app reload instantly when you click a row
         selection = st.dataframe(
             df[["id", "name", "constituency", "whatsapp_number", "subscription_plan"]],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             on_select="rerun",           # <--- THE MAGIC
             selection_mode="single-row"  # Only one client at a time

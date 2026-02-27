@@ -152,7 +152,7 @@ def render_state_intel(username):
         
         st.dataframe(
             leaderboard, 
-            use_container_width=True,
+            width="stretch",
             column_config={"Total Spent (Cr)": st.column_config.NumberColumn(format="₹ %.2f Cr")}
         )
 
@@ -162,4 +162,4 @@ def render_state_intel(username):
         desc = next((c for c in df.columns if "Project" in c or "Description" in c), None)
         if desc: cols.insert(1, desc)
             
-        st.dataframe(df[cols].sort_values(by=amt_col, ascending=False), use_container_width=True)
+        st.dataframe(df[cols].sort_values(by=amt_col, ascending=False), width="stretch")

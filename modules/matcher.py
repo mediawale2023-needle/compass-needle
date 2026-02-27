@@ -530,7 +530,7 @@ def _render_ministry_overview(df):
     ].reset_index(drop=True)
     top_schemes.index += 1
     top_schemes.columns = ["Scheme", "Ministry", "Budget", "₹ Cr"]
-    st.dataframe(top_schemes, use_container_width=True)
+    st.dataframe(top_schemes, width="stretch")
 
     st.divider()
 

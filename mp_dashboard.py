@@ -325,7 +325,7 @@ def login_screen():
         with st.form("login_form"):
             username = st.text_input("Username")
             password = st.text_input("Password", type="password")
-            submit = st.form_submit_button("Log In", type="primary", use_container_width=True)
+            submit = st.form_submit_button("Log In", type="primary", width="stretch")
             if submit:
                 user_data, error_msg = attempt_login(username, password)
                 if user_data:
@@ -436,7 +436,7 @@ else:
             default_index=0, styles={"nav-link-selected": {"background-color": color}}
         )
         st.divider()
-        if st.button("Log Out", use_container_width=True):
+        if st.button("Log Out", width="stretch"):
             perform_logout()
             st.rerun()
             
@@ -522,7 +522,7 @@ else:
         with c_right:
             st.markdown(f"<div class='widget-card'><div class='widget-title'>Calendar & Notes</div>", unsafe_allow_html=True)
             sel_date = st.date_input("Date", datetime.now(), label_visibility="collapsed")
-            if st.button(" Save Note", use_container_width=True):
+            if st.button(" Save Note", width="stretch"):
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 

@@ -69,7 +69,7 @@ if not st.session_state.authenticated:
         with st.form("login"):
             u = st.text_input("Username")
             p = st.text_input("Password", type="password")
-            if st.form_submit_button("Log In", use_container_width=True):
+            if st.form_submit_button("Log In", width="stretch"):
                 if u == "admin" and p == "password":
                     st.session_state.authenticated = True
                     st.session_state.current_user = "admin"
@@ -101,7 +101,7 @@ else:
             default_index=0,
             styles={"nav-link-selected": {"background-color": color}}
         )
-        if st.button("🔒 Secure Logout", use_container_width=True):
+        if st.button("🔒 Secure Logout", width="stretch"):
             st.session_state.authenticated = False
             st.rerun()
 
@@ -193,7 +193,7 @@ else:
             st.caption(f"Schedule for {sel_date.strftime('%d %B')}:")
             new_note = st.text_area("Note", value=current_note, height=180, label_visibility="collapsed", key="dash_note")
             
-            if st.button("💾 Save Schedule", use_container_width=True):
+            if st.button("💾 Save Schedule", width="stretch"):
                 st.session_state.calendar_notes[date_key] = new_note
                 st.toast("Schedule Updated!")
             st.markdown("</div>", unsafe_allow_html=True)

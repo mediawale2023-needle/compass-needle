@@ -927,7 +927,7 @@ def main():
             with st.form("admin_login"):
                 u = st.text_input("Username", placeholder="admin username")
                 p = st.text_input("Password", type="password", placeholder="password")
-                if st.form_submit_button("Sign In", use_container_width=True, type="primary"):
+                if st.form_submit_button("Sign In", width="stretch", type="primary"):
                     res = verify_admin_login(u, p)
                     if res["success"]:
                         st.session_state.admin_authenticated = True
@@ -950,10 +950,10 @@ def main():
         """, unsafe_allow_html=True)
     with hdr_right:
         st.write("")
-        if st.button("⚙️ Settings", use_container_width=True):
+        if st.button("⚙️ Settings", width="stretch"):
             st.session_state.show_settings = not st.session_state.show_settings
             st.rerun()
-        if st.button("Logout", use_container_width=True):
+        if st.button("Logout", width="stretch"):
             st.session_state.admin_authenticated = False
             st.rerun()
 
@@ -975,7 +975,7 @@ def main():
                 adm_current = st.text_input("Current Password", type="password")
                 adm_new = st.text_input("New Password", type="password")
                 adm_confirm = st.text_input("Confirm New Password", type="password")
-                if st.form_submit_button("Update Password", use_container_width=True, type="primary"):
+                if st.form_submit_button("Update Password", width="stretch", type="primary"):
                     if not adm_current or not adm_new:
                         st.warning("Fill all fields")
                     elif adm_new != adm_confirm:
@@ -1002,7 +1002,7 @@ def main():
                 ed_username = st.text_input("Editor Username *", placeholder="editor_name")
                 ed_display = st.text_input("Display Name", placeholder="Editor display name")
                 ed_password = st.text_input("Password *", type="password")
-                if st.form_submit_button("Create Editor", use_container_width=True, type="primary"):
+                if st.form_submit_button("Create Editor", width="stretch", type="primary"):
                     if ed_username and ed_password:
                         res = create_editor(ed_username, ed_password, display_name=ed_display)
                         if res["success"]:
@@ -1093,7 +1093,7 @@ def main():
                     mp_key_facts = st.text_area("Key Facts (one per line)", placeholder="Major industrial hub\nBorder district", height=80)
                     mp_alt_names = st.text_input("Alt Constituency Names", placeholder="Belagavi, Belgaum")
 
-                    if st.form_submit_button("Create MP", use_container_width=True, type="primary"):
+                    if st.form_submit_button("Create MP", width="stretch", type="primary"):
                         if mp_name and mp_username and mp_password:
                             langs = [l.strip() for l in mp_languages.split(",") if l.strip()] if mp_languages else ["English", "Hindi"]
                             facts = [f.strip() for f in mp_key_facts.strip().split("\n") if f.strip()] if mp_key_facts else []
@@ -1175,7 +1175,7 @@ def main():
                     st.markdown("---")
                     new_pass = st.text_input("Reset Password", type="password", placeholder="Leave blank to keep current")
 
-                    if st.form_submit_button("Save Identity", use_container_width=True, type="primary"):
+                    if st.form_submit_button("Save Identity", width="stretch", type="primary"):
                         # Save profile
                         save_data = {
                             "mp_name": e_name, "constituency": e_const, "state": e_state,
@@ -1212,7 +1212,7 @@ def main():
                     e_alts = st.text_input("Alt Constituency Names (comma-separated)", value=", ".join(profile.get("alt_names", [])))
                     e_sovereignty = st.text_area("Sovereignty Rules", value=profile.get("sovereignty_rules", ""), height=80, help="Special rules for the AI drafter (e.g. border stance)")
 
-                    if st.form_submit_button("Save Profile Data", use_container_width=True, type="primary"):
+                    if st.form_submit_button("Save Profile Data", width="stretch", type="primary"):
                         langs = [l.strip() for l in e_langs.split(",") if l.strip()]
                         facts = [f.strip() for f in e_facts.strip().split("\n") if f.strip()]
                         alts = [a.strip() for a in e_alts.split(",") if a.strip()]
@@ -1245,7 +1245,7 @@ def main():
                     confirm_text = st.text_input("Type the username to confirm", placeholder=selected_mp["username"])
                 with c_del2:
                     st.write("")
-                    if st.button("Delete MP", type="primary", use_container_width=True):
+                    if st.button("Delete MP", type="primary", width="stretch"):
                         if confirm_text == selected_mp["username"]:
                             res = delete_mp(tid)
                             if res["success"]:
@@ -1293,7 +1293,7 @@ def main():
 
         uploaded_pdf = st.file_uploader("Upload Election Commission PDF", type=["pdf"])
         if uploaded_pdf and p_const and a_const:
-            if st.button("Parse PDF", use_container_width=True, type="primary"):
+            if st.button("Parse PDF", width="stretch", type="primary"):
                 with st.spinner("Parsing..."):
                     stations = parse_polling_station_pdf(uploaded_pdf)
                     if stations:
@@ -1310,7 +1310,7 @@ def main():
             edited_json = st.text_area("JSON Editor", value=json_str, height=350)
             c1, c2 = st.columns(2)
             with c1:
-                if st.button("Save", use_container_width=True, type="primary"):
+                if st.button("Save", width="stretch", type="primary"):
                     try:
                         data = json.loads(edited_json)
                         if save_geography_data(st.session_state['curr_p'], st.session_state['curr_a'], data):
@@ -1369,7 +1369,7 @@ def main():
                 with c3:
                     st.write("")
                     st.write("")
-                    if st.button("Add Rule", type="primary", use_container_width=True):
+                    if st.button("Add Rule", type="primary", width="stretch"):
                         if loc_in and const_out:
                             if "geo_overrides" not in overrides: overrides["geo_overrides"] = {}
                             if tid not in overrides["geo_overrides"]: overrides["geo_overrides"][tid] = {}
@@ -1382,7 +1382,7 @@ def main():
                 if rules:
                     st.markdown(f"**{len(rules)} rules** for this MP")
                     df = pd.DataFrame([{"Location": k, "Assembly Constituency": v} for k, v in rules.items()])
-                    edited = st.data_editor(df, use_container_width=True, num_rows="dynamic", key=f"ed_{tid}")
+                    edited = st.data_editor(df, width="stretch", num_rows="dynamic", key=f"ed_{tid}")
                     if st.button("Save Table", type="primary"):
                         new_r = {row["Location"]: row["Assembly Constituency"] for _, row in edited.iterrows() if row["Location"] and row["Assembly Constituency"]}
                         if "geo_overrides" not in overrides: overrides["geo_overrides"] = {}

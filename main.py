@@ -35,6 +35,20 @@ logger = logging.getLogger("needle.backend")
 
 app = FastAPI()
 
+# CORS — allow Next.js frontend
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "https://*.railway.app"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Mount API router for Next.js frontend
+from api_router import router as api_router
+app.include_router(api_router, prefix="/api")
+
 # ==========================================
 # 0. TWILIO HELPER (DIRECT DEFINITION TO FIX IMPORT ERROR)
 # ==========================================
@@ -222,8 +236,8 @@ async def whatsapp_webhook(request: Request):
             conn.execute(
                 text("""
                     INSERT INTO cases 
-                    (tenant_id, user_phone, category, raw_message, status, case_metadata, created_at)
-                    VALUES (:tid, :phone, :cat, :msg, :stat, :meta, NOW())
+                    (tenant_id, user_phone, category, raw_message, status, case_metadata, is_critical, created_at)
+                    VALUES (:tid, :phone, :cat, :msg, :stat, :meta, :crit, NOW())
                 """),
                 {
                     "tid": current_tenant, 
@@ -231,7 +245,8 @@ async def whatsapp_webhook(request: Request):
                     "cat": category,
                     "msg": message_body,
                     "stat": status,
-                    "meta": json.dumps(meta_data)
+                    "meta": json.dumps(meta_data),
+                    "crit": ai_result.get("is_critical", False) or (status == "emergency"),
                 }
             )
             logger.info(f"Saved Status: '{status}' | Tenant: {current_tenant} | Constituency: '{final_constituency}'")

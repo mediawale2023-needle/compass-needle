@@ -1,0 +1,174 @@
+@import "tailwindcss";
+
+@theme {
+  /* Lok Sabha — official green */
+  --color-ls: #006a4d;
+  --color-ls-light: #e8f5f0;
+  --color-ls-dark: #00513b;
+
+  /* Rajya Sabha — official maroon */
+  --color-rs: #8d153a;
+  --color-rs-light: #fdf0f3;
+  --color-rs-dark: #6b0f2d;
+
+  --font-sans: "Noto Sans", "Segoe UI", system-ui, sans-serif;
+}
+
+/* ── Base ── */
+body {
+  font-family: var(--font-sans);
+  background: #f4f4f4;
+  color: #333;
+  margin: 0;
+}
+
+/* ── Sansad-style accented card ── */
+.sansad-card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.sansad-card-header {
+  padding: 12px 20px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sansad-card-body {
+  padding: 16px 20px;
+}
+
+/* ── Left-accent card (used in sansad.in for stats) ── */
+.sansad-stat {
+  background: white;
+  border: 1px solid #ddd;
+  border-left: 4px solid;
+  border-radius: 2px;
+  padding: 16px 20px;
+}
+
+/* ── Table styling (matches sansad.in member tables) ── */
+.sansad-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.sansad-table thead th {
+  background: #f8f8f8;
+  border-bottom: 2px solid #ddd;
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #666;
+}
+
+.sansad-table tbody tr {
+  border-bottom: 1px solid #eee;
+  transition: background 0.15s;
+}
+
+.sansad-table tbody tr:hover {
+  background: #fafafa;
+}
+
+.sansad-table tbody td {
+  padding: 10px 14px;
+  color: #444;
+}
+
+/* ── Tab bar (sansad.in uses horizontal pill tabs) ── */
+.sansad-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid #ddd;
+}
+
+.sansad-tab {
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s;
+}
+
+.sansad-tab:hover {
+  color: #333;
+}
+
+.sansad-tab-active {
+  border-bottom-color: currentColor;
+}
+
+/* ── Badge ── */
+.sansad-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 2px;
+}
+
+/* ── Status colors ── */
+.status-new {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.status-in_progress {
+  background: #fff8e1;
+  color: #f57f17;
+}
+
+.status-resolved {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-escalated {
+  background: #fbe9e7;
+  color: #c62828;
+}
+
+.status-closed {
+  background: #eceff1;
+  color: #546e7a;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+
+/* ── Animations (subtle) ── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out;
+}

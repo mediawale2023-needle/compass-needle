@@ -60,7 +60,7 @@ def render_filtered_table(df, key_suffix):
             "Full_Meta": None, # Hidden
             "Intent": None # Hidden
         },
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         key=f"table_{key_suffix}"
     )
@@ -149,7 +149,7 @@ def render_sansadx(username):
     with c1: search = st.text_input(" Search", placeholder="Search content...", key="sx_search")
     with c2: filter_const = st.selectbox("Constituency", ["All"] + list(main_df["Constituency"].unique()), key="sx_const")
     with c4: 
-        if st.button(" Refresh", use_container_width=True): st.rerun()
+        if st.button(" Refresh", width="stretch"): st.rerun()
 
     # Apply Search/Constituency Filters first
     if search:

@@ -371,7 +371,7 @@ def render_drafter(username):
                 )
 
             # GENERATE BUTTON
-            if st.button(" Generate Letter", type="primary", use_container_width=True):
+            if st.button(" Generate Letter", type="primary", width="stretch"):
                 if l_recipient_name and l_subject:
                     with st.spinner("Drafting parliamentary-grade letter..."):
                         tone_config = TONE_PRESETS[l_tone]
@@ -519,7 +519,7 @@ Date: {datetime.now().strftime("%d %B %Y")}
             )
             
             # GENERATE BUTTON
-            if st.button(" Generate 5 PQ Options", type="primary", use_container_width=True, key="gen_pq"):
+            if st.button(" Generate 5 PQ Options", type="primary", width="stretch", key="gen_pq"):
                 if pq_subject:
                     with st.spinner("Analyzing Parliamentary precedents..."):
                         focus_instruction = {

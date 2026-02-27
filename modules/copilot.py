@@ -135,7 +135,7 @@ def render_copilot(username):
 
     col_spacer, col_btn = st.columns([5, 1])
     with col_btn:
-        if st.button("New Analysis", use_container_width=True):
+        if st.button("New Analysis", width="stretch"):
             st.session_state.pages_data = []
             st.session_state.copilot_filename = ""
             st.session_state.analysis_result = ""
@@ -173,7 +173,7 @@ def render_copilot(username):
 
     col_spacer2, col_change = st.columns([5, 1])
     with col_change:
-        if st.button("Change Document", use_container_width=True):
+        if st.button("Change Document", width="stretch"):
             st.session_state.pages_data = []
             st.session_state.copilot_filename = ""
             st.session_state.analysis_result = ""
@@ -201,7 +201,7 @@ def render_copilot(username):
         with col2:
             analyse_depth = st.radio("Depth", ["Quick Scan", "Comprehensive"], index=0, horizontal=True, key="analyse_depth")
 
-        if st.button("Run Analysis", type="primary", use_container_width=True, key="btn_analyse"):
+        if st.button("Run Analysis", type="primary", width="stretch", key="btn_analyse"):
             with st.spinner("Analysing document..."):
                 context = get_document_context(st.session_state.pages_data)
                 lang_instruction = RAJBHASHA_INSTRUCTIONS if "Hindi" in analyse_language else ""
@@ -284,9 +284,9 @@ RULES:
 
         btn_col1, btn_col2 = st.columns([4, 1])
         with btn_col1:
-            send_pressed = st.button("Submit", type="primary", use_container_width=True, key="btn_ask")
+            send_pressed = st.button("Submit", type="primary", width="stretch", key="btn_ask")
         with btn_col2:
-            if st.button("Clear", use_container_width=True, key="btn_clear_chat"):
+            if st.button("Clear", width="stretch", key="btn_clear_chat"):
                 st.session_state.copilot_chat_history = []
                 st.session_state.analysis_result = ""
                 st.rerun()
@@ -349,7 +349,7 @@ Use the full conversation history for contextual follow-ups.
 
         action_col1, action_col2, action_col3 = st.columns(3)
         with action_col1:
-            if st.button("Save to Archives", use_container_width=True, key="save_result"):
+            if st.button("Save to Archives", width="stretch", key="save_result"):
                 filepath = save_analysis_to_disk(result_text, st.session_state.analysis_type, st.session_state.copilot_filename)
                 st.success(f"Saved: {filepath}")
         with action_col2:
@@ -357,10 +357,10 @@ Use the full conversation history for contextual follow-ups.
                 "Download",
                 result_text,
                 file_name=f"{st.session_state.analysis_type}_{st.session_state.copilot_filename[:20]}.md",
-                use_container_width=True
+                width="stretch"
             )
         with action_col3:
-            if st.button("Re-run", use_container_width=True, key="rerun"):
+            if st.button("Re-run", width="stretch", key="rerun"):
                 st.session_state.analysis_result = ""
                 st.rerun()
 

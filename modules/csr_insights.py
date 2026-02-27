@@ -142,9 +142,9 @@ def _render_company_database(username):
         st.write(f"** Local Operations ({len(local_df)})**")
         display_cols = [c for c in ["Company", "Sector", "Total_3Y", "Status"] if c in local_df.columns]
         if display_cols:
-            st.dataframe(local_df[display_cols], use_container_width=True)
+            st.dataframe(local_df[display_cols], width="stretch")
         else:
-            st.dataframe(local_df, use_container_width=True)
+            st.dataframe(local_df, width="stretch")
 
 
 def _render_compliance_watchdog(username):

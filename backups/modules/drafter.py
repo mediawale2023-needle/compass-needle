@@ -51,7 +51,7 @@ def render_drafter(username):
             l_points = st.text_area("Key Instructions / Raw Notes", height=150, placeholder="Mention the delay, public anger, and request inspection within 7 days.")
             l_lang = st.selectbox("Language", profile.get("languages", ["English"]), key="l_lang")
             
-            if st.button("✨ Draft Letter", type="primary", use_container_width=True):
+            if st.button("✨ Draft Letter", type="primary", width="stretch"):
                 if l_recipient and l_subject and model:
                     with st.spinner("AI is drafting..."):
                         prompt = f"""
@@ -102,7 +102,7 @@ def render_drafter(username):
         
         pq_subject = st.text_input("Subject / Issue", placeholder="e.g. Delay in highway construction in Belagavi")
         
-        if st.button("✨ Generate 5 PQ Options", type="primary", use_container_width=True):
+        if st.button("✨ Generate 5 PQ Options", type="primary", width="stretch"):
             if pq_subject and model:
                 with st.spinner("Analyzing Parliamentary Precedents & Formatting..."):
                     

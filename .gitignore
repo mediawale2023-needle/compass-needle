@@ -1,6 +1,33 @@
+# Python
 venv/
-sansadx-backend/venv/
+.venv/
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+
+# Environment
 .env
+.env.local
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+.next/
+out/
+
+# Database files
+*.db
+*.sqlite3
+
+# Backups directory (optional, uncomment if needed)
+# backups/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

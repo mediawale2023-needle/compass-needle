@@ -158,7 +158,7 @@ def render_state_intel(username):
         
         st.dataframe(
             leaderboard, 
-            use_container_width=True,
+            width="stretch",
             column_config={"Total Spent (Cr)": st.column_config.NumberColumn(format="₹ %.2f Cr")}
         )
     else:
@@ -175,11 +175,11 @@ def render_state_intel(username):
             cols = list(dict.fromkeys(cols))
 
             if cols and amt_col in cols:
-                st.dataframe(df[cols].sort_values(by=amt_col, ascending=False), use_container_width=True)
+                st.dataframe(df[cols].sort_values(by=amt_col, ascending=False), width="stretch")
             elif cols:
-                st.dataframe(df[cols], use_container_width=True)
+                st.dataframe(df[cols], width="stretch")
             else:
-                st.dataframe(df, use_container_width=True)
+                st.dataframe(df, width="stretch")
         except Exception as e:
             st.warning(f"Could not render project details: {e}")
-            st.dataframe(df.head(50), use_container_width=True)
+            st.dataframe(df.head(50), width="stretch")
