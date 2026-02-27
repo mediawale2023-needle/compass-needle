@@ -1,4 +1,4 @@
-# Use Debian-based Node (NOT Alpine — Tailwind v4 needs glibc)
+# Use Debian-based Node (Tailwind v3 works fine here)
 FROM node:18-slim
 
 WORKDIR /app
@@ -6,8 +6,8 @@ WORKDIR /app
 # Copy package.json only
 COPY package.json ./
 
-# Clean install for correct Linux native bindings
-RUN npm install --no-optional && npm install @tailwindcss/oxide
+# Fresh install
+RUN npm install
 
 # Copy the rest of the frontend code
 COPY . .
@@ -15,5 +15,5 @@ COPY . .
 # Build the Next.js app
 RUN npm run build
 
-# Start the application
-CMD ["npm", "start"]
+# Railway sets PORT — pass it explicitly to next start
+CMD ["sh", "-c", "npx next start -H 0.0.0.0 -p ${PORT:-3000}"]
