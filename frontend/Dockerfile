@@ -15,5 +15,9 @@ COPY . .
 # Build the Next.js app
 RUN npm run build
 
-# Railway sets PORT — pass it explicitly to next start
-CMD ["sh", "-c", "npx next start -H 0.0.0.0 -p ${PORT:-3000}"]
+# Use port 3000 (standard Next.js port)
+EXPOSE 3000
+ENV PORT=3000
+
+# Start Next.js on 0.0.0.0:3000
+CMD ["npx", "next", "start", "-H", "0.0.0.0", "-p", "3000"]
