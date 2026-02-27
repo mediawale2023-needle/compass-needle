@@ -1,8 +1,9 @@
 /**
  * API client — wraps fetch with JWT auth and error handling.
+ * Calls the backend directly using NEXT_PUBLIC_API_URL.
  */
 
-const API_BASE = '';  // Proxied via next.config.mjs rewrites
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 export async function api(path, options = {}) {
     const token = typeof window !== 'undefined' ? localStorage.getItem('needle_token') : null;
