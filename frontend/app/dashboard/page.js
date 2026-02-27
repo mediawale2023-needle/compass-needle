@@ -18,7 +18,7 @@ export default function DashboardPage() {
         async function load() {
             try {
                 const [sum, nat, loc, parl] = await Promise.all([
-                    apiGet('/api/dashboard/summary'),
+                    apiGet('/api/dashboard/summary').catch(() => ({ category_breakdown: {}, status_breakdown: {}, red_zones: [], critical_count: 0 })),
                     apiGet('/api/news?type=national').catch(() => ({ articles: [] })),
                     apiGet('/api/news?type=local').catch(() => ({ articles: [] })),
                     apiGet('/api/parliament/status').catch(() => null),
@@ -28,6 +28,7 @@ export default function DashboardPage() {
                 setParliament(parl);
             } catch (err) {
                 console.error(err);
+                setSummary({ category_breakdown: {}, status_breakdown: {}, red_zones: [], critical_count: 0 });
             } finally {
                 setLoading(false);
             }
