@@ -2,10 +2,11 @@ FROM node:18-slim
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
+# Copy only admin app files (build context is repo root)
+COPY admin/package.json admin/package-lock.json* ./
 RUN npm install
 
-COPY . .
+COPY admin/ .
 RUN npm run build
 
 ENV PORT=3000
