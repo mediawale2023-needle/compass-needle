@@ -1,127 +1,21 @@
-import os
-import bcrypt
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
-from datetime import datetime
-
-# --- 1. SMART CONNECTION (Local vs Cloud) ---
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if DATABASE_URL:
-    # CLOUD MODE (Railway)
-    # Postgres requires 'postgresql://' (Railway provides 'postgres://')
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    
-    SQLALCHEMY_DATABASE_URL = DATABASE_URL
-    connect_args = {}
-else:
-    # LOCAL MODE (MacBook)
-    SQLALCHEMY_DATABASE_URL = "sqlite:///./sansadx.db"
-    connect_args = {"check_same_thread": False}
-
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args=connect_args)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# --- PASSWORD HASHING UTILITIES (SECURITY) ---
-def hash_password(password: str) -> str:
-    """Hash password using bcrypt. Always use this for new passwords."""
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-
-def verify_password(password: str, password_hash: str) -> bool:
-    """Verify password against bcrypt hash."""
-    try:
-        return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
-    except Exception:
-        return False
-
-Base = declarative_base()
-
-# --- 2. CORE MODELS ---
-
-class Tenant(Base):
-    __tablename__ = "tenants"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
-    constituency = Column(String)
-    whatsapp_number = Column(String, unique=True)
-    subscription_plan = Column(String, default="Pro")
-    config = Column(JSON, default={})  
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    users = relationship("User", back_populates="tenant")
-    cases = relationship("Case", back_populates="tenant")
-
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"))
-    username = Column(String, unique=True, index=True)
-    password_hash = Column(String)
-    role = Column(String)
-    constituency = Column(String, default="India")
-    house = Column(String, default="Lok Sabha")       # Lok Sabha | Rajya Sabha
-    display_name = Column(String, nullable=True)       # e.g. "Jagadish Shettar"
-    
-    tenant = relationship("Tenant", back_populates="users")
-
-class Case(Base):
-    __tablename__ = "cases"
-    id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"))
-    user_phone = Column(String, index=True)
-    raw_message = Column(Text)
-    category = Column(String, default="General")
-    status = Column(String, default="new")
-    location = Column(String, nullable=True)
-    ward = Column(String, nullable=True)
-    is_critical = Column(Boolean, default=False)
-    response_to_citizen = Column(Text, nullable=True)
-    notes_for_staff = Column(Text, nullable=True)
-    case_metadata = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    tenant = relationship("Tenant", back_populates="cases")
-
-# --- 3. PERSISTENCE MODELS (Archives & DNA Samples) ---
-
-class Archive(Base):
-    """Stores saved drafts/archives for users."""
-    __tablename__ = "archives"
-    id = Column(Integer, primary_key=True, index=True)
-    user = Column(String, index=True)  # Indexed for fast lookups
-    date = Column(String)
-    category = Column(String, default="General")
-    title = Column(String)
-    content = Column(Text)  # Text type for long drafts
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-class DNASample(Base):
-    """Stores style templates (DNA samples) for users."""
-    __tablename__ = "dna_samples"
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, index=True)  # Indexed for fast lookups
-    title = Column(String)
-    content = Column(Text)  # Text type for long content
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-class TenantProfile(Base):
-    """Per-tenant profile: constituency context, news keywords, drafter identity."""
-    __tablename__ = "tenant_profiles"
-    id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), unique=True, index=True)
-    mp_name = Column(String)
-    constituency = Column(String)
-    state = Column(String)
-    house = Column(String, default="Lok Sabha")
-    party = Column(String, default="Independent")
-    profile_data = Column(JSON, default={})  # key_facts, languages, vocabulary_guide, sovereignty_rules, alt_names
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    tenant = relationship("Tenant", backref="profile")
-
-# --- 4. DATABASE INITIALIZATION ---
-def init_db():
-    Base.metadata.create_all(bind=engine)
+"""
+db.py — Compatibility shim.
+All models and utilities now live in sansadx_backend/db.py.
+This file re-exports everything so old imports still work.
+"""
+from sansadx_backend.db import (
+    engine,
+    SessionLocal,
+    Base,
+    init_db,
+    hash_password,
+    verify_password,
+    get_db,
+    Tenant,
+    User,
+    Case,
+    TenantProfile,
+    Archive,
+    DNASample,
+    ActivityHistory,
+)

@@ -17,8 +17,7 @@ from pydantic import BaseModel
 from jose import jwt, JWTError
 from sqlalchemy import text, func
 
-from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case
-from db import TenantProfile
+from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile
 from modules.constituencies import ALL_CONSTITUENCIES
 
 logger = logging.getLogger("needle.admin_api")
@@ -26,7 +25,9 @@ logger = logging.getLogger("needle.admin_api")
 # ─────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────
-JWT_SECRET = os.getenv("JWT_SECRET", "")
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET environment variable is required")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 4  # Longer session for admin
 
@@ -70,7 +71,7 @@ def verify_password(password: str, stored_hash: str) -> bool:
             return bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8"))
     except Exception:
         pass
-    return stored_hash == password
+    return False
 
 
 def create_admin_token(data: dict) -> str:

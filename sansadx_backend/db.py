@@ -3,13 +3,14 @@ db.py — Single source of truth for all database connections and ORM models.
 All other files import engine, SessionLocal, and models from here.
 """
 import os
+import bcrypt
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 
 # ─────────────────────────────────────────
-# UNIFIED DATABASE CONNECTION (fixes dual-engine bug)
+# UNIFIED DATABASE CONNECTION
 # ─────────────────────────────────────────
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
@@ -17,7 +18,7 @@ if DATABASE_URL:
     # Fix Heroku/Railway postgres:// → postgresql://
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=10, max_overflow=20, pool_recycle=300)
 else:
     # Local SQLite fallback
     engine = create_engine(
@@ -27,6 +28,23 @@ else:
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+
+# ─────────────────────────────────────────
+# PASSWORD HASHING UTILITIES
+# ─────────────────────────────────────────
+def hash_password(password: str) -> str:
+    """Hash password using bcrypt. Always use this for new passwords."""
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """Verify password against bcrypt hash. No plaintext fallback."""
+    try:
+        if password_hash.startswith("$2b$") or password_hash.startswith("$2a$"):
+            return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+    except Exception:
+        pass
+    return False
 
 
 # ─────────────────────────────────────────
@@ -98,6 +116,44 @@ class Case(Base):
     tenant = relationship("Tenant", back_populates="cases")
 
 
+class TenantProfile(Base):
+    """Per-tenant profile: constituency context, news keywords, drafter identity."""
+    __tablename__ = "tenant_profiles"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), unique=True, index=True)
+    mp_name = Column(String)
+    constituency = Column(String)
+    state = Column(String)
+    house = Column(String, default="Lok Sabha")
+    party = Column(String, default="Independent")
+    profile_data = Column(JSON, default={})
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    tenant = relationship("Tenant", backref="profile")
+
+
+class Archive(Base):
+    """Stores saved drafts/archives for users."""
+    __tablename__ = "archives"
+    id = Column(Integer, primary_key=True, index=True)
+    user = Column(String, index=True)
+    date = Column(String)
+    category = Column(String, default="General")
+    title = Column(String)
+    content = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class DNASample(Base):
+    """Stores style templates (DNA samples) for users."""
+    __tablename__ = "dna_samples"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, index=True)
+    title = Column(String)
+    content = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class ActivityHistory(Base):
     __tablename__ = "activity_history"
 
@@ -107,7 +163,7 @@ class ActivityHistory(Base):
     activity_type = Column(String(50), nullable=False)
     title = Column(String(500))
     content = Column(Text)
-    extra_metadata = Column("metadata", Text)  # 'metadata' is reserved in SQLAlchemy
+    extra_metadata = Column("metadata", Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

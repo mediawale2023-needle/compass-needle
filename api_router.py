@@ -95,9 +95,6 @@ def login(req: LoginRequest):
         pass
 
     if not valid:
-        valid = (stored_hash == req.password)
-
-    if not valid:
         raise HTTPException(401, "Invalid credentials")
 
     try:
