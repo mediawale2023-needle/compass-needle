@@ -73,6 +73,9 @@ app.add_middleware(
 from api_router import router as api_router
 app.include_router(api_router, prefix="/api")
 
+from admin_api import router as admin_router
+app.include_router(admin_router, prefix="/api/admin")
+
 # ─────────────────────────────────────────
 # DATABASE INIT
 # ─────────────────────────────────────────
