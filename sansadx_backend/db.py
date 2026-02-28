@@ -107,7 +107,7 @@ class ActivityHistory(Base):
     activity_type = Column(String(50), nullable=False)
     title = Column(String(500))
     content = Column(Text)
-    metadata = Column(Text)
+    extra_metadata = Column("metadata", Text)  # 'metadata' is reserved in SQLAlchemy
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
