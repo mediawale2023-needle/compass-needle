@@ -1,239 +1,230 @@
-# 🔍 Needle - Legislative Intelligence Tool
+# Needle — Parliamentary Intelligence Platform
 
-**The Compass for Indian Legislation**
+AI-powered constituency management system for Members of Parliament.
 
----
-
-## 📋 Overview
-
-Needle is a lightweight, sovereign AI tool designed for legislative drafting and analysis. Built for the Office of the MP (Milind Deora), this MVP provides three core modules:
-
-1. **Legislative Co-Pilot** - PDF analysis with local RAG
-2. **Parliamentary Question Generator** - Automated Lok Sabha format questions
-3. **Zero Hour Drafter** - Urgent matter speech scripts
+Citizens send grievances via WhatsApp → AI categorizes & routes them → MPs manage cases from a web dashboard.
 
 ---
 
-## 🛠️ Technical Stack
-
-- **Frontend/UI**: Streamlit
-- **Data Processing**: Pandas
-- **RAG Logic**: LangChain, ChromaDB
-- **Embeddings**: Sentence-Transformers (all-MiniLM-L6-v2)
-- **PDF Processing**: PyPDF
-- **Execution**: CPU-only (no GPU dependencies)
-
----
-
-## 🚀 Installation & Setup
-
-### Prerequisites
-- Python 3.9 or higher
-- pip package manager
-
-### Installation Steps
-
-1. **Clone or navigate to the repository**
-   ```bash
-   cd /app
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Run the application**
-   ```bash
-   streamlit run main.py
-   ```
-
-4. **Access the application**
-   - The app will open automatically in your browser
-   - Default URL: `http://localhost:8501`
-
----
-
-## 📂 Project Structure
+## Architecture
 
 ```
-/app/
-├── main.py                 # Main application container with navigation
+┌─────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│  WhatsApp        │────▶│  FastAPI Backend  │◀────│  MP Dashboard    │
+│  (Twilio)        │     │  (Python)         │     │  (Next.js)       │
+└─────────────────┘     └──────┬───────────┘     └──────────────────┘
+                               │                          ▲
+                               │                          │
+                        ┌──────▼───────────┐     ┌───────┴──────────┐
+                        │  PostgreSQL       │     │  Admin Dashboard  │
+                        │  (Railway)        │     │  (Next.js)        │
+                        └──────────────────┘     └──────────────────┘
+```
+
+| Service | Tech | URL |
+|---------|------|-----|
+| Backend API | FastAPI + Python 3.11 | `needle-backend.up.railway.app` |
+| MP Dashboard | Next.js 15 | `needle-frontend.up.railway.app` |
+| Admin Dashboard | Next.js 15 | `needle-admin.up.railway.app` |
+| Database | PostgreSQL | Railway managed |
+| WhatsApp | Twilio Webhook | `/whatsapp/webhook` |
+| AI Engine | OpenAI GPT-4 | Via API |
+
+---
+
+## Project Structure
+
+```
+compass-needle/
+├── main.py                    # FastAPI entry point, WhatsApp webhook
+├── api_router.py              # MP-facing REST API (1200 lines)
+├── admin_api.py               # Admin REST API (1040 lines)
+├── sansadx_backend/
+│   ├── db.py                  # Unified DB models & engine (single source of truth)
+│   ├── ai_engine.py           # OpenAI integration & geography context
+│   └── prompts.py             # System prompts & taxonomy
+├── db.py                      # Compatibility shim (re-exports from sansadx_backend/db.py)
 ├── modules/
-│   ├── __init__.py        # Module initialization
-│   ├── copilot.py         # Legislative Co-Pilot (Reading Engine)
-│   └── drafter.py         # Parliamentary drafter (Writing Engine)
-├── requirements.txt        # Python dependencies
-└── README.md              # This file
+│   ├── geography_resolver.py  # Polling station → Assembly Constituency mapping
+│   ├── drafter.py             # Letter/speech/PMB drafting engine
+│   ├── copilot.py             # AI document analysis & chat
+│   ├── case_intelligence.py   # Case analytics & platform health
+│   ├── news_intel.py          # News aggregation (national + constituency)
+│   ├── sansadx.py             # Sansad TV integration
+│   ├── constituencies.py      # 543 Lok Sabha constituencies list
+│   ├── persistence.py         # Archives & DNA samples
+│   ├── profile_loader.py      # Tenant profile management
+│   └── ...                    # CSR modules, settings, translator
+├── frontend/                  # MP Dashboard (Next.js)
+│   ├── app/
+│   │   ├── page.js            # Login
+│   │   └── dashboard/         # Protected routes
+│   │       ├── page.js        # Overview (cases, stats, charts)
+│   │       ├── drafter/       # Letter & speech drafting
+│   │       ├── copilot/       # AI document analysis
+│   │       ├── csr/           # CSR project discovery
+│   │       ├── archives/      # Saved drafts
+│   │       ├── sansadx/       # Parliament TV
+│   │       └── settings/      # Profile & preferences
+│   └── lib/
+│       ├── api.js             # API client with JWT auth
+│       └── auth.js            # Auth context provider
+├── admin/                     # Admin Dashboard (Next.js)
+│   ├── app/
+│   │   ├── page.js            # Admin login
+│   │   └── dashboard/
+│   │       ├── page.js        # Overview (MP cards, stats)
+│   │       ├── mps/new/       # Create MP
+│   │       ├── profiles/      # Edit MP profiles
+│   │       ├── geography/     # Upload polling station data
+│   │       ├── rules/         # Geography override rules
+│   │       ├── intelligence/  # Case analytics (3 views)
+│   │       └── settings/      # Admin password & editors
+│   └── lib/
+│       ├── api.js             # Admin API client
+│       └── auth.js            # Admin auth context
+├── data/
+│   └── geography/             # Polling station JSON files per constituency
+├── Dockerfile                 # Backend Docker build
+├── requirements.txt           # Python dependencies
+└── tenant_overrides.json      # WhatsApp number → tenant mapping
 ```
 
 ---
 
-## 🎯 Features
+## Environment Variables
 
-### 1. Legislative Co-Pilot 🤖
+### Backend (Railway)
 
-**Purpose**: Analyze legislative documents using local RAG
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | ✅ | PostgreSQL connection string |
+| `JWT_SECRET` | ✅ | Token signing key (min 32 chars) |
+| `OPENAI_API_KEY` | ✅ | GPT-4 API access |
+| `TWILIO_ACCOUNT_SID` | ✅ | WhatsApp messaging |
+| `TWILIO_AUTH_TOKEN` | ✅ | WhatsApp auth |
+| `TWILIO_WHATSAPP_NUMBER` | ✅ | Twilio sandbox/number |
+| `SENTRY_DSN` | Optional | Error monitoring |
 
-**Features**:
-- Upload PDF files (bills, regulations, drafts)
-- Automatic text chunking (1000 chars with 100 overlap)
-- Local CPU-based embeddings (no external API calls)
-- Vector database storage using ChromaDB
-- Query interface for document Q&A
-- Retrieve top 3 relevant text chunks
-- Reference evidence display
+### Admin Dashboard (Railway)
 
-**How to Use**:
-1. Select "Legislative Co-Pilot" from sidebar
-2. Upload a PDF document
-3. Wait for processing to complete
-4. Ask questions in the chat interface
-5. Review retrieved reference chunks
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | ✅ | Backend URL (e.g. `https://needle-backend.up.railway.app`) |
 
-**Note**: AI summarization is mocked in this MVP phase. Phase 2 will integrate live LLM API.
+### MP Dashboard (Railway)
 
-### 2. Parliamentary Question Generator 📋
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | ✅ | Backend URL |
 
-**Purpose**: Generate formatted parliamentary questions for Lok Sabha
+---
 
-**Features**:
-- Topic input
-- Ministry selection (32+ ministries)
-- Question type selection (Starred/Unstarred)
-- Auto-formatted output in official Lok Sabha template
-- Downloadable text file
+## Database Models
 
-**Output Format**:
+| Model | Table | Purpose |
+|-------|-------|---------|
+| `Tenant` | `tenants` | MP organization (name, constituency, WhatsApp number) |
+| `User` | `users` | Credentials & roles (mp, admin, sysadmin, editor) |
+| `Case` | `cases` | Citizen grievances from WhatsApp |
+| `TenantProfile` | `tenant_profiles` | MP identity, party, key facts, languages |
+| `Archive` | `archives` | Saved drafts |
+| `DNASample` | `dna_samples` | Writing style templates |
+| `ActivityHistory` | `activity_history` | User activity log |
+
+---
+
+## Core Flows
+
+### WhatsApp Grievance Intake
 ```
-QUESTION NO. ____
-
-(STARRED/UNSTARRED)
-
-Will the Minister of [Ministry] be pleased to state:
-
-(a) Whether the Government has noted...
-(b) If so, the details thereof...
-(c) The steps taken or proposed...
-(d) The funds allocated...
-(e) Whether any assessment has been made...
-```
-
-### 3. Zero Hour Drafter ⏰
-
-**Purpose**: Draft speeches for urgent matters during Zero Hour
-
-**Features**:
-- Urgent issue description
-- Severity level selection (Medium/High)
-- Optional constituency input
-- Auto-generated 200+ word speech script
-- Professional parliamentary format
-- Downloadable text file
-
-**Output Format**:
-```
-Hon'ble Speaker Sir,
-
-I rise to raise a matter of urgent public importance regarding [Issue]...
-
-[Structured speech with clear asks and timeline]
-
-Thank you, Sir.
+Citizen sends WhatsApp message
+  → Twilio forwards to /whatsapp/webhook
+  → Tenant lookup (JSON overrides → DB fallback)
+  → AI Engine categorizes (GPT-4)
+  → Geography resolution (location → assembly constituency)
+  → Case saved to database
+  → AI-generated response sent to citizen
 ```
 
----
+### MP Dashboard
+```
+MP logs in → JWT issued → Dashboard loads
+  → Cases (filter by status, category, constituency)
+  → Drafter (letters, speeches, PMBs, questions)
+  → Copilot (upload & analyze documents)
+  → News (national + constituency-level)
+  → CSR (project discovery & proposals)
+```
 
-## 🔒 Security & Privacy
-
-- **Local Processing**: All embeddings run on CPU locally
-- **No External API Calls**: No data sent to external services during operation
-- **Sovereign AI**: Complete data sovereignty maintained
-- **Secure Mode Active**: Footer indicator confirms local operation
-
----
-
-## 🎨 Branding
-
-- **Color Theme**: Sovereign Blue (#002D62)
-- **App Icon**: 🔍 (Magnifying glass - symbolizing deep analysis)
-- **Tagline**: "The Compass for Indian Legislation"
-
----
-
-## 📊 Performance Specs
-
-- **Embedding Model**: all-MiniLM-L6-v2 (lightweight, CPU-optimized)
-- **Chunk Size**: 1000 characters
-- **Chunk Overlap**: 100 characters
-- **Retrieval**: Top 3 similar chunks
-- **Processing**: Single-threaded CPU execution
+### Admin Dashboard
+```
+Admin logs in → JWT issued → Command Center loads
+  → Create/manage MPs (tenant + user + profile)
+  → Edit profiles (identity, drafter config)
+  → Upload geography (polling station PDFs)
+  → Override rules (location → constituency mapping)
+  → Case Intelligence (health, explorer, analytics)
+  → Manage editors & settings
+```
 
 ---
 
-## 🔧 Troubleshooting
+## Local Development
 
-### Common Issues
+### Backend
+```bash
+# Install dependencies
+pip install -r requirements.txt
 
-1. **SQLite Error**:
-   - Already handled via `pysqlite3-binary` in requirements
-   - If persists, reinstall: `pip install pysqlite3-binary --force-reinstall`
+# Set environment variables
+export DATABASE_URL="postgresql://..."
+export JWT_SECRET="your-secret-key-at-least-32-chars"
+export OPENAI_API_KEY="sk-..."
 
-2. **Model Download Slow**:
-   - First run downloads the embedding model (~80MB)
-   - Subsequent runs use cached model
+# Run
+uvicorn main:app --reload --port 8000
+```
 
-3. **PDF Processing Error**:
-   - Ensure PDF is not corrupted
-   - Check file is not password-protected
-   - Verify file size is reasonable (<50MB recommended)
+### MP Dashboard
+```bash
+cd frontend
+npm install
+echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
+npm run dev    # → http://localhost:3000
+```
 
-4. **Memory Issues**:
-   - Large PDFs may require more RAM
-   - Consider processing in smaller batches
-
----
-
-## 🛣️ Roadmap
-
-### Phase 1 (Current - MVP)
-- ✅ Basic UI with navigation
-- ✅ PDF ingestion and chunking
-- ✅ Local embeddings and vector storage
-- ✅ Document retrieval
-- ✅ Parliamentary question generator
-- ✅ Zero Hour speech drafter
-- ✅ Mock AI summaries
-
-### Phase 2 (Planned)
-- 🔄 Live LLM API integration (Groq/OpenAI)
-- 🔄 Advanced summarization
-- 🔄 Multi-document analysis
-- 🔄 Historical question database
-- 🔄 Speech analytics
-- 🔄 Export to multiple formats (PDF, DOCX)
+### Admin Dashboard
+```bash
+cd admin
+npm install
+echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
+npm run dev    # → http://localhost:3001
+```
 
 ---
 
-## 👥 Credits
+## Deployment (Railway)
 
-**Client**: Office of the MP (Milind Deora)  
-**Product Unit**: Legislative Intelligence Unit  
-**Build Type**: MVP (Minimum Viable Product)  
-**Version**: 1.0.0  
+The project runs as **3 Railway services** from the same GitHub repo:
 
----
+1. **Backend** — Root directory: `/`, Builder: Dockerfile
+2. **MP Frontend** — Root directory: `/frontend`, Builder: Railpack
+3. **Admin Frontend** — Root directory: `/admin`, Builder: Railpack
 
-## 📞 Support
-
-For technical issues or feature requests, please contact the Legislative Intelligence Unit.
+Each service auto-deploys on push to `main`.
 
 ---
 
-## 📄 License
+## Security
 
-Proprietary - Office of the MP (Milind Deora)
+- JWT-based authentication (separate tokens for MP and admin)
+- bcrypt password hashing (no plaintext storage)
+- Role-based access control (mp, admin, super_admin, sysadmin, editor)
+- Sentry error monitoring (optional)
 
 ---
 
-**Built with 🇮🇳 for Indian Legislative Excellence**
+## License
+
+Proprietary — MediaWale 2023. All rights reserved.
