@@ -1,0 +1,307 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+    --sansad-green: #006a4d;
+    --sansad-green-light: #00875f;
+    --sansad-maroon: #8d153a;
+    --bg: #f8faf9;
+    --surface: #ffffff;
+    --border: #e2ebe5;
+    --text-primary: #1a2e28;
+    --text-secondary: #6b7f76;
+    --text-muted: #4a635a;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    margin: 0;
+}
+
+/* ─── Glass Panel ─── */
+.glass-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+}
+
+/* ─── Stat Cards ─── */
+.stat-card {
+    background: var(--surface);
+    border: 1px solid #e8efe9;
+    border-radius: 14px;
+    padding: 1.2rem 1.4rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.stat-card:hover {
+    border-color: var(--sansad-green);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 106, 77, 0.08);
+}
+
+/* ─── MP Cards ─── */
+.mp-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.mp-card:hover {
+    border-color: var(--sansad-green);
+    box-shadow: 0 4px 12px rgba(0, 106, 77, 0.08);
+}
+
+/* ─── Buttons ─── */
+.btn-primary {
+    background: linear-gradient(135deg, #006a4d, #00875f);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 106, 77, 0.2);
+}
+
+.btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #dc2626, #ef4444);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 8px 16px;
+    font-weight: 600;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background: var(--surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 16px;
+    font-weight: 500;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+    border-color: var(--sansad-green);
+    color: var(--sansad-green);
+}
+
+/* ─── Form Inputs ─── */
+.form-input {
+    width: 100%;
+    background: #f8faf9;
+    border: 1px solid #d4e0d9;
+    color: #1a2e28;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.88rem;
+    font-family: inherit;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--sansad-green);
+    box-shadow: 0 0 0 2px rgba(0, 106, 77, 0.12);
+}
+
+.form-label {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 500;
+    margin-bottom: 6px;
+}
+
+textarea.form-input {
+    resize: vertical;
+    min-height: 80px;
+}
+
+select.form-input {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7f76' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+}
+
+/* ─── Section Title ─── */
+.section-title {
+    color: var(--sansad-green);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+}
+
+/* ─── Completeness Bar ─── */
+.completeness-bar {
+    background: #e8efe9;
+    border-radius: 6px;
+    height: 6px;
+    overflow: hidden;
+}
+
+.completeness-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.5s ease;
+}
+
+.fill-good {
+    background: linear-gradient(90deg, #006a4d, #059669);
+}
+
+.fill-mid {
+    background: linear-gradient(90deg, #d97706, #f59e0b);
+}
+
+.fill-low {
+    background: linear-gradient(90deg, #dc2626, #ef4444);
+}
+
+/* ─── Tags ─── */
+.tag {
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.tag-ls {
+    background: rgba(0, 106, 77, 0.08);
+    color: #006a4d;
+}
+
+.tag-rs {
+    background: rgba(141, 21, 58, 0.08);
+    color: #8d153a;
+}
+
+/* ─── Data Table ─── */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+
+.data-table th {
+    background: #f1f5f2;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--border);
+}
+
+.data-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #f0f4f1;
+    color: var(--text-primary);
+}
+
+.data-table tr:hover td {
+    background: #f8faf9;
+}
+
+/* ─── Tabs ─── */
+.tab-list {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+}
+
+.tab-item {
+    padding: 10px 20px;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+}
+
+.tab-item:hover {
+    background: #f1f5f2;
+    color: var(--text-primary);
+}
+
+.tab-item.active {
+    background: rgba(0, 106, 77, 0.08);
+    color: var(--sansad-green);
+    font-weight: 600;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #d4e0d9;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a8c4b5;
+}
