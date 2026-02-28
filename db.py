@@ -1,4 +1,5 @@
 import os
+import bcrypt
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
@@ -22,6 +23,18 @@ else:
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# --- PASSWORD HASHING UTILITIES (SECURITY) ---
+def hash_password(password: str) -> str:
+    """Hash password using bcrypt. Always use this for new passwords."""
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """Verify password against bcrypt hash."""
+    try:
+        return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+    except Exception:
+        return False
 
 Base = declarative_base()
 

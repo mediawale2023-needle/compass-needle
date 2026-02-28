@@ -6,9 +6,13 @@ __pycache__/
 *.pyo
 *.egg-info/
 
-# Environment
+# Environment (SECURITY: Never commit credentials)
 .env
 .env.local
+.env.*.local
+*.key
+*.pem
+secrets/
 
 # OS
 .DS_Store
