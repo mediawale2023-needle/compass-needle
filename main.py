@@ -74,7 +74,7 @@ logger = logging.getLogger("needle.backend")
 # ─────────────────────────────────────────
 # APP
 # ─────────────────────────────────────────
-app = FastAPI(title="Needle Backend", version="8.0")
+app = FastAPI(title="Needle Backend", version="8.1")
 
 # Rate limiter state
 if _rate_limiting_enabled:
@@ -288,4 +288,4 @@ async def whatsapp_webhook(request: Request):
 # ─────────────────────────────────────────
 @app.get("/")
 def health_check():
-    return {"status": "active", "system": "Needle Backend V8"}
+    return {"status": "active", "system": "Needle Backend V8.1"}
