@@ -109,7 +109,7 @@ def load_geography_index() -> bool:
     global _geography_index
     if not GEOGRAPHY_BASE_PATH: return False
 
-    print(f"INDEXING GEOGRAPHY FROM: {GEOGRAPHY_BASE_PATH}")
+    logger.debug(f"INDEXING GEOGRAPHY FROM: {GEOGRAPHY_BASE_PATH}")
     _geography_index["assemblies"] = {}
     files_loaded = 0
 
@@ -147,7 +147,7 @@ def load_geography_index() -> bool:
                         "keywords": keywords
                     })
             files_loaded += 1
-            print(f"   Indexed {assembly}: {len(stations)} locations")
+            logger.debug(f"   Indexed {assembly}: {len(stations)} locations")
 
     _geography_index["loaded"] = True
     return files_loaded > 0
@@ -161,14 +161,14 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
     spaceless_text = clean_text.replace(" ", "")
     user_keywords = get_keywords(text)
     
-    print(f"RESOLVING: '{clean_text}' (tenant={tenant_id})")
+    logger.debug(f"RESOLVING: '{clean_text}' (tenant={tenant_id})")
 
     # 1. TENANT-SPECIFIC OVERRIDES (from tenant_overrides.json)
     if tenant_id is not None:
         tenant_overrides = _load_tenant_overrides(tenant_id)
         for k, v in tenant_overrides.items():
             if k.lower() in clean_text:
-                print(f"   OVERRIDE (tenant {tenant_id}): {k} -> {v}")
+                logger.debug(f"   OVERRIDE (tenant {tenant_id}): {k} -> {v}")
                 return {"location_resolved": True, "assembly_constituency": v, "matched_value": k.title(), "confidence": "god_mode"}
 
     candidates = []
@@ -218,7 +218,7 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
     candidates.sort(key=lambda x: x["score"], reverse=True)
     winner = candidates[0]
 
-    print(f"   WINNER: {winner['name']} ({winner['assembly']}) - Score: {winner['score']:.1f} [{winner['type']}]")
+    logger.debug(f"   WINNER: {winner['name']} ({winner['assembly']}) - Score: {winner['score']:.1f} [{winner['type']}]")
     
     return {
         "location_resolved": True,

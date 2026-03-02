@@ -1131,6 +1131,8 @@ def delete_history_item(item_id: int, user=Depends(get_current_user)):
 # ADMIN — SEED & DEBUG (secured, POST only)
 # ─────────────────────────────────────────
 ADMIN_KEY = os.getenv("ADMIN_SECRET_KEY", "")
+if ADMIN_KEY and len(ADMIN_KEY) < 32:
+    raise ValueError("ADMIN_SECRET_KEY must be at least 32 characters long.")
 
 
 def verify_admin(request: Request):

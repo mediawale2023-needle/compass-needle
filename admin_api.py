@@ -678,6 +678,8 @@ async def upload_pdf(file: UploadFile = File(...), _=Depends(get_admin_user)):
 
     try:
         content = await file.read()
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(413, "File too large (max 10MB)")
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             debug_info["pages"] = len(pdf.pages)
             for page in pdf.pages:
