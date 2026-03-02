@@ -11,16 +11,24 @@ import re
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from jose import jwt, JWTError
 from sqlalchemy import text, func
 
-from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile
+from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, validate_password, get_all_overrides, save_overrides_to_db
+from core.db_helpers import _q, _q_one, _parse_meta
 from modules.constituencies import ALL_CONSTITUENCIES
 
 logger = logging.getLogger("needle.admin_api")
+
+# ─── Rate limiting (optional) ───
+try:
+    from core.rate_limiter import limiter, RATE_LOGIN
+    _limit_login = limiter.limit(RATE_LOGIN)
+except Exception:
+    def _limit_login(f): return f
 
 # ─────────────────────────────────────────
 # CONFIG
@@ -40,19 +48,13 @@ router = APIRouter()
 
 
 # ─────────────────────────────────────────
-# DB HELPERS
+# INPUT SANITIZERS
 # ─────────────────────────────────────────
-def _q(query: str, params: dict = None):
-    with engine.connect() as conn:
-        result = conn.execute(text(query), params or {})
-        if result.returns_rows:
-            return [dict(row._mapping) for row in result]
-    return []
-
-
-def _q_one(query: str, params: dict = None):
-    rows = _q(query, params)
-    return rows[0] if rows else None
+def _sanitize_path_param(value: str) -> str:
+    """Reject path traversal attempts in geography params."""
+    if not value or ".." in value or "/" in value or "\\" in value or "\x00" in value:
+        raise HTTPException(400, "Invalid path parameter")
+    return value
 
 
 # ─────────────────────────────────────────
@@ -168,7 +170,8 @@ class AddRuleRequest(BaseModel):
 # ═══════════════════════════════════════════
 
 @router.post("/auth/login")
-def admin_login(req: AdminLoginRequest):
+@_limit_login
+def admin_login(req: AdminLoginRequest, request: Request):
     user = _q_one("SELECT * FROM users WHERE username = :u", {"u": req.username})
     if not user:
         raise HTTPException(401, "Invalid credentials")
@@ -310,6 +313,9 @@ def list_mps(_=Depends(get_admin_user)):
 @router.post("/mps")
 def create_mp(req: CreateMPRequest, _=Depends(get_admin_user)):
     """Create a new MP — tenant + user + profile."""
+    pw_err = validate_password(req.password)
+    if pw_err:
+        raise HTTPException(400, pw_err)
     db = SessionLocal()
     try:
         if db.query(User).filter(User.username == req.username).first():
@@ -476,6 +482,9 @@ def update_constituency(tenant_id: int, req: UpdateConstituencyRequest, _=Depend
 
 @router.patch("/mps/{tenant_id}/password")
 def reset_mp_password(tenant_id: int, req: ResetPasswordRequest, _=Depends(get_admin_user)):
+    pw_err = validate_password(req.new_password)
+    if pw_err:
+        raise HTTPException(400, pw_err)
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.tenant_id == tenant_id, User.role == "mp").first()
@@ -520,6 +529,9 @@ def list_editors(_=Depends(get_admin_user)):
 
 @router.post("/editors")
 def create_editor(req: CreateEditorRequest, _=Depends(get_admin_user)):
+    pw_err = validate_password(req.password)
+    if pw_err:
+        raise HTTPException(400, pw_err)
     db = SessionLocal()
     try:
         if db.query(User).filter(User.username == req.username).first():
@@ -568,6 +580,9 @@ def delete_editor(editor_id: int, _=Depends(get_admin_user)):
 def reset_admin_password(req: AdminPasswordResetRequest, user=Depends(get_admin_user)):
     if not verify_password(req.current_password, user.get("password_hash", "")):
         raise HTTPException(400, "Current password is incorrect")
+    pw_err = validate_password(req.new_password)
+    if pw_err:
+        raise HTTPException(400, pw_err)
     db = SessionLocal()
     try:
         u = db.query(User).filter(User.username == user["username"]).first()
@@ -600,6 +615,7 @@ def list_parliamentary(_=Depends(get_admin_user)):
 
 @router.get("/geography/{pc}/assemblies")
 def list_assemblies(pc: str, _=Depends(get_admin_user)):
+    pc = _sanitize_path_param(pc)
     path = GEOGRAPHY_BASE_PATH / pc
     if not path.exists():
         return {"assemblies": []}
@@ -609,6 +625,8 @@ def list_assemblies(pc: str, _=Depends(get_admin_user)):
 
 @router.get("/geography/{pc}/{ac}")
 def load_geography(pc: str, ac: str, _=Depends(get_admin_user)):
+    pc = _sanitize_path_param(pc)
+    ac = _sanitize_path_param(ac)
     filepath = GEOGRAPHY_BASE_PATH / pc / f"{ac}.json"
     if not filepath.exists():
         return {"data": []}
@@ -618,6 +636,8 @@ def load_geography(pc: str, ac: str, _=Depends(get_admin_user)):
 
 @router.put("/geography/{pc}/{ac}")
 def save_geography(pc: str, ac: str, req: SaveGeographyRequest, _=Depends(get_admin_user)):
+    pc = _sanitize_path_param(pc)
+    ac = _sanitize_path_param(ac)
     try:
         path = GEOGRAPHY_BASE_PATH / pc
         path.mkdir(parents=True, exist_ok=True)
@@ -636,6 +656,8 @@ def save_geography(pc: str, ac: str, req: SaveGeographyRequest, _=Depends(get_ad
 
 @router.delete("/geography/{pc}/{ac}")
 def delete_geography(pc: str, ac: str, _=Depends(get_admin_user)):
+    pc = _sanitize_path_param(pc)
+    ac = _sanitize_path_param(ac)
     filepath = GEOGRAPHY_BASE_PATH / pc / f"{ac}.json"
     if filepath.exists():
         filepath.unlink()
@@ -755,17 +777,20 @@ def _extract_stations_from_text(text):
 
 @router.get("/overrides")
 def load_overrides(_=Depends(get_admin_user)):
-    if OVERRIDES_PATH.exists():
-        with open(OVERRIDES_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
+    try:
+        return get_all_overrides()
+    except Exception:
+        # Fallback to file if DB table doesn't exist yet
+        if OVERRIDES_PATH.exists():
+            with open(OVERRIDES_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {}
 
 
 @router.put("/overrides")
 def save_overrides(req: SaveOverridesRequest, _=Depends(get_admin_user)):
     try:
-        with open(OVERRIDES_PATH, "w", encoding="utf-8") as f:
-            json.dump(req.data, f, indent=2, ensure_ascii=False)
+        save_overrides_to_db(req.data)
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -775,15 +800,6 @@ def save_overrides(req: SaveOverridesRequest, _=Depends(get_admin_user)):
 # CASE INTELLIGENCE
 # ═══════════════════════════════════════════
 
-def _parse_meta(meta):
-    if meta is None:
-        return {}
-    if isinstance(meta, dict):
-        return meta
-    try:
-        return json.loads(meta)
-    except Exception:
-        return {}
 
 
 @router.get("/cases/health")

@@ -14,9 +14,10 @@ logger = logging.getLogger("needle.security")
 # ============================================
 JWT_SECRET = os.getenv("JWT_SECRET")
 if not JWT_SECRET:
-    raise ValueError("JWT_SECRET environment variable is required")
-if len(JWT_SECRET) < 32:
-    raise ValueError("JWT_SECRET must be at least 32 characters long")
+    logger.warning("JWT_SECRET not set — security_config running in dev mode")
+    JWT_SECRET = None
+elif len(JWT_SECRET) < 32:
+    logger.warning("JWT_SECRET is shorter than 32 characters — insecure")
 
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60  # 1 hour
@@ -93,7 +94,10 @@ AUDIT_LOG_RETENTION_DAYS = 90
 
 def validate_jwt_secret():
     """Validate JWT secret on startup."""
-    if not JWT_SECRET or len(JWT_SECRET) < 32:
+    if not JWT_SECRET:
+        logger.warning("JWT_SECRET is not set — skipping validation")
+        return
+    if len(JWT_SECRET) < 32:
         logger.error("JWT_SECRET is not properly configured")
         raise ValueError("JWT_SECRET must be set and at least 32 characters")
     logger.info("JWT secret validation passed")

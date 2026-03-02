@@ -52,17 +52,23 @@ def get_jurisdiction_context(tenant_id=1):
                                     elif "name" in item: known_areas.add(item["name"])
                 except: pass
 
-    # 2. Load from tenant_overrides.json (tenant-specific locations)
-    override_paths = ["tenant_overrides.json", "/app/tenant_overrides.json"]
-    for op in override_paths:
-        if os.path.exists(op):
-            try:
-                with open(op, "r") as f:
-                    overrides = json.load(f)
-                tenant_geo = overrides.get("geo_overrides", {}).get(str(tenant_id), {})
-                known_areas.update(tenant_geo.keys())
-            except: pass
-            break
+    # 2. Load from tenant_overrides DB (tenant-specific locations)
+    try:
+        from sansadx_backend.db import get_geo_overrides
+        tenant_geo = get_geo_overrides(tenant_id)
+        known_areas.update(tenant_geo.keys())
+    except Exception:
+        # Fallback to JSON file if DB not available
+        override_paths = ["tenant_overrides.json", "/app/tenant_overrides.json"]
+        for op in override_paths:
+            if os.path.exists(op):
+                try:
+                    with open(op, "r") as f:
+                        overrides = json.load(f)
+                    tenant_geo = overrides.get("geo_overrides", {}).get(str(tenant_id), {})
+                    known_areas.update(tenant_geo.keys())
+                except: pass
+                break
 
     if not known_areas: return ""
     return ", ".join(sorted(list(known_areas))[:300])
@@ -185,16 +191,18 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
 
             # [START OF MULTI-TENANT FIX (WITH AUTO-CORRECT)] ----------------
             try:
-                # 1. Load the Rulebook
-                override_path = "tenant_overrides.json"
-                if not os.path.exists(override_path):
-                    override_path = "/app/tenant_overrides.json"
-
-                with open(override_path, "r") as f:
-                    all_overrides = json.load(f)
-                
-                # --- TAD NECESSARY: Fix path to 'geo_overrides' key ---
-                tenant_rules = all_overrides.get("geo_overrides", {}).get(str(tenant_id), {})
+                # 1. Load the Rulebook from DB
+                try:
+                    from sansadx_backend.db import get_geo_overrides
+                    tenant_rules = get_geo_overrides(tenant_id)
+                except Exception:
+                    # Fallback to JSON file
+                    override_path = "tenant_overrides.json"
+                    if not os.path.exists(override_path):
+                        override_path = "/app/tenant_overrides.json"
+                    with open(override_path, "r") as f:
+                        all_overrides = json.load(f)
+                    tenant_rules = all_overrides.get("geo_overrides", {}).get(str(tenant_id), {})
                 
                 # 3. Get AI's extracted location
                 ai_loc = data.get("grievance_data", {}).get("location", "")

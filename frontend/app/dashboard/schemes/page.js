@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useAuth } from '@/lib/auth';
 import { apiGet, apiPost } from '@/lib/api';
 
@@ -322,7 +322,7 @@ export default function SchemesPage() {
                                         <thead><tr><th>Scheme</th><th>Ministry</th><th>Category</th><th>Focus</th><th>Budget</th></tr></thead>
                                         <tbody>
                                             {filtered.slice(0, 50).map((s, i) => (
-                                                <>
+                                                <Fragment key={s.id || i}>
                                                     <tr key={s.id || i} onClick={() => setExpanded(expanded === `f${i}` ? null : `f${i}`)} className="cursor-pointer">
                                                         <td className="font-medium" style={{ color }}>{s.name}</td>
                                                         <td className="text-xs">{(s.ministry || '').replace('Ministry of ', '').slice(0, 35)}</td>

@@ -34,4 +34,8 @@ out/
 .idea/
 .vscode/
 *.swp
-*.swoSECURITY_AUDIT_REPORT.md
+*.swo
+SECURITY_AUDIT_REPORT.md
+
+# Streamlit secrets
+.streamlit/secrets.toml

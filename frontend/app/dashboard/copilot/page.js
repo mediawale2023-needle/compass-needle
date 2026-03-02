@@ -42,7 +42,7 @@ export default function CopilotPage() {
             const token = localStorage.getItem('needle_token') || '';
             const formData = new FormData();
             formData.append('file', file);
-            const res = await fetch('/api/copilot/upload', {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/copilot/upload`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` },
                 body: formData,

@@ -7,15 +7,39 @@ import os
 import json
 import logging
 import sentry_sdk
+from datetime import datetime
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from sqlalchemy import text
 from twilio.rest import Client
 
 # ─────────────────────────────────────────
+# SECURITY CONFIG (optional — soft import)
+# ─────────────────────────────────────────
+try:
+    from core.security_config import (
+        ALLOWED_ORIGINS, SECURITY_HEADERS,
+    )
+except Exception:
+    ALLOWED_ORIGINS = ["*"]
+    SECURITY_HEADERS = {}
+
+# ─────────────────────────────────────────
+# RATE LIMITING (optional — soft import)
+# ─────────────────────────────────────────
+try:
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from core.rate_limiter import limiter, RATE_WEBHOOK
+    _rate_limiting_enabled = True
+except Exception:
+    _rate_limiting_enabled = False
+
+# ─────────────────────────────────────────
 # UNIFIED DB (single engine, single source)
 # ─────────────────────────────────────────
-from sansadx_backend.db import engine, init_db
+from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_geo_overrides
 
 # ─────────────────────────────────────────
 # GEOGRAPHY RESOLVER
@@ -33,8 +57,8 @@ sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
     sentry_sdk.init(
         dsn=sentry_dsn,
-        traces_sample_rate=1.0,
-        profiles_sample_rate=1.0,
+        traces_sample_rate=0.1,
+        profiles_sample_rate=0.1,
     )
 
 # ─────────────────────────────────────────
@@ -52,14 +76,29 @@ logger = logging.getLogger("needle.backend")
 # ─────────────────────────────────────────
 app = FastAPI(title="Needle Backend", version="8.0")
 
-# CORS
+# Rate limiter state
+if _rate_limiting_enabled:
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS — use security config origins (falls back to ["*"] if config unavailable)
+allow_creds = ALLOWED_ORIGINS != ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=allow_creds,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Security headers middleware
+if SECURITY_HEADERS:
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        for header, value in SECURITY_HEADERS.items():
+            response.headers[header] = value
+        return response
 
 # ─────────────────────────────────────────
 # API ROUTER (Next.js frontend endpoints)
@@ -138,18 +177,13 @@ async def whatsapp_webhook(request: Request):
 
     receiver_number = form_data.get("To", "")
     current_tenant = 1
-    overrides_data = {}
 
-    # Tenant lookup — JSON override first, then DB
+    # Tenant lookup — DB overrides first, then users table
     try:
-        for override_path in ["tenant_overrides.json", "/app/tenant_overrides.json"]:
-            if os.path.exists(override_path):
-                with open(override_path, "r") as f:
-                    overrides_data = json.load(f)
-                if receiver_number in overrides_data:
-                    current_tenant = overrides_data[receiver_number]
-                    logger.info(f"JSON override match: {receiver_number} → Tenant {current_tenant}")
-                break
+        phone_map = get_phone_tenant_mapping()
+        if receiver_number in phone_map:
+            current_tenant = phone_map[receiver_number]
+            logger.info(f"DB override match: {receiver_number} → Tenant {current_tenant}")
     except Exception:
         pass
 
@@ -186,14 +220,17 @@ async def whatsapp_webhook(request: Request):
     location_name = grievance.get("location")
     final_constituency = None
 
-    # Geo mapping — case-insensitive JSON override first
-    if location_name and overrides_data:
+    # Geo mapping — case-insensitive DB override first
+    if location_name:
         lookup_key = str(location_name).lower().strip()
-        geo_map = overrides_data.get("geo_overrides", {}).get(str(current_tenant), {})
-        geo_map_lower = {k.lower(): v for k, v in geo_map.items()}
-        final_constituency = geo_map_lower.get(lookup_key)
-        if final_constituency:
-            logger.info(f"Geo match: {lookup_key} → {final_constituency}")
+        try:
+            geo_map = get_geo_overrides(current_tenant)
+            geo_map_lower = {k.lower(): v for k, v in geo_map.items()}
+            final_constituency = geo_map_lower.get(lookup_key)
+            if final_constituency:
+                logger.info(f"Geo match: {lookup_key} → {final_constituency}")
+        except Exception:
+            pass
 
     # Fallback geo resolution
     if not final_constituency:
@@ -225,7 +262,7 @@ async def whatsapp_webhook(request: Request):
                 text("""
                     INSERT INTO cases
                     (tenant_id, user_phone, category, raw_message, status, case_metadata, is_critical, created_at)
-                    VALUES (:tid, :phone, :cat, :msg, :stat, :meta, :crit, NOW())
+                    VALUES (:tid, :phone, :cat, :msg, :stat, :meta, :crit, :now)
                 """),
                 {
                     "tid": current_tenant,
@@ -235,6 +272,7 @@ async def whatsapp_webhook(request: Request):
                     "stat": status,
                     "meta": json.dumps(meta_data),
                     "crit": ai_result.get("is_critical", False) or (status == "emergency"),
+                    "now": datetime.utcnow(),
                 }
             )
             logger.info(f"Saved: status='{status}' tenant={current_tenant} constituency='{final_constituency}'")

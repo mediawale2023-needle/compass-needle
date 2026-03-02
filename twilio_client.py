@@ -4,12 +4,11 @@ from twilio.rest import Client
 from requests.auth import HTTPBasicAuth
 
 # ==========================================
-# 🔓 EMERGENCY MODE: HARDCODED CREDENTIALS
+# TWILIO CREDENTIALS (from environment)
 # ==========================================
-# We are bypassing Railway Variables because the dashboard is stuck.
-ACCOUNT_SID = "AC6ce4ae5b2ad4a230e0b65d56da3b1610"
-AUTH_TOKEN = "b5e00ab263addd0c062c3acc47f7e93a"
-FROM_NUMBER = "whatsapp:+14155238886"
+ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
+AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
+FROM_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
 
 def send_whatsapp_message(to_number, body_text):
     print(f"📡 Twilio Client: Attempting to send to {to_number}...")

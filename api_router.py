@@ -16,8 +16,19 @@ from sqlalchemy import text
 
 # ─── Single DB engine from db.py (fixes dual-engine bug) ───
 from sansadx_backend.db import engine, SessionLocal
+from core.db_helpers import _q, _q_one, _parse_meta
 
 logger = logging.getLogger("needle.api")
+
+# ─── Rate limiting (optional) ───
+try:
+    from core.rate_limiter import limiter, RATE_AI, RATE_LOGIN
+    _limit_login = limiter.limit(RATE_LOGIN)
+    _limit_ai = limiter.limit(RATE_AI)
+except Exception:
+    def _noop(f): return f
+    _limit_login = _noop
+    _limit_ai = _noop
 
 # ─────────────────────────────────────────
 # CONFIG
@@ -31,22 +42,6 @@ JWT_EXPIRE_HOURS = 1
 
 security = HTTPBearer()
 router = APIRouter()
-
-
-# ─────────────────────────────────────────
-# DB HELPERS
-# ─────────────────────────────────────────
-def _q(query: str, params: dict = None):
-    with engine.connect() as conn:
-        result = conn.execute(text(query), params or {})
-        if result.returns_rows:
-            return [dict(row._mapping) for row in result]
-    return []
-
-
-def _q_one(query: str, params: dict = None):
-    rows = _q(query, params)
-    return rows[0] if rows else None
 
 
 # ─────────────────────────────────────────
@@ -80,7 +75,8 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/auth/login")
-def login(req: LoginRequest):
+@_limit_login
+def login(req: LoginRequest, request: Request):
     user = _q_one("SELECT * FROM users WHERE username = :u", {"u": req.username})
     if not user:
         raise HTTPException(401, "Invalid credentials")
@@ -363,7 +359,8 @@ class AnalyseRequest(BaseModel):
 
 
 @router.post("/copilot/analyse")
-def copilot_analyse(req: AnalyseRequest, user=Depends(get_current_user)):
+@_limit_ai
+def copilot_analyse(req: AnalyseRequest, request: Request, user=Depends(get_current_user)):
     if not req.document_text:
         return {"analysis": "No document content provided."}
     try:
@@ -407,7 +404,8 @@ Support, oppose, or seek amendments — with specific justification.
 
 
 @router.post("/copilot/chat")
-def copilot_chat(req: CopilotRequest, user=Depends(get_current_user)):
+@_limit_ai
+def copilot_chat(req: CopilotRequest, request: Request, user=Depends(get_current_user)):
     try:
         from google import genai
         api_key = os.getenv("GEMINI_API_KEY")
@@ -469,7 +467,8 @@ TONE_PRESETS = {
 
 
 @router.post("/drafter/generate")
-def generate_draft(req: DraftRequest, user=Depends(get_current_user)):
+@_limit_ai
+def generate_draft(req: DraftRequest, request: Request, user=Depends(get_current_user)):
     try:
         from google import genai
         api_key = os.getenv("GEMINI_API_KEY")
@@ -573,6 +572,21 @@ def _parse_budget(budget_str):
     return 0
 
 
+import time
+
+# ─── In-memory cache for JSON data (5 min TTL) ───
+_cache = {}
+_CACHE_TTL = 300  # seconds
+
+def _cached_load(key, loader_fn):
+    now = time.time()
+    if key in _cache and (now - _cache[key]["ts"]) < _CACHE_TTL:
+        return _cache[key]["data"]
+    data = loader_fn()
+    _cache[key] = {"data": data, "ts": now}
+    return data
+
+
 def _load_schemes():
     try:
         with open("schemes_db.json", "r", encoding="utf-8") as f:
@@ -586,7 +600,7 @@ def _load_schemes():
 
 @router.post("/schemes/search")
 def search_schemes(req: SchemeSearchRequest, user=Depends(get_current_user)):
-    schemes = _load_schemes()
+    schemes = _cached_load("schemes", _load_schemes)
     if not schemes:
         return {"schemes": [], "total": 0}
     query_lower = req.query.lower()
@@ -610,7 +624,7 @@ def search_schemes(req: SchemeSearchRequest, user=Depends(get_current_user)):
 @router.get("/schemes/all")
 def get_all_schemes(user=Depends(get_current_user), category: Optional[str] = None, ministry: Optional[str] = None):
     from collections import defaultdict
-    schemes = _load_schemes()
+    schemes = _cached_load("schemes", _load_schemes)
     all_schemes = schemes[:]
     if category:
         schemes = [s for s in schemes if s.get("category", "").lower() == category.lower()]
@@ -662,7 +676,7 @@ CITIZEN_SCHEME_MAP = {
 
 @router.post("/schemes/citizen-match")
 def match_citizen_schemes(req: CitizenMatchRequest, user=Depends(get_current_user)):
-    schemes = _load_schemes()
+    schemes = _cached_load("schemes", _load_schemes)
     keywords = []
     for g in req.groups:
         keywords.extend(CITIZEN_SCHEME_MAP.get(g, []))
@@ -805,7 +819,7 @@ def get_csr_companies(
     sector: Optional[str] = None,
     company_type: Optional[str] = None,
 ):
-    data = _load_csr_data()
+    data = _cached_load("csr_data", _load_csr_data)
     if not data:
         return {"companies": [], "total": 0, "districts": [], "sectors": []}
     districts = sorted(set(d.get("District", "") for d in data if d.get("District")))
@@ -822,7 +836,7 @@ def get_csr_companies(
 
 @router.get("/csr/watchdog")
 def get_csr_watchdog(user=Depends(get_current_user), district: Optional[str] = None):
-    data = _load_csr_data()
+    data = _cached_load("csr_data", _load_csr_data)
     violators = [
         d for d in data
         if "Local" in d.get("Type", "") and "ZERO SPEND" in d.get("Status", "")
@@ -895,7 +909,8 @@ class CSRDraftRequest(BaseModel):
 
 
 @router.post("/csr/draft-letter")
-def csr_draft_letter(req: CSRDraftRequest, user=Depends(get_current_user)):
+@_limit_ai
+def csr_draft_letter(req: CSRDraftRequest, request: Request, user=Depends(get_current_user)):
     try:
         from google import genai
         api_key = os.getenv("GEMINI_API_KEY")
@@ -946,7 +961,7 @@ class CSRStrategicMatchRequest(BaseModel):
 @router.post("/csr/strategic-matches")
 def get_strategic_matches(req: CSRStrategicMatchRequest = None, user=Depends(get_current_user)):
     tid = user.get("tenant_id", 1)
-    csr_data = _load_csr_data()
+    csr_data = _cached_load("csr_data", _load_csr_data)
     gaps = get_live_gaps(tid)
 
     category_to_sector = {
@@ -1004,7 +1019,8 @@ class CSRDPRRequest(BaseModel):
 
 
 @router.post("/csr/generate-dpr")
-def generate_csr_dpr(req: CSRDPRRequest, user=Depends(get_current_user)):
+@_limit_ai
+def generate_csr_dpr(req: CSRDPRRequest, request: Request, user=Depends(get_current_user)):
     try:
         from google import genai
         api_key = os.getenv("GEMINI_API_KEY")

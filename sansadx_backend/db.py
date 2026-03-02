@@ -47,6 +47,17 @@ def verify_password(password: str, password_hash: str) -> bool:
     return False
 
 
+def validate_password(password: str) -> str | None:
+    """Validate password against security policy. Returns error message or None if valid."""
+    if len(password) < 8:
+        return "Password must be at least 8 characters long"
+    if not any(c.isupper() for c in password):
+        return "Password must contain at least one uppercase letter"
+    if not any(c.isdigit() for c in password):
+        return "Password must contain at least one number"
+    return None
+
+
 # ─────────────────────────────────────────
 # DEPENDENCY HELPER (for FastAPI routes)
 # ─────────────────────────────────────────
@@ -69,7 +80,7 @@ class Tenant(Base):
     constituency = Column(String)
     whatsapp_number = Column(String, unique=True)
     subscription_plan = Column(String, default="Pro")
-    config = Column(JSON, default={})
+    config = Column(JSON, default=dict)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -126,7 +137,7 @@ class TenantProfile(Base):
     state = Column(String)
     house = Column(String, default="Lok Sabha")
     party = Column(String, default="Independent")
-    profile_data = Column(JSON, default={})
+    profile_data = Column(JSON, default=dict)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     tenant = relationship("Tenant", backref="profile")
@@ -165,6 +176,99 @@ class ActivityHistory(Base):
     content = Column(Text)
     extra_metadata = Column("metadata", Text)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TenantOverride(Base):
+    __tablename__ = "tenant_overrides"
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
+    override_type = Column(String)   # "phone_mapping" or "geo_override"
+    key = Column(String)             # phone number or location name
+    value = Column(String)           # tenant_id or assembly constituency
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ─────────────────────────────────────────
+# TENANT OVERRIDE HELPERS
+# ─────────────────────────────────────────
+def get_phone_tenant_mapping() -> dict:
+    """Return {phone_number: tenant_id} from DB overrides."""
+    db = SessionLocal()
+    try:
+        rows = db.query(TenantOverride).filter(
+            TenantOverride.override_type == "phone_mapping"
+        ).all()
+        return {r.key: int(r.value) for r in rows}
+    finally:
+        db.close()
+
+
+def get_geo_overrides(tenant_id: int) -> dict:
+    """Return {location_name: constituency} for a tenant."""
+    db = SessionLocal()
+    try:
+        rows = db.query(TenantOverride).filter(
+            TenantOverride.override_type == "geo_override",
+            TenantOverride.tenant_id == tenant_id,
+        ).all()
+        return {r.key: r.value for r in rows}
+    finally:
+        db.close()
+
+
+def get_all_overrides() -> dict:
+    """Return full overrides dict matching the JSON format."""
+    db = SessionLocal()
+    try:
+        result = {}
+        geo_overrides = {}
+        rows = db.query(TenantOverride).all()
+        for r in rows:
+            if r.override_type == "phone_mapping":
+                result[r.key] = int(r.value)
+            elif r.override_type == "geo_override":
+                tid = str(r.tenant_id)
+                if tid not in geo_overrides:
+                    geo_overrides[tid] = {}
+                geo_overrides[tid][r.key] = r.value
+        if geo_overrides:
+            result["geo_overrides"] = geo_overrides
+        return result
+    finally:
+        db.close()
+
+
+def save_overrides_to_db(data: dict):
+    """Bulk replace all overrides from a dict matching JSON format."""
+    db = SessionLocal()
+    try:
+        db.query(TenantOverride).delete()
+        # Phone mappings (top-level keys that aren't "geo_overrides")
+        for key, value in data.items():
+            if key == "geo_overrides":
+                continue
+            db.add(TenantOverride(
+                tenant_id=int(value) if isinstance(value, (int, str)) and str(value).isdigit() else 1,
+                override_type="phone_mapping",
+                key=key,
+                value=str(value),
+            ))
+        # Geo overrides
+        for tid_str, mappings in data.get("geo_overrides", {}).items():
+            tid = int(tid_str)
+            for loc, constituency in mappings.items():
+                db.add(TenantOverride(
+                    tenant_id=tid,
+                    override_type="geo_override",
+                    key=loc,
+                    value=constituency,
+                ))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 # ─────────────────────────────────────────

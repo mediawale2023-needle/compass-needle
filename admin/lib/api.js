@@ -1,7 +1,7 @@
 /**
  * Admin API client — wraps fetch with admin JWT auth.
  */
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://needle-backend.up.railway.app';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 export async function api(path, options = {}) {
     const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
