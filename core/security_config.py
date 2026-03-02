@@ -26,10 +26,12 @@ JWT_REFRESH_EXPIRE_DAYS = 7
 # ============================================
 # CORS CONFIGURATION
 # ============================================
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")
-if not ALLOWED_ORIGINS or ALLOWED_ORIGINS == [""]:
-    # Default to localhost for development
-    ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
+raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+if raw_origins:
+    ALLOWED_ORIGINS = [o.strip() for o in raw_origins.split(",") if o.strip()]
+else:
+    # Default to allow all for development and railway subdomains
+    ALLOWED_ORIGINS = ["*"]
 
 # ============================================
 # RATE LIMITING
