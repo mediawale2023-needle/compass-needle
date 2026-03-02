@@ -306,9 +306,9 @@ def get_profile(user=Depends(get_current_user)):
 # NEWS
 # ─────────────────────────────────────────
 @router.get("/news")
-def get_news(type: str = "national", user=Depends(get_current_user)):
+def get_news(news_type: str = "national", user=Depends(get_current_user)):
     try:
-        if type == "national":
+        if news_type == "national":
             from modules.news_intel import fetch_news
             display_name = user.get("display_name") or user.get("username", "")
             articles = fetch_news(query=f'"{display_name}"', limit=8)
@@ -707,7 +707,7 @@ def get_parliament_status(user=Depends(get_current_user)):
     import requests as http_requests
 
     now = datetime.utcnow()
-    if _parliament_cache["data"] and _parliament_cache["ts"] and (now - _parliament_cache["ts"]).seconds < 1800:
+    if _parliament_cache["data"] and _parliament_cache["ts"] and (now - _parliament_cache["ts"]).total_seconds() < 1800:
         return _parliament_cache["data"]
 
     today = date.today()

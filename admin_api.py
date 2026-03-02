@@ -695,10 +695,10 @@ async def upload_pdf(file: UploadFile = File(...), _=Depends(get_admin_user)):
                             if s:
                                 stations.append(s)
                 else:
-                    text = page.extract_text()
-                    if text:
+                    page_text = page.extract_text()
+                    if page_text:
                         debug_info["text_pages"] += 1
-                        stations.extend(_extract_stations_from_text(text))
+                        stations.extend(_extract_stations_from_text(page_text))
     except Exception as e:
         raise HTTPException(500, f"PDF parse error: {e}")
 

@@ -252,7 +252,7 @@ def _get_tenant_constituency(tenant_id):
     
     # Fallback: look up from DB
     try:
-        from db import SessionLocal, Tenant
+        from sansadx_backend.db import SessionLocal, Tenant
         db = SessionLocal()
         tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
         if tenant and tenant.constituency:
@@ -272,6 +272,17 @@ def enrich_grievance_with_location(grievance: Dict, tenant_id: Optional[int] = N
     res = resolve_location(text, scope_parliamentary=scope, tenant_id=tenant_id)
     grievance["geography"] = res
     return grievance
+
+def resolve_constituency(text: str, tenant_id: Optional[int] = None):
+    """
+    Wrapper used by main.py WhatsApp webhook.
+    Returns (matched_value, assembly_constituency) or (None, None).
+    """
+    result = resolve_location(text, tenant_id=tenant_id)
+    if result.get("location_resolved"):
+        return result.get("matched_value"), result.get("assembly_constituency")
+    return None, None
+
 
 def get_index_stats() -> Dict[str, int]:
     return {"loaded": _geography_index["loaded"], "assemblies": len(_geography_index["assemblies"])}
@@ -313,7 +324,7 @@ def auto_generate_overrides():
     # Look up tenant_ids by constituency name from DB
     constituency_to_tenant = {}
     try:
-        from db import SessionLocal, Tenant
+        from sansadx_backend.db import SessionLocal, Tenant
         db = SessionLocal()
         tenants = db.query(Tenant).all()
         for t in tenants:
