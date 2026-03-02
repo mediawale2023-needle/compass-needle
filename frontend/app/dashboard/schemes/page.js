@@ -344,7 +344,7 @@ export default function SchemesPage() {
                                                             </td>
                                                         </tr>
                                                     )}
-                                                </>
+                                                </Fragment>
                                             ))}
                                         </tbody>
                                     </table>
