@@ -1136,7 +1136,7 @@ ADMIN_KEY = os.getenv("ADMIN_SECRET_KEY", "")
 def verify_admin(request: Request):
     """Verify admin key from Authorization header (not URL params)."""
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or auth[7:] != ADMIN_KEY or not ADMIN_KEY:
+    if not ADMIN_KEY or not auth.startswith("Bearer ") or auth[7:] != ADMIN_KEY:
         raise HTTPException(403, "Admin access denied")
 
 

@@ -190,7 +190,7 @@ async def whatsapp_webhook(request: Request):
     if current_tenant == 1:
         try:
             with engine.connect() as conn:
-                lookup = text("SELECT tenant_id FROM users WHERE whatsapp_number = :num LIMIT 1")
+                lookup = text("SELECT id AS tenant_id FROM tenants WHERE whatsapp_number = :num LIMIT 1")
                 tenant_record = conn.execute(lookup, {"num": receiver_number}).fetchone()
                 if tenant_record:
                     current_tenant = tenant_record[0]
