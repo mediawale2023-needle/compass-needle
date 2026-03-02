@@ -81,12 +81,12 @@ if _rate_limiting_enabled:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS — use security config origins (falls back to ["*"] if config unavailable)
-allow_creds = ALLOWED_ORIGINS != ["*"]
+# CORS — fully open (we use Bearer tokens, not cookies, so CORS adds no security)
+# This matches the proven working config from commit 34c7ff8a
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=allow_creds,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
