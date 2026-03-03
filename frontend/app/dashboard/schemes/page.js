@@ -218,18 +218,34 @@ export default function SchemesPage() {
                 const ministries = (fundIntel.ministries || []).sort((a, b) => b.total_questions - a.total_questions);
                 const meta = fundIntel.metadata || {};
                 const totalQs = meta.total_fund_questions || 0;
-                const totalMinistries = ministries.length;
-                const totalAlloc = ministries.reduce((s, m) => s + (m.allocation || 0), 0);
-                const maxQs = ministries[0]?.total_questions || 1;
 
-                // Color by scrutiny intensity
-                const getColor = (qs) => {
-                    if (qs >= 20) return '#dc2626';
-                    if (qs >= 10) return '#f59e0b';
-                    if (qs >= 5) return '#3b82f6';
-                    return '#6b7280';
-                };
-                const getLabel = (qs) => qs >= 20 ? 'CRITICAL' : qs >= 10 ? 'HIGH' : qs >= 5 ? 'MODERATE' : 'LOW';
+                // Calculate real numbers from AI extraction
+                let totalAiAlloc = 0;
+                let totalAiUtil = 0;
+                let ministriesWithNumbers = 0;
+
+                ministries.forEach(m => {
+                    m.ai_alloc_cr = 0;
+                    m.ai_util_cr = 0;
+                    (m.questions || []).forEach(q => {
+                        if (q.allocation_cr) m.ai_alloc_cr += q.allocation_cr;
+                        if (q.utilization_cr) m.ai_util_cr += q.utilization_cr;
+                    });
+                    if (m.ai_alloc_cr > 0) {
+                        ministriesWithNumbers++;
+                        totalAiAlloc += m.ai_alloc_cr;
+                        totalAiUtil += m.ai_util_cr;
+                    }
+                });
+
+                const hasAiData = ministriesWithNumbers > 0;
+                const totalMinistries = ministries.length;
+
+                // Color logic
+                const getColorQs = qs => qs >= 20 ? '#dc2626' : qs >= 10 ? '#f59e0b' : qs >= 5 ? '#3b82f6' : '#6b7280';
+                const getColorUtil = pct => pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#dc2626'; // Green > 80%, Yellow > 50%, Red < 50%
+
+                const getLabelQs = qs => qs >= 20 ? 'CRITICAL' : qs >= 10 ? 'HIGH' : qs >= 5 ? 'MODERATE' : 'LOW';
 
                 return (
                     <div className="space-y-5">
@@ -238,8 +254,16 @@ export default function SchemesPage() {
                             {[
                                 { label: 'Fund Questions', value: totalQs, sub: 'asked in Parliament' },
                                 { label: 'Ministries Questioned', value: totalMinistries, sub: 'under scrutiny' },
-                                { label: 'Budget Covered', value: `₹${totalAlloc.toLocaleString('en-IN')} Cr`, sub: 'total allocation' },
-                                { label: 'Data Source', value: 'ePARLib', sub: `LS ${meta.lok_sabha || 18}` },
+                                {
+                                    label: hasAiData ? 'Total Disclosed Rs.' : 'Overall Budget',
+                                    value: `₹${(hasAiData ? totalAiAlloc : (ministries.reduce((s, m) => s + (m.allocation || 0), 0))).toLocaleString('en-IN')} Cr`,
+                                    sub: hasAiData ? `${ministriesWithNumbers} ministries parsed` : 'total allocation'
+                                },
+                                {
+                                    label: hasAiData ? 'Avg. Utilization' : 'Data Source',
+                                    value: hasAiData ? `${((totalAiUtil / totalAiAlloc) * 100).toFixed(1)}%` : 'ePARLib',
+                                    sub: hasAiData ? `₹${totalAiUtil.toLocaleString()} Cr used` : `LS ${meta.lok_sabha || 18}`
+                                },
                             ].map(s => (
                                 <div key={s.label} className="sansad-card">
                                     <div className="sansad-card-body text-center py-3">
@@ -253,49 +277,72 @@ export default function SchemesPage() {
 
                         {/* CSS Treemap */}
                         <div className="sansad-card">
-                            <div className="sansad-card-header" style={{ background: color }}>Ministry-wise Fund Scrutiny Treemap</div>
+                            <div className="sansad-card-header" style={{ background: color }}>
+                                {hasAiData ? "Ministry-wise Fund Utilization" : "Ministry-wise Fund Scrutiny Treemap"}
+                            </div>
                             <div className="sansad-card-body">
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px', minHeight: 300 }}>
                                     {ministries.slice(0, 25).map((m, i) => {
-                                        const pct = Math.max(3, (m.total_questions / totalQs) * 100);
-                                        const bgColor = getColor(m.total_questions);
+                                        let weight, bgColor, extraText;
+
+                                        if (hasAiData && m.ai_alloc_cr > 0) {
+                                            const utilPct = (m.ai_util_cr / m.ai_alloc_cr) * 100;
+                                            weight = Math.max(3, (m.ai_alloc_cr / totalAiAlloc) * 100);
+                                            bgColor = getColorUtil(utilPct);
+                                            extraText = `${utilPct.toFixed(1)}% Utilized`;
+                                        } else {
+                                            weight = Math.max(3, (m.total_questions / totalQs) * 100);
+                                            bgColor = getColorQs(m.total_questions);
+                                            extraText = `${m.total_questions} Qs`;
+                                        }
+
                                         const name = m.ministry.replace('MINISTRY OF ', '').replace(' AND ', ' & ');
+                                        const tooltip = hasAiData && m.ai_alloc_cr > 0
+                                            ? `${m.ministry}\nAllocated: ₹${m.ai_alloc_cr.toLocaleString()} Cr\nUtilized: ₹${m.ai_util_cr.toLocaleString()} Cr`
+                                            : `${m.ministry}\n${m.total_questions} questions\n₹${(m.allocation || 0).toLocaleString()} Cr budget`;
+
                                         return (
-                                            <div key={i}
-                                                title={`${m.ministry}\n${m.total_questions} questions\n₹${(m.allocation || 0).toLocaleString()} Cr allocation`}
+                                            <div key={i} title={tooltip}
                                                 style={{
-                                                    flex: `0 0 ${Math.max(60, pct * 3)}px`,
-                                                    height: Math.max(55, pct * 2.5),
+                                                    flex: `0 0 ${Math.max(60, weight * 3)}px`,
+                                                    height: Math.max(55, weight * 2.5),
                                                     background: bgColor,
                                                     borderRadius: 4,
                                                     padding: '6px 8px',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    justifyContent: 'space-between',
-                                                    overflow: 'hidden',
-                                                    cursor: 'pointer',
+                                                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                                                    overflow: 'hidden', cursor: 'pointer',
                                                     transition: 'transform 0.15s, box-shadow 0.15s',
-                                                    flexGrow: m.total_questions,
+                                                    flexGrow: weight,
                                                 }}
                                                 onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)'; }}
                                                 onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
                                                 onClick={() => setExpanded(expanded === `sc${i}` ? null : `sc${i}`)}
                                             >
-                                                <span style={{ fontSize: pct > 8 ? 11 : 9, fontWeight: 700, color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {name.length > (pct > 8 ? 25 : 12) ? name.slice(0, pct > 8 ? 25 : 12) + '…' : name}
+                                                <span style={{ fontSize: weight > 8 ? 11 : 9, fontWeight: 700, color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {name}
                                                 </span>
                                                 <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>
-                                                    {m.total_questions} Qs
+                                                    {extraText}
                                                 </span>
                                             </div>
                                         );
                                     })}
                                 </div>
                                 <div className="flex gap-4 mt-3 text-[10px] text-gray-500">
-                                    <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#dc2626', borderRadius: 2, marginRight: 3 }} />Critical (20+)</span>
-                                    <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#f59e0b', borderRadius: 2, marginRight: 3 }} />High (10-19)</span>
-                                    <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#3b82f6', borderRadius: 2, marginRight: 3 }} />Moderate (5-9)</span>
-                                    <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#6b7280', borderRadius: 2, marginRight: 3 }} />Low (1-4)</span>
+                                    {hasAiData ? (
+                                        <>
+                                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#22c55e', borderRadius: 2, marginRight: 3 }} />Good (&gt;80%)</span>
+                                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#f59e0b', borderRadius: 2, marginRight: 3 }} />Average (50-80%)</span>
+                                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#dc2626', borderRadius: 2, marginRight: 3 }} />Poor (&lt;50%)</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#dc2626', borderRadius: 2, marginRight: 3 }} />Critical (20+)</span>
+                                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#f59e0b', borderRadius: 2, marginRight: 3 }} />High (10-19)</span>
+                                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#3b82f6', borderRadius: 2, marginRight: 3 }} />Moderate (5-9)</span>
+                                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#6b7280', borderRadius: 2, marginRight: 3 }} />Low (1-4)</span>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -307,14 +354,14 @@ export default function SchemesPage() {
                             if (!m) return null;
                             const recentQs = (m.questions || []).sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 5);
                             return (
-                                <div className="sansad-card" style={{ borderLeft: `4px solid ${getColor(m.total_questions)}` }}>
+                                <div className="sansad-card" style={{ borderLeft: `4px solid ${getColorQs(m.total_questions)}` }}>
                                     <div className="sansad-card-body space-y-3">
                                         <div className="flex items-center justify-between">
                                             <h3 className="text-sm font-bold text-gray-800">{m.ministry}</h3>
                                             <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{
-                                                background: getColor(m.total_questions) + '20',
-                                                color: getColor(m.total_questions)
-                                            }}>{getLabel(m.total_questions)}</span>
+                                                background: getColorQs(m.total_questions) + '20',
+                                                color: getColorQs(m.total_questions)
+                                            }}>{getLabelQs(m.total_questions)}</span>
                                         </div>
                                         <div className="grid grid-cols-3 gap-3">
                                             <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
@@ -322,21 +369,32 @@ export default function SchemesPage() {
                                                 <div className="text-[10px] text-gray-500">Fund Questions</div>
                                             </div>
                                             <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
-                                                <div className="text-sm font-bold text-gray-800">₹{(m.allocation || 0).toLocaleString('en-IN')} Cr</div>
-                                                <div className="text-[10px] text-gray-500">Budget Allocation</div>
+                                                <div className="text-sm font-bold text-gray-800">
+                                                    ₹{m.ai_alloc_cr > 0 ? m.ai_alloc_cr.toLocaleString() : (m.allocation || 0).toLocaleString()} Cr
+                                                </div>
+                                                <div className="text-[10px] text-gray-500">Allocation Mentioned</div>
                                             </div>
                                             <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
-                                                <div className="text-sm font-bold text-gray-800">{Object.keys(m.schemes || {}).length}</div>
-                                                <div className="text-[10px] text-gray-500">Schemes Mentioned</div>
+                                                <div className="text-sm font-bold text-gray-800">
+                                                    {m.ai_alloc_cr > 0 ? `${((m.ai_util_cr / m.ai_alloc_cr) * 100).toFixed(1)}%` : Object.keys(m.schemes || {}).length}
+                                                </div>
+                                                <div className="text-[10px] text-gray-500">
+                                                    {m.ai_alloc_cr > 0 ? `Utilized (₹${m.ai_util_cr.toLocaleString()} Cr)` : 'Schemes Mentioned'}
+                                                </div>
                                             </div>
                                         </div>
                                         {recentQs.length > 0 && (
                                             <div>
-                                                <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Recent Fund Questions</div>
+                                                <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Recent Parliament Answers</div>
                                                 {recentQs.map((q, j) => (
                                                     <div key={j} className="text-xs text-gray-600 py-1.5 border-b last:border-0" style={{ borderColor: '#eee' }}>
                                                         <span className="text-gray-400 mr-2">{q.date}</span>
-                                                        {q.title}
+                                                        <strong>{q.title}</strong>
+                                                        {q.allocation_cr > 0 && (
+                                                            <div className="mt-1 text-gray-500">
+                                                                ↳ Allocated: ₹{q.allocation_cr} Cr | Utilized: ₹{q.utilization_cr || 0} Cr
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
@@ -348,9 +406,17 @@ export default function SchemesPage() {
 
                         {/* Top questioned ministries table */}
                         <div className="sansad-card">
-                            <div className="sansad-card-header" style={{ background: '#555' }}>Top 15 Ministries Under Fund Scrutiny</div>
+                            <div className="sansad-card-header" style={{ background: '#555' }}>Fund Utilization Breakdown</div>
                             <table className="sansad-table">
-                                <thead><tr><th>#</th><th>Ministry</th><th>Questions</th><th>Allocation</th><th>Scrutiny</th></tr></thead>
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Ministry</th>
+                                        <th>Questions</th>
+                                        <th>{hasAiData ? "Disclosed Allocation" : "Overall Allocation"}</th>
+                                        <th>{hasAiData ? "Utilization" : "Scrutiny"}</th>
+                                    </tr>
+                                </thead>
                                 <tbody>
                                     {ministries.slice(0, 15).map((m, i) => (
                                         <tr key={i}>
@@ -359,12 +425,27 @@ export default function SchemesPage() {
                                                 {m.ministry.replace('MINISTRY OF ', '').replace(' AND ', ' & ').slice(0, 35)}
                                             </td>
                                             <td className="font-bold" style={{ color }}>{m.total_questions}</td>
-                                            <td className="text-xs">{m.allocation ? `₹${m.allocation.toLocaleString('en-IN')} Cr` : '–'}</td>
+                                            <td className="text-xs">
+                                                {hasAiData && m.ai_alloc_cr > 0
+                                                    ? `₹${m.ai_alloc_cr.toLocaleString()} Cr`
+                                                    : m.allocation ? `₹${m.allocation.toLocaleString('en-IN')} Cr` : '–'}
+                                            </td>
                                             <td>
-                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{
-                                                    background: getColor(m.total_questions) + '18',
-                                                    color: getColor(m.total_questions)
-                                                }}>{getLabel(m.total_questions)}</span>
+                                                {hasAiData && m.ai_alloc_cr > 0 ? (
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{
+                                                        background: getColorUtil((m.ai_util_cr / m.ai_alloc_cr) * 100) + '18',
+                                                        color: getColorUtil((m.ai_util_cr / m.ai_alloc_cr) * 100)
+                                                    }}>
+                                                        {((m.ai_util_cr / m.ai_alloc_cr) * 100).toFixed(1)}%
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{
+                                                        background: getColorQs(m.total_questions) + '18',
+                                                        color: getColorQs(m.total_questions)
+                                                    }}>
+                                                        {getLabelQs(m.total_questions)}
+                                                    </span>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}

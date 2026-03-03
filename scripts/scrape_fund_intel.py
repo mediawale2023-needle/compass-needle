@@ -6,14 +6,30 @@ then uses AI to extract structured fund allocation/utilization data.
 Usage:
     python scripts/scrape_fund_intel.py
 """
+import requests
+import json
+import logging
+import time
 import os
 import re
-import json
-import time
-import requests
-import logging
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+try:
+    from google import genai
+    from google.genai import types
+    HAS_GENAI = True
+except ImportError:
+    HAS_GENAI = False
+
+try:
+    import pymupdf
+    HAS_PYMUPDF = True
+except ImportError:
+    HAS_PYMUPDF = False
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
 # ── Config ──────────────────────────────────────────
@@ -40,6 +56,8 @@ FUND_KEYWORDS = [
 
 OUTPUT_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "fund_intel.json")
 RAW_CACHE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "raw_qa_cache.json")
+PDF_TEXT_CACHE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "pdf_text_cache.json")
+AI_PARSE_CACHE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "ai_parse_cache.json")
 
 # ── Step 1: Discover sessions in FY 2025-26 ────────
 def get_sessions_in_range():
@@ -195,81 +213,163 @@ def scrape_fund_questions(sessions):
     return all_questions
 
 
-# ── Step 3: AI-parse Q&A titles for fund data ──────
-def parse_with_ai(questions):
-    """Use OpenAI/Groq to extract structured fund data from question titles.
-    Since full answer PDFs need separate parsing, we start with titles
-    which often contain scheme name, ministry, and fund context.
-    """
-    api_key = os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY")
-    api_base = "https://api.groq.com/openai/v1" if os.getenv("GROQ_API_KEY") else "https://api.openai.com/v1"
-    model = "llama-3.3-70b-versatile" if os.getenv("GROQ_API_KEY") else "gpt-4o-mini"
+# ── Step 2.5: Extract text from PDFs ───────────────
+def extract_pdf_texts(questions):
+    """Download PDFs and extract text using PyMuPDF. Cache results."""
+    os.makedirs(os.path.dirname(PDF_TEXT_CACHE), exist_ok=True)
+    cache = {}
+    if os.path.exists(PDF_TEXT_CACHE):
+        try:
+            with open(PDF_TEXT_CACHE, "r") as f:
+                cache = json.load(f)
+        except Exception:
+            pass
 
-    if not api_key:
-        logger.warning("No AI API key found. Using title-based extraction only.")
+    if not HAS_PYMUPDF:
+        logger.warning("PyMuPDF not installed, skipping PDF text extraction.")
+        return cache
+
+    to_fetch = []
+    for q in questions:
+        qno = q.get("questionNo")
+        if not qno or qno in cache:
+            continue
+        if q.get("files") and len(q["files"]) > 0:
+            to_fetch.append((qno, q["files"][0]))
+
+    if not to_fetch:
+        logger.info("All PDFs already in text cache.")
+        return cache
+
+    logger.info(f"Extracting text from {len(to_fetch)} new PDFs...")
+    
+    def fetch_pdf(item):
+        qno, url = item
+        try:
+            resp = requests.get(url, timeout=15, headers=HEADERS)
+            if resp.status_code == 200:
+                doc = pymupdf.open(stream=resp.content, filetype="pdf")
+                text = ""
+                for page in doc:
+                    text += page.get_text()
+                doc.close()
+                return qno, text
+        except Exception as e:
+            logger.debug(f"Failed to fetch PDF for {qno}: {e}")
+        return qno, None
+
+    # Fetch concurrently to save time
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        for qno, text in executor.map(fetch_pdf, to_fetch):
+            if text:
+                cache[qno] = text
+
+    # Save cache
+    with open(PDF_TEXT_CACHE, "w") as f:
+        json.dump(cache, f, ensure_ascii=False)
+        
+    return cache
+
+
+# ── Step 3: AI-parse for fund data ─────────────────
+def parse_with_ai(questions, pdf_texts):
+    """Use Gemini to extract structured fund data from PDF texts.
+    Falls back to title parsing if AI is not available.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key or not HAS_GENAI:
+        logger.warning("No Gemini API key or SDK found. Using title-based extraction only.")
         return extract_from_titles(questions)
 
-    logger.info(f"Using AI ({model}) to parse {len(questions)} questions...")
+    logger.info(f"Using Gemini AI to parse {len(questions)} PDF answers...")
 
-    # Batch into groups of 20 for efficiency
-    batch_size = 20
+    # Load AI cache so we don't re-parse same questions
+    ai_cache = {}
+    if os.path.exists(AI_PARSE_CACHE):
+        try:
+            with open(AI_PARSE_CACHE, "r") as f:
+                ai_cache = json.load(f)
+        except Exception:
+            pass
+
+    client = genai.Client(api_key=api_key)
     results = []
 
-    for i in range(0, len(questions), batch_size):
-        batch = questions[i:i + batch_size]
-        titles_text = "\n".join(
-            f"{j+1}. [{q['date']}] {q['title']}"
-            for j, q in enumerate(batch)
-        )
+    for i, q in enumerate(questions):
+        qno = q.get("questionNo")
+        
+        # Check cache
+        if qno in ai_cache:
+            item = ai_cache[qno]
+            # Ensure basic fields exist
+            item["date"] = q["date"]
+            item["questionNo"] = q["questionNo"]
+            item["ministry"] = q.get("ministry")
+            results.append(item)
+            continue
 
-        prompt = f"""Extract fund utilization data from these Indian Parliamentary Question titles.
-For each question, extract:
-- scheme_name: Name of the government scheme (if mentioned)
-- ministry: Ministry responsible
-- context: "allocation" or "utilization" or "expenditure" or "budget"
-- financial_year: If mentioned (e.g., "2025-26")
+        text = pdf_texts.get(qno)
+        if not text:
+            logger.debug(f"No PDF text for Q{qno}, falling back to title")
+            fallback = extract_from_titles([q])[0]
+            ai_cache[qno] = fallback
+            results.append(fallback)
+            continue
 
-Return ONLY valid JSON array. If a field is unknown, use null.
-Questions:
-{titles_text}"""
+        prompt = f"""You are a financial data extractor analyzing an Indian Parliamentary Question answer.
+Extract fund allocation and utilization data.
+Return ONLY ONE valid JSON object with these keys (use null if not found):
+- scheme_name: Full name of the government scheme mentioned
+- financial_year: e.g. "2024-25"
+- allocation_cr: Number in crores (convert from lakhs if needed)
+- utilization_cr: Number in crores (convert from lakhs if needed)
+- state: State name if data is state-specific, else "India"
 
+Answer Text (truncated):
+{text[:8000]}
+"""
+        
         try:
-            resp = requests.post(
-                f"{api_base}/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": "You are a data extraction assistant. Return ONLY valid JSON arrays."},
-                        {"role": "user", "content": prompt},
-                    ],
-                    "temperature": 0,
-                    "max_tokens": 2000,
-                },
-                timeout=30,
+            resp = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+                config=genai.types.GenerateContentConfig(temperature=0.1)
             )
-            resp.raise_for_status()
-            content = resp.json()["choices"][0]["message"]["content"]
-
+            content = resp.text
+            
             # Extract JSON from response
-            json_match = re.search(r'\[.*\]', content, re.DOTALL)
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
             if json_match:
                 parsed = json.loads(json_match.group())
-                # Merge with original question data
-                for j, item in enumerate(parsed):
-                    if j < len(batch):
-                        item["date"] = batch[j]["date"]
-                        item["questionNo"] = batch[j]["questionNo"]
-                        item["questionType"] = batch[j]["questionType"]
-                        item["original_title"] = batch[j]["title"]
-                results.extend(parsed)
-
+                parsed["date"] = q["date"]
+                parsed["questionNo"] = qno
+                parsed["original_title"] = q["title"]
+                parsed["ministry"] = q.get("ministry")
+                
+                ai_cache[qno] = parsed
+                results.append(parsed)
+            else:
+                logger.warning(f"No JSON found in response for Q{qno}")
+                fallback = extract_from_titles([q])[0]
+                ai_cache[qno] = fallback
+                results.append(fallback)
+                
         except Exception as e:
-            logger.error(f"AI parsing failed for batch {i}: {e}")
-            # Fallback to title-based extraction for this batch
-            results.extend(extract_from_titles(batch))
+            logger.error(f"AI parsing failed for Q{qno}: {e}")
+            fallback = extract_from_titles([q])[0]
+            ai_cache[qno] = fallback
+            results.append(fallback)
 
-        time.sleep(1)  # Rate limit
+        time.sleep(0.5)  # Rate limit
+        
+        # Save cache every 10 updates
+        if i > 0 and i % 10 == 0:
+            with open(AI_PARSE_CACHE, "w") as f:
+                json.dump(ai_cache, f, ensure_ascii=False)
+
+    # Final cache save
+    with open(AI_PARSE_CACHE, "w") as f:
+        json.dump(ai_cache, f, ensure_ascii=False)
 
     return results
 
@@ -338,6 +438,8 @@ def build_fund_intel(parsed_data, raw_questions):
             "context": item.get("context"),
             "financial_year": item.get("financial_year"),
             "questionNo": item.get("questionNo"),
+            "allocation_cr": item.get("allocation_cr"),
+            "utilization_cr": item.get("utilization_cr"),
         })
 
         if scheme != "General" and scheme:
@@ -430,11 +532,14 @@ def main():
         json.dump(questions, f, indent=2, ensure_ascii=False)
     logger.info(f"Cached {len(questions)} raw Q&As to {RAW_CACHE}")
 
-    # 3. AI-parse for structured data
-    parsed = parse_with_ai(questions)
+    # 3. Extract text from Answer PDFs
+    pdf_texts = extract_pdf_texts(questions)
+    
+    # 4. AI-parse for structured data
+    parsed = parse_with_ai(questions, pdf_texts)
     logger.info(f"Parsed {len(parsed)} structured records")
 
-    # 4. Build fund_intel.json
+    # 5. Build fund_intel.json
     fund_intel = build_fund_intel(parsed, questions)
 
     with open(OUTPUT_FILE, "w") as f:
