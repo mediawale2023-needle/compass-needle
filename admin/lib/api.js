@@ -2,9 +2,9 @@
  * Admin API client — wraps fetch with admin JWT auth, retries, and timeout.
  */
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
-const REQUEST_TIMEOUT = 15000; // 15 seconds
-const MAX_RETRIES = 2;         // up to 2 retries (3 total attempts)
-const RETRY_DELAY = 800;       // base delay in ms (doubles each retry)
+const REQUEST_TIMEOUT = 8000;  // 8 seconds (was 15 — browser freeze prevention)
+const MAX_RETRIES = 1;         // 1 retry only (2 total attempts)
+const RETRY_DELAY = 500;       // 500ms base delay
 
 async function fetchWithTimeout(url, options, timeout) {
     const controller = new AbortController();
@@ -18,6 +18,11 @@ async function fetchWithTimeout(url, options, timeout) {
 
 export async function api(path, options = {}) {
     const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+
+    // Fail fast if no token on protected routes
+    if (!token && !path.includes('/auth/') && !path.includes('/health')) {
+        throw new Error('No auth token');
+    }
 
     const headers = {
         'Content-Type': 'application/json',
@@ -63,7 +68,7 @@ export async function api(path, options = {}) {
             lastError = err;
 
             // Don't retry auth errors or client errors
-            if (err.message === 'Unauthorized' || (err.message && err.message.startsWith('HTTP 4'))) {
+            if (err.message === 'Unauthorized' || err.message === 'No auth token' || (err.message && err.message.startsWith('HTTP 4'))) {
                 throw err;
             }
 

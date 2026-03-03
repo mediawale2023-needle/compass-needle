@@ -1,12 +1,16 @@
 /**
  * API client — wraps fetch with JWT auth, retries, and timeout.
  * Calls the backend directly using NEXT_PUBLIC_API_URL.
+ *
+ * DESIGN: Short timeouts + minimal retries to prevent browser freezing.
+ * Dashboard pages use .catch() fallbacks so a slow/down backend
+ * never blocks the UI.
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
-const REQUEST_TIMEOUT = 15000; // 15 seconds
-const MAX_RETRIES = 2;         // up to 2 retries (3 total attempts)
-const RETRY_DELAY = 800;       // base delay in ms (doubles each retry)
+const REQUEST_TIMEOUT = 8000;  // 8 seconds (was 15 — too long)
+const MAX_RETRIES = 1;         // 1 retry only (2 total attempts, was 3)
+const RETRY_DELAY = 500;       // 500ms base delay
 
 async function fetchWithTimeout(url, options, timeout) {
     const controller = new AbortController();
@@ -20,6 +24,11 @@ async function fetchWithTimeout(url, options, timeout) {
 
 export async function api(path, options = {}) {
     const token = typeof window !== 'undefined' ? localStorage.getItem('needle_token') : null;
+
+    // If no token and path requires auth, fail fast instead of making a doomed request
+    if (!token && !path.includes('/auth/') && !path.includes('/health')) {
+        throw new Error('No auth token');
+    }
 
     const headers = {
         'Content-Type': 'application/json',
@@ -60,7 +69,8 @@ export async function api(path, options = {}) {
             lastError = err;
 
             // Don't retry auth errors or client errors
-            if (err.message === 'Unauthorized' || (err.message && err.message.startsWith('HTTP 4'))) {
+            if (err.message === 'Unauthorized' || err.message === 'No auth token' ||
+                (err.message && err.message.startsWith('HTTP 4'))) {
                 throw err;
             }
 

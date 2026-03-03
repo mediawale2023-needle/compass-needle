@@ -5,7 +5,20 @@ Fetches news from Google News RSS and ranks/filters by relevance
 to the MP's constituency, state, and key issues.
 """
 import feedparser
-import streamlit as st
+import time
+import socket
+try:
+    import streamlit as st
+except ImportError:
+    # Running outside Streamlit (FastAPI backend) — stub the cache decorator
+    class _StubSt:
+        @staticmethod
+        def cache_data(ttl=0):
+            def decorator(func):
+                return func
+            return decorator
+    st = _StubSt()
+
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 import urllib.parse
@@ -90,13 +103,15 @@ def get_language_code(lang_name):
 # ============================================================
 
 def _fetch_rss(query, language="English", limit=10):
-    """Raw RSS fetch from Google News."""
+    """Raw RSS fetch from Google News with a 3-second timeout."""
     lang_code = get_language_code(language)
     encoded_query = urllib.parse.quote(query)
     ceid = f"IN:{lang_code}" if lang_code != "en-IN" else "IN:en"
     rss_url = f"https://news.google.com/rss/search?q={encoded_query}&hl={lang_code}&gl=IN&ceid={ceid}"
 
+    old_timeout = socket.getdefaulttimeout()
     try:
+        socket.setdefaulttimeout(3)  # 3-second hard timeout for RSS fetch
         feed = feedparser.parse(rss_url)
         items = []
         for entry in feed.entries[:limit]:
@@ -114,6 +129,8 @@ def _fetch_rss(query, language="English", limit=10):
         return items
     except Exception:
         return []
+    finally:
+        socket.setdefaulttimeout(old_timeout)
 
 
 def _score_relevance(title, context):
@@ -199,24 +216,23 @@ def fetch_constituency_news(tenant_id=None, language="English", limit=10):
         if alt.lower() != constituency.lower():
             alt_names.append(alt)
 
-    # Queries targeting LOCAL media and regional coverage
+    # Queries targeting LOCAL media and regional coverage — limit to 3 total
     queries = []
-    for name in alt_names:
-        queries.append(f'"{name}" news today') # Constituency headlines
-        queries.append(f'"{name}" latest') # Recent local stories
-        if mp_name:
-            queries.append(f'"{mp_name}" "{name}"') # MP mentioned in local context
-
-    # MP name in regional/local outlets specifically
+    queries.append(f'"{constituency}" news today')
     if mp_name:
-        queries.append(f'"{mp_name}" {state}') # MP + state (filters to regional)
+        queries.append(f'"{mp_name}" "{constituency}"')
+    queries.append(f'"{constituency}" latest')
 
-    # Fetch across English + local languages for true local coverage
+    # Fetch with a time budget of 6 seconds total
     all_items = []
     seen_titles = set()
+    start_time = time.time()
+    TIME_BUDGET = 6  # seconds — hard cap for entire function
 
     # English queries
     for q in queries:
+        if time.time() - start_time > TIME_BUDGET:
+            break
         items = _fetch_rss(q, "English", limit=6)
         for item in items:
             title_key = item["title"][:50].lower()
@@ -226,19 +242,20 @@ def fetch_constituency_news(tenant_id=None, language="English", limit=10):
                 item["sentiment"] = analyze_sentiment(item["title"])
                 all_items.append(item)
 
-    # Local language queries (Kannada, Marathi, etc.) for true local pulse
+    # Local language queries — only if we have time left
     local_langs = [l for l in languages if l != "English"] if languages else []
-    for lang in local_langs[:2]: # Max 2 local languages
-        for name in alt_names:
-            lang_items = _fetch_rss(f"{name}", lang, limit=5)
-            for item in lang_items:
-                title_key = item["title"][:50].lower()
-                if title_key not in seen_titles:
-                    seen_titles.add(title_key)
-                    item["relevance"] = _score_relevance(item["title"], context)
-                    item["sentiment"] = analyze_sentiment(item["title"])
-                    item["source"] = item.get("source", "") + f" ({lang})"
-                    all_items.append(item)
+    for lang in local_langs[:1]:  # Max 1 local language
+        if time.time() - start_time > TIME_BUDGET:
+            break
+        lang_items = _fetch_rss(f"{constituency}", lang, limit=5)
+        for item in lang_items:
+            title_key = item["title"][:50].lower()
+            if title_key not in seen_titles:
+                seen_titles.add(title_key)
+                item["relevance"] = _score_relevance(item["title"], context)
+                item["sentiment"] = analyze_sentiment(item["title"])
+                item["source"] = item.get("source", "") + f" ({lang})"
+                all_items.append(item)
 
     # Sort: latest first (date descending)
     all_items.sort(key=lambda x: x["published"], reverse=True)
