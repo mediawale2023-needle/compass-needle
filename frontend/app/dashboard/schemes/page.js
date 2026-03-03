@@ -13,6 +13,7 @@ export default function SchemesPage() {
     const [schemes, setSchemes] = useState([]);
     const [data, setData] = useState({});
     const [loading, setLoading] = useState(true);
+    const [fundIntel, setFundIntel] = useState(null);
     const [expanded, setExpanded] = useState(null);
 
     // Finder state
@@ -35,9 +36,13 @@ export default function SchemesPage() {
     useEffect(() => {
         async function load() {
             try {
-                const d = await apiGet('/api/schemes/all');
+                const [d, fi] = await Promise.all([
+                    apiGet('/api/schemes/all'),
+                    apiGet('/api/schemes/fund-intel').catch(() => null),
+                ]);
                 setSchemes(d.schemes || []);
                 setData(d);
+                if (fi && fi.ministries) setFundIntel(fi);
             } catch (err) { console.error(err); }
             finally { setLoading(false); }
         }
@@ -118,6 +123,7 @@ export default function SchemesPage() {
                 {[
                     { key: 'overview', label: 'Ministry Overview' },
                     { key: 'radar', label: 'Fund Radar' },
+                    { key: 'scrutiny', label: 'Parliament Scrutiny' },
                     { key: 'finder', label: 'Scheme Finder' },
                     { key: 'citizen', label: 'Citizen Matcher' },
                 ].map(t => (
@@ -205,6 +211,176 @@ export default function SchemesPage() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* TAB: Parliament Scrutiny */}
+            {tab === 'scrutiny' && fundIntel && (() => {
+                const ministries = (fundIntel.ministries || []).sort((a, b) => b.total_questions - a.total_questions);
+                const meta = fundIntel.metadata || {};
+                const totalQs = meta.total_fund_questions || 0;
+                const totalMinistries = ministries.length;
+                const totalAlloc = ministries.reduce((s, m) => s + (m.allocation || 0), 0);
+                const maxQs = ministries[0]?.total_questions || 1;
+
+                // Color by scrutiny intensity
+                const getColor = (qs) => {
+                    if (qs >= 20) return '#dc2626';
+                    if (qs >= 10) return '#f59e0b';
+                    if (qs >= 5) return '#3b82f6';
+                    return '#6b7280';
+                };
+                const getLabel = (qs) => qs >= 20 ? 'CRITICAL' : qs >= 10 ? 'HIGH' : qs >= 5 ? 'MODERATE' : 'LOW';
+
+                return (
+                    <div className="space-y-5">
+                        {/* Scrutiny Metrics */}
+                        <div className="grid grid-cols-4 gap-3">
+                            {[
+                                { label: 'Fund Questions', value: totalQs, sub: 'asked in Parliament' },
+                                { label: 'Ministries Questioned', value: totalMinistries, sub: 'under scrutiny' },
+                                { label: 'Budget Covered', value: `₹${totalAlloc.toLocaleString('en-IN')} Cr`, sub: 'total allocation' },
+                                { label: 'Data Source', value: 'ePARLib', sub: `LS ${meta.lok_sabha || 18}` },
+                            ].map(s => (
+                                <div key={s.label} className="sansad-card">
+                                    <div className="sansad-card-body text-center py-3">
+                                        <div className="text-lg font-bold" style={{ color }}>{s.value}</div>
+                                        <div className="text-[10px] text-gray-500 uppercase">{s.label}</div>
+                                        <div className="text-[9px] text-gray-400">{s.sub}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* CSS Treemap */}
+                        <div className="sansad-card">
+                            <div className="sansad-card-header" style={{ background: color }}>Ministry-wise Fund Scrutiny Treemap</div>
+                            <div className="sansad-card-body">
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px', minHeight: 300 }}>
+                                    {ministries.slice(0, 25).map((m, i) => {
+                                        const pct = Math.max(3, (m.total_questions / totalQs) * 100);
+                                        const bgColor = getColor(m.total_questions);
+                                        const name = m.ministry.replace('MINISTRY OF ', '').replace(' AND ', ' & ');
+                                        return (
+                                            <div key={i}
+                                                title={`${m.ministry}\n${m.total_questions} questions\n₹${(m.allocation || 0).toLocaleString()} Cr allocation`}
+                                                style={{
+                                                    flex: `0 0 ${Math.max(60, pct * 3)}px`,
+                                                    height: Math.max(55, pct * 2.5),
+                                                    background: bgColor,
+                                                    borderRadius: 4,
+                                                    padding: '6px 8px',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    justifyContent: 'space-between',
+                                                    overflow: 'hidden',
+                                                    cursor: 'pointer',
+                                                    transition: 'transform 0.15s, box-shadow 0.15s',
+                                                    flexGrow: m.total_questions,
+                                                }}
+                                                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                                onClick={() => setExpanded(expanded === `sc${i}` ? null : `sc${i}`)}
+                                            >
+                                                <span style={{ fontSize: pct > 8 ? 11 : 9, fontWeight: 700, color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {name.length > (pct > 8 ? 25 : 12) ? name.slice(0, pct > 8 ? 25 : 12) + '…' : name}
+                                                </span>
+                                                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>
+                                                    {m.total_questions} Qs
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <div className="flex gap-4 mt-3 text-[10px] text-gray-500">
+                                    <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#dc2626', borderRadius: 2, marginRight: 3 }} />Critical (20+)</span>
+                                    <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#f59e0b', borderRadius: 2, marginRight: 3 }} />High (10-19)</span>
+                                    <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#3b82f6', borderRadius: 2, marginRight: 3 }} />Moderate (5-9)</span>
+                                    <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#6b7280', borderRadius: 2, marginRight: 3 }} />Low (1-4)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Expandable detail for clicked treemap tile */}
+                        {expanded && expanded.startsWith('sc') && (() => {
+                            const idx = parseInt(expanded.slice(2));
+                            const m = ministries[idx];
+                            if (!m) return null;
+                            const recentQs = (m.questions || []).sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 5);
+                            return (
+                                <div className="sansad-card" style={{ borderLeft: `4px solid ${getColor(m.total_questions)}` }}>
+                                    <div className="sansad-card-body space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-sm font-bold text-gray-800">{m.ministry}</h3>
+                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{
+                                                background: getColor(m.total_questions) + '20',
+                                                color: getColor(m.total_questions)
+                                            }}>{getLabel(m.total_questions)}</span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
+                                                <div className="text-sm font-bold" style={{ color }}>{m.total_questions}</div>
+                                                <div className="text-[10px] text-gray-500">Fund Questions</div>
+                                            </div>
+                                            <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
+                                                <div className="text-sm font-bold text-gray-800">₹{(m.allocation || 0).toLocaleString('en-IN')} Cr</div>
+                                                <div className="text-[10px] text-gray-500">Budget Allocation</div>
+                                            </div>
+                                            <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
+                                                <div className="text-sm font-bold text-gray-800">{Object.keys(m.schemes || {}).length}</div>
+                                                <div className="text-[10px] text-gray-500">Schemes Mentioned</div>
+                                            </div>
+                                        </div>
+                                        {recentQs.length > 0 && (
+                                            <div>
+                                                <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Recent Fund Questions</div>
+                                                {recentQs.map((q, j) => (
+                                                    <div key={j} className="text-xs text-gray-600 py-1.5 border-b last:border-0" style={{ borderColor: '#eee' }}>
+                                                        <span className="text-gray-400 mr-2">{q.date}</span>
+                                                        {q.title}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Top questioned ministries table */}
+                        <div className="sansad-card">
+                            <div className="sansad-card-header" style={{ background: '#555' }}>Top 15 Ministries Under Fund Scrutiny</div>
+                            <table className="sansad-table">
+                                <thead><tr><th>#</th><th>Ministry</th><th>Questions</th><th>Allocation</th><th>Scrutiny</th></tr></thead>
+                                <tbody>
+                                    {ministries.slice(0, 15).map((m, i) => (
+                                        <tr key={i}>
+                                            <td className="font-mono text-gray-400">{i + 1}</td>
+                                            <td className="font-medium text-gray-700" style={{ maxWidth: 200 }}>
+                                                {m.ministry.replace('MINISTRY OF ', '').replace(' AND ', ' & ').slice(0, 35)}
+                                            </td>
+                                            <td className="font-bold" style={{ color }}>{m.total_questions}</td>
+                                            <td className="text-xs">{m.allocation ? `₹${m.allocation.toLocaleString('en-IN')} Cr` : '–'}</td>
+                                            <td>
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{
+                                                    background: getColor(m.total_questions) + '18',
+                                                    color: getColor(m.total_questions)
+                                                }}>{getLabel(m.total_questions)}</span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="text-[10px] text-gray-400 text-right">
+                            Source: ePARLib (sansad.in) | Lok Sabha {meta.lok_sabha || 18} | FY {meta.financial_year || '2025-26'} | Last scraped: {meta.scraped_at || 'N/A'}
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {tab === 'scrutiny' && !fundIntel && (
+                <div className="text-center py-10 text-gray-400 text-sm">No parliament scrutiny data available. Run the scraper to populate.</div>
             )}
 
             {/* TAB 2: Fund Radar */}

@@ -695,6 +695,43 @@ def match_citizen_schemes(req: CitizenMatchRequest, user=Depends(get_current_use
     return {"schemes": matched, "total": len(matched), "profile": ", ".join(req.groups)}
 
 
+def _load_fund_intel():
+    try:
+        with open("fund_intel.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+@router.get("/schemes/fund-intel")
+def get_fund_intel(user=Depends(get_current_user)):
+    """Serve parliamentary fund intelligence data for treemap visualization."""
+    fund_data = _cached_load("fund_intel", _load_fund_intel)
+    if not fund_data:
+        return {"ministries": [], "metadata": {}, "existing_allocations": []}
+
+    # Also merge with scheme allocation data for richer treemap
+    schemes = _cached_load("schemes", _load_schemes)
+    from collections import defaultdict
+    ministry_alloc = defaultdict(float)
+    for s in schemes:
+        m = (s.get("ministry") or "").upper()
+        ministry_alloc[m] += s.get("budget_numeric", 0)
+
+    # Enrich ministry data with allocation
+    for m in fund_data.get("ministries", []):
+        m_name = m["ministry"].upper()
+        m["allocation"] = ministry_alloc.get(m_name, 0)
+        # Also check approximate matches
+        if not m["allocation"]:
+            for k, v in ministry_alloc.items():
+                if m_name in k or k in m_name:
+                    m["allocation"] = v
+                    break
+
+    return fund_data
+
+
 # ─────────────────────────────────────────
 # PARLIAMENT SESSION STATUS
 # ─────────────────────────────────────────
