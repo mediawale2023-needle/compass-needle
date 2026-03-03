@@ -10,6 +10,7 @@ const CITIZEN_GROUPS = ['Women', 'Farmers', 'SC/ST', 'BPL Families', 'Youth / St
 export default function SchemesPage() {
     const { user } = useAuth();
     const [tab, setTab] = useState('overview');
+    const [intelFilter, setIntelFilter] = useState('all'); // 'all' | 'scrutinized' | 'unspent' | 'utilization'
     const [schemes, setSchemes] = useState([]);
     const [data, setData] = useState({});
     const [loading, setLoading] = useState(true);
@@ -122,8 +123,7 @@ export default function SchemesPage() {
             <div className="sansad-tabs">
                 {[
                     { key: 'overview', label: 'Ministry Overview' },
-                    { key: 'radar', label: 'Fund Radar' },
-                    { key: 'scrutiny', label: 'Parliament Scrutiny' },
+                    { key: 'intel', label: 'Fund Intelligence' },
                     { key: 'finder', label: 'Scheme Finder' },
                     { key: 'citizen', label: 'Citizen Matcher' },
                 ].map(t => (
@@ -213,57 +213,89 @@ export default function SchemesPage() {
                 </div>
             )}
 
-            {/* TAB: Parliament Scrutiny */}
-            {tab === 'scrutiny' && fundIntel && (() => {
-                const ministries = (fundIntel.ministries || []).sort((a, b) => b.total_questions - a.total_questions);
-                const meta = fundIntel.metadata || {};
-                const totalQs = meta.total_fund_questions || 0;
+            {/* TAB: Fund Intelligence (merged Radar + Parliament Scrutiny) */}
+            {tab === 'intel' && (() => {
+                const meta = fundIntel?.metadata || {};
+                const fiMinistries = fundIntel?.ministries || [];
 
-                // Calculate real numbers from AI extraction
-                let totalAiAlloc = 0;
-                let totalAiUtil = 0;
-                let ministriesWithNumbers = 0;
+                // Build a lookup from fund intel by normalized ministry name for merging
+                const normName = s => s.toUpperCase()
+                    .replace(/MINISTRY OF |MINISTRY FOR |DEPARTMENT OF /g, '')
+                    .replace(/&/g, 'AND').trim();
 
-                ministries.forEach(m => {
-                    m.ai_alloc_cr = 0;
-                    m.ai_util_cr = 0;
-                    (m.questions || []).forEach(q => {
-                        if (q.allocation_cr) m.ai_alloc_cr += q.allocation_cr;
-                        if (q.utilization_cr) m.ai_util_cr += q.utilization_cr;
-                    });
-                    if (m.ai_alloc_cr > 0) {
-                        ministriesWithNumbers++;
-                        totalAiAlloc += m.ai_alloc_cr;
-                        totalAiUtil += m.ai_util_cr;
+                const fiByNorm = {};
+                fiMinistries.forEach(m => { fiByNorm[normName(m.ministry)] = m; });
+
+                // Merge ministrySummary (from schemes_db) with fiMinistries (from parliament)
+                // Primary list: ministrySummary enriched with fi data
+                const mergedList = ministrySummary.map(m => {
+                    const key = normName(m.ministry);
+                    // Try to match by key or partial match
+                    let fi = fiByNorm[key];
+                    if (!fi) {
+                        const keys = Object.keys(fiByNorm);
+                        const partial = keys.find(k => k.includes(key) || key.includes(k));
+                        fi = partial ? fiByNorm[partial] : null;
+                    }
+                    return {
+                        ...m,
+                        fi_questions: fi?.total_questions || 0,
+                        fi_tag_counts: fi?.tag_counts || {},
+                        fi_questions_list: (fi?.questions || []).sort((a, b) => (b.date || '').localeCompare(a.date || '')),
+                        fi_severity: fi?.severity_score || 0,
+                        fi_budget_cr: fi?.budget_cr || 0,
+                        fi_schemes: fi?.schemes || [],
+                        fi_has_data: !!fi,
+                    };
+                });
+
+                // Also include fi-only ministries not in ministrySummary
+                const coveredNorms = new Set(mergedList.map(m => normName(m.ministry)));
+                fiMinistries.forEach(fi => {
+                    if (!coveredNorms.has(normName(fi.ministry))) {
+                        mergedList.push({
+                            ministry: fi.full_name || fi.ministry,
+                            budget: fi.budget_cr || 0,
+                            count: fi.scheme_count || 0,
+                            top_scheme: fi.schemes?.[0]?.name || '',
+                            fi_questions: fi.total_questions,
+                            fi_tag_counts: fi.tag_counts || {},
+                            fi_questions_list: (fi.questions || []).sort((a, b) => (b.date || '').localeCompare(a.date || '')),
+                            fi_severity: fi.severity_score || 0,
+                            fi_budget_cr: fi.budget_cr || 0,
+                            fi_schemes: fi.schemes || [],
+                            fi_has_data: true,
+                        });
                     }
                 });
 
-                const hasAiData = ministriesWithNumbers > 0;
-                const totalMinistries = ministries.length;
+                mergedList.sort((a, b) => b.budget - a.budget);
 
-                // Color logic
-                const getColorQs = qs => qs >= 20 ? '#dc2626' : qs >= 10 ? '#f59e0b' : qs >= 5 ? '#3b82f6' : '#6b7280';
-                const getColorUtil = pct => pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#dc2626'; // Green > 80%, Yellow > 50%, Red < 50%
+                // Filter
+                const filtered = mergedList.filter(m => {
+                    if (intelFilter === 'scrutinized') return m.fi_questions > 0;
+                    if (intelFilter === 'unspent') return (m.fi_tag_counts.unspent || 0) > 0;
+                    if (intelFilter === 'utilization') return (m.fi_tag_counts.utilization || 0) > 0;
+                    return true;
+                });
 
-                const getLabelQs = qs => qs >= 20 ? 'CRITICAL' : qs >= 10 ? 'HIGH' : qs >= 5 ? 'MODERATE' : 'LOW';
+                const totalBudget = mergedList.reduce((s, m) => s + (m.budget || 0), 0);
+                const totalQs = meta.total_fund_questions || fiMinistries.reduce((s, m) => s + m.total_questions, 0);
+                const scrutinizedCount = mergedList.filter(m => m.fi_questions > 0).length;
+
+                const severityColor = s => s >= 50 ? '#dc2626' : s >= 25 ? '#f59e0b' : '#6b7280';
+                const tagColor = tag => ({ utilization: '#3b82f6', unspent: '#dc2626', allocation: '#8b5cf6', release: '#06b6d4', delay: '#f59e0b' })[tag] || '#6b7280';
+                const tagLabel = tag => ({ utilization: 'Utilization', unspent: 'Unspent', allocation: 'Allocation', release: 'Release', budget: 'Budget', delay: 'Delay', general: 'General' })[tag] || tag;
 
                 return (
                     <div className="space-y-5">
-                        {/* Scrutiny Metrics */}
+                        {/* Top metrics */}
                         <div className="grid grid-cols-4 gap-3">
                             {[
-                                { label: 'Fund Questions', value: totalQs, sub: 'asked in Parliament' },
-                                { label: 'Ministries Questioned', value: totalMinistries, sub: 'under scrutiny' },
-                                {
-                                    label: hasAiData ? 'Total Disclosed Rs.' : 'Overall Budget',
-                                    value: `₹${(hasAiData ? totalAiAlloc : (ministries.reduce((s, m) => s + (m.allocation || 0), 0))).toLocaleString('en-IN')} Cr`,
-                                    sub: hasAiData ? `${ministriesWithNumbers} ministries parsed` : 'total allocation'
-                                },
-                                {
-                                    label: hasAiData ? 'Avg. Utilization' : 'Data Source',
-                                    value: hasAiData ? `${((totalAiUtil / totalAiAlloc) * 100).toFixed(1)}%` : 'ePARLib',
-                                    sub: hasAiData ? `₹${totalAiUtil.toLocaleString()} Cr used` : `LS ${meta.lok_sabha || 18}`
-                                },
+                                { label: 'Total Budget Tracked', value: `₹${(totalBudget / 1000).toFixed(0)}K Cr`, sub: `${mergedList.length} ministries` },
+                                { label: 'Parliament Questions', value: totalQs, sub: `FY ${meta.financial_year || '2025-26'} · LS ${meta.lok_sabha || 18}` },
+                                { label: 'Under Scrutiny', value: scrutinizedCount, sub: 'ministries questioned by MPs' },
+                                { label: 'Unspent Flags', value: mergedList.reduce((s, m) => s + (m.fi_tag_counts.unspent || 0), 0), sub: 'Q&As about unused funds' },
                             ].map(s => (
                                 <div key={s.label} className="sansad-card">
                                     <div className="sansad-card-body text-center py-3">
@@ -275,246 +307,189 @@ export default function SchemesPage() {
                             ))}
                         </div>
 
-                        {/* CSS Treemap */}
-                        <div className="sansad-card">
-                            <div className="sansad-card-header" style={{ background: color }}>
-                                {hasAiData ? "Ministry-wise Fund Utilization" : "Ministry-wise Fund Scrutiny Treemap"}
-                            </div>
-                            <div className="sansad-card-body">
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px', minHeight: 300 }}>
-                                    {ministries.slice(0, 25).map((m, i) => {
-                                        let weight, bgColor, extraText;
-
-                                        if (hasAiData && m.ai_alloc_cr > 0) {
-                                            const utilPct = (m.ai_util_cr / m.ai_alloc_cr) * 100;
-                                            weight = Math.max(3, (m.ai_alloc_cr / totalAiAlloc) * 100);
-                                            bgColor = getColorUtil(utilPct);
-                                            extraText = `${utilPct.toFixed(1)}% Utilized`;
-                                        } else {
-                                            weight = Math.max(3, (m.total_questions / totalQs) * 100);
-                                            bgColor = getColorQs(m.total_questions);
-                                            extraText = `${m.total_questions} Qs`;
-                                        }
-
-                                        const name = m.ministry.replace('MINISTRY OF ', '').replace(' AND ', ' & ');
-                                        const tooltip = hasAiData && m.ai_alloc_cr > 0
-                                            ? `${m.ministry}\nAllocated: ₹${m.ai_alloc_cr.toLocaleString()} Cr\nUtilized: ₹${m.ai_util_cr.toLocaleString()} Cr`
-                                            : `${m.ministry}\n${m.total_questions} questions\n₹${(m.allocation || 0).toLocaleString()} Cr budget`;
-
-                                        return (
-                                            <div key={i} title={tooltip}
-                                                style={{
-                                                    flex: `0 0 ${Math.max(60, weight * 3)}px`,
-                                                    height: Math.max(55, weight * 2.5),
-                                                    background: bgColor,
-                                                    borderRadius: 4,
-                                                    padding: '6px 8px',
-                                                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                                                    overflow: 'hidden', cursor: 'pointer',
-                                                    transition: 'transform 0.15s, box-shadow 0.15s',
-                                                    flexGrow: weight,
-                                                }}
-                                                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)'; }}
-                                                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
-                                                onClick={() => setExpanded(expanded === `sc${i}` ? null : `sc${i}`)}
-                                            >
-                                                <span style={{ fontSize: weight > 8 ? 11 : 9, fontWeight: 700, color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {name}
-                                                </span>
-                                                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>
-                                                    {extraText}
-                                                </span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                                <div className="flex gap-4 mt-3 text-[10px] text-gray-500">
-                                    {hasAiData ? (
-                                        <>
-                                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#22c55e', borderRadius: 2, marginRight: 3 }} />Good (&gt;80%)</span>
-                                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#f59e0b', borderRadius: 2, marginRight: 3 }} />Average (50-80%)</span>
-                                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#dc2626', borderRadius: 2, marginRight: 3 }} />Poor (&lt;50%)</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#dc2626', borderRadius: 2, marginRight: 3 }} />Critical (20+)</span>
-                                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#f59e0b', borderRadius: 2, marginRight: 3 }} />High (10-19)</span>
-                                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#3b82f6', borderRadius: 2, marginRight: 3 }} />Moderate (5-9)</span>
-                                            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#6b7280', borderRadius: 2, marginRight: 3 }} />Low (1-4)</span>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
+                        {/* Filter pills */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400 font-semibold uppercase">Filter:</span>
+                            {[
+                                { key: 'all', label: 'All Ministries' },
+                                { key: 'scrutinized', label: 'Parliament Questioned' },
+                                { key: 'unspent', label: 'Unspent Fund Flags' },
+                                { key: 'utilization', label: 'Utilization Q&As' },
+                            ].map(f => (
+                                <button key={f.key} onClick={() => setIntelFilter(f.key)}
+                                    className="px-3 py-1 text-[11px] font-semibold border"
+                                    style={intelFilter === f.key
+                                        ? { background: color, color: '#fff', borderColor: color }
+                                        : { borderColor: '#ddd', color: '#555', background: '#fff' }}>
+                                    {f.label}
+                                </button>
+                            ))}
+                            <span className="text-xs text-gray-400 ml-auto">{filtered.length} ministries</span>
                         </div>
 
-                        {/* Expandable detail for clicked treemap tile */}
-                        {expanded && expanded.startsWith('sc') && (() => {
-                            const idx = parseInt(expanded.slice(2));
-                            const m = ministries[idx];
-                            if (!m) return null;
-                            const recentQs = (m.questions || []).sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 5);
-                            return (
-                                <div className="sansad-card" style={{ borderLeft: `4px solid ${getColorQs(m.total_questions)}` }}>
-                                    <div className="sansad-card-body space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <h3 className="text-sm font-bold text-gray-800">{m.ministry}</h3>
-                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{
-                                                background: getColorQs(m.total_questions) + '20',
-                                                color: getColorQs(m.total_questions)
-                                            }}>{getLabelQs(m.total_questions)}</span>
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-3">
-                                            <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
-                                                <div className="text-sm font-bold" style={{ color }}>{m.total_questions}</div>
-                                                <div className="text-[10px] text-gray-500">Fund Questions</div>
-                                            </div>
-                                            <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
-                                                <div className="text-sm font-bold text-gray-800">
-                                                    ₹{m.ai_alloc_cr > 0 ? m.ai_alloc_cr.toLocaleString() : (m.allocation || 0).toLocaleString()} Cr
-                                                </div>
-                                                <div className="text-[10px] text-gray-500">Allocation Mentioned</div>
-                                            </div>
-                                            <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
-                                                <div className="text-sm font-bold text-gray-800">
-                                                    {m.ai_alloc_cr > 0 ? `${((m.ai_util_cr / m.ai_alloc_cr) * 100).toFixed(1)}%` : Object.keys(m.schemes || {}).length}
-                                                </div>
-                                                <div className="text-[10px] text-gray-500">
-                                                    {m.ai_alloc_cr > 0 ? `Utilized (₹${m.ai_util_cr.toLocaleString()} Cr)` : 'Schemes Mentioned'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        {recentQs.length > 0 && (
-                                            <div>
-                                                <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Recent Parliament Answers</div>
-                                                {recentQs.map((q, j) => (
-                                                    <div key={j} className="text-xs text-gray-600 py-1.5 border-b last:border-0" style={{ borderColor: '#eee' }}>
-                                                        <span className="text-gray-400 mr-2">{q.date}</span>
-                                                        <strong>{q.title}</strong>
-                                                        {q.allocation_cr > 0 && (
-                                                            <div className="mt-1 text-gray-500">
-                                                                ↳ Allocated: ₹{q.allocation_cr} Cr | Utilized: ₹{q.utilization_cr || 0} Cr
-                                                            </div>
+                        {/* Ministry list */}
+                        <div className="space-y-2">
+                            {filtered.map((m, i) => {
+                                const isOpen = expanded === `fi${i}`;
+                                const hasPQ = m.fi_questions > 0;
+                                const maxBudget = mergedList[0]?.budget || 1;
+                                const budgetPct = Math.max(2, (m.budget / maxBudget) * 100);
+                                const unspentCount = m.fi_tag_counts.unspent || 0;
+                                const utilCount = m.fi_tag_counts.utilization || 0;
+
+                                return (
+                                    <div key={i} className="sansad-card" style={{
+                                        borderLeft: hasPQ ? `4px solid ${severityColor(m.fi_severity)}` : '4px solid transparent'
+                                    }}>
+                                        <div className="sansad-card-body py-3">
+                                            {/* Header row */}
+                                            <div className="flex items-center justify-between cursor-pointer"
+                                                onClick={() => setExpanded(isOpen ? null : `fi${i}`)}>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="text-sm font-semibold text-gray-800 truncate">
+                                                            {m.ministry.replace('Ministry of ', '').replace('Ministry for ', '')}
+                                                        </span>
+                                                        {hasPQ && (
+                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{
+                                                                background: severityColor(m.fi_severity) + '18',
+                                                                color: severityColor(m.fi_severity)
+                                                            }}>
+                                                                {m.fi_questions} Parliament Q{m.fi_questions > 1 ? 's' : ''}
+                                                            </span>
+                                                        )}
+                                                        {unspentCount > 0 && (
+                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ background: '#fef2f2', color: '#dc2626' }}>
+                                                                {unspentCount} Unspent Flag{unspentCount > 1 ? 's' : ''}
+                                                            </span>
                                                         )}
                                                     </div>
-                                                ))}
+                                                    {/* Budget bar */}
+                                                    <div className="mt-1.5 flex items-center gap-2">
+                                                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                            <div className="h-full rounded-full" style={{ width: `${budgetPct}%`, background: color, opacity: 0.65 }} />
+                                                        </div>
+                                                        <span className="text-[11px] font-bold shrink-0" style={{ color }}>
+                                                            ₹{m.budget.toLocaleString('en-IN')} Cr
+                                                        </span>
+                                                        <span className="text-[10px] text-gray-400 shrink-0">{m.count} schemes</span>
+                                                    </div>
+                                                </div>
+                                                <span className="text-gray-300 ml-4 text-xs">{isOpen ? '▲' : '▼'}</span>
                                             </div>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })()}
 
-                        {/* Top questioned ministries table */}
-                        <div className="sansad-card">
-                            <div className="sansad-card-header" style={{ background: '#555' }}>Fund Utilization Breakdown</div>
-                            <table className="sansad-table">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Ministry</th>
-                                        <th>Questions</th>
-                                        <th>{hasAiData ? "Disclosed Allocation" : "Overall Allocation"}</th>
-                                        <th>{hasAiData ? "Utilization" : "Scrutiny"}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {ministries.slice(0, 15).map((m, i) => (
-                                        <tr key={i}>
-                                            <td className="font-mono text-gray-400">{i + 1}</td>
-                                            <td className="font-medium text-gray-700" style={{ maxWidth: 200 }}>
-                                                {m.ministry.replace('MINISTRY OF ', '').replace(' AND ', ' & ').slice(0, 35)}
-                                            </td>
-                                            <td className="font-bold" style={{ color }}>{m.total_questions}</td>
-                                            <td className="text-xs">
-                                                {hasAiData && m.ai_alloc_cr > 0
-                                                    ? `₹${m.ai_alloc_cr.toLocaleString()} Cr`
-                                                    : m.allocation ? `₹${m.allocation.toLocaleString('en-IN')} Cr` : '–'}
-                                            </td>
-                                            <td>
-                                                {hasAiData && m.ai_alloc_cr > 0 ? (
-                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{
-                                                        background: getColorUtil((m.ai_util_cr / m.ai_alloc_cr) * 100) + '18',
-                                                        color: getColorUtil((m.ai_util_cr / m.ai_alloc_cr) * 100)
-                                                    }}>
-                                                        {((m.ai_util_cr / m.ai_alloc_cr) * 100).toFixed(1)}%
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{
-                                                        background: getColorQs(m.total_questions) + '18',
-                                                        color: getColorQs(m.total_questions)
-                                                    }}>
-                                                        {getLabelQs(m.total_questions)}
-                                                    </span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                            {/* Expanded panel */}
+                                            {isOpen && (
+                                                <div className="mt-3 pt-3 border-t space-y-4" style={{ borderColor: '#eee' }}>
+                                                    {/* Stats row */}
+                                                    <div className="grid grid-cols-3 gap-3">
+                                                        <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
+                                                            <div className="text-sm font-bold" style={{ color }}>₹{m.budget.toLocaleString('en-IN')} Cr</div>
+                                                            <div className="text-[10px] text-gray-500 uppercase">Budget Allocated</div>
+                                                            <div className="text-[9px] text-gray-400">{m.count} active schemes</div>
+                                                        </div>
+                                                        <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
+                                                            <div className="text-sm font-bold text-gray-800">{m.fi_questions}</div>
+                                                            <div className="text-[10px] text-gray-500 uppercase">Parliament Q&As</div>
+                                                            <div className="text-[9px] text-gray-400">MPs raised in LS {meta.lok_sabha || 18}</div>
+                                                        </div>
+                                                        <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
+                                                            <div className="text-sm font-bold" style={{ color: unspentCount > 0 ? '#dc2626' : '#6b7280' }}>
+                                                                {unspentCount > 0 ? `${unspentCount} raised` : '—'}
+                                                            </div>
+                                                            <div className="text-[10px] text-gray-500 uppercase">Unspent / Lapsed</div>
+                                                            <div className="text-[9px] text-gray-400">questions about unused funds</div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Tag breakdown */}
+                                                    {hasPQ && Object.keys(m.fi_tag_counts).length > 0 && (
+                                                        <div>
+                                                            <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1.5">What MPs Asked About</div>
+                                                            <div className="flex gap-2 flex-wrap">
+                                                                {Object.entries(m.fi_tag_counts)
+                                                                    .sort((a, b) => b[1] - a[1])
+                                                                    .map(([tag, cnt]) => (
+                                                                        <span key={tag} className="text-[11px] font-semibold px-2 py-0.5 rounded" style={{
+                                                                            background: tagColor(tag) + '18', color: tagColor(tag)
+                                                                        }}>
+                                                                            {tagLabel(tag)}: {cnt}
+                                                                        </span>
+                                                                    ))
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Schemes under this ministry */}
+                                                    {(m.fi_schemes.length > 0 || schemes.filter(s => s.ministry === m.ministry).length > 0) && (
+                                                        <div>
+                                                            <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1.5">Schemes & Allocation</div>
+                                                            <div className="space-y-1">
+                                                                {(m.fi_schemes.length > 0
+                                                                    ? m.fi_schemes
+                                                                    : schemes.filter(s => s.ministry === m.ministry)
+                                                                        .sort((a, b) => (b.budget_numeric || 0) - (a.budget_numeric || 0))
+                                                                        .map(s => ({ name: s.name, budget_allocation: s.budget_allocation, alloc_cr: s.budget_numeric || 0, focus: s.focus }))
+                                                                ).slice(0, 8).map((s, j) => (
+                                                                    <div key={j} className="flex items-center justify-between text-xs py-1 border-b last:border-0" style={{ borderColor: '#f0f0f0' }}>
+                                                                        <span className="text-gray-700 font-medium truncate" style={{ maxWidth: '65%' }}>
+                                                                            {s.name}
+                                                                        </span>
+                                                                        <span className="font-semibold text-gray-600 shrink-0">
+                                                                            {s.budget_allocation || (s.alloc_cr > 0 ? `₹${s.alloc_cr.toLocaleString('en-IN')} Cr` : 'N/A')}
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Parliament Q&A list */}
+                                                    {m.fi_questions_list.length > 0 && (
+                                                        <div>
+                                                            <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1.5">Parliament Questions Raised</div>
+                                                            <div className="space-y-1.5">
+                                                                {m.fi_questions_list.slice(0, 8).map((q, j) => (
+                                                                    <div key={j} className="text-xs py-1.5 border-b last:border-0" style={{ borderColor: '#f0f0f0' }}>
+                                                                        <div className="flex items-start gap-2">
+                                                                            <span className="text-gray-400 shrink-0 font-mono text-[10px] mt-0.5">{q.date?.slice(0, 7) || '—'}</span>
+                                                                            <span className="text-gray-700">{q.title}</span>
+                                                                        </div>
+                                                                        {q.tags && q.tags.filter(t => t !== 'general').length > 0 && (
+                                                                            <div className="flex gap-1 mt-1 ml-10">
+                                                                                {q.tags.filter(t => t !== 'general').map(t => (
+                                                                                    <span key={t} style={{ fontSize: 9, color: tagColor(t), background: tagColor(t) + '15' }}
+                                                                                        className="px-1.5 py-0.5 rounded font-bold uppercase">
+                                                                                        {t}
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                                {m.fi_questions_list.length > 8 && (
+                                                                    <div className="text-[10px] text-gray-400 text-right">
+                                                                        +{m.fi_questions_list.length - 8} more questions
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
 
                         <div className="text-[10px] text-gray-400 text-right">
-                            Source: ePARLib (sansad.in) | Lok Sabha {meta.lok_sabha || 18} | FY {meta.financial_year || '2025-26'} | Last scraped: {meta.scraped_at || 'N/A'}
+                            Source: Budget data from Ministry Annual Reports · Parliament Q&A: ePARLib (sansad.in) LS {meta.lok_sabha || 18} · FY {meta.financial_year || '2025-26'} · Updated: {meta.enriched_at || meta.scraped_at || 'N/A'}
                         </div>
                     </div>
                 );
             })()}
-
-            {tab === 'scrutiny' && !fundIntel && (
-                <div className="text-center py-10 text-gray-400 text-sm">No parliament scrutiny data available. Run the scraper to populate.</div>
-            )}
-
-            {/* TAB 2: Fund Radar */}
-            {tab === 'radar' && (
-                <div className="space-y-3">
-                    <div className="text-sm text-gray-500">Which ministry has the biggest budget? Click any ministry to see its schemes.</div>
-                    {ministrySummary.map((m, i) => (
-                        <div key={i} className="sansad-card">
-                            <div className="sansad-card-body">
-                                <div className="flex items-center justify-between cursor-pointer"
-                                    onClick={() => setExpanded(expanded === `r${i}` ? null : `r${i}`)}>
-                                    <div className="flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full" style={{
-                                            background: m.budget >= 10000 ? '#dc2626' : m.budget >= 1000 ? '#f59e0b' : '#6b7280'
-                                        }} />
-                                        <span className="text-sm font-semibold text-gray-800">{m.ministry}</span>
-                                    </div>
-                                    <div className="flex items-center gap-4 text-xs">
-                                        <span className="font-bold" style={{ color }}>₹{m.budget.toLocaleString('en-IN')} Cr</span>
-                                        <span className="text-gray-400">{m.count} schemes</span>
-                                        <span className="text-gray-300">{expanded === `r${i}` ? '▲' : '▼'}</span>
-                                    </div>
-                                </div>
-                                {expanded === `r${i}` && (
-                                    <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: '#eee' }}>
-                                        <div className="flex gap-4 mb-2">
-                                            <div className="text-center px-4 py-2 bg-gray-50 border flex-1" style={{ borderColor: '#eee' }}>
-                                                <div className="text-sm font-bold" style={{ color }}>₹{m.budget.toLocaleString('en-IN')} Cr</div>
-                                                <div className="text-[10px] text-gray-500 uppercase">Total Budget</div>
-                                            </div>
-                                            <div className="text-center px-4 py-2 bg-gray-50 border flex-1" style={{ borderColor: '#eee' }}>
-                                                <div className="text-sm font-bold text-gray-800">{m.count}</div>
-                                                <div className="text-[10px] text-gray-500 uppercase">Active Schemes</div>
-                                            </div>
-                                            <div className="text-center px-4 py-2 bg-gray-50 border flex-1" style={{ borderColor: '#eee' }}>
-                                                <div className="text-sm font-bold text-gray-800 truncate">{m.top_scheme?.slice(0, 25)}</div>
-                                                <div className="text-[10px] text-gray-500 uppercase">Flagship</div>
-                                            </div>
-                                        </div>
-                                        {schemes.filter(s => s.ministry === m.ministry)
-                                            .sort((a, b) => (b.budget_numeric || 0) - (a.budget_numeric || 0))
-                                            .map((s, j) => (
-                                                <div key={j} className="text-xs text-gray-600 py-1">
-                                                    • <strong>{s.name}</strong> — {s.budget_allocation || 'N/A'} | {s.focus || ''}
-                                                </div>
-                                            ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
 
             {/* TAB 3: Scheme Finder */}
             {tab === 'finder' && (
