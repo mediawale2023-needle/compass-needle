@@ -1,0 +1,3407 @@
+{
+  "metadata": {
+    "source": "ePARLib (sansad.in) Parliamentary Q&A",
+    "financial_year": "2025-26",
+    "lok_sabha": 18,
+    "scraped_at": "2026-03-03 12:59:13",
+    "total_fund_questions": 435
+  },
+  "ministries": [
+    {
+      "ministry": "COOPERATION",
+      "total_questions": 7,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Refund Status of Money Deposit in Sahara Cooperatives",
+          "date": "2025-12-02",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "402"
+        },
+        {
+          "title": "Sahara Refund Portal",
+          "date": "2025-12-02",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "439"
+        },
+        {
+          "title": "Funds allotted to West Bengal",
+          "date": "2025-08-05",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2643"
+        },
+        {
+          "title": "Funds disbursed by NCDC",
+          "date": "2025-08-05",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2646"
+        },
+        {
+          "title": "Refund Status of Money deposited with the Sahara Cooperatives",
+          "date": "2025-07-29",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1446"
+        },
+        {
+          "title": "Refund of Investors' Money in Cooperative Societies including Sahara Group",
+          "date": "2025-03-11",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1860"
+        },
+        {
+          "title": "Funds for Cooperative Sugar Mills by NCDC",
+          "date": "2025-03-11",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1892"
+        }
+      ]
+    },
+    {
+      "ministry": "RURAL DEVELOPMENT",
+      "total_questions": 24,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Funds for States under MGNREGS",
+          "date": "2025-12-02",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "39"
+        },
+        {
+          "title": "State Funds under PMAY-G",
+          "date": "2025-12-02",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "286"
+        },
+        {
+          "title": "Allocation of Funds for Rural Development Projects",
+          "date": "2025-12-02",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "337"
+        },
+        {
+          "title": "Funds Allocated under  WDC-PMKSY",
+          "date": "2025-12-02",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "373"
+        },
+        {
+          "title": "Budget Allocation under MGNREGS",
+          "date": "2025-12-02",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "252"
+        },
+        {
+          "title": "Sanctioning Rural Connectivity in Karnataka",
+          "date": "2025-12-02",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "310"
+        },
+        {
+          "title": "Budget Allocation under PMGSY",
+          "date": "2025-08-12",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "321"
+        },
+        {
+          "title": "Diversion of Fund under MGNREGS",
+          "date": "2025-08-12",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3767"
+        },
+        {
+          "title": "Delay in Disbursement of PMGSY Funds",
+          "date": "2025-08-12",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3740"
+        },
+        {
+          "title": "Allocation of Funds under PMGSY",
+          "date": "2025-08-12",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3798"
+        },
+        {
+          "title": "Utilisation of Funds in Ladakh",
+          "date": "2025-08-12",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "3858"
+        },
+        {
+          "title": "Capping MGNREGS Expenditure",
+          "date": "2025-08-05",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "2694"
+        },
+        {
+          "title": "Special Funds for PMGSY",
+          "date": "2025-08-05",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2735"
+        },
+        {
+          "title": "Criteria for Grant of Funds under PMAY-G",
+          "date": "2025-07-29",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1530"
+        },
+        {
+          "title": "Non-Release of Funds under MGNREGS",
+          "date": "2025-07-22",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "32"
+        },
+        {
+          "title": "Allocation of Fund under MGNREGS",
+          "date": "2025-07-22",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "306"
+        },
+        {
+          "title": "Allocation of Funds for Maharashtra under PMGSY",
+          "date": "2025-07-22",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "381"
+        },
+        {
+          "title": "Withholding of Funds under MGNREGS",
+          "date": "2025-07-22",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "403"
+        },
+        {
+          "title": "PMAY-G Funds for West Bengal",
+          "date": "2025-04-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "437"
+        },
+        {
+          "title": "Fund under MGNREGA",
+          "date": "2025-03-18",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2805"
+        },
+        {
+          "title": "Funds under PM-JANMAN",
+          "date": "2025-03-18",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "260"
+        },
+        {
+          "title": "Disbursement of Funds under PMAY-G",
+          "date": "2025-03-11",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1886"
+        },
+        {
+          "title": "Allocation of Funds to Karnataka under PMGSY",
+          "date": "2025-03-11",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1868"
+        },
+        {
+          "title": "Releasing Pending Funds to West Bengal",
+          "date": "2025-03-11",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2066"
+        }
+      ]
+    },
+    {
+      "ministry": "PANCHAYATI RAJ",
+      "total_questions": 8,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Funds for Panchayat",
+          "date": "2025-12-02",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "233"
+        },
+        {
+          "title": "Decentralised Planning and Fund Utilisation",
+          "date": "2025-12-02",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "455"
+        },
+        {
+          "title": "Funds Allocated for Implementation of PAI 2.0",
+          "date": "2025-08-19",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4244"
+        },
+        {
+          "title": "Backward Region Grant Fund",
+          "date": "2025-08-12",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3691"
+        },
+        {
+          "title": "Allocation of Funds to Andhra Pradesh under RGSA",
+          "date": "2025-07-29",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1512"
+        },
+        {
+          "title": "Funds for development of Panchayats",
+          "date": "2025-07-22",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "318"
+        },
+        {
+          "title": "Fund for RGSA",
+          "date": "2025-04-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4936"
+        },
+        {
+          "title": "Sanction of Gram Panchayat Buildings",
+          "date": "2025-04-01",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "421"
+        }
+      ]
+    },
+    {
+      "ministry": "COMMERCE AND INDUSTRY",
+      "total_questions": 3,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Funds for APEDA",
+          "date": "2025-12-02",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "234"
+        },
+        {
+          "title": "Infrastructure sanctioned under CBIC in Tamil Nadu",
+          "date": "2025-08-12",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "3843"
+        },
+        {
+          "title": "Funds for Startups",
+          "date": "2025-07-29",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1403"
+        }
+      ]
+    },
+    {
+      "ministry": "HOME AFFAIRS",
+      "total_questions": 11,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "National Disaster Mitigation Fund",
+          "date": "2025-12-02",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "369"
+        },
+        {
+          "title": "Funds for Disaster Management",
+          "date": "2025-12-02",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "30"
+        },
+        {
+          "title": "Funding to Fast Track Courts",
+          "date": "2025-08-12",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3684"
+        },
+        {
+          "title": "Utilization of NDRF and SDRF Funds",
+          "date": "2025-08-12",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "3805"
+        },
+        {
+          "title": "Sanctioned Posts in NIA",
+          "date": "2025-07-29",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "1479"
+        },
+        {
+          "title": "National Disaster Response Fund",
+          "date": "2025-07-22",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "341"
+        },
+        {
+          "title": "National Disaster Mitigation Fund",
+          "date": "2025-04-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4937"
+        },
+        {
+          "title": "State and National Disaster Mitigation Funds",
+          "date": "2025-03-18",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2887"
+        },
+        {
+          "title": "Effective use of Disaster Relief Funds",
+          "date": "2025-03-18",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2861"
+        },
+        {
+          "title": "Funds released from SDRF and NDRF",
+          "date": "2025-03-18",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2935"
+        },
+        {
+          "title": "Projects Sanctioned under BADP",
+          "date": "2025-03-11",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "1956"
+        }
+      ]
+    },
+    {
+      "ministry": "FISHERIES, ANIMAL HUSBANDRY AND DAIRYING",
+      "total_questions": 8,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Funds Allocated under PMMSY and AHIDF in West Bengal",
+          "date": "2025-12-02",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "25"
+        },
+        {
+          "title": "Animal Husbandry Infrastructure Development Fund",
+          "date": "2025-08-12",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3719"
+        },
+        {
+          "title": "Pandemic Fund Project",
+          "date": "2025-08-05",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2634"
+        },
+        {
+          "title": "Funds Allocated for Establishment of Oceanarium and Marine Biological Park in Kerala",
+          "date": "2025-07-29",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1457"
+        },
+        {
+          "title": "Allocation of Fund to boost Fisheries Infrastructure",
+          "date": "2025-04-01",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "5047"
+        },
+        {
+          "title": "Projects Sanctioned under Centrally Sponsored Schemes",
+          "date": "2025-04-01",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "423"
+        },
+        {
+          "title": "Funds for Wetland Conservation",
+          "date": "2025-03-18",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2909"
+        },
+        {
+          "title": "Budget Allocation for RGM",
+          "date": "2025-03-11",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1955"
+        }
+      ]
+    },
+    {
+      "ministry": "CORPORATE AFFAIRS",
+      "total_questions": 16,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "CSR Fund",
+          "date": "2025-12-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "11"
+        },
+        {
+          "title": "CSR Fund Spent in Jharkhand",
+          "date": "2025-12-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "222"
+        },
+        {
+          "title": "CSR Funds for the Welfare of People",
+          "date": "2025-12-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "34"
+        },
+        {
+          "title": "CSR Funds",
+          "date": "2025-12-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "217"
+        },
+        {
+          "title": "Allocation and Utilization of CSR Funds",
+          "date": "2025-12-01",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "39"
+        },
+        {
+          "title": "Utilisation of CSR Funds in Hisar",
+          "date": "2025-12-01",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "76"
+        },
+        {
+          "title": "Funds to NGOs under CSR by PSUs",
+          "date": "2025-08-11",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3556"
+        },
+        {
+          "title": "Equal Distribution of CSR Funds",
+          "date": "2025-08-04",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2315"
+        },
+        {
+          "title": "Disclosure of CSR Expenditure by Companies on CSR Portal",
+          "date": "2025-08-04",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "2501"
+        },
+        {
+          "title": "Fair Expenditure of CSR in Meerut and Hapur, UP",
+          "date": "2025-08-04",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "2498"
+        },
+        {
+          "title": "CSR Funds released in Chhattisgarh",
+          "date": "2025-07-28",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1280"
+        },
+        {
+          "title": "Development of Essential Infrastructure through CSR Funds",
+          "date": "2025-03-24",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3790"
+        },
+        {
+          "title": "Funds Utilised under CSR in Tamil Nadu",
+          "date": "2025-03-17",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "2651"
+        },
+        {
+          "title": "Funds Sanctioned under CSR in Osmanabad, Ratnagiri-Sindhudurg and Yavatmal-Washim Constituencies",
+          "date": "2025-03-10",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1646"
+        },
+        {
+          "title": "CSR Funds Generated by Companies in Saharanpur",
+          "date": "2025-03-10",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1667"
+        },
+        {
+          "title": "Funds allocated by Companies under CSR in Uttar Pradesh",
+          "date": "2025-03-10",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1663"
+        }
+      ]
+    },
+    {
+      "ministry": "FINANCE",
+      "total_questions": 34,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Central Funds Released to Telangana and Tax Collection",
+          "date": "2025-12-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "53"
+        },
+        {
+          "title": "Funds by World Bank and Asian Development Bank",
+          "date": "2025-12-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "48"
+        },
+        {
+          "title": "Mutual Funds",
+          "date": "2025-12-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "96"
+        },
+        {
+          "title": "Release of Funds under various Centrally Sponsored Schemes",
+          "date": "2025-12-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "142"
+        },
+        {
+          "title": "Additional Allocation of Funds to Bihar for Capital Investment",
+          "date": "2025-12-01",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "190"
+        },
+        {
+          "title": "Centrally Sponsored Scheme Funds for Maharashtra",
+          "date": "2025-12-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "70"
+        },
+        {
+          "title": "Sovereign Wealth Funds and Global Pension Funds",
+          "date": "2025-08-18",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "341"
+        },
+        {
+          "title": "Special Assistance to State for Capital Expenditure",
+          "date": "2025-08-18",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "4087"
+        },
+        {
+          "title": "Projects under SWAMIH Fund",
+          "date": "2025-08-18",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3973"
+        },
+        {
+          "title": "Utilisation of Loans by State Governments",
+          "date": "2025-08-18",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "3940"
+        },
+        {
+          "title": "Funds allocated to Ujjain under Smart City Mission",
+          "date": "2025-08-11",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3567"
+        },
+        {
+          "title": "Introduction and Utilisation of Cess",
+          "date": "2025-08-11",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "3645"
+        },
+        {
+          "title": "Urban Infrastructure Development Fund",
+          "date": "2025-08-11",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3457"
+        },
+        {
+          "title": "Funds for Central Sponsored Schemes in West Bengal",
+          "date": "2025-08-04",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2342"
+        },
+        {
+          "title": "Loan Sanctioned under PMMY in Tamil Nadu",
+          "date": "2025-08-04",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "2328"
+        },
+        {
+          "title": "Funds for Infrastructural Development Projects by NABARD",
+          "date": "2025-08-04",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "202"
+        },
+        {
+          "title": "Guidelines for Disbursement of Education Loans",
+          "date": "2025-07-28",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "1157"
+        },
+        {
+          "title": "Loans Sanctioned under PMMY in Telangana",
+          "date": "2025-07-28",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "1187"
+        },
+        {
+          "title": "Loans Sanctioned under PMMY in Tamil Nadu",
+          "date": "2025-07-28",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "1154"
+        },
+        {
+          "title": "Amount sanctioned and utilised under Bima Sakhi Yojana",
+          "date": "2025-07-21",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "40"
+        },
+        {
+          "title": "Funds Allocated and Utilised under PMMY",
+          "date": "2025-07-21",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "116"
+        },
+        {
+          "title": "Utilisation of Financial Inclusion Fund (FIF)",
+          "date": "2025-07-21",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "131"
+        },
+        {
+          "title": "Allocation of Budget for Reconstruction and Repair of Post Offices",
+          "date": "2025-07-21",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "134"
+        },
+        {
+          "title": "Funds allocated for RIDF",
+          "date": "2025-03-24",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3847"
+        },
+        {
+          "title": "Urban Infrastructure Development Fund (UIDF)",
+          "date": "2025-03-24",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3685"
+        },
+        {
+          "title": "Refund Process for PACL Investors",
+          "date": "2025-03-24",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3691"
+        },
+        {
+          "title": "Allocation of Less Funds to States",
+          "date": "2025-03-24",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3829"
+        },
+        {
+          "title": "Non-adherence of Timeframe in Disbursement of Education Loans by Banks",
+          "date": "2025-03-17",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "2594"
+        },
+        {
+          "title": "Functions of Chief Advisor (Cost) in Department of Expenditure",
+          "date": "2025-03-17",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "2646"
+        },
+        {
+          "title": "Increasing Expenditure under Health Insurance",
+          "date": "2025-03-17",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "2549"
+        },
+        {
+          "title": "Funds Released to States under 15th and 16th Finance Commission",
+          "date": "2025-03-17",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2609"
+        },
+        {
+          "title": "Allocation of Funds for New Capital of Andhra Pradesh",
+          "date": "2025-03-10",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1703"
+        },
+        {
+          "title": "Welfare Measures in Budget 2025-26",
+          "date": "2025-03-10",
+          "context": "budget",
+          "financial_year": "2025-26",
+          "questionNo": "1711"
+        },
+        {
+          "title": "Credit Disbursement to Priority Sectors",
+          "date": "2025-03-10",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "153"
+        }
+      ]
+    },
+    {
+      "ministry": "CULTURE",
+      "total_questions": 5,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Funds for Development of Cultural Places in Chitradurga",
+          "date": "2025-12-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "101"
+        },
+        {
+          "title": "Funds allocated for Promotion of Art and Culture",
+          "date": "2025-08-11",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3495"
+        },
+        {
+          "title": "Utilization of CSR fund through NCF",
+          "date": "2025-03-24",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "3833"
+        },
+        {
+          "title": "Regulation and Utilization of Hindu Temple Funds",
+          "date": "2025-03-17",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "2611"
+        },
+        {
+          "title": "Allocation of Funds for Restoration Works",
+          "date": "2025-03-10",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1698"
+        }
+      ]
+    },
+    {
+      "ministry": "EDUCATION",
+      "total_questions": 24,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Funds under SSA scheme",
+          "date": "2025-12-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "146"
+        },
+        {
+          "title": "Scholarship Sanctioned under Central Schemes",
+          "date": "2025-12-01",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "168"
+        },
+        {
+          "title": "Funds under Sarva Shiksha Abhiyan",
+          "date": "2025-12-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "169"
+        },
+        {
+          "title": "Allocation of Funds under Samagra Shiksha Abhiyan and PM SHRI",
+          "date": "2025-12-01",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "164"
+        },
+        {
+          "title": "Funds for Education to Telangana",
+          "date": "2025-12-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "71"
+        },
+        {
+          "title": "Education Fund to Tamil Nadu",
+          "date": "2025-08-18",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3968"
+        },
+        {
+          "title": "Financial Allocation under Samagra Shiksha Abhiyan",
+          "date": "2025-08-11",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3564"
+        },
+        {
+          "title": "Allocation of Funds under RUSA to Ernakulum",
+          "date": "2025-08-11",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3462"
+        },
+        {
+          "title": "Misutilization of Fund under IoE Scheme",
+          "date": "2025-08-11",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "3628"
+        },
+        {
+          "title": "Funds under PM-SHRI Scheme",
+          "date": "2025-08-04",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2480"
+        },
+        {
+          "title": "Funds to Central Universities in AP",
+          "date": "2025-08-04",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2405"
+        },
+        {
+          "title": "Funds Utilised under Samagra Shiksha Abhiyan",
+          "date": "2025-07-28",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "1369"
+        },
+        {
+          "title": "Funds utilised under Samagra Shiksha Abhiyan in Rajasthan",
+          "date": "2025-07-28",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "1220"
+        },
+        {
+          "title": "Additional Budgetary Allocation for Education",
+          "date": "2025-07-28",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1173"
+        },
+        {
+          "title": "Funds under SSA and PM-SHRI Scheme",
+          "date": "2025-07-21",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "9"
+        },
+        {
+          "title": "Irregularities in Spending of PM SHRI Funds",
+          "date": "2025-07-21",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "210"
+        },
+        {
+          "title": "Sanctioned Strength of Students in KVs",
+          "date": "2025-03-24",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "3694"
+        },
+        {
+          "title": "Funds to improve Education in UP",
+          "date": "2025-03-24",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3882"
+        },
+        {
+          "title": "Funds allocated for  MMTTP",
+          "date": "2025-03-24",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3858"
+        },
+        {
+          "title": "Withholding of Funds of  Samagra Shiksha Abhiyan for Tamil Nadu",
+          "date": "2025-03-17",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2666"
+        },
+        {
+          "title": "Funds for Tamil Nadu under Central Education Schemes",
+          "date": "2025-03-17",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2684"
+        },
+        {
+          "title": "NTSE and Expenditure on PM's Pariksha Pe Charcha",
+          "date": "2025-03-10",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "1704"
+        },
+        {
+          "title": "Allocation and Utilization of Funds for Sports and Physical Education under SSA",
+          "date": "2025-03-10",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "1680"
+        },
+        {
+          "title": "Funds for PM-SHRI Schools in Karnataka",
+          "date": "2025-03-10",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1718"
+        }
+      ]
+    },
+    {
+      "ministry": "YOUTH AFFAIRS AND SPORTS",
+      "total_questions": 17,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Funds Allocated for Sports in Dadra & Nagar Haveli",
+          "date": "2025-12-01",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "32"
+        },
+        {
+          "title": "Allocation of Funds for Flagship Programmes",
+          "date": "2025-08-18",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4034"
+        },
+        {
+          "title": "Budgetary Provision for NSF, SAI and PYKKA",
+          "date": "2025-08-18",
+          "context": "budget",
+          "financial_year": null,
+          "questionNo": "4014"
+        },
+        {
+          "title": "Utilisation of NYDF for Sports Infrastructure",
+          "date": "2025-08-18",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "4007"
+        },
+        {
+          "title": "Allocation of Funds for Sports Infrastructure Development",
+          "date": "2025-08-11",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "303"
+        },
+        {
+          "title": "Availability and Utilisation of Stadiums",
+          "date": "2025-08-11",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "3452"
+        },
+        {
+          "title": "Allocation of Grants for the Former Athletes",
+          "date": "2025-08-11",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3472"
+        },
+        {
+          "title": "Funds for Development of Stadiums",
+          "date": "2025-08-11",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3633"
+        },
+        {
+          "title": "Allocation of Funds under Sports Promotion Schemes in Tamil Nadu",
+          "date": "2025-07-28",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1227"
+        },
+        {
+          "title": "Funds for Sports Projects in Telangana",
+          "date": "2025-07-28",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1294"
+        },
+        {
+          "title": "Staffing, Funding and Access",
+          "date": "2025-07-28",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1190"
+        },
+        {
+          "title": "Allocation of Funds under Khelo India Scheme",
+          "date": "2025-07-21",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "197"
+        },
+        {
+          "title": "Budget Allocation for NYK and My Bharat Initiative",
+          "date": "2025-03-17",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2676"
+        },
+        {
+          "title": "Funds Allocated/Sanctioned/Disbursed/Utilized under KIC",
+          "date": "2025-03-17",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "2550"
+        },
+        {
+          "title": "Funds for Sports Village in Tirunelveli",
+          "date": "2025-03-10",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1656"
+        },
+        {
+          "title": "Increasing Budget of Sports Development for Grassroots Level",
+          "date": "2025-03-10",
+          "context": "budget",
+          "financial_year": null,
+          "questionNo": "1694"
+        },
+        {
+          "title": "Budget Approved/Spent under KIS in West Bengal",
+          "date": "2025-03-10",
+          "context": "budget",
+          "financial_year": null,
+          "questionNo": "1791"
+        }
+      ]
+    },
+    {
+      "ministry": "SKILL DEVELOPMENT AND ENTREPRENEURSHIP",
+      "total_questions": 3,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Under-utilisation of Funds under PMKVY",
+          "date": "2025-12-01",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "2"
+        },
+        {
+          "title": "Allocation of Funds under PMKVY",
+          "date": "2025-07-28",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "113"
+        },
+        {
+          "title": "Funds allocated for Skill Development Programme for Unemployed Youths",
+          "date": "2025-03-24",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3881"
+        }
+      ]
+    },
+    {
+      "ministry": "ENVIRONMENT, FOREST AND CLIMATE CHANGE",
+      "total_questions": 14,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Allocation of Funds under Pollution Control for Andhra Pradesh",
+          "date": "2025-12-01",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "218"
+        },
+        {
+          "title": "Release of Contaminated Water into Sutlej River",
+          "date": "2025-08-18",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "3992"
+        },
+        {
+          "title": "Allocation of Funds for Madhya Pradesh",
+          "date": "2025-08-11",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3562"
+        },
+        {
+          "title": "Funds for Eco-friendly Innovations",
+          "date": "2025-08-11",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3473"
+        },
+        {
+          "title": "Disbursement  of Funds to Chhattisgarh under CAMPA Scheme",
+          "date": "2025-08-11",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3555"
+        },
+        {
+          "title": "Funds to Odisha under CAMPA Scheme",
+          "date": "2025-08-11",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3481"
+        },
+        {
+          "title": "Funds for Andhra Pradesh under NCAP",
+          "date": "2025-08-04",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2350"
+        },
+        {
+          "title": "Non-utilization of Funds under Central Pollution Scheme",
+          "date": "2025-08-04",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "2466"
+        },
+        {
+          "title": "Funds Released to Odisha under CAMPA Scheme",
+          "date": "2025-07-28",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "110"
+        },
+        {
+          "title": "Dedicated Climate Budget of Jharkhand",
+          "date": "2025-07-28",
+          "context": "budget",
+          "financial_year": null,
+          "questionNo": "1266"
+        },
+        {
+          "title": "Allocation of Funds under Green India Mission",
+          "date": "2025-07-21",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "227"
+        },
+        {
+          "title": "Funds to SPCBs",
+          "date": "2025-03-24",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3805"
+        },
+        {
+          "title": "Funds for Coastal Erosion",
+          "date": "2025-03-24",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3727"
+        },
+        {
+          "title": "CAMPA Fund",
+          "date": "2025-03-10",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1709"
+        }
+      ]
+    },
+    {
+      "ministry": "ROAD TRANSPORT AND HIGHWAYS",
+      "total_questions": 5,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Central Roads and Infrastructure Fund",
+          "date": "2025-08-21",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4605"
+        },
+        {
+          "title": "Road Safety Fund",
+          "date": "2025-07-31",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1904"
+        },
+        {
+          "title": "Central Road Infrastructure Fund in Karnataka",
+          "date": "2025-04-03",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5436"
+        },
+        {
+          "title": "Increase in Budget Allocation",
+          "date": "2025-03-20",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3317"
+        },
+        {
+          "title": "Allocation of Road Projects to Puducherry",
+          "date": "2025-03-13",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2508"
+        }
+      ]
+    },
+    {
+      "ministry": "FOOD PROCESSING INDUSTRIES",
+      "total_questions": 16,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Projects Sanctioned under PMKSY",
+          "date": "2025-08-21",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "4700"
+        },
+        {
+          "title": "Allocation of Funds under PMKSY to Uttar Pradesh",
+          "date": "2025-08-21",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4804"
+        },
+        {
+          "title": "Funds Allocated under Food Processing Schemes in Haryana",
+          "date": "2025-07-31",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1990"
+        },
+        {
+          "title": "Funds allocated under PMKSY",
+          "date": "2025-07-31",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1888"
+        },
+        {
+          "title": "Sanctioned Mega Food Parks and Cold Chain Projects in Ratlam",
+          "date": "2025-07-31",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "1886"
+        },
+        {
+          "title": "Projects Sanctioned under PLI Scheme",
+          "date": "2025-07-24",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "703"
+        },
+        {
+          "title": "Funds to Promote FPI in Bhiwani-Mahendragarh",
+          "date": "2025-04-03",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5441"
+        },
+        {
+          "title": "Funds to Darjeeling-Kalimpong under PMKSY",
+          "date": "2025-04-03",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5416"
+        },
+        {
+          "title": "Projects Sanctioned under PMKSY in Karnataka",
+          "date": "2025-04-03",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "5471"
+        },
+        {
+          "title": "Projects sanctioned under PMKSY",
+          "date": "2025-03-27",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "4415"
+        },
+        {
+          "title": "Allocation and disbursement of Subsidy under PM-FME",
+          "date": "2025-03-27",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4388"
+        },
+        {
+          "title": "Budgetary allocation for PLI Scheme",
+          "date": "2025-03-27",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4459"
+        },
+        {
+          "title": "Allocation of Funds to the Food Processing Sector",
+          "date": "2025-03-20",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3237"
+        },
+        {
+          "title": "Underutilization of Funds allocated under PMKSY",
+          "date": "2025-03-20",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "3228"
+        },
+        {
+          "title": "Disbursement of Funds  for Small and Medium Food Processing Industries",
+          "date": "2025-03-13",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "215"
+        },
+        {
+          "title": "Allocation of Funds to Tamil Nadu",
+          "date": "2025-03-13",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2319"
+        }
+      ]
+    },
+    {
+      "ministry": "PETROLEUM AND NATURAL GAS",
+      "total_questions": 12,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Domestic Gas Allocation Policy",
+          "date": "2025-08-21",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4661"
+        },
+        {
+          "title": "CSR Funds spent by Oil and Gas Companies",
+          "date": "2025-08-07",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3057"
+        },
+        {
+          "title": "Connections released under Pradhan Mantri Ujjwala Yojana",
+          "date": "2025-08-07",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "3030"
+        },
+        {
+          "title": "Connections Released under PMUY 1.0 and 2.0",
+          "date": "2025-07-31",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "1966"
+        },
+        {
+          "title": "Distribution/Allocation of New Petrol Pumps",
+          "date": "2025-07-31",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1973"
+        },
+        {
+          "title": "Gas Connections released under PMUY",
+          "date": "2025-07-24",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "774"
+        },
+        {
+          "title": "Connections Released under Pradhan Mantri Ujjwala Yojana",
+          "date": "2025-07-24",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "700"
+        },
+        {
+          "title": "Spending of CSR Funds by Oil Companies",
+          "date": "2025-07-24",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "850"
+        },
+        {
+          "title": "Utilization of Land owned by Public Sector Oil Companies",
+          "date": "2025-04-03",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "5482"
+        },
+        {
+          "title": "Expenditure under Corporate Social Responsibility",
+          "date": "2025-03-27",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "4580"
+        },
+        {
+          "title": "Subsidy Allocation to LPG Consumers under PMUY",
+          "date": "2025-03-20",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3281"
+        },
+        {
+          "title": "CSR funding by the Public Sector Petroleum Companies",
+          "date": "2025-03-13",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2487"
+        }
+      ]
+    },
+    {
+      "ministry": "TRIBAL AFFAIRS",
+      "total_questions": 9,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Utilisation of Funds for the Empowerment of STs",
+          "date": "2025-08-21",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "4762"
+        },
+        {
+          "title": "Utilisation of Scheduled Tribes Component Funds",
+          "date": "2025-08-07",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "3055"
+        },
+        {
+          "title": "Budget Allocation under Tribal Schemes",
+          "date": "2025-08-07",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3152"
+        },
+        {
+          "title": "Allocation of Funds under Tribal Sub Plan",
+          "date": "2025-04-03",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "5438"
+        },
+        {
+          "title": "Allocation of Funds to NESTS",
+          "date": "2025-04-03",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "5491"
+        },
+        {
+          "title": "Reduction in Funding for Tribal Students",
+          "date": "2025-03-27",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4486"
+        },
+        {
+          "title": "Funds for STs in Jammu and Kashmir",
+          "date": "2025-03-20",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3406"
+        },
+        {
+          "title": "Venture Capital Fund for Scheduled Tribes",
+          "date": "2025-03-13",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2412"
+        },
+        {
+          "title": "Funds for Tribal Welfare Schemes",
+          "date": "2025-03-13",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2416"
+        }
+      ]
+    },
+    {
+      "ministry": "JAL SHAKTI",
+      "total_questions": 15,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Delays in Funds Disbursal under JJM",
+          "date": "2025-08-21",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4718"
+        },
+        {
+          "title": "Expenditure under National Mission for Clean Ganga",
+          "date": "2025-08-21",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "4799"
+        },
+        {
+          "title": "Funds for Irrigation and Water Management",
+          "date": "2025-08-07",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "272"
+        },
+        {
+          "title": "Release of Funds under FMBAP",
+          "date": "2025-07-31",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2053"
+        },
+        {
+          "title": "Allocation of Funds under NMCG",
+          "date": "2025-07-31",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2068"
+        },
+        {
+          "title": "Water Released from Dams",
+          "date": "2025-07-31",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "1979"
+        },
+        {
+          "title": "Budgetary Allocation for Jal Jeevan Mission",
+          "date": "2025-04-03",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "480"
+        },
+        {
+          "title": "Projects sanctioned under JJM in Kerala",
+          "date": "2025-04-03",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "5431"
+        },
+        {
+          "title": "Under-utilisation of Funds under Jal Jeevan Mission",
+          "date": "2025-03-27",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "4411"
+        },
+        {
+          "title": "Funds under JJM to Kerala",
+          "date": "2025-03-27",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4414"
+        },
+        {
+          "title": "Funds under JJM in Maharashtra",
+          "date": "2025-03-27",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4395"
+        },
+        {
+          "title": "Fund Allocation and Technological Interventions for Yamuna Cleaning",
+          "date": "2025-03-27",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4480"
+        },
+        {
+          "title": "Funds under Jal Jeevan Mission",
+          "date": "2025-03-13",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2403"
+        },
+        {
+          "title": "Funds for Water Bodies under Mission Amrut Sarovar",
+          "date": "2025-03-13",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2436"
+        },
+        {
+          "title": "Funds released to Jammu and Kashmir under Jal Shakti Mission",
+          "date": "2025-03-13",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2480"
+        }
+      ]
+    },
+    {
+      "ministry": "HOUSING AND URBAN AFFAIRS",
+      "total_questions": 19,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Utilisation of Funds under SCM",
+          "date": "2025-08-21",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "4806"
+        },
+        {
+          "title": "Allocation of Funds to Akole Nagar Panchayat in Maharashtra",
+          "date": "2025-08-21",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4669"
+        },
+        {
+          "title": "Implementation Framework and Guidelines for Urban Challenge Fund",
+          "date": "2025-08-21",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4743"
+        },
+        {
+          "title": "Allocation of Funds under PMAY-U in Tamil Nadu",
+          "date": "2025-08-07",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "278"
+        },
+        {
+          "title": "Allocation of Funds under PMAY-U in Uttar Pradesh",
+          "date": "2025-08-07",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3211"
+        },
+        {
+          "title": "Funds for Urban Infrastructure",
+          "date": "2025-07-31",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1950"
+        },
+        {
+          "title": "Urban Challenge Fund",
+          "date": "2025-07-31",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1923"
+        },
+        {
+          "title": "Budget Allocation under AMRUT",
+          "date": "2025-07-24",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "710"
+        },
+        {
+          "title": "Schemes for Urban Challenge Fund",
+          "date": "2025-04-03",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5497"
+        },
+        {
+          "title": "Government Funded Vacant Houses under ARHC",
+          "date": "2025-03-27",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4379"
+        },
+        {
+          "title": "Funds Crunch in Construction of Houses under PMAY-U",
+          "date": "2025-03-27",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4464"
+        },
+        {
+          "title": "Funds for Infrastructural Demand",
+          "date": "2025-03-27",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4536"
+        },
+        {
+          "title": "Funds Allocation under SCM",
+          "date": "2025-03-27",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4496"
+        },
+        {
+          "title": "Promotion of Infrastructure Bonds to Fund Urban Infrastructure",
+          "date": "2025-03-27",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4560"
+        },
+        {
+          "title": "Budgetary allocation for PM-eBus Sewa Scheme",
+          "date": "2025-03-20",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3268"
+        },
+        {
+          "title": "Urban Challenge Fund",
+          "date": "2025-03-20",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3302"
+        },
+        {
+          "title": "Schemes Funded by HUDCO",
+          "date": "2025-03-20",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3247"
+        },
+        {
+          "title": "Funds for Metro Rail Projects",
+          "date": "2025-03-13",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "212"
+        },
+        {
+          "title": "Funding Structure of the Projects under PMAY-U in Maharashtra",
+          "date": "2025-03-13",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2321"
+        }
+      ]
+    },
+    {
+      "ministry": "POWER",
+      "total_questions": 8,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Sanction of Pumped Storage Plants",
+          "date": "2025-08-21",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "4729"
+        },
+        {
+          "title": "Funds allocated to Himachal Pradesh under RDSS",
+          "date": "2025-08-21",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4794"
+        },
+        {
+          "title": "Smart Meters Sanctioned under RDSS in UP",
+          "date": "2025-07-31",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "1896"
+        },
+        {
+          "title": "Allocation of Power from Central Power Projects",
+          "date": "2025-07-24",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "775"
+        },
+        {
+          "title": "Viability Gap Funding for Battery Energy Storage Systems",
+          "date": "2025-04-03",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5329"
+        },
+        {
+          "title": "Projects Sanctioned under RDSS",
+          "date": "2025-04-03",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "5474"
+        },
+        {
+          "title": "CSR  Funding by Public Sector Power Companies",
+          "date": "2025-03-27",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4538"
+        },
+        {
+          "title": "Allocation of Funds to Banswara and Dungarpur under Saubhagya",
+          "date": "2025-03-13",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2431"
+        }
+      ]
+    },
+    {
+      "ministry": "STATISTICS AND PROGRAMME IMPLEMENTATION",
+      "total_questions": 14,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Utilisation of PLFS Findings",
+          "date": "2025-08-20",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "4406"
+        },
+        {
+          "title": "Streamline MPLADS Funds",
+          "date": "2025-08-20",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4517"
+        },
+        {
+          "title": "Expansion of utilisation Profile of MPLADS",
+          "date": "2025-08-06",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "2795"
+        },
+        {
+          "title": "Household Consumption Expenditure Survey",
+          "date": "2025-07-30",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "1718"
+        },
+        {
+          "title": "Unutilised MPLADS Funds",
+          "date": "2025-07-23",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "489"
+        },
+        {
+          "title": "Increase in MPLADS Fund",
+          "date": "2025-07-23",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "501"
+        },
+        {
+          "title": "Calorie and Expenditure Base Poverty Lines",
+          "date": "2025-07-23",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "508"
+        },
+        {
+          "title": "Accuracy of Self-reported Expenditure",
+          "date": "2025-04-02",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "5276"
+        },
+        {
+          "title": "Transfer of Works and Funds to the Sitting MP",
+          "date": "2025-04-02",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5100"
+        },
+        {
+          "title": "Unutilized MPLADS Funds",
+          "date": "2025-04-02",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "5290"
+        },
+        {
+          "title": "Tracking of Private Capital Expenditure",
+          "date": "2025-03-26",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "4220"
+        },
+        {
+          "title": "Increase in MPLAD Funds",
+          "date": "2025-03-19",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3158"
+        },
+        {
+          "title": "Survey on Household Consumption Expenditure",
+          "date": "2025-03-12",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "2237"
+        },
+        {
+          "title": "Increase in MPLAD Fund",
+          "date": "2025-03-12",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2249"
+        }
+      ]
+    },
+    {
+      "ministry": "COAL",
+      "total_questions": 11,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Coal Allocation to Thermal Power Plants in Tamil Nadu",
+          "date": "2025-08-20",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4462"
+        },
+        {
+          "title": "Allotment of Unused Coal Blocks for Research Purpose",
+          "date": "2025-08-06",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "2785"
+        },
+        {
+          "title": "Allocation of Coal under SHAKTI  Policy",
+          "date": "2025-07-30",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1617"
+        },
+        {
+          "title": "Allocation of Coal Blocks to SCCL",
+          "date": "2025-07-30",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1714"
+        },
+        {
+          "title": "Utilisation of Treated Mine Water",
+          "date": "2025-07-30",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "1830"
+        },
+        {
+          "title": "Spending of CSR Funds",
+          "date": "2025-07-23",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "43"
+        },
+        {
+          "title": "Coal Block Allocation to SCCL",
+          "date": "2025-04-02",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "5089"
+        },
+        {
+          "title": "Coal Block Allocation Contracts",
+          "date": "2025-03-26",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4333"
+        },
+        {
+          "title": "Collection under District Mineral Fund",
+          "date": "2025-03-26",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4237"
+        },
+        {
+          "title": "Transfer of Pension Fund of Employees",
+          "date": "2025-03-19",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3049"
+        },
+        {
+          "title": "Allocation of Coal Blocks",
+          "date": "2025-03-12",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2286"
+        }
+      ]
+    },
+    {
+      "ministry": "ELECTRONICS AND INFORMATION TECHNOLOGY",
+      "total_questions": 1,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Global Capability Centres in Budget",
+          "date": "2025-08-20",
+          "context": "budget",
+          "financial_year": null,
+          "questionNo": "4556"
+        }
+      ]
+    },
+    {
+      "ministry": "SCIENCE AND TECHNOLOGY",
+      "total_questions": 7,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Increase in R&D  Expenditure to Gross Domestic Product",
+          "date": "2025-08-20",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "4412"
+        },
+        {
+          "title": "Carbon Capture Utilisation",
+          "date": "2025-07-30",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "1674"
+        },
+        {
+          "title": "Funds Allocation to Centres of Excellence",
+          "date": "2025-07-30",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1663"
+        },
+        {
+          "title": "Carbon Capture and Utilisation (CCU) testbeds",
+          "date": "2025-07-23",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "663"
+        },
+        {
+          "title": "Carbon Capture, Utilization and Storage (CCUS) Projects",
+          "date": "2025-03-19",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "3070"
+        },
+        {
+          "title": "Funds for CSIR Projects and Laboratories",
+          "date": "2025-03-12",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2176"
+        },
+        {
+          "title": "Allocation of Funds to Anusandhan National Research Foundation",
+          "date": "2025-03-12",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2254"
+        }
+      ]
+    },
+    {
+      "ministry": "INFORMATION AND BROADCASTING",
+      "total_questions": 1,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Expenditure on Newspaper Advertisements",
+          "date": "2025-08-20",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "4394"
+        }
+      ]
+    },
+    {
+      "ministry": "CONSUMER AFFAIRS, FOOD AND PUBLIC DISTRIBUTION",
+      "total_questions": 4,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Additional allocation of Rice to Kerala",
+          "date": "2025-08-20",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4542"
+        },
+        {
+          "title": "Utilization of Funds under PSF Scheme",
+          "date": "2025-03-19",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "3018"
+        },
+        {
+          "title": "Price Stabilisation Fund",
+          "date": "2025-03-19",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3187"
+        },
+        {
+          "title": "Allocation of Funds under  PSF",
+          "date": "2025-03-12",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2194"
+        }
+      ]
+    },
+    {
+      "ministry": "AGRICULTURE AND FARMERS WELFARE",
+      "total_questions": 20,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Irregularities in Disbursement of Compensation for Crop Loss",
+          "date": "2025-08-19",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "376"
+        },
+        {
+          "title": "Budget Allocation to DARE",
+          "date": "2025-08-05",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2534"
+        },
+        {
+          "title": "Funds Allocation under PMKMY",
+          "date": "2025-08-05",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2616"
+        },
+        {
+          "title": "Allocation of Funds under AIF",
+          "date": "2025-08-05",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2595"
+        },
+        {
+          "title": "Funds Scheme to PM-KISAN",
+          "date": "2025-08-05",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2707"
+        },
+        {
+          "title": "Funds Allocation to Agriculture Sector",
+          "date": "2025-08-05",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2712"
+        },
+        {
+          "title": "Zero Budget Natural Farming",
+          "date": "2025-08-05",
+          "context": "budget",
+          "financial_year": null,
+          "questionNo": "236"
+        },
+        {
+          "title": "Agriculture Infrastructure Fund",
+          "date": "2025-08-05",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2723"
+        },
+        {
+          "title": "Release of Gene Edited Rice Varieties",
+          "date": "2025-07-29",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "1398"
+        },
+        {
+          "title": "Status of utilization of MIF",
+          "date": "2025-07-29",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "1509"
+        },
+        {
+          "title": "Budget Allocation for Farmers Welfare Schemes",
+          "date": "2025-07-29",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1525"
+        },
+        {
+          "title": "AgriSure Fund",
+          "date": "2025-07-22",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "352"
+        },
+        {
+          "title": "Disbursal of Funds under PM-KISAN Scheme",
+          "date": "2025-03-25",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "358"
+        },
+        {
+          "title": "Ineligible Beneficiaries Receiving Funds Under PM-KISAN",
+          "date": "2025-03-18",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2811"
+        },
+        {
+          "title": "Funding Constraints Affecting Rashtriya Krishi Vikas Yojana in Maharashtra",
+          "date": "2025-03-18",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2922"
+        },
+        {
+          "title": "Access to Agriculture Infrastructure Fund",
+          "date": "2025-03-18",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "248"
+        },
+        {
+          "title": "Budget Estimates for Crop Insurance Scheme",
+          "date": "2025-03-11",
+          "context": "budget",
+          "financial_year": null,
+          "questionNo": "1850"
+        },
+        {
+          "title": "Micro Irrigation Fund",
+          "date": "2025-03-11",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1976"
+        },
+        {
+          "title": "Funds Released for PM-AASHA",
+          "date": "2025-03-11",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1941"
+        },
+        {
+          "title": "Utilisation of Budget Allocations",
+          "date": "2025-03-11",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "2001"
+        }
+      ]
+    },
+    {
+      "ministry": "SOCIAL JUSTICE AND EMPOWERMENT",
+      "total_questions": 8,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Under-utilisation of Funds for SCs",
+          "date": "2025-08-19",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "4210"
+        },
+        {
+          "title": "Funds for PM-DAKSH",
+          "date": "2025-08-19",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4148"
+        },
+        {
+          "title": "Funds under the PM-AJAY in Maharashtra",
+          "date": "2025-08-12",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3757"
+        },
+        {
+          "title": "Funds for Nasha Mukt Bharat Abhiyaan",
+          "date": "2025-08-12",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3690"
+        },
+        {
+          "title": "Funds for PM-AJAY  in Uttar Pradesh",
+          "date": "2025-08-12",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3724"
+        },
+        {
+          "title": "Expenditure Incurred under Sub-Plan for Scheduled Castes",
+          "date": "2025-07-29",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "1569"
+        },
+        {
+          "title": "Funds Allocated for National Funds for Persons with Disabilities",
+          "date": "2025-07-22",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "451"
+        },
+        {
+          "title": "SC/ST Atrocity Fund",
+          "date": "2025-04-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4859"
+        }
+      ]
+    },
+    {
+      "ministry": "TEXTILES",
+      "total_questions": 8,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Utilisation of Parvathy Mills Land",
+          "date": "2025-08-19",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "4319"
+        },
+        {
+          "title": "Allocation of Funds to PLI Scheme",
+          "date": "2025-08-05",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2566"
+        },
+        {
+          "title": "Funds Allocation to NTTM",
+          "date": "2025-07-22",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "302"
+        },
+        {
+          "title": "Technology Upgradation Fund Scheme",
+          "date": "2025-04-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4848"
+        },
+        {
+          "title": "Allocation of Funds",
+          "date": "2025-04-01",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4930"
+        },
+        {
+          "title": "Funds Allocation to PLI",
+          "date": "2025-03-18",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2794"
+        },
+        {
+          "title": "Budgetary Allocation to NTTM",
+          "date": "2025-03-18",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2929"
+        },
+        {
+          "title": "Utilisation of NTC Mills Land",
+          "date": "2025-03-11",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "2044"
+        }
+      ]
+    },
+    {
+      "ministry": "LABOUR AND EMPLOYMENT",
+      "total_questions": 8,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Unused Employees Provident Fund",
+          "date": "2025-08-11",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3625"
+        },
+        {
+          "title": "Effectiveness and Utilisation of the e-Shram Portal",
+          "date": "2025-08-11",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "3517"
+        },
+        {
+          "title": "Delay in Disbursement of Higher Wage Pensions",
+          "date": "2025-07-28",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "1198"
+        },
+        {
+          "title": "Downfall in Expenditure under PM-SYM",
+          "date": "2025-07-21",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "125"
+        },
+        {
+          "title": "Special Initiatives and Budgetary Support for Employment of SC, ST, OBC and Minorities",
+          "date": "2025-07-21",
+          "context": "budget",
+          "financial_year": null,
+          "questionNo": "190"
+        },
+        {
+          "title": "Interest Rate on Employees Provident Fund Deposits",
+          "date": "2025-03-24",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3874"
+        },
+        {
+          "title": "Disbursement of Petitions of Labourers",
+          "date": "2025-03-24",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "3721"
+        },
+        {
+          "title": "Funds under BOCW Cess Act",
+          "date": "2025-03-10",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1736"
+        }
+      ]
+    },
+    {
+      "ministry": "HEALTH AND FAMILY WELFARE",
+      "total_questions": 22,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Issuance and Utilisation of Ayushman Card",
+          "date": "2025-08-08",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "294"
+        },
+        {
+          "title": "Release of Central Funds under NHM in Kerala",
+          "date": "2025-08-08",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3243"
+        },
+        {
+          "title": "Provident Fund Registration for Ayushman Card",
+          "date": "2025-08-08",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3333"
+        },
+        {
+          "title": "Projects Sanctioned under PMSSY",
+          "date": "2025-08-01",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "2134"
+        },
+        {
+          "title": "Budgetary Expenditure under CGHS Scheme",
+          "date": "2025-08-01",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "2263"
+        },
+        {
+          "title": "Funds Sanctioned for Telangana under Ayushman Bharat",
+          "date": "2025-07-25",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1038"
+        },
+        {
+          "title": "Central Funds released under NHM",
+          "date": "2025-07-25",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1097"
+        },
+        {
+          "title": "Disparity in Healthcare Funding",
+          "date": "2025-07-25",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1083"
+        },
+        {
+          "title": "Funds Allocated under PMSSY in Coal Mining Regions",
+          "date": "2025-07-25",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1085"
+        },
+        {
+          "title": "Expenditure under AB-PMJAY",
+          "date": "2025-04-04",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "5572"
+        },
+        {
+          "title": "Sharing of Funds between Union and State Governments under NHM",
+          "date": "2025-04-04",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5632"
+        },
+        {
+          "title": "Allocation of funds to Kerala under NHM",
+          "date": "2025-04-04",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "5565"
+        },
+        {
+          "title": "Bifurcation of  Funds under National Health Mission",
+          "date": "2025-04-04",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5624"
+        },
+        {
+          "title": "National Fund for Rare Diseases",
+          "date": "2025-03-28",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4610"
+        },
+        {
+          "title": "Out of Pocket Expenditure on Health",
+          "date": "2025-03-28",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "417"
+        },
+        {
+          "title": "Funding of AIIMS through Japan International Cooperation Agency",
+          "date": "2025-03-28",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4739"
+        },
+        {
+          "title": "Stoppage of Funds to KMA under NHM",
+          "date": "2025-03-21",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3640"
+        },
+        {
+          "title": "Funds sanctioned for ASHA Workers",
+          "date": "2025-03-21",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3563"
+        },
+        {
+          "title": "Budget Allocation for Healthcare Infrastructure",
+          "date": "2025-03-21",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3529"
+        },
+        {
+          "title": "Out-of-Pocket Expenditure",
+          "date": "2025-03-21",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "3570"
+        },
+        {
+          "title": "Expenditure Incurred under AB-PMJAY",
+          "date": "2025-03-21",
+          "context": "expenditure",
+          "financial_year": null,
+          "questionNo": "309"
+        },
+        {
+          "title": "Budget Allocation under National Health Mission",
+          "date": "2025-03-21",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3680"
+        }
+      ]
+    },
+    {
+      "ministry": "WOMEN AND CHILD DEVELOPMENT",
+      "total_questions": 9,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Delay in Fund Disbursement in Karnataka",
+          "date": "2025-08-08",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3405"
+        },
+        {
+          "title": "Nirbhaya Fund",
+          "date": "2025-08-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2180"
+        },
+        {
+          "title": "Utilisation of Nirbhaya Fund",
+          "date": "2025-07-25",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "1017"
+        },
+        {
+          "title": "Funds for Beti Bachao Beti Padhao Schemes",
+          "date": "2025-04-04",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5570"
+        },
+        {
+          "title": "Funds for Women Development Schemes",
+          "date": "2025-04-04",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5609"
+        },
+        {
+          "title": "Underutilization of Funds in key Schemes",
+          "date": "2025-04-04",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "5600"
+        },
+        {
+          "title": "Funds for  Women's Safety",
+          "date": "2025-03-28",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4677"
+        },
+        {
+          "title": "Nirbhaya Fund Utilization",
+          "date": "2025-03-21",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "3601"
+        },
+        {
+          "title": "Fund for Saksham Anganwadi and POSHAN Abhiyan",
+          "date": "2025-03-21",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3587"
+        }
+      ]
+    },
+    {
+      "ministry": "MICRO, SMALL AND MEDIUM ENTERPRISES",
+      "total_questions": 4,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Self Reliant India Fund",
+          "date": "2025-08-07",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "279"
+        },
+        {
+          "title": "Under-Utilisation of Funds under MSME Sector",
+          "date": "2025-07-31",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "1900"
+        },
+        {
+          "title": "Allocation under Self Reliant India Fund",
+          "date": "2025-03-27",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4524"
+        },
+        {
+          "title": "Self Reliant India Fund",
+          "date": "2025-03-20",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3248"
+        }
+      ]
+    },
+    {
+      "ministry": "CIVIL AVIATION",
+      "total_questions": 5,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Reduction in Budgetary Allocation for UDAN",
+          "date": "2025-08-07",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3146"
+        },
+        {
+          "title": "Viability Gap Funding",
+          "date": "2025-07-31",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2007"
+        },
+        {
+          "title": "Reduction in Budget Allocation",
+          "date": "2025-07-31",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2017"
+        },
+        {
+          "title": "Reduction in Allocation of Budget",
+          "date": "2025-04-03",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "5454"
+        },
+        {
+          "title": "Budget Allocation for UDAN Scheme",
+          "date": "2025-03-13",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2421"
+        }
+      ]
+    },
+    {
+      "ministry": "RAILWAYS",
+      "total_questions": 11,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Railway Stations Sanctioned/Completed under ABS Scheme",
+          "date": "2025-08-06",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "2854"
+        },
+        {
+          "title": "Utilization of Railway Land",
+          "date": "2025-08-06",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "2963"
+        },
+        {
+          "title": "Utilisation of Land Available with Railway",
+          "date": "2025-07-30",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "1749"
+        },
+        {
+          "title": "Sanctioned Posts of Employees at the Modern Coach Factory, Raebareli",
+          "date": "2025-07-23",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "591"
+        },
+        {
+          "title": "Funding for Land Acquisition for Railway Projects",
+          "date": "2025-07-23",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "571"
+        },
+        {
+          "title": "Sanctioned Railway Underpasses and Overbridges in Akola and Washim Districts",
+          "date": "2025-07-23",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "467"
+        },
+        {
+          "title": "Non-release of Fund for ROB in Rajasthan",
+          "date": "2025-04-02",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5269"
+        },
+        {
+          "title": "Fund for Kavach Implementation",
+          "date": "2025-04-02",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5249"
+        },
+        {
+          "title": "Utilization of Spectrum  by Railways",
+          "date": "2025-04-02",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "5162"
+        },
+        {
+          "title": "Refund of Cancelled Tickets",
+          "date": "2025-04-02",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5216"
+        },
+        {
+          "title": "Funds for Installation of Kavach System in Railway",
+          "date": "2025-03-19",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3100"
+        }
+      ]
+    },
+    {
+      "ministry": "NEW AND RENEWABLE ENERGY",
+      "total_questions": 5,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Funds for PM-KUSUM",
+          "date": "2025-08-06",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2937"
+        },
+        {
+          "title": "Raising of Funds by IREDA",
+          "date": "2025-08-06",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2816"
+        },
+        {
+          "title": "Funds for Development of Solar Parks",
+          "date": "2025-08-06",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2883"
+        },
+        {
+          "title": "Funds under NCEEF",
+          "date": "2025-04-02",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5068"
+        },
+        {
+          "title": "Convergence of Components of PM-KUSUM in Agriculture Infrastructure Fund",
+          "date": "2025-03-26",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "4248"
+        }
+      ]
+    },
+    {
+      "ministry": "COMMUNICATION",
+      "total_questions": 2,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Budget sanctioned and allocated to Karnataka",
+          "date": "2025-08-06",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2926"
+        },
+        {
+          "title": "Prompt Service and Active Utilisation of Connectivity",
+          "date": "2025-08-06",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "2988"
+        }
+      ]
+    },
+    {
+      "ministry": "TOURISM",
+      "total_questions": 5,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Allocation of Funds for Tourism sector of Maharashtra",
+          "date": "2025-08-04",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2338"
+        },
+        {
+          "title": "Allocation of Funds for Temples under PRASHAD Scheme",
+          "date": "2025-07-28",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1314"
+        },
+        {
+          "title": "Funds under SDS in Rohtas and Kaimur, Bihar",
+          "date": "2025-07-28",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1347"
+        },
+        {
+          "title": "Funds allotted for Tourism Schemes in Udaipur",
+          "date": "2025-03-24",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3815"
+        },
+        {
+          "title": "Funds allocation for Tourism Sector in Jammu and Kashmir",
+          "date": "2025-03-10",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1790"
+        }
+      ]
+    },
+    {
+      "ministry": "AYUSH",
+      "total_questions": 2,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Funds to SAAP of Bihar",
+          "date": "2025-08-01",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "2129"
+        },
+        {
+          "title": "AYUSH Funds under NAM in Haryana",
+          "date": "2025-04-04",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "496"
+        }
+      ]
+    },
+    {
+      "ministry": "CHEMICALS AND FERTILIZERS",
+      "total_questions": 3,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Allocation and Disbursement of Subsidy for Fertilizers",
+          "date": "2025-08-01",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2229"
+        },
+        {
+          "title": "Allocation of Subsidy for Farmers",
+          "date": "2025-07-25",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1141"
+        },
+        {
+          "title": "Reduced Budgetary Allocation",
+          "date": "2025-03-28",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4743"
+        }
+      ]
+    },
+    {
+      "ministry": "MINES",
+      "total_questions": 9,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Use of DMF Fund",
+          "date": "2025-07-30",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "151"
+        },
+        {
+          "title": "District Mineral Fund",
+          "date": "2025-07-30",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1693"
+        },
+        {
+          "title": "NMET-Funds",
+          "date": "2025-07-30",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1758"
+        },
+        {
+          "title": "District Mineral Foundations Funds across the Country",
+          "date": "2025-07-30",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1748"
+        },
+        {
+          "title": "Funds Collected under DMF",
+          "date": "2025-07-30",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "1743"
+        },
+        {
+          "title": "Funds under the National Critical Mineral Mission",
+          "date": "2025-07-23",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "476"
+        },
+        {
+          "title": "District Mineral Foundation Fund",
+          "date": "2025-07-23",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "565"
+        },
+        {
+          "title": "Availability and Transfer of Funds under DMF",
+          "date": "2025-03-19",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "3029"
+        },
+        {
+          "title": "Utilization of Funds under DMFT",
+          "date": "2025-03-12",
+          "context": "utilization",
+          "financial_year": null,
+          "questionNo": "2168"
+        }
+      ]
+    },
+    {
+      "ministry": "MINORITY AFFAIRS",
+      "total_questions": 6,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Reduced Budget Allocation to various Schemes for Minorities",
+          "date": "2025-07-30",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1780"
+        },
+        {
+          "title": "Delay in Stipend Disbursement under Maulana Azad National Fellowship",
+          "date": "2025-07-23",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "507"
+        },
+        {
+          "title": "Budgetary Allocation for Education of Minorities",
+          "date": "2025-03-26",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4277"
+        },
+        {
+          "title": "Budgetary allocation to Central Waqf Council (CWC)",
+          "date": "2025-03-19",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "3127"
+        },
+        {
+          "title": "Reduced Budget Allocations",
+          "date": "2025-03-12",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2267"
+        },
+        {
+          "title": "Budget allocation Educational Schemes for Minorities",
+          "date": "2025-03-12",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "2159"
+        }
+      ]
+    },
+    {
+      "ministry": "EXTERNAL AFFAIRS",
+      "total_questions": 4,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Fund Allocation for Foreign Aid",
+          "date": "2025-07-25",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "1009"
+        },
+        {
+          "title": "Public Diplomacy Budget of MEA",
+          "date": "2025-04-04",
+          "context": "budget",
+          "financial_year": null,
+          "questionNo": "5605"
+        },
+        {
+          "title": "Budget Allocation for MEA",
+          "date": "2025-03-28",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4613"
+        },
+        {
+          "title": "Release and Safety of detained Indian Nationals in Russia",
+          "date": "2025-03-28",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "4687"
+        }
+      ]
+    },
+    {
+      "ministry": "DEFENCE",
+      "total_questions": 1,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Technology Development Fund Scheme",
+          "date": "2025-07-25",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "941"
+        }
+      ]
+    },
+    {
+      "ministry": "STEEL",
+      "total_questions": 1,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Allocation of CSR Funds by the PSUs",
+          "date": "2025-07-22",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "285"
+        }
+      ]
+    },
+    {
+      "ministry": "LAW AND JUSTICE",
+      "total_questions": 2,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Transparency in Political Funding",
+          "date": "2025-04-04",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5728"
+        },
+        {
+          "title": "Transparency in Allocation of Cases to Panel Counsels",
+          "date": "2025-03-28",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "4640"
+        }
+      ]
+    },
+    {
+      "ministry": "EARTH SCIENCES",
+      "total_questions": 1,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Fund Allocated for INSAT-3DS",
+          "date": "2025-04-02",
+          "context": "allocation",
+          "financial_year": null,
+          "questionNo": "5198"
+        }
+      ]
+    },
+    {
+      "ministry": "SPACE",
+      "total_questions": 1,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Venture Capital Fund for Space Sector",
+          "date": "2025-04-02",
+          "context": "fund",
+          "financial_year": null,
+          "questionNo": "5148"
+        }
+      ]
+    },
+    {
+      "ministry": "PERSONNEL, PUBLIC GRIEVANCES AND PENSIONS",
+      "total_questions": 1,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Sanctioned Officers/Staff Strength of ISTM",
+          "date": "2025-03-12",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "2113"
+        }
+      ]
+    },
+    {
+      "ministry": "HEAVY INDUSTRIES",
+      "total_questions": 1,
+      "schemes": {},
+      "questions": [
+        {
+          "title": "Transfer of unused land of BHEL to Uttarakhand Government",
+          "date": "2025-03-11",
+          "context": null,
+          "financial_year": null,
+          "questionNo": "1959"
+        }
+      ]
+    }
+  ],
+  "existing_allocations": []
+}
