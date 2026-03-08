@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
-import { apiPost } from '@/lib/api';
+import { apiPost, AI_TIMEOUT } from '@/lib/api';
 
 export default function CopilotPage() {
     const { user } = useAuth();
@@ -73,7 +73,7 @@ export default function CopilotPage() {
                 filename: docFilename,
                 language,
                 depth,
-            });
+            }, { timeout: AI_TIMEOUT, noRetry: true });
             setAnalysis(data.analysis || 'No analysis returned.');
         } catch (err) {
             setAnalysis('Error: ' + err.message);
@@ -95,7 +95,7 @@ export default function CopilotPage() {
                 message: langNote ? `${langNote}\n${msg}` : msg,
                 history: messages,
                 document_context: docContext,
-            });
+            }, { timeout: AI_TIMEOUT, noRetry: true });
             setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
         } catch {
             setMessages(prev => [...prev, { role: 'assistant', content: 'An error occurred.' }]);

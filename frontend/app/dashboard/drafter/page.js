@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { apiPost } from '@/lib/api';
+import { apiPost, AI_TIMEOUT } from '@/lib/api';
 
 const RECIPIENT_TYPES = ['Cabinet Minister', 'Minister of State', 'Secretary to GoI', 'Chief Secretary', 'District Collector', 'Other Official'];
 const TONES = ['Assertive (Opposition Style)', 'Requesting (Ministerial Courtesy)', 'Formal (Neutral)'];
@@ -59,7 +59,7 @@ export default function DrafterPage() {
             const body = mode === 'letter'
                 ? { mode, subject, recipient_name: recipientName, recipient_type: recipientType, ministry, reference, key_points: keyPoints, tone, language }
                 : { mode: 'question', subject: pqSubject, ministry: pqMinistry, key_points: pqPoints, language: pqLang };
-            const data = await apiPost('/api/drafter/generate', body);
+            const data = await apiPost('/api/drafter/generate', body, { timeout: AI_TIMEOUT, noRetry: true });
             setDraft(data.content || 'No content generated.');
         } catch (err) {
             setDraft('Error: ' + err.message);

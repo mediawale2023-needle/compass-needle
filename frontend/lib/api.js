@@ -8,8 +8,9 @@
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
-const REQUEST_TIMEOUT = 8000;  // 8 seconds (was 15 — too long)
-const MAX_RETRIES = 1;         // 1 retry only (2 total attempts, was 3)
+const REQUEST_TIMEOUT = 8000;  // 8 seconds for normal data calls
+const AI_TIMEOUT = 60000;      // 60 seconds for AI endpoints (Gemini can take 15-30s)
+const MAX_RETRIES = 1;         // 1 retry only (2 total attempts)
 const RETRY_DELAY = 500;       // 500ms base delay
 
 async function fetchWithTimeout(url, options, timeout) {
@@ -36,14 +37,16 @@ export async function api(path, options = {}) {
         ...options.headers,
     };
 
+    const timeout = options.timeout || REQUEST_TIMEOUT;
+    const maxRetries = options.noRetry ? 0 : MAX_RETRIES;
     let lastError = null;
 
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
             const res = await fetchWithTimeout(
                 `${API_BASE}${path}`,
                 { ...options, headers },
-                REQUEST_TIMEOUT,
+                timeout,
             );
 
             if (res.status === 401) {
@@ -75,7 +78,7 @@ export async function api(path, options = {}) {
             }
 
             // Retry on network errors, timeouts, and server errors
-            if (attempt < MAX_RETRIES) {
+            if (attempt < maxRetries) {
                 const delay = RETRY_DELAY * Math.pow(2, attempt);
                 await new Promise(r => setTimeout(r, delay));
                 continue;
@@ -90,10 +93,12 @@ export async function apiGet(path) {
     return api(path, { method: 'GET' });
 }
 
-export async function apiPost(path, body) {
-    return api(path, { method: 'POST', body: JSON.stringify(body) });
+export async function apiPost(path, body, opts = {}) {
+    return api(path, { method: 'POST', body: JSON.stringify(body), ...opts });
 }
 
 export async function apiPatch(path, body) {
     return api(path, { method: 'PATCH', body: JSON.stringify(body) });
 }
+
+export { AI_TIMEOUT };

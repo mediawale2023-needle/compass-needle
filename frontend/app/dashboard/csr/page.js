@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, AI_TIMEOUT } from '@/lib/api';
 
 export default function CSRPage() {
     const { user } = useAuth();
@@ -62,7 +62,7 @@ export default function CSRPage() {
     const fetchStrategicMatches = async () => {
         setMatchLoading(true);
         try {
-            const data = await apiPost('/api/csr/strategic-matches', { district: district || null });
+            const data = await apiPost('/api/csr/strategic-matches', { district: district || null }, { timeout: AI_TIMEOUT, noRetry: true });
             setStrategicMatches(data.matches || []);
         } catch { setStrategicMatches([]); }
         finally { setMatchLoading(false); }
@@ -79,7 +79,7 @@ export default function CSRPage() {
                 sector: company.Sector || '',
                 spend_history: company.Spend_History || company.History || {},
                 letter_type: type,
-            });
+            }, { timeout: AI_TIMEOUT, noRetry: true });
             setDraftContent(prev => ({ ...prev, [key]: data.content }));
         } catch (err) {
             setDraftContent(prev => ({ ...prev, [key]: 'Error generating draft.' }));
@@ -97,7 +97,7 @@ export default function CSRPage() {
                 volume: cluster.volume,
                 company: company,
                 sector: cluster.csr_sector || cluster.category,
-            });
+            }, { timeout: AI_TIMEOUT, noRetry: true });
             setDprContent(prev => ({ ...prev, [key]: data.content }));
         } catch {
             setDprContent(prev => ({ ...prev, [key]: 'Error generating DPR.' }));
