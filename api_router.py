@@ -352,7 +352,8 @@ async def copilot_upload(file: UploadFile = File(...), user=Depends(get_current_
         doc.close()
         return {"filename": file.filename, "pages": len(pages), "content": pages}
     except Exception as e:
-        raise HTTPException(500, f"Failed to process PDF: {str(e)}")
+        logger.exception("Copilot PDF upload failed")
+        raise HTTPException(500, "Failed to process PDF. Please try again.")
 
 
 class AnalyseRequest(BaseModel):
@@ -404,7 +405,8 @@ Support, oppose, or seek amendments — with specific justification.
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         return {"analysis": response.text}
     except Exception as e:
-        return {"analysis": f"Error: {str(e)}"}
+        logger.exception("Copilot analyse failed")
+        return {"analysis": "An error occurred while analysing the document. Please try again."}
 
 
 @router.post("/copilot/chat")
@@ -431,7 +433,8 @@ User: {req.message}"""
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         return {"response": response.text}
     except Exception as e:
-        return {"response": f"Error: {str(e)}"}
+        logger.exception("Copilot chat failed")
+        return {"response": "An error occurred. Please try again."}
 
 
 # ─────────────────────────────────────────
@@ -544,7 +547,8 @@ Generate a professional parliamentary document. Do NOT invent statistics.
         )
         return {"content": response.text}
     except Exception as e:
-        return {"content": f"Error generating draft: {str(e)}"}
+        logger.exception("Drafter generate failed")
+        return {"content": "An error occurred while generating the draft. Please try again."}
 
 
 # ─────────────────────────────────────────
@@ -895,7 +899,8 @@ def get_csr_proposals(user=Depends(get_current_user)):
         monitoring = get_monitoring_clusters(tid)
         return {"candidates": candidates or [], "monitoring": monitoring or []}
     except Exception as e:
-        return {"candidates": [], "monitoring": [], "error": str(e)}
+        logger.exception("CSR proposals failed")
+        return {"candidates": [], "monitoring": [], "error": "An error occurred loading proposals."}
 
 
 # ─── FIX: get_live_gaps defined here (was called but never defined) ───
@@ -992,7 +997,8 @@ Generate ONLY the letter text."""
         )
         return {"content": response.text}
     except Exception as e:
-        return {"content": f"Error generating draft: {str(e)}"}
+        logger.exception("CSR draft letter failed")
+        return {"content": "An error occurred while generating the letter. Please try again."}
 
 
 class CSRStrategicMatchRequest(BaseModel):
@@ -1096,7 +1102,8 @@ TONE: Professional, data-driven. No emojis. Generate ONLY the DPR document text.
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         return {"content": response.text}
     except Exception as e:
-        return {"content": f"Error generating DPR: {str(e)}"}
+        logger.exception("CSR DPR generate failed")
+        return {"content": "An error occurred while generating the DPR. Please try again."}
 
 
 # ─────────────────────────────────────────
@@ -1123,7 +1130,8 @@ def save_activity(req: SaveActivityRequest, user=Depends(get_current_user)):
                    "content": req.content, "meta": meta_json})
         return {"success": True}
     except Exception as e:
-        raise HTTPException(500, f"Failed to save: {str(e)}")
+        logger.exception("Save activity failed")
+        raise HTTPException(500, "Failed to save activity.")
 
 
 @router.get("/history")
@@ -1165,106 +1173,8 @@ def delete_history_item(item_id: int, user=Depends(get_current_user)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        logger.exception("Delete history item failed")
+        raise HTTPException(500, "Failed to delete item.")
 
 
-# ─────────────────────────────────────────
-# ADMIN — SEED & DEBUG (secured, POST only)
-# ─────────────────────────────────────────
-ADMIN_KEY = os.getenv("ADMIN_SECRET_KEY", "")
-if ADMIN_KEY and len(ADMIN_KEY) < 32:
-    raise ValueError("ADMIN_SECRET_KEY must be at least 32 characters long.")
-
-
-def verify_admin(request: Request):
-    """Verify admin key from Authorization header (not URL params)."""
-    auth = request.headers.get("Authorization", "")
-    if not ADMIN_KEY or not auth.startswith("Bearer ") or auth[7:] != ADMIN_KEY:
-        raise HTTPException(403, "Admin access denied")
-
-
-@router.post("/admin/seed-test-cases")
-def seed_test_cases(tid: int = 0, request: Request = None, _=Depends(verify_admin)):
-    """Seed test cases for CSR pipeline testing.
-    Non-super_admin callers are restricted to their own tenant.
-    Pass tid=0 (default) to target the first tenant.
-    """
-    from sansadx_backend.db import SessionLocal, Case, Tenant
-    from datetime import timedelta
-    import random
-
-    db = SessionLocal()
-    try:
-        if tid == 0:
-            first_tenant = db.query(Tenant).first()
-            if not first_tenant:
-                raise HTTPException(404, "No tenants found")
-            tid = first_tenant.id
-
-        # Verify target tenant exists
-        target = db.query(Tenant).filter(Tenant.id == tid).first()
-        if not target:
-            raise HTTPException(404, f"Tenant {tid} not found")
-
-        db.query(Case).filter(Case.tenant_id == tid, Case.user_phone.like("9199%")).delete(synchronize_session=False)
-        db.commit()
-
-        clusters = [
-            {"category": "Water", "location": "Kelkar Bag", "count": 230},
-            {"category": "Infrastructure (State)", "location": "Tilakwadi", "count": 210},
-            {"category": "Education (Central)", "location": "Shahapur", "count": 150},
-        ]
-        phones = [f"9199{i:07d}" for i in range(600)]
-        messages = {
-            "Water": ["paani nahi aahe ithe", "water supply band aahe", "nali tutli aahe"],
-            "Infrastructure (State)": ["rasta khrab aahe", "khade aahet rastawar", "street light nahi"],
-            "Education (Central)": ["school madhe teacher nahi", "classroom tutla", "toilet nahi school la"],
-        }
-
-        total_inserted = 0
-        for cluster in clusters:
-            for i in range(cluster["count"]):
-                msg_list = messages.get(cluster["category"], ["complaint"])
-                case = Case(
-                    tenant_id=tid,
-                    user_phone=random.choice(phones),
-                    raw_message=random.choice(msg_list),
-                    category=cluster["category"],
-                    status="completed",
-                    location=cluster["location"],
-                    ward=cluster["location"],
-                    is_critical=(i % 20 == 0),
-                    response_to_citizen="Noted",
-                    case_metadata=json.dumps({
-                        "user_intent": "complaint",
-                        "location_resolved": True,
-                        "matched_value": cluster["location"],
-                        "assembly_constituency": cluster["location"],
-                    }),
-                    created_at=datetime.utcnow() - timedelta(days=random.randint(1, 90)),
-                )
-                db.add(case)
-                total_inserted += 1
-
-        db.commit()
-        return {"status": "seeded", "tenant_id_used": tid, "total_cases": total_inserted}
-    finally:
-        db.close()
-
-
-@router.get("/admin/tenants")
-def debug_tenants(request: Request, _=Depends(verify_admin)):
-    """Debug endpoint to check tenants. Secured by ADMIN_SECRET_KEY header."""
-    from sansadx_backend.db import SessionLocal, Tenant, Case
-    from sqlalchemy import func
-
-    db = SessionLocal()
-    try:
-        tenants = db.query(Tenant).all()
-        result = []
-        for t in tenants:
-            case_count = db.query(func.count(Case.id)).filter(Case.tenant_id == t.id).scalar()
-            result.append({"id": t.id, "name": t.name, "constituency": t.constituency, "cases": case_count})
-        return {"tenants": result}
-    finally:
-        db.close()
+# Admin seed/tenants endpoints moved to admin_api (protected by admin JWT only).

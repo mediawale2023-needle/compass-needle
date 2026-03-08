@@ -5,12 +5,12 @@ from sansadx_backend.db import Base
 import os
 
 # --- CONFIGURATION ---
-
-# 1. Source: Your Local Docker DB (Port 5435)
-LOCAL_DB_URL = "postgresql://sansad_admin:secure_production_password@localhost:5435/sansadx_db"
-
-# 2. Destination: Your Railway Public URL
-RAILWAY_DB_URL = "postgresql://postgres:qavOCQWrfITqxVGUFHCVkSdosvHhmQHe@shortline.proxy.rlwy.net:57534/railway"
+# Set LOCAL_DB_URL and RAILWAY_DB_URL in environment (e.g. .env or export).
+# Never commit credentials to the repository.
+LOCAL_DB_URL = os.getenv("LOCAL_DB_URL")
+RAILWAY_DB_URL = os.getenv("RAILWAY_DB_URL")
+if not LOCAL_DB_URL or not RAILWAY_DB_URL:
+    raise RuntimeError("LOCAL_DB_URL and RAILWAY_DB_URL environment variables must be set")
 
 def fix_json_columns(df, columns):
     """Convert dictionary objects to JSON strings for Postgres"""

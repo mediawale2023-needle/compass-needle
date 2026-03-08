@@ -1059,3 +1059,86 @@ def case_analytics(_=Depends(get_admin_user)):
         "resolution_times": resolution,
         "assembly_distribution": [{"assembly": a, "cases": c} for a, c in ac_sorted],
     }
+
+
+# ═══════════════════════════════════════════
+# SEED & TENANTS (admin JWT only; no separate secret)
+# ═══════════════════════════════════════════
+
+@router.post("/seed-test-cases")
+def seed_test_cases(tid: int = 0, _=Depends(get_admin_user)):
+    """Seed test cases for CSR pipeline testing. Requires admin JWT.
+    Pass tid=0 (default) to target the first tenant."""
+    import random
+
+    db = SessionLocal()
+    try:
+        if tid == 0:
+            first_tenant = db.query(Tenant).first()
+            if not first_tenant:
+                raise HTTPException(404, "No tenants found")
+            tid = first_tenant.id
+
+        target = db.query(Tenant).filter(Tenant.id == tid).first()
+        if not target:
+            raise HTTPException(404, f"Tenant {tid} not found")
+
+        db.query(Case).filter(Case.tenant_id == tid, Case.user_phone.like("9199%")).delete(synchronize_session=False)
+        db.commit()
+
+        clusters = [
+            {"category": "Water", "location": "Kelkar Bag", "count": 230},
+            {"category": "Infrastructure (State)", "location": "Tilakwadi", "count": 210},
+            {"category": "Education (Central)", "location": "Shahapur", "count": 150},
+        ]
+        phones = [f"9199{i:07d}" for i in range(600)]
+        messages = {
+            "Water": ["paani nahi aahe ithe", "water supply band aahe", "nali tutli aahe"],
+            "Infrastructure (State)": ["rasta khrab aahe", "khade aahet rastawar", "street light nahi"],
+            "Education (Central)": ["school madhe teacher nahi", "classroom tutla", "toilet nahi school la"],
+        }
+
+        total_inserted = 0
+        for cluster in clusters:
+            for i in range(cluster["count"]):
+                msg_list = messages.get(cluster["category"], ["complaint"])
+                case = Case(
+                    tenant_id=tid,
+                    user_phone=random.choice(phones),
+                    raw_message=random.choice(msg_list),
+                    category=cluster["category"],
+                    status="completed",
+                    location=cluster["location"],
+                    ward=cluster["location"],
+                    is_critical=(i % 20 == 0),
+                    response_to_citizen="Noted",
+                    case_metadata=json.dumps({
+                        "user_intent": "complaint",
+                        "location_resolved": True,
+                        "matched_value": cluster["location"],
+                        "assembly_constituency": cluster["location"],
+                    }),
+                    created_at=datetime.utcnow() - timedelta(days=random.randint(1, 90)),
+                )
+                db.add(case)
+                total_inserted += 1
+
+        db.commit()
+        return {"status": "seeded", "tenant_id_used": tid, "total_cases": total_inserted}
+    finally:
+        db.close()
+
+
+@router.get("/tenants")
+def debug_tenants(_=Depends(get_admin_user)):
+    """List tenants with case counts. Requires admin JWT."""
+    db = SessionLocal()
+    try:
+        tenants = db.query(Tenant).all()
+        result = []
+        for t in tenants:
+            case_count = db.query(func.count(Case.id)).filter(Case.tenant_id == t.id).scalar()
+            result.append({"id": t.id, "name": t.name, "constituency": t.constituency, "cases": case_count})
+        return {"tenants": result}
+    finally:
+        db.close()

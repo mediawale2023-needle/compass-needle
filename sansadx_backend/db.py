@@ -15,6 +15,7 @@ from datetime import datetime
 # ─────────────────────────────────────────
 # UNIFIED DATABASE CONNECTION
 # ─────────────────────────────────────────
+_ENV = os.getenv("ENV", "development").lower()
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 if DATABASE_URL:
@@ -23,7 +24,9 @@ if DATABASE_URL:
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=10, max_overflow=20, pool_recycle=300)
 else:
-    # Local SQLite fallback
+    if _ENV == "production":
+        raise RuntimeError("DATABASE_URL must be set in production; refusing to use SQLite fallback")
+    # Local SQLite fallback (development only)
     engine = create_engine(
         "sqlite:///./sansadx.db",
         connect_args={"check_same_thread": False}

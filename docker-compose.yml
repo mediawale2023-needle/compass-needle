@@ -7,11 +7,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_USER=sansad_admin
-      - POSTGRES_PASSWORD=secure_production_password
-      - POSTGRES_DB=sansadx_db
+      - POSTGRES_USER=${POSTGRES_USER:-sansad_admin}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-sansadx_db}
     ports:
-      - "5435:5432"  # <--- CHANGED THIS (External Port 5435)
+      - "5435:5432"
     restart: always
 
   # 2. The Backend API
@@ -23,7 +23,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://sansad_admin:secure_production_password@db/sansadx_db
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-sansad_admin}:${POSTGRES_PASSWORD}@db/${POSTGRES_DB:-sansadx_db}
       - GROQ_API_KEY=${GROQ_API_KEY}
     depends_on:
       - db
@@ -37,7 +37,7 @@ services:
     ports:
       - "8501:8501"
     environment:
-      - DATABASE_URL=postgresql://sansad_admin:secure_production_password@db/sansadx_db
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-sansad_admin}:${POSTGRES_PASSWORD}@db/${POSTGRES_DB:-sansadx_db}
     depends_on:
       - db
 

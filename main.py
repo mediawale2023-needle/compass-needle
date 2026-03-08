@@ -15,15 +15,19 @@ from sqlalchemy import text
 from twilio.rest import Client
 
 # ─────────────────────────────────────────
-# SECURITY CONFIG (optional — soft import)
+# SECURITY CONFIG (fail closed in production)
 # ─────────────────────────────────────────
+_ENV = os.getenv("ENV", "development").lower()
 try:
     from core.security_config import (
         ALLOWED_ORIGINS, SECURITY_HEADERS,
     )
-except Exception:
+except Exception as e:
+    if _ENV == "production":
+        raise
     ALLOWED_ORIGINS = ["*"]
     SECURITY_HEADERS = {}
+    logger.warning(f"Security config import failed (dev mode): {e}")
 
 # ─────────────────────────────────────────
 # RATE LIMITING (optional — soft import)
@@ -35,6 +39,8 @@ try:
     _rate_limiting_enabled = True
 except Exception:
     _rate_limiting_enabled = False
+    limiter = None
+    RATE_WEBHOOK = "20/minute"
 
 # ─────────────────────────────────────────
 # UNIFIED DB (single engine, single source)
@@ -81,11 +87,10 @@ if _rate_limiting_enabled:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS — fully open (we use Bearer tokens, not cookies, so CORS adds no security)
-# This matches the proven working config from commit 34c7ff8a
+# CORS — use ALLOWED_ORIGINS from security_config (e.g. set via env)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -164,18 +169,48 @@ def get_user_context(phone_number: str) -> str:
 
 
 # ─────────────────────────────────────────
-# WHATSAPP WEBHOOK
+# WHATSAPP WEBHOOK (Twilio signature + rate limit)
 # ─────────────────────────────────────────
+def _validate_twilio_signature(request: Request, body_bytes: bytes, params: dict) -> None:
+    """Validate X-Twilio-Signature when TWILIO_AUTH_TOKEN is set. Raises HTTPException if invalid."""
+    from fastapi import HTTPException
+    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+    if not auth_token:
+        logger.warning("TWILIO_AUTH_TOKEN not set — webhook signature validation skipped")
+        return
+    sig = request.headers.get("X-Twilio-Signature", "")
+    if not sig:
+        raise HTTPException(status_code=403, detail="Missing Twilio signature")
+    try:
+        from twilio.request_validator import RequestValidator
+        validator = RequestValidator(auth_token)
+        if not validator.validate(str(request.url), params, sig):
+            raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Twilio validation error: {e}")
+        raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+
+
+_webhook_decorate = limiter.limit(RATE_WEBHOOK) if _rate_limiting_enabled else (lambda f: f)
+
+
 @app.post("/whatsapp/webhook")
+@_webhook_decorate
 async def whatsapp_webhook(request: Request):
-    form_data = await request.form()
-    sender = form_data.get("From", "").replace("whatsapp:", "")
-    message_body = form_data.get("Body", "").strip()
+    body_bytes = await request.body()
+    from urllib.parse import parse_qsl
+    params = dict(parse_qsl(body_bytes.decode("utf-8")))
+    _validate_twilio_signature(request, body_bytes, params)
+
+    sender = params.get("From", "").replace("whatsapp:", "")
+    message_body = (params.get("Body") or "").strip()
 
     if not message_body:
         return {"status": "ignored"}
 
-    receiver_number = form_data.get("To", "")
+    receiver_number = params.get("To", "")
     current_tenant = 1
 
     # Tenant lookup — DB overrides first, then users table
@@ -255,7 +290,7 @@ async def whatsapp_webhook(request: Request):
         "summary": grievance.get("summary", message_body[:100])
     }
 
-    # Save to database
+    # Save to database (fail closed — do not send reply if save fails)
     try:
         with engine.begin() as conn:
             conn.execute(
@@ -277,7 +312,9 @@ async def whatsapp_webhook(request: Request):
             )
             logger.info(f"Saved: status='{status}' tenant={current_tenant} constituency='{final_constituency}'")
     except Exception as e:
-        logger.error(f"DB save failed: {e}")
+        logger.exception("DB save failed in whatsapp_webhook")
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail="Internal error")
 
     send_whatsapp_message(sender, political_reply)
     return {"status": "processed"}
