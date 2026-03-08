@@ -18,6 +18,7 @@ from sqlalchemy import text
 # ─── Single DB engine from db.py (fixes dual-engine bug) ───
 from sansadx_backend.db import engine, SessionLocal
 from core.db_helpers import _q, _q_one, _parse_meta
+from modules.auth import get_tenant_or_fail
 
 logger = logging.getLogger("needle.api")
 
@@ -103,9 +104,10 @@ def login(req: LoginRequest, request: Request):
     except Exception:
         pass
 
-    tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": user.get("tenant_id", 1)})
+    tid = get_tenant_or_fail(user)
+    tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
     house = user.get("house") or "Lok Sabha"
-    token = create_token({"sub": user["username"], "tid": user.get("tenant_id", 1), "role": user.get("role", "user")})
+    token = create_token({"sub": user["username"], "tid": tid, "role": user.get("role", "user")})
 
     return {
         "token": token,
@@ -113,7 +115,7 @@ def login(req: LoginRequest, request: Request):
             "username": user["username"],
             "display_name": user.get("display_name") or user["username"].title(),
             "role": user.get("role", "user"),
-            "tenant_id": user.get("tenant_id", 1),
+            "tenant_id": tid,
             "constituency": tenant.get("constituency", "India") if tenant else "India",
             "house": house,
             "theme_color": "#006a4d" if house == "Lok Sabha" else "#8d153a",
@@ -123,13 +125,14 @@ def login(req: LoginRequest, request: Request):
 
 @router.get("/auth/me")
 def get_me(user=Depends(get_current_user)):
-    tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": user.get("tenant_id", 1)})
+    tid = get_tenant_or_fail(user)
+    tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
     house = user.get("house") or "Lok Sabha"
     return {
         "username": user["username"],
         "display_name": user.get("display_name") or user["username"].title(),
         "role": user.get("role", "user"),
-        "tenant_id": user.get("tenant_id", 1),
+        "tenant_id": tid,
         "constituency": tenant.get("constituency", "India") if tenant else "India",
         "house": house,
         "theme_color": "#006a4d" if house == "Lok Sabha" else "#8d153a",
@@ -141,7 +144,7 @@ def get_me(user=Depends(get_current_user)):
 # ─────────────────────────────────────────
 @router.get("/dashboard/summary")
 def dashboard_summary(user=Depends(get_current_user)):
-    tid = user.get("tenant_id", 1)
+    tid = get_tenant_or_fail(user)
 
     cats = _q(
         "SELECT category, COUNT(*) as count FROM cases WHERE tenant_id = :tid GROUP BY category ORDER BY count DESC",
@@ -192,7 +195,7 @@ def get_cases(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
 ):
-    tid = user.get("tenant_id", 1)
+    tid = get_tenant_or_fail(user)
     conditions = ["c.tenant_id = :tid"]
     params = {"tid": tid}
 
@@ -252,7 +255,7 @@ def get_cases(
 
 @router.get("/cases/{case_id}")
 def get_case(case_id: int, user=Depends(get_current_user)):
-    tid = user.get("tenant_id", 1)
+    tid = get_tenant_or_fail(user)
     case = _q_one("""
         SELECT c.*, t.name as mp_name, t.constituency as mp_constituency
         FROM cases c JOIN tenants t ON c.tenant_id = t.id
@@ -276,7 +279,7 @@ class StatusUpdate(BaseModel):
 
 @router.patch("/cases/{case_id}/status")
 def update_case_status(case_id: int, body: StatusUpdate, user=Depends(get_current_user)):
-    tid = user.get("tenant_id", 1)
+    tid = get_tenant_or_fail(user)
     with engine.begin() as conn:
         result = conn.execute(text(
             "UPDATE cases SET status = :st, updated_at = :now WHERE id = :cid AND tenant_id = :tid"
@@ -291,7 +294,7 @@ def update_case_status(case_id: int, body: StatusUpdate, user=Depends(get_curren
 # ─────────────────────────────────────────
 @router.get("/profile")
 def get_profile(user=Depends(get_current_user)):
-    tid = user.get("tenant_id", 1)
+    tid = get_tenant_or_fail(user)
     profile = _q_one("SELECT * FROM tenant_profiles WHERE tenant_id = :tid", {"tid": tid})
     if profile:
         val = profile.get("profile_data")
@@ -476,7 +479,7 @@ def generate_draft(req: DraftRequest, request: Request, user=Depends(get_current
         if not api_key:
             return {"content": "Error: GEMINI_API_KEY not configured."}
         client = genai.Client(api_key=api_key)
-        tid = user.get("tenant_id", 1)
+        tid = get_tenant_or_fail(user)
         tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
         mp_name = user.get("display_name") or user.get("username", "").title()
         constituency = tenant.get("constituency", "India") if tenant else "India"
@@ -885,7 +888,7 @@ def get_csr_watchdog(user=Depends(get_current_user), district: Optional[str] = N
 
 @router.get("/csr/proposals")
 def get_csr_proposals(user=Depends(get_current_user)):
-    tid = user.get("tenant_id", 1)
+    tid = get_tenant_or_fail(user)
     try:
         from modules.csr_pipeline import get_csr_candidates, get_monitoring_clusters
         candidates = get_csr_candidates(tid)
@@ -955,7 +958,7 @@ def csr_draft_letter(req: CSRDraftRequest, request: Request, user=Depends(get_cu
         if not api_key:
             return {"content": "Error: GEMINI_API_KEY not configured."}
         client = genai.Client(api_key=api_key)
-        tid = user.get("tenant_id", 1)
+        tid = get_tenant_or_fail(user)
         tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
         mp_name = user.get("display_name") or user.get("username", "").title()
         constituency = tenant.get("constituency", "India") if tenant else "India"
@@ -998,7 +1001,7 @@ class CSRStrategicMatchRequest(BaseModel):
 
 @router.post("/csr/strategic-matches")
 def get_strategic_matches(req: CSRStrategicMatchRequest = None, user=Depends(get_current_user)):
-    tid = user.get("tenant_id", 1)
+    tid = get_tenant_or_fail(user)
     csr_data = _cached_load("csr_data", _load_csr_data)
     gaps = get_live_gaps(tid)
 
@@ -1065,7 +1068,7 @@ def generate_csr_dpr(req: CSRDPRRequest, request: Request, user=Depends(get_curr
         if not api_key:
             return {"content": "Error: GEMINI_API_KEY not configured."}
         client = genai.Client(api_key=api_key)  # FIX: was using undefined `model` variable
-        tid = user.get("tenant_id", 1)
+        tid = get_tenant_or_fail(user)
         tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
         mp_name = user.get("display_name") or user.get("username", "").title()
         constituency = tenant.get("constituency", "India") if tenant else "India"
@@ -1108,7 +1111,7 @@ class SaveActivityRequest(BaseModel):
 
 @router.post("/history/save")
 def save_activity(req: SaveActivityRequest, user=Depends(get_current_user)):
-    tid = user.get("tenant_id", 1)
+    tid = get_tenant_or_fail(user)
     username = user.get("username", "")
     meta_json = json.dumps(req.metadata) if req.metadata else "{}"
     try:
@@ -1125,7 +1128,7 @@ def save_activity(req: SaveActivityRequest, user=Depends(get_current_user)):
 
 @router.get("/history")
 def get_history(user=Depends(get_current_user), activity_type: Optional[str] = None, limit: int = 50):
-    tid = user.get("tenant_id", 1)
+    tid = get_tenant_or_fail(user)
     conditions = ["tenant_id = :tid"]
     params = {"tid": tid}
     if activity_type:
@@ -1150,7 +1153,7 @@ def get_history(user=Depends(get_current_user), activity_type: Optional[str] = N
 
 @router.delete("/history/{item_id}")
 def delete_history_item(item_id: int, user=Depends(get_current_user)):
-    tid = user.get("tenant_id", 1)
+    tid = get_tenant_or_fail(user)
     try:
         with engine.begin() as conn:
             result = conn.execute(text(
@@ -1181,8 +1184,11 @@ def verify_admin(request: Request):
 
 
 @router.post("/admin/seed-test-cases")
-def seed_test_cases(tid: int = 1, request: Request = None, _=Depends(verify_admin)):
-    """Seed test cases for CSR pipeline testing. Secured by ADMIN_SECRET_KEY header."""
+def seed_test_cases(tid: int = 0, request: Request = None, _=Depends(verify_admin)):
+    """Seed test cases for CSR pipeline testing.
+    Non-super_admin callers are restricted to their own tenant.
+    Pass tid=0 (default) to target the first tenant.
+    """
     from sansadx_backend.db import SessionLocal, Case, Tenant
     from datetime import timedelta
     import random
@@ -1191,7 +1197,14 @@ def seed_test_cases(tid: int = 1, request: Request = None, _=Depends(verify_admi
     try:
         if tid == 0:
             first_tenant = db.query(Tenant).first()
-            tid = first_tenant.id if first_tenant else 1
+            if not first_tenant:
+                raise HTTPException(404, "No tenants found")
+            tid = first_tenant.id
+
+        # Verify target tenant exists
+        target = db.query(Tenant).filter(Tenant.id == tid).first()
+        if not target:
+            raise HTTPException(404, f"Tenant {tid} not found")
 
         db.query(Case).filter(Case.tenant_id == tid, Case.user_phone.like("9199%")).delete(synchronize_session=False)
         db.commit()

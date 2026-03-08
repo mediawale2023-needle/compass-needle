@@ -21,6 +21,7 @@ from sqlalchemy import text, func
 from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, validate_password, get_all_overrides, save_overrides_to_db
 from core.db_helpers import _q, _q_one, _parse_meta
 from modules.constituencies import ALL_CONSTITUENCIES
+from modules.auth import get_tenant_or_fail
 
 logger = logging.getLogger("needle.admin_api")
 
@@ -202,9 +203,10 @@ def admin_login(req: AdminLoginRequest, request: Request):
     except Exception:
         pass
 
+    admin_tid = get_tenant_or_fail(user)
     token = create_admin_token({
         "sub": user["username"],
-        "tid": user.get("tenant_id", 1),
+        "tid": admin_tid,
         "role": user.get("role", "admin"),
     })
 
