@@ -61,7 +61,6 @@ openai==2.14.0
 orjson==3.11.5
 packaging==25.0
 pandas==2.3.3
-passlib==1.7.4
 pdfminer.six==20251107
 pdfplumber==0.11.8
 pillow==12.0.0
@@ -122,5 +121,4 @@ xyzservices==2025.11.0
 yarl==1.22.0
 zstandard==0.25.0
 itsdangerous==2.1.2
-python-jose[cryptography]==3.3.0
 slowapi==0.1.9

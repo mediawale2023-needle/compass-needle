@@ -14,7 +14,8 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
-from jose import jwt, JWTError
+import jwt
+from jwt.exceptions import PyJWTError as JWTError
 from sqlalchemy import text, func
 
 from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, validate_password, get_all_overrides, save_overrides_to_db
@@ -33,9 +34,9 @@ except Exception:
 # ─────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────
-JWT_SECRET = os.getenv("JWT_SECRET")
-if not JWT_SECRET:
-    raise RuntimeError("JWT_SECRET environment variable is required")
+JWT_SECRET = os.getenv("JWT_SECRET", "")
+if not JWT_SECRET or len(JWT_SECRET) < 32:
+    raise RuntimeError("JWT_SECRET must be set and at least 32 characters long")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 4  # Longer session for admin
 

@@ -11,7 +11,8 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
-from jose import jwt, JWTError
+import jwt
+from jwt.exceptions import PyJWTError as JWTError
 from sqlalchemy import text
 
 # ─── Single DB engine from db.py (fixes dual-engine bug) ───
