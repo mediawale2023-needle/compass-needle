@@ -27,7 +27,8 @@ export default function AdminLoginPage() {
             login(res.token, res.user);
             router.push('/dashboard');
         } catch (err) {
-            setError(err.message || 'Invalid credentials');
+            const msg = err.message || 'Invalid credentials';
+            setError(msg.includes('Connection timed out') || msg.includes('try again') ? msg : (msg === 'Request failed after retries' ? 'Connection issue. Please try again in a moment.' : msg));
         } finally {
             setLoading(false);
         }

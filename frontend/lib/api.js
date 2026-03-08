@@ -8,9 +8,12 @@
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
-const REQUEST_TIMEOUT = 8000;  // 8 seconds for normal data calls
-const AI_TIMEOUT = 60000;      // 60 seconds for AI endpoints (Gemini can take 15-30s)
-const MAX_RETRIES = 1;         // 1 retry only (2 total attempts)
+const REQUEST_TIMEOUT = 8000;   // 8 seconds for normal data calls
+const AI_TIMEOUT = 60000;       // 60 seconds for AI endpoints (Gemini can take 15-30s)
+const LOGIN_TIMEOUT = 28000;    // 28 seconds for login (handles cold start / slow wake)
+const LOGIN_MAX_RETRIES = 3;    // 3 retries for login so first wake-up can fail
+const LOGIN_RETRY_DELAY = 2000; // 2s between login retries
+const MAX_RETRIES = 1;         // 1 retry only (2 total attempts) for other calls
 const RETRY_DELAY = 500;       // 500ms base delay
 
 async function fetchWithTimeout(url, options, timeout) {
@@ -37,8 +40,9 @@ export async function api(path, options = {}) {
         ...options.headers,
     };
 
-    const timeout = options.timeout || REQUEST_TIMEOUT;
-    const maxRetries = options.noRetry ? 0 : MAX_RETRIES;
+    const timeout = options.timeout ?? (path.includes('/auth/login') ? LOGIN_TIMEOUT : REQUEST_TIMEOUT);
+    const maxRetries = options.noRetry ? 0 : (options.maxRetries ?? (path.includes('/auth/login') ? LOGIN_MAX_RETRIES : MAX_RETRIES));
+    const retryDelayBase = path.includes('/auth/login') ? LOGIN_RETRY_DELAY : RETRY_DELAY;
     let lastError = null;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -79,13 +83,20 @@ export async function api(path, options = {}) {
 
             // Retry on network errors, timeouts, and server errors
             if (attempt < maxRetries) {
-                const delay = RETRY_DELAY * Math.pow(2, attempt);
+                const delay = retryDelayBase * Math.pow(2, attempt);
                 await new Promise(r => setTimeout(r, delay));
                 continue;
             }
         }
     }
 
+    // Friendly message for login when backend is slow or cold
+    const isLogin = path.includes('/auth/login');
+    const isNetworkOrTimeout = lastError?.name === 'AbortError' || lastError?.name === 'TypeError' ||
+        lastError?.message === 'Failed to fetch' || (typeof lastError?.message === 'string' && (lastError.message.includes('retries') || lastError.message.includes('Load failed')));
+    if (isLogin && isNetworkOrTimeout) {
+        throw new Error('Connection timed out or unreachable. The server may be starting — please try again in a moment.');
+    }
     throw lastError || new Error('Request failed after retries');
 }
 
