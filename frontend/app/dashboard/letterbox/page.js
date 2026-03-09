@@ -48,7 +48,7 @@ function ScanBtn({ onUpload, direction, color }) {
 function LetterModal({ item, color, onClose, onDraft }) {
     return (
         <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <div className="bg-white w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border shadow-2xl"
+            <div className="bg-white w-[95%] sm:max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border shadow-2xl"
                 style={{ borderColor: '#e5e7eb' }} onClick={e => e.stopPropagation()}>
                 <div className="p-5 text-white rounded-t-xl" style={{ background: color }}>
                     <div className="flex items-start justify-between gap-3">
@@ -65,7 +65,7 @@ function LetterModal({ item, color, onClose, onDraft }) {
                     </div>
                 </div>
                 <div className="p-5 space-y-4">
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                         {[
                             ['From / To', item.citizen_name],
                             ['Phone', item.phone_number],
@@ -165,8 +165,8 @@ export default function LetterboxPage() {
 
             {/* Card with tabs + table — exactly as Figma */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="flex items-center justify-between px-6 pt-4 pb-0">
-                    <div className="flex gap-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-6 pt-4 pb-2 sm:pb-0 gap-4">
+                    <div className="flex gap-6 w-full sm:w-auto overflow-x-auto whitespace-nowrap scrollbar-hide">
                         {TABS.map(t => (
                             <button key={t.key} onClick={() => setTab(t.key)}
                                 className="flex items-center gap-2 pb-3 text-sm font-semibold transition-colors"
@@ -188,36 +188,38 @@ export default function LetterboxPage() {
                         <p>No letters in {tab} yet.</p>
                     </div>
                 ) : (
-                    <table className="sansad-table mt-2">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>{tab === 'inbox' ? 'SENDER' : 'RECIPIENT'}</th>
-                                <th>VILLAGE</th>
-                                <th>PHONE</th>
-                                <th>SUMMARY</th>
-                                <th>URGENCY</th>
-                                <th>STATUS</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {items.map((item, idx) => {
-                                const urg = URGENCY_STYLES[item.urgency_level] || URGENCY_STYLES.Normal;
-                                const st = STATUS_STYLES[item.status] || { background: '#f3f4f6', color: '#6b7280' };
-                                return (
-                                    <tr key={item.id} onClick={() => setSelected(item)} className="cursor-pointer">
-                                        <td className="text-gray-400">{idx + 1}</td>
-                                        <td className="font-semibold text-gray-900">{item.citizen_name || '—'}</td>
-                                        <td>{item.village || '—'}</td>
-                                        <td className="font-mono text-xs">{item.phone_number || '—'}</td>
-                                        <td className="max-w-[200px] truncate text-gray-600">{item.issue_summary || '—'}</td>
-                                        <td><span className="sansad-badge" style={urg}>{item.urgency_level || 'Normal'}</span></td>
-                                        <td><span className="sansad-badge" style={st}>{item.status || '—'}</span></td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                    <div className="overflow-x-auto">
+                        <table className="sansad-table w-full">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>{tab === 'inbox' ? 'SENDER' : 'RECIPIENT'}</th>
+                                    <th>VILLAGE</th>
+                                    <th>PHONE</th>
+                                    <th>SUMMARY</th>
+                                    <th>URGENCY</th>
+                                    <th>STATUS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {items.map((item, idx) => {
+                                    const urg = URGENCY_STYLES[item.urgency_level] || URGENCY_STYLES.Normal;
+                                    const st = STATUS_STYLES[item.status] || { background: '#f3f4f6', color: '#6b7280' };
+                                    return (
+                                        <tr key={item.id} onClick={() => setSelected(item)} className="cursor-pointer">
+                                            <td className="text-gray-400">{idx + 1}</td>
+                                            <td className="font-semibold text-gray-900">{item.citizen_name || '—'}</td>
+                                            <td>{item.village || '—'}</td>
+                                            <td className="font-mono text-xs">{item.phone_number || '—'}</td>
+                                            <td className="max-w-[200px] truncate text-gray-600">{item.issue_summary || '—'}</td>
+                                            <td><span className="sansad-badge" style={urg}>{item.urgency_level || 'Normal'}</span></td>
+                                            <td><span className="sansad-badge" style={st}>{item.status || '—'}</span></td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
             </div>
 

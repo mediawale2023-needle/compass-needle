@@ -86,7 +86,7 @@ export default function DrafterPage() {
 
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
                 {/* Tabs */}
-                <div className="px-6 border-b border-gray-100 flex gap-6 pt-4">
+                <div className="px-6 border-b border-gray-100 flex gap-6 pt-4 overflow-x-auto whitespace-nowrap scrollbar-hide">
                     {[
                         { id: 'letter', label: 'Write Letter', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg> },
                         { id: 'question', label: 'Parliamentary Question', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><circle cx="12" cy="14" r="1" /><path d="M12 11.5a1.5 1.5 0 0 1 1-1.5 1.5 1.5 0 0 0-1.5-2.5" /></svg> }
@@ -105,7 +105,7 @@ export default function DrafterPage() {
                 <div className="p-6 space-y-6">
                     {mode === 'letter' ? (
                         <>
-                            <div className="grid grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Recipient Type</label>
                                     <select value={recipientType} onChange={e => setRecipientType(e.target.value)}
@@ -149,7 +149,7 @@ export default function DrafterPage() {
                                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 resize-none focus:outline-none focus:ring-1" style={{ outlineColor: color }} />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-6 pb-2">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-2">
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Language</label>
                                     <select value={language} onChange={e => setLanguage(e.target.value)}
@@ -196,10 +196,10 @@ export default function DrafterPage() {
                         </div>
                     )}
 
-                    <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+                    <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <p className="text-xs text-gray-400">Uses AI to generate a structured, formal draft.</p>
                         <button onClick={generate} disabled={loading}
-                            className="px-6 py-2.5 text-white font-bold rounded-lg shadow-sm disabled:opacity-50"
+                            className="w-full sm:w-auto px-6 py-2.5 text-white font-bold rounded-lg shadow-sm disabled:opacity-50"
                             style={{ background: color }}>
                             {loading ? 'Generating...' : `Generate ${mode === 'letter' ? 'Letter' : 'Question'}`}
                         </button>
@@ -210,17 +210,17 @@ export default function DrafterPage() {
             {/* Results Output */}
             {draft && (
                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden animate-fade-in">
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <div className="font-bold text-gray-900">Generated {mode === 'letter' ? 'Letter Draft' : 'Parliamentary Question'}</div>
-                        <div className="flex gap-3">
+                        <div className="flex flex-wrap gap-3 w-full sm:w-auto">
                             {saved ? (
-                                <span className="px-4 py-2 text-sm font-semibold text-green-700 bg-green-50 border border-transparent rounded-lg">Saved to Archives</span>
+                                <span className="flex-1 sm:flex-none text-center px-4 py-2 text-sm font-semibold text-green-700 bg-green-50 border border-transparent rounded-lg">Saved to Archives</span>
                             ) : (
-                                <button onClick={saveDraft} className="px-4 py-2 text-sm font-semibold border border-gray-200 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                                <button onClick={saveDraft} className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold border border-gray-200 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
                                     Save to Archives
                                 </button>
                             )}
-                            <button onClick={downloadDraft} className="px-4 py-2 text-sm font-bold text-white rounded-lg transition-opacity hover:opacity-90" style={{ background: color }}>
+                            <button onClick={downloadDraft} className="flex-1 sm:flex-none px-4 py-2 text-sm font-bold text-white rounded-lg transition-opacity hover:opacity-90" style={{ background: color }}>
                                 Download Text
                             </button>
                         </div>

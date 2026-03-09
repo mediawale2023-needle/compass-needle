@@ -70,7 +70,7 @@ export default function BriefcasePage() {
 
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden pt-2">
                 {/* Horizontal Tabs - Figma layout */}
-                <div className="px-6 border-b border-gray-100 flex gap-6">
+                <div className="px-6 border-b border-gray-100 flex gap-6 overflow-x-auto whitespace-nowrap scrollbar-hide">
                     {TABS.map(t => (
                         <button key={t.key} onClick={() => setStatusFilter(t.key)}
                             className="text-sm font-semibold pb-3 transition-colors"

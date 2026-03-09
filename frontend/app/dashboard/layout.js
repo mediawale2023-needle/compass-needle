@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/auth';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { apiGet } from '@/lib/api';
@@ -19,6 +19,12 @@ export default function DashboardLayout({ children }) {
     const [showHistory, setShowHistory] = useState(false);
     const [history, setHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const pathname = usePathname();
+
+    useEffect(() => {
+        setIsMobileMenuOpen(false);
+    }, [pathname]);
 
     useEffect(() => {
         if (!loading && !user) router.push('/');
@@ -45,9 +51,23 @@ export default function DashboardLayout({ children }) {
 
     return (
         <div className="min-h-screen" style={{ background: '#f4f4f4' }}>
-            <Sidebar user={user} onLogout={() => { logout(); router.push('/'); }} />
+            {/* Mobile Header (Hidden on Desktop) */}
+            <div className="md:hidden flex items-center justify-between bg-white border-b px-4 py-3 sticky top-0 z-40" style={{ borderColor: '#ddd' }}>
+                <div className="font-bold text-lg font-serif italic text-gray-900 leading-none">
+                    Compass<span style={{ color: user?.theme_color || '#006a4d', fontSize: '24px', lineHeight: '18px' }}>.</span>
+                </div>
+                <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-gray-600 focus:outline-none shrink-0" aria-label="Toggle Menu">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        {isMobileMenuOpen
+                            ? <><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></>
+                            : <><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></>}
+                    </svg>
+                </button>
+            </div>
 
-            <main className="ml-60 min-h-screen">
+            <Sidebar user={user} onLogout={() => { logout(); router.push('/'); }} isOpen={isMobileMenuOpen} setIsOpen={setIsMobileMenuOpen} />
+
+            <main className="md:ml-60 min-h-screen flex flex-col pt-0">
                 {/* Header bar */}
                 <header className="bg-white border-b px-6 py-3 flex items-center justify-between" style={{ borderColor: '#ddd' }}>
                     <div>

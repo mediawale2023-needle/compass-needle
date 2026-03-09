@@ -42,61 +42,72 @@ const NAV_ITEMS = [
     },
 ];
 
-export default function Sidebar({ user, onLogout }) {
+export default function Sidebar({ user, onLogout, isOpen, setIsOpen }) {
     const pathname = usePathname();
     const color = user?.theme_color || '#006a4d';
     const house = user?.house || 'Lok Sabha';
 
     return (
-        <aside className="w-60 h-screen flex flex-col fixed left-0 top-0 z-30 bg-white border-r" style={{ borderColor: '#e5e7eb' }}>
-            {/* Logo block */}
-            <div className="px-5 py-5 border-b" style={{ borderColor: '#e5e7eb' }}>
-                <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ background: color }}>
-                        CN
+        <>
+            {/* Mobile Backdrop */}
+            <div
+                className={`fixed inset-0 bg-black/50 z-20 md:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                onClick={() => setIsOpen?.(false)}
+            />
+
+            <aside
+                className={`w-60 h-screen flex flex-col fixed left-0 top-0 z-30 bg-white border-r transform transition-transform md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+                style={{ borderColor: '#e5e7eb' }}
+            >
+                {/* Logo block */}
+                <div className="px-5 py-5 border-b" style={{ borderColor: '#e5e7eb' }}>
+                    <div className="flex items-center gap-2 mb-3">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ background: color }}>
+                            CN
+                        </div>
+                        <div>
+                            <div className="text-sm font-bold text-gray-900">Compass Needle</div>
+                        </div>
                     </div>
-                    <div>
-                        <div className="text-sm font-bold text-gray-900">Compass Needle</div>
-                    </div>
+                    <div className="text-sm font-semibold text-gray-800 truncate">{user?.display_name}</div>
+                    <div className="text-xs text-gray-500 truncate">{house}</div>
                 </div>
-                <div className="text-sm font-semibold text-gray-800 truncate">{user?.display_name}</div>
-                <div className="text-xs text-gray-500 truncate">{house}</div>
-            </div>
 
-            {/* Nav */}
-            <nav className="flex-1 py-3 overflow-y-auto">
-                {NAV_ITEMS.map((item) => {
-                    const active = pathname === item.path || (item.path !== '/dashboard' && pathname.startsWith(item.path));
-                    return (
-                        <Link
-                            key={item.path}
-                            href={item.path}
-                            className="flex items-center gap-3 px-5 py-2.5 text-[13px] font-medium transition-all"
-                            style={{
-                                color: active ? color : '#6b7280',
-                                background: active ? `${color}12` : 'transparent',
-                                borderLeft: active ? `3px solid ${color}` : '3px solid transparent',
-                            }}
-                        >
-                            <span style={{ color: active ? color : '#9ca3af' }}>{item.icon}</span>
-                            {item.name}
-                        </Link>
-                    );
-                })}
-            </nav>
+                {/* Nav */}
+                <nav className="flex-1 py-3 overflow-y-auto">
+                    {NAV_ITEMS.map((item) => {
+                        const active = pathname === item.path || (item.path !== '/dashboard' && pathname.startsWith(item.path));
+                        return (
+                            <Link
+                                key={item.path}
+                                href={item.path}
+                                className="flex items-center gap-3 px-5 py-2.5 text-[13px] font-medium transition-all"
+                                style={{
+                                    color: active ? color : '#6b7280',
+                                    background: active ? `${color}12` : 'transparent',
+                                    borderLeft: active ? `3px solid ${color}` : '3px solid transparent',
+                                }}
+                            >
+                                <span style={{ color: active ? color : '#9ca3af' }}>{item.icon}</span>
+                                {item.name}
+                            </Link>
+                        );
+                    })}
+                </nav>
 
-            {/* Logout */}
-            <div className="border-t px-5 py-4" style={{ borderColor: '#e5e7eb' }}>
-                <button
-                    onClick={onLogout}
-                    className="flex items-center gap-2 text-[13px] font-medium text-gray-400 hover:text-red-500 transition-colors"
-                >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
-                    </svg>
-                    Log Out
-                </button>
-            </div>
-        </aside>
+                {/* Logout */}
+                <div className="border-t px-5 py-4" style={{ borderColor: '#e5e7eb' }}>
+                    <button
+                        onClick={onLogout}
+                        className="flex items-center gap-2 text-[13px] font-medium text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+                        </svg>
+                        Log Out
+                    </button>
+                </div>
+            </aside>
+        </>
     );
 }

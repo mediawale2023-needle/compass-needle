@@ -55,7 +55,7 @@ export default function DashboardPage() {
             <h1 className="text-lg font-bold text-gray-900">Dashboard</h1>
 
             {/* Stat Cards - Figma style: white card with thick left border */}
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {STAT_CARDS.map(({ label, value, borderColor }) => (
                     <div key={label} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm"
                         style={{ borderLeft: `4px solid ${borderColor}` }}>
@@ -66,9 +66,9 @@ export default function DashboardPage() {
             </div>
 
             {/* Main content grid: 2/3 + 1/3 */}
-            <div className="grid grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                 {/* Category Breakdown */}
-                <div className="col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                     <div className="px-6 py-4 border-b border-gray-100">
                         <h2 className="text-base font-bold text-gray-900">Category Breakdown</h2>
                     </div>
