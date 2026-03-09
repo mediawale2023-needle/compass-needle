@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+from unittest.mock import patch
 
 # Ensure Python can find the sansadx_backend package
 sys.path.append(os.getcwd())
@@ -13,8 +14,8 @@ except ImportError as e:
     print(f"❌ Import Failed: {e}")
     sys.exit(1)
 
-# 2. Configuration (Replace with your actual key or set in terminal)
-os.environ["OPENAI_API_KEY"] = "your_openai_key_here"
+# 2. Use env var if set, otherwise mock — NEVER hardcode a real key
+_TEST_API_KEY = os.getenv("OPENAI_API_KEY", "test-mock-key-not-for-production")
 
 def run_test():
     # Test case: A message with TWO problems (Road and Water)

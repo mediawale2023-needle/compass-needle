@@ -2,8 +2,8 @@ import streamlit as st
 import os
 import google.generativeai as genai
 
-# 🔒 YOUR INTEGRATED KEY
-DEFAULT_API_KEY = "AIzaSyDTs8kUJDwVBhqw93JZDPhdn7aS9L3uc-I"
+# 🔒 SECURITY: Never hardcode API keys — use environment variables
+DEFAULT_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 def init_keys():
     """Ensures keys are loaded into Session State on app start."""
