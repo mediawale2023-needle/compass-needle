@@ -5,201 +5,138 @@ import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { apiGet } from '@/lib/api';
 
-// ─── UPLOAD BUTTON ───────────────────────────────────────────────────────────
-function UploadButton({ onUpload, color, direction }) {
-    const [uploading, setUploading] = useState(false);
-    const fileInputRef = useRef(null);
+const TABS = ['inbox', 'outbox'];
+const TAB_LABELS = { inbox: '📥 Inbox', outbox: '📤 Outbox' };
+const URGENCY_STYLES = {
+    High: { background: '#fef2f2', color: '#dc2626' },
+    Normal: { background: '#f0fdf4', color: '#16a34a' },
+    Low: { background: '#f8fafc', color: '#94a3b8' },
+};
 
-    const handleFile = async (file) => {
+// ── UPLOAD BUTTON ─────────────────────────────────────────────────────────────
+function UploadButton({ onUpload, direction, color }) {
+    const [uploading, setUploading] = useState(false);
+    const ref = useRef(null);
+    const handle = async (file) => {
         if (!file) return;
         setUploading(true);
-        try {
-            await onUpload(file);
-        } catch (e) {
-            alert('Upload failed: ' + e.message);
-        } finally {
-            setUploading(false);
-        }
+        try { await onUpload(file); }
+        catch (e) { alert('Upload failed: ' + e.message); }
+        finally { setUploading(false); }
     };
-
     return (
         <>
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={e => handleFile(e.target.files[0])}
-                className="hidden"
-                accept=".pdf,image/*"
-            />
+            <input type="file" ref={ref} className="hidden" accept=".pdf,image/*"
+                onChange={e => handle(e.target.files[0])} />
             <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => ref.current?.click()}
                 disabled={uploading}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60 transition-opacity hover:opacity-90"
+                className="px-4 py-1.5 text-xs font-bold text-white rounded disabled:opacity-60 hover:opacity-90 transition-opacity"
                 style={{ background: color }}
             >
-                <span>{uploading ? '⏳' : direction === 'inbox' ? '📥' : '📤'}</span>
-                <span>{uploading ? 'Scanning...' : direction === 'inbox' ? 'Scan / Upload Letter' : 'Upload Sent Letter'}</span>
+                {uploading ? 'Scanning...' : direction === 'inbox' ? '+ Scan Letter' : '+ Upload Letter'}
             </button>
         </>
     );
 }
 
-// ─── MESSAGE ROW (center pane) ────────────────────────────────────────────────
-function MessageRow({ item, isSelected, onClick, color }) {
-    const isUnread = item.status === 'Pending-Intake';
-    const urgencyColor = item.urgency_level === 'High' ? '#dc2626' : item.urgency_level === 'Low' ? '#9ca3af' : '#d97706';
-
+// ── LETTER MODAL ──────────────────────────────────────────────────────────────
+function LetterModal({ item, color, onClose, onDraft }) {
+    const urgency = URGENCY_STYLES[item.urgency_level] || URGENCY_STYLES.Normal;
     return (
-        <div
-            onClick={onClick}
-            className={`px-4 py-3 border-b cursor-pointer transition-colors ${isSelected ? 'bg-blue-50' : isUnread ? 'bg-white hover:bg-gray-50' : 'bg-gray-50 hover:bg-gray-100'}`}
-            style={{ borderColor: '#eee', borderLeft: isSelected ? `3px solid ${color}` : '3px solid transparent' }}
-        >
-            <div className="flex justify-between items-start gap-2">
-                <span className={`text-sm truncate ${isUnread ? 'font-bold text-gray-900' : 'font-medium text-gray-600'}`}>
-                    {item.citizen_name || 'Unknown Sender'}
-                </span>
-                <span className="text-[10px] text-gray-400 shrink-0">
-                    {item.created_at ? new Date(item.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}
-                </span>
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white w-full max-w-2xl max-h-[85vh] overflow-y-auto border shadow-xl"
+                style={{ borderColor: '#ddd' }}
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="p-5 text-white" style={{ background: color }}>
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <div className="text-[10px] uppercase opacity-80 font-semibold tracking-widest">
+                                {item.direction === 'inbox' ? 'Incoming Grievance' : 'Outgoing Letter'} · #{item.id}
+                            </div>
+                            <div className="text-lg font-bold mt-1 leading-tight">
+                                {item.issue_summary && item.issue_summary !== '[NOT FOUND]'
+                                    ? item.issue_summary : 'No Subject'}
+                            </div>
+                        </div>
+                        <button onClick={onClose} className="text-white/80 hover:text-white text-xl leading-none">✕</button>
+                    </div>
+                </div>
+
+                <div className="p-5 space-y-4">
+                    {/* Info grid */}
+                    <div className="grid grid-cols-3 gap-3">
+                        {[
+                            ['From / To', item.citizen_name],
+                            ['Phone', item.phone_number],
+                            ['Village', item.village],
+                            ['Urgency', item.urgency_level],
+                            ['Status', item.status],
+                            ['Date', item.created_at ? new Date(item.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'],
+                        ].map(([label, value]) => (
+                            <div key={label} className="border p-3" style={{ borderColor: '#eee' }}>
+                                <div className="text-[10px] text-gray-400 uppercase font-semibold">{label}</div>
+                                <div className="text-sm font-medium text-gray-700 mt-0.5">{value || '—'}</div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Full letter content */}
+                    <div>
+                        <div className="text-[10px] text-gray-400 uppercase font-semibold mb-1.5">Full Letter Content</div>
+                        <div className="bg-gray-50 border p-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed min-h-[120px]"
+                            style={{ borderColor: '#eee', fontFamily: 'mono' }}>
+                            {item.ocr_raw_text && !item.ocr_raw_text.startsWith('[Gemini Vision')
+                                ? item.ocr_raw_text
+                                : item.issue_summary || 'No content available.'}
+                        </div>
+                    </div>
+
+                    {/* Actions */}
+                    {item.direction === 'inbox' && (
+                        <div className="flex gap-3 pt-2 border-t" style={{ borderColor: '#eee' }}>
+                            <button
+                                onClick={() => onDraft(item)}
+                                className="flex-1 py-2 text-sm font-bold text-white hover:opacity-90 transition-opacity"
+                                style={{ background: color }}
+                            >
+                                ✍️ Draft Response
+                            </button>
+                            <button
+                                onClick={onClose}
+                                className="px-5 py-2 text-sm font-semibold border text-gray-500 hover:bg-gray-50"
+                                style={{ borderColor: '#ddd' }}
+                            >
+                                Close
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
-            <div className="flex items-center justify-between mt-0.5">
-                <p className="text-xs text-gray-500 truncate flex-1">
-                    {item.issue_summary || 'No summary available'}
-                </p>
-                {item.urgency_level === 'High' && (
-                    <span className="ml-2 px-1.5 py-0.5 text-[9px] font-bold rounded uppercase shrink-0" style={{ background: '#fee2e2', color: urgencyColor }}>
-                        {item.urgency_level}
-                    </span>
-                )}
-            </div>
-            {item.village && item.village !== '[NOT FOUND]' && (
-                <p className="text-[10px] text-gray-400 mt-0.5">📍 {item.village}</p>
-            )}
         </div>
     );
 }
 
-// ─── DETAIL PANE ─────────────────────────────────────────────────────────────
-function DetailPane({ item, color, onDraftResponse, onMarkResolved }) {
-    if (!item) {
-        return (
-            <div className="flex-1 flex items-center justify-center text-gray-400 bg-gray-50">
-                <div className="text-center">
-                    <div className="text-5xl mb-3">✉️</div>
-                    <p className="text-sm font-medium">Select a letter to read</p>
-                </div>
-            </div>
-        );
-    }
-
-    const urgencyColor = item.urgency_level === 'High' ? '#dc2626' : item.urgency_level === 'Low' ? '#9ca3af' : '#d97706';
-    const urgencyBg = item.urgency_level === 'High' ? '#fee2e2' : item.urgency_level === 'Low' ? '#f3f4f6' : '#fef3c7';
-
-    return (
-        <div className="flex-1 flex flex-col overflow-hidden bg-white">
-            {/* Header */}
-            <div className="px-6 py-4 border-b" style={{ borderColor: '#eee' }}>
-                <div className="flex items-start justify-between gap-3">
-                    <div>
-                        <h2 className="text-base font-bold text-gray-900">
-                            {item.issue_summary && item.issue_summary !== '[NOT FOUND]'
-                                ? item.issue_summary
-                                : 'No Subject'}
-                        </h2>
-                        <p className="text-xs text-gray-500 mt-1">
-                            From: <strong>{item.citizen_name || 'Unknown'}</strong>
-                            {item.village && item.village !== '[NOT FOUND]' ? ` · ${item.village}` : ''}
-                            {item.phone_number && item.phone_number !== '[NOT FOUND]' ? ` · 📞 ${item.phone_number}` : ''}
-                        </p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">
-                            {item.created_at ? new Date(item.created_at).toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' }) : ''}
-                        </p>
-                    </div>
-                    <span className="px-2 py-1 text-[10px] font-bold uppercase rounded shrink-0"
-                        style={{ background: urgencyBg, color: urgencyColor }}>
-                        {item.urgency_level || 'Normal'}
-                    </span>
-                </div>
-            </div>
-
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {/* Extracted Data Block */}
-                <div className="bg-gray-50 rounded-lg border p-4 text-sm space-y-2" style={{ borderColor: '#e5e7eb' }}>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">AI Extracted Details</p>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                        <div>
-                            <p className="text-[10px] text-gray-400">Citizen Name</p>
-                            <p className="font-medium text-gray-800">{item.citizen_name || '—'}</p>
-                        </div>
-                        <div>
-                            <p className="text-[10px] text-gray-400">Phone</p>
-                            <p className="font-medium text-gray-800">{item.phone_number || '—'}</p>
-                        </div>
-                        <div>
-                            <p className="text-[10px] text-gray-400">Village / Location</p>
-                            <p className="font-medium text-gray-800">{item.village || '—'}</p>
-                        </div>
-                        <div>
-                            <p className="text-[10px] text-gray-400">Status</p>
-                            <p className="font-medium text-gray-800">{item.status || '—'}</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Raw OCR Text */}
-                {item.ocr_raw_text && (
-                    <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Original Document Text</p>
-                        <div className="bg-white border rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap font-mono leading-relaxed max-h-64 overflow-y-auto" style={{ borderColor: '#e5e7eb', fontSize: '12px' }}>
-                            {item.ocr_raw_text}
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Action Bar */}
-            {item.direction === 'inbox' && (
-                <div className="px-6 py-4 border-t flex gap-3" style={{ borderColor: '#eee' }}>
-                    <button
-                        onClick={() => onDraftResponse(item)}
-                        className="flex-1 py-2 text-sm font-bold text-white rounded-lg hover:opacity-90 transition-opacity"
-                        style={{ background: color }}
-                    >
-                        ✍️ Draft Response
-                    </button>
-                    <button
-                        onClick={() => onMarkResolved(item)}
-                        className="px-4 py-2 text-sm font-semibold border rounded-lg text-gray-600 hover:bg-gray-50"
-                        style={{ borderColor: '#ddd' }}
-                    >
-                        ✅ Mark Resolved
-                    </button>
-                </div>
-            )}
-        </div>
-    );
-}
-
-// ─── MAIN PAGE ────────────────────────────────────────────────────────────────
+// ── MAIN PAGE ─────────────────────────────────────────────────────────────────
 export default function LetterboxPage() {
     const { user } = useAuth();
     const router = useRouter();
     const color = user?.theme_color || '#006a4d';
 
-    const [folder, setFolder] = useState('inbox');   // 'inbox' | 'outbox'
+    const [tab, setTab] = useState('inbox');
     const [items, setItems] = useState([]);
+    const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState(null);
-    const [search, setSearch] = useState('');
 
-    const loadItems = async (dir) => {
+    const fetchItems = async (dir) => {
         setLoading(true);
-        setSelected(null);
         try {
             const data = await apiGet(`/api/letterbox?direction=${dir}`);
             setItems(data.items || []);
+            setTotal(data.total || 0);
         } catch (e) {
             console.error(e);
         } finally {
@@ -207,12 +144,12 @@ export default function LetterboxPage() {
         }
     };
 
-    useEffect(() => { loadItems(folder); }, [folder]);
+    useEffect(() => { fetchItems(tab); }, [tab]);
 
-    const handleFileUpload = async (file) => {
+    const handleUpload = async (file) => {
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('direction', folder);
+        formData.append('direction', tab);
         const token = localStorage.getItem('needle_token');
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/letterbox/upload`, {
             method: 'POST',
@@ -223,113 +160,117 @@ export default function LetterboxPage() {
             const err = await res.json().catch(() => ({ detail: 'Upload failed' }));
             throw new Error(err.detail || 'Upload failed');
         }
-        loadItems(folder);
+        fetchItems(tab);
     };
 
     const draftResponse = (item) => {
         const params = new URLSearchParams({
             subject: `Re: ${item.issue_summary}`,
             recipient: item.citizen_name !== '[NOT FOUND]' ? item.citizen_name : '',
-            context: `Grievance received from ${item.citizen_name} (${item.village})\nPhone: ${item.phone_number}\n\nSummary: ${item.issue_summary}`,
+            context: `From: ${item.citizen_name} (${item.village})\nPhone: ${item.phone_number}\n\nGrievance:\n${item.issue_summary}`,
         });
         router.push(`/dashboard/drafter?${params.toString()}`);
     };
 
-    const markResolved = async (item) => {
-        // TODO: Add PATCH /api/letterbox/:id to update status
-        alert('Mark resolved feature coming soon!');
-    };
-
-    const filtered = items.filter(i =>
-        !search || [i.citizen_name, i.village, i.issue_summary, i.phone_number]
-            .some(f => f && f.toLowerCase().includes(search.toLowerCase()))
-    );
-
-    const inboxCount = folder === 'inbox' ? items.filter(i => i.status === 'Pending-Intake').length : null;
+    const pendingCount = items.filter(i => i.status === 'Pending-Intake').length;
 
     return (
-        <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-white rounded-xl border shadow-sm" style={{ borderColor: '#e5e7eb' }}>
-
-            {/* ── LEFT SIDEBAR ─────────────────────── */}
-            <div className="w-48 shrink-0 flex flex-col border-r" style={{ borderColor: '#eee', background: '#fafafa' }}>
-                <div className="p-4">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Letterbox</p>
-                    <UploadButton onUpload={handleFileUpload} color={color} direction={folder} />
+        <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-lg font-bold text-gray-800">Letterbox</h1>
+                    <p className="text-xs text-gray-400">{total} letters · {pendingCount > 0 ? `${pendingCount} pending` : 'all clear'}</p>
                 </div>
-
-                <nav className="flex-1 px-2 space-y-0.5">
-                    {[
-                        { key: 'inbox', label: 'Inbox', icon: '📥' },
-                        { key: 'outbox', label: 'Outbox', icon: '📤' },
-                    ].map(f => (
-                        <button
-                            key={f.key}
-                            onClick={() => setFolder(f.key)}
-                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-left transition-colors ${folder === f.key ? 'text-white' : 'text-gray-600 hover:bg-gray-200'}`}
-                            style={folder === f.key ? { background: color } : {}}
-                        >
-                            <span>{f.icon}</span>
-                            <span className="flex-1">{f.label}</span>
-                            {f.key === 'inbox' && inboxCount > 0 && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                                    style={folder === 'inbox' ? { background: 'rgba(255,255,255,0.3)', color: 'white' } : { background: color, color: 'white' }}>
-                                    {inboxCount}
-                                </span>
-                            )}
-                        </button>
-                    ))}
-                </nav>
-
-                <div className="p-3 text-center">
-                    <p className="text-[9px] text-gray-400">{items.length} letters total</p>
-                </div>
+                <UploadButton onUpload={handleUpload} direction={tab} color={color} />
             </div>
 
-            {/* ── CENTER: MESSAGE LIST ──────────────── */}
-            <div className="w-72 shrink-0 flex flex-col border-r overflow-hidden" style={{ borderColor: '#eee' }}>
-                {/* Search */}
-                <div className="p-3 border-b" style={{ borderColor: '#eee' }}>
-                    <input
-                        type="text"
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        placeholder="Search letters..."
-                        className="w-full px-3 py-1.5 text-xs border rounded-lg bg-gray-50 focus:outline-none focus:ring-1"
-                        style={{ borderColor: '#ddd' }}
-                    />
-                </div>
-
-                {/* List */}
-                <div className="flex-1 overflow-y-auto">
-                    {loading ? (
-                        <div className="p-6 text-center text-sm text-gray-400">Loading...</div>
-                    ) : filtered.length === 0 ? (
-                        <div className="p-6 text-center">
-                            <div className="text-4xl mb-2">{folder === 'inbox' ? '📭' : '📬'}</div>
-                            <p className="text-sm text-gray-400">{folder === 'inbox' ? 'No grievances received' : 'No letters sent'}</p>
-                            <p className="text-xs text-gray-300 mt-1">Upload a letter to get started</p>
-                        </div>
-                    ) : (
-                        filtered.map(item => (
-                            <MessageRow
-                                key={item.id}
-                                item={item}
-                                isSelected={selected?.id === item.id}
-                                onClick={() => setSelected(item)}
-                                color={color}
-                            />
-                        ))
-                    )}
-                </div>
+            {/* Tabs */}
+            <div className="sansad-tabs">
+                {TABS.map(t => (
+                    <button
+                        key={t}
+                        onClick={() => { setTab(t); }}
+                        className={`sansad-tab ${tab === t ? 'sansad-tab-active' : ''}`}
+                        style={tab === t ? { color } : {}}
+                    >
+                        {TAB_LABELS[t]}
+                    </button>
+                ))}
             </div>
 
-            {/* ── RIGHT: DETAIL PANE ───────────────── */}
-            <DetailPane
-                item={selected}
-                color={color}
-                onDraftResponse={draftResponse}
-                onMarkResolved={markResolved}
-            />
+            {/* Table */}
+            {loading ? (
+                <div className="text-center py-10 text-gray-400 text-sm">Loading letters...</div>
+            ) : items.length === 0 ? (
+                <div className="text-center py-12 text-gray-400 text-sm bg-white border" style={{ borderColor: '#ddd' }}>
+                    <div className="text-4xl mb-2">{tab === 'inbox' ? '📭' : '📬'}</div>
+                    <p>No letters in {tab} yet.</p>
+                    <p className="text-xs text-gray-300 mt-1">Upload a PDF or image to get started.</p>
+                </div>
+            ) : (
+                <div className="sansad-card">
+                    <table className="sansad-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>{tab === 'inbox' ? 'Sender' : 'Recipient'}</th>
+                                <th>Village</th>
+                                <th>Phone</th>
+                                <th>Summary</th>
+                                <th>Urgency</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {items.map(item => {
+                                const urg = URGENCY_STYLES[item.urgency_level] || URGENCY_STYLES.Normal;
+                                const isPending = item.status === 'Pending-Intake';
+                                return (
+                                    <tr
+                                        key={item.id}
+                                        onClick={() => setSelected(item)}
+                                        className="cursor-pointer"
+                                        style={isPending ? { borderLeft: `3px solid ${color}` } : {}}
+                                    >
+                                        <td className="font-mono text-gray-400">#{item.id}</td>
+                                        <td className={`${isPending ? 'font-bold text-gray-900' : 'font-medium text-gray-600'}`}>
+                                            {item.citizen_name || '—'}
+                                        </td>
+                                        <td>{item.village || '—'}</td>
+                                        <td className="font-mono text-xs">{item.phone_number || '—'}</td>
+                                        <td className="max-w-[220px] truncate text-gray-600">{item.issue_summary || '—'}</td>
+                                        <td>
+                                            <span className="sansad-badge" style={{ background: urg.background, color: urg.color }}>
+                                                {item.urgency_level || 'Normal'}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className="sansad-badge" style={{ background: `${color}15`, color }}>
+                                                {item.status || '—'}
+                                            </span>
+                                        </td>
+                                        <td className="text-gray-400 text-xs">
+                                            {item.created_at ? new Date(item.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {/* Modal */}
+            {selected && (
+                <LetterModal
+                    item={selected}
+                    color={color}
+                    onClose={() => setSelected(null)}
+                    onDraft={draftResponse}
+                />
+            )}
         </div>
     );
 }
