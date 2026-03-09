@@ -174,3 +174,74 @@ body {
 .animate-fade-in {
   animation: fadeIn 0.25s ease-out;
 }
+
+/* ── Figma: Pill category filter buttons ── */
+.pill-filter {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid #ddd;
+  background: white;
+  color: #555;
+  transition: all 0.15s;
+}
+.pill-filter:hover { border-color: #aaa; color: #333; }
+.pill-filter-active { background: var(--color-ls); border-color: var(--color-ls); color: white; }
+
+/* ── Figma: Scheme / CSR card ── */
+.figma-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  transition: box-shadow 0.2s;
+}
+.figma-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+
+/* ── Figma: Search input (with icon slot) ── */
+.figma-search-wrap { position: relative; }
+.figma-search-wrap svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #aaa; }
+.figma-search {
+  width: 100%;
+  padding: 11px 16px 11px 44px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  background: white;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+.figma-search:focus { border-color: #006a4d; box-shadow: 0 0 0 3px rgba(0,106,77,0.08); }
+
+/* ── Figma: Outlined action button ── */
+.figma-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1.5px solid currentColor;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  background: transparent;
+}
+.figma-btn-outline:hover { opacity: 0.75; }
+
+/* ── Figma: View link ── */
+.figma-view-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.figma-view-link:hover { opacity: 0.7; text-decoration: underline; }

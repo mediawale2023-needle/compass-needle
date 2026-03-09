@@ -494,98 +494,107 @@ export default function SchemesPage() {
             {/* TAB 3: Scheme Finder */}
             {tab === 'finder' && (
                 <div className="space-y-4">
-                    <div className="sansad-card">
-                        <div className="sansad-card-header" style={{ background: color }}>Search &amp; Filter</div>
-                        <div className="sansad-card-body space-y-3">
-                            <div className="flex gap-3">
-                                <input type="text" value={query} onChange={e => setQuery(e.target.value)}
-                                    onKeyDown={e => e.key === 'Enter' && search()}
-                                    placeholder="Search by keyword, e.g., 'water', 'education', 'road'..."
-                                    className="flex-1 px-3 py-2.5 border text-sm focus:outline-none" style={{ borderColor: '#ddd' }} />
-                                <button onClick={search} disabled={searchLoading}
-                                    className="px-5 py-2.5 text-white text-sm font-semibold disabled:opacity-40" style={{ background: color }}>
-                                    {searchLoading ? 'Searching...' : 'Search'}
-                                </button>
-                                {searchResults && (
-                                    <button onClick={() => { setSearchResults(null); setQuery(''); }}
-                                        className="px-4 py-2.5 text-sm text-gray-500 border" style={{ borderColor: '#ddd' }}>Clear</button>
-                                )}
-                            </div>
-                            <div className="grid grid-cols-3 gap-3">
-                                <div>
-                                    <label className="block text-[10px] text-gray-500 uppercase mb-1">Ministry</label>
-                                    <select value={selMinistry} onChange={e => setSelMinistry(e.target.value)}
-                                        className="w-full px-2 py-2 border text-xs" style={{ borderColor: '#ddd' }}>
-                                        <option value="All">All Ministries</option>
-                                        {ministries.map(m => <option key={m} value={m}>{m.replace('Ministry of ', '')}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] text-gray-500 uppercase mb-1">Category</label>
-                                    <select value={selCategory} onChange={e => setSelCategory(e.target.value)}
-                                        className="w-full px-2 py-2 border text-xs" style={{ borderColor: '#ddd' }}>
-                                        <option value="All">All Categories</option>
-                                        {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] text-gray-500 uppercase mb-1">Focus</label>
-                                    <select value={selFocus} onChange={e => setSelFocus(e.target.value)}
-                                        className="w-full px-2 py-2 border text-xs" style={{ borderColor: '#ddd' }}>
-                                        <option value="All">All Focus Areas</option>
-                                        {focuses.map(f => <option key={f} value={f}>{f}</option>)}
-                                    </select>
-                                </div>
-                            </div>
+                    {/* Figma: Full-width search */}
+                    <div className="flex gap-3">
+                        <div className="figma-search-wrap flex-1">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+                            </svg>
+                            <input type="text" value={query}
+                                onChange={e => setQuery(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && search()}
+                                placeholder="Search schemes by name or ministry..."
+                                className="figma-search" />
                         </div>
+                        <button onClick={search} disabled={searchLoading}
+                            className="px-5 py-2 text-white text-sm font-bold rounded-lg disabled:opacity-40"
+                            style={{ background: color }}>
+                            {searchLoading ? 'Searching...' : 'Search'}
+                        </button>
+                        {searchResults && (
+                            <button onClick={() => { setSearchResults(null); setQuery(''); setSelCategory('All'); }}
+                                className="px-4 py-2 text-sm border rounded-lg text-gray-500" style={{ borderColor: '#ddd' }}>
+                                Clear
+                            </button>
+                        )}
                     </div>
 
+                    {/* Figma: Category pill filters */}
+                    <div className="flex gap-2 flex-wrap">
+                        {['All', ...categories.slice(0, 8)].map(cat => (
+                            <button key={cat}
+                                onClick={() => setSelCategory(cat)}
+                                className={`pill-filter ${selCategory === cat ? 'pill-filter-active' : ''}`}
+                                style={selCategory === cat && cat !== 'All' ? { background: color, borderColor: color, color: 'white' } : {}}>
+                                {cat}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Ministry filter (compact) */}
+                    <div className="flex gap-3 items-center">
+                        <select value={selMinistry} onChange={e => setSelMinistry(e.target.value)}
+                            className="px-3 py-1.5 border text-xs rounded-lg" style={{ borderColor: '#ddd' }}>
+                            <option value="All">All Ministries</option>
+                            {ministries.map(m => <option key={m} value={m}>{m.replace('Ministry of ', '').replace('Ministry for ', '')}</option>)}
+                        </select>
+                        <select value={selFocus} onChange={e => setSelFocus(e.target.value)}
+                            className="px-3 py-1.5 border text-xs rounded-lg" style={{ borderColor: '#ddd' }}>
+                            <option value="All">All Focus Areas</option>
+                            {focuses.map(f => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                    </div>
+
+                    {/* Results */}
                     {(() => {
                         const filtered = getFilteredSchemes();
                         return filtered.length === 0 ? (
-                            <div className="text-center py-10 text-gray-400 text-sm bg-white border" style={{ borderColor: '#ddd' }}>
+                            <div className="text-center py-10 text-gray-400 text-sm bg-white border rounded-lg" style={{ borderColor: '#e5e7eb' }}>
                                 No schemes found. Try a broader search or reset filters.
                             </div>
                         ) : (
                             <>
-                                <div className="text-xs text-gray-500"><strong>{filtered.length}</strong> schemes found</div>
-                                <div className="sansad-card">
-                                    <table className="sansad-table">
-                                        <thead><tr><th>Scheme</th><th>Ministry</th><th>Category</th><th>Focus</th><th>Budget</th></tr></thead>
-                                        <tbody>
-                                            {filtered.slice(0, 50).map((s, i) => (
-                                                <Fragment key={s.id || i}>
-                                                    <tr key={s.id || i} onClick={() => setExpanded(expanded === `f${i}` ? null : `f${i}`)} className="cursor-pointer">
-                                                        <td className="font-medium" style={{ color }}>{s.name}</td>
-                                                        <td className="text-xs">{(s.ministry || '').replace('Ministry of ', '').slice(0, 35)}</td>
-                                                        <td><span className="sansad-badge" style={{ background: `${color}15`, color }}>{s.category}</span></td>
-                                                        <td className="text-xs text-gray-500">{s.focus || '–'}</td>
-                                                        <td className="font-semibold">{s.budget_allocation || '–'}</td>
-                                                    </tr>
-                                                    {expanded === `f${i}` && (
-                                                        <tr key={`fd${i}`}>
-                                                            <td colSpan="5" style={{ background: '#fafafa' }}>
-                                                                <div className="py-3 space-y-2">
-                                                                    <p className="text-sm text-gray-700 leading-relaxed">{s.description || 'No description.'}</p>
-                                                                    <div className="flex gap-3 text-xs text-gray-500">
-                                                                        <span><strong>Ministry:</strong> {s.ministry}</span>
-                                                                        <span><strong>Focus:</strong> {s.focus}</span>
-                                                                        <span><strong>Budget:</strong> {s.budget_allocation}</span>
-                                                                    </div>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </Fragment>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                <p className="text-xs text-gray-400"><strong className="text-gray-600">{filtered.length}</strong> schemes found</p>
+                                <div className="grid grid-cols-3 gap-4">
+                                    {filtered.slice(0, 30).map((s, i) => (
+                                        <div key={s.id || i} className="figma-card flex flex-col gap-3">
+                                            <div>
+                                                <h3 className="text-sm font-bold text-gray-900 leading-tight">{s.name}</h3>
+                                                <p className="text-xs text-gray-500 mt-1">{(s.ministry || '').replace('Ministry of ', '').replace('Ministry for ', '')}</p>
+                                            </div>
+                                            {s.budget_allocation && (
+                                                <p className="text-lg font-bold" style={{ color }}>{s.budget_allocation}</p>
+                                            )}
+                                            <div className="flex gap-1.5 flex-wrap">
+                                                {[s.focus, s.category].filter(Boolean).map(tag => (
+                                                    <span key={tag} className="sansad-badge"
+                                                        style={{ background: `${color}12`, color, borderRadius: 4, fontSize: 10 }}>
+                                                        {tag}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                            <div className="mt-auto pt-2 border-t" style={{ borderColor: '#f0f0f0' }}>
+                                                <button
+                                                    onClick={() => setExpanded(expanded === `f${i}` ? null : `f${i}`)}
+                                                    className="figma-btn-outline w-full justify-center"
+                                                    style={{ color, borderColor: color }}>
+                                                    ↗ View Details
+                                                </button>
+                                                {expanded === `f${i}` && (
+                                                    <div className="mt-3 text-xs text-gray-600 leading-relaxed">
+                                                        {s.description || 'No detailed description available.'}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </>
                         );
                     })()}
                 </div>
             )}
+
 
             {/* TAB 4: Citizen Matcher */}
             {tab === 'citizen' && (

@@ -6,17 +6,28 @@ import { apiGet } from '@/lib/api';
 
 const TYPE_LABELS = {
     draft_letter: 'Letter',
-    draft_question: 'Parliament Question',
-    analysis: 'Document Analysis',
-    copilot_chat: 'Co-Pilot Chat',
+    draft_question: 'Question',
+    analysis: 'Research',
+    copilot_chat: 'Research',
 };
+const TYPE_COLORS = {
+    Letter: { background: '#eff6ff', color: '#2563eb' },
+    Question: { background: '#fef3c7', color: '#d97706' },
+    Research: { background: '#f0fdf4', color: '#16a34a' },
+};
+const TABS = [
+    { key: 'all', label: 'All' },
+    { key: 'draft_letter', label: 'Letters' },
+    { key: 'draft_question', label: 'Questions' },
+    { key: 'analysis', label: 'Research' },
+];
 
 export default function ArchivesPage() {
     const { user } = useAuth();
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all');
-    const [expanded, setExpanded] = useState(null);
+    const [selected, setSelected] = useState(null);
     const color = user?.theme_color || '#006a4d';
 
     const fetchItems = async () => {
@@ -31,19 +42,8 @@ export default function ArchivesPage() {
 
     useEffect(() => { fetchItems(); }, [filter]);
 
-    const deleteItem = async (id) => {
-        if (!confirm('Delete this item?')) return;
-        try {
-            const token = localStorage.getItem('needle_token') || '';
-            await fetch(`/api/history/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            setItems(prev => prev.filter(i => i.id !== id));
-        } catch { alert('Failed to delete'); }
-    };
-
-    const downloadItem = (item) => {
+    const downloadItem = (item, e) => {
+        e.stopPropagation();
         const blob = new Blob([item.content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -55,19 +55,11 @@ export default function ArchivesPage() {
 
     return (
         <div className="space-y-5">
-            <div className="flex items-center justify-between">
-                <h1 className="text-lg font-bold text-gray-800">Archives</h1>
-                <span className="text-xs text-gray-500">{items.length} saved items</span>
-            </div>
+            <h1 className="text-lg font-bold text-gray-800">Archives</h1>
 
-            {/* Filter tabs */}
+            {/* Tabs */}
             <div className="sansad-tabs">
-                {[
-                    { key: 'all', label: 'All' },
-                    { key: 'draft_letter', label: 'Letters' },
-                    { key: 'draft_question', label: 'Questions' },
-                    { key: 'analysis', label: 'Analyses' },
-                ].map(t => (
+                {TABS.map(t => (
                     <button key={t.key}
                         onClick={() => setFilter(t.key)}
                         className={`sansad-tab ${filter === t.key ? 'sansad-tab-active' : ''}`}
@@ -82,53 +74,83 @@ export default function ArchivesPage() {
                 <div className="text-center py-10 text-gray-400 text-sm">Loading archives...</div>
             ) : items.length === 0 ? (
                 <div className="sansad-card">
-                    <div className="sansad-card-body text-center py-12 text-sm text-gray-400">
-                        No saved items yet. Use the Drafter or Co-Pilot to create and save documents.
+                    <div className="sansad-card-body text-center py-16 text-sm text-gray-400">
+                        No saved items yet. Use the Drafter or Research Desk to save documents.
                     </div>
                 </div>
             ) : (
-                <div className="space-y-3">
-                    {items.map(item => (
-                        <div key={item.id} className="sansad-card">
-                            <div className="sansad-card-body">
-                                <div className="flex items-start justify-between">
-                                    <div className="flex-1 cursor-pointer" onClick={() => setExpanded(expanded === item.id ? null : item.id)}>
-                                        <div className="flex items-center gap-2">
-                                            <span className="sansad-badge" style={{ background: `${color}15`, color }}>
-                                                {TYPE_LABELS[item.activity_type] || item.activity_type}
-                                            </span>
-                                            <span className="text-sm font-semibold text-gray-800">{item.title}</span>
-                                        </div>
-                                        <div className="text-xs text-gray-400 mt-1">
-                                            {item.created_at ? new Date(item.created_at).toLocaleString('en-IN', {
-                                                day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                                            }) : '–'}
-                                            {item.metadata?.recipient && <span className="ml-2">To: {item.metadata.recipient}</span>}
-                                            {item.metadata?.ministry && <span className="ml-2">Ministry: {item.metadata.ministry}</span>}
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2 ml-3">
-                                        <button onClick={() => downloadItem(item)}
-                                            className="px-3 py-1 text-[11px] font-semibold border text-gray-500" style={{ borderColor: '#ddd' }}>
-                                            Download
-                                        </button>
-                                        <button onClick={() => deleteItem(item.id)}
-                                            className="px-3 py-1 text-[11px] font-semibold border text-red-400" style={{ borderColor: '#ddd' }}>
-                                            Delete
-                                        </button>
-                                    </div>
-                                </div>
+                <div className="sansad-card">
+                    <table className="sansad-table">
+                        <thead>
+                            <tr>
+                                <th style={{ width: 40 }}>#</th>
+                                <th>Title</th>
+                                <th style={{ width: 120 }}>Type</th>
+                                <th style={{ width: 110 }}>Date</th>
+                                <th style={{ width: 80 }}>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {items.map((item, idx) => {
+                                const typeLabel = TYPE_LABELS[item.activity_type] || 'Research';
+                                const style = TYPE_COLORS[typeLabel] || TYPE_COLORS.Research;
+                                return (
+                                    <tr key={item.id} onClick={() => setSelected(item)} className="cursor-pointer">
+                                        <td className="text-gray-400">{idx + 1}</td>
+                                        <td className="font-medium text-gray-800">{item.title || '—'}</td>
+                                        <td>
+                                            <span className="sansad-badge" style={style}>{typeLabel}</span>
+                                        </td>
+                                        <td className="text-gray-500 text-xs">
+                                            {item.created_at ? new Date(item.created_at).toLocaleDateString('en-CA') : '—'}
+                                        </td>
+                                        <td>
+                                            <button onClick={(e) => downloadItem(item, e)}
+                                                className="figma-view-link" style={{ color }}>
+                                                👁 View
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
 
-                                {expanded === item.id && (
-                                    <div className="mt-3 pt-3 border-t" style={{ borderColor: '#eee' }}>
-                                        <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed bg-gray-50 p-4 border" style={{ borderColor: '#eee' }}>
-                                            {item.content}
-                                        </div>
-                                    </div>
-                                )}
+            {/* Modal */}
+            {selected && (
+                <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
+                    <div className="bg-white w-full max-w-2xl max-h-[80vh] overflow-y-auto border shadow-xl rounded-lg"
+                        style={{ borderColor: '#ddd' }} onClick={e => e.stopPropagation()}>
+                        <div className="p-5 text-white rounded-t-lg" style={{ background: color }}>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <div className="text-[10px] uppercase opacity-75 font-semibold tracking-wider">{TYPE_LABELS[selected.activity_type] || selected.activity_type}</div>
+                                    <div className="text-base font-bold mt-0.5">{selected.title}</div>
+                                </div>
+                                <button onClick={() => setSelected(null)} className="text-white/80 hover:text-white text-xl">✕</button>
                             </div>
                         </div>
-                    ))}
+                        <div className="p-5 space-y-4">
+                            <div className="text-xs text-gray-400">
+                                {selected.created_at ? new Date(selected.created_at).toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' }) : '—'}
+                            </div>
+                            <div className="bg-gray-50 border p-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed rounded" style={{ borderColor: '#eee' }}>
+                                {selected.content || 'No content.'}
+                            </div>
+                            <div className="flex gap-2 justify-end pt-2 border-t" style={{ borderColor: '#eee' }}>
+                                <button onClick={(e) => downloadItem(selected, e)}
+                                    className="figma-btn-outline" style={{ color }}>
+                                    ⬇ Download .txt
+                                </button>
+                                <button onClick={() => setSelected(null)}
+                                    className="px-4 py-1.5 text-sm border rounded text-gray-500" style={{ borderColor: '#ddd' }}>
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
