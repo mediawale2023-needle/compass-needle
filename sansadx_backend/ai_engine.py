@@ -167,7 +167,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     system_instructions = f"{persona_instructions}\n\n{SYSTEM_PROMPT.format(user_message='{{MESSAGE_BELOW}}', jurisdiction_context=real_jurisdiction_context, taxonomy_categories=TAXONOMY_CATEGORIES)}"
 
     # Prefix user message with detected language so GPT cannot miss it
-    tagged_message = f"[LANGUAGE: {detected_lang}]\n{user_message}"
+    tagged_message = f"[LANGUAGE: {detected_lang}]\n<user_input>\n{user_message}\n</user_input>"
 
     try:
         # OpenAI Chat Completion Call with Strict JSON Mode
