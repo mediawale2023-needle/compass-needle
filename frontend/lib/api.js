@@ -7,7 +7,7 @@
  * never blocks the UI.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 const REQUEST_TIMEOUT = 8000;   // 8 seconds for normal data calls
 const AI_TIMEOUT = 60000;       // 60 seconds for AI endpoints (Gemini can take 15-30s)
 const LOGIN_TIMEOUT = 28000;    // 28 seconds for login (handles cold start / slow wake)

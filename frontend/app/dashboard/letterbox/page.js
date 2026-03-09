@@ -87,14 +87,26 @@ export default function LetterboxPage() {
         formData.append('file', file);
         formData.append('direction', tab);
 
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('needle_token');
         const res = await fetch(`${API_BASE}/api/letterbox/upload`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
             body: formData,
         });
 
-        if (!res.ok) throw new Error(await res.text());
+        if (!res.ok) {
+            let errorText = "Upload failed";
+            try {
+                const errJson = await res.json();
+                errorText = errJson.detail || errorText;
+            } catch (e) {
+                // If not JSON, try text
+                const text = await res.text();
+                errorText = text || errorText;
+            }
+            throw new Error(errorText);
+        }
+
         // Reload list
         loadItems(tab);
     };
