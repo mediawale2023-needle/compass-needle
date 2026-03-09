@@ -160,6 +160,23 @@ class Archive(Base):
     content = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class LetterboxItem(Base):
+    """Unified tracking for physical Inbox (grievances) and Outbox (official MP letters)."""
+    __tablename__ = "letterbox"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
+    direction = Column(String, default="inbox")  # 'inbox' or 'outbox'
+    citizen_name = Column(String, nullable=True)
+    phone_number = Column(String, index=True, nullable=True)
+    village = Column(String, nullable=True)
+    issue_summary = Column(Text)
+    urgency_level = Column(String, default="Normal")
+    ocr_raw_text = Column(Text, nullable=True)
+    status = Column(String, default="Pending-Intake") # 'Pending-Intake', 'Drafted', 'Sent'
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    tenant = relationship("Tenant", backref="letterbox_items")
+
 
 class DNASample(Base):
     """Stores style templates (DNA samples) for users."""

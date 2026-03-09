@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { apiPost, AI_TIMEOUT } from '@/lib/api';
+import { useSearchParams } from 'next/navigation';
 
 const RECIPIENT_TYPES = ['Cabinet Minister', 'Minister of State', 'Secretary to GoI', 'Chief Secretary', 'District Collector', 'Other Official'];
 const TONES = ['Assertive (Opposition Style)', 'Requesting (Ministerial Courtesy)', 'Formal (Neutral)'];
@@ -28,15 +29,17 @@ function Field({ label, value, onChange, placeholder, textarea, rows }) {
 
 export default function DrafterPage() {
     const { user } = useAuth();
+    const searchParams = useSearchParams();
+
     const [mode, setMode] = useState('letter');
 
-    // Letter fields
+    // Letter fields (read from URL if present via Drafter Bridge)
     const [recipientType, setRecipientType] = useState('Cabinet Minister');
-    const [recipientName, setRecipientName] = useState('');
+    const [recipientName, setRecipientName] = useState(searchParams.get('recipient') || '');
     const [ministry, setMinistry] = useState('');
-    const [subject, setSubject] = useState('');
+    const [subject, setSubject] = useState(searchParams.get('subject') || '');
     const [reference, setReference] = useState('');
-    const [keyPoints, setKeyPoints] = useState('');
+    const [keyPoints, setKeyPoints] = useState(searchParams.get('context') || '');
     const [tone, setTone] = useState('Assertive (Opposition Style)');
     const [language, setLanguage] = useState('English');
 

@@ -598,7 +598,36 @@ Generate a professional parliamentary document. Do NOT invent statistics.
             contents=prompt,
             config=genai.types.GenerateContentConfig(temperature=0.2),
         )
-        return {"content": response.text}
+        
+        generated_text = response.text
+        
+        # --- Auto-save to Letterbox Outbox ---
+        try:
+            outbox_subject = req.subject or req.topic or "Generated Document"
+            outbox_recipient = getattr(req, "recipient_name", None) or getattr(req, "ministry", None) or "Unknown Recipient"
+            
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    INSERT INTO letterbox (
+                        tenant_id, direction, citizen_name, phone_number, village,
+                        issue_summary, urgency_level, ocr_raw_text, status, created_at
+                    ) VALUES (
+                        :tid, 'outbox', :name, '[NOT FOUND]', '[NOT FOUND]',
+                        :summary, 'Normal', :raw_text, 'Drafted', :now
+                    )
+                """), {
+                    "tid": tid,
+                    "name": outbox_recipient,
+                    "summary": f"Drafter Generated ({req.mode.title()}): {outbox_subject}",
+                    "raw_text": generated_text,
+                    "now": datetime.utcnow()
+                })
+        except Exception as db_e:
+            logger.exception("Failed to auto-save drafter output to Letterbox Outbox")
+            # We don't fail the request if auto-save fails, just log it.
+            pass
+            
+        return {"content": generated_text}
     except Exception as e:
         logger.exception("Drafter generate failed")
         return {"content": "An error occurred while generating the draft. Please try again."}
@@ -1234,3 +1263,110 @@ def delete_history_item(item_id: int, user=Depends(get_current_user)):
 
 
 # Admin seed/tenants endpoints moved to admin_api (protected by admin JWT only).
+
+# ─────────────────────────────────────────
+# LETTERBOX
+# ─────────────────────────────────────────
+from fastapi import File, UploadFile, Form
+
+@router.get("/letterbox")
+def get_letterbox_items(direction: str = Query("inbox", regex="^(inbox|outbox)$"), user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    try:
+        rows = _q("""
+            SELECT id, direction, citizen_name, phone_number, village, issue_summary,
+                   urgency_level, ocr_raw_text, status, created_at
+            FROM letterbox
+            WHERE tenant_id = :tid AND direction = :dir
+            ORDER BY created_at DESC
+        """, {"tid": tid, "dir": direction})
+        
+        # Format dates
+        for r in rows:
+            if r.get("created_at") and hasattr(r["created_at"], "isoformat"):
+                r["created_at"] = r["created_at"].isoformat()
+                
+        return {"items": rows, "total": len(rows)}
+    except Exception as e:
+        logger.exception(f"Failed to fetch letterbox {direction} items")
+        raise HTTPException(500, "Failed to load letterbox items")
+
+
+@router.post("/letterbox/upload")
+async def letterbox_upload(
+    file: UploadFile = File(...),
+    direction: str = Form("inbox"),
+    user=Depends(get_current_user)
+):
+    tid = get_tenant_or_fail(user)
+    
+    # 1. OCR Extraction (Placeholder + PyMuPDF)
+    extracted_text = ""
+    try:
+        content = await file.read()
+        
+        # Simple PDF text extraction (Fallback placeholder for Google Vision API)
+        if file.filename.lower().endswith(".pdf"):
+            import pymupdf
+            doc = pymupdf.open(stream=content, filetype="pdf")
+            for page in doc:
+                text_content = page.get_text()
+                if text_content.strip():
+                    extracted_text += text_content + "\n"
+            doc.close()
+        else:
+            # For images, we would ideally use Vision API or Tesseract here.
+            # As a placeholder, we use generic text context.
+            extracted_text = "IMAGE_UPLOAD_PLACEHOLDER: Please swap with OCR service. Manual transcription needed if OCR fails."
+            
+    except Exception as e:
+        logger.exception("Failed to read file for letterbox upload")
+        raise HTTPException(500, "Failed to process the uploaded file")
+        
+    if not extracted_text.strip():
+        extracted_text = "No readable text found in document."
+
+    # 2. AI Processing to extract structured JSON
+    from modules.letterbox import process_letterbox_ocr
+    try:
+        extracted_data = process_letterbox_ocr(extracted_text, direction=direction, tenant_id=tid)
+    except Exception as e:
+        logger.exception("Letterbox AI processing failed")
+        raise HTTPException(500, "AI failed to extract document details")
+        
+    # 3. Save to Database
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("""
+                INSERT INTO letterbox (
+                    tenant_id, direction, citizen_name, phone_number, village,
+                    issue_summary, urgency_level, ocr_raw_text, status, created_at
+                ) VALUES (
+                    :tid, :dir, :name, :phone, :village,
+                    :summary, :urgency, :raw_text, :status, :now
+                ) RETURNING id
+            """), {
+                "tid": tid,
+                "dir": direction,
+                "name": extracted_data.get("citizen_name", "[NOT FOUND]"),
+                "phone": extracted_data.get("phone_number", "[NOT FOUND]"),
+                "village": extracted_data.get("village", "[NOT FOUND]"),
+                "summary": extracted_data.get("issue_summary", "[NOT FOUND]"),
+                "urgency": extracted_data.get("urgency_level", "Normal"),
+                "raw_text": extracted_text,
+                "status": "Pending-Intake" if direction == "inbox" else "Sent",
+                "now": datetime.utcnow()
+            })
+            new_id = result.fetchone()[0]
+            
+        extracted_data["id"] = new_id
+        extracted_data["status"] = "Pending-Intake" if direction == "inbox" else "Sent"
+        
+        return {
+            "success": True,
+            "message": "Document processed successfully",
+            "data": extracted_data
+        }
+    except Exception as e:
+        logger.exception("Failed to save letterbox item to DB")
+        raise HTTPException(500, "Failed to save record to database")
