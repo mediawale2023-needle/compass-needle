@@ -26,9 +26,19 @@ JWT_REFRESH_EXPIRE_DAYS = 7
 # ============================================
 # CORS CONFIGURATION
 # ============================================
+# Known production frontends — always allowed regardless of env var
+_KNOWN_FRONTENDS = [
+    "https://compass-needle-production.up.railway.app",
+    "https://needle-admin.up.railway.app",
+]
+
 raw_origins = os.getenv("ALLOWED_ORIGINS", "")
 if raw_origins:
     ALLOWED_ORIGINS = [o.strip() for o in raw_origins.split(",") if o.strip()]
+    # Merge known frontends
+    for fe in _KNOWN_FRONTENDS:
+        if fe not in ALLOWED_ORIGINS:
+            ALLOWED_ORIGINS.append(fe)
 else:
     ALLOWED_ORIGINS = ["*"]
 # Never use empty list — would block all origins and break login
