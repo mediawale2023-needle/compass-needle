@@ -27,7 +27,8 @@ except Exception as e:
         raise
     ALLOWED_ORIGINS = ["*"]
     SECURITY_HEADERS = {}
-    logger.warning(f"Security config import failed (dev mode): {e}")
+    import logging
+    logging.getLogger("needle.backend").warning(f"Security config import failed (dev mode): {e}")
 
 # ─────────────────────────────────────────
 # RATE LIMITING (optional — soft import)
@@ -87,10 +88,11 @@ if _rate_limiting_enabled:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS — use ALLOWED_ORIGINS from security_config (e.g. set via env)
+# CORS — use ALLOWED_ORIGINS; never pass empty list (would block all origins and break login)
+_cors_origins = ALLOWED_ORIGINS if ALLOWED_ORIGINS else ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=_cors_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

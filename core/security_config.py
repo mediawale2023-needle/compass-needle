@@ -30,7 +30,9 @@ raw_origins = os.getenv("ALLOWED_ORIGINS", "")
 if raw_origins:
     ALLOWED_ORIGINS = [o.strip() for o in raw_origins.split(",") if o.strip()]
 else:
-    # Default to allow all for development and railway subdomains
+    ALLOWED_ORIGINS = ["*"]
+# Never use empty list — would block all origins and break login
+if not ALLOWED_ORIGINS:
     ALLOWED_ORIGINS = ["*"]
 
 # ============================================
