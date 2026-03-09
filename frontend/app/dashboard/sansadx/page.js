@@ -105,13 +105,13 @@ export default function BriefcasePage() {
                                 {cases.map((c) => (
                                     <tr key={c.id} style={getRowStyle(c.status, c.category, color)}>
                                         <td className="pl-6 text-gray-500 font-mono text-xs">{c.id}</td>
-                                        <td className="font-mono text-xs text-gray-700">{c.phone || '—'}</td>
+                                        <td className="font-mono text-xs text-gray-700">{c.user_phone || '—'}</td>
                                         <td className="font-medium text-gray-800">{c.category || 'General'}</td>
                                         <td className="text-gray-600">{c.location || '—'}</td>
-                                        <td className="text-gray-600">{c.assembly_constituency || '—'}</td>
+                                        <td className="text-gray-600">{c.assembly || '—'}</td>
                                         <td><StatusPill status={c.status} /></td>
-                                        <td className="max-w-[200px] truncate text-gray-600 text-sm" title={c.original_message}>
-                                            {c.original_message}
+                                        <td className="max-w-[200px] text-gray-600 text-sm">
+                                            <div className="truncate" title={c.raw_message}>{c.raw_message || '—'}</div>
                                         </td>
                                     </tr>
                                 ))}
