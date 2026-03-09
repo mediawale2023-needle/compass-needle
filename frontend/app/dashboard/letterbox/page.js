@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
-import { apiGet, API_BASE } from '@/lib/api';
+import { apiGet } from '@/lib/api';
 
 function Dropzone({ onUpload, color, label }) {
     const [dragging, setDragging] = useState(false);
@@ -88,7 +88,7 @@ export default function LetterboxPage() {
         formData.append('direction', tab);
 
         const token = localStorage.getItem('needle_token');
-        const res = await fetch(`${API_BASE}/api/letterbox/upload`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/letterbox/upload`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
             body: formData,
