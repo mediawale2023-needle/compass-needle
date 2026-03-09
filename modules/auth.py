@@ -7,7 +7,16 @@ that could silently default to tenant 1 if tenant_id is missing.
 sanitize_prompt_input() strips characters that could be used for prompt injection.
 """
 import re
+import logging
 from fastapi import HTTPException
+
+# Soft-import the security logger (avoids circular imports)
+try:
+    from core.security_logger import log_security_event
+except ImportError:
+    log_security_event = None
+
+_logger = logging.getLogger("needle.security")
 
 
 def get_tenant_or_fail(user_data: dict) -> int:
@@ -18,6 +27,15 @@ def get_tenant_or_fail(user_data: dict) -> int:
     """
     tid = user_data.get("tenant_id")
     if tid is None:
+        username = user_data.get("sub") or user_data.get("username", "unknown")
+        _logger.warning(f"TENANT_MISSING: user={username} has no tenant_id")
+        if log_security_event:
+            log_security_event(
+                "tenant_missing",
+                f"User '{username}' blocked — no tenant_id assigned",
+                severity="critical",
+                user_id=username,
+            )
         raise HTTPException(403, "No tenant assigned")
     return int(tid)
 

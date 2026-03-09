@@ -20,6 +20,12 @@ from sansadx_backend.db import engine, SessionLocal
 from core.db_helpers import _q, _q_one, _parse_meta
 from modules.auth import get_tenant_or_fail, sanitize_prompt_input
 
+# Security event logger (soft-import)
+try:
+    from core.security_logger import log_security_event
+except ImportError:
+    log_security_event = None
+
 logger = logging.getLogger("needle.api")
 
 # ─── Rate limiting (optional) ───
@@ -65,6 +71,12 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
             raise HTTPException(401, "User not found")
         return user
     except JWTError:
+        if log_security_event:
+            log_security_event(
+                "jwt_invalid",
+                "Invalid or expired JWT token presented",
+                severity="high",
+            )
         raise HTTPException(401, "Invalid or expired token")
 
 
@@ -81,6 +93,14 @@ class LoginRequest(BaseModel):
 def login(req: LoginRequest, request: Request):
     user = _q_one("SELECT * FROM users WHERE username = :u", {"u": req.username})
     if not user:
+        if log_security_event:
+            log_security_event(
+                "auth_failed",
+                f"Login attempt for unknown user '{req.username}'",
+                severity="medium",
+                user_id=req.username,
+                ip_address=request.client.host if request.client else None,
+            )
         raise HTTPException(401, "Invalid credentials")
 
     stored_hash = user.get("password_hash", "")
@@ -93,6 +113,14 @@ def login(req: LoginRequest, request: Request):
         pass
 
     if not valid:
+        if log_security_event:
+            log_security_event(
+                "auth_failed",
+                f"Wrong password for user '{req.username}'",
+                severity="medium",
+                user_id=req.username,
+                ip_address=request.client.host if request.client else None,
+            )
         raise HTTPException(401, "Invalid credentials")
 
     try:
