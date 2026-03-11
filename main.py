@@ -8,27 +8,22 @@ import json
 import logging
 import sentry_sdk
 from datetime import datetime
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, PlainTextResponse
 from sqlalchemy import text
 from twilio.rest import Client
 
 # ─────────────────────────────────────────
-# SECURITY CONFIG (fail closed in production)
+# SECURITY CONFIG (optional — soft import)
 # ─────────────────────────────────────────
-_ENV = os.getenv("ENV", "development").lower()
 try:
     from core.security_config import (
         ALLOWED_ORIGINS, SECURITY_HEADERS,
     )
-except Exception as e:
-    if _ENV == "production":
-        raise
+except Exception:
     ALLOWED_ORIGINS = ["*"]
     SECURITY_HEADERS = {}
-    import logging
-    logging.getLogger("needle.backend").warning(f"Security config import failed (dev mode): {e}")
 
 # ─────────────────────────────────────────
 # RATE LIMITING (optional — soft import)
@@ -40,8 +35,6 @@ try:
     _rate_limiting_enabled = True
 except Exception:
     _rate_limiting_enabled = False
-    limiter = None
-    RATE_WEBHOOK = "20/minute"
 
 # ─────────────────────────────────────────
 # UNIFIED DB (single engine, single source)
@@ -88,11 +81,11 @@ if _rate_limiting_enabled:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS — use ALLOWED_ORIGINS; never pass empty list (would block all origins and break login)
-_cors_origins = ALLOWED_ORIGINS if ALLOWED_ORIGINS else ["*"]
+# CORS — fully open (we use Bearer tokens, not cookies, so CORS adds no security)
+# This matches the proven working config from commit 34c7ff8a
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins,
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -175,7 +168,6 @@ def get_user_context(phone_number: str) -> str:
 # ─────────────────────────────────────────
 def _validate_twilio_signature(request: Request, body_bytes: bytes, params: dict) -> None:
     """Validate X-Twilio-Signature when TWILIO_AUTH_TOKEN is set. Raises HTTPException if invalid."""
-    from fastapi import HTTPException
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
     if not auth_token:
         logger.warning("TWILIO_AUTH_TOKEN not set — webhook signature validation skipped")
@@ -196,6 +188,19 @@ def _validate_twilio_signature(request: Request, body_bytes: bytes, params: dict
 
 
 _webhook_decorate = limiter.limit(RATE_WEBHOOK) if _rate_limiting_enabled else (lambda f: f)
+
+
+@app.get("/whatsapp/webhook")
+async def verify_webhook(request: Request):
+    """Meta webhook verification handshake (one-time setup)."""
+    mode = request.query_params.get("hub.mode")
+    token = request.query_params.get("hub.verify_token")
+    challenge = request.query_params.get("hub.challenge")
+    if mode == "subscribe" and token == os.getenv("META_VERIFY_TOKEN"):
+        logger.info("Meta webhook verified successfully.")
+        return PlainTextResponse(challenge)
+    logger.warning(f"Webhook verification failed — mode={mode}, token_match={token == os.getenv('META_VERIFY_TOKEN')}")
+    raise HTTPException(status_code=403, detail="Verification failed")
 
 
 @app.post("/whatsapp/webhook")
@@ -292,7 +297,7 @@ async def whatsapp_webhook(request: Request):
         "summary": grievance.get("summary", message_body[:100])
     }
 
-    # Save to database (fail closed — do not send reply if save fails)
+    # Save to database
     try:
         with engine.begin() as conn:
             conn.execute(
@@ -314,9 +319,7 @@ async def whatsapp_webhook(request: Request):
             )
             logger.info(f"Saved: status='{status}' tenant={current_tenant} constituency='{final_constituency}'")
     except Exception as e:
-        logger.exception("DB save failed in whatsapp_webhook")
-        from fastapi import HTTPException
-        raise HTTPException(status_code=500, detail="Internal error")
+        logger.error(f"DB save failed: {e}")
 
     send_whatsapp_message(sender, political_reply)
     return {"status": "processed"}
