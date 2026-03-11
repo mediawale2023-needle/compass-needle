@@ -8,7 +8,7 @@ import json
 import logging
 import sentry_sdk
 from datetime import datetime
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, PlainTextResponse
 from sqlalchemy import text
@@ -197,31 +197,8 @@ async def verify_webhook(request: Request):
     raise HTTPException(status_code=403, detail="Verification failed")
 
 
-@app.post("/whatsapp/webhook")
-@_webhook_decorate
-async def whatsapp_webhook(request: Request):
-    data = await request.json()
-
-    # Meta sends a status update or a real message — ignore status pings
-    try:
-        entry = data["entry"][0]["changes"][0]["value"]
-    except (KeyError, IndexError):
-        return {"status": "ignored"}
-
-    messages = entry.get("messages")
-    if not messages:
-        return {"status": "ignored"}  # delivery receipt / status update
-
-    msg = messages[0]
-    if msg.get("type") != "text":
-        return {"status": "ignored"}  # ignore images/audio for now
-
-    sender = msg["from"]          # bare number e.g. "919876543210"
-    message_body = msg["text"]["body"].strip()
-
-    if not message_body:
-        return {"status": "ignored"}
-
+def _process_incoming_message(sender: str, message_body: str):
+    """Background task: AI processing + DB save + reply. Runs after 200 is returned to Meta."""
     receiver_number = os.getenv("META_PHONE_NUMBER_ID", "")
     current_tenant = 1
 
@@ -327,7 +304,36 @@ async def whatsapp_webhook(request: Request):
         logger.error(f"DB save failed: {e}")
 
     send_whatsapp_message(sender, political_reply)
-    return {"status": "processed"}
+
+
+@app.post("/whatsapp/webhook")
+@_webhook_decorate
+async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
+    data = await request.json()
+
+    # Meta sends a status update or a real message — ignore status pings
+    try:
+        entry = data["entry"][0]["changes"][0]["value"]
+    except (KeyError, IndexError):
+        return {"status": "ignored"}
+
+    messages = entry.get("messages")
+    if not messages:
+        return {"status": "ignored"}  # delivery receipt / status update
+
+    msg = messages[0]
+    if msg.get("type") != "text":
+        return {"status": "ignored"}  # ignore images/audio for now
+
+    sender = msg["from"]          # bare number e.g. "919876543210"
+    message_body = msg["text"]["body"].strip()
+
+    if not message_body:
+        return {"status": "ignored"}
+
+    # Return 200 to Meta immediately — process AI + send reply in background
+    background_tasks.add_task(_process_incoming_message, sender, message_body)
+    return {"status": "received"}
 
 
 # ─────────────────────────────────────────
