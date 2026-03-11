@@ -12,7 +12,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, PlainTextResponse
 from sqlalchemy import text
-from twilio.rest import Client
+import requests as http_requests
 
 # ─────────────────────────────────────────
 # SECURITY CONFIG (optional — soft import)
@@ -116,24 +116,39 @@ init_db()
 logger.info("Database initialised.")
 
 # ─────────────────────────────────────────
-# TWILIO HELPER
+# META CLOUD API HELPER
 # ─────────────────────────────────────────
 def send_whatsapp_message(to_number: str, body_text: str):
-    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
-    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-    from_number = os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
+    """Send a WhatsApp reply via Meta Cloud API."""
+    phone_number_id = os.getenv("META_PHONE_NUMBER_ID")
+    access_token = os.getenv("META_ACCESS_TOKEN")
 
-    if not account_sid or not auth_token:
-        logger.error("Twilio credentials missing in environment variables.")
+    if not phone_number_id or not access_token:
+        logger.error("META_PHONE_NUMBER_ID or META_ACCESS_TOKEN not set.")
         return
 
-    client = Client(account_sid, auth_token)
+    # Strip any whatsapp: prefix — Meta uses bare numbers
+    to_number = to_number.replace("whatsapp:", "")
+
+    url = f"https://graph.facebook.com/v19.0/{phone_number_id}/messages"
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to_number,
+        "type": "text",
+        "text": {"body": body_text},
+    }
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
     try:
-        formatted_to = to_number if to_number.startswith("whatsapp:") else f"whatsapp:{to_number}"
-        client.messages.create(from_=from_number, body=body_text, to=formatted_to)
-        logger.info(f"WhatsApp reply sent to {formatted_to}")
+        resp = http_requests.post(url, json=payload, headers=headers, timeout=10)
+        if resp.ok:
+            logger.info(f"WhatsApp reply sent to {to_number} (id={resp.json().get('messages', [{}])[0].get('id')})")
+        else:
+            logger.error(f"Meta send failed: {resp.status_code} {resp.text}")
     except Exception as e:
-        logger.error(f"Twilio send failed: {e}")
+        logger.error(f"Meta send error: {e}")
 
 
 # ─────────────────────────────────────────
@@ -164,29 +179,8 @@ def get_user_context(phone_number: str) -> str:
 
 
 # ─────────────────────────────────────────
-# WHATSAPP WEBHOOK (Twilio signature + rate limit)
+# WHATSAPP WEBHOOK (Meta Cloud API)
 # ─────────────────────────────────────────
-def _validate_twilio_signature(request: Request, body_bytes: bytes, params: dict) -> None:
-    """Validate X-Twilio-Signature when TWILIO_AUTH_TOKEN is set. Raises HTTPException if invalid."""
-    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-    if not auth_token:
-        logger.warning("TWILIO_AUTH_TOKEN not set — webhook signature validation skipped")
-        return
-    sig = request.headers.get("X-Twilio-Signature", "")
-    if not sig:
-        raise HTTPException(status_code=403, detail="Missing Twilio signature")
-    try:
-        from twilio.request_validator import RequestValidator
-        validator = RequestValidator(auth_token)
-        if not validator.validate(str(request.url), params, sig):
-            raise HTTPException(status_code=403, detail="Invalid Twilio signature")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.warning(f"Twilio validation error: {e}")
-        raise HTTPException(status_code=403, detail="Invalid Twilio signature")
-
-
 _webhook_decorate = limiter.limit(RATE_WEBHOOK) if _rate_limiting_enabled else (lambda f: f)
 
 
@@ -206,19 +200,29 @@ async def verify_webhook(request: Request):
 @app.post("/whatsapp/webhook")
 @_webhook_decorate
 async def whatsapp_webhook(request: Request):
-    body_bytes = await request.body()
-    from urllib.parse import parse_qsl
-    params = dict(parse_qsl(body_bytes.decode("utf-8")))
-    _validate_twilio_signature(request, body_bytes, params)
+    data = await request.json()
 
-    sender_raw = params.get("From", "")
-    sender = sender_raw.replace("whatsapp:", "")  # bare number for DB/logging
-    message_body = (params.get("Body") or "").strip()
+    # Meta sends a status update or a real message — ignore status pings
+    try:
+        entry = data["entry"][0]["changes"][0]["value"]
+    except (KeyError, IndexError):
+        return {"status": "ignored"}
+
+    messages = entry.get("messages")
+    if not messages:
+        return {"status": "ignored"}  # delivery receipt / status update
+
+    msg = messages[0]
+    if msg.get("type") != "text":
+        return {"status": "ignored"}  # ignore images/audio for now
+
+    sender = msg["from"]          # bare number e.g. "919876543210"
+    message_body = msg["text"]["body"].strip()
 
     if not message_body:
         return {"status": "ignored"}
 
-    receiver_number = params.get("To", "")
+    receiver_number = os.getenv("META_PHONE_NUMBER_ID", "")
     current_tenant = 1
 
     # Tenant lookup — DB overrides first, then users table
@@ -322,7 +326,7 @@ async def whatsapp_webhook(request: Request):
     except Exception as e:
         logger.error(f"DB save failed: {e}")
 
-    send_whatsapp_message(sender_raw, political_reply)  # keep whatsapp: prefix for Twilio
+    send_whatsapp_message(sender, political_reply)
     return {"status": "processed"}
 
 
