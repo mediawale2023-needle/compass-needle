@@ -4,10 +4,11 @@ CSR Pipeline — Connects SansadX grievances to CSR funding opportunities.
 When 200+ complaints about the same issue accumulate in a specific area,
 the system auto-flags it as a CSR Proposal Candidate.
 """
-import streamlit as st
+import logging
 from sqlalchemy import text
 from datetime import datetime, timedelta
-from modules.ai_helpers import ask_openai
+
+logger = logging.getLogger("needle.csr_pipeline")
 
 # --- CONFIGURATION ---
 CSR_PROPOSAL_THRESHOLD = 200 # Minimum complaints to qualify for CSR proposal
@@ -31,7 +32,7 @@ CATEGORY_SECTOR_MAP = {
 def _get_engine():
     """Safely import the database engine."""
     try:
-        from db import engine
+        from sansadx_backend.db import engine
         return engine
     except ImportError:
         return None
@@ -81,7 +82,7 @@ def get_grievance_clusters(tenant_id, min_threshold=CSR_MONITOR_THRESHOLD):
                 })
             return clusters
     except Exception as e:
-        st.warning(f"Pipeline query failed: {e}")
+        logger.warning(f"Pipeline query failed: {e}")
         return []
 
 
