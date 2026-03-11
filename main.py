@@ -8,9 +8,9 @@ import json
 import logging
 import sentry_sdk
 from datetime import datetime
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, PlainTextResponse
 from sqlalchemy import text
 from twilio.rest import Client
 
@@ -166,6 +166,19 @@ def get_user_context(phone_number: str) -> str:
 # ─────────────────────────────────────────
 # WHATSAPP WEBHOOK
 # ─────────────────────────────────────────
+@app.get("/whatsapp/webhook")
+async def verify_webhook(request: Request):
+    """Meta webhook verification handshake (one-time setup)."""
+    mode = request.query_params.get("hub.mode")
+    token = request.query_params.get("hub.verify_token")
+    challenge = request.query_params.get("hub.challenge")
+    if mode == "subscribe" and token == os.getenv("META_VERIFY_TOKEN"):
+        logger.info("Meta webhook verified successfully.")
+        return PlainTextResponse(challenge)
+    logger.warning(f"Webhook verification failed — mode={mode}, token_match={token == os.getenv('META_VERIFY_TOKEN')}")
+    raise HTTPException(status_code=403, detail="Verification failed")
+
+
 @app.post("/whatsapp/webhook")
 async def whatsapp_webhook(request: Request):
     form_data = await request.form()
