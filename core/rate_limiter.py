@@ -6,7 +6,8 @@ import logging
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from fastapi import Request
-from jose import jwt, JWTError
+import jwt
+from jwt.exceptions import PyJWTError as JWTError
 
 logger = logging.getLogger("needle.rate_limiter")
 
