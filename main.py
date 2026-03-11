@@ -211,7 +211,8 @@ async def whatsapp_webhook(request: Request):
     params = dict(parse_qsl(body_bytes.decode("utf-8")))
     _validate_twilio_signature(request, body_bytes, params)
 
-    sender = params.get("From", "").replace("whatsapp:", "")
+    sender_raw = params.get("From", "")
+    sender = sender_raw.replace("whatsapp:", "")  # bare number for DB/logging
     message_body = (params.get("Body") or "").strip()
 
     if not message_body:
@@ -321,7 +322,7 @@ async def whatsapp_webhook(request: Request):
     except Exception as e:
         logger.error(f"DB save failed: {e}")
 
-    send_whatsapp_message(sender, political_reply)
+    send_whatsapp_message(sender_raw, political_reply)  # keep whatsapp: prefix for Twilio
     return {"status": "processed"}
 
 
