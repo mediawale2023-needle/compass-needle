@@ -164,8 +164,32 @@ def get_user_context(phone_number: str) -> str:
 
 
 # ─────────────────────────────────────────
-# WHATSAPP WEBHOOK
+# WHATSAPP WEBHOOK (Twilio signature + rate limit)
 # ─────────────────────────────────────────
+def _validate_twilio_signature(request: Request, body_bytes: bytes, params: dict) -> None:
+    """Validate X-Twilio-Signature when TWILIO_AUTH_TOKEN is set. Raises HTTPException if invalid."""
+    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+    if not auth_token:
+        logger.warning("TWILIO_AUTH_TOKEN not set — webhook signature validation skipped")
+        return
+    sig = request.headers.get("X-Twilio-Signature", "")
+    if not sig:
+        raise HTTPException(status_code=403, detail="Missing Twilio signature")
+    try:
+        from twilio.request_validator import RequestValidator
+        validator = RequestValidator(auth_token)
+        if not validator.validate(str(request.url), params, sig):
+            raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Twilio validation error: {e}")
+        raise HTTPException(status_code=403, detail="Invalid Twilio signature")
+
+
+_webhook_decorate = limiter.limit(RATE_WEBHOOK) if _rate_limiting_enabled else (lambda f: f)
+
+
 @app.get("/whatsapp/webhook")
 async def verify_webhook(request: Request):
     """Meta webhook verification handshake (one-time setup)."""
@@ -180,15 +204,20 @@ async def verify_webhook(request: Request):
 
 
 @app.post("/whatsapp/webhook")
+@_webhook_decorate
 async def whatsapp_webhook(request: Request):
-    form_data = await request.form()
-    sender = form_data.get("From", "").replace("whatsapp:", "")
-    message_body = form_data.get("Body", "").strip()
+    body_bytes = await request.body()
+    from urllib.parse import parse_qsl
+    params = dict(parse_qsl(body_bytes.decode("utf-8")))
+    _validate_twilio_signature(request, body_bytes, params)
+
+    sender = params.get("From", "").replace("whatsapp:", "")
+    message_body = (params.get("Body") or "").strip()
 
     if not message_body:
         return {"status": "ignored"}
 
-    receiver_number = form_data.get("To", "")
+    receiver_number = params.get("To", "")
     current_tenant = 1
 
     # Tenant lookup — DB overrides first, then users table
