@@ -19,6 +19,7 @@ from sqlalchemy import text
 from sansadx_backend.db import engine, SessionLocal
 from core.db_helpers import _q, _q_one, _parse_meta
 from modules.auth import get_tenant_or_fail, sanitize_prompt_input
+from core.gemini_client import get_gemini_client
 
 # Security event logger (soft-import)
 try:
@@ -46,7 +47,7 @@ if not JWT_SECRET or len(JWT_SECRET) < 32:
     raise ValueError("JWT_SECRET env var must be set and at least 32 characters long.")
 
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_HOURS = 1
+JWT_EXPIRE_HOURS = 8
 
 security = HTTPBearer()
 router = APIRouter()
@@ -397,11 +398,9 @@ def copilot_analyse(req: AnalyseRequest, request: Request, user=Depends(get_curr
     if not req.document_text:
         return {"analysis": "No document content provided."}
     try:
-        from google import genai
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
+        client = get_gemini_client()
+        if not client:
             return {"analysis": "Error: GEMINI_API_KEY not configured."}
-        client = genai.Client(api_key=api_key)
         lang_note = "Respond in Hindi (Devanagari script)." if "Hindi" in req.language else ""
         depth_note = "Focus on top 5 most significant findings." if req.depth == "Quick Scan" else "Be comprehensive."
         prompt = f"""
@@ -446,11 +445,9 @@ Support, oppose, or seek amendments — with specific justification.
 @_limit_ai
 def copilot_chat(req: CopilotRequest, request: Request, user=Depends(get_current_user)):
     try:
-        from google import genai
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
+        client = get_gemini_client()
+        if not client:
             return {"response": "Error: GEMINI_API_KEY not configured."}
-        client = genai.Client(api_key=api_key)
         context_block = ""
         if req.document_context:
             context_block = f"\n\n<document_context>\n{req.document_context[:60000]}\n</document_context>"
@@ -513,11 +510,9 @@ TONE_PRESETS = {
 @_limit_ai
 def generate_draft(req: DraftRequest, request: Request, user=Depends(get_current_user)):
     try:
-        from google import genai
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
+        client = get_gemini_client()
+        if not client:
             return {"content": "Error: GEMINI_API_KEY not configured."}
-        client = genai.Client(api_key=api_key)
         tid = get_tenant_or_fail(user)
         tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
         mp_name = user.get("display_name") or user.get("username", "").title()
@@ -1040,11 +1035,9 @@ class CSRDraftRequest(BaseModel):
 @_limit_ai
 def csr_draft_letter(req: CSRDraftRequest, request: Request, user=Depends(get_current_user)):
     try:
-        from google import genai
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
+        client = get_gemini_client()
+        if not client:
             return {"content": "Error: GEMINI_API_KEY not configured."}
-        client = genai.Client(api_key=api_key)
         tid = get_tenant_or_fail(user)
         tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
         mp_name = user.get("display_name") or user.get("username", "").title()
@@ -1153,11 +1146,9 @@ class CSRDPRRequest(BaseModel):
 @_limit_ai
 def generate_csr_dpr(req: CSRDPRRequest, request: Request, user=Depends(get_current_user)):
     try:
-        from google import genai
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
+        client = get_gemini_client()
+        if not client:
             return {"content": "Error: GEMINI_API_KEY not configured."}
-        client = genai.Client(api_key=api_key)  # FIX: was using undefined `model` variable
         tid = get_tenant_or_fail(user)
         tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
         mp_name = user.get("display_name") or user.get("username", "").title()
@@ -1323,14 +1314,11 @@ async def letterbox_upload(
     # --- Gemini Vision: Read the document directly (no text-layer dependency) ---
     try:
         import base64
-        from google import genai
         from google.genai import types
 
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
+        client = get_gemini_client()
+        if not client:
             raise HTTPException(500, "GEMINI_API_KEY not configured")
-
-        client = genai.Client(api_key=api_key)
 
         if direction == "inbox":
             system_prompt = """You are an Intake Officer for a Member of Parliament.
@@ -1385,7 +1373,8 @@ Rules:
         raise
     except Exception as e:
         logger.exception("Gemini Vision extraction failed for letterbox")
-        raise HTTPException(500, f"AI failed to read the document: {str(e)}")
+        logger.exception("AI document read failed")
+        raise HTTPException(500, "AI failed to read the document. Please try again.")
 
     # Save to Database
     try:

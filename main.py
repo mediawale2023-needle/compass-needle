@@ -115,16 +115,7 @@ app.include_router(admin_router, prefix="/api/admin")
 init_db()
 logger.info("Database initialised.")
 
-# ─── One-time data migration: update Shettar's WhatsApp to Meta test number ───
-try:
-    with engine.begin() as conn:
-        result = conn.execute(text(
-            "UPDATE tenants SET whatsapp_number = :new WHERE id = 2 AND whatsapp_number != :new"
-        ), {"new": "+15551636821"})
-        if result.rowcount:
-            logger.info("Migration: Updated tenant 2 WhatsApp number to +15551636821")
-except Exception as e:
-    logger.warning(f"Migration skip: {e}")
+
 
 # ─────────────────────────────────────────
 # META CLOUD API HELPER
@@ -141,7 +132,7 @@ def send_whatsapp_message(to_number: str, body_text: str):
     # Strip any whatsapp: prefix — Meta uses bare numbers
     to_number = to_number.replace("whatsapp:", "")
 
-    url = f"https://graph.facebook.com/v19.0/{phone_number_id}/messages"
+    url = f"https://graph.facebook.com/v21.0/{phone_number_id}/messages"
     payload = {
         "messaging_product": "whatsapp",
         "to": to_number,

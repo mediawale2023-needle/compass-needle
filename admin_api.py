@@ -369,7 +369,8 @@ def create_mp(req: CreateMPRequest, _=Depends(get_admin_user)):
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(500, str(e))
+        logger.exception("Admin operation failed")
+        raise HTTPException(500, "Internal server error")
     finally:
         db.close()
 
@@ -387,7 +388,8 @@ def delete_mp(tenant_id: int, _=Depends(get_admin_user)):
         return {"success": True}
     except Exception as e:
         db.rollback()
-        raise HTTPException(500, str(e))
+        logger.exception("Admin operation failed")
+        raise HTTPException(500, "Internal server error")
     finally:
         db.close()
 
@@ -459,7 +461,8 @@ def update_mp_profile(tenant_id: int, req: UpdateProfileRequest, _=Depends(get_a
         return {"success": True}
     except Exception as e:
         db.rollback()
-        raise HTTPException(500, str(e))
+        logger.exception("Admin operation failed")
+        raise HTTPException(500, "Internal server error")
     finally:
         db.close()
 
@@ -478,7 +481,8 @@ def update_constituency(tenant_id: int, req: UpdateConstituencyRequest, _=Depend
         return {"success": True}
     except Exception as e:
         db.rollback()
-        raise HTTPException(500, str(e))
+        logger.exception("Admin operation failed")
+        raise HTTPException(500, "Internal server error")
     finally:
         db.close()
 
@@ -500,7 +504,8 @@ def reset_mp_password(tenant_id: int, req: ResetPasswordRequest, _=Depends(get_a
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(500, str(e))
+        logger.exception("Admin operation failed")
+        raise HTTPException(500, "Internal server error")
     finally:
         db.close()
 
@@ -556,7 +561,8 @@ def create_editor(req: CreateEditorRequest, _=Depends(get_admin_user)):
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(500, str(e))
+        logger.exception("Admin operation failed")
+        raise HTTPException(500, "Internal server error")
     finally:
         db.close()
 
@@ -570,7 +576,8 @@ def delete_editor(editor_id: int, _=Depends(get_admin_user)):
         return {"success": True}
     except Exception as e:
         db.rollback()
-        raise HTTPException(500, str(e))
+        logger.exception("Admin operation failed")
+        raise HTTPException(500, "Internal server error")
     finally:
         db.close()
 
@@ -595,7 +602,8 @@ def reset_admin_password(req: AdminPasswordResetRequest, user=Depends(get_admin_
         return {"success": True}
     except Exception as e:
         db.rollback()
-        raise HTTPException(500, str(e))
+        logger.exception("Admin operation failed")
+        raise HTTPException(500, "Internal server error")
     finally:
         db.close()
 
@@ -654,7 +662,8 @@ def save_geography(pc: str, ac: str, req: SaveGeographyRequest, _=Depends(get_ad
             logger.warning(f"Override auto-gen: {e}")
         return {"success": True}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        logger.exception("Admin operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 @router.delete("/geography/{pc}/{ac}")
@@ -798,7 +807,8 @@ def save_overrides(req: SaveOverridesRequest, _=Depends(get_admin_user)):
         save_overrides_to_db(req.data)
         return {"success": True}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        logger.exception("Admin operation failed")
+        raise HTTPException(500, "Internal server error")
 
 
 # ═══════════════════════════════════════════
