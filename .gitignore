@@ -39,3 +39,6 @@ SECURITY_AUDIT_REPORT.md
 
 # Streamlit secrets
 .streamlit/secrets.toml
+
+# Archived legacy scripts
+_archive/
