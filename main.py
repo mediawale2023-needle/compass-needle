@@ -197,9 +197,10 @@ async def verify_webhook(request: Request):
     raise HTTPException(status_code=403, detail="Verification failed")
 
 
-def _process_incoming_message(sender: str, message_body: str):
+def _process_incoming_message(sender: str, message_body: str, receiver_number: str = ""):
     """Background task: AI processing + DB save + reply. Runs after 200 is returned to Meta."""
-    receiver_number = os.getenv("META_PHONE_NUMBER_ID", "")
+    if not receiver_number:
+        receiver_number = os.getenv("META_PHONE_NUMBER_ID", "")
     current_tenant = 1
 
     # Tenant lookup — DB overrides first, then users table
@@ -331,8 +332,14 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     if not message_body:
         return {"status": "ignored"}
 
+    # Extract the real business phone number from Meta metadata for tenant routing
+    # Meta sends it as bare digits (e.g. "15551636821"), we normalise to "+15551636821"
+    display_number = entry.get("metadata", {}).get("display_phone_number", "")
+    if display_number and not display_number.startswith("+"):
+        display_number = f"+{display_number}"
+
     # Return 200 to Meta immediately — process AI + send reply in background
-    background_tasks.add_task(_process_incoming_message, sender, message_body)
+    background_tasks.add_task(_process_incoming_message, sender, message_body, display_number)
     return {"status": "received"}
 
 
