@@ -20,6 +20,7 @@ export default function DashboardLayout({ children }) {
     const [history, setHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [badges, setBadges] = useState({});
     const pathname = usePathname();
 
     useEffect(() => {
@@ -29,6 +30,21 @@ export default function DashboardLayout({ children }) {
     useEffect(() => {
         if (!loading && !user) router.push('/');
     }, [user, loading, router]);
+
+    // ── 6. Fetch badge counts for sidebar ──
+    useEffect(() => {
+        if (!user) return;
+        apiGet('/api/dashboard/summary')
+            .then(data => {
+                const statuses = data?.status_breakdown || {};
+                const newCount = statuses['new'] || 0;
+                setBadges({
+                    letterbox: newCount,
+                    briefcase: newCount,
+                });
+            })
+            .catch(() => {});
+    }, [user]);
 
     const openHistory = async () => {
         setShowHistory(true);
@@ -65,7 +81,7 @@ export default function DashboardLayout({ children }) {
                 </button>
             </div>
 
-            <Sidebar user={user} onLogout={() => { logout(); router.push('/'); }} isOpen={isMobileMenuOpen} setIsOpen={setIsMobileMenuOpen} />
+            <Sidebar user={user} onLogout={() => { logout(); router.push('/'); }} isOpen={isMobileMenuOpen} setIsOpen={setIsMobileMenuOpen} badges={badges} />
 
             <main className="md:ml-60 min-h-screen flex flex-col pt-0">
                 {/* Header bar */}

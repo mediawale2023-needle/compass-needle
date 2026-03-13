@@ -9,11 +9,11 @@ const NAV_ITEMS = [
         icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
     },
     {
-        name: 'Letterbox', path: '/dashboard/letterbox',
+        name: 'Letterbox', path: '/dashboard/letterbox', badgeKey: 'letterbox',
         icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
     },
     {
-        name: 'Briefcase', path: '/dashboard/sansadx',
+        name: 'Briefcase', path: '/dashboard/sansadx', badgeKey: 'briefcase',
         icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /></svg>
     },
     {
@@ -42,7 +42,17 @@ const NAV_ITEMS = [
     },
 ];
 
-export default function Sidebar({ user, onLogout, isOpen, setIsOpen }) {
+// ── 6. Notification badge pill ──
+function NavBadge({ count }) {
+    if (!count || count < 1) return null;
+    return (
+        <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white bg-red-500 leading-none min-w-[18px] text-center">
+            {count > 99 ? '99+' : count}
+        </span>
+    );
+}
+
+export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {} }) {
     const pathname = usePathname();
     const color = user?.theme_color || '#006a4d';
     const house = user?.house || 'Lok Sabha';
@@ -77,6 +87,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen }) {
                 <nav className="flex-1 py-3 overflow-y-auto">
                     {NAV_ITEMS.map((item) => {
                         const active = pathname === item.path || (item.path !== '/dashboard' && pathname.startsWith(item.path));
+                        const badgeCount = item.badgeKey ? (badges[item.badgeKey] || 0) : 0;
                         return (
                             <Link
                                 key={item.path}
@@ -90,6 +101,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen }) {
                             >
                                 <span style={{ color: active ? color : '#9ca3af' }}>{item.icon}</span>
                                 {item.name}
+                                <NavBadge count={badgeCount} />
                             </Link>
                         );
                     })}
