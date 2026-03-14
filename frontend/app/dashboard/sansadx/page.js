@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/lib/auth';
 import { apiGet, apiPatch } from '@/lib/api';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 const TABS = [
     { key: 'All', label: 'All Cases' },
@@ -25,11 +26,9 @@ const STATUS_OPTIONS = [
 
 const OTHER_CATEGORIES = ['Request', 'Greetings', 'Spam', 'Spam (Offensive)'];
 
-// Colors matching Figma rows
 function getRowStyle(status, category, color) {
     const s = (status || '').toLowerCase();
     const c = (category || '').toLowerCase();
-
     if (s === 'new' || s === 'escalated' || c === 'emergency') {
         return { background: '#fdf2f2', borderLeft: '4px solid #dc2626' };
     }
@@ -39,7 +38,6 @@ function getRowStyle(status, category, color) {
     return { background: '#ffffff', borderLeft: '4px solid transparent' };
 }
 
-// Figma-style status pills
 function StatusPill({ status }) {
     const opt = STATUS_OPTIONS.find(o => o.value === (status || '').toLowerCase());
     if (opt) return <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded" style={{ background: opt.bg, color: opt.fg }}>{opt.label}</span>;
@@ -190,33 +188,75 @@ function CaseModal({ caseItem, color, onClose, onStatusChange }) {
 
 
 // ═══════════════════════════════════════════
-// BRIEFCASE PAGE
+// INNER PAGE — reads URL params
 // ═══════════════════════════════════════════
-export default function BriefcasePage() {
+function BriefcaseInner() {
     const { user } = useAuth();
-    const [cases, setCases] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [statusFilter, setStatusFilter] = useState('All');
-    const [selected, setSelected] = useState(null);
+    const router = useRouter();
+    const searchParams = useSearchParams();
 
     const color = user?.theme_color || '#006a4d';
 
-    const fetchCases = async () => {
+    const [cases, setCases]               = useState([]);
+    const [loading, setLoading]           = useState(true);
+    const [statusFilter, setStatusFilter] = useState('All');
+    const [categoryFilter, setCategoryFilter] = useState('');
+    const [selected, setSelected]         = useState(null);
+
+    // Sync URL params → state whenever the URL changes
+    useEffect(() => {
+        const status = searchParams.get('status') || 'All';
+        const cat    = searchParams.get('category') || '';
+        setStatusFilter(status);
+        setCategoryFilter(cat);
+    }, [searchParams]);
+
+    // Fetch whenever filters change
+    useEffect(() => {
+        fetchCases();
+    }, [statusFilter, categoryFilter]);
+
+    async function fetchCases() {
         setLoading(true);
         try {
-            const params = new URLSearchParams({ page: '1', limit: '50' });
-            if (statusFilter === 'other') params.set('categories', OTHER_CATEGORIES.join(','));
-            else if (statusFilter !== 'All') params.set('status', statusFilter);
+            const params = new URLSearchParams({ page: '1', limit: '100' });
+
+            if (statusFilter === 'other') {
+                params.set('categories', OTHER_CATEGORIES.join(','));
+            } else if (statusFilter !== 'All') {
+                params.set('status', statusFilter);
+            }
+
+            if (categoryFilter) {
+                params.set('category', categoryFilter);
+            }
 
             const data = await apiGet(`/api/cases?${params}`);
             setCases(data.cases || []);
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
-    };
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }
 
-    useEffect(() => { fetchCases(); }, [statusFilter]);
+    function switchTab(key) {
+        setStatusFilter(key);
+        // Update URL without navigation so back-button works correctly
+        const url = new URL(window.location.href);
+        if (key === 'All') url.searchParams.delete('status');
+        else url.searchParams.set('status', key);
+        // keep category param if any
+        window.history.replaceState({}, '', url.toString());
+    }
 
-    // Update case status in local state (so UI reflects change instantly)
+    function clearCategoryFilter() {
+        setCategoryFilter('');
+        const url = new URL(window.location.href);
+        url.searchParams.delete('category');
+        window.history.replaceState({}, '', url.toString());
+    }
+
     const handleStatusChange = (caseId, newStatus) => {
         setCases(prev => prev.map(c => c.id === caseId ? { ...c, status: newStatus } : c));
         setSelected(prev => prev && prev.id === caseId ? { ...prev, status: newStatus } : prev);
@@ -227,10 +267,11 @@ export default function BriefcasePage() {
             <h1 className="text-lg font-bold text-gray-900">Briefcase</h1>
 
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden pt-2">
-                {/* Horizontal Tabs - Figma layout */}
+
+                {/* Status Tabs */}
                 <div className="px-6 border-b border-gray-100 flex gap-6 overflow-x-auto whitespace-nowrap scrollbar-hide">
                     {TABS.map(t => (
-                        <button key={t.key} onClick={() => setStatusFilter(t.key)}
+                        <button key={t.key} onClick={() => switchTab(t.key)}
                             className="text-sm font-semibold pb-3 transition-colors"
                             style={statusFilter === t.key
                                 ? { color, borderBottom: `2px solid ${color}` }
@@ -240,12 +281,32 @@ export default function BriefcasePage() {
                     ))}
                 </div>
 
+                {/* Active Category Filter Chip */}
+                {categoryFilter && (
+                    <div className="px-6 py-2.5 border-b border-gray-100 flex items-center gap-2">
+                        <span className="text-xs text-gray-500">Filtered by category:</span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full text-white"
+                            style={{ background: color }}>
+                            {categoryFilter}
+                            <button onClick={clearCategoryFilter}
+                                className="opacity-75 hover:opacity-100 text-sm leading-none">
+                                ×
+                            </button>
+                        </span>
+                        <span className="text-xs text-gray-400 ml-1">
+                            {loading ? '…' : `${cases.length} case${cases.length !== 1 ? 's' : ''}`}
+                        </span>
+                    </div>
+                )}
+
                 {/* Table */}
                 <div className="overflow-x-auto">
                     {loading ? (
-                        <div className="text-center py-10 text-gray-400 text-sm">Loading cases...</div>
+                        <div className="text-center py-10 text-gray-400 text-sm">Loading cases…</div>
                     ) : cases.length === 0 ? (
-                        <div className="text-center py-10 text-gray-400 text-sm">No cases found in this category.</div>
+                        <div className="text-center py-10 text-gray-400 text-sm">
+                            No cases found{categoryFilter ? ` in "${categoryFilter}"` : ''}{statusFilter !== 'All' ? ` with status "${statusFilter}"` : ''}.
+                        </div>
                     ) : (
                         <table className="sansad-table w-full">
                             <thead>
@@ -292,5 +353,18 @@ export default function BriefcasePage() {
                 />
             )}
         </div>
+    );
+}
+
+
+// ═══════════════════════════════════════════
+// BRIEFCASE PAGE — wraps inner in Suspense
+// (required by Next.js for useSearchParams)
+// ═══════════════════════════════════════════
+export default function BriefcasePage() {
+    return (
+        <Suspense fallback={<div className="text-center py-10 text-gray-400 text-sm">Loading…</div>}>
+            <BriefcaseInner />
+        </Suspense>
     );
 }
