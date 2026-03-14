@@ -3,17 +3,21 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { apiPost } from '@/lib/api';
+import { Upload, FileText, Send, Trash2, Loader2, Bot, User } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 export default function CopilotPage() {
     const { user } = useAuth();
 
-    // Document state
     const [docPages, setDocPages] = useState([]);
     const [docFilename, setDocFilename] = useState('');
     const [uploading, setUploading] = useState(false);
     const fileRef = useRef(null);
 
-    // Chat state
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [chatLoading, setChatLoading] = useState(false);
@@ -22,7 +26,9 @@ export default function CopilotPage() {
     const color = user?.theme_color || '#006a4d';
     const docContext = docPages.map(p => `[Page ${p.page}]\n${p.text}`).join('\n\n');
 
-    useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+    useEffect(() => { 
+        endRef.current?.scrollIntoView({ behavior: 'smooth' }); 
+    }, [messages]);
 
     const handleUpload = async (file) => {
         if (!file) return;
@@ -40,7 +46,10 @@ export default function CopilotPage() {
             const data = await res.json();
             setDocPages(data.content || []);
             setDocFilename(data.filename || file.name);
-            setMessages([{ role: 'assistant', content: `Document loaded: **${data.filename || file.name}** (${data.pages} pages). You can now ask me questions about it.` }]);
+            setMessages([{ 
+                role: 'assistant', 
+                content: `Document loaded: **${data.filename || file.name}** (${data.pages} pages). You can now ask me questions about it.` 
+            }]);
         } catch (err) {
             alert('Failed to upload: ' + err.message);
         } finally {
@@ -56,7 +65,11 @@ export default function CopilotPage() {
         setMessages(newMsgs);
         setChatLoading(true);
         try {
-            const data = await apiPost('/api/copilot/chat', { document_context: docContext, message: q, language: 'English' });
+            const data = await apiPost('/api/copilot/chat', { 
+                document_context: docContext, 
+                message: q, 
+                language: 'English' 
+            });
             setMessages([...newMsgs, { role: 'assistant', content: data.reply }]);
         } catch (err) {
             setMessages([...newMsgs, { role: 'assistant', content: 'Error: ' + err.message }]);
@@ -65,83 +78,170 @@ export default function CopilotPage() {
         }
     };
 
+    const clearSession = () => {
+        setDocFilename('');
+        setDocPages([]);
+        setMessages([]);
+    };
+
     return (
-        <div className="space-y-4 h-full flex flex-col">
-            <h1 className="text-lg font-bold text-gray-900">Research Desk</h1>
+        <div className="space-y-6 h-full flex flex-col">
+            <div>
+                <h1 className="text-2xl font-bold text-foreground">Research Desk</h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                    AI-powered document analysis and Q&A
+                </p>
+            </div>
 
             {!docFilename ? (
-                // Initial Upload State — Matches Figma "AI Co-Pilot" card exactly
                 <div className="flex-1 flex items-center justify-center p-6">
-                    <div className="bg-white rounded-xl shadow-sm w-full max-w-2xl text-center overflow-hidden" style={{ borderTop: `4px solid ${color}` }}>
-                        <div className="px-6 py-4 border-b border-gray-100 text-left">
-                            <h2 className="text-lg font-bold text-gray-900">AI Co-Pilot</h2>
-                        </div>
-                        <div className="p-16 flex flex-col items-center">
-                            <svg className="text-gray-400 mb-6" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                <polyline points="14 2 14 8 20 8" />
-                                <line x1="9" y1="15" x2="15" y2="15" />
-                                <line x1="9" y1="11" x2="15" y2="11" />
-                            </svg>
-                            <h3 className="text-xl font-bold text-gray-900 mb-2">Upload a PDF Document</h3>
-                            <p className="text-gray-500 mb-8">Bills, Acts, Ordinances, Policy Documents</p>
+                    <Card className="w-full max-w-2xl text-center border-t-4 border-t-primary">
+                        <CardHeader>
+                            <CardTitle>AI Co-Pilot</CardTitle>
+                            <CardDescription>
+                                Upload a document to start analyzing
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="pb-12 pt-8">
+                            <div className="flex flex-col items-center">
+                                <div className="w-20 h-20 rounded-2xl bg-muted flex items-center justify-center mb-6">
+                                    <FileText className="h-10 w-10 text-muted-foreground" />
+                                </div>
+                                <h3 className="text-xl font-bold text-foreground mb-2">
+                                    Upload a PDF Document
+                                </h3>
+                                <p className="text-muted-foreground mb-8">
+                                    Bills, Acts, Ordinances, Policy Documents
+                                </p>
 
-                            <input type="file" ref={fileRef} className="hidden" accept=".pdf" onChange={e => handleUpload(e.target.files[0])} />
+                                <input 
+                                    type="file" 
+                                    ref={fileRef} 
+                                    className="hidden" 
+                                    accept=".pdf" 
+                                    onChange={e => handleUpload(e.target.files[0])} 
+                                />
 
-                            <button onClick={() => fileRef.current?.click()} disabled={uploading}
-                                className="flex items-center gap-2 px-6 py-3 font-bold rounded-lg transition-colors"
-                                style={{ color, border: `1.5px solid ${color}`, background: 'transparent' }}>
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-                                {uploading ? 'Scanning...' : 'Choose PDF File'}
-                            </button>
-                        </div>
-                    </div>
+                                <Button 
+                                    variant="outline"
+                                    size="lg"
+                                    onClick={() => fileRef.current?.click()} 
+                                    disabled={uploading}
+                                    className="gap-2 border-primary text-primary hover:bg-primary/10"
+                                >
+                                    {uploading ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Scanning...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Upload className="h-4 w-4" />
+                                            Choose PDF File
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
             ) : (
-                // Chat Interface State (matches Figma styling approach for cards)
-                <div className="bg-white rounded-xl shadow-sm flex-1 flex flex-col overflow-hidden border border-gray-100" style={{ minHeight: 600 }}>
-                    <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between" style={{ background: '#fafafa' }}>
-                        <div>
-                            <div className="font-bold text-gray-800 text-sm">AI Co-Pilot</div>
-                            <div className="text-xs text-gray-500">Analyzing: {docFilename}</div>
+                <Card className="flex-1 flex flex-col overflow-hidden" style={{ minHeight: 600 }}>
+                    <CardHeader className="border-b bg-muted/50 py-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="text-base">AI Co-Pilot</CardTitle>
+                                <CardDescription className="flex items-center gap-2 mt-1">
+                                    <FileText className="h-3 w-3" />
+                                    Analyzing: {docFilename}
+                                </CardDescription>
+                            </div>
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={clearSession}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                                Clear Session
+                            </Button>
                         </div>
-                        <button onClick={() => { setDocFilename(''); setDocPages([]); setMessages([]); }}
-                            className="text-xs text-red-500 hover:underline">
-                            Clear Session
-                        </button>
-                    </div>
+                    </CardHeader>
 
-                    <div className="flex-1 p-5 overflow-y-auto space-y-4 bg-gray-50">
-                        {messages.map((m, i) => (
-                            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[80%] px-4 py-3 rounded-xl text-sm leading-relaxed ${m.role === 'user' ? 'text-white' : 'bg-white border shadow-sm text-gray-800'}`}
-                                    style={m.role === 'user' ? { background: color } : { borderColor: '#eee' }}>
-                                    {m.content}
+                    <ScrollArea className="flex-1 bg-muted/30">
+                        <div className="p-6 space-y-4">
+                            {messages.map((m, i) => (
+                                <div 
+                                    key={i} 
+                                    className={cn(
+                                        "flex gap-3",
+                                        m.role === 'user' ? 'justify-end' : 'justify-start'
+                                    )}
+                                >
+                                    {m.role === 'assistant' && (
+                                        <div 
+                                            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white"
+                                            style={{ background: color }}
+                                        >
+                                            <Bot className="h-4 w-4" />
+                                        </div>
+                                    )}
+                                    <div 
+                                        className={cn(
+                                            "max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed",
+                                            m.role === 'user' 
+                                                ? 'text-white rounded-br-md' 
+                                                : 'bg-card border shadow-sm text-foreground rounded-bl-md'
+                                        )}
+                                        style={m.role === 'user' ? { background: color } : {}}
+                                    >
+                                        {m.content}
+                                    </div>
+                                    {m.role === 'user' && (
+                                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                                            <User className="h-4 w-4 text-muted-foreground" />
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-                        ))}
-                        {chatLoading && (
-                            <div className="flex justify-start">
-                                <div className="bg-white border px-4 py-3 rounded-xl text-sm text-gray-400" style={{ borderColor: '#eee' }}>
-                                    Thinking...
+                            ))}
+                            {chatLoading && (
+                                <div className="flex gap-3 justify-start">
+                                    <div 
+                                        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white"
+                                        style={{ background: color }}
+                                    >
+                                        <Bot className="h-4 w-4" />
+                                    </div>
+                                    <div className="bg-card border shadow-sm px-4 py-3 rounded-2xl rounded-bl-md text-sm text-muted-foreground flex items-center gap-2">
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Thinking...
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-                        <div ref={endRef} />
-                    </div>
+                            )}
+                            <div ref={endRef} />
+                        </div>
+                    </ScrollArea>
 
-                    <div className="p-4 bg-white border-t border-gray-100 flex gap-3">
-                        <input type="text" value={input} onChange={e => setInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && askChat()}
-                            placeholder="Ask any question about the document..."
-                            className="flex-1 px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400" />
-                        <button onClick={askChat} disabled={chatLoading || !input.trim()}
-                            className="px-6 py-3 text-white font-bold rounded-lg disabled:opacity-50"
-                            style={{ background: color }}>
-                            Ask
-                        </button>
+                    <div className="p-4 bg-card border-t">
+                        <div className="flex gap-3">
+                            <Input 
+                                value={input} 
+                                onChange={e => setInput(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && askChat()}
+                                placeholder="Ask any question about the document..."
+                                className="flex-1"
+                            />
+                            <Button 
+                                onClick={askChat} 
+                                disabled={chatLoading || !input.trim()}
+                                style={{ background: color }}
+                            >
+                                <Send className="h-4 w-4" />
+                                Send
+                            </Button>
+                        </div>
                     </div>
-                </div>
+                </Card>
             )}
         </div>
     );

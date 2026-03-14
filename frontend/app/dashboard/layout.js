@@ -5,6 +5,22 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { apiGet } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { 
+    Menu, 
+    Clock, 
+    Calendar,
+    FileText,
+    MessageSquare,
+    FileEdit,
+    Search,
+    X,
+    Loader2
+} from 'lucide-react';
 
 const TYPE_LABELS = {
     draft_letter: 'Letter',
@@ -13,15 +29,23 @@ const TYPE_LABELS = {
     copilot_chat: 'Chat',
 };
 
+const TYPE_ICONS = {
+    draft_letter: FileText,
+    draft_question: FileEdit,
+    analysis: Search,
+    copilot_chat: MessageSquare,
+};
+
 export default function DashboardLayout({ children }) {
     const { user, logout, loading } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
     const [showHistory, setShowHistory] = useState(false);
     const [history, setHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [badges, setBadges] = useState({});
-    const pathname = usePathname();
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     useEffect(() => {
         setIsMobileMenuOpen(false);
@@ -31,7 +55,6 @@ export default function DashboardLayout({ children }) {
         if (!loading && !user) router.push('/');
     }, [user, loading, router]);
 
-    // ── 6. Fetch badge counts for sidebar ──
     useEffect(() => {
         if (!user) return;
         apiGet('/api/dashboard/summary')
@@ -57,117 +80,177 @@ export default function DashboardLayout({ children }) {
     };
 
     if (loading) return (
-        <div className="min-h-screen flex items-center justify-center" style={{ background: '#f4f4f4' }}>
-            <p className="text-gray-500 text-sm">Loading...</p>
+        <div className="min-h-screen flex items-center justify-center bg-background">
+            <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">Loading...</span>
+            </div>
         </div>
     );
+    
     if (!user) return null;
 
-    const color = user.theme_color || '#006a4d';
-
     return (
-        <div className="min-h-screen" style={{ background: '#f4f4f4' }}>
-            {/* Mobile Header (Hidden on Desktop) */}
-            <div className="md:hidden flex items-center justify-between bg-white border-b px-4 py-3 sticky top-0 z-40" style={{ borderColor: '#ddd' }}>
-                <div className="font-bold text-lg font-serif italic text-gray-900 leading-none">
-                    Compass<span style={{ color: user?.theme_color || '#006a4d', fontSize: '24px', lineHeight: '18px' }}>.</span>
+        <div className="min-h-screen bg-background">
+            {/* Mobile Header */}
+            <header className="md:hidden flex items-center justify-between bg-card border-b border-border px-4 h-14 sticky top-0 z-40">
+                <div className="flex items-center gap-3">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9"
+                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                    >
+                        {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                    </Button>
+                    <span className="font-bold text-foreground">Compass Needle</span>
                 </div>
-                <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-gray-600 focus:outline-none shrink-0" aria-label="Toggle Menu">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        {isMobileMenuOpen
-                            ? <><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></>
-                            : <><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></>}
-                    </svg>
-                </button>
-            </div>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={openHistory}
+                >
+                    <Clock className="h-5 w-5 text-muted-foreground" />
+                </Button>
+            </header>
 
-            <Sidebar user={user} onLogout={() => { logout(); router.push('/'); }} isOpen={isMobileMenuOpen} setIsOpen={setIsMobileMenuOpen} badges={badges} />
+            <Sidebar 
+                user={user} 
+                onLogout={() => { logout(); router.push('/'); }} 
+                isOpen={isMobileMenuOpen} 
+                setIsOpen={setIsMobileMenuOpen} 
+                badges={badges}
+                collapsed={sidebarCollapsed}
+                setCollapsed={setSidebarCollapsed}
+            />
 
-            <main className="md:ml-60 min-h-screen flex flex-col pt-0">
-                {/* Header bar */}
-                <header className="bg-white border-b px-6 py-3 flex items-center justify-between" style={{ borderColor: '#ddd' }}>
-                    <div>
-                        <span className="text-sm font-semibold text-gray-700">{user.display_name}</span>
-                        <span className="text-gray-400 mx-2">|</span>
-                        <span className="text-xs text-gray-500">{user.constituency} · {user.house}</span>
-                    </div>
+            <main className={cn(
+                "min-h-screen flex flex-col transition-all duration-300",
+                sidebarCollapsed ? "md:ml-[72px]" : "md:ml-64"
+            )}>
+                {/* Desktop Header */}
+                <header className="hidden md:flex items-center justify-between bg-card border-b border-border px-6 h-14 sticky top-0 z-30">
                     <div className="flex items-center gap-3">
-                        <div className="text-[11px] text-gray-400">
-                            {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                        <div className="flex items-center gap-2 text-sm">
+                            <span className="font-semibold text-foreground">{user.display_name}</span>
+                            <Separator orientation="vertical" className="h-4" />
+                            <span className="text-muted-foreground">
+                                {user.constituency} · {user.house}
+                            </span>
                         </div>
-                        {/* History icon */}
-                        <button onClick={openHistory}
-                            className="w-7 h-7 flex items-center justify-center border text-gray-400 hover:text-gray-600 hover:border-gray-400 transition-colors"
-                            style={{ borderColor: '#ddd', borderRadius: '4px' }}
-                            title="Activity History">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="12" cy="12" r="10" />
-                                <polyline points="12 6 12 12 16 14" />
-                            </svg>
-                        </button>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Calendar className="h-3.5 w-3.5" />
+                            {new Date().toLocaleDateString('en-IN', { 
+                                weekday: 'long', 
+                                day: 'numeric', 
+                                month: 'long', 
+                                year: 'numeric' 
+                            })}
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 gap-2"
+                            onClick={openHistory}
+                        >
+                            <Clock className="h-3.5 w-3.5" />
+                            <span className="hidden lg:inline">Activity</span>
+                        </Button>
                     </div>
                 </header>
 
                 {/* Content */}
-                <div className="p-6 animate-fade-in">
+                <div className="flex-1 p-4 md:p-6 animate-fade-in">
                     {children}
                 </div>
             </main>
 
-            {/* History Panel (slide-over) */}
-            {showHistory && (
-                <div className="fixed inset-0 z-50" onClick={() => setShowHistory(false)}>
-                    {/* Backdrop */}
-                    <div className="absolute inset-0 bg-black/20" />
-                    {/* Panel */}
-                    <div className="absolute right-0 top-0 h-full w-96 bg-white border-l shadow-lg flex flex-col"
-                        style={{ borderColor: '#ddd' }}
-                        onClick={e => e.stopPropagation()}>
-                        <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: '#ddd' }}>
-                            <div>
-                                <div className="text-sm font-bold text-gray-800">Activity History</div>
-                                <div className="text-[10px] text-gray-400 uppercase">Last 30 days</div>
+            {/* History Sheet */}
+            <Sheet open={showHistory} onOpenChange={setShowHistory}>
+                <SheetContent className="w-full sm:max-w-md p-0">
+                    <SheetHeader className="px-6 py-4 border-b border-border">
+                        <SheetTitle className="flex items-center justify-between">
+                            <span>Activity History</span>
+                            <span className="text-xs font-normal text-muted-foreground">
+                                Last 30 days
+                            </span>
+                        </SheetTitle>
+                    </SheetHeader>
+                    
+                    <ScrollArea className="h-[calc(100vh-140px)]">
+                        {historyLoading ? (
+                            <div className="flex items-center justify-center py-16">
+                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                             </div>
-                            <button onClick={() => setShowHistory(false)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto">
-                            {historyLoading ? (
-                                <div className="text-center py-10 text-gray-400 text-sm">Loading...</div>
-                            ) : history.length === 0 ? (
-                                <div className="text-center py-10 text-gray-400 text-sm">No activity yet.</div>
-                            ) : (
-                                <div className="divide-y" style={{ borderColor: '#eee' }}>
-                                    {history.map(item => (
-                                        <div key={item.id} className="px-5 py-3 hover:bg-gray-50 cursor-pointer"
-                                            onClick={() => { setShowHistory(false); router.push('/dashboard/archives'); }}>
-                                            <div className="flex items-center gap-2">
-                                                <span className="inline-block w-2 h-2 rounded-full" style={{ background: color }} />
-                                                <span className="text-[10px] font-semibold uppercase" style={{ color }}>
-                                                    {TYPE_LABELS[item.activity_type] || item.activity_type}
-                                                </span>
+                        ) : history.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                                <Clock className="h-12 w-12 text-muted-foreground/30 mb-4" />
+                                <p className="text-sm text-muted-foreground">No activity yet</p>
+                                <p className="text-xs text-muted-foreground/70 mt-1">
+                                    Your recent actions will appear here
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-border">
+                                {history.map(item => {
+                                    const Icon = TYPE_ICONS[item.activity_type] || FileText;
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            className="w-full px-6 py-4 hover:bg-accent/50 transition-colors text-left"
+                                            onClick={() => { 
+                                                setShowHistory(false); 
+                                                router.push('/dashboard/archives'); 
+                                            }}
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                    <Icon className="h-4 w-4 text-primary" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                        <span className="text-xs font-semibold text-primary uppercase">
+                                                            {TYPE_LABELS[item.activity_type] || item.activity_type}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm font-medium text-foreground truncate">
+                                                        {item.title}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                                        {item.created_at 
+                                                            ? new Date(item.created_at).toLocaleString('en-IN', {
+                                                                day: '2-digit', 
+                                                                month: 'short', 
+                                                                hour: '2-digit', 
+                                                                minute: '2-digit'
+                                                            }) 
+                                                            : '–'}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div className="text-sm font-medium text-gray-700 mt-0.5 truncate">{item.title}</div>
-                                            <div className="text-[10px] text-gray-400 mt-0.5">
-                                                {item.created_at ? new Date(item.created_at).toLocaleString('en-IN', {
-                                                    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-                                                }) : '–'}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </ScrollArea>
 
-                        <div className="px-5 py-3 border-t" style={{ borderColor: '#ddd' }}>
-                            <button onClick={() => { setShowHistory(false); router.push('/dashboard/archives'); }}
-                                className="w-full py-2 text-xs font-semibold text-white" style={{ background: color }}>
-                                View All in Archives
-                            </button>
-                        </div>
+                    <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border bg-card">
+                        <Button
+                            className="w-full"
+                            onClick={() => { 
+                                setShowHistory(false); 
+                                router.push('/dashboard/archives'); 
+                            }}
+                        >
+                            View All in Archives
+                        </Button>
                     </div>
-                </div>
-            )}
+                </SheetContent>
+            </Sheet>
         </div>
     );
 }

@@ -1,9 +1,16 @@
 import './globals.css';
 import { AuthProvider } from '@/lib/auth';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 export const metadata = {
-    title: 'Needle – Parliamentary Intelligence',
+    title: 'Needle - Parliamentary Intelligence',
     description: 'AI-powered grievance management and parliamentary intelligence platform',
+};
+
+export const viewport = {
+    width: 'device-width',
+    initialScale: 1,
+    themeColor: '#006a4d',
 };
 
 export default function RootLayout({ children }) {
@@ -12,10 +19,12 @@ export default function RootLayout({ children }) {
             <head>
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-                <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
             </head>
-            <body>
-                <AuthProvider>{children}</AuthProvider>
+            <body className="min-h-screen bg-background font-sans antialiased">
+                <TooltipProvider>
+                    <AuthProvider>{children}</AuthProvider>
+                </TooltipProvider>
             </body>
         </html>
     );

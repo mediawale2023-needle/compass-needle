@@ -4,6 +4,16 @@ import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/lib/auth';
 import { apiGet, apiPatch } from '@/lib/api';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { X, Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 const TABS = [
     { key: 'All', label: 'All Cases' },
@@ -16,45 +26,34 @@ const TABS = [
 ];
 
 const STATUS_OPTIONS = [
-    { value: 'new', label: 'New', bg: '#e0f2fe', fg: '#0369a1' },
-    { value: 'in_progress', label: 'In Progress', bg: '#fef3c7', fg: '#b45309' },
-    { value: 'resolved', label: 'Resolved', bg: '#dcfce7', fg: '#15803d' },
-    { value: 'escalated', label: 'Escalated', bg: '#fee2e2', fg: '#b91c1c' },
-    { value: 'closed', label: 'Closed', bg: '#f3f4f6', fg: '#4b5563' },
-    { value: 'irrelevant', label: 'Irrelevant', bg: '#f3f4f6', fg: '#9ca3af' },
+    { value: 'new', label: 'New', className: 'bg-blue-100 text-blue-700' },
+    { value: 'in_progress', label: 'In Progress', className: 'bg-amber-100 text-amber-700' },
+    { value: 'resolved', label: 'Resolved', className: 'bg-green-100 text-green-700' },
+    { value: 'escalated', label: 'Escalated', className: 'bg-red-100 text-red-700' },
+    { value: 'closed', label: 'Closed', className: 'bg-slate-100 text-slate-600' },
+    { value: 'irrelevant', label: 'Irrelevant', className: 'bg-slate-100 text-slate-500' },
 ];
 
 const OTHER_CATEGORIES = ['Request', 'Greetings', 'Spam', 'Spam (Offensive)'];
 
-function getRowStyle(status, category, color) {
-    const s = (status || '').toLowerCase();
-    const c = (category || '').toLowerCase();
-    if (s === 'new' || s === 'escalated' || c === 'emergency') {
-        return { background: '#fdf2f2', borderLeft: '4px solid #dc2626' };
-    }
-    if (s === 'resolved' || s === 'in_progress') {
-        return { background: '#f0fdf4', borderLeft: `4px solid ${color}` };
-    }
-    return { background: '#ffffff', borderLeft: '4px solid transparent' };
-}
-
-function StatusPill({ status }) {
+function getStatusBadge(status) {
     const opt = STATUS_OPTIONS.find(o => o.value === (status || '').toLowerCase());
-    if (opt) return <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded" style={{ background: opt.bg, color: opt.fg }}>{opt.label}</span>;
-    return <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-gray-100 text-gray-600">{status}</span>;
+    if (opt) {
+        return <Badge variant="secondary" className={opt.className}>{opt.label}</Badge>;
+    }
+    return <Badge variant="secondary">{status}</Badge>;
 }
 
-
-// ═══════════════════════════════════════════
-// CASE DETAIL MODAL
-// ═══════════════════════════════════════════
 function CaseModal({ caseItem, color, onClose, onStatusChange }) {
     const [updating, setUpdating] = useState(null);
+
+    if (!caseItem) return null;
 
     const c = caseItem;
     const meta = c.case_metadata || {};
     const createdAt = c.created_at ? new Date(c.created_at) : null;
     const updatedAt = c.updated_at ? new Date(c.updated_at) : null;
+    const currentStatus = (c.status || 'new').toLowerCase();
 
     const handleStatusChange = async (newStatus) => {
         setUpdating(newStatus);
@@ -68,128 +67,104 @@ function CaseModal({ caseItem, color, onClose, onStatusChange }) {
         }
     };
 
-    const currentStatus = (c.status || 'new').toLowerCase();
-
     return (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <div className="bg-white w-[95%] sm:max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border shadow-2xl"
-                style={{ borderColor: '#e5e7eb' }} onClick={e => e.stopPropagation()}>
-
-                {/* Header */}
-                <div className="p-5 text-white rounded-t-xl" style={{ background: color }}>
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <div className="text-[10px] uppercase opacity-80 font-semibold tracking-widest">
-                                Grievance · #{c.id}
-                            </div>
-                            <div className="text-lg font-bold mt-1 leading-tight">
-                                {c.category || 'General'}
-                            </div>
-                        </div>
-                        <button onClick={onClose} className="text-white/80 hover:text-white text-xl">✕</button>
+        <Dialog open={!!caseItem} onOpenChange={onClose}>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader className="p-0 -m-6 mb-0">
+                    <div className="p-6 text-white rounded-t-xl" style={{ background: color }}>
+                        <DialogDescription className="text-white/80 text-xs uppercase tracking-widest font-semibold mb-1">
+                            Grievance · #{c.id}
+                        </DialogDescription>
+                        <DialogTitle className="text-lg font-bold text-white">
+                            {c.category || 'General'}
+                        </DialogTitle>
                     </div>
-                </div>
+                </DialogHeader>
 
-                {/* Metadata Grid */}
-                <div className="p-5 space-y-4">
+                <div className="space-y-4 pt-6">
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                         {[
-                            ['Contact', c.user_phone || '—'],
+                            ['Contact', c.user_phone || '-'],
                             ['Category', c.category || 'General'],
                             ['Status', currentStatus],
-                            ['Location', meta.matched_value || c.location || '—'],
-                            ['Assembly', meta.assembly_constituency || c.assembly || '—'],
-                            ['Date', createdAt ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'],
-                            ['Time', createdAt ? createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'],
+                            ['Location', meta.matched_value || c.location || '-'],
+                            ['Assembly', meta.assembly_constituency || c.assembly || '-'],
+                            ['Date', createdAt ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'],
+                            ['Time', createdAt ? createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'],
                             ['Critical', c.is_critical ? 'Yes' : 'No'],
-                            ['Last Updated', updatedAt ? updatedAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'],
+                            ['Last Updated', updatedAt ? updatedAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'],
                         ].map(([label, value]) => (
-                            <div key={label} className="border rounded-lg p-3" style={{ borderColor: '#e5e7eb' }}>
-                                <div className="text-[10px] text-gray-400 uppercase font-semibold">{label}</div>
-                                <div className="text-sm font-medium text-gray-700 mt-0.5">{value}</div>
+                            <div key={label} className="border rounded-lg p-3">
+                                <div className="text-xs text-muted-foreground uppercase font-medium">{label}</div>
+                                <div className="text-sm font-medium text-foreground mt-0.5">{value}</div>
                             </div>
                         ))}
                     </div>
 
-                    {/* Full Message */}
                     <div>
-                        <div className="text-[10px] text-gray-400 uppercase font-semibold mb-1.5">Full Message</div>
-                        <div className="bg-gray-50 border rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed min-h-[80px]"
-                            style={{ borderColor: '#e5e7eb' }}>
+                        <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Full Message</div>
+                        <div className="bg-muted/50 border rounded-lg p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed min-h-[80px]">
                             {c.raw_message || 'No content available.'}
                         </div>
                     </div>
 
-                    {/* Summary */}
                     {meta.summary && (
                         <div>
-                            <div className="text-[10px] text-gray-400 uppercase font-semibold mb-1.5">AI Summary</div>
-                            <div className="bg-gray-50 border rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed"
-                                style={{ borderColor: '#e5e7eb' }}>
+                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">AI Summary</div>
+                            <div className="bg-muted/50 border rounded-lg p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed">
                                 {meta.summary}
                             </div>
                         </div>
                     )}
 
-                    {/* AI Response */}
                     {c.response_to_citizen && (
                         <div>
-                            <div className="text-[10px] text-gray-400 uppercase font-semibold mb-1.5">Response Sent</div>
-                            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Response Sent</div>
+                            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed">
                                 {c.response_to_citizen}
                             </div>
                         </div>
                     )}
 
-                    {/* Staff Notes */}
                     {c.notes_for_staff && (
                         <div>
-                            <div className="text-[10px] text-gray-400 uppercase font-semibold mb-1.5">Staff Notes</div>
-                            <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Staff Notes</div>
+                            <div className="bg-amber-50 border border-amber-100 rounded-lg p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed">
                                 {c.notes_for_staff}
                             </div>
                         </div>
                     )}
 
-                    {/* Status Actions */}
-                    <div className="pt-2 border-t" style={{ borderColor: '#e5e7eb' }}>
-                        <div className="text-[10px] text-gray-400 uppercase font-semibold mb-2">Update Status</div>
+                    <Separator />
+
+                    <div>
+                        <div className="text-xs text-muted-foreground uppercase font-medium mb-3">Update Status</div>
                         <div className="flex flex-wrap gap-2">
                             {STATUS_OPTIONS.filter(o => o.value !== currentStatus).map(opt => (
-                                <button
+                                <Button
                                     key={opt.value}
+                                    variant="outline"
+                                    size="sm"
                                     onClick={() => handleStatusChange(opt.value)}
                                     disabled={updating === opt.value}
-                                    className="px-3 py-2 text-xs font-bold rounded-lg border transition-all hover:shadow-md disabled:opacity-60"
-                                    style={{
-                                        background: opt.bg,
-                                        color: opt.fg,
-                                        borderColor: opt.fg + '30',
-                                    }}>
-                                    {updating === opt.value ? 'Updating...' : `Mark ${opt.label}`}
-                                </button>
+                                    className={cn("border", opt.className)}
+                                >
+                                    {updating === opt.value && <Loader2 className="h-3 w-3 animate-spin" />}
+                                    Mark {opt.label}
+                                </Button>
                             ))}
                         </div>
                     </div>
-
-                    {/* Close button */}
-                    <div className="flex justify-end pt-2">
-                        <button onClick={onClose}
-                            className="px-5 py-2.5 text-sm font-medium border rounded-lg text-gray-500 hover:bg-gray-50"
-                            style={{ borderColor: '#e5e7eb' }}>
-                            Close
-                        </button>
-                    </div>
                 </div>
-            </div>
-        </div>
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
 
-
-// ═══════════════════════════════════════════
-// INNER PAGE — reads URL params
-// ═══════════════════════════════════════════
 function BriefcaseInner() {
     const { user } = useAuth();
     const router = useRouter();
@@ -197,21 +172,19 @@ function BriefcaseInner() {
 
     const color = user?.theme_color || '#006a4d';
 
-    const [cases, setCases]               = useState([]);
-    const [loading, setLoading]           = useState(true);
+    const [cases, setCases] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('All');
     const [categoryFilter, setCategoryFilter] = useState('');
-    const [selected, setSelected]         = useState(null);
+    const [selected, setSelected] = useState(null);
 
-    // Sync URL params → state whenever the URL changes
     useEffect(() => {
         const status = searchParams.get('status') || 'All';
-        const cat    = searchParams.get('category') || '';
+        const cat = searchParams.get('category') || '';
         setStatusFilter(status);
         setCategoryFilter(cat);
     }, [searchParams]);
 
-    // Fetch whenever filters change
     useEffect(() => {
         fetchCases();
     }, [statusFilter, categoryFilter]);
@@ -242,11 +215,9 @@ function BriefcaseInner() {
 
     function switchTab(key) {
         setStatusFilter(key);
-        // Update URL without navigation so back-button works correctly
         const url = new URL(window.location.href);
         if (key === 'All') url.searchParams.delete('status');
         else url.searchParams.set('status', key);
-        // keep category param if any
         window.history.replaceState({}, '', url.toString());
     }
 
@@ -262,108 +233,156 @@ function BriefcaseInner() {
         setSelected(prev => prev && prev.id === caseId ? { ...prev, status: newStatus } : prev);
     };
 
+    const getRowHighlight = (status, category) => {
+        const s = (status || '').toLowerCase();
+        const c = (category || '').toLowerCase();
+        if (s === 'new' || s === 'escalated' || c === 'emergency') {
+            return 'border-l-4 border-l-red-500 bg-red-50/50';
+        }
+        if (s === 'resolved' || s === 'in_progress') {
+            return 'border-l-4 border-l-green-500 bg-green-50/30';
+        }
+        return '';
+    };
+
     return (
-        <div className="space-y-4">
-            <h1 className="text-lg font-bold text-gray-900">Briefcase</h1>
+        <div className="space-y-6">
+            <div>
+                <h1 className="text-2xl font-bold text-foreground">Briefcase</h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                    Manage constituent grievances and cases
+                </p>
+            </div>
 
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden pt-2">
+            <Card>
+                <CardHeader className="pb-0">
+                    <div className="overflow-x-auto -mx-6 px-6">
+                        <Tabs value={statusFilter} onValueChange={switchTab}>
+                            <TabsList className="h-auto p-0 bg-transparent gap-6">
+                                {TABS.map(t => (
+                                    <TabsTrigger
+                                        key={t.key}
+                                        value={t.key}
+                                        className={cn(
+                                            "px-0 pb-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none",
+                                            "text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
+                                        )}
+                                        style={statusFilter === t.key ? { borderColor: color, color } : {}}
+                                    >
+                                        {t.label}
+                                    </TabsTrigger>
+                                ))}
+                            </TabsList>
+                        </Tabs>
+                    </div>
+                </CardHeader>
 
-                {/* Status Tabs */}
-                <div className="px-6 border-b border-gray-100 flex gap-6 overflow-x-auto whitespace-nowrap scrollbar-hide">
-                    {TABS.map(t => (
-                        <button key={t.key} onClick={() => switchTab(t.key)}
-                            className="text-sm font-semibold pb-3 transition-colors"
-                            style={statusFilter === t.key
-                                ? { color, borderBottom: `2px solid ${color}` }
-                                : { color: '#6b7280', borderBottom: '2px solid transparent' }}>
-                            {t.label}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Active Category Filter Chip */}
                 {categoryFilter && (
-                    <div className="px-6 py-2.5 border-b border-gray-100 flex items-center gap-2">
-                        <span className="text-xs text-gray-500">Filtered by category:</span>
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full text-white"
-                            style={{ background: color }}>
+                    <div className="px-6 py-3 border-b flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Filtered by category:</span>
+                        <Badge variant="default" className="gap-1" style={{ background: color }}>
                             {categoryFilter}
-                            <button onClick={clearCategoryFilter}
-                                className="opacity-75 hover:opacity-100 text-sm leading-none">
-                                ×
+                            <button onClick={clearCategoryFilter} className="ml-1 hover:opacity-80">
+                                <X className="h-3 w-3" />
                             </button>
-                        </span>
-                        <span className="text-xs text-gray-400 ml-1">
-                            {loading ? '…' : `${cases.length} case${cases.length !== 1 ? 's' : ''}`}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground ml-1">
+                            {loading ? '...' : `${cases.length} case${cases.length !== 1 ? 's' : ''}`}
                         </span>
                     </div>
                 )}
 
-                {/* Table */}
-                <div className="overflow-x-auto">
+                <CardContent className="pt-0">
                     {loading ? (
-                        <div className="text-center py-10 text-gray-400 text-sm">Loading cases…</div>
+                        <div className="space-y-3 py-6">
+                            {[1, 2, 3, 4, 5].map(i => (
+                                <div key={i} className="flex items-center gap-4">
+                                    <Skeleton className="h-4 w-12" />
+                                    <Skeleton className="h-4 w-24" />
+                                    <Skeleton className="h-4 w-32" />
+                                    <Skeleton className="h-4 w-24" />
+                                    <Skeleton className="h-4 w-20" />
+                                    <Skeleton className="h-6 w-20" />
+                                    <Skeleton className="h-4 flex-1" />
+                                </div>
+                            ))}
+                        </div>
                     ) : cases.length === 0 ? (
-                        <div className="text-center py-10 text-gray-400 text-sm">
-                            No cases found{categoryFilter ? ` in "${categoryFilter}"` : ''}{statusFilter !== 'All' ? ` with status "${statusFilter}"` : ''}.
+                        <div className="text-center py-16">
+                            <CheckCircle className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                            <p className="text-muted-foreground">
+                                No cases found{categoryFilter ? ` in "${categoryFilter}"` : ''}
+                                {statusFilter !== 'All' ? ` with status "${statusFilter}"` : ''}.
+                            </p>
                         </div>
                     ) : (
-                        <table className="sansad-table w-full">
-                            <thead>
-                                <tr>
-                                    <th className="pl-6">#</th>
-                                    <th>CONTACT</th>
-                                    <th>CATEGORY</th>
-                                    <th>LOCATION</th>
-                                    <th>ASSEMBLY</th>
-                                    <th>STATUS</th>
-                                    <th>MESSAGE</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {cases.map((c) => (
-                                    <tr key={c.id}
-                                        style={getRowStyle(c.status, c.category, color)}
-                                        className="cursor-pointer"
-                                        onClick={() => setSelected(c)}>
-                                        <td className="pl-6 text-gray-500 font-mono text-xs">{c.id}</td>
-                                        <td className="font-mono text-xs text-gray-700">{c.user_phone || '—'}</td>
-                                        <td className="font-medium text-gray-800">{c.category || 'General'}</td>
-                                        <td className="text-gray-600">{c.location || '—'}</td>
-                                        <td className="text-gray-600">{c.assembly || '—'}</td>
-                                        <td><StatusPill status={c.status} /></td>
-                                        <td className="max-w-[200px] text-gray-600 text-sm">
-                                            <div className="truncate" title={c.raw_message}>{c.raw_message || '—'}</div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        <div className="overflow-x-auto -mx-6">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-16 pl-6">#</TableHead>
+                                        <TableHead>Contact</TableHead>
+                                        <TableHead>Category</TableHead>
+                                        <TableHead>Location</TableHead>
+                                        <TableHead>Assembly</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="max-w-[200px]">Message</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {cases.map((c) => (
+                                        <TableRow
+                                            key={c.id}
+                                            className={cn("cursor-pointer", getRowHighlight(c.status, c.category))}
+                                            onClick={() => setSelected(c)}
+                                        >
+                                            <TableCell className="pl-6 font-mono text-xs text-muted-foreground">
+                                                {c.id}
+                                            </TableCell>
+                                            <TableCell className="font-mono text-xs">
+                                                {c.user_phone || '-'}
+                                            </TableCell>
+                                            <TableCell className="font-medium">
+                                                {c.category || 'General'}
+                                            </TableCell>
+                                            <TableCell className="text-muted-foreground">
+                                                {c.location || '-'}
+                                            </TableCell>
+                                            <TableCell className="text-muted-foreground">
+                                                {c.assembly || '-'}
+                                            </TableCell>
+                                            <TableCell>{getStatusBadge(c.status)}</TableCell>
+                                            <TableCell className="max-w-[200px]">
+                                                <span className="truncate block text-muted-foreground" title={c.raw_message}>
+                                                    {c.raw_message || '-'}
+                                                </span>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
                     )}
-                </div>
-            </div>
+                </CardContent>
+            </Card>
 
-            {/* Case Detail Modal */}
-            {selected && (
-                <CaseModal
-                    caseItem={selected}
-                    color={color}
-                    onClose={() => setSelected(null)}
-                    onStatusChange={handleStatusChange}
-                />
-            )}
+            <CaseModal
+                caseItem={selected}
+                color={color}
+                onClose={() => setSelected(null)}
+                onStatusChange={handleStatusChange}
+            />
         </div>
     );
 }
 
-
-// ═══════════════════════════════════════════
-// BRIEFCASE PAGE — wraps inner in Suspense
-// (required by Next.js for useSearchParams)
-// ═══════════════════════════════════════════
 export default function BriefcasePage() {
     return (
-        <Suspense fallback={<div className="text-center py-10 text-gray-400 text-sm">Loading…</div>}>
+        <Suspense fallback={
+            <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+        }>
             <BriefcaseInner />
         </Suspense>
     );

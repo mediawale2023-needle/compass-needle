@@ -4,9 +4,19 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { apiPost, AI_TIMEOUT } from '@/lib/api';
 import { useSearchParams } from 'next/navigation';
+import { FileText, HelpCircle, Download, Save, Loader2, CheckCircle, Sparkles } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 
 const RECIPIENT_TYPES = ['Cabinet Minister', 'Minister of State', 'Secretary to GoI', 'Chief Secretary', 'District Collector', 'Other Official'];
 const TONES = ['Assertive (Opposition Style)', 'Requesting (Ministerial Courtesy)', 'Formal (Neutral)'];
+const LANGUAGES = ['English', 'Hindi', 'Kannada', 'Marathi', 'Tamil', 'Telugu', 'Bengali'];
 
 export default function DrafterPage() {
     const { user } = useAuth();
@@ -81,158 +91,230 @@ export default function DrafterPage() {
     };
 
     return (
-        <div className="space-y-4 max-w-4xl mx-auto">
-            <h1 className="text-lg font-bold text-gray-900">Drafter</h1>
+        <div className="space-y-6 max-w-4xl mx-auto">
+            <div>
+                <h1 className="text-2xl font-bold text-foreground">Drafter</h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                    AI-powered letter and parliamentary question drafting
+                </p>
+            </div>
 
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-                {/* Tabs */}
-                <div className="px-6 border-b border-gray-100 flex gap-6 pt-4 overflow-x-auto whitespace-nowrap scrollbar-hide">
-                    {[
-                        { id: 'letter', label: 'Write Letter', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg> },
-                        { id: 'question', label: 'Parliamentary Question', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><circle cx="12" cy="14" r="1" /><path d="M12 11.5a1.5 1.5 0 0 1 1-1.5 1.5 1.5 0 0 0-1.5-2.5" /></svg> }
-                    ].map(t => (
-                        <button key={t.id} onClick={() => { setMode(t.id); setDraft(''); setSaved(false); }}
-                            className="flex items-center gap-2 pb-3 text-sm font-semibold transition-colors"
-                            style={mode === t.id
-                                ? { color, borderBottom: `2px solid ${color}` }
-                                : { color: '#6b7280', borderBottom: '2px solid transparent' }}>
-                            {t.icon} {t.label}
-                        </button>
-                    ))}
-                </div>
+            <Card>
+                <CardHeader className="pb-0">
+                    <Tabs value={mode} onValueChange={(v) => { setMode(v); setDraft(''); setSaved(false); }}>
+                        <TabsList className="grid w-full grid-cols-2 max-w-md">
+                            <TabsTrigger value="letter" className="gap-2">
+                                <FileText className="h-4 w-4" />
+                                Write Letter
+                            </TabsTrigger>
+                            <TabsTrigger value="question" className="gap-2">
+                                <HelpCircle className="h-4 w-4" />
+                                Parliamentary Question
+                            </TabsTrigger>
+                        </TabsList>
+                    </Tabs>
+                </CardHeader>
 
-                {/* Form Body */}
-                <div className="p-6 space-y-6">
+                <CardContent className="pt-6 space-y-6">
                     {mode === 'letter' ? (
                         <>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Recipient Type</label>
-                                    <select value={recipientType} onChange={e => setRecipientType(e.target.value)}
-                                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-1" style={{ outlineColor: color }}>
-                                        {RECIPIENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                                    </select>
+                                <div className="space-y-2">
+                                    <Label>Recipient Type</Label>
+                                    <Select value={recipientType} onValueChange={setRecipientType}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {RECIPIENT_TYPES.map(t => (
+                                                <SelectItem key={t} value={t}>{t}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Recipient Name</label>
-                                    <input type="text" value={recipientName} onChange={e => setRecipientName(e.target.value)}
+                                <div className="space-y-2">
+                                    <Label>Recipient Name</Label>
+                                    <Input
+                                        value={recipientName}
+                                        onChange={e => setRecipientName(e.target.value)}
                                         placeholder="e.g., Secretary, Ministry Name"
-                                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-1" style={{ outlineColor: color }} />
+                                    />
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Ministry/Department</label>
-                                <input type="text" value={ministry} onChange={e => setMinistry(e.target.value)}
+                            <div className="space-y-2">
+                                <Label>Ministry/Department</Label>
+                                <Input
+                                    value={ministry}
+                                    onChange={e => setMinistry(e.target.value)}
                                     placeholder="e.g., Ministry of Road Transport and Highways"
-                                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-1" style={{ outlineColor: color }} />
+                                />
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Subject</label>
-                                <input type="text" value={subject} onChange={e => setSubject(e.target.value)}
+                            <div className="space-y-2">
+                                <Label>Subject</Label>
+                                <Input
+                                    value={subject}
+                                    onChange={e => setSubject(e.target.value)}
                                     placeholder="Brief subject line"
-                                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-1" style={{ outlineColor: color }} />
+                                />
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Reference No. (Optional)</label>
-                                <input type="text" value={reference} onChange={e => setReference(e.target.value)}
+                            <div className="space-y-2">
+                                <Label>Reference No. (Optional)</Label>
+                                <Input
+                                    value={reference}
+                                    onChange={e => setReference(e.target.value)}
                                     placeholder="e.g., MP/2026/123"
-                                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-1" style={{ outlineColor: color }} />
+                                />
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Key Points (one per line)</label>
-                                <textarea value={keyPoints} onChange={e => setKeyPoints(e.target.value)}
-                                    placeholder="Enter key points, one per line" rows={4}
-                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 resize-none focus:outline-none focus:ring-1" style={{ outlineColor: color }} />
+                            <div className="space-y-2">
+                                <Label>Key Points (one per line)</Label>
+                                <Textarea
+                                    value={keyPoints}
+                                    onChange={e => setKeyPoints(e.target.value)}
+                                    placeholder="Enter key points, one per line"
+                                    rows={4}
+                                />
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-2">
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Language</label>
-                                    <select value={language} onChange={e => setLanguage(e.target.value)}
-                                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-1" style={{ outlineColor: color }}>
-                                        {['English', 'Hindi', 'Kannada', 'Marathi', 'Tamil', 'Telugu', 'Bengali'].map(l => <option key={l} value={l}>{l}</option>)}
-                                    </select>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <Label>Language</Label>
+                                    <Select value={language} onValueChange={setLanguage}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {LANGUAGES.map(l => (
+                                                <SelectItem key={l} value={l}>{l}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tone</label>
-                                    <select value={tone} onChange={e => setTone(e.target.value)}
-                                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-1" style={{ outlineColor: color }}>
-                                        {TONES.map(t => <option key={t} value={t}>{t}</option>)}
-                                    </select>
+                                <div className="space-y-2">
+                                    <Label>Tone</Label>
+                                    <Select value={tone} onValueChange={setTone}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {TONES.map(t => (
+                                                <SelectItem key={t} value={t}>{t}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
                         </>
                     ) : (
                         <div className="space-y-6">
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Target Ministry</label>
-                                <input type="text" value={pqMinistry} onChange={e => setPqMinistry(e.target.value)}
+                            <div className="space-y-2">
+                                <Label>Target Ministry</Label>
+                                <Input
+                                    value={pqMinistry}
+                                    onChange={e => setPqMinistry(e.target.value)}
                                     placeholder="Target Ministry"
-                                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-1" style={{ outlineColor: color }} />
+                                />
                             </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Question Subject</label>
-                                <input type="text" value={pqSubject} onChange={e => setPqSubject(e.target.value)}
+                            <div className="space-y-2">
+                                <Label>Question Subject</Label>
+                                <Input
+                                    value={pqSubject}
+                                    onChange={e => setPqSubject(e.target.value)}
                                     placeholder="Issue to raise"
-                                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-1" style={{ outlineColor: color }} />
+                                />
                             </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Specific Data Points Needed</label>
-                                <textarea value={pqPoints} onChange={e => setPqPoints(e.target.value)}
-                                    placeholder="e.g. state-wise breakdown, funds allocated vs used" rows={4}
-                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 resize-none focus:outline-none focus:ring-1" style={{ outlineColor: color }} />
+                            <div className="space-y-2">
+                                <Label>Specific Data Points Needed</Label>
+                                <Textarea
+                                    value={pqPoints}
+                                    onChange={e => setPqPoints(e.target.value)}
+                                    placeholder="e.g. state-wise breakdown, funds allocated vs used"
+                                    rows={4}
+                                />
                             </div>
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Language</label>
-                                <select value={pqLang} onChange={e => setPqLang(e.target.value)}
-                                    className="w-full px-4 py-2.5 w-1/2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-1" style={{ outlineColor: color }}>
-                                    {['English', 'Hindi'].map(l => <option key={l} value={l}>{l}</option>)}
-                                </select>
+                            <div className="space-y-2">
+                                <Label>Language</Label>
+                                <Select value={pqLang} onValueChange={setPqLang}>
+                                    <SelectTrigger className="w-full md:w-1/2">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="English">English</SelectItem>
+                                        <SelectItem value="Hindi">Hindi</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
                     )}
 
-                    <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <p className="text-xs text-gray-400">Uses AI to generate a structured, formal draft.</p>
-                        <button onClick={generate} disabled={loading}
-                            className="w-full sm:w-auto px-6 py-2.5 text-white font-bold rounded-lg shadow-sm disabled:opacity-50"
-                            style={{ background: color }}>
-                            {loading ? 'Generating...' : `Generate ${mode === 'letter' ? 'Letter' : 'Question'}`}
-                        </button>
+                    <div className="pt-4 border-t flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <p className="text-xs text-muted-foreground">
+                            Uses AI to generate a structured, formal draft
+                        </p>
+                        <Button
+                            onClick={generate}
+                            disabled={loading}
+                            className="w-full sm:w-auto gap-2"
+                        >
+                            {loading ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Generating...
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles className="h-4 w-4" />
+                                    Generate {mode === 'letter' ? 'Letter' : 'Question'}
+                                </>
+                            )}
+                        </Button>
                     </div>
-                </div>
-            </div>
+                </CardContent>
+            </Card>
 
             {/* Results Output */}
             {draft && (
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden animate-fade-in">
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                        <div className="font-bold text-gray-900">Generated {mode === 'letter' ? 'Letter Draft' : 'Parliamentary Question'}</div>
-                        <div className="flex flex-wrap gap-3 w-full sm:w-auto">
-                            {saved ? (
-                                <span className="flex-1 sm:flex-none text-center px-4 py-2 text-sm font-semibold text-green-700 bg-green-50 border border-transparent rounded-lg">Saved to Archives</span>
-                            ) : (
-                                <button onClick={saveDraft} className="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold border border-gray-200 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                                    Save to Archives
-                                </button>
-                            )}
-                            <button onClick={downloadDraft} className="flex-1 sm:flex-none px-4 py-2 text-sm font-bold text-white rounded-lg transition-opacity hover:opacity-90" style={{ background: color }}>
-                                Download Text
-                            </button>
+                <Card className="animate-fade-in">
+                    <CardHeader className="bg-muted/50 border-b">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                            <div>
+                                <CardTitle className="text-base">
+                                    Generated {mode === 'letter' ? 'Letter Draft' : 'Parliamentary Question'}
+                                </CardTitle>
+                                <CardDescription>
+                                    Review and edit your draft below
+                                </CardDescription>
+                            </div>
+                            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                                {saved ? (
+                                    <Badge variant="secondary" className="bg-green-100 text-green-700 gap-1">
+                                        <CheckCircle className="h-3 w-3" />
+                                        Saved to Archives
+                                    </Badge>
+                                ) : (
+                                    <Button variant="outline" size="sm" onClick={saveDraft}>
+                                        <Save className="h-4 w-4" />
+                                        Save to Archives
+                                    </Button>
+                                )}
+                                <Button size="sm" onClick={downloadDraft} className="gap-2">
+                                    <Download className="h-4 w-4" />
+                                    Download
+                                </Button>
+                            </div>
                         </div>
-                    </div>
-                    <div>
-                        <textarea
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <Textarea
                             value={draft}
                             onChange={(e) => setDraft(e.target.value)}
-                            className="w-full h-96 p-6 bg-white text-sm text-gray-800 font-serif leading-relaxed resize-y focus:outline-none"
+                            className="min-h-[400px] border-0 rounded-none rounded-b-xl resize-y font-serif text-foreground leading-relaxed focus-visible:ring-0 focus-visible:ring-offset-0"
                         />
-                    </div>
-                </div>
+                    </CardContent>
+                </Card>
             )}
         </div>
     );
