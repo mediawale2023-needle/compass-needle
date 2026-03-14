@@ -193,12 +193,18 @@ def dashboard_summary(user=Depends(get_current_user)):
         {"tid": tid}
     )
 
-    # Try PostgreSQL JSON syntax first, fall back to SQLite
+    # Red zones: areas (location field) with high grievance concentration
     try:
         red_zones = _q("""
-            SELECT case_metadata->>'assembly_constituency' as ac, COUNT(*) as cnt
-            FROM cases WHERE tenant_id = :tid AND case_metadata IS NOT NULL
-            GROUP BY ac HAVING COUNT(*) > 20
+            SELECT location as area, COUNT(*) as cnt
+            FROM cases
+            WHERE tenant_id = :tid
+              AND location IS NOT NULL
+              AND location != ''
+            GROUP BY location
+            HAVING COUNT(*) >= 3
+            ORDER BY cnt DESC
+            LIMIT 10
         """, {"tid": tid})
     except Exception:
         red_zones = []
@@ -208,7 +214,7 @@ def dashboard_summary(user=Depends(get_current_user)):
         "category_breakdown": category_breakdown,
         "status_breakdown": status_breakdown,
         "critical_count": critical["cnt"] if critical else 0,
-        "red_zones": [r["ac"] for r in red_zones if r.get("ac")],
+        "red_zones": [{"area": r["area"], "count": r["cnt"]} for r in red_zones if r.get("area")],
     }
 
 

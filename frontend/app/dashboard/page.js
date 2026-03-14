@@ -68,7 +68,7 @@ export default function DashboardPage() {
     const [summary, setSummary]           = useState(null);
     const [news, setNews]                 = useState({ national: [], local: [] });
     const [newsTab, setNewsTab]           = useState('national');
-    const [showNews, setShowNews]         = useState(false);
+    const [showNews, setShowNews]         = useState(true);
     const [parliament, setParliament]     = useState(null);
     const [recentActivity, setRecent]     = useState([]);
     const [staleCases, setStaleCases]     = useState([]);
@@ -83,8 +83,8 @@ export default function DashboardPage() {
                     apiGet('/api/dashboard/summary').catch(() => ({
                         category_breakdown: {}, status_breakdown: {}, red_zones: [], critical_count: 0,
                     })),
-                    apiGet('/api/news?type=national').catch(() => ({ articles: [] })),
-                    apiGet('/api/news?type=local').catch(() => ({ articles: [] })),
+                    apiGet('/api/news?news_type=national').catch(() => ({ articles: [] })),
+                    apiGet('/api/news?news_type=local').catch(() => ({ articles: [] })),
                     apiGet('/api/parliament/status').catch(() => null),
                     apiGet('/api/history?limit=5').catch(() => ({ items: [] })),
                     apiGet('/api/cases?page=1&limit=50').catch(() => ({ cases: [] })),
@@ -95,18 +95,13 @@ export default function DashboardPage() {
                 setParliament(parl);
                 setRecent(hist.items || []);
 
-                // Compute stale cases: new or in_progress, older than 7 days
+                // Awaiting Response: cases with status=new (pending initiation), oldest first
                 const allCases = cases.cases || cases.items || [];
-                const stale = allCases
-                    .filter(c => {
-                        const s = (c.status || '').toLowerCase();
-                        if (s !== 'new' && s !== 'in_progress') return false;
-                        const age = daysAgo(c.created_at);
-                        return age !== null && age >= 7;
-                    })
+                const pending = allCases
+                    .filter(c => (c.status || '').toLowerCase() === 'new')
                     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-                    .slice(0, 5);
-                setStaleCases(stale);
+                    .slice(0, 6);
+                setStaleCases(pending);
             } catch (err) {
                 console.error(err);
                 setSummary({ category_breakdown: {}, status_breakdown: {}, red_zones: [], critical_count: 0 });
@@ -387,7 +382,7 @@ export default function DashboardPage() {
                                 <div className="px-5 py-4 border-b border-gray-100">
                                     <h2 className="text-base font-bold text-gray-900">Awaiting Response</h2>
                                     <p className="text-[11px] text-gray-400 mt-0.5">
-                                        Open cases · 7+ days without update
+                                        New cases pending initiation
                                     </p>
                                 </div>
                                 <div className="px-5 py-3">
@@ -395,12 +390,12 @@ export default function DashboardPage() {
                                         <ul className="space-y-0 divide-y divide-gray-50">
                                             {staleCases.map(c => {
                                                 const age = daysAgo(c.created_at);
-                                                const contact = c.contact_name || c.sender_name || c.phone || '—';
-                                                const category = c.category || c.issue_category || '—';
+                                                const contact = c.user_phone || c.contact_name || '—';
+                                                const category = c.category || '—';
                                                 return (
                                                     <li key={c.id}
                                                         className="py-2.5 flex items-start justify-between gap-2 cursor-pointer hover:bg-gray-50 -mx-5 px-5 transition-colors"
-                                                        onClick={() => router.push('/dashboard/sansadx')}>
+                                                        onClick={() => router.push('/dashboard/sansadx?status=new')}>
                                                         <div className="min-w-0">
                                                             <div className="text-[11px] font-bold text-gray-400 uppercase">
                                                                 #{c.id}
@@ -419,16 +414,16 @@ export default function DashboardPage() {
                                         </ul>
                                     ) : (
                                         <p className="text-sm text-green-700 py-2 text-center">
-                                            No stale cases — great work!
+                                            All new cases actioned — great work!
                                         </p>
                                     )}
                                 </div>
                                 <div className="px-5 py-3 border-t border-gray-50">
                                     <Link
-                                        href="/dashboard/sansadx"
+                                        href="/dashboard/sansadx?status=new"
                                         className="text-xs font-semibold"
                                         style={{ color }}>
-                                        → View all open cases
+                                        → View all new cases
                                     </Link>
                                 </div>
                             </div>
