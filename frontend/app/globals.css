@@ -2,246 +2,131 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Lok Sabha — official green */
-  --color-ls: #006a4d;
-  --color-ls-light: #e8f5f0;
-  --color-ls-dark: #00513b;
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 160 100% 21%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 160 100% 21%;
+    --radius: 0.625rem;
 
-  /* Rajya Sabha — official maroon */
-  --color-rs: #8d153a;
-  --color-rs-light: #fdf0f3;
-  --color-rs-dark: #6b0f2d;
+    /* Legacy colors for compatibility */
+    --color-ls: #006a4d;
+    --color-ls-light: #e8f5f0;
+    --color-ls-dark: #00513b;
+    --color-rs: #8d153a;
+    --color-rs-light: #fdf0f3;
+    --color-rs-dark: #6b0f2d;
+  }
 
-  --font-sans: "Noto Sans", "Segoe UI", system-ui, sans-serif;
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 160 84% 39%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 160 84% 39%;
+  }
 }
 
-/* ── Base ── */
-body {
-  font-family: var(--font-sans);
-  background: #f4f4f4;
-  color: #333;
-  margin: 0;
-}
-
-/* ── Sansad-style accented card ── */
-.sansad-card {
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.sansad-card-header {
-  padding: 12px 20px;
-  color: white;
-  font-size: 14px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.sansad-card-body {
-  padding: 16px 20px;
-}
-
-/* ── Left-accent card (used in sansad.in for stats) ── */
-.sansad-stat {
-  background: white;
-  border: 1px solid #ddd;
-  border-left: 4px solid;
-  border-radius: 2px;
-  padding: 16px 20px;
-}
-
-/* ── Table styling (matches sansad.in member tables) ── */
-.sansad-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.sansad-table thead th {
-  background: #f8f8f8;
-  border-bottom: 2px solid #ddd;
-  padding: 10px 14px;
-  text-align: left;
-  font-weight: 600;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  color: #666;
-}
-
-.sansad-table tbody tr {
-  border-bottom: 1px solid #eee;
-  transition: background 0.15s;
-}
-
-.sansad-table tbody tr:hover {
-  background: #fafafa;
-}
-
-.sansad-table tbody td {
-  padding: 10px 14px;
-  color: #444;
-}
-
-/* ── Tab bar (sansad.in uses horizontal pill tabs) ── */
-.sansad-tabs {
-  display: flex;
-  gap: 0;
-  border-bottom: 2px solid #ddd;
-}
-
-.sansad-tab {
-  padding: 10px 20px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #666;
-  cursor: pointer;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
-  transition: all 0.2s;
-}
-
-.sansad-tab:hover {
-  color: #333;
-}
-
-.sansad-tab-active {
-  border-bottom-color: currentColor;
-}
-
-/* ── Badge ── */
-.sansad-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 2px;
-}
-
-/* ── Status colors ── */
-.status-new {
-  background: #e3f2fd;
-  color: #1565c0;
-}
-
-.status-in_progress {
-  background: #fff8e1;
-  color: #f57f17;
-}
-
-.status-resolved {
-  background: #e8f5e9;
-  color: #2e7d32;
-}
-
-.status-escalated {
-  background: #fbe9e7;
-  color: #c62828;
-}
-
-.status-closed {
-  background: #eceff1;
-  color: #546e7a;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
 }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 3px;
+  @apply bg-muted-foreground/20 rounded-full;
 }
 
-/* ── Animations (subtle) ── */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/30;
+}
+
+/* ── Custom utility classes ── */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
   }
 
-  to {
-    opacity: 1;
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  .animate-in {
+    animation: fade-in 0.3s ease-out;
+  }
+
+  /* Glass effect */
+  .glass {
+    @apply bg-card/80 backdrop-blur-sm border border-border/50;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-emerald-400;
   }
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.25s ease-out;
+/* ── Status colors (preserved for compatibility) ── */
+.status-new {
+  @apply bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300;
 }
 
-/* ── Figma: Pill category filter buttons ── */
-.pill-filter {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 16px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  border: 1px solid #ddd;
-  background: white;
-  color: #555;
-  transition: all 0.15s;
+.status-in_progress {
+  @apply bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300;
 }
-.pill-filter:hover { border-color: #aaa; color: #333; }
-.pill-filter-active { background: var(--color-ls); border-color: var(--color-ls); color: white; }
 
-/* ── Figma: Scheme / CSR card ── */
-.figma-card {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 20px;
-  transition: box-shadow 0.2s;
+.status-resolved {
+  @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300;
 }
-.figma-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
 
-/* ── Figma: Search input (with icon slot) ── */
-.figma-search-wrap { position: relative; }
-.figma-search-wrap svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #aaa; }
-.figma-search {
-  width: 100%;
-  padding: 11px 16px 11px 44px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
-  background: white;
-  outline: none;
-  transition: border-color 0.2s;
-  box-sizing: border-box;
+.status-escalated {
+  @apply bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300;
 }
-.figma-search:focus { border-color: #006a4d; box-shadow: 0 0 0 3px rgba(0,106,77,0.08); }
 
-/* ── Figma: Outlined action button ── */
-.figma-btn-outline {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: 6px;
-  border: 1.5px solid currentColor;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
-  background: transparent;
+.status-closed {
+  @apply bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400;
 }
-.figma-btn-outline:hover { opacity: 0.75; }
-
-/* ── Figma: View link ── */
-.figma-view-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-.figma-view-link:hover { opacity: 0.7; text-decoration: underline; }
