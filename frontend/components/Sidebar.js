@@ -2,122 +2,211 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+    LayoutDashboard,
+    Mail,
+    Briefcase,
+    BookOpen,
+    PenTool,
+    Gift,
+    Users,
+    Archive,
+    Settings,
+    LogOut,
+    Compass,
+    ChevronLeft,
+    ChevronRight,
+} from 'lucide-react';
 
 const NAV_ITEMS = [
-    {
-        name: 'Dashboard', path: '/dashboard',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
-    },
-    {
-        name: 'Letterbox', path: '/dashboard/letterbox', badgeKey: 'letterbox',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
-    },
-    {
-        name: 'Briefcase', path: '/dashboard/sansadx', badgeKey: 'briefcase',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /></svg>
-    },
-    {
-        name: 'Research Desk', path: '/dashboard/copilot',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
-    },
-    {
-        name: 'Drafter', path: '/dashboard/drafter',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-    },
-    {
-        name: 'Schemes', path: '/dashboard/schemes',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="8" cy="21" r="1" /><circle cx="19" cy="21" r="1" /><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" /></svg>
-    },
-    {
-        name: 'CSR Intelligence', path: '/dashboard/csr',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-    },
-    {
-        name: 'Archives', path: '/dashboard/archives',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="21 8 21 21 3 21 3 8" /><rect x="1" y="3" width="22" height="5" /><line x1="10" y1="12" x2="14" y2="12" /></svg>
-    },
-    {
-        name: 'Settings', path: '/dashboard/settings',
-        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-    },
+    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Letterbox', path: '/dashboard/letterbox', icon: Mail, badgeKey: 'letterbox' },
+    { name: 'Briefcase', path: '/dashboard/sansadx', icon: Briefcase, badgeKey: 'briefcase' },
+    { name: 'Research Desk', path: '/dashboard/copilot', icon: BookOpen },
+    { name: 'Drafter', path: '/dashboard/drafter', icon: PenTool },
+    { name: 'Schemes', path: '/dashboard/schemes', icon: Gift },
+    { name: 'CSR Intelligence', path: '/dashboard/csr', icon: Users },
+    { name: 'Archives', path: '/dashboard/archives', icon: Archive },
+    { name: 'Settings', path: '/dashboard/settings', icon: Settings },
 ];
 
-// ── 6. Notification badge pill ──
 function NavBadge({ count }) {
     if (!count || count < 1) return null;
     return (
-        <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white bg-red-500 leading-none min-w-[18px] text-center">
+        <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-[10px] font-bold">
             {count > 99 ? '99+' : count}
-        </span>
+        </Badge>
     );
 }
 
-export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {} }) {
+export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}, collapsed = false, setCollapsed }) {
     const pathname = usePathname();
-    const color = user?.theme_color || '#006a4d';
     const house = user?.house || 'Lok Sabha';
+    const isLokSabha = house.toLowerCase().includes('lok');
 
     return (
         <>
             {/* Mobile Backdrop */}
             <div
-                className={`fixed inset-0 bg-black/50 z-20 md:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                className={cn(
+                    "fixed inset-0 bg-foreground/20 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300",
+                    isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+                )}
                 onClick={() => setIsOpen?.(false)}
             />
 
+            {/* Sidebar */}
             <aside
-                className={`w-60 h-screen flex flex-col fixed left-0 top-0 z-30 bg-white border-r transform transition-transform md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
-                style={{ borderColor: '#e5e7eb' }}
+                className={cn(
+                    "fixed left-0 top-0 z-50 h-screen flex flex-col bg-card border-r border-border",
+                    "transform transition-all duration-300 ease-out",
+                    "md:translate-x-0",
+                    isOpen ? "translate-x-0" : "-translate-x-full",
+                    collapsed ? "md:w-[72px]" : "md:w-64",
+                    "w-72"
+                )}
             >
-                {/* Logo block */}
-                <div className="px-5 py-5 border-b" style={{ borderColor: '#e5e7eb' }}>
-                    <div className="flex items-center gap-2 mb-3">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ background: color }}>
-                            CN
-                        </div>
-                        <div>
-                            <div className="text-sm font-bold text-gray-900">Compass Needle</div>
-                        </div>
+                {/* Logo Section */}
+                <div className={cn("flex items-center gap-3 px-4 h-16 border-b border-border", collapsed && "md:justify-center md:px-2")}>
+                    <div className={cn(
+                        "h-10 w-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm",
+                        isLokSabha ? "bg-primary" : "bg-[hsl(350,88%,35%)]"
+                    )}>
+                        <Compass className="h-5 w-5 text-primary-foreground" />
                     </div>
-                    <div className="text-sm font-semibold text-gray-800 truncate">{user?.display_name}</div>
-                    <div className="text-xs text-gray-500 truncate">{house}</div>
+                    <div className={cn("flex-1 min-w-0", collapsed && "md:hidden")}>
+                        <h1 className="font-bold text-foreground truncate">Compass Needle</h1>
+                        <p className="text-xs text-muted-foreground truncate">{house}</p>
+                    </div>
+                    
+                    {/* Collapse toggle - desktop only */}
+                    {setCollapsed && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn("hidden md:flex h-8 w-8 shrink-0", collapsed && "md:hidden")}
+                            onClick={() => setCollapsed(!collapsed)}
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                    )}
                 </div>
 
-                {/* Nav */}
-                <nav className="flex-1 py-3 overflow-y-auto">
-                    {NAV_ITEMS.map((item) => {
-                        const active = pathname === item.path || (item.path !== '/dashboard' && pathname.startsWith(item.path));
-                        const badgeCount = item.badgeKey ? (badges[item.badgeKey] || 0) : 0;
-                        return (
-                            <Link
-                                key={item.path}
-                                href={item.path}
-                                className="flex items-center gap-3 px-5 py-2.5 text-[13px] font-medium transition-all"
-                                style={{
-                                    color: active ? color : '#6b7280',
-                                    background: active ? `${color}12` : 'transparent',
-                                    borderLeft: active ? `3px solid ${color}` : '3px solid transparent',
-                                }}
-                            >
-                                <span style={{ color: active ? color : '#9ca3af' }}>{item.icon}</span>
-                                {item.name}
-                                <NavBadge count={badgeCount} />
-                            </Link>
-                        );
-                    })}
-                </nav>
+                {/* User Info */}
+                <div className={cn("px-4 py-3 border-b border-border", collapsed && "md:px-2 md:py-3")}>
+                    <div className={cn("flex items-center gap-3", collapsed && "md:justify-center")}>
+                        <div className={cn(
+                            "h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold shrink-0",
+                            "bg-secondary text-secondary-foreground"
+                        )}>
+                            {user?.display_name?.charAt(0)?.toUpperCase() || 'U'}
+                        </div>
+                        <div className={cn("flex-1 min-w-0", collapsed && "md:hidden")}>
+                            <p className="text-sm font-medium text-foreground truncate">
+                                {user?.display_name}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                                {user?.constituency}
+                            </p>
+                        </div>
+                    </div>
+                </div>
 
-                {/* Logout */}
-                <div className="border-t px-5 py-4" style={{ borderColor: '#e5e7eb' }}>
-                    <button
-                        onClick={onLogout}
-                        className="flex items-center gap-2 text-[13px] font-medium text-gray-400 hover:text-red-500 transition-colors"
-                    >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
-                        </svg>
-                        Log Out
-                    </button>
+                {/* Navigation */}
+                <ScrollArea className="flex-1 py-2">
+                    <nav className="px-2 space-y-1">
+                        {NAV_ITEMS.map((item) => {
+                            const Icon = item.icon;
+                            const active = pathname === item.path || 
+                                (item.path !== '/dashboard' && pathname.startsWith(item.path));
+                            const badgeCount = item.badgeKey ? (badges[item.badgeKey] || 0) : 0;
+
+                            const linkContent = (
+                                <Link
+                                    href={item.path}
+                                    className={cn(
+                                        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                                        "hover:bg-accent hover:text-accent-foreground",
+                                        active 
+                                            ? "bg-primary/10 text-primary" 
+                                            : "text-muted-foreground",
+                                        collapsed && "md:justify-center md:px-2"
+                                    )}
+                                    onClick={() => setIsOpen?.(false)}
+                                >
+                                    <Icon className={cn(
+                                        "h-5 w-5 shrink-0 transition-colors",
+                                        active ? "text-primary" : "text-muted-foreground"
+                                    )} />
+                                    <span className={cn("flex-1", collapsed && "md:hidden")}>
+                                        {item.name}
+                                    </span>
+                                    {badgeCount > 0 && (
+                                        <div className={cn(collapsed && "md:hidden")}>
+                                            <NavBadge count={badgeCount} />
+                                        </div>
+                                    )}
+                                </Link>
+                            );
+
+                            if (collapsed) {
+                                return (
+                                    <Tooltip key={item.path} delayDuration={0}>
+                                        <TooltipTrigger asChild className="hidden md:flex">
+                                            {linkContent}
+                                        </TooltipTrigger>
+                                        <TooltipContent side="right" className="hidden md:block">
+                                            <div className="flex items-center gap-2">
+                                                {item.name}
+                                                {badgeCount > 0 && <NavBadge count={badgeCount} />}
+                                            </div>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                );
+                            }
+
+                            return <div key={item.path}>{linkContent}</div>;
+                        })}
+                    </nav>
+                </ScrollArea>
+
+                {/* Footer */}
+                <div className={cn("p-3 border-t border-border", collapsed && "md:p-2")}>
+                    {collapsed && setCollapsed && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="hidden md:flex w-full h-10 mb-2"
+                            onClick={() => setCollapsed(false)}
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                    )}
+                    <Tooltip delayDuration={0}>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                className={cn(
+                                    "w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10",
+                                    collapsed && "md:justify-center md:px-2"
+                                )}
+                                onClick={onLogout}
+                            >
+                                <LogOut className="h-4 w-4 shrink-0" />
+                                <span className={cn("ml-2", collapsed && "md:hidden")}>Log out</span>
+                            </Button>
+                        </TooltipTrigger>
+                        {collapsed && (
+                            <TooltipContent side="right" className="hidden md:block">
+                                Log out
+                            </TooltipContent>
+                        )}
+                    </Tooltip>
                 </div>
             </aside>
         </>

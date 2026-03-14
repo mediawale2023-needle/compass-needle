@@ -3,14 +3,15 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:mp\" \"npm run dev:admin\"",
-    
     "dev:backend": "cd sansadx_backend && ../venv/bin/python -m uvicorn main:app --reload --port 8000",
-    
     "dev:mp": "source venv/bin/activate && streamlit run mp_dashboard.py --server.port 8502",
-
     "dev:admin": "source venv/bin/activate && streamlit run admin_dashboard.py --server.port 8501"
   },
   "devDependencies": {
-    "concurrently": "^8.0.0"
+    "concurrently": "^9.0.0"
+  },
+  "dependencies": {
+    "lucide-react": "^0.577.0",
+    "react": "^19.2.4"
   }
 }
