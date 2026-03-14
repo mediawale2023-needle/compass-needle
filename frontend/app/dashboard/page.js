@@ -5,6 +5,33 @@ import { useAuth } from '@/lib/auth';
 import { apiGet } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+    Loader2,
+    AlertTriangle,
+    CheckCircle2,
+    Building2,
+    Plus,
+    Mail,
+    PenTool,
+    Gift,
+    ArrowRight,
+    TrendingUp,
+    Clock,
+    MapPin,
+    FileText,
+    ChevronDown,
+    ChevronUp,
+    ExternalLink,
+    Briefcase,
+    FileEdit,
+    Search,
+    MessageSquare,
+} from 'lucide-react';
 
 const TYPE_LABELS = {
     draft_letter: 'Letter',
@@ -13,27 +40,18 @@ const TYPE_LABELS = {
     copilot_chat: 'Chat',
 };
 
+const TYPE_ICONS = {
+    draft_letter: FileText,
+    draft_question: FileEdit,
+    analysis: Search,
+    copilot_chat: MessageSquare,
+};
+
 const QUICK_ACTIONS = [
-    {
-        label: '+ Log New Case',
-        href: '/dashboard/sansadx',
-        desc: 'Open Briefcase',
-    },
-    {
-        label: '✉ Upload Letter',
-        href: '/dashboard/letterbox',
-        desc: 'Scan or upload',
-    },
-    {
-        label: '✍ Draft Response',
-        href: '/dashboard/drafter',
-        desc: 'AI-assisted writing',
-    },
-    {
-        label: '⊞ Find a Scheme',
-        href: '/dashboard/schemes',
-        desc: 'Match constituents',
-    },
+    { label: 'Log New Case', href: '/dashboard/sansadx', desc: 'Open Briefcase', icon: Plus },
+    { label: 'Upload Letter', href: '/dashboard/letterbox', desc: 'Scan or upload', icon: Mail },
+    { label: 'Draft Response', href: '/dashboard/drafter', desc: 'AI-assisted writing', icon: PenTool },
+    { label: 'Find a Scheme', href: '/dashboard/schemes', desc: 'Match constituents', icon: Gift },
 ];
 
 function getGreeting() {
@@ -51,13 +69,15 @@ function daysAgo(dateStr) {
 
 function AgeBadge({ days }) {
     if (days === null) return null;
-    const color = days >= 14 ? '#dc2626' : days >= 7 ? '#d97706' : '#16a34a';
-    const bg   = days >= 14 ? '#fee2e2' : days >= 7 ? '#fef3c7' : '#dcfce7';
     return (
-        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0"
-            style={{ color, background: bg }}>
+        <Badge variant="outline" className={cn(
+            "text-[10px] font-bold shrink-0",
+            days >= 14 && "border-destructive text-destructive bg-destructive/10",
+            days >= 7 && days < 14 && "border-amber-500 text-amber-600 bg-amber-50",
+            days < 7 && "border-emerald-500 text-emerald-600 bg-emerald-50"
+        )}>
             {days}d
-        </span>
+        </Badge>
     );
 }
 
@@ -65,16 +85,14 @@ export default function DashboardPage() {
     const { user } = useAuth();
     const router = useRouter();
 
-    const [summary, setSummary]           = useState(null);
-    const [news, setNews]                 = useState({ national: [], local: [] });
-    const [newsTab, setNewsTab]           = useState('national');
-    const [showNews, setShowNews]         = useState(true);
-    const [parliament, setParliament]     = useState(null);
-    const [recentActivity, setRecent]     = useState([]);
-    const [staleCases, setStaleCases]     = useState([]);
-    const [loading, setLoading]           = useState(true);
-
-    const color = user?.theme_color || '#006a4d';
+    const [summary, setSummary] = useState(null);
+    const [news, setNews] = useState({ national: [], local: [] });
+    const [newsTab, setNewsTab] = useState('national');
+    const [showNews, setShowNews] = useState(true);
+    const [parliament, setParliament] = useState(null);
+    const [recentActivity, setRecent] = useState([]);
+    const [staleCases, setStaleCases] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         async function load() {
@@ -95,7 +113,6 @@ export default function DashboardPage() {
                 setParliament(parl);
                 setRecent(hist.items || []);
 
-                // Awaiting Response: cases with status=new (pending initiation), oldest first
                 const allCases = cases.cases || cases.items || [];
                 const pending = allCases
                     .filter(c => (c.status || '').toLowerCase() === 'new')
@@ -113,54 +130,60 @@ export default function DashboardPage() {
     }, []);
 
     if (loading) return (
-        <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <div className="w-6 h-6 border-2 border-gray-200 rounded-full animate-spin"
-                style={{ borderTopColor: color }} />
-            <span className="text-sm text-gray-400">Loading dashboard…</span>
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="text-sm text-muted-foreground">Loading dashboard...</span>
         </div>
     );
 
-    const cats      = summary?.category_breakdown || {};
-    const statuses  = summary?.status_breakdown   || {};
+    const cats = summary?.category_breakdown || {};
+    const statuses = summary?.status_breakdown || {};
     const totalCases = Object.values(statuses).reduce((a, b) => a + b, 0);
-    const maxCat    = Math.max(...Object.values(cats), 1);
-    const newCount  = statuses['new'] || 0;
-    const redCount  = summary?.red_zones?.length  || 0;
+    const maxCat = Math.max(...Object.values(cats), 1);
+    const newCount = statuses['new'] || 0;
+    const redCount = summary?.red_zones?.length || 0;
     const hasUrgent = newCount > 0 || redCount > 0;
-    const isEmpty   = totalCases === 0;
+    const isEmpty = totalCases === 0;
 
     const STAT_CARDS = [
-        { label: 'TOTAL CASES',  value: totalCases,                  borderColor: color,      filter: ''            },
-        { label: 'NEW / OPEN',   value: statuses['new']         || 0, borderColor: '#3b82f6', filter: 'new'         },
-        { label: 'IN PROGRESS',  value: statuses['in_progress'] || 0, borderColor: '#f59e0b', filter: 'in_progress' },
-        { label: 'RESOLVED',     value: statuses['resolved']    || 0, borderColor: '#16a34a', filter: 'resolved'    },
+        { label: 'Total Cases', value: totalCases, color: 'primary', filter: '', icon: Briefcase },
+        { label: 'New / Open', value: statuses['new'] || 0, color: 'blue', filter: 'new', icon: Plus },
+        { label: 'In Progress', value: statuses['in_progress'] || 0, color: 'amber', filter: 'in_progress', icon: Clock },
+        { label: 'Resolved', value: statuses['resolved'] || 0, color: 'emerald', filter: 'resolved', icon: CheckCircle2 },
     ];
 
     return (
-        <div className="space-y-5">
-
-            {/* ── 8. Personalised greeting ── */}
+        <div className="space-y-6">
+            {/* Greeting */}
             <div>
-                <h1 className="text-lg font-bold text-gray-900">
+                <h1 className="text-2xl font-bold text-foreground">
                     {getGreeting()}, {user?.display_name}
                 </h1>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-sm text-muted-foreground mt-1">
                     {user?.constituency} · {user?.house}
                 </p>
             </div>
 
-            {/* ── 5. Parliament Status — moved to top ── */}
+            {/* Parliament Status */}
             {parliament && (
-                <div className={`rounded-xl border shadow-sm ${parliament.in_session ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100'}`}>
-                    <div className="px-5 py-3">
+                <Card className={cn(
+                    "border-l-4",
+                    parliament.in_session ? "border-l-emerald-500 bg-emerald-50/50" : "border-l-muted"
+                )}>
+                    <CardContent className="py-4">
                         {parliament.in_session ? (
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse shrink-0" />
-                                    <span className="text-sm font-bold text-green-800">
-                                        House in Session — {parliament.session_name}
-                                    </span>
-                                    <span className="text-xs text-gray-400 ml-auto">
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="relative flex h-2.5 w-2.5">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                                        </span>
+                                        <span className="font-semibold text-emerald-800">
+                                            House in Session — {parliament.session_name}
+                                        </span>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">
                                         {parliament.day}, {parliament.date}
                                     </span>
                                 </div>
@@ -168,140 +191,175 @@ export default function DashboardPage() {
                                     <div className="flex items-center justify-between gap-3 flex-wrap">
                                         <div className="flex flex-wrap gap-1.5">
                                             {parliament.business_items.slice(0, 2).map((item, i) => (
-                                                <span key={i} className="text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded">
+                                                <Badge key={i} variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200">
                                                     {item}
-                                                </span>
+                                                </Badge>
                                             ))}
                                         </div>
-                                        <Link
-                                            href={`/dashboard/drafter?topic=${encodeURIComponent(parliament.business_items[0] || '')}`}
-                                            className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded text-white"
-                                            style={{ background: color }}>
-                                            Draft a PQ →
-                                        </Link>
+                                        <Button asChild size="sm">
+                                            <Link href={`/dashboard/drafter?topic=${encodeURIComponent(parliament.business_items[0] || '')}`}>
+                                                Draft a PQ
+                                                <ArrowRight className="h-4 w-4 ml-1" />
+                                            </Link>
+                                        </Button>
                                     </div>
                                 )}
                             </div>
                         ) : (
-                            <div className="flex items-center gap-2">
-                                <span className="w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0" />
-                                <span className="text-sm text-gray-600">{parliament.message}</span>
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40" />
+                                    <span className="text-sm text-muted-foreground">{parliament.message}</span>
+                                </div>
                                 {parliament.next_session && (
-                                    <span className="text-xs text-gray-400 ml-auto whitespace-nowrap">
+                                    <span className="text-xs text-muted-foreground">
                                         Next: {parliament.next_session}
                                     </span>
                                 )}
                             </div>
                         )}
-                    </div>
-                </div>
+                    </CardContent>
+                </Card>
             )}
 
-            {/* ── 1. Needs Attention strip ── */}
+            {/* Attention Banner */}
             {hasUrgent ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-red-500 text-lg shrink-0">⚠</span>
-                        <p className="text-sm font-semibold text-red-800">
-                            {newCount > 0 && `${newCount} new grievance${newCount !== 1 ? 's' : ''} need${newCount === 1 ? 's' : ''} attention`}
-                            {newCount > 0 && redCount > 0 && '  ·  '}
-                            {redCount > 0 && `${redCount} zone${redCount !== 1 ? 's' : ''} flagged`}
-                        </p>
-                    </div>
-                    <Link
-                        href="/dashboard/sansadx?status=new"
-                        className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded text-white"
-                        style={{ background: '#dc2626' }}>
-                        Review Now →
-                    </Link>
-                </div>
+                <Card className="border-destructive/50 bg-destructive/5">
+                    <CardContent className="py-4 flex items-center justify-between gap-4 flex-wrap">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
+                                <AlertTriangle className="h-5 w-5 text-destructive" />
+                            </div>
+                            <div>
+                                <p className="font-semibold text-destructive">
+                                    {newCount > 0 && `${newCount} new grievance${newCount !== 1 ? 's' : ''} need${newCount === 1 ? 's' : ''} attention`}
+                                    {newCount > 0 && redCount > 0 && ' · '}
+                                    {redCount > 0 && `${redCount} zone${redCount !== 1 ? 's' : ''} flagged`}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Review these items to keep your constituents happy
+                                </p>
+                            </div>
+                        </div>
+                        <Button variant="destructive" size="sm" asChild>
+                            <Link href="/dashboard/sansadx?status=new">
+                                Review Now
+                                <ArrowRight className="h-4 w-4 ml-1" />
+                            </Link>
+                        </Button>
+                    </CardContent>
+                </Card>
             ) : (
-                <div className="rounded-xl border border-green-200 bg-green-50 px-5 py-3 flex items-center gap-3">
-                    <span className="text-green-600 text-base shrink-0">✓</span>
-                    <span className="text-sm font-semibold text-green-800">
-                        All clear — no new escalations today
-                    </span>
-                </div>
+                <Card className="border-emerald-200 bg-emerald-50/50">
+                    <CardContent className="py-4 flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                        </div>
+                        <div>
+                            <p className="font-semibold text-emerald-800">All clear — no new escalations today</p>
+                            <p className="text-xs text-emerald-600/80 mt-0.5">Great job staying on top of things!</p>
+                        </div>
+                    </CardContent>
+                </Card>
             )}
 
-            {/* ── 10. Empty / first-time state ── */}
+            {/* Empty State */}
             {isEmpty ? (
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-8 py-14 text-center">
-                    <div className="text-5xl mb-4">🏛</div>
-                    <h2 className="text-base font-bold text-gray-800 mb-2">Welcome to Compass Needle</h2>
-                    <p className="text-sm text-gray-500 mb-2 max-w-md mx-auto">
-                        Your constituency office is ready. Start by uploading a letter from a constituent,
-                        logging a new case, or drafting your first parliamentary question.
-                    </p>
-                    <p className="text-xs text-gray-400 mb-8">
-                        Once cases are logged, this dashboard will show you a live summary of your constituency.
-                    </p>
-                    <div className="flex flex-wrap justify-center gap-3">
-                        <Link href="/dashboard/letterbox"
-                            className="text-sm font-semibold px-5 py-2.5 rounded-lg text-white"
-                            style={{ background: color }}>
-                            Upload a Letter
-                        </Link>
-                        <Link href="/dashboard/sansadx"
-                            className="text-sm font-semibold px-5 py-2.5 rounded-lg border"
-                            style={{ borderColor: color, color }}>
-                            Log a Case
-                        </Link>
-                        <Link href="/dashboard/drafter"
-                            className="text-sm font-semibold px-5 py-2.5 rounded-lg border border-gray-300 text-gray-600">
-                            Draft a PQ
-                        </Link>
-                    </div>
-                </div>
+                <Card className="text-center py-12">
+                    <CardContent className="space-y-4">
+                        <div className="h-20 w-20 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+                            <Building2 className="h-10 w-10 text-primary" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-foreground">Welcome to Compass Needle</h2>
+                            <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
+                                Your constituency office is ready. Start by uploading a letter from a constituent,
+                                logging a new case, or drafting your first parliamentary question.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap justify-center gap-3 pt-4">
+                            <Button asChild>
+                                <Link href="/dashboard/letterbox">Upload a Letter</Link>
+                            </Button>
+                            <Button variant="outline" asChild>
+                                <Link href="/dashboard/sansadx">Log a Case</Link>
+                            </Button>
+                            <Button variant="ghost" asChild>
+                                <Link href="/dashboard/drafter">Draft a PQ</Link>
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
             ) : (
                 <>
-                    {/* ── 3. Quick Actions row ── */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        {QUICK_ACTIONS.map(({ label, href, desc }) => (
-                            <Link key={href} href={href}
-                                className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 hover:shadow-md transition-shadow text-center block">
-                                <div className="text-sm font-semibold" style={{ color }}>{label}</div>
-                                <div className="text-[11px] text-gray-400 mt-0.5">{desc}</div>
+                    {/* Quick Actions */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {QUICK_ACTIONS.map(({ label, href, desc, icon: Icon }) => (
+                            <Link key={href} href={href}>
+                                <Card className="h-full card-hover cursor-pointer">
+                                    <CardContent className="p-4 text-center">
+                                        <div className="h-10 w-10 mx-auto rounded-lg bg-primary/10 flex items-center justify-center mb-3">
+                                            <Icon className="h-5 w-5 text-primary" />
+                                        </div>
+                                        <p className="text-sm font-semibold text-foreground">{label}</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+                                    </CardContent>
+                                </Card>
                             </Link>
                         ))}
                     </div>
 
-                    {/* ── 2. Stat Cards — clickable with link to filtered Briefcase ── */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {STAT_CARDS.map(({ label, value, borderColor, filter }) => {
-                            const href = filter
-                                ? `/dashboard/sansadx?status=${filter}`
-                                : '/dashboard/sansadx';
+                    {/* Stat Cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        {STAT_CARDS.map(({ label, value, color, filter, icon: Icon }) => {
+                            const href = filter ? `/dashboard/sansadx?status=${filter}` : '/dashboard/sansadx';
                             return (
-                                <Link key={label} href={href}
-                                    className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow block group"
-                                    style={{ borderLeft: `4px solid ${borderColor}` }}>
-                                    <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                                        {label}
-                                    </div>
-                                    <div className="text-3xl font-bold text-gray-900 group-hover:text-gray-700 transition-colors">
-                                        {value}
-                                    </div>
-                                    <div className="text-[10px] text-gray-400 mt-1.5 group-hover:underline">
-                                        View cases →
-                                    </div>
+                                <Link key={label} href={href}>
+                                    <Card className={cn(
+                                        "card-hover cursor-pointer border-l-4",
+                                        color === 'primary' && "border-l-primary",
+                                        color === 'blue' && "border-l-blue-500",
+                                        color === 'amber' && "border-l-amber-500",
+                                        color === 'emerald' && "border-l-emerald-500"
+                                    )}>
+                                        <CardContent className="p-5">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                                    {label}
+                                                </span>
+                                                <Icon className={cn(
+                                                    "h-4 w-4",
+                                                    color === 'primary' && "text-primary",
+                                                    color === 'blue' && "text-blue-500",
+                                                    color === 'amber' && "text-amber-500",
+                                                    color === 'emerald' && "text-emerald-500"
+                                                )} />
+                                            </div>
+                                            <p className="text-3xl font-bold text-foreground">{value}</p>
+                                            <p className="text-xs text-muted-foreground mt-2">
+                                                View cases →
+                                            </p>
+                                        </CardContent>
+                                    </Card>
                                 </Link>
                             );
                         })}
                     </div>
 
-                    {/* ── Main 2/3 + 1/3 grid ── */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-                        {/* ── 9. Category Breakdown — clickable bars ── */}
-                        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                            <div className="px-6 py-4 border-b border-gray-100">
-                                <h2 className="text-base font-bold text-gray-900">Category Breakdown</h2>
-                                <p className="text-[11px] text-gray-400 mt-0.5">
+                    {/* Main Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Category Breakdown */}
+                        <Card className="lg:col-span-2">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <TrendingUp className="h-5 w-5 text-primary" />
+                                    Category Breakdown
+                                </CardTitle>
+                                <CardDescription>
                                     Click any category to view those cases in Briefcase
-                                </p>
-                            </div>
-                            <div className="px-6 py-4">
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
                                 {Object.keys(cats).length > 0 ? (
                                     <div className="space-y-4">
                                         {Object.entries(cats)
@@ -312,22 +370,21 @@ export default function DashboardPage() {
                                                 return (
                                                     <button
                                                         key={cat}
-                                                        className="w-full text-left group cursor-pointer"
-                                                        onClick={() => router.push(
-                                                            `/dashboard/sansadx?category=${encodeURIComponent(cat)}`
-                                                        )}>
-                                                        <div className="flex items-center justify-between mb-1.5">
-                                                            <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition-colors">
+                                                        className="w-full text-left group"
+                                                        onClick={() => router.push(`/dashboard/sansadx?category=${encodeURIComponent(cat)}`)}
+                                                    >
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
                                                                 {cat}
                                                             </span>
-                                                            <span className="text-sm font-bold text-gray-900">
+                                                            <span className="text-sm font-bold text-foreground">
                                                                 {count}
                                                             </span>
                                                         </div>
-                                                        <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                                        <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
                                                             <div
-                                                                className="h-full rounded-full transition-all group-hover:opacity-75"
-                                                                style={{ width: `${pct}%`, background: color }}
+                                                                className="h-full rounded-full bg-primary transition-all group-hover:bg-primary/80"
+                                                                style={{ width: `${pct}%` }}
                                                             />
                                                         </div>
                                                     </button>
@@ -335,190 +392,212 @@ export default function DashboardPage() {
                                             })}
                                     </div>
                                 ) : (
-                                    <p className="text-gray-400 text-sm py-6 text-center">No data available</p>
+                                    <div className="text-center py-8 text-muted-foreground">
+                                        No data available
+                                    </div>
                                 )}
-                            </div>
-                        </div>
+                            </CardContent>
+                        </Card>
 
-                        {/* Right column */}
-                        <div className="space-y-4">
-
+                        {/* Right Column */}
+                        <div className="space-y-6">
                             {/* Red Zones */}
-                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                                <div className="px-5 py-4 border-b border-gray-100">
-                                    <h2 className="text-base font-bold text-gray-900">Red Zones</h2>
-                                    <p className="text-[11px] text-gray-400 mt-0.5">
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="flex items-center gap-2 text-base">
+                                        <MapPin className="h-4 w-4 text-destructive" />
+                                        Red Zones
+                                    </CardTitle>
+                                    <CardDescription>
                                         Areas with high grievance concentration
-                                    </p>
-                                </div>
-                                <div className="px-5 py-3">
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
                                     {summary?.red_zones?.length > 0 ? (
                                         <ul className="space-y-2">
                                             {summary.red_zones.map((zone, i) => (
-                                                <li key={i}
-                                                    className="flex items-center justify-between py-2 border-b last:border-0 border-gray-50">
+                                                <li key={i} className="flex items-center justify-between py-2 border-b last:border-0 border-border">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-red-500 text-base">⚠</span>
-                                                        <span className="text-sm text-gray-700">
+                                                        <AlertTriangle className="h-4 w-4 text-destructive" />
+                                                        <span className="text-sm text-foreground">
                                                             {typeof zone === 'string' ? zone : zone.area}
                                                         </span>
                                                     </div>
                                                     {typeof zone === 'object' && zone.count && (
-                                                        <span className="text-sm font-bold text-red-600">
-                                                            {zone.count}
-                                                        </span>
+                                                        <Badge variant="destructive">{zone.count}</Badge>
                                                     )}
                                                 </li>
                                             ))}
                                         </ul>
                                     ) : (
-                                        <p className="text-sm text-green-700 py-2">All areas normal</p>
+                                        <div className="flex items-center gap-2 text-emerald-600 py-2">
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            <span className="text-sm">All areas normal</span>
+                                        </div>
                                     )}
-                                </div>
-                            </div>
+                                </CardContent>
+                            </Card>
 
-                            {/* ── 4. Awaiting Response panel (replaces News Feed) ── */}
-                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                                <div className="px-5 py-4 border-b border-gray-100">
-                                    <h2 className="text-base font-bold text-gray-900">Awaiting Response</h2>
-                                    <p className="text-[11px] text-gray-400 mt-0.5">
+                            {/* Awaiting Response */}
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="flex items-center gap-2 text-base">
+                                        <Clock className="h-4 w-4 text-amber-500" />
+                                        Awaiting Response
+                                    </CardTitle>
+                                    <CardDescription>
                                         New cases pending initiation
-                                    </p>
-                                </div>
-                                <div className="px-5 py-3">
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-0">
                                     {staleCases.length > 0 ? (
-                                        <ul className="space-y-0 divide-y divide-gray-50">
+                                        <div className="divide-y divide-border -mx-6">
                                             {staleCases.map(c => {
                                                 const age = daysAgo(c.created_at);
                                                 const contact = c.user_phone || c.contact_name || '—';
                                                 const category = c.category || '—';
                                                 return (
-                                                    <li key={c.id}
-                                                        className="py-2.5 flex items-start justify-between gap-2 cursor-pointer hover:bg-gray-50 -mx-5 px-5 transition-colors"
-                                                        onClick={() => router.push('/dashboard/sansadx?status=new')}>
+                                                    <button
+                                                        key={c.id}
+                                                        className="w-full px-6 py-3 flex items-start justify-between gap-2 hover:bg-accent/50 transition-colors text-left"
+                                                        onClick={() => router.push('/dashboard/sansadx?status=new')}
+                                                    >
                                                         <div className="min-w-0">
-                                                            <div className="text-[11px] font-bold text-gray-400 uppercase">
-                                                                #{c.id}
-                                                            </div>
-                                                            <div className="text-sm text-gray-800 font-medium truncate">
-                                                                {contact}
-                                                            </div>
-                                                            <div className="text-[11px] text-gray-500 truncate">
-                                                                {category}
-                                                            </div>
+                                                            <p className="text-xs font-bold text-muted-foreground">#{c.id}</p>
+                                                            <p className="text-sm font-medium text-foreground truncate">{contact}</p>
+                                                            <p className="text-xs text-muted-foreground truncate">{category}</p>
                                                         </div>
                                                         <AgeBadge days={age} />
-                                                    </li>
+                                                    </button>
                                                 );
                                             })}
-                                        </ul>
+                                        </div>
                                     ) : (
-                                        <p className="text-sm text-green-700 py-2 text-center">
-                                            All new cases actioned — great work!
-                                        </p>
+                                        <div className="flex items-center gap-2 text-emerald-600 py-2">
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            <span className="text-sm">All new cases actioned — great work!</span>
+                                        </div>
                                     )}
+                                </CardContent>
+                                <div className="px-6 py-3 border-t border-border">
+                                    <Button variant="link" className="p-0 h-auto text-primary" asChild>
+                                        <Link href="/dashboard/sansadx?status=new">
+                                            View all new cases →
+                                        </Link>
+                                    </Button>
                                 </div>
-                                <div className="px-5 py-3 border-t border-gray-50">
-                                    <Link
-                                        href="/dashboard/sansadx?status=new"
-                                        className="text-xs font-semibold"
-                                        style={{ color }}>
-                                        → View all new cases
-                                    </Link>
-                                </div>
-                            </div>
+                            </Card>
                         </div>
                     </div>
 
-                    {/* ── 7. Recent Activity widget ── */}
+                    {/* Recent Activity */}
                     {recentActivity.length > 0 && (
-                        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                                <h2 className="text-base font-bold text-gray-900">Recent Activity</h2>
-                                <Link href="/dashboard/archives"
-                                    className="text-xs font-semibold"
-                                    style={{ color }}>
-                                    View all →
-                                </Link>
-                            </div>
-                            <div className="divide-y divide-gray-50">
-                                {recentActivity.map(item => (
-                                    <div key={item.id}
-                                        className="px-6 py-3 flex items-center gap-4 hover:bg-gray-50 cursor-pointer transition-colors"
-                                        onClick={() => router.push('/dashboard/archives')}>
-                                        <span className="w-2 h-2 rounded-full shrink-0"
-                                            style={{ background: color }} />
-                                        <div className="flex-1 min-w-0 flex items-center gap-2">
-                                            <span className="text-[10px] font-bold uppercase shrink-0"
-                                                style={{ color }}>
-                                                {TYPE_LABELS[item.activity_type] || item.activity_type}
-                                            </span>
-                                            <span className="text-sm text-gray-700 truncate">
-                                                {item.title}
-                                            </span>
-                                        </div>
-                                        <span className="text-[10px] text-gray-400 shrink-0">
-                                            {item.created_at
-                                                ? new Date(item.created_at).toLocaleString('en-IN', {
-                                                    day: '2-digit', month: 'short',
-                                                    hour: '2-digit', minute: '2-digit',
-                                                })
-                                                : '—'}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <CardTitle className="flex items-center gap-2">
+                                    <Clock className="h-5 w-5 text-primary" />
+                                    Recent Activity
+                                </CardTitle>
+                                <Button variant="link" className="p-0 h-auto" asChild>
+                                    <Link href="/dashboard/archives">View all →</Link>
+                                </Button>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                                <div className="divide-y divide-border">
+                                    {recentActivity.map(item => {
+                                        const Icon = TYPE_ICONS[item.activity_type] || FileText;
+                                        return (
+                                            <button
+                                                key={item.id}
+                                                className="w-full px-6 py-3 flex items-center gap-4 hover:bg-accent/50 transition-colors text-left"
+                                                onClick={() => router.push('/dashboard/archives')}
+                                            >
+                                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                    <Icon className="h-4 w-4 text-primary" />
+                                                </div>
+                                                <div className="flex-1 min-w-0 flex items-center gap-2">
+                                                    <Badge variant="secondary" className="text-[10px] shrink-0">
+                                                        {TYPE_LABELS[item.activity_type] || item.activity_type}
+                                                    </Badge>
+                                                    <span className="text-sm text-foreground truncate">
+                                                        {item.title}
+                                                    </span>
+                                                </div>
+                                                <span className="text-xs text-muted-foreground shrink-0">
+                                                    {item.created_at
+                                                        ? new Date(item.created_at).toLocaleString('en-IN', {
+                                                            day: '2-digit', month: 'short',
+                                                            hour: '2-digit', minute: '2-digit',
+                                                        })
+                                                        : '—'}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </CardContent>
+                        </Card>
                     )}
 
-                    {/* ── 4. News Feed — demoted, collapsible ── */}
-                    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                        <button
-                            className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                            onClick={() => setShowNews(v => !v)}>
-                            <h2 className="text-base font-bold text-gray-900">News Feed</h2>
-                            <span className="text-xs text-gray-400">{showNews ? '▲ Hide' : '▼ Show'}</span>
-                        </button>
+                    {/* News Feed */}
+                    <Card>
+                        <CardHeader className="cursor-pointer" onClick={() => setShowNews(v => !v)}>
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="flex items-center gap-2">
+                                    <FileText className="h-5 w-5 text-primary" />
+                                    News Feed
+                                </CardTitle>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    {showNews ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                </Button>
+                            </div>
+                        </CardHeader>
                         {showNews && (
-                            <>
-                                <div className="px-5 py-2 border-t border-b border-gray-100">
-                                    <div className="flex gap-4">
-                                        {['national', 'local'].map(tab => (
-                                            <button key={tab} onClick={() => setNewsTab(tab)}
-                                                className="text-xs font-semibold pb-2 transition-colors"
-                                                style={newsTab === tab
-                                                    ? { color, borderBottom: `2px solid ${color}` }
-                                                    : { color: '#9ca3af', borderBottom: '2px solid transparent' }}>
-                                                {tab === 'national' ? 'National' : 'Local'}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="px-5 py-3 max-h-48 overflow-y-auto">
-                                    {(newsTab === 'national' ? news.national : news.local).length > 0 ? (
-                                        <ul className="space-y-2">
-                                            {(newsTab === 'national' ? news.national : news.local)
-                                                .slice(0, 5)
-                                                .map((a, i) => (
-                                                    <li key={i}>
-                                                        <a href={a.link} target="_blank" rel="noopener noreferrer"
-                                                            className="text-xs text-gray-700 hover:underline leading-snug block">
-                                                            {a.title}
-                                                        </a>
-                                                    </li>
-                                                ))}
-                                        </ul>
-                                    ) : (
-                                        <p className="text-xs text-gray-400 py-2 text-center">
-                                            No coverage found today
-                                        </p>
-                                    )}
-                                </div>
-                            </>
+                            <CardContent className="pt-0">
+                                <Tabs value={newsTab} onValueChange={setNewsTab}>
+                                    <TabsList className="mb-4">
+                                        <TabsTrigger value="national">National</TabsTrigger>
+                                        <TabsTrigger value="local">Local</TabsTrigger>
+                                    </TabsList>
+                                    <TabsContent value="national" className="mt-0">
+                                        <NewsList articles={news.national} />
+                                    </TabsContent>
+                                    <TabsContent value="local" className="mt-0">
+                                        <NewsList articles={news.local} />
+                                    </TabsContent>
+                                </Tabs>
+                            </CardContent>
                         )}
-                    </div>
+                    </Card>
                 </>
             )}
         </div>
+    );
+}
+
+function NewsList({ articles }) {
+    if (articles.length === 0) {
+        return (
+            <p className="text-sm text-muted-foreground text-center py-4">
+                No coverage found today
+            </p>
+        );
+    }
+    return (
+        <ul className="space-y-3">
+            {articles.slice(0, 5).map((a, i) => (
+                <li key={i}>
+                    <a
+                        href={a.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group flex items-start gap-2 text-sm text-foreground hover:text-primary transition-colors"
+                    >
+                        <ExternalLink className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground group-hover:text-primary" />
+                        <span className="leading-snug">{a.title}</span>
+                    </a>
+                </li>
+            ))}
+        </ul>
     );
 }

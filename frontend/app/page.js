@@ -3,6 +3,11 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Loader2, Compass, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
     const { user, login } = useAuth();
@@ -26,70 +31,100 @@ export default function LoginPage() {
             router.push('/dashboard');
         } catch (err) {
             const msg = err.message || 'Invalid credentials';
-            setError(msg.includes('Connection timed out') || msg.includes('try again') ? msg : (msg === 'Request failed after retries' ? 'Connection issue. Please try again in a moment.' : msg));
+            setError(
+                msg.includes('Connection timed out') || msg.includes('try again')
+                    ? msg
+                    : msg === 'Request failed after retries'
+                        ? 'Connection issue. Please try again in a moment.'
+                        : msg
+            );
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center" style={{ background: '#f4f4f4' }}>
-            <div className="w-full max-w-sm">
-                {/* Accent bar */}
-                <div style={{ height: 4, background: '#006a4d', borderRadius: '4px 4px 0 0' }} />
-
-                {/* Card */}
-                <div className="bg-white border p-8" style={{ borderColor: '#ddd', borderTop: 'none' }}>
-                    {/* Header — matches sansad.in "Lok Sabha / House of the People" style */}
-                    <div className="text-center mb-8">
-                        <h1 className="text-2xl font-bold" style={{ color: '#006a4d' }}>Needle</h1>
-                        <p className="text-xs text-gray-500 mt-1">Parliamentary Intelligence Platform</p>
-                    </div>
-
-                    <form onSubmit={handleSubmit}>
-                        <div className="mb-4">
-                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase">Username</label>
-                            <input
-                                type="text"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                className="w-full px-3 py-2.5 border text-sm focus:outline-none focus:ring-1"
-                                style={{ borderColor: '#ddd', '--tw-ring-color': '#006a4d' }}
-                                required
-                                autoFocus
-                            />
-                        </div>
-
-                        <div className="mb-5">
-                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase">Password</label>
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="w-full px-3 py-2.5 border text-sm focus:outline-none focus:ring-1"
-                                style={{ borderColor: '#ddd', '--tw-ring-color': '#006a4d' }}
-                                required
-                            />
-                        </div>
-
-                        {error && (
-                            <div className="text-red-700 text-xs bg-red-50 px-3 py-2 border border-red-200 mb-4">
-                                {error}
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-accent/30 p-4">
+            {/* Subtle background pattern */}
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMwMDAiIGZpbGwtb3BhY2l0eT0iMC4wMiI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-50" />
+            
+            <div className="w-full max-w-md relative animate-fade-in">
+                <Card className="border-0 shadow-xl bg-card/95 backdrop-blur-sm">
+                    <CardHeader className="space-y-1 pb-4 pt-8 px-8">
+                        <div className="flex items-center justify-center mb-4">
+                            <div className="h-14 w-14 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
+                                <Compass className="h-7 w-7 text-primary-foreground" />
                             </div>
-                        )}
+                        </div>
+                        <CardTitle className="text-2xl font-bold text-center text-foreground">
+                            Compass Needle
+                        </CardTitle>
+                        <CardDescription className="text-center text-muted-foreground">
+                            Parliamentary Intelligence Platform
+                        </CardDescription>
+                    </CardHeader>
+                    
+                    <CardContent className="px-8 pb-8">
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="username" className="text-sm font-medium text-foreground">
+                                    Username
+                                </Label>
+                                <Input
+                                    id="username"
+                                    type="text"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    placeholder="Enter your username"
+                                    className="h-11 bg-secondary/50 border-input focus-visible:ring-primary"
+                                    required
+                                    autoFocus
+                                    autoComplete="username"
+                                />
+                            </div>
 
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full py-2.5 text-white text-sm font-semibold disabled:opacity-50"
-                            style={{ background: '#006a4d' }}
-                        >
-                            {loading ? 'Signing in...' : 'Login'}
-                        </button>
-                    </form>
-                </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="password" className="text-sm font-medium text-foreground">
+                                    Password
+                                </Label>
+                                <Input
+                                    id="password"
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    placeholder="Enter your password"
+                                    className="h-11 bg-secondary/50 border-input focus-visible:ring-primary"
+                                    required
+                                    autoComplete="current-password"
+                                />
+                            </div>
 
-                <p className="text-center text-[11px] text-gray-400 mt-4">
+                            {error && (
+                                <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                                    <span>{error}</span>
+                                </div>
+                            )}
+
+                            <Button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full h-11 text-base font-semibold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
+                            >
+                                {loading ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Signing in...
+                                    </>
+                                ) : (
+                                    'Sign in'
+                                )}
+                            </Button>
+                        </form>
+                    </CardContent>
+                </Card>
+
+                <p className="text-center text-xs text-muted-foreground mt-6">
                     Compass Needle · Digital Parliament
                 </p>
             </div>
