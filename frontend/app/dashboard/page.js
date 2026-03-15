@@ -15,14 +15,12 @@ import {
     AlertTriangle,
     CheckCircle2,
     Building2,
-    Plus,
     Mail,
     PenTool,
     Gift,
     ArrowRight,
     TrendingUp,
     Clock,
-    MapPin,
     FileText,
     ChevronDown,
     ChevronUp,
@@ -31,6 +29,7 @@ import {
     FileEdit,
     Search,
     MessageSquare,
+    BarChart2,
 } from 'lucide-react';
 
 const TYPE_LABELS = {
@@ -48,7 +47,6 @@ const TYPE_ICONS = {
 };
 
 const QUICK_ACTIONS = [
-    { label: 'Log New Case', href: '/dashboard/sansadx', desc: 'Open Briefcase', icon: Plus },
     { label: 'Upload Letter', href: '/dashboard/letterbox', desc: 'Scan or upload', icon: Mail },
     { label: 'Draft Response', href: '/dashboard/drafter', desc: 'AI-assisted writing', icon: PenTool },
     { label: 'Find a Scheme', href: '/dashboard/schemes', desc: 'Match constituents', icon: Gift },
@@ -86,6 +84,7 @@ export default function DashboardPage() {
     const router = useRouter();
 
     const [summary, setSummary] = useState(null);
+    const [reportCard, setReportCard] = useState(null);
     const [news, setNews] = useState({ national: [], local: [] });
     const [newsTab, setNewsTab] = useState('national');
     const [showNews, setShowNews] = useState(true);
@@ -97,10 +96,11 @@ export default function DashboardPage() {
     useEffect(() => {
         async function load() {
             try {
-                const [sum, nat, loc, parl, hist, cases] = await Promise.all([
+                const [sum, rc, nat, loc, parl, hist, cases] = await Promise.all([
                     apiGet('/api/dashboard/summary').catch(() => ({
                         category_breakdown: {}, status_breakdown: {}, red_zones: [], critical_count: 0,
                     })),
+                    apiGet('/api/activity/report-card').catch(() => null),
                     apiGet('/api/news?news_type=national').catch(() => ({ articles: [] })),
                     apiGet('/api/news?news_type=local').catch(() => ({ articles: [] })),
                     apiGet('/api/parliament/status').catch(() => null),
@@ -109,6 +109,7 @@ export default function DashboardPage() {
                 ]);
 
                 setSummary(sum);
+                setReportCard(rc);
                 setNews({ national: nat.articles || [], local: loc.articles || [] });
                 setParliament(parl);
                 setRecent(hist.items || []);
@@ -147,9 +148,16 @@ export default function DashboardPage() {
 
     const STAT_CARDS = [
         { label: 'Total Cases', value: totalCases, color: 'primary', filter: '', icon: Briefcase },
-        { label: 'New / Open', value: statuses['new'] || 0, color: 'blue', filter: 'new', icon: Plus },
+        { label: 'New / Open', value: statuses['new'] || 0, color: 'blue', filter: 'new', icon: AlertTriangle },
         { label: 'In Progress', value: statuses['in_progress'] || 0, color: 'amber', filter: 'in_progress', icon: Clock },
         { label: 'Resolved', value: statuses['resolved'] || 0, color: 'emerald', filter: 'resolved', icon: CheckCircle2 },
+    ];
+
+    const REPORT_CARD_ITEMS = [
+        { label: 'Letters Drafted', value: reportCard?.letters_drafted ?? '—', icon: FileText },
+        { label: 'Questions Filed', value: reportCard?.questions_drafted ?? '—', icon: FileEdit },
+        { label: 'Docs Analysed', value: reportCard?.docs_analysed ?? '—', icon: Search },
+        { label: 'Cases Reviewed', value: reportCard?.cases_reviewed ?? '—', icon: CheckCircle2 },
     ];
 
     return (
@@ -293,7 +301,7 @@ export default function DashboardPage() {
             ) : (
                 <>
                     {/* Quick Actions */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                         {QUICK_ACTIONS.map(({ label, href, desc, icon: Icon }) => (
                             <Link key={href} href={href}>
                                 <Card className="h-full card-hover cursor-pointer">
@@ -401,40 +409,32 @@ export default function DashboardPage() {
 
                         {/* Right Column */}
                         <div className="space-y-6">
-                            {/* Red Zones */}
+                            {/* Report Card */}
                             <Card>
                                 <CardHeader className="pb-3">
-                                    <CardTitle className="flex items-center gap-2 text-base">
-                                        <MapPin className="h-4 w-4 text-destructive" />
-                                        Red Zones
-                                    </CardTitle>
-                                    <CardDescription>
-                                        Areas with high grievance concentration
-                                    </CardDescription>
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="flex items-center gap-2 text-base">
+                                            <BarChart2 className="h-4 w-4 text-primary" />
+                                            Report Card
+                                        </CardTitle>
+                                        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                                            {reportCard?.period_label || new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+                                        </span>
+                                    </div>
+                                    <CardDescription>Your activity this month</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    {summary?.red_zones?.length > 0 ? (
-                                        <ul className="space-y-2">
-                                            {summary.red_zones.map((zone, i) => (
-                                                <li key={i} className="flex items-center justify-between py-2 border-b last:border-0 border-border">
-                                                    <div className="flex items-center gap-2">
-                                                        <AlertTriangle className="h-4 w-4 text-destructive" />
-                                                        <span className="text-sm text-foreground">
-                                                            {typeof zone === 'string' ? zone : zone.area}
-                                                        </span>
-                                                    </div>
-                                                    {typeof zone === 'object' && zone.count && (
-                                                        <Badge variant="destructive">{zone.count}</Badge>
-                                                    )}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    ) : (
-                                        <div className="flex items-center gap-2 text-emerald-600 py-2">
-                                            <CheckCircle2 className="h-4 w-4" />
-                                            <span className="text-sm">All areas normal</span>
-                                        </div>
-                                    )}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {REPORT_CARD_ITEMS.map(({ label, value, icon: Icon }) => (
+                                            <div key={label} className="rounded-lg p-3 bg-primary/5">
+                                                <div className="flex items-center gap-1.5 mb-1">
+                                                    <Icon className="h-3.5 w-3.5 text-primary" />
+                                                </div>
+                                                <p className="text-2xl font-bold text-foreground">{value}</p>
+                                                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mt-0.5 leading-tight">{label}</p>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </CardContent>
                             </Card>
 

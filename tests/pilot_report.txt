@@ -1,0 +1,273 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-9.0.2, pluggy-1.6.0 -- /usr/local/bin/python
+cachedir: .pytest_cache
+rootdir: /home/user/compass-needle
+plugins: anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 69 items
+
+tests/test_pilot_readiness.py::TestAuthentication::test_valid_login_returns_token PASSED [  1%]
+tests/test_pilot_readiness.py::TestAuthentication::test_invalid_password_returns_401 PASSED [  2%]
+tests/test_pilot_readiness.py::TestAuthentication::test_unknown_user_returns_401 PASSED [  4%]
+tests/test_pilot_readiness.py::TestAuthentication::test_invalid_password_no_credential_leak PASSED [  5%]
+tests/test_pilot_readiness.py::TestAuthentication::test_expired_token_returns_401 PASSED [  7%]
+tests/test_pilot_readiness.py::TestAuthentication::test_tampered_token_returns_401 PASSED [  8%]
+tests/test_pilot_readiness.py::TestAuthentication::test_missing_auth_header_returns_403_or_401 PASSED [ 10%]
+tests/test_pilot_readiness.py::TestAuthentication::test_malformed_bearer_token PASSED [ 11%]
+tests/test_pilot_readiness.py::TestAuthentication::test_valid_token_me_endpoint PASSED [ 13%]
+tests/test_pilot_readiness.py::TestAuthentication::test_me_endpoint_no_sensitive_fields PASSED [ 14%]
+tests/test_pilot_readiness.py::TestAuthentication::test_admin_login_returns_token PASSED [ 15%]
+tests/test_pilot_readiness.py::TestAuthentication::test_mp_token_rejected_on_admin_login PASSED [ 17%]
+tests/test_pilot_readiness.py::TestWhatsAppWebhookSimulation::test_single_valid_webhook_accepted PASSED [ 18%]
+tests/test_pilot_readiness.py::TestWhatsAppWebhookSimulation::test_100_messages_all_accepted FAILED [ 20%]
+tests/test_pilot_readiness.py::TestWhatsAppWebhookSimulation::test_emergency_message_flagged_critical FAILED [ 21%]
+tests/test_pilot_readiness.py::TestWhatsAppWebhookSimulation::test_no_duplicate_cases_on_single_message FAILED [ 23%]
+tests/test_pilot_readiness.py::TestWhatsAppWebhookSimulation::test_non_text_message_ignored FAILED [ 24%]
+tests/test_pilot_readiness.py::TestWhatsAppWebhookSimulation::test_delivery_receipt_ignored FAILED [ 26%]
+tests/test_pilot_readiness.py::TestMaliciousWebhookInput::test_empty_body_does_not_crash PASSED [ 27%]
+tests/test_pilot_readiness.py::TestMaliciousWebhookInput::test_missing_entry_field_returns_gracefully FAILED [ 28%]
+tests/test_pilot_readiness.py::TestMaliciousWebhookInput::test_extremely_long_message_accepted_without_crash PASSED [ 30%]
+tests/test_pilot_readiness.py::TestMaliciousWebhookInput::test_sql_injection_in_message_body PASSED [ 31%]
+tests/test_pilot_readiness.py::TestMaliciousWebhookInput::test_xss_payload_in_message_body PASSED [ 33%]
+tests/test_pilot_readiness.py::TestMaliciousWebhookInput::test_null_bytes_in_message PASSED [ 34%]
+tests/test_pilot_readiness.py::TestMaliciousWebhookInput::test_unicode_emoji_and_scripts PASSED [ 36%]
+tests/test_pilot_readiness.py::TestMaliciousWebhookInput::test_deeply_nested_json_does_not_crash PASSED [ 37%]
+tests/test_pilot_readiness.py::TestMaliciousWebhookInput::test_missing_from_field_does_not_crash PASSED [ 39%]
+tests/test_pilot_readiness.py::TestMaliciousWebhookInput::test_wrong_content_type_returns_422_not_500 FAILED [ 40%]
+tests/test_pilot_readiness.py::TestAIFailureHandling::test_openai_api_exception_does_not_crash_server FAILED [ 42%]
+tests/test_pilot_readiness.py::TestAIFailureHandling::test_openai_timeout_does_not_crash FAILED [ 43%]
+tests/test_pilot_readiness.py::TestAIFailureHandling::test_invalid_json_from_ai_does_not_crash FAILED [ 44%]
+tests/test_pilot_readiness.py::TestAIFailureHandling::test_ai_returns_empty_string_handled FAILED [ 46%]
+tests/test_pilot_readiness.py::TestAIFailureHandling::test_ai_missing_key_fields_handled FAILED [ 47%]
+tests/test_pilot_readiness.py::TestAIFailureHandling::test_missing_openai_key_returns_error_not_crash PASSED [ 49%]
+tests/test_pilot_readiness.py::TestDatabaseStress::test_500_grievance_inserts_no_error PASSED [ 50%]
+tests/test_pilot_readiness.py::TestDatabaseStress::test_500_cases_saved_count_matches PASSED [ 52%]
+tests/test_pilot_readiness.py::TestDatabaseStress::test_concurrent_reads_no_deadlock PASSED [ 53%]
+tests/test_pilot_readiness.py::TestDatabaseStress::test_dashboard_query_responds_in_time PASSED [ 55%]
+tests/test_pilot_readiness.py::TestDatabaseStress::test_summary_endpoint_responds_in_time PASSED [ 56%]
+tests/test_pilot_readiness.py::TestMultiTenantIsolation::test_mp_cannot_read_other_tenants_cases PASSED [ 57%]
+tests/test_pilot_readiness.py::TestMultiTenantIsolation::test_injected_tenant_id_in_query_param_blocked PASSED [ 59%]
+tests/test_pilot_readiness.py::TestMultiTenantIsolation::test_mp_cannot_access_specific_case_from_other_tenant PASSED [ 60%]
+tests/test_pilot_readiness.py::TestMultiTenantIsolation::test_summary_only_shows_own_tenant_counts PASSED [ 62%]
+tests/test_pilot_readiness.py::TestMultiTenantIsolation::test_webhook_routes_to_correct_tenant FAILED [ 63%]
+tests/test_pilot_readiness.py::TestAdminPanelSecurity::test_admin_endpoint_without_token_returns_401_or_403 PASSED [ 65%]
+tests/test_pilot_readiness.py::TestAdminPanelSecurity::test_mp_token_rejected_on_admin_stats PASSED [ 66%]
+tests/test_pilot_readiness.py::TestAdminPanelSecurity::test_mp_token_rejected_on_admin_mps_list PASSED [ 68%]
+tests/test_pilot_readiness.py::TestAdminPanelSecurity::test_mp_token_rejected_on_create_mp PASSED [ 69%]
+tests/test_pilot_readiness.py::TestAdminPanelSecurity::test_admin_token_can_access_stats PASSED [ 71%]
+tests/test_pilot_readiness.py::TestAdminPanelSecurity::test_admin_cannot_modify_other_tenant_without_permission PASSED [ 72%]
+tests/test_pilot_readiness.py::TestAdminPanelSecurity::test_tampered_role_in_token_rejected PASSED [ 73%]
+tests/test_pilot_readiness.py::TestAdminPanelSecurity::test_admin_login_with_mp_role_rejected PASSED [ 75%]
+tests/test_pilot_readiness.py::TestDashboardLoad::test_10_concurrent_case_list_queries PASSED [ 76%]
+tests/test_pilot_readiness.py::TestDashboardLoad::test_10_concurrent_summary_queries PASSED [ 78%]
+tests/test_pilot_readiness.py::TestDashboardLoad::test_health_check_endpoint_always_fast PASSED [ 79%]
+tests/test_pilot_readiness.py::TestLogSafety::test_login_failure_log_has_no_password PASSED [ 81%]
+tests/test_pilot_readiness.py::TestLogSafety::test_jwt_token_not_logged_on_invalid_request PASSED [ 82%]
+tests/test_pilot_readiness.py::TestLogSafety::test_api_keys_not_in_error_responses PASSED [ 84%]
+tests/test_pilot_readiness.py::TestLogSafety::test_bcrypt_hash_not_in_responses PASSED [ 85%]
+tests/test_pilot_readiness.py::TestLogSafety::test_stack_traces_not_in_error_responses PASSED [ 86%]
+tests/test_pilot_readiness.py::TestWebhookSignatureValidation::test_valid_signature_accepted FAILED [ 88%]
+tests/test_pilot_readiness.py::TestWebhookSignatureValidation::test_invalid_signature_rejected FAILED [ 89%]
+tests/test_pilot_readiness.py::TestWebhookSignatureValidation::test_missing_signature_header_rejected FAILED [ 91%]
+tests/test_pilot_readiness.py::TestWebhookVerification::test_valid_verification_challenge_returned PASSED [ 92%]
+tests/test_pilot_readiness.py::TestWebhookVerification::test_invalid_verify_token_returns_403 PASSED [ 94%]
+tests/test_pilot_readiness.py::TestLanguageDetection::test_english_message_detected PASSED [ 95%]
+tests/test_pilot_readiness.py::TestLanguageDetection::test_marathi_message_detected PASSED [ 97%]
+tests/test_pilot_readiness.py::TestLanguageDetection::test_hinglish_detected PASSED [ 98%]
+tests/test_pilot_readiness.py::TestLanguageDetection::test_kannada_detected PASSED [100%]
+
+=================================== FAILURES ===================================
+_________ TestWhatsAppWebhookSimulation.test_100_messages_all_accepted _________
+tests/test_pilot_readiness.py:427: in test_100_messages_all_accepted
+    assert len(failures) == 0, f"Webhook failures: {failures}"
+E   AssertionError: Webhook failures: [(19, 'Revenue officer refusing to give caste certificate', 429), (20, 'EMERGENCY: Building collapse in Bellandur. People ', 429), (21, 'Flood water entering homes in Varthur. Need rescue', 429), (22, 'Child missing near Nagawara lake. Please help!', 429), (23, 'Old woman collapsed on street in Vijayanagar. No h', 429), (24, 'Violence between groups near mosque in Shivaji Nag', 429), (25, 'Mere area mein paani nahi aata. Please help karo', 429), (26, 'Sadak bahut kharab hai Whitefield mein. Kabse suno', 429), (27, 'Light nahi aati 4 ghante roz. Koi nahi sunta', 429), (28, 'Nali band hai mere ghar ke bahar. Bahut smell aata', 429), (29, 'Bribe maang raha hai officer. Corruption hai yahan', 429), (30, 'I applied for PM Awas Yojana 2 years ago but got n', 429), (31, 'Kisan Samman Nidhi not credited to bank account si', 429), (32, 'Ration card cancelled without reason for my family', 429), (33, 'Senior citizen pension stopped since January', 429), (34, 'Scholarship not released for my daughter in class ', 429), (35, 'Sewer line overflow near market in Rajajinagar', 429), (36, 'Garbage not collected for 10 days in Koramangala', 429), (37, 'Park taken over for private construction in BTM La', 429), (38, 'Hospital building broken. No maintenance done', 429), (39, 'Government school has no toilets for girls', 429), (40, 'No mobile network in Doddaballapur for 1 week afte', 429), (41, 'Internet not working in my village since tower dam', 429), (42, 'Train not stopping at Nayandahalli station as sche', 429), (43, 'Railway level crossing gate broken for 3 weeks', 429), (44, 'Crop damaged by flood — no compensation from gover', 429), (45, 'Fertilizer not available in cooperative store', 429), (46, 'Primary health centre has no doctor since 2 months', 429), (47, 'Free medicine not given at government hospital', 429), (48, 'Ambulance service not responding in our village', 429), (49, 'Midday meal not provided to school children', 429), (50, 'Teacher absent for 30 days in government school', 429)]
+E   assert 32 == 0
+E    +  where 32 = len([(19, 'Revenue officer refusing to give caste certificate', 429), (20, 'EMERGENCY: Building collapse in Bellandur. People ', 429), (21, 'Flood water entering homes in Varthur. Need rescue', 429), (22, 'Child missing near Nagawara lake. Please help!', 429), (23, 'Old woman collapsed on street in Vijayanagar. No h', 429), (24, 'Violence between groups near mosque in Shivaji Nag', 429), ...])
+------------------------------ Captured log call -------------------------------
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  needle.backend:main.py:333 META_APP_SECRET not set — webhook signature validation DISABLED
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+____ TestWhatsAppWebhookSimulation.test_emergency_message_flagged_critical _____
+tests/test_pilot_readiness.py:454: in test_emergency_message_flagged_critical
+    assert resp.status_code == 200
+E   assert 429 == 200
+E    +  where 429 = <Response [429 Too Many Requests]>.status_code
+------------------------------ Captured log call -------------------------------
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+___ TestWhatsAppWebhookSimulation.test_no_duplicate_cases_on_single_message ____
+tests/test_pilot_readiness.py:487: in test_no_duplicate_cases_on_single_message
+    assert resp.status_code == 200
+E   assert 429 == 200
+E    +  where 429 = <Response [429 Too Many Requests]>.status_code
+------------------------------ Captured log call -------------------------------
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+_________ TestWhatsAppWebhookSimulation.test_non_text_message_ignored __________
+tests/test_pilot_readiness.py:514: in test_non_text_message_ignored
+    assert resp.status_code == 200
+E   assert 429 == 200
+E    +  where 429 = <Response [429 Too Many Requests]>.status_code
+------------------------------ Captured log call -------------------------------
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+_________ TestWhatsAppWebhookSimulation.test_delivery_receipt_ignored __________
+tests/test_pilot_readiness.py:530: in test_delivery_receipt_ignored
+    assert resp.status_code == 200
+E   assert 429 == 200
+E    +  where 429 = <Response [429 Too Many Requests]>.status_code
+------------------------------ Captured log call -------------------------------
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+____ TestMaliciousWebhookInput.test_missing_entry_field_returns_gracefully _____
+tests/test_pilot_readiness.py:547: in test_missing_entry_field_returns_gracefully
+    assert resp.status_code in (200, 400, 422), f"Unexpected: {resp.status_code}"
+E   AssertionError: Unexpected: 429
+E   assert 429 in (200, 400, 422)
+E    +  where 429 = <Response [429 Too Many Requests]>.status_code
+------------------------------ Captured log call -------------------------------
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+____ TestMaliciousWebhookInput.test_wrong_content_type_returns_422_not_500 _____
+tests/test_pilot_readiness.py:629: in test_wrong_content_type_returns_422_not_500
+    assert resp.status_code in (400, 422), \
+E   AssertionError: Expected validation error, got 429
+E   assert 429 in (400, 422)
+E    +  where 429 = <Response [429 Too Many Requests]>.status_code
+------------------------------ Captured log call -------------------------------
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+____ TestAIFailureHandling.test_openai_api_exception_does_not_crash_server _____
+tests/test_pilot_readiness.py:649: in test_openai_api_exception_does_not_crash_server
+    assert resp.status_code == 200, "Server crashed when OpenAI was down"
+E   AssertionError: Server crashed when OpenAI was down
+E   assert 429 == 200
+E    +  where 429 = <Response [429 Too Many Requests]>.status_code
+------------------------------ Captured log call -------------------------------
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+___________ TestAIFailureHandling.test_openai_timeout_does_not_crash ___________
+tests/test_pilot_readiness.py:662: in test_openai_timeout_does_not_crash
+    assert resp.status_code == 200
+E   assert 429 == 200
+E    +  where 429 = <Response [429 Too Many Requests]>.status_code
+------------------------------ Captured log call -------------------------------
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+________ TestAIFailureHandling.test_invalid_json_from_ai_does_not_crash ________
+tests/test_pilot_readiness.py:676: in test_invalid_json_from_ai_does_not_crash
+    assert resp.status_code == 200
+E   assert 429 == 200
+E    +  where 429 = <Response [429 Too Many Requests]>.status_code
+------------------------------ Captured log call -------------------------------
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+__________ TestAIFailureHandling.test_ai_returns_empty_string_handled __________
+tests/test_pilot_readiness.py:690: in test_ai_returns_empty_string_handled
+    assert resp.status_code == 200
+E   assert 429 == 200
+E    +  where 429 = <Response [429 Too Many Requests]>.status_code
+------------------------------ Captured log call -------------------------------
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+___________ TestAIFailureHandling.test_ai_missing_key_fields_handled ___________
+tests/test_pilot_readiness.py:708: in test_ai_missing_key_fields_handled
+    assert resp.status_code == 200
+E   assert 429 == 200
+E    +  where 429 = <Response [429 Too Many Requests]>.status_code
+------------------------------ Captured log call -------------------------------
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+________ TestMultiTenantIsolation.test_webhook_routes_to_correct_tenant ________
+tests/test_pilot_readiness.py:961: in test_webhook_routes_to_correct_tenant
+    assert after_t1 > before_t1, "Webhook did not save to Tenant 1"
+E   AssertionError: Webhook did not save to Tenant 1
+E   assert 523 > 523
+------------------------------ Captured log call -------------------------------
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+_________ TestWebhookSignatureValidation.test_valid_signature_accepted _________
+tests/test_pilot_readiness.py:1236: in test_valid_signature_accepted
+    assert resp.status_code == 200
+E   assert 429 == 200
+E    +  where 429 = <Response [429 Too Many Requests]>.status_code
+------------------------------ Captured log call -------------------------------
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+________ TestWebhookSignatureValidation.test_invalid_signature_rejected ________
+tests/test_pilot_readiness.py:1252: in test_invalid_signature_rejected
+    assert resp.status_code == 403
+E   assert 429 == 403
+E    +  where 429 = <Response [429 Too Many Requests]>.status_code
+------------------------------ Captured log call -------------------------------
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+____ TestWebhookSignatureValidation.test_missing_signature_header_rejected _____
+tests/test_pilot_readiness.py:1264: in test_missing_signature_header_rejected
+    assert resp.status_code == 403
+E   assert 429 == 403
+E    +  where 429 = <Response [429 Too Many Requests]>.status_code
+------------------------------ Captured log call -------------------------------
+WARNING  slowapi:extension.py:510 ratelimit 20 per 1 minute (testclient) exceeded at endpoint: /whatsapp/webhook
+=============================== warnings summary ===============================
+api_router.py:1264
+  /home/user/compass-needle/api_router.py:1264: FastAPIDeprecationWarning: `regex` has been deprecated, please use `pattern` instead
+    def get_letterbox_items(direction: str = Query("inbox", regex="^(inbox|outbox)$"), user=Depends(get_current_user)):
+
+tests/test_pilot_readiness.py::TestAdminPanelSecurity::test_tampered_role_in_token_rejected
+  /usr/local/lib/python3.11/dist-packages/jwt/api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 25 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    return self._jws.encode(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_pilot_readiness.py::TestWhatsAppWebhookSimulation::test_100_messages_all_accepted
+FAILED tests/test_pilot_readiness.py::TestWhatsAppWebhookSimulation::test_emergency_message_flagged_critical
+FAILED tests/test_pilot_readiness.py::TestWhatsAppWebhookSimulation::test_no_duplicate_cases_on_single_message
+FAILED tests/test_pilot_readiness.py::TestWhatsAppWebhookSimulation::test_non_text_message_ignored
+FAILED tests/test_pilot_readiness.py::TestWhatsAppWebhookSimulation::test_delivery_receipt_ignored
+FAILED tests/test_pilot_readiness.py::TestMaliciousWebhookInput::test_missing_entry_field_returns_gracefully
+FAILED tests/test_pilot_readiness.py::TestMaliciousWebhookInput::test_wrong_content_type_returns_422_not_500
+FAILED tests/test_pilot_readiness.py::TestAIFailureHandling::test_openai_api_exception_does_not_crash_server
+FAILED tests/test_pilot_readiness.py::TestAIFailureHandling::test_openai_timeout_does_not_crash
+FAILED tests/test_pilot_readiness.py::TestAIFailureHandling::test_invalid_json_from_ai_does_not_crash
+FAILED tests/test_pilot_readiness.py::TestAIFailureHandling::test_ai_returns_empty_string_handled
+FAILED tests/test_pilot_readiness.py::TestAIFailureHandling::test_ai_missing_key_fields_handled
+FAILED tests/test_pilot_readiness.py::TestMultiTenantIsolation::test_webhook_routes_to_correct_tenant
+FAILED tests/test_pilot_readiness.py::TestWebhookSignatureValidation::test_valid_signature_accepted
+FAILED tests/test_pilot_readiness.py::TestWebhookSignatureValidation::test_invalid_signature_rejected
+FAILED tests/test_pilot_readiness.py::TestWebhookSignatureValidation::test_missing_signature_header_rejected
+================== 16 failed, 53 passed, 2 warnings in 6.52s ===================
