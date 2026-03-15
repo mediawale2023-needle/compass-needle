@@ -211,6 +211,18 @@ class TenantOverride(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class SpamFlag(Base):
+    """Tracks messages flagged by abuse or coordinated-flood detection."""
+    __tablename__ = "spam_flags"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
+    phone = Column(String, index=True)
+    flag_type = Column(String)          # 'abuse_keyword' | 'coordinated_flood'
+    flag_reason = Column(Text)          # human-readable explanation
+    message_preview = Column(String)    # first 120 chars of the raw message
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # ─────────────────────────────────────────
 # TENANT OVERRIDE HELPERS
 # ─────────────────────────────────────────
