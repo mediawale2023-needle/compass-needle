@@ -1189,6 +1189,38 @@ TONE: Professional, data-driven. No emojis. Generate ONLY the DPR document text.
 
 
 # ─────────────────────────────────────────
+# REPORT CARD
+# ─────────────────────────────────────────
+@router.get("/activity/report-card")
+def get_report_card(user=Depends(get_current_user)):
+    """Returns this-month activity counts for the current tenant."""
+    tid = get_tenant_or_fail(user)
+    now = datetime.utcnow()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    type_rows = _q("""
+        SELECT activity_type, COUNT(*) as cnt
+        FROM activity_history
+        WHERE tenant_id = :tid AND created_at >= :start
+        GROUP BY activity_type
+    """, {"tid": tid, "start": month_start})
+    type_counts = {row["activity_type"]: row["cnt"] for row in type_rows}
+
+    cases_row = _q_one("""
+        SELECT COUNT(*) as cnt FROM cases
+        WHERE tenant_id = :tid AND updated_at >= :start AND status != 'new'
+    """, {"tid": tid, "start": month_start})
+
+    return {
+        "letters_drafted": type_counts.get("draft_letter", 0),
+        "questions_drafted": type_counts.get("draft_question", 0),
+        "docs_analysed": type_counts.get("analysis", 0) + type_counts.get("copilot_chat", 0),
+        "cases_reviewed": (cases_row["cnt"] if cases_row else 0) or 0,
+        "period_label": now.strftime("%B %Y"),
+    }
+
+
+# ─────────────────────────────────────────
 # ACTIVITY HISTORY
 # ─────────────────────────────────────────
 class SaveActivityRequest(BaseModel):
