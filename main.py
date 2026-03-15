@@ -4,12 +4,13 @@ Backend Entry Point (FastAPI)
 """
 from sansadx_backend.ai_engine import ask_chatgpt_agent
 import os
+import re
 import json
 import hmac
 import hashlib
 import logging
 import sentry_sdk
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, PlainTextResponse
@@ -117,6 +118,111 @@ app.include_router(admin_router, prefix="/api/admin")
 init_db()
 logger.info("Database initialised.")
 
+
+
+# ─────────────────────────────────────────
+# SPAM & ABUSE DETECTION
+# ─────────────────────────────────────────
+# Keyword list covers English threats + transliterated Hindi/Marathi/Kannada abuse.
+# All matching is done on lowercase normalised text so "KILL" == "kill".
+_ABUSE_KEYWORDS = [
+    # English — threats and explicit abuse
+    "i will kill", "i'll kill", "going to kill", "will shoot", "will bomb",
+    "death threat", "kill you", "kill him", "kill her", "kill them",
+    "bomb blast", "blow up", "terrorist attack", "suicide bomb",
+    "rape you", "rape her", "will rape",
+    # English — generic hate/slurs (kept to severe cases to minimise false positives)
+    "fuck you", "motherfucker", "son of a bitch",
+    # Transliterated Hindi/Marathi/Kannada (common severe abuse)
+    "madarchod", "maderchod", "bhen chod", "behenchod", "bhenchod",
+    "chutiya", "chutiye", "bhosadike", "bhosadi", "gandu", "ganduon",
+    "randi", "haramzada", "haramkhor", "kutiya", "harami",
+    "mc bc", "bc mc",
+]
+
+# Coordinated flood: 20+ unique phones, identical fingerprint, within 60 min
+_FLOOD_WINDOW_MINUTES = 60
+_FLOOD_THRESHOLD = 20
+_FLOOD_FINGERPRINT_LEN = 60     # chars of normalised text used for matching
+_FLOOD_MIN_MESSAGE_LEN = 20    # messages shorter than this are too vague to match
+
+
+def _normalise(text: str) -> str:
+    """Lowercase, strip punctuation, collapse whitespace."""
+    text = text.lower()
+    text = re.sub(r"[^\w\s]", "", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _is_abusive(message_body: str) -> tuple:
+    """Returns (True, reason) if the message contains severe abuse keywords."""
+    normalised = _normalise(message_body)
+    for kw in _ABUSE_KEYWORDS:
+        if kw in normalised:
+            return True, f"Matched abuse keyword: '{kw}'"
+    return False, ""
+
+
+def _is_coordinated_flood(message_body: str, tenant_id: int) -> tuple:
+    """
+    Returns (True, reason) if 20+ UNIQUE phone numbers sent a near-identical
+    message to the same MP (tenant) in the last 60 minutes.
+    Fingerprint = first 60 chars of normalised text.
+    """
+    normalised = _normalise(message_body)
+    fingerprint = normalised[:_FLOOD_FINGERPRINT_LEN]
+    if len(fingerprint) < _FLOOD_MIN_MESSAGE_LEN:
+        return False, ""  # too short to reliably fingerprint
+
+    window_start = datetime.utcnow() - timedelta(minutes=_FLOOD_WINDOW_MINUTES)
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text("""
+                    SELECT user_phone, raw_message
+                    FROM cases
+                    WHERE tenant_id = :tid AND created_at >= :window
+                    LIMIT 5000
+                """),
+                {"tid": tenant_id, "window": window_start},
+            ).fetchall()
+
+        matching_phones = {
+            phone
+            for phone, msg in rows
+            if _normalise(msg or "")[:_FLOOD_FINGERPRINT_LEN] == fingerprint
+        }
+        if len(matching_phones) >= _FLOOD_THRESHOLD:
+            return True, (
+                f"Coordinated flood detected: {len(matching_phones)} unique phones "
+                f"sent near-identical messages within {_FLOOD_WINDOW_MINUTES} min"
+            )
+    except Exception as exc:
+        logger.warning(f"Flood detection query failed: {exc}")
+    return False, ""
+
+
+def _save_spam_flag(tenant_id: int, phone: str, flag_type: str, reason: str, message_body: str):
+    """Insert a row into spam_flags. Fire-and-forget — failure is logged, not raised."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO spam_flags
+                        (tenant_id, phone, flag_type, flag_reason, message_preview, created_at)
+                    VALUES (:tid, :phone, :ftype, :reason, :preview, :now)
+                """),
+                {
+                    "tid": tenant_id,
+                    "phone": phone,
+                    "ftype": flag_type,
+                    "reason": reason,
+                    "preview": message_body[:120],
+                    "now": datetime.utcnow(),
+                },
+            )
+    except Exception as exc:
+        logger.warning(f"spam_flags insert failed: {exc}")
 
 
 # ─────────────────────────────────────────
@@ -228,7 +334,47 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
 
     logger.info(f"Incoming from {sender} → Tenant {current_tenant}")
 
-    # Get context & call AI
+    # ── Spam / abuse detection (pre-AI, no token cost) ───────────
+    is_abuse, abuse_reason = _is_abusive(message_body)
+    is_flood, flood_reason = _is_coordinated_flood(message_body, current_tenant)
+
+    if is_abuse or is_flood:
+        flag_type   = "abuse_keyword"    if is_abuse else "coordinated_flood"
+        flag_reason = abuse_reason       if is_abuse else flood_reason
+        spam_cat    = "Spam (Offensive)" if is_abuse else "Spam"
+        logger.warning(f"Spam flag [{flag_type}] from {sender}: {flag_reason}")
+
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    text("""
+                        INSERT INTO cases
+                            (tenant_id, user_phone, category, raw_message,
+                             status, case_metadata, is_critical, created_at)
+                        VALUES (:tid, :phone, :cat, :msg,
+                                'new', :meta, false, :now)
+                    """),
+                    {
+                        "tid":   current_tenant,
+                        "phone": sender,
+                        "cat":   spam_cat,
+                        "msg":   message_body,
+                        "meta":  json.dumps({"spam_flagged": True, "flag_reason": flag_reason}),
+                        "now":   datetime.utcnow(),
+                    },
+                )
+            logger.info(f"Saved spam case: category='{spam_cat}' tenant={current_tenant}")
+        except Exception as exc:
+            logger.error(f"Spam case DB save failed: {exc}")
+
+        _save_spam_flag(current_tenant, sender, flag_type, flag_reason, message_body)
+        send_whatsapp_message(
+            sender,
+            "Thank you for contacting us. Your message has been received and will be reviewed by our team.",
+        )
+        return
+
+    # ── Normal AI processing ─────────────────────────────────────
     user_context = get_user_context(sender)
     full_prompt = f"{user_context}\n\nUSER MESSAGE: {message_body}"
     ai_result = ask_chatgpt_agent(full_prompt, tenant_id=current_tenant)
