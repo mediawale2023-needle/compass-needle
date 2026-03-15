@@ -4,9 +4,10 @@ import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/lib/auth';
 import { apiGet, apiPatch } from '@/lib/api';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { X, Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
+import { X, Loader2, AlertTriangle, CheckCircle, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { apiBlob, API_BASE } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -177,6 +178,28 @@ function BriefcaseInner() {
     const [statusFilter, setStatusFilter] = useState('All');
     const [categoryFilter, setCategoryFilter] = useState('');
     const [selected, setSelected] = useState(null);
+    const [downloading, setDownloading] = useState(false);
+
+    async function downloadReport() {
+        setDownloading(true);
+        try {
+            const params = new URLSearchParams();
+            if (statusFilter !== 'All') params.set('status', statusFilter);
+            if (categoryFilter) params.set('category', categoryFilter);
+            const qs = params.toString() ? `?${params}` : '';
+            const blob = await apiBlob(`/api/reports/grievance${qs}`);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `grievance_report_${new Date().toISOString().slice(0, 10)}.pdf`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Report download failed:', err);
+        } finally {
+            setDownloading(false);
+        }
+    }
 
     useEffect(() => {
         const status = searchParams.get('status') || 'All';
@@ -247,11 +270,25 @@ function BriefcaseInner() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-foreground">Briefcase</h1>
-                <p className="text-sm text-muted-foreground mt-1">
-                    Manage constituent grievances and cases
-                </p>
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-foreground">Briefcase</h1>
+                    <p className="text-sm text-muted-foreground mt-1">
+                        Manage constituent grievances and cases
+                    </p>
+                </div>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={downloadReport}
+                    disabled={downloading}
+                    className="shrink-0 gap-2"
+                >
+                    {downloading
+                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                        : <Download className="h-4 w-4" />}
+                    {downloading ? 'Generating…' : 'Download Report'}
+                </Button>
             </div>
 
             <Card>

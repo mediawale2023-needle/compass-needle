@@ -1221,6 +1221,217 @@ def get_report_card(user=Depends(get_current_user)):
 
 
 # ─────────────────────────────────────────
+# GRIEVANCE REPORT — PDF DOWNLOAD
+# ─────────────────────────────────────────
+@router.get("/reports/grievance")
+def download_grievance_report(
+    status: Optional[str] = None,
+    category: Optional[str] = None,
+    user=Depends(get_current_user),
+):
+    """Generate and stream a PDF grievance summary report for the current tenant."""
+    import io
+    from fastapi.responses import StreamingResponse
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.platypus import (
+            SimpleDocTemplate, Table, TableStyle,
+            Paragraph, Spacer, HRFlowable,
+        )
+        from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+    except ImportError:
+        raise HTTPException(500, "PDF library not installed. Run: pip install reportlab")
+
+    tid = get_tenant_or_fail(user)
+
+    # ── Fetch data ──────────────────────────────────────────────
+    conditions = ["tenant_id = :tid"]
+    params: dict = {"tid": tid}
+    if status and status.lower() != "all":
+        conditions.append("status = :status")
+        params["status"] = status.lower()
+    if category:
+        conditions.append("category = :category")
+        params["category"] = category
+
+    where = " AND ".join(conditions)
+    cases = _q(f"""
+        SELECT id, user_phone, category, status, location, assembly,
+               is_critical, created_at, updated_at
+        FROM cases WHERE {where}
+        ORDER BY created_at DESC
+        LIMIT 200
+    """, params)
+
+    # Status + category counts (full tenant, not filtered)
+    status_rows = _q("""
+        SELECT status, COUNT(*) as cnt FROM cases
+        WHERE tenant_id = :tid GROUP BY status
+    """, {"tid": tid})
+    status_counts = {r["status"]: r["cnt"] for r in status_rows}
+
+    cat_rows = _q("""
+        SELECT category, COUNT(*) as cnt FROM cases
+        WHERE tenant_id = :tid GROUP BY category ORDER BY cnt DESC LIMIT 10
+    """, {"tid": tid})
+
+    tenant_row = _q_one("SELECT name, constituency FROM tenants WHERE id = :tid", {"tid": tid})
+    mp_name = (tenant_row or {}).get("name", "MP")
+    constituency = (tenant_row or {}).get("constituency", "")
+
+    # ── Build PDF ─────────────────────────────────────────────
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=18*mm, rightMargin=18*mm,
+        topMargin=15*mm, bottomMargin=15*mm,
+    )
+
+    styles = getSampleStyleSheet()
+    BRAND = colors.HexColor("#006a4d")
+    LIGHT = colors.HexColor("#f0fdf4")
+    MUTED = colors.HexColor("#6b7280")
+    RED   = colors.HexColor("#dc2626")
+
+    def style(name, **kw):
+        base = styles[name]
+        return ParagraphStyle(name + "_custom", parent=base, **kw)
+
+    h1 = style("Heading1", fontSize=18, textColor=BRAND, spaceAfter=2)
+    h2 = style("Heading2", fontSize=11, textColor=BRAND, spaceBefore=10, spaceAfter=4)
+    body = style("Normal", fontSize=9, textColor=colors.HexColor("#111827"), leading=13)
+    caption = style("Normal", fontSize=8, textColor=MUTED, spaceAfter=8)
+
+    generated_on = datetime.utcnow().strftime("%d %B %Y, %H:%M UTC")
+    filter_desc = []
+    if status and status.lower() != "all":
+        filter_desc.append(f"Status: {status.replace('_', ' ').title()}")
+    if category:
+        filter_desc.append(f"Category: {category}")
+    filter_line = "  ·  ".join(filter_desc) if filter_desc else "All cases"
+
+    total = sum(status_counts.values())
+
+    story = []
+
+    # Header block
+    story.append(Paragraph("Compass Needle", style("Normal", fontSize=9, textColor=MUTED)))
+    story.append(Paragraph("Grievance Summary Report", h1))
+    story.append(Paragraph(f"{mp_name} · {constituency}", style("Normal", fontSize=11, textColor=MUTED, spaceAfter=2)))
+    story.append(Paragraph(f"Generated {generated_on}  ·  Filter: {filter_line}", caption))
+    story.append(HRFlowable(width="100%", thickness=1, color=BRAND, spaceAfter=12))
+
+    # Stat tiles (single-row table)
+    stat_labels = ["Total Cases", "New / Open", "In Progress", "Resolved", "Escalated"]
+    stat_values = [
+        str(total),
+        str(status_counts.get("new", 0)),
+        str(status_counts.get("in_progress", 0)),
+        str(status_counts.get("resolved", 0)),
+        str(status_counts.get("escalated", 0)),
+    ]
+    tile_w = (A4[0] - 36*mm) / len(stat_labels)
+    stat_data = [
+        [Paragraph(v, style("Normal", fontSize=22, textColor=BRAND, alignment=TA_CENTER)) for v in stat_values],
+        [Paragraph(l, style("Normal", fontSize=7, textColor=MUTED, alignment=TA_CENTER)) for l in stat_labels],
+    ]
+    stat_table = Table(stat_data, colWidths=[tile_w] * len(stat_labels))
+    stat_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), LIGHT),
+        ("BOX",        (0, 0), (-1, -1), 0.5, colors.HexColor("#d1fae5")),
+        ("TOPPADDING",    (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("ROWBACKGROUNDS", (0, 0), (-1, -1), [LIGHT]),
+    ]))
+    story.append(stat_table)
+    story.append(Spacer(1, 10))
+
+    # Category breakdown
+    if cat_rows:
+        story.append(Paragraph("Category Breakdown", h2))
+        cat_data = [
+            [
+                Paragraph("Category", style("Normal", fontSize=8, textColor=MUTED)),
+                Paragraph("Count", style("Normal", fontSize=8, textColor=MUTED, alignment=TA_RIGHT)),
+            ]
+        ] + [
+            [
+                Paragraph(r["category"] or "General", body),
+                Paragraph(str(r["cnt"]), style("Normal", fontSize=9, alignment=TA_RIGHT)),
+            ]
+            for r in cat_rows
+        ]
+        cat_table = Table(cat_data, colWidths=[(A4[0] - 36*mm) * 0.75, (A4[0] - 36*mm) * 0.25])
+        cat_table.setStyle(TableStyle([
+            ("LINEBELOW",     (0, 0), (-1, 0), 0.5, BRAND),
+            ("LINEBELOW",     (0, 1), (-1, -1), 0.3, colors.HexColor("#e5e7eb")),
+            ("TOPPADDING",    (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        story.append(cat_table)
+        story.append(Spacer(1, 10))
+
+    # Cases table
+    story.append(Paragraph(f"Cases ({len(cases)} shown, newest first)", h2))
+    if cases:
+        col_widths = [12*mm, 28*mm, 34*mm, 28*mm, 24*mm, 20*mm, 10*mm]
+        header_style = style("Normal", fontSize=7, textColor=MUTED)
+        cell_style   = style("Normal", fontSize=7, textColor=colors.HexColor("#111827"), leading=10)
+        crit_style   = style("Normal", fontSize=7, textColor=RED, leading=10)
+
+        rows = [[
+            Paragraph("#", header_style),
+            Paragraph("Contact", header_style),
+            Paragraph("Category", header_style),
+            Paragraph("Location", header_style),
+            Paragraph("Assembly", header_style),
+            Paragraph("Status", header_style),
+            Paragraph("!", header_style),
+        ]]
+        for c in cases:
+            created = c["created_at"]
+            date_str = created.strftime("%d %b") if created and hasattr(created, "strftime") else str(created or "")[:6]
+            is_crit = bool(c.get("is_critical"))
+            rows.append([
+                Paragraph(str(c["id"]), cell_style),
+                Paragraph(str(c.get("user_phone") or "-"), cell_style),
+                Paragraph(str(c.get("category") or "General"), cell_style),
+                Paragraph(str(c.get("location") or "-"), cell_style),
+                Paragraph(str(c.get("assembly") or "-"), cell_style),
+                Paragraph(str(c.get("status") or "new").replace("_", " ").title(), cell_style),
+                Paragraph("⚑" if is_crit else "", crit_style),
+            ])
+
+        cases_table = Table(rows, colWidths=col_widths, repeatRows=1)
+        cases_table.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0), BRAND),
+            ("TEXTCOLOR",     (0, 0), (-1, 0), colors.white),
+            ("LINEBELOW",     (0, 0), (-1, -1), 0.25, colors.HexColor("#e5e7eb")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f9fafb")]),
+            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 4),
+        ]))
+        story.append(cases_table)
+    else:
+        story.append(Paragraph("No cases match the selected filters.", caption))
+
+    doc.build(story)
+    buf.seek(0)
+
+    safe_name = (constituency or "report").replace(" ", "_").replace("/", "-")
+    filename = f"grievance_report_{safe_name}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+# ─────────────────────────────────────────
 # ACTIVITY HISTORY
 # ─────────────────────────────────────────
 class SaveActivityRequest(BaseModel):

@@ -112,4 +112,36 @@ export async function apiPatch(path, body) {
     return api(path, { method: 'PATCH', body: JSON.stringify(body) });
 }
 
+/**
+ * Authenticated fetch that returns a Blob (for file downloads).
+ * Uses a 30s timeout to allow server-side PDF generation.
+ */
+export async function apiBlob(path) {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('needle_token') : null;
+    if (!token) throw new Error('No auth token');
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+    try {
+        const res = await fetch(`${API_BASE}${path}`, {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+        });
+        if (res.status === 401) {
+            localStorage.removeItem('needle_token');
+            localStorage.removeItem('needle_user');
+            window.location.href = '/';
+            throw new Error('Unauthorized');
+        }
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
+            throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+        return res.blob();
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 export { AI_TIMEOUT };
