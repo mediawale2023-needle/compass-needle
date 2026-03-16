@@ -32,18 +32,25 @@ export default function SchemesPage() {
     const [citizenResults, setCitizenResults] = useState(null);
     const [citizenLoading, setCitizenLoading] = useState(false);
 
+    // Budget Pulse state
+    const [pulse, setPulse] = useState(null);
+    const [pulseFilter, setPulseFilter] = useState('all'); // all | high_risk | on_track | fully_utilized
+    const [pulseExpanded, setPulseExpanded] = useState(null);
+
     const color = user?.theme_color || '#006a4d';
 
     useEffect(() => {
         async function load() {
             try {
-                const [d, fi] = await Promise.all([
+                const [d, fi, bp] = await Promise.all([
                     apiGet('/api/schemes/all'),
                     apiGet('/api/schemes/fund-intel').catch(() => null),
+                    apiGet('/api/schemes/budget-pulse').catch(() => null),
                 ]);
                 setSchemes(d.schemes || []);
                 setData(d);
                 if (fi && fi.ministries) setFundIntel(fi);
+                if (bp && bp.schemes) setPulse(bp);
             } catch (err) { console.error(err); }
             finally { setLoading(false); }
         }
@@ -124,6 +131,7 @@ export default function SchemesPage() {
                 {[
                     { key: 'overview', label: 'Ministry Overview' },
                     { key: 'intel', label: 'Fund Intelligence' },
+                    { key: 'pulse', label: 'Budget Pulse' },
                     { key: 'finder', label: 'Scheme Finder' },
                     { key: 'citizen', label: 'Citizen Matcher' },
                 ].map(t => (
@@ -486,6 +494,339 @@ export default function SchemesPage() {
 
                         <div className="text-[10px] text-gray-400 text-right">
                             Source: Budget data from Ministry Annual Reports · Parliament Q&A: ePARLib (sansad.in) LS {meta.lok_sabha || 18} · FY {meta.financial_year || '2025-26'} · Updated: {meta.enriched_at || meta.scraped_at || 'N/A'}
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* TAB: Budget Pulse */}
+            {tab === 'pulse' && (() => {
+                // ── helpers ──────────────────────────────────────────────────
+                const statusMeta = {
+                    fully_utilized: { label: 'Fully Utilized',  color: '#16a34a', bg: '#f0fdf4' },
+                    on_track:       { label: 'On Track',        color: '#2563eb', bg: '#eff6ff' },
+                    moderate_risk:  { label: 'Moderate Risk',   color: '#d97706', bg: '#fffbeb' },
+                    high_risk:      { label: 'High Risk',       color: '#dc2626', bg: '#fef2f2' },
+                    unknown:        { label: 'Data Pending',    color: '#6b7280', bg: '#f9fafb' },
+                };
+                const sourceMeta = {
+                    actuals:        { label: 'Audited Actuals',         icon: '✓' },
+                    parliament_qa:  { label: 'Parliament Q&A Citation', icon: '⊕' },
+                    historical_avg: { label: 'Historical Avg Estimate', icon: '~' },
+                };
+
+                const summary = pulse?.summary || {};
+                const schemes_pulse = pulse?.schemes || [];
+                const filtered = pulseFilter === 'all'
+                    ? schemes_pulse
+                    : schemes_pulse.filter(s => s.status === pulseFilter);
+
+                if (!pulse) return (
+                    <div className="text-center py-16 text-gray-400 text-sm bg-white border rounded-lg" style={{ borderColor: '#e5e7eb' }}>
+                        Budget Pulse data not available. Run the budget enrichment script to seed data.
+                    </div>
+                );
+
+                return (
+                    <div className="space-y-5">
+
+                        {/* ── Summary metrics ── */}
+                        <div className="grid grid-cols-4 gap-3">
+                            {[
+                                { label: 'Total Allocated (BE)', value: `₹${((summary.total_be_cr || 0) / 1000).toFixed(0)}K Cr`, sub: `${schemes_pulse.length} schemes tracked` },
+                                { label: 'Fully Utilized',       value: summary.fully_utilized || 0, sub: 'schemes ≥ 95% spent' },
+                                { label: 'Utilization Risk',     value: (summary.moderate_risk || 0) + (summary.high_risk || 0), sub: 'schemes < 80% historical avg' },
+                                { label: 'Data Pending',         value: summary.unknown || 0, sub: 'awaiting actuals / Q&A' },
+                            ].map(s => (
+                                <div key={s.label} className="sansad-card">
+                                    <div className="sansad-card-body text-center py-3">
+                                        <div className="text-lg font-bold" style={{ color }}>{s.value}</div>
+                                        <div className="text-[10px] text-gray-500 uppercase">{s.label}</div>
+                                        <div className="text-[9px] text-gray-400">{s.sub}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* ── What this tab shows ── */}
+                        <div className="px-4 py-3 border-l-4 text-xs text-gray-600 bg-blue-50" style={{ borderColor: '#3b82f6' }}>
+                            <strong>How this works:</strong> Each scheme shows its Budget Estimate (BE) for FY {pulse.current_fy},
+                            alongside utilization derived from audited actuals (prior years), Parliamentary Q&A citations, or historical average patterns.
+                            The utilization bar is shaded by confidence of source.
+                        </div>
+
+                        {/* ── Filter pills ── */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs text-gray-400 font-semibold uppercase">Filter:</span>
+                            {[
+                                { key: 'all',            label: `All (${schemes_pulse.length})` },
+                                { key: 'high_risk',      label: `High Risk (${summary.high_risk || 0})` },
+                                { key: 'moderate_risk',  label: `Moderate Risk (${summary.moderate_risk || 0})` },
+                                { key: 'on_track',       label: `On Track (${summary.on_track || 0})` },
+                                { key: 'fully_utilized', label: `Fully Utilized (${summary.fully_utilized || 0})` },
+                            ].map(f => (
+                                <button key={f.key} onClick={() => setPulseFilter(f.key)}
+                                    className="px-3 py-1 text-[11px] font-semibold border"
+                                    style={pulseFilter === f.key
+                                        ? { background: color, color: '#fff', borderColor: color }
+                                        : { borderColor: '#ddd', color: '#555', background: '#fff' }}>
+                                    {f.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* ── Scheme cards ── */}
+                        <div className="space-y-3">
+                            {filtered.map((s, i) => {
+                                const sm = statusMeta[s.status] || statusMeta.unknown;
+                                const utilPct = s.current_be > 0 && s.projected_cr != null
+                                    ? Math.min(100, Math.round((s.projected_cr / s.current_be) * 100))
+                                    : null;
+                                const avgPct = s.avg_utilization_rate != null
+                                    ? Math.round(s.avg_utilization_rate * 100)
+                                    : null;
+                                const isOpen = pulseExpanded === i;
+                                const src = sourceMeta[s.projected_source] || {};
+
+                                return (
+                                    <div key={s.id || i} className="sansad-card"
+                                        style={{ borderLeft: `4px solid ${sm.color}` }}>
+                                        <div className="sansad-card-body py-3">
+
+                                            {/* Header row */}
+                                            <div className="flex items-start justify-between cursor-pointer gap-3"
+                                                onClick={() => setPulseExpanded(isOpen ? null : i)}>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="text-sm font-bold text-gray-800">{s.name}</span>
+                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                                                            style={{ background: sm.bg, color: sm.color }}>
+                                                            {sm.label}
+                                                        </span>
+                                                        {s.be_re_signal === 'cut' && (
+                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                                                                style={{ background: '#fef2f2', color: '#dc2626' }}>
+                                                                ↓ Budget Cut (RE)
+                                                            </span>
+                                                        )}
+                                                        {s.be_re_signal === 'hiked' && (
+                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                                                                style={{ background: '#f0fdf4', color: '#16a34a' }}>
+                                                                ↑ Supplementary Demand
+                                                            </span>
+                                                        )}
+                                                        {s.unspent_flags > 0 && (
+                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                                                                style={{ background: '#fff7ed', color: '#c2410c' }}>
+                                                                ⚑ {s.unspent_flags} Unspent Flag{s.unspent_flags > 1 ? 's' : ''}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-[11px] text-gray-400 mt-0.5">
+                                                        {(s.ministry || '').replace('Ministry of ', '').replace('Ministry for ', '')}
+                                                    </div>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <div className="text-base font-bold" style={{ color }}>
+                                                        ₹{(s.current_be || 0).toLocaleString('en-IN')} Cr
+                                                    </div>
+                                                    <div className="text-[10px] text-gray-400">BE FY {s.current_fy}</div>
+                                                    {s.yoy_be_change != null && (
+                                                        <div className="text-[10px] font-semibold"
+                                                            style={{ color: s.yoy_be_change >= 0 ? '#16a34a' : '#dc2626' }}>
+                                                            {s.yoy_be_change >= 0 ? '+' : ''}{s.yoy_be_change}% vs last year
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <span className="text-gray-300 text-xs">{isOpen ? '▲' : '▼'}</span>
+                                            </div>
+
+                                            {/* Utilization bar */}
+                                            <div className="mt-3">
+                                                <div className="flex items-center justify-between text-[11px] mb-1">
+                                                    <span className="text-gray-500">
+                                                        {utilPct != null
+                                                            ? `Utilized: ₹${(s.projected_cr || 0).toLocaleString('en-IN')} Cr`
+                                                            : 'Utilization data pending'}
+                                                        {s.projected_source && (
+                                                            <span className="ml-1 text-gray-400">
+                                                                ({src.icon} {src.label})
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                    <span className="font-bold" style={{ color: sm.color }}>
+                                                        {utilPct != null ? `${utilPct}%` : '–'}
+                                                    </span>
+                                                </div>
+                                                {/* Stacked bar: allocated (bg) → utilized (fill) → historical avg marker */}
+                                                <div className="relative w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+                                                    {utilPct != null && (
+                                                        <div className="h-full rounded-full transition-all"
+                                                            style={{
+                                                                width: `${utilPct}%`,
+                                                                background: sm.color,
+                                                                opacity: s.projected_source === 'historical_avg' ? 0.4 : 0.75,
+                                                            }} />
+                                                    )}
+                                                </div>
+                                                {/* Historical avg line marker */}
+                                                {avgPct != null && (
+                                                    <div className="flex items-center gap-1 mt-1">
+                                                        <div className="w-full relative h-1">
+                                                            <div className="absolute h-3 w-0.5 -top-1 bg-gray-400 rounded"
+                                                                style={{ left: `${avgPct}%` }} />
+                                                        </div>
+                                                        <span className="text-[9px] text-gray-400 shrink-0 whitespace-nowrap">
+                                                            Hist. avg: {avgPct}%
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between text-[9px] text-gray-400 mt-0.5">
+                                                    <span>₹0</span>
+                                                    {s.current_re && s.current_re !== s.current_be && (
+                                                        <span style={{ color: s.be_re_signal === 'cut' ? '#dc2626' : '#16a34a' }}>
+                                                            RE: ₹{(s.current_re).toLocaleString('en-IN')} Cr
+                                                        </span>
+                                                    )}
+                                                    <span>₹{(s.current_be).toLocaleString('en-IN')} Cr (BE)</span>
+                                                </div>
+                                            </div>
+
+                                            {/* ── Expanded detail ── */}
+                                            {isOpen && (
+                                                <div className="mt-4 pt-4 border-t space-y-4" style={{ borderColor: '#eee' }}>
+
+                                                    {/* Year-over-year history table */}
+                                                    <div>
+                                                        <div className="text-[10px] text-gray-500 uppercase font-semibold mb-2">
+                                                            Budget History (BE → RE → Actuals)
+                                                        </div>
+                                                        <table className="w-full text-xs border-collapse">
+                                                            <thead>
+                                                                <tr className="text-[10px] text-gray-400 uppercase">
+                                                                    <th className="text-left pb-1 font-semibold">FY</th>
+                                                                    <th className="text-right pb-1 font-semibold">BE (₹ Cr)</th>
+                                                                    <th className="text-right pb-1 font-semibold">RE (₹ Cr)</th>
+                                                                    <th className="text-right pb-1 font-semibold">Actuals (₹ Cr)</th>
+                                                                    <th className="text-right pb-1 font-semibold">Utilization</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {(s.history || []).map((h, j) => {
+                                                                    const rate = h.actuals && h.be
+                                                                        ? Math.round((h.actuals / h.be) * 100)
+                                                                        : null;
+                                                                    const isCurrent = j === (s.history.length - 1);
+                                                                    return (
+                                                                        <tr key={j} className={`border-t ${isCurrent ? 'font-semibold' : ''}`}
+                                                                            style={{ borderColor: '#f0f0f0' }}>
+                                                                            <td className="py-1.5" style={{ color: isCurrent ? color : '#374151' }}>
+                                                                                {h.fy}{isCurrent ? ' ←' : ''}
+                                                                            </td>
+                                                                            <td className="text-right py-1.5 text-gray-700">
+                                                                                {h.be ? h.be.toLocaleString('en-IN') : '–'}
+                                                                            </td>
+                                                                            <td className="text-right py-1.5">
+                                                                                {h.re != null
+                                                                                    ? <span style={{ color: h.re < h.be ? '#dc2626' : h.re > h.be ? '#16a34a' : '#6b7280' }}>
+                                                                                        {h.re.toLocaleString('en-IN')}
+                                                                                      </span>
+                                                                                    : <span className="text-gray-300">—</span>}
+                                                                            </td>
+                                                                            <td className="text-right py-1.5 text-gray-700">
+                                                                                {h.actuals != null ? h.actuals.toLocaleString('en-IN') : <span className="text-gray-300">—</span>}
+                                                                            </td>
+                                                                            <td className="text-right py-1.5">
+                                                                                {rate != null
+                                                                                    ? <span className="font-bold"
+                                                                                        style={{ color: rate >= 95 ? '#16a34a' : rate >= 80 ? '#2563eb' : rate >= 65 ? '#d97706' : '#dc2626' }}>
+                                                                                        {rate}%
+                                                                                      </span>
+                                                                                    : <span className="text-gray-300 text-[10px]">pending</span>}
+                                                                            </td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                        {/* Inline sparkline bars for BE trend */}
+                                                        <div className="mt-3">
+                                                            <div className="text-[10px] text-gray-400 mb-1">BE trend</div>
+                                                            <div className="flex items-end gap-1 h-8">
+                                                                {(s.history || []).map((h, j) => {
+                                                                    const maxBe = Math.max(...s.history.map(x => x.be || 0));
+                                                                    const pct = maxBe > 0 ? Math.max(10, (h.be / maxBe) * 100) : 10;
+                                                                    const isCur = j === s.history.length - 1;
+                                                                    return (
+                                                                        <div key={j} className="flex flex-col items-center gap-0.5 flex-1">
+                                                                            <div className="w-full rounded-sm"
+                                                                                style={{ height: `${pct}%`, background: isCur ? color : '#d1d5db' }} />
+                                                                            <div className="text-[8px] text-gray-400">{h.fy?.slice(2)}</div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Parliament Q&A snapshots */}
+                                                    {s.qa_snapshots && s.qa_snapshots.length > 0 && (
+                                                        <div>
+                                                            <div className="text-[10px] text-gray-500 uppercase font-semibold mb-2">
+                                                                Parliament Q&A — Cited Figures
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                {s.qa_snapshots.map((q, j) => (
+                                                                    <div key={j} className="text-xs py-1.5 border-b last:border-0 flex items-start gap-3"
+                                                                        style={{ borderColor: '#f0f0f0' }}>
+                                                                        <span className="text-gray-400 shrink-0 font-mono text-[10px]">
+                                                                            {q.date?.slice(0, 7) || '—'}
+                                                                        </span>
+                                                                        <div className="flex-1">
+                                                                            <div className="text-gray-700">{q.title}</div>
+                                                                            {(q.allocation_cr || q.utilization_cr) && (
+                                                                                <div className="flex gap-3 mt-0.5">
+                                                                                    {q.allocation_cr && (
+                                                                                        <span className="text-[10px]" style={{ color: '#6b7280' }}>
+                                                                                            Allocation: <strong>₹{q.allocation_cr.toLocaleString('en-IN')} Cr</strong>
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {q.utilization_cr && (
+                                                                                        <span className="text-[10px]" style={{ color }}>
+                                                                                            Utilized: <strong>₹{q.utilization_cr.toLocaleString('en-IN')} Cr</strong>
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Pattern insight */}
+                                                    {s.avg_utilization_rate != null && (
+                                                        <div className="px-3 py-2 text-xs rounded"
+                                                            style={{ background: statusMeta[s.status]?.bg || '#f9fafb', color: statusMeta[s.status]?.color || '#374151' }}>
+                                                            <strong>Pattern:</strong> This scheme historically utilizes{' '}
+                                                            <strong>{Math.round(s.avg_utilization_rate * 100)}%</strong> of its annual allocation on average.
+                                                            {s.status === 'high_risk' && ' MPs may wish to question the ministry on implementation bottlenecks before March 31.'}
+                                                            {s.status === 'fully_utilized' && ' Budget is typically exhausted — consider raising for enhanced allocation.'}
+                                                            {s.status === 'on_track' && ' Spend is proceeding normally.'}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="text-[10px] text-gray-400 text-right">
+                            Source: Union Budget Demands for Grants · Parliament Q&A: ePARLib (sansad.in) ·
+                            FY {pulse.current_fy} · As of {pulse.as_of}
                         </div>
                     </div>
                 );

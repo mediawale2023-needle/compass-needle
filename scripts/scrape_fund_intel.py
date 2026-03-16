@@ -316,16 +316,31 @@ def parse_with_ai(questions, pdf_texts):
             results.append(fallback)
             continue
 
-        prompt = f"""You are a financial data extractor analyzing an Indian Parliamentary Question answer.
-Extract fund allocation and utilization data.
-Return ONLY ONE valid JSON object with these keys (use null if not found):
-- scheme_name: Full name of the government scheme mentioned
-- financial_year: e.g. "2024-25"
-- allocation_cr: Number in crores (convert from lakhs if needed)
-- utilization_cr: Number in crores (convert from lakhs if needed)
-- state: State name if data is state-specific, else "India"
+        prompt = f"""You are a financial data extractor analyzing an Indian Parliamentary Question and its official answer.
+Extract fund allocation and utilization data precisely.
 
-Answer Text (truncated):
+Return ONLY ONE valid JSON object with these exact keys (use null if not found):
+- scheme_name: Full official name of the central government scheme being discussed (null if no specific scheme)
+- financial_year: The FY referenced, e.g. "2024-25" (null if not stated)
+- allocation_cr: Budget allocated/sanctioned in ₹ Crore as a number. Convert from lakhs (÷100) if stated in lakhs. null if not found.
+- utilization_cr: Amount utilized/spent/released/disbursed so far in ₹ Crore as a number. null if not found.
+- utilization_pct: Percentage of allocation utilized if explicitly stated as a %, else null.
+- as_of_date: Date up to which utilization figure is valid, e.g. "2025-12-31". null if not stated.
+- be_cr: Budget Estimate (BE) in ₹ Crore if separately mentioned. null otherwise.
+- re_cr: Revised Estimate (RE) in ₹ Crore if mentioned. null otherwise.
+- state: State name if the data is state-specific, else "India".
+- tags: Array of applicable tags from: ["utilization", "unspent", "allocation", "release", "delay", "budget", "general"].
+  Rules: include "unspent" if funds were unused/lapsed/returned; "utilization" if utilization % or amount is discussed;
+  "allocation" if allocation/sanction amounts are the focus; "release" if fund release/disbursement is discussed;
+  "delay" if delay in release or implementation is mentioned; "budget" if BE/RE/actuals are compared.
+- context: One of "utilization" | "allocation" | "expenditure" | "budget" | "fund" | "release" | "general"
+
+Rules:
+- All monetary values must be plain numbers in Crores (no ₹ symbol, no commas).
+- If the answer mentions multiple schemes, extract data for the most prominently discussed one.
+- Do not guess or infer values not explicitly stated in the text.
+
+Parliamentary Q&A Text:
 {text[:8000]}
 """
         
@@ -438,8 +453,15 @@ def build_fund_intel(parsed_data, raw_questions):
             "context": item.get("context"),
             "financial_year": item.get("financial_year"),
             "questionNo": item.get("questionNo"),
+            "scheme_name": item.get("scheme_name"),
             "allocation_cr": item.get("allocation_cr"),
             "utilization_cr": item.get("utilization_cr"),
+            "utilization_pct": item.get("utilization_pct"),
+            "as_of_date": item.get("as_of_date"),
+            "be_cr": item.get("be_cr"),
+            "re_cr": item.get("re_cr"),
+            "state": item.get("state"),
+            "tags": item.get("tags", []),
         })
 
         if scheme != "General" and scheme:
@@ -460,6 +482,18 @@ def build_fund_intel(parsed_data, raw_questions):
             for s in json.load(f):
                 existing_schemes[s["Scheme"]] = s
 
+    # Enrich each ministry with tag_counts and severity_score
+    TAG_WEIGHTS = {"unspent": 3, "delay": 2, "utilization": 1, "allocation": 1, "release": 1, "budget": 1, "general": 0}
+    for m in ministry_data.values():
+        tag_counts = {}
+        for q in m["questions"]:
+            for tag in (q.get("tags") or []):
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+        m["tag_counts"] = tag_counts
+        # Severity = weighted sum of tags, normalised to 0–100
+        raw_score = sum(TAG_WEIGHTS.get(t, 0) * cnt for t, cnt in tag_counts.items())
+        m["severity_score"] = min(100, round(raw_score / max(m["total_questions"], 1) * 25))
+
     # Build final structure
     fund_intel = {
         "metadata": {
@@ -467,6 +501,7 @@ def build_fund_intel(parsed_data, raw_questions):
             "financial_year": "2025-26",
             "lok_sabha": 18,
             "scraped_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "enriched_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "total_fund_questions": len(parsed_data),
         },
         "ministries": list(ministry_data.values()),

@@ -827,6 +827,150 @@ def get_fund_intel(user=Depends(get_current_user)):
     return fund_data
 
 
+@router.get("/schemes/budget-pulse")
+def get_budget_pulse(user=Depends(get_current_user)):
+    """
+    Return scheme-level budget utilization data:
+    - Multi-year BE / RE / Actuals history (from schemes_db.json budget_history)
+    - Q&A-derived utilization snapshots (from fund_intel.json)
+    - Computed utilization rate, risk flags, and year-over-year trend
+    """
+    schemes = _cached_load("schemes", _load_schemes)
+    fund_data = _cached_load("fund_intel", _load_fund_intel)
+
+    # Build lookup: scheme_name_lower → utilization snapshots from parliamentary Q&As
+    qa_utilization = {}
+    if fund_data:
+        for ministry in fund_data.get("ministries", []):
+            for q in ministry.get("questions", []):
+                alloc = q.get("allocation_cr")
+                util = q.get("utilization_cr")
+                if alloc or util:
+                    scheme_name = q.get("scheme_name") or ""
+                    if scheme_name:
+                        key = scheme_name.lower()
+                        if key not in qa_utilization:
+                            qa_utilization[key] = []
+                        qa_utilization[key].append({
+                            "allocation_cr": alloc,
+                            "utilization_cr": util,
+                            "date": q.get("date"),
+                            "fy": q.get("financial_year"),
+                            "title": q.get("title", ""),
+                        })
+
+    def _avg_util_rate(history):
+        rates = []
+        for h in history:
+            if h.get("actuals") and h.get("be") and h["be"] > 0:
+                rates.append(h["actuals"] / h["be"])
+        return round(sum(rates) / len(rates), 4) if rates else None
+
+    def _utilization_status(avg_rate):
+        if avg_rate is None:
+            return "unknown"
+        if avg_rate >= 0.95:
+            return "fully_utilized"
+        if avg_rate >= 0.80:
+            return "on_track"
+        if avg_rate >= 0.65:
+            return "moderate_risk"
+        return "high_risk"
+
+    pulse_schemes = []
+    for s in schemes:
+        history = s.get("budget_history", [])
+        if not history:
+            continue
+
+        current = history[-1]
+        current_be = current.get("be", 0)
+        current_re = current.get("re")
+        current_actuals = current.get("actuals")
+
+        avg_rate = _avg_util_rate(history[:-1])  # exclude current incomplete year
+
+        # Match Q&A snapshots to this scheme
+        qa_snaps = []
+        for key, snaps in qa_utilization.items():
+            if key in s["name"].lower() or s["name"].lower() in key:
+                qa_snaps.extend(snaps)
+
+        # Best available utilization figure for current year
+        projected_cr = None
+        projected_source = None
+        if current_actuals is not None:
+            projected_cr = current_actuals
+            projected_source = "actuals"
+        elif qa_snaps:
+            latest_qa = sorted(qa_snaps, key=lambda x: x.get("date") or "", reverse=True)[0]
+            if latest_qa.get("utilization_cr"):
+                projected_cr = latest_qa["utilization_cr"]
+                projected_source = "parliament_qa"
+        elif avg_rate and current_be:
+            projected_cr = round(avg_rate * current_be)
+            projected_source = "historical_avg"
+
+        # Mid-year revision signal
+        be_re_signal = None
+        if current_re is not None and current_be:
+            delta = current_re - current_be
+            be_re_signal = "cut" if delta < 0 else ("hiked" if delta > 0 else "unchanged")
+
+        # Year-over-year BE change %
+        prior = history[-2] if len(history) >= 2 else None
+        yoy_be_change = None
+        if prior and prior.get("be") and current_be:
+            yoy_be_change = round((current_be - prior["be"]) / prior["be"] * 100, 1)
+
+        unspent_flags = sum(
+            1 for snap in qa_snaps
+            if any(w in (snap.get("title") or "").lower()
+                   for w in ["unspent", "lapsed", "unutilized", "unused"])
+        )
+
+        pulse_schemes.append({
+            "id": s.get("id"),
+            "name": s["name"],
+            "ministry": s.get("ministry", ""),
+            "category": s.get("category", ""),
+            "current_fy": current["fy"],
+            "current_be": current_be,
+            "current_re": current_re,
+            "current_actuals": current_actuals,
+            "projected_cr": projected_cr,
+            "projected_source": projected_source,
+            "avg_utilization_rate": avg_rate,
+            "status": _utilization_status(avg_rate),
+            "be_re_signal": be_re_signal,
+            "yoy_be_change": yoy_be_change,
+            "unspent_flags": unspent_flags,
+            "qa_snapshots": qa_snaps[:3],
+            "history": history,
+        })
+
+    pulse_schemes.sort(key=lambda x: x["current_be"] or 0, reverse=True)
+
+    return {
+        "schemes": pulse_schemes,
+        "total": len(pulse_schemes),
+        "summary": {
+            "fully_utilized": sum(1 for s in pulse_schemes if s["status"] == "fully_utilized"),
+            "on_track": sum(1 for s in pulse_schemes if s["status"] == "on_track"),
+            "moderate_risk": sum(1 for s in pulse_schemes if s["status"] == "moderate_risk"),
+            "high_risk": sum(1 for s in pulse_schemes if s["status"] == "high_risk"),
+            "unknown": sum(1 for s in pulse_schemes if s["status"] == "unknown"),
+            "total_be_cr": sum(s["current_be"] or 0 for s in pulse_schemes),
+            "total_projected_cr": sum(
+                s["projected_cr"] or 0 for s in pulse_schemes
+                if s.get("projected_source") != "historical_avg"
+            ),
+        },
+        "current_fy": "2025-26",
+        "as_of": "March 2026",
+    }
+
+
 # ─────────────────────────────────────────
 # PARLIAMENT SESSION STATUS
 # ─────────────────────────────────────────
