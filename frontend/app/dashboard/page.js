@@ -26,38 +26,14 @@ import {
     ChevronUp,
     ExternalLink,
     Briefcase,
-    FileEdit,
-    Search,
-    MessageSquare,
     BarChart2,
 } from 'lucide-react';
-
-const TYPE_LABELS = {
-    draft_letter: 'Letter',
-    draft_question: 'PQ',
-    analysis: 'Analysis',
-    copilot_chat: 'Chat',
-};
-
-const TYPE_ICONS = {
-    draft_letter: FileText,
-    draft_question: FileEdit,
-    analysis: Search,
-    copilot_chat: MessageSquare,
-};
 
 const QUICK_ACTIONS = [
     { label: 'Upload Letter', href: '/dashboard/letterbox', desc: 'Scan or upload', icon: Mail },
     { label: 'Draft Response', href: '/dashboard/drafter', desc: 'AI-assisted writing', icon: PenTool },
     { label: 'Find a Scheme', href: '/dashboard/schemes', desc: 'Match constituents', icon: Gift },
 ];
-
-function getGreeting() {
-    const h = new Date().getHours();
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
-    return 'Good evening';
-}
 
 function daysAgo(dateStr) {
     if (!dateStr) return null;
@@ -89,14 +65,13 @@ export default function DashboardPage() {
     const [newsTab, setNewsTab] = useState('national');
     const [showNews, setShowNews] = useState(true);
     const [parliament, setParliament] = useState(null);
-    const [recentActivity, setRecent] = useState([]);
     const [staleCases, setStaleCases] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         async function load() {
             try {
-                const [sum, rc, nat, loc, parl, hist, cases] = await Promise.all([
+                const [sum, rc, nat, loc, parl, cases] = await Promise.all([
                     apiGet('/api/dashboard/summary').catch(() => ({
                         category_breakdown: {}, status_breakdown: {}, red_zones: [], critical_count: 0,
                     })),
@@ -104,7 +79,6 @@ export default function DashboardPage() {
                     apiGet('/api/news?news_type=national').catch(() => ({ articles: [] })),
                     apiGet('/api/news?news_type=local').catch(() => ({ articles: [] })),
                     apiGet('/api/parliament/status').catch(() => null),
-                    apiGet('/api/history?limit=5').catch(() => ({ items: [] })),
                     apiGet('/api/cases?page=1&limit=50').catch(() => ({ cases: [] })),
                 ]);
 
@@ -112,7 +86,6 @@ export default function DashboardPage() {
                 setReportCard(rc);
                 setNews({ national: nat.articles || [], local: loc.articles || [] });
                 setParliament(parl);
-                setRecent(hist.items || []);
 
                 const allCases = cases.cases || cases.items || [];
                 const pending = allCases
@@ -162,16 +135,6 @@ export default function DashboardPage() {
 
     return (
         <div className="space-y-6">
-            {/* Greeting */}
-            <div>
-                <h1 className="text-2xl font-bold text-foreground">
-                    {getGreeting()}, {user?.display_name}
-                </h1>
-                <p className="text-sm text-muted-foreground mt-1">
-                    {user?.constituency} · {user?.house}
-                </p>
-            </div>
-
             {/* Parliament Status */}
             {parliament && (
                 <Card className={cn(
@@ -231,7 +194,7 @@ export default function DashboardPage() {
             )}
 
             {/* Attention Banner */}
-            {hasUrgent ? (
+            {hasUrgent && (
                 <Card className="border-destructive/50 bg-destructive/5">
                     <CardContent className="py-4 flex items-center justify-between gap-4 flex-wrap">
                         <div className="flex items-center gap-3">
@@ -255,18 +218,6 @@ export default function DashboardPage() {
                                 <ArrowRight className="h-4 w-4 ml-1" />
                             </Link>
                         </Button>
-                    </CardContent>
-                </Card>
-            ) : (
-                <Card className="border-emerald-200 bg-emerald-50/50">
-                    <CardContent className="py-4 flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                        </div>
-                        <div>
-                            <p className="font-semibold text-emerald-800">All clear — no new escalations today</p>
-                            <p className="text-xs text-emerald-600/80 mt-0.5">Great job staying on top of things!</p>
-                        </div>
                     </CardContent>
                 </Card>
             )}
@@ -489,55 +440,6 @@ export default function DashboardPage() {
                             </Card>
                         </div>
                     </div>
-
-                    {/* Recent Activity */}
-                    {recentActivity.length > 0 && (
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between">
-                                <CardTitle className="flex items-center gap-2">
-                                    <Clock className="h-5 w-5 text-primary" />
-                                    Recent Activity
-                                </CardTitle>
-                                <Button variant="link" className="p-0 h-auto" asChild>
-                                    <Link href="/dashboard/archives">View all →</Link>
-                                </Button>
-                            </CardHeader>
-                            <CardContent className="p-0">
-                                <div className="divide-y divide-border">
-                                    {recentActivity.map(item => {
-                                        const Icon = TYPE_ICONS[item.activity_type] || FileText;
-                                        return (
-                                            <button
-                                                key={item.id}
-                                                className="w-full px-6 py-3 flex items-center gap-4 hover:bg-accent/50 transition-colors text-left"
-                                                onClick={() => router.push('/dashboard/archives')}
-                                            >
-                                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                                    <Icon className="h-4 w-4 text-primary" />
-                                                </div>
-                                                <div className="flex-1 min-w-0 flex items-center gap-2">
-                                                    <Badge variant="secondary" className="text-[10px] shrink-0">
-                                                        {TYPE_LABELS[item.activity_type] || item.activity_type}
-                                                    </Badge>
-                                                    <span className="text-sm text-foreground truncate">
-                                                        {item.title}
-                                                    </span>
-                                                </div>
-                                                <span className="text-xs text-muted-foreground shrink-0">
-                                                    {item.created_at
-                                                        ? new Date(item.created_at).toLocaleString('en-IN', {
-                                                            day: '2-digit', month: 'short',
-                                                            hour: '2-digit', minute: '2-digit',
-                                                        })
-                                                        : '—'}
-                                                </span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
 
                     {/* News Feed */}
                     <Card>
