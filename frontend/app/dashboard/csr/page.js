@@ -27,6 +27,13 @@ import {
     Plus,
     ChevronRight,
     Trash2,
+    Users,
+    BarChart3,
+    CheckCircle2,
+    XCircle,
+    MapPin,
+    Zap,
+    Target,
 } from 'lucide-react';
 
 const CSR_PILLS = ['All', 'Steel & Mining', 'Information Technology', 'Banking & Finance', 'Healthcare', 'Energy', 'Automobile'];
@@ -138,6 +145,20 @@ export default function CSRPage() {
     const [addLoading, setAddLoading] = useState(false);
     const [movingId, setMovingId] = useState(null);
 
+    // ─── NGO Directory State ───
+    const [ngoPartners, setNgoPartners] = useState([]);
+    const [ngoLoading, setNgoLoading] = useState(false);
+    const [ngoError, setNgoError] = useState(null);
+    const [ngoSectorFilter, setNgoSectorFilter] = useState('');
+    const [ngoRiskFilter, setNgoRiskFilter] = useState('');
+    const [ngoSectors, setNgoSectors] = useState([]);
+
+    // ─── Analytics State ───
+    const [analytics, setAnalytics] = useState(null);
+    const [analyticsLoading, setAnalyticsLoading] = useState(false);
+    const [syncLoading, setSyncLoading] = useState(false);
+    const [syncMessage, setSyncMessage] = useState('');
+
     // ─── Fetch live proposals from grievance data ───
     const fetchProposals = async () => {
         setProposalsLoading(true);
@@ -232,6 +253,51 @@ export default function CSRPage() {
         }
     };
 
+    // ─── Fetch NGO partners ───
+    const fetchNGOs = async () => {
+        setNgoLoading(true);
+        setNgoError(null);
+        try {
+            const params = new URLSearchParams();
+            if (ngoSectorFilter) params.set('sector', ngoSectorFilter);
+            if (ngoRiskFilter) params.set('risk_level', ngoRiskFilter);
+            const data = await apiGet(`/api/csr/partners?${params}`);
+            setNgoPartners(data.partners || []);
+            setNgoSectors(data.sectors || []);
+        } catch {
+            setNgoError('Failed to load NGO partners.');
+        } finally {
+            setNgoLoading(false);
+        }
+    };
+
+    // ─── Fetch analytics ───
+    const fetchAnalytics = async () => {
+        setAnalyticsLoading(true);
+        try {
+            const data = await apiGet('/api/csr/analytics');
+            setAnalytics(data);
+        } catch {
+            // silently fail
+        } finally {
+            setAnalyticsLoading(false);
+        }
+    };
+
+    const triggerSync = async () => {
+        setSyncLoading(true);
+        setSyncMessage('');
+        try {
+            const data = await apiPost('/api/csr/opportunities/sync', {});
+            setSyncMessage(data.message || 'Sync complete.');
+            await fetchAnalytics();
+        } catch {
+            setSyncMessage('Sync failed. Please try again.');
+        } finally {
+            setSyncLoading(false);
+        }
+    };
+
     // ─── Fetch CSR company database ───
     const fetchCompanies = async () => {
         setCompaniesLoading(true);
@@ -250,6 +316,8 @@ export default function CSRPage() {
         }
     };
     useEffect(() => { fetchCompanies(); }, [search, selectedSector]);
+    useEffect(() => { fetchNGOs(); }, [ngoSectorFilter, ngoRiskFilter]);
+    useEffect(() => { fetchAnalytics(); }, []);
 
     // ─── Generate DPR from live data ───
     const generateDPR = async (match, company) => {
@@ -414,6 +482,14 @@ export default function CSRPage() {
                         <TabsTrigger value="pipeline">
                             <Kanban className="h-3.5 w-3.5 mr-1.5" />
                             Pipeline
+                        </TabsTrigger>
+                        <TabsTrigger value="ngo">
+                            <Users className="h-3.5 w-3.5 mr-1.5" />
+                            NGO Partners
+                        </TabsTrigger>
+                        <TabsTrigger value="analytics">
+                            <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
+                            Analytics
                         </TabsTrigger>
                     </TabsList>
                 </div>
@@ -951,6 +1027,346 @@ export default function CSRPage() {
                                     );
                                 })}
                             </div>
+                        )}
+                    </div>
+                </TabsContent>
+
+                {/* ═══════════════════════════════════════════
+                    TAB 5: NGO Partner Directory
+                   ═══════════════════════════════════════════ */}
+                <TabsContent value="ngo" className="mt-6">
+                    <div className="space-y-4">
+                        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+                            <div>
+                                <h2 className="text-base font-semibold text-foreground">NGO Implementation Partners</h2>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Pre-screened implementation partners for CSR projects. Green = verified, Red = flagged.
+                                </p>
+                            </div>
+                            <div className="flex gap-2 flex-wrap">
+                                <select
+                                    className="text-xs border border-border rounded-md px-2 py-1.5 bg-background text-foreground"
+                                    value={ngoRiskFilter}
+                                    onChange={e => setNgoRiskFilter(e.target.value)}
+                                >
+                                    <option value="">All Risk Levels</option>
+                                    <option value="Green">Green (Verified)</option>
+                                    <option value="Yellow">Yellow (Unverified)</option>
+                                    <option value="Red">Red (Flagged)</option>
+                                </select>
+                                <select
+                                    className="text-xs border border-border rounded-md px-2 py-1.5 bg-background text-foreground"
+                                    value={ngoSectorFilter}
+                                    onChange={e => setNgoSectorFilter(e.target.value)}
+                                >
+                                    <option value="">All Sectors</option>
+                                    {ngoSectors.map(s => (
+                                        <option key={s} value={s}>{s}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        {ngoLoading ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                                {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-32 rounded-lg" />)}
+                            </div>
+                        ) : ngoError ? (
+                            <ErrorCard message={ngoError} onRetry={fetchNGOs} />
+                        ) : ngoPartners.length === 0 ? (
+                            <Card>
+                                <CardContent className="py-12 text-center text-muted-foreground text-sm">
+                                    No NGO partners found.
+                                </CardContent>
+                            </Card>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                                {ngoPartners.map((ngo, i) => {
+                                    const isGreen = ngo.Risk_Level === 'Green';
+                                    const isRed = ngo.Risk_Level === 'Red';
+                                    return (
+                                        <Card key={i} className={cn(
+                                            "border-l-4",
+                                            isGreen ? "border-l-emerald-500" : isRed ? "border-l-destructive" : "border-l-amber-400"
+                                        )}>
+                                            <CardContent className="p-4 space-y-2">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <p className="text-sm font-semibold text-foreground leading-snug">
+                                                        {ngo.NGO_Name}
+                                                    </p>
+                                                    <Badge
+                                                        variant={isGreen ? "default" : isRed ? "destructive" : "secondary"}
+                                                        className="shrink-0 text-[10px]"
+                                                    >
+                                                        {isGreen ? (
+                                                            <><CheckCircle2 className="h-2.5 w-2.5 mr-1" />{ngo.Risk_Level}</>
+                                                        ) : isRed ? (
+                                                            <><XCircle className="h-2.5 w-2.5 mr-1" />{ngo.Risk_Level}</>
+                                                        ) : ngo.Risk_Level}
+                                                    </Badge>
+                                                </div>
+                                                {ngo.Sector && (
+                                                    <p className="text-xs text-muted-foreground">{ngo.Sector}</p>
+                                                )}
+                                                {ngo.Capabilities && (
+                                                    <p className="text-xs text-foreground/70 line-clamp-2">{ngo.Capabilities}</p>
+                                                )}
+                                                <div className="flex gap-3 text-[10px] text-muted-foreground font-mono">
+                                                    {ngo.Darpan_ID && <span>Darpan: {ngo.Darpan_ID}</span>}
+                                                    {ngo.CSR_1_Number && <span>CSR-1: {ngo.CSR_1_Number}</span>}
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </TabsContent>
+
+                {/* ═══════════════════════════════════════════
+                    TAB 6: Analytics Dashboard
+                   ═══════════════════════════════════════════ */}
+                <TabsContent value="analytics" className="mt-6">
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-base font-semibold text-foreground">CSR Intelligence Analytics</h2>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Pipeline conversion, geographic heatmap, funding totals, and opportunity scoreboard.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {syncMessage && (
+                                    <span className="text-xs text-muted-foreground">{syncMessage}</span>
+                                )}
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={triggerSync}
+                                    disabled={syncLoading}
+                                    className="gap-1.5"
+                                >
+                                    {syncLoading
+                                        ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Syncing…</>
+                                        : <><RefreshCw className="h-3.5 w-3.5" /> Sync Opportunities</>
+                                    }
+                                </Button>
+                            </div>
+                        </div>
+
+                        {analyticsLoading ? (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                {[1,2,3,4].map(i => <Skeleton key={i} className="h-24 rounded-lg" />)}
+                            </div>
+                        ) : analytics ? (
+                            <>
+                                {/* KPI Row */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <Card className="border-l-4 border-l-primary">
+                                        <CardContent className="p-4">
+                                            <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Companies in DB</p>
+                                            <p className="text-2xl font-bold text-foreground mt-1">{analytics.total_companies_in_db ?? '—'}</p>
+                                        </CardContent>
+                                    </Card>
+                                    <Card className="border-l-4 border-l-destructive">
+                                        <CardContent className="p-4">
+                                            <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Zero Spend Violators</p>
+                                            <p className="text-2xl font-bold text-destructive mt-1">{analytics.watchdog_zero_spend_count ?? '—'}</p>
+                                        </CardContent>
+                                    </Card>
+                                    <Card className="border-l-4 border-l-emerald-500">
+                                        <CardContent className="p-4">
+                                            <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Total Utilised (₹L)</p>
+                                            <p className="text-2xl font-bold text-emerald-600 mt-1">
+                                                {analytics.constituency_funding_totals?.total_utilised
+                                                    ? `₹${analytics.constituency_funding_totals.total_utilised.toFixed(1)}L`
+                                                    : '—'}
+                                            </p>
+                                        </CardContent>
+                                    </Card>
+                                    <Card className="border-l-4 border-l-amber-500">
+                                        <CardContent className="p-4">
+                                            <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Pipeline Potential (₹L)</p>
+                                            <p className="text-2xl font-bold text-amber-600 mt-1">
+                                                {analytics.pipeline_potential_lakhs
+                                                    ? `₹${parseFloat(analytics.pipeline_potential_lakhs).toFixed(0)}L`
+                                                    : '—'}
+                                            </p>
+                                        </CardContent>
+                                    </Card>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {/* Pipeline Funnel */}
+                                    {analytics.pipeline_funnel?.length > 0 && (
+                                        <Card>
+                                            <CardHeader className="pb-3">
+                                                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                                                    <Target className="h-4 w-4 text-primary" />
+                                                    Pipeline Funnel
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="space-y-2">
+                                                {analytics.pipeline_funnel.map((stage, i) => (
+                                                    <div key={stage.stage} className="flex items-center gap-3">
+                                                        <span className="text-xs text-muted-foreground w-28 shrink-0 capitalize">
+                                                            {stage.stage.replace('_', ' ')}
+                                                        </span>
+                                                        <div className="flex-1 bg-muted rounded-full h-2">
+                                                            <div
+                                                                className="h-2 rounded-full bg-primary transition-all"
+                                                                style={{
+                                                                    width: `${Math.max(4, (stage.count / Math.max(...analytics.pipeline_funnel.map(s => s.count), 1)) * 100)}%`
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-xs font-mono text-foreground w-8 text-right">{stage.count}</span>
+                                                    </div>
+                                                ))}
+                                            </CardContent>
+                                        </Card>
+                                    )}
+
+                                    {/* Top Sectors */}
+                                    {analytics.top_sectors?.length > 0 && (
+                                        <Card>
+                                            <CardHeader className="pb-3">
+                                                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                                                    <Zap className="h-4 w-4 text-amber-500" />
+                                                    Top Grievance Sectors
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="space-y-2">
+                                                {analytics.top_sectors.slice(0, 6).map((s, i) => (
+                                                    <div key={s.category} className="flex items-center gap-3">
+                                                        <span className="text-xs text-muted-foreground w-32 shrink-0 truncate" title={s.category}>
+                                                            {s.category}
+                                                        </span>
+                                                        <div className="flex-1 bg-muted rounded-full h-2">
+                                                            <div
+                                                                className="h-2 rounded-full bg-amber-500 transition-all"
+                                                                style={{
+                                                                    width: `${Math.max(4, (s.total_volume / Math.max(...analytics.top_sectors.map(x => x.total_volume), 1)) * 100)}%`
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-xs font-mono text-foreground w-10 text-right">{s.total_volume}</span>
+                                                    </div>
+                                                ))}
+                                            </CardContent>
+                                        </Card>
+                                    )}
+
+                                    {/* Opportunity Scoreboard */}
+                                    {analytics.opportunity_scoreboard?.length > 0 && (
+                                        <Card className="lg:col-span-2">
+                                            <CardHeader className="pb-3">
+                                                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                                                    <TrendingUp className="h-4 w-4 text-primary" />
+                                                    Opportunity Scoreboard
+                                                </CardTitle>
+                                                <CardDescription className="text-xs">Top-scored clusters ranked by opportunity score (0–100)</CardDescription>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="space-y-2">
+                                                    {analytics.opportunity_scoreboard.map((opp, i) => (
+                                                        <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                                                            <span className="text-xs font-mono text-muted-foreground w-4">{i + 1}</span>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-sm font-medium text-foreground truncate">
+                                                                    {opp.category}
+                                                                </p>
+                                                                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                                                    <MapPin className="h-3 w-3" />
+                                                                    {opp.location || 'Unknown'} · {opp.complaint_count} complaints
+                                                                </p>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 shrink-0">
+                                                                <Badge
+                                                                    variant={opp.status === 'ready' ? 'default' : 'secondary'}
+                                                                    className="text-[10px]"
+                                                                >
+                                                                    {opp.status}
+                                                                </Badge>
+                                                                <span className="text-sm font-bold text-primary w-10 text-right">
+                                                                    {opp.opportunity_score?.toFixed(0)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+
+                                    {/* Geographic Heatmap */}
+                                    {analytics.geographic_heatmap?.length > 0 && (
+                                        <Card className="lg:col-span-2">
+                                            <CardHeader className="pb-3">
+                                                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                                                    <MapPin className="h-4 w-4 text-blue-500" />
+                                                    Geographic Heatmap
+                                                </CardTitle>
+                                                <CardDescription className="text-xs">Complaint volume by area — highest priority zones</CardDescription>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                                    {analytics.geographic_heatmap.slice(0, 16).map((area, i) => {
+                                                        const maxComplaints = analytics.geographic_heatmap[0]?.total_complaints || 1;
+                                                        const intensity = area.total_complaints / maxComplaints;
+                                                        return (
+                                                            <div
+                                                                key={area.district}
+                                                                className="rounded-lg p-3 text-center"
+                                                                style={{
+                                                                    backgroundColor: `rgba(239, 68, 68, ${0.1 + intensity * 0.6})`,
+                                                                    border: `1px solid rgba(239, 68, 68, ${0.2 + intensity * 0.5})`
+                                                                }}
+                                                            >
+                                                                <p className="text-xs font-semibold text-foreground truncate" title={area.district}>
+                                                                    {area.district || 'Unknown'}
+                                                                </p>
+                                                                <p className="text-lg font-bold text-foreground">{area.total_complaints}</p>
+                                                                <p className="text-[10px] text-muted-foreground">{area.cluster_count} clusters</p>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+
+                                    {/* Beneficiary Impact */}
+                                    {analytics.constituency_funding_totals?.total_beneficiaries > 0 && (
+                                        <Card>
+                                            <CardHeader className="pb-3">
+                                                <CardTitle className="text-sm font-semibold">Constituency Impact</CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Total Projects</p>
+                                                    <p className="text-2xl font-bold text-foreground">
+                                                        {analytics.constituency_funding_totals.project_count || 0}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Beneficiaries</p>
+                                                    <p className="text-2xl font-bold text-emerald-600">
+                                                        {(analytics.constituency_funding_totals.total_beneficiaries || 0).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+                                </div>
+                            </>
+                        ) : (
+                            <Card>
+                                <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                                    No analytics data available. Click "Sync Opportunities" to generate.
+                                </CardContent>
+                            </Card>
                         )}
                     </div>
                 </TabsContent>

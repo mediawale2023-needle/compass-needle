@@ -1677,6 +1677,565 @@ def delete_pipeline_entry(entry_id: int, user=Depends(get_current_user)):
 
 
 # ─────────────────────────────────────────
+# CSR COMPANY MATCHING ENGINE
+# ─────────────────────────────────────────
+
+@router.get("/csr/matches/{opportunity_id}")
+def get_opportunity_matches(opportunity_id: int, user=Depends(get_current_user)):
+    """
+    Return the pre-computed multi-dimensional company matches for an opportunity.
+    If no persisted scores exist, compute on-the-fly and return (but do not persist).
+    """
+    tid = get_tenant_or_fail(user)
+
+    # Try persisted matches first
+    try:
+        rows = _q("""
+            SELECT ocm.match_score, ocm.sector_alignment_score, ocm.geographic_score,
+                   ocm.urgency_score, ocm.relationship_score,
+                   ocm.recommended_ask_amount, ocm.ask_rationale, ocm.computed_at,
+                   cc.id as company_id, cc.name as company_name, cc.slug,
+                   cc.district, cc.sector as company_sector,
+                   cc.avg_ticket_size_lakhs, cc.total_3y_lakhs,
+                   cc.status as company_status, cc.company_type
+            FROM opportunity_company_matches ocm
+            JOIN csr_companies cc ON ocm.company_id = cc.id
+            WHERE ocm.opportunity_id = :oid AND ocm.tenant_id = :tid
+            ORDER BY ocm.match_score DESC
+        """, {"oid": opportunity_id, "tid": tid})
+
+        if rows:
+            for r in rows:
+                if r.get("computed_at") and hasattr(r["computed_at"], "isoformat"):
+                    r["computed_at"] = r["computed_at"].isoformat()
+            return {"matches": rows, "source": "cached", "total": len(rows)}
+    except Exception:
+        pass
+
+    # On-the-fly computation fallback
+    try:
+        opp = _q_one("""
+            SELECT id, category, location, complaint_count, velocity_7d, status
+            FROM csr_opportunities WHERE id = :oid
+        """, {"oid": opportunity_id})
+        if not opp:
+            raise HTTPException(404, "Opportunity not found.")
+
+        from modules.csr_pipeline import CATEGORY_SECTOR_MAP
+        from modules.csr_matching_engine import rank_companies_for_opportunity
+
+        csr_data = _cached_load("csr_data", _load_csr_data)
+        opp_enriched = {
+            "category": opp["category"],
+            "area": opp.get("location", ""),
+            "volume": opp["complaint_count"],
+            "velocity_7d": opp.get("velocity_7d", 0),
+            "csr_sector": CATEGORY_SECTOR_MAP.get(opp["category"], "General CSR"),
+        }
+        ranked = rank_companies_for_opportunity(opp_enriched, csr_data, tid, top_n=10)
+        return {"matches": ranked, "source": "computed", "total": len(ranked)}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("get_opportunity_matches failed")
+        raise HTTPException(500, "Failed to compute matches.")
+
+
+@router.post("/csr/opportunities/sync")
+def sync_opportunities(user=Depends(get_current_user)):
+    """
+    Trigger on-demand opportunity sync + scoring recompute for the current tenant.
+    Runs synchronously (fast for <100 clusters). For large deployments use the job queue.
+    """
+    tid = get_tenant_or_fail(user)
+    try:
+        from modules.csr_pipeline import get_grievance_clusters, CATEGORY_SECTOR_MAP, CSR_MONITOR_THRESHOLD
+        from modules.csr_matching_engine import rank_companies_for_opportunity, persist_matches
+
+        now = datetime.utcnow()
+        clusters = get_grievance_clusters(tid, CSR_MONITOR_THRESHOLD)
+        csr_data = _cached_load("csr_data", _load_csr_data)
+
+        synced = 0
+        for cluster in clusters:
+            category = cluster["category"]
+            area = cluster.get("area", "")
+            volume = cluster["volume"]
+            csr_sector = CATEGORY_SECTOR_MAP.get(category, "General CSR")
+            v7 = _get_velocity(tid, category, area, 7)
+            v30 = _get_velocity(tid, category, area, 30)
+            score = _compute_opportunity_score(volume, v7, 3)
+            status = "ready" if volume >= 500 else "monitoring" if volume >= 200 else "emerging"
+
+            with engine.begin() as conn:
+                existing = conn.execute(text("""
+                    SELECT id FROM csr_opportunities
+                    WHERE tenant_id = :tid AND category = :cat AND location = :loc
+                """), {"tid": tid, "cat": category, "loc": area}).fetchone()
+
+                if existing:
+                    opp_id = existing[0]
+                    conn.execute(text("""
+                        UPDATE csr_opportunities
+                        SET complaint_count=:vol, velocity_7d=:v7, velocity_30d=:v30,
+                            opportunity_score=:score, status=:status, last_scored_at=:now
+                        WHERE id=:id
+                    """), {"vol": volume, "v7": v7, "v30": v30, "score": score,
+                           "status": status, "now": now, "id": opp_id})
+                else:
+                    result = conn.execute(text("""
+                        INSERT INTO csr_opportunities
+                            (tenant_id, category, location, complaint_count,
+                             velocity_7d, velocity_30d, opportunity_score,
+                             status, detected_at, last_scored_at)
+                        VALUES
+                            (:tid, :cat, :loc, :vol, :v7, :v30, :score,
+                             :status, :now, :now)
+                    """), {"tid": tid, "cat": category, "loc": area,
+                           "vol": volume, "v7": v7, "v30": v30,
+                           "score": score, "status": status, "now": now})
+                    opp_id = result.lastrowid
+
+            # Compute and persist matches for this opportunity
+            opp_dict = {"category": category, "area": area, "volume": volume,
+                        "velocity_7d": v7, "csr_sector": csr_sector}
+            ranked = rank_companies_for_opportunity(opp_dict, csr_data, tid, top_n=10)
+            persist_matches(opp_id, tid, ranked)
+            synced += 1
+
+        # Invalidate cache so next /csr/opportunities returns fresh data
+        _cache.pop("csr_opportunities", None)
+
+        return {
+            "synced": synced,
+            "message": f"Synced {synced} opportunities and recomputed matches."
+        }
+    except Exception:
+        logger.exception("Opportunity sync failed")
+        raise HTTPException(500, "Sync failed.")
+
+
+# ─────────────────────────────────────────
+# CSR ANALYTICS
+# ─────────────────────────────────────────
+
+@router.get("/csr/analytics")
+def get_csr_analytics(user=Depends(get_current_user)):
+    """
+    Returns all CSR analytics metrics in one call:
+      - pipeline funnel (stage counts + conversion rates)
+      - opportunity scoreboard
+      - geographic heatmap (district → total opportunity score)
+      - top sectors by complaint volume
+      - constituency CSR funding totals (from impact reports)
+      - watchdog summary
+    """
+    tid = get_tenant_or_fail(user)
+
+    # ── Pipeline Funnel ──
+    try:
+        stage_rows = _q("""
+            SELECT stage, COUNT(*) as count
+            FROM csr_pipeline_entries WHERE tenant_id = :tid
+            GROUP BY stage
+        """, {"tid": tid})
+        stage_counts = {r["stage"]: r["count"] for r in stage_rows}
+        stages = ['identified', 'contacted', 'proposal_sent', 'negotiating', 'approved', 'funded']
+        funnel = []
+        for i, stage in enumerate(stages):
+            count = stage_counts.get(stage, 0)
+            prev = stage_counts.get(stages[i - 1], 1) if i > 0 else count
+            conversion = round((count / prev) * 100, 1) if prev and count else 0.0
+            funnel.append({"stage": stage, "count": count, "conversion_from_prev": conversion})
+    except Exception:
+        funnel = []
+
+    # ── Opportunity Scoreboard ──
+    try:
+        opps = _q("""
+            SELECT category, location, opportunity_score, complaint_count, velocity_7d, status
+            FROM csr_opportunities WHERE tenant_id = :tid AND status != 'funded'
+            ORDER BY opportunity_score DESC LIMIT 10
+        """, {"tid": tid})
+        scoreboard = [dict(o) for o in opps]
+    except Exception:
+        scoreboard = []
+
+    # ── Geographic Heatmap ──
+    try:
+        heatmap_rows = _q("""
+            SELECT location, SUM(complaint_count) as total_complaints,
+                   AVG(opportunity_score) as avg_score, COUNT(*) as cluster_count
+            FROM csr_opportunities WHERE tenant_id = :tid
+            GROUP BY location
+            ORDER BY total_complaints DESC
+        """, {"tid": tid})
+        heatmap = [dict(h) for h in heatmap_rows]
+    except Exception:
+        heatmap = []
+
+    # ── Top Sectors ──
+    try:
+        sector_rows = _q("""
+            SELECT category, SUM(complaint_count) as total_volume, COUNT(*) as cluster_count
+            FROM csr_opportunities WHERE tenant_id = :tid
+            GROUP BY category ORDER BY total_volume DESC LIMIT 8
+        """, {"tid": tid})
+        sectors = [dict(s) for s in sector_rows]
+    except Exception:
+        sectors = []
+
+    # ── Constituency Funding Totals ──
+    try:
+        funding_totals = _q("""
+            SELECT SUM(utilised_amount_lakhs) as total_utilised,
+                   SUM(sanctioned_amount_lakhs) as total_sanctioned,
+                   COUNT(*) as project_count,
+                   SUM(beneficiary_count) as total_beneficiaries
+            FROM csr_impact_reports WHERE tenant_id = :tid
+        """, {"tid": tid})
+        constituency_totals = dict(funding_totals[0]) if funding_totals else {
+            "total_utilised": 0, "total_sanctioned": 0,
+            "project_count": 0, "total_beneficiaries": 0
+        }
+    except Exception:
+        constituency_totals = {}
+
+    # ── Watchdog Summary ──
+    try:
+        watchdog = _q_one("""
+            SELECT COUNT(*) as zero_spend_local
+            FROM csr_companies WHERE status = 'zero_spend' AND company_type = 'local'
+        """)
+        watchdog_count = watchdog["zero_spend_local"] if watchdog else 0
+    except Exception:
+        watchdog_count = 0
+
+    # ── Pipeline Value ──
+    try:
+        total_companies = _q_one(
+            "SELECT COUNT(*) as cnt FROM csr_companies", {}
+        )
+        pipeline_value_rows = _q("""
+            SELECT SUM(avg_ticket_size_lakhs) as potential_value
+            FROM csr_companies
+            WHERE id IN (
+                SELECT DISTINCT company_id FROM opportunity_company_matches
+                WHERE tenant_id = :tid AND match_score >= 60
+            )
+        """, {"tid": tid})
+        pipeline_potential = pipeline_value_rows[0].get("potential_value") if pipeline_value_rows else 0
+    except Exception:
+        pipeline_potential = 0
+        total_companies = {"cnt": 0}
+
+    return {
+        "pipeline_funnel": funnel,
+        "opportunity_scoreboard": scoreboard,
+        "geographic_heatmap": heatmap,
+        "top_sectors": sectors,
+        "constituency_funding_totals": constituency_totals,
+        "watchdog_zero_spend_count": watchdog_count,
+        "total_companies_in_db": total_companies.get("cnt", 0) if total_companies else 0,
+        "pipeline_potential_lakhs": pipeline_potential or 0,
+    }
+
+
+@router.get("/csr/analytics/heatmap")
+def get_csr_heatmap(user=Depends(get_current_user)):
+    """Returns district-level CSR opportunity heatmap data for geographic visualisation."""
+    tid = get_tenant_or_fail(user)
+    try:
+        rows = _q("""
+            SELECT location as district,
+                   COUNT(*) as cluster_count,
+                   SUM(complaint_count) as total_complaints,
+                   MAX(opportunity_score) as max_score,
+                   AVG(opportunity_score) as avg_score,
+                   GROUP_CONCAT(category) as categories
+            FROM csr_opportunities WHERE tenant_id = :tid
+            GROUP BY location ORDER BY total_complaints DESC
+        """, {"tid": tid})
+        return {"heatmap": [dict(r) for r in rows], "total": len(rows)}
+    except Exception:
+        logger.exception("Heatmap failed")
+        return {"heatmap": [], "total": 0}
+
+
+@router.get("/csr/analytics/pipeline-funnel")
+def get_pipeline_funnel(user=Depends(get_current_user)):
+    """Returns pipeline conversion rates across all 6 stages."""
+    tid = get_tenant_or_fail(user)
+    stages = ['identified', 'contacted', 'proposal_sent', 'negotiating', 'approved', 'funded']
+    try:
+        rows = _q("""
+            SELECT stage, COUNT(*) as count,
+                   SUM(CASE WHEN estimated_amount != '' AND estimated_amount IS NOT NULL THEN 1 ELSE 0 END) as with_amount
+            FROM csr_pipeline_entries WHERE tenant_id = :tid GROUP BY stage
+        """, {"tid": tid})
+        counts = {r["stage"]: r["count"] for r in rows}
+        funnel = []
+        for i, stage in enumerate(stages):
+            count = counts.get(stage, 0)
+            prev_count = counts.get(stages[i - 1], 0) if i > 0 else count
+            rate = round((count / prev_count) * 100, 1) if prev_count else 0.0
+            funnel.append({
+                "stage": stage,
+                "count": count,
+                "conversion_rate": rate,
+                "label": stage.replace("_", " ").title(),
+            })
+        return {"funnel": funnel, "total": sum(counts.values())}
+    except Exception:
+        logger.exception("Pipeline funnel failed")
+        return {"funnel": [], "total": 0}
+
+
+# ─────────────────────────────────────────
+# CSR IMPACT REPORTING
+# ─────────────────────────────────────────
+
+class CSRImpactReportCreate(BaseModel):
+    company_name: str
+    project_title: str
+    sector: str = ""
+    location: str = ""
+    pipeline_entry_id: Optional[int] = None
+    sanctioned_amount_lakhs: Optional[float] = None
+    utilised_amount_lakhs: Optional[float] = None
+    beneficiary_count: Optional[int] = None
+    beneficiary_type: str = "households"
+    project_start_date: Optional[str] = None
+    project_end_date: Optional[str] = None
+    completion_percentage: int = 0
+    narrative_summary: Optional[str] = None
+    sdg_alignment: Optional[str] = None
+
+
+class CSRImpactReportUpdate(BaseModel):
+    utilised_amount_lakhs: Optional[float] = None
+    beneficiary_count: Optional[int] = None
+    completion_percentage: Optional[int] = None
+    narrative_summary: Optional[str] = None
+    status: Optional[str] = None
+
+
+@router.post("/csr/impact")
+def create_impact_report(req: CSRImpactReportCreate, user=Depends(get_current_user)):
+    """Create a new CSR project impact report (when a funded project starts)."""
+    tid = get_tenant_or_fail(user)
+    try:
+        unspent = None
+        if req.sanctioned_amount_lakhs and req.utilised_amount_lakhs:
+            unspent = round(req.sanctioned_amount_lakhs - req.utilised_amount_lakhs, 2)
+
+        cost_per = None
+        if req.utilised_amount_lakhs and req.beneficiary_count and req.beneficiary_count > 0:
+            cost_per = round((req.utilised_amount_lakhs * 100000) / req.beneficiary_count, 0)
+
+        with engine.begin() as conn:
+            result = conn.execute(text("""
+                INSERT INTO csr_impact_reports
+                    (tenant_id, pipeline_entry_id, company_name, project_title,
+                     sector, location, sanctioned_amount_lakhs, utilised_amount_lakhs,
+                     unspent_amount_lakhs, beneficiary_count, beneficiary_type,
+                     cost_per_beneficiary, completion_percentage, narrative_summary,
+                     sdg_alignment, status, created_at)
+                VALUES
+                    (:tid, :pe_id, :company, :title,
+                     :sector, :loc, :sanctioned, :utilised,
+                     :unspent, :beneficiaries, :ben_type,
+                     :cost_per, :pct, :narrative,
+                     :sdg, 'active', :now)
+            """), {
+                "tid": tid,
+                "pe_id": req.pipeline_entry_id,
+                "company": req.company_name,
+                "title": req.project_title,
+                "sector": req.sector,
+                "loc": req.location,
+                "sanctioned": req.sanctioned_amount_lakhs,
+                "utilised": req.utilised_amount_lakhs,
+                "unspent": unspent,
+                "beneficiaries": req.beneficiary_count,
+                "ben_type": req.beneficiary_type,
+                "cost_per": cost_per,
+                "pct": req.completion_percentage,
+                "narrative": req.narrative_summary,
+                "sdg": req.sdg_alignment,
+                "now": datetime.utcnow(),
+            })
+            new_id = result.lastrowid
+        return {"id": new_id, "message": "Impact report created."}
+    except Exception:
+        logger.exception("Create impact report failed")
+        raise HTTPException(500, "Failed to create impact report.")
+
+
+@router.get("/csr/impact")
+def get_impact_reports(user=Depends(get_current_user)):
+    """List all impact reports for this tenant."""
+    tid = get_tenant_or_fail(user)
+    try:
+        rows = _q("""
+            SELECT id, company_name, project_title, sector, location,
+                   sanctioned_amount_lakhs, utilised_amount_lakhs, unspent_amount_lakhs,
+                   beneficiary_count, beneficiary_type, cost_per_beneficiary,
+                   completion_percentage, status, narrative_summary, sdg_alignment,
+                   project_start_date, project_end_date, created_at, updated_at
+            FROM csr_impact_reports WHERE tenant_id = :tid
+            ORDER BY created_at DESC
+        """, {"tid": tid})
+        for r in rows:
+            for f in ["created_at", "updated_at", "project_start_date", "project_end_date"]:
+                if r.get(f) and hasattr(r[f], "isoformat"):
+                    r[f] = r[f].isoformat()
+        summary = {
+            "total_projects": len(rows),
+            "total_utilised_lakhs": sum(r.get("utilised_amount_lakhs") or 0 for r in rows),
+            "total_beneficiaries": sum(r.get("beneficiary_count") or 0 for r in rows),
+            "completed": sum(1 for r in rows if r.get("status") == "completed"),
+            "active": sum(1 for r in rows if r.get("status") == "active"),
+        }
+        return {"reports": rows, "summary": summary}
+    except Exception:
+        logger.exception("Get impact reports failed")
+        return {"reports": [], "summary": {}}
+
+
+@router.patch("/csr/impact/{report_id}")
+def update_impact_report(report_id: int, req: CSRImpactReportUpdate, user=Depends(get_current_user)):
+    """Update progress on a CSR impact report."""
+    tid = get_tenant_or_fail(user)
+    existing = _q_one(
+        "SELECT id FROM csr_impact_reports WHERE id = :id AND tenant_id = :tid",
+        {"id": report_id, "tid": tid}
+    )
+    if not existing:
+        raise HTTPException(404, "Impact report not found.")
+
+    updates = {"id": report_id, "updated_at": datetime.utcnow()}
+    if req.utilised_amount_lakhs is not None:
+        updates["utilised_amount_lakhs"] = req.utilised_amount_lakhs
+    if req.beneficiary_count is not None:
+        updates["beneficiary_count"] = req.beneficiary_count
+    if req.completion_percentage is not None:
+        updates["completion_percentage"] = req.completion_percentage
+    if req.narrative_summary is not None:
+        updates["narrative_summary"] = req.narrative_summary
+    if req.status is not None:
+        updates["status"] = req.status
+
+    set_clause = ", ".join(f"{k} = :{k}" for k in updates if k != "id")
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(f"UPDATE csr_impact_reports SET {set_clause} WHERE id = :id"), updates)
+        return {"message": "Impact report updated."}
+    except Exception:
+        logger.exception("Update impact report failed")
+        raise HTTPException(500, "Failed to update impact report.")
+
+
+@router.post("/csr/impact/{report_id}/certificate")
+@_limit_ai
+def generate_utilisation_certificate(report_id: int, request: Request, user=Depends(get_current_user)):
+    """
+    Generate an AI-drafted Utilisation Certificate (UC) for a completed CSR project.
+    UC is a formal document submitted to the company confirming funds were used as agreed.
+    """
+    tid = get_tenant_or_fail(user)
+    report = _q_one("""
+        SELECT * FROM csr_impact_reports WHERE id = :id AND tenant_id = :tid
+    """, {"id": report_id, "tid": tid})
+    if not report:
+        raise HTTPException(404, "Impact report not found.")
+
+    client = get_gemini_client()
+    if not client:
+        raise HTTPException(503, "AI service not configured.")
+
+    try:
+        tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
+        mp_name = user.get("display_name") or user.get("username", "").title()
+        constituency = tenant.get("constituency", "India") if tenant else "India"
+
+        prompt = f"""Generate a formal Utilisation Certificate (UC) for a CSR project.
+
+FROM: Office of {mp_name}, Member of Parliament, {constituency}
+TO: CSR Head, {report['company_name']}
+RE: Project — {report['project_title']}
+
+PROJECT DETAILS:
+- Sector: {report.get('sector', 'N/A')}
+- Location: {report.get('location', constituency)}
+- Sanctioned Amount: ₹{report.get('sanctioned_amount_lakhs', 'N/A')} Lakhs
+- Amount Utilised: ₹{report.get('utilised_amount_lakhs', 'N/A')} Lakhs
+- Unspent Balance: ₹{report.get('unspent_amount_lakhs', 0)} Lakhs
+- Beneficiaries: {report.get('beneficiary_count', 'N/A')} {report.get('beneficiary_type', 'individuals')}
+- Cost per Beneficiary: ₹{report.get('cost_per_beneficiary', 'N/A')}
+- Completion: {report.get('completion_percentage', 0)}%
+- Project Narrative: {report.get('narrative_summary', 'Project executed as per DPR.')}
+- SDG Alignment: {report.get('sdg_alignment', 'SDG 11, SDG 3')}
+
+Generate a formal Utilisation Certificate following government format:
+1. Certificate heading and UC number (format: UC/{constituency[:3].upper()}/{report_id}/2024-25)
+2. Certified statement that funds were received and utilised
+3. Itemised expenditure summary
+4. Impact achieved (beneficiaries, scope)
+5. SDG contribution statement
+6. Certification clause (MP's endorsement as project champion)
+7. Space for signatures: MP, Project Coordinator, Third-party Auditor
+
+Tone: Formal government document. No emojis. Generate ONLY the certificate text."""
+
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
+        certificate_text = response.text
+
+        # Mark certificate as generated
+        with engine.begin() as conn:
+            conn.execute(text(
+                "UPDATE csr_impact_reports SET certificate_generated_at = :now WHERE id = :id"
+            ), {"now": datetime.utcnow(), "id": report_id})
+
+        return {"content": certificate_text, "report_id": report_id}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Certificate generation failed")
+        raise HTTPException(500, "Failed to generate certificate.")
+
+
+@router.get("/csr/reports/weekly")
+def get_weekly_report(user=Depends(get_current_user)):
+    """
+    Return the latest weekly CSR intelligence report for this tenant.
+    If no saved report exists, generate one on-the-fly (lighter version).
+    """
+    tid = get_tenant_or_fail(user)
+    import glob
+    pattern = f"data/weekly_csr_report_tenant{tid}_*.json"
+    files = sorted(glob.glob(pattern), reverse=True)
+
+    if files:
+        try:
+            with open(files[0], encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+
+    # Generate lightweight on-the-fly version
+    try:
+        from jobs.weekly_report import generate_report
+        return generate_report(tid)
+    except Exception:
+        logger.exception("Weekly report failed")
+        return {"error": "Report not available. Run jobs/weekly_report.py to generate."}
+
+
+# ─────────────────────────────────────────
 # REPORT CARD
 # ─────────────────────────────────────────
 @router.get("/activity/report-card")

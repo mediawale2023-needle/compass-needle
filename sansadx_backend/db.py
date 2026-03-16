@@ -403,6 +403,106 @@ def save_overrides_to_db(data: dict):
         db.close()
 
 
+class OpportunityCompanyMatch(Base):
+    """
+    Multi-dimensional match score between a grievance opportunity and a CSR company.
+    Computed by the matching engine and stored for fast retrieval.
+    """
+    __tablename__ = "opportunity_company_matches"
+
+    id = Column(Integer, primary_key=True, index=True)
+    opportunity_id = Column(Integer, ForeignKey("csr_opportunities.id"), index=True)
+    company_id = Column(Integer, ForeignKey("csr_companies.id"), index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
+
+    # Composite score (0–100)
+    match_score = Column(Float, default=0.0)
+
+    # Sub-dimension scores (each 0–100)
+    sector_alignment_score = Column(Float, default=0.0)   # sector tag overlap
+    geographic_score = Column(Float, default=0.0)          # same district / region
+    urgency_score = Column(Float, default=0.0)             # velocity × complaint count
+    relationship_score = Column(Float, default=0.0)        # existing pipeline entries, prior contact
+
+    # Recommended engagement
+    recommended_ask_amount = Column(Float, nullable=True)  # ₹ Lakhs
+    ask_rationale = Column(Text, nullable=True)
+
+    computed_at = Column(DateTime, default=datetime.utcnow)
+
+    opportunity = relationship("CSROpportunity", backref="company_matches")
+    company = relationship("CSRCompany", backref="opportunity_matches")
+
+
+class CSRImpactReport(Base):
+    """
+    Tracks project completion and generates utilisation certificates.
+    Created when a pipeline entry moves to 'funded' and project completes.
+    """
+    __tablename__ = "csr_impact_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
+    pipeline_entry_id = Column(Integer, ForeignKey("csr_pipeline_entries.id"), nullable=True)
+    company_name = Column(String, nullable=False)
+    project_title = Column(String, nullable=False)
+    sector = Column(String)
+    location = Column(String)
+
+    # Financials
+    sanctioned_amount_lakhs = Column(Float, nullable=True)
+    utilised_amount_lakhs = Column(Float, nullable=True)
+    unspent_amount_lakhs = Column(Float, nullable=True)
+
+    # Impact metrics
+    beneficiary_count = Column(Integer, nullable=True)
+    beneficiary_type = Column(String, nullable=True)   # e.g. "households", "students"
+    cost_per_beneficiary = Column(Float, nullable=True)
+
+    # Project dates
+    project_start_date = Column(DateTime, nullable=True)
+    project_end_date = Column(DateTime, nullable=True)
+    completion_percentage = Column(Integer, default=0)
+
+    # Status lifecycle
+    status = Column(String, default='active')  # active | completed | stalled | audited
+
+    # Report content
+    narrative_summary = Column(Text, nullable=True)
+    sdg_alignment = Column(Text, nullable=True)         # JSON list of SDG codes
+    photo_urls = Column(Text, nullable=True)            # JSON list of URLs
+    certificate_generated_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+
+    tenant = relationship("Tenant", backref="csr_impact_reports")
+    pipeline_entry = relationship("CSRPipelineEntry", backref="impact_reports")
+
+
+class CSRDocument(Base):
+    """
+    Document registry for RAG — stores CSR reports, policies, annual reports.
+    Embeddings are stored externally (pgvector or file-based); this table tracks metadata.
+    """
+    __tablename__ = "csr_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("csr_companies.id"), nullable=True, index=True)
+    document_type = Column(String)   # csr_report | annual_report | policy | news | project_report
+    title = Column(String, nullable=False)
+    source_url = Column(String, nullable=True)
+    fiscal_year = Column(String, nullable=True)    # e.g. "2024-25"
+    raw_text = Column(Text, nullable=True)         # extracted text (truncated to 50K chars)
+    summary = Column(Text, nullable=True)          # AI-generated summary
+    key_sectors = Column(Text, nullable=True)      # JSON list extracted from doc
+    total_csr_spend_mentioned = Column(Float, nullable=True)  # ₹ Lakhs if found in doc
+    embedding_id = Column(String, nullable=True)   # external vector DB reference
+    ingested_at = Column(DateTime, default=datetime.utcnow)
+
+    company = relationship("CSRCompany", backref="documents")
+
+
 # ─────────────────────────────────────────
 # INIT — Create all tables
 # ─────────────────────────────────────────
