@@ -20,6 +20,7 @@ from sansadx_backend.db import engine, SessionLocal
 from core.db_helpers import _q, _q_one, _parse_meta
 from modules.auth import get_tenant_or_fail, sanitize_prompt_input
 from core.gemini_client import get_gemini_client
+from google.genai import types as genai_types
 
 # Security event logger (soft-import)
 try:
@@ -600,7 +601,7 @@ Generate a professional parliamentary document. Do NOT invent statistics.
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
-            config=genai.types.GenerateContentConfig(temperature=0.2),
+            config=genai_types.GenerateContentConfig(temperature=0.2),
         )
         
         generated_text = response.text
@@ -1079,7 +1080,7 @@ Generate ONLY the letter text."""
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
-            config=genai.types.GenerateContentConfig(temperature=0.2),
+            config=genai_types.GenerateContentConfig(temperature=0.2),
         )
         return {"content": response.text}
     except Exception as e:
