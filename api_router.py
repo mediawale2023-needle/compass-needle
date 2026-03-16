@@ -118,11 +118,14 @@ def login(req: LoginRequest, request: Request):
             log_security_event(
                 "auth_failed",
                 f"Wrong password for user '{req.username}'",
-                severity="medium",
+                severity="high",
                 user_id=req.username,
                 ip_address=request.client.host if request.client else None,
             )
         raise HTTPException(401, "Invalid credentials")
+
+    if user.get("is_active") is False:
+        raise HTTPException(403, "Account suspended. Contact your administrator.")
 
     try:
         with engine.begin() as conn:
@@ -1661,3 +1664,97 @@ Rules:
     except Exception as e:
         logger.exception("Failed to save letterbox item to DB")
         raise HTTPException(500, "Failed to save record to database")
+
+# ─────────────────────────────────────────
+# CONSTITUENT CONTACTS
+# ─────────────────────────────────────────
+class ContactUpsert(BaseModel):
+    display_name: Optional[str] = None
+    tags: list = []
+    notes: Optional[str] = None
+
+
+@router.get("/contacts/{phone}")
+def get_contact(phone: str, user=Depends(get_current_user)):
+    """Return contact profile + last 20 cases for a phone number (tenant-scoped)."""
+    tid = get_tenant_or_fail(user)
+    contact = _q_one(
+        "SELECT * FROM contacts WHERE tenant_id = :tid AND phone = :phone",
+        {"tid": tid, "phone": phone},
+    )
+    cases = _q(
+        """SELECT id, category, status, raw_message, created_at, case_metadata
+           FROM cases WHERE tenant_id = :tid AND user_phone = :phone
+           ORDER BY created_at DESC LIMIT 20""",
+        {"tid": tid, "phone": phone},
+    )
+    for c in cases:
+        if c.get("created_at") and hasattr(c["created_at"], "isoformat"):
+            c["created_at"] = c["created_at"].isoformat()
+        meta = c.get("case_metadata")
+        if meta and isinstance(meta, str):
+            try:
+                c["case_metadata"] = json.loads(meta)
+            except Exception:
+                pass
+    tags = []
+    if contact and contact.get("tags"):
+        try:
+            tags = json.loads(contact["tags"])
+        except Exception:
+            tags = []
+    return {
+        "phone": phone,
+        "display_name": contact.get("display_name") if contact else None,
+        "tags": tags,
+        "notes": contact.get("notes") if contact else None,
+        "total_cases": len(cases),
+        "cases": cases,
+    }
+
+
+@router.patch("/contacts/{phone}")
+def upsert_contact(phone: str, req: ContactUpsert, user=Depends(get_current_user)):
+    """Create or update a contact record for a phone number."""
+    tid = get_tenant_or_fail(user)
+    now = datetime.utcnow()
+    existing = _q_one(
+        "SELECT id FROM contacts WHERE tenant_id = :tid AND phone = :phone",
+        {"tid": tid, "phone": phone},
+    )
+    tags_json = json.dumps(req.tags or [])
+    try:
+        with engine.begin() as conn:
+            if existing:
+                conn.execute(text("""
+                    UPDATE contacts
+                    SET display_name = :dn, tags = :tags, notes = :notes, updated_at = :now
+                    WHERE tenant_id = :tid AND phone = :phone
+                """), {"dn": req.display_name, "tags": tags_json, "notes": req.notes,
+                       "now": now, "tid": tid, "phone": phone})
+            else:
+                conn.execute(text("""
+                    INSERT INTO contacts (tenant_id, phone, display_name, tags, notes, created_at)
+                    VALUES (:tid, :phone, :dn, :tags, :notes, :now)
+                """), {"tid": tid, "phone": phone, "dn": req.display_name,
+                       "tags": tags_json, "notes": req.notes, "now": now})
+        return {"success": True}
+    except Exception:
+        logger.exception("Contact upsert failed")
+        raise HTTPException(500, "Failed to save contact")
+
+
+# ─────────────────────────────────────────
+# ANNOUNCEMENTS (read-only for MP users)
+# ─────────────────────────────────────────
+@router.get("/announcements/active")
+def get_active_announcements(user=Depends(get_current_user)):
+    """Return all active system-wide announcements."""
+    rows = _q(
+        "SELECT id, title, body, created_at FROM announcements WHERE is_active = true ORDER BY created_at DESC",
+        {},
+    )
+    for r in rows:
+        if r.get("created_at") and hasattr(r["created_at"], "isoformat"):
+            r["created_at"] = r["created_at"].isoformat()
+    return {"announcements": rows}

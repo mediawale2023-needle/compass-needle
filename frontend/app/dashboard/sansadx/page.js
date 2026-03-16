@@ -2,12 +2,14 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/lib/auth';
-import { apiGet, apiPatch } from '@/lib/api';
+import { apiGet, apiPatch, apiBlob } from '@/lib/api';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { X, Loader2, AlertTriangle, CheckCircle, Download } from 'lucide-react';
+import { X, Loader2, AlertTriangle, CheckCircle, Download, User, Tag, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { apiBlob, API_BASE } from '@/lib/api';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -43,6 +45,161 @@ function getStatusBadge(status) {
         return <Badge variant="secondary" className={opt.className}>{opt.label}</Badge>;
     }
     return <Badge variant="secondary">{status}</Badge>;
+}
+
+function ContactPanel({ phone, color, onClose }) {
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [form, setForm] = useState({ display_name: '', tags: '', notes: '' });
+    const [saved, setSaved] = useState(false);
+
+    useEffect(() => {
+        if (!phone) return;
+        setLoading(true);
+        apiGet(`/api/contacts/${encodeURIComponent(phone)}`)
+            .then(d => {
+                setData(d);
+                setForm({
+                    display_name: d.contact?.display_name || '',
+                    tags: Array.isArray(d.contact?.tags) ? d.contact.tags.join(', ') : (d.contact?.tags || ''),
+                    notes: d.contact?.notes || '',
+                });
+            })
+            .catch(() => setData(null))
+            .finally(() => setLoading(false));
+    }, [phone]);
+
+    const handleSave = async () => {
+        setSaving(true);
+        setSaved(false);
+        try {
+            const tagsArr = form.tags
+                ? form.tags.split(',').map(t => t.trim()).filter(Boolean)
+                : [];
+            await apiPatch(`/api/contacts/${encodeURIComponent(phone)}`, {
+                display_name: form.display_name || null,
+                tags: tagsArr,
+                notes: form.notes || null,
+            });
+            setSaved(true);
+            setTimeout(() => setSaved(false), 2000);
+        } catch (err) {
+            console.error('Contact save failed:', err);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <Dialog open={!!phone} onOpenChange={onClose}>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader className="p-0 -m-6 mb-0">
+                    <div className="p-6 text-white rounded-t-xl" style={{ background: color }}>
+                        <DialogDescription className="text-white/80 text-xs uppercase tracking-widest font-semibold mb-1">
+                            Constituent Profile
+                        </DialogDescription>
+                        <DialogTitle className="text-lg font-bold text-white font-mono">
+                            {phone}
+                        </DialogTitle>
+                    </div>
+                </DialogHeader>
+
+                {loading ? (
+                    <div className="py-12 flex items-center justify-center">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                ) : (
+                    <div className="space-y-5 pt-6">
+                        {/* Editable fields */}
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="contact-name" className="flex items-center gap-1.5">
+                                    <User className="h-3.5 w-3.5" /> Display Name
+                                </Label>
+                                <Input
+                                    id="contact-name"
+                                    value={form.display_name}
+                                    onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
+                                    placeholder="Enter constituent's name"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="contact-tags" className="flex items-center gap-1.5">
+                                    <Tag className="h-3.5 w-3.5" /> Tags
+                                    <span className="text-xs text-muted-foreground font-normal">(comma-separated)</span>
+                                </Label>
+                                <Input
+                                    id="contact-tags"
+                                    value={form.tags}
+                                    onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
+                                    placeholder="e.g. Ward Councillor, Farmer, Repeat Caller"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="contact-notes" className="flex items-center gap-1.5">
+                                    <FileText className="h-3.5 w-3.5" /> Notes
+                                </Label>
+                                <Textarea
+                                    id="contact-notes"
+                                    value={form.notes}
+                                    onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                                    placeholder="Internal staff notes about this constituent"
+                                    className="min-h-[80px]"
+                                />
+                            </div>
+                        </div>
+
+                        <Button
+                            onClick={handleSave}
+                            disabled={saving}
+                            style={{ background: color }}
+                            className="w-full"
+                        >
+                            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                            {saved ? 'Saved!' : saving ? 'Saving…' : 'Save Contact'}
+                        </Button>
+
+                        <Separator />
+
+                        {/* Case history */}
+                        <div>
+                            <p className="text-xs text-muted-foreground uppercase font-medium mb-3">
+                                Case History ({data?.cases?.length || 0})
+                            </p>
+                            {(!data?.cases || data.cases.length === 0) ? (
+                                <p className="text-sm text-muted-foreground text-center py-6">No cases found for this number.</p>
+                            ) : (
+                                <div className="divide-y divide-border border rounded-lg overflow-hidden">
+                                    {data.cases.map(c => (
+                                        <div key={c.id} className="px-4 py-3 flex items-start justify-between gap-3 hover:bg-accent/30 transition-colors">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                    <span className="text-xs font-mono text-muted-foreground">#{c.id}</span>
+                                                    <span className="text-xs font-medium text-foreground">{c.category || 'General'}</span>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground truncate">{c.raw_message || '—'}</p>
+                                            </div>
+                                            <div className="shrink-0 text-right">
+                                                {getStatusBadge(c.status)}
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    {c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 function CaseModal({ caseItem, color, onClose, onStatusChange }) {
@@ -179,6 +336,7 @@ function BriefcaseInner() {
     const [categoryFilter, setCategoryFilter] = useState('');
     const [selected, setSelected] = useState(null);
     const [downloading, setDownloading] = useState(false);
+    const [contactPhone, setContactPhone] = useState(null);
 
     async function downloadReport() {
         setDownloading(true);
@@ -377,7 +535,14 @@ function BriefcaseInner() {
                                                 {c.id}
                                             </TableCell>
                                             <TableCell className="font-mono text-xs">
-                                                {c.user_phone || '-'}
+                                                {c.user_phone ? (
+                                                    <button
+                                                        className="hover:underline text-primary font-mono text-xs"
+                                                        onClick={e => { e.stopPropagation(); setContactPhone(c.user_phone); }}
+                                                    >
+                                                        {c.user_phone}
+                                                    </button>
+                                                ) : '-'}
                                             </TableCell>
                                             <TableCell className="font-medium">
                                                 {c.category || 'General'}
@@ -408,6 +573,12 @@ function BriefcaseInner() {
                 color={color}
                 onClose={() => setSelected(null)}
                 onStatusChange={handleStatusChange}
+            />
+
+            <ContactPanel
+                phone={contactPhone}
+                color={color}
+                onClose={() => setContactPhone(null)}
             />
         </div>
     );
