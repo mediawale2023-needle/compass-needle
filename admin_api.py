@@ -184,6 +184,9 @@ def admin_login(req: AdminLoginRequest, request: Request):
     if not verify_password(req.password, user.get("password_hash", "")):
         raise HTTPException(401, "Invalid credentials")
 
+    if user.get("is_active") is False:
+        raise HTTPException(403, "Account suspended. Contact your administrator.")
+
     # Auto-upgrade plain text passwords to bcrypt
     stored_hash = user.get("password_hash", "")
     if not (stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$")):
@@ -1152,3 +1155,289 @@ def debug_tenants(_=Depends(get_admin_user)):
         return {"tenants": result}
     finally:
         db.close()
+
+
+# ═══════════════════════════════════════════
+# PERMISSION HELPERS
+# ═══════════════════════════════════════════
+def require_super_admin(user=Depends(get_admin_user)):
+    """Restrict endpoint to super_admin / sysadmin only."""
+    if user.get("role") not in {"super_admin", "sysadmin"}:
+        raise HTTPException(403, "Super-admin access required for this action.")
+    return user
+
+
+# ═══════════════════════════════════════════
+# TENANT HEALTH MONITORING
+# ═══════════════════════════════════════════
+@router.get("/tenant-health")
+def tenant_health(_=Depends(get_admin_user)):
+    """Per-tenant health status: last case, last login, status bucket."""
+    rows = _q("""
+        SELECT t.id, t.name, t.constituency, t.is_active,
+               MAX(c.created_at)  AS last_case,
+               MAX(u.last_login)  AS last_login,
+               COUNT(c.id)        AS total_cases,
+               SUM(CASE WHEN c.status = 'new' THEN 1 ELSE 0 END) AS open_cases
+        FROM tenants t
+        LEFT JOIN cases c  ON c.tenant_id  = t.id
+        LEFT JOIN users u  ON u.tenant_id  = t.id AND u.role = 'user'
+        WHERE t.name != 'System Admin'
+        GROUP BY t.id, t.name, t.constituency, t.is_active
+        ORDER BY last_case DESC NULLS LAST
+    """, {})
+    now = datetime.utcnow()
+    for r in rows:
+        for f in ("last_case", "last_login"):
+            if r.get(f) and hasattr(r[f], "isoformat"):
+                r[f] = r[f].isoformat()
+        last = r.get("last_case")
+        if not last:
+            r["health"] = "no_data"
+        else:
+            days = (now - datetime.fromisoformat(last)).days
+            r["health"] = "active" if days <= 7 else ("stale" if days <= 30 else "inactive")
+    return {"tenants": rows}
+
+
+# ═══════════════════════════════════════════
+# PER-TENANT USAGE ANALYTICS
+# ═══════════════════════════════════════════
+@router.get("/usage-analytics")
+def usage_analytics(_=Depends(get_admin_user)):
+    """Monthly usage breakdown per tenant: cases, AI drafts, letterbox items."""
+    now = datetime.utcnow()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    tenants = _q("SELECT id, name, constituency FROM tenants WHERE name != 'System Admin' ORDER BY name", {})
+    result = []
+    for t in tenants:
+        tid = t["id"]
+        cases_month = (_q_one("SELECT COUNT(*) AS c FROM cases WHERE tenant_id=:t AND created_at>=:m", {"t": tid, "m": month_start}) or {}).get("c", 0)
+        cases_total = (_q_one("SELECT COUNT(*) AS c FROM cases WHERE tenant_id=:t", {"t": tid}) or {}).get("c", 0)
+        letters = (_q_one("SELECT COUNT(*) AS c FROM activity_history WHERE tenant_id=:t AND activity_type='draft_letter' AND created_at>=:m", {"t": tid, "m": month_start}) or {}).get("c", 0)
+        questions = (_q_one("SELECT COUNT(*) AS c FROM activity_history WHERE tenant_id=:t AND activity_type='draft_question' AND created_at>=:m", {"t": tid, "m": month_start}) or {}).get("c", 0)
+        analysis = (_q_one("SELECT COUNT(*) AS c FROM activity_history WHERE tenant_id=:t AND activity_type IN ('analysis','copilot_chat') AND created_at>=:m", {"t": tid, "m": month_start}) or {}).get("c", 0)
+        letterbox = (_q_one("SELECT COUNT(*) AS c FROM letterbox WHERE tenant_id=:t AND created_at>=:m", {"t": tid, "m": month_start}) or {}).get("c", 0)
+        result.append({
+            "tenant_id": tid,
+            "name": t["name"],
+            "constituency": t["constituency"],
+            "cases_this_month": cases_month,
+            "cases_total": cases_total,
+            "letters_drafted": letters,
+            "questions_drafted": questions,
+            "docs_analysed": analysis,
+            "letterbox_items": letterbox,
+        })
+    return {"period": now.strftime("%B %Y"), "tenants": result}
+
+
+# ═══════════════════════════════════════════
+# STAFF ACCOUNT MANAGEMENT
+# ═══════════════════════════════════════════
+class StaffEditRequest(BaseModel):
+    display_name: Optional[str] = None
+    role: Optional[str] = None
+
+
+class StaffReassignRequest(BaseModel):
+    tenant_id: int
+
+
+@router.get("/staff")
+def list_all_staff(_=Depends(get_admin_user)):
+    """List all non-admin users across all tenants."""
+    rows = _q("""
+        SELECT u.id, u.username, u.display_name, u.role, u.is_active,
+               u.last_login, u.tenant_id, t.name AS tenant_name, t.constituency
+        FROM users u
+        JOIN tenants t ON t.id = u.tenant_id
+        WHERE u.role NOT IN ('admin', 'super_admin', 'sysadmin')
+        ORDER BY t.name, u.display_name
+    """, {})
+    for r in rows:
+        if r.get("last_login") and hasattr(r["last_login"], "isoformat"):
+            r["last_login"] = r["last_login"].isoformat()
+        r["is_active"] = bool(r.get("is_active", True))
+    return {"staff": rows}
+
+
+@router.patch("/staff/{staff_id}")
+def edit_staff(staff_id: int, req: StaffEditRequest, _=Depends(get_admin_user)):
+    updates, params = [], {"id": staff_id}
+    if req.display_name is not None:
+        updates.append("display_name = :dn")
+        params["dn"] = req.display_name
+    if req.role is not None:
+        if req.role in {"admin", "super_admin", "sysadmin"}:
+            raise HTTPException(400, "Cannot grant admin roles via this endpoint.")
+        updates.append("role = :role")
+        params["role"] = req.role
+    if not updates:
+        raise HTTPException(400, "Nothing to update.")
+    with engine.begin() as conn:
+        result = conn.execute(text(f"UPDATE users SET {', '.join(updates)} WHERE id = :id AND role NOT IN ('admin','super_admin','sysadmin')"), params)
+    if result.rowcount == 0:
+        raise HTTPException(404, "Staff member not found.")
+    return {"success": True}
+
+
+@router.patch("/staff/{staff_id}/suspend")
+def toggle_staff_suspension(staff_id: int, _=Depends(get_admin_user)):
+    """Toggle is_active flag. Returns new state."""
+    row = _q_one("SELECT is_active, role FROM users WHERE id = :id", {"id": staff_id})
+    if not row:
+        raise HTTPException(404, "Staff member not found.")
+    if row.get("role") in {"admin", "super_admin", "sysadmin"}:
+        raise HTTPException(400, "Cannot suspend admin accounts.")
+    new_state = not bool(row.get("is_active", True))
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE users SET is_active = :s WHERE id = :id"), {"s": new_state, "id": staff_id})
+    return {"success": True, "is_active": new_state}
+
+
+@router.patch("/staff/{staff_id}/reassign")
+def reassign_staff(staff_id: int, req: StaffReassignRequest, _=Depends(get_admin_user)):
+    """Move a staff member to a different tenant."""
+    tenant = _q_one("SELECT id FROM tenants WHERE id = :t", {"t": req.tenant_id})
+    if not tenant:
+        raise HTTPException(404, "Target tenant not found.")
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("UPDATE users SET tenant_id = :t WHERE id = :id AND role NOT IN ('admin','super_admin','sysadmin')"),
+            {"t": req.tenant_id, "id": staff_id},
+        )
+    if result.rowcount == 0:
+        raise HTTPException(404, "Staff member not found or is an admin.")
+    return {"success": True}
+
+
+# ═══════════════════════════════════════════
+# ONBOARDING STATE
+# ═══════════════════════════════════════════
+class OnboardingUpdate(BaseModel):
+    geography: Optional[bool] = None
+    staff: Optional[bool] = None
+    test_sent: Optional[bool] = None
+    live: Optional[bool] = None
+
+
+@router.patch("/mps/{tenant_id}/onboarding")
+def update_onboarding(tenant_id: int, req: OnboardingUpdate, _=Depends(get_admin_user)):
+    row = _q_one("SELECT onboarding_state FROM tenants WHERE id = :t", {"t": tenant_id})
+    if not row:
+        raise HTTPException(404, "Tenant not found.")
+    state = {}
+    raw = row.get("onboarding_state")
+    if raw:
+        state = raw if isinstance(raw, dict) else json.loads(raw)
+    for key in ("geography", "staff", "test_sent", "live"):
+        val = getattr(req, key)
+        if val is not None:
+            state[key] = val
+    # Setting live=true also activates the tenant
+    updates = ["onboarding_state = :s"]
+    params = {"s": json.dumps(state), "t": tenant_id}
+    if req.live is True:
+        updates.append("is_active = true")
+    elif req.live is False:
+        updates.append("is_active = false")
+    with engine.begin() as conn:
+        conn.execute(text(f"UPDATE tenants SET {', '.join(updates)} WHERE id = :t"), params)
+    return {"success": True, "onboarding_state": state}
+
+
+# ═══════════════════════════════════════════
+# DATA EXPORT (ZIP of CSVs)
+# ═══════════════════════════════════════════
+@router.get("/tenants/{tenant_id}/export")
+def export_tenant_data(tenant_id: int, admin=Depends(require_super_admin)):
+    import csv, zipfile
+    from fastapi.responses import StreamingResponse
+
+    tenant = _q_one("SELECT name, constituency FROM tenants WHERE id = :t", {"t": tenant_id})
+    if not tenant:
+        raise HTTPException(404, "Tenant not found.")
+
+    def rows_to_csv(rows):
+        if not rows:
+            return ""
+        buf = io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=rows[0].keys())
+        writer.writeheader()
+        for r in rows:
+            safe = {k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in r.items()}
+            writer.writerow(safe)
+        return buf.getvalue()
+
+    datasets = {
+        "cases": _q("SELECT * FROM cases WHERE tenant_id=:t ORDER BY created_at DESC", {"t": tenant_id}),
+        "letterbox": _q("SELECT * FROM letterbox WHERE tenant_id=:t ORDER BY created_at DESC", {"t": tenant_id}),
+        "activity_history": _q("SELECT * FROM activity_history WHERE tenant_id=:t ORDER BY created_at DESC", {"t": tenant_id}),
+        "contacts": _q("SELECT * FROM contacts WHERE tenant_id=:t", {"t": tenant_id}),
+        "users": _q("SELECT id, username, display_name, role, is_active, last_login FROM users WHERE tenant_id=:t", {"t": tenant_id}),
+    }
+
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, rows in datasets.items():
+            zf.writestr(f"{name}.csv", rows_to_csv(rows))
+    zip_buf.seek(0)
+
+    safe_name = (tenant.get("constituency") or "export").replace(" ", "_")
+    filename = f"needle_export_{safe_name}_{datetime.utcnow().strftime('%Y%m%d')}.zip"
+    return StreamingResponse(
+        zip_buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ═══════════════════════════════════════════
+# ANNOUNCEMENTS MANAGEMENT
+# ═══════════════════════════════════════════
+class AnnouncementCreate(BaseModel):
+    title: str
+    body: Optional[str] = None
+
+
+@router.get("/announcements")
+def list_announcements(_=Depends(get_admin_user)):
+    rows = _q("SELECT id, title, body, is_active, created_at FROM announcements ORDER BY created_at DESC", {})
+    for r in rows:
+        if r.get("created_at") and hasattr(r["created_at"], "isoformat"):
+            r["created_at"] = r["created_at"].isoformat()
+        r["is_active"] = bool(r.get("is_active", True))
+    return {"announcements": rows}
+
+
+@router.post("/announcements")
+def create_announcement(req: AnnouncementCreate, _=Depends(get_admin_user)):
+    if not req.title.strip():
+        raise HTTPException(400, "Title is required.")
+    with engine.begin() as conn:
+        conn.execute(text(
+            "INSERT INTO announcements (title, body, is_active, created_at) VALUES (:t, :b, true, :now)"
+        ), {"t": req.title.strip(), "b": req.body, "now": datetime.utcnow()})
+    return {"success": True}
+
+
+@router.patch("/announcements/{ann_id}")
+def toggle_announcement(ann_id: int, _=Depends(get_admin_user)):
+    row = _q_one("SELECT is_active FROM announcements WHERE id = :id", {"id": ann_id})
+    if not row:
+        raise HTTPException(404, "Announcement not found.")
+    new_state = not bool(row.get("is_active", True))
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE announcements SET is_active = :s WHERE id = :id"), {"s": new_state, "id": ann_id})
+    return {"success": True, "is_active": new_state}
+
+
+@router.delete("/announcements/{ann_id}")
+def delete_announcement(ann_id: int, _=Depends(get_admin_user)):
+    with engine.begin() as conn:
+        result = conn.execute(text("DELETE FROM announcements WHERE id = :id"), {"id": ann_id})
+    if result.rowcount == 0:
+        raise HTTPException(404, "Announcement not found.")
+    return {"success": True}

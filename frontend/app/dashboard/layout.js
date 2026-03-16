@@ -10,16 +10,17 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { 
-    Menu, 
-    Clock, 
+import {
+    Menu,
+    Clock,
     Calendar,
     FileText,
     MessageSquare,
     FileEdit,
     Search,
     X,
-    Loader2
+    Loader2,
+    Bell
 } from 'lucide-react';
 
 const TYPE_LABELS = {
@@ -46,6 +47,8 @@ export default function DashboardLayout({ children }) {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [badges, setBadges] = useState({});
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [announcements, setAnnouncements] = useState([]);
+    const [dismissedIds, setDismissedIds] = useState([]);
 
     useEffect(() => {
         setIsMobileMenuOpen(false);
@@ -61,13 +64,26 @@ export default function DashboardLayout({ children }) {
             .then(data => {
                 const statuses = data?.status_breakdown || {};
                 const newCount = statuses['new'] || 0;
-                setBadges({
-                    letterbox: newCount,
-                    briefcase: newCount,
-                });
+                setBadges({ letterbox: newCount, briefcase: newCount });
             })
             .catch(() => {});
+        // Load dismissed announcement IDs from localStorage
+        try {
+            const stored = JSON.parse(localStorage.getItem('dismissed_announcements') || '[]');
+            setDismissedIds(stored);
+        } catch { setDismissedIds([]); }
+        apiGet('/api/announcements/active')
+            .then(d => setAnnouncements(d.announcements || []))
+            .catch(() => {});
     }, [user]);
+
+    const dismissAnnouncement = (id) => {
+        const next = [...dismissedIds, id];
+        setDismissedIds(next);
+        try { localStorage.setItem('dismissed_announcements', JSON.stringify(next)); } catch {}
+    };
+
+    const visibleAnnouncements = announcements.filter(a => !dismissedIds.includes(a.id));
 
     const openHistory = async () => {
         setShowHistory(true);
@@ -161,6 +177,33 @@ export default function DashboardLayout({ children }) {
                         </Button>
                     </div>
                 </header>
+
+                {/* Announcement Banners */}
+                {visibleAnnouncements.length > 0 && (
+                    <div className="px-4 md:px-6 pt-4 space-y-2">
+                        {visibleAnnouncements.map(a => (
+                            <div
+                                key={a.id}
+                                className="flex items-start gap-3 bg-primary/10 border border-primary/20 rounded-lg px-4 py-3"
+                            >
+                                <Bell className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-foreground">{a.title}</p>
+                                    {a.body && (
+                                        <p className="text-xs text-muted-foreground mt-0.5">{a.body}</p>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => dismissAnnouncement(a.id)}
+                                    className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                                    aria-label="Dismiss"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
 
                 {/* Content */}
                 <div className="flex-1 p-4 md:p-6 animate-fade-in">

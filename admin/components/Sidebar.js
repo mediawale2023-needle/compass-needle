@@ -9,6 +9,10 @@ const NAV_ITEMS = [
     { href: '/dashboard/geography', label: 'Geography Upload', icon: '🗺️' },
     { href: '/dashboard/rules', label: 'Geography Rules', icon: '📐' },
     { href: '/dashboard/intelligence', label: 'Case Intelligence', icon: '🔍' },
+    { href: '/dashboard/health', label: 'Tenant Health', icon: '🏥' },
+    { href: '/dashboard/analytics', label: 'Usage Analytics', icon: '📈' },
+    { href: '/dashboard/staff', label: 'Staff Management', icon: '👤' },
+    { href: '/dashboard/announcements', label: 'Announcements', icon: '📢' },
     { href: '/dashboard/settings', label: 'Settings', icon: '⚙️' },
 ];
 

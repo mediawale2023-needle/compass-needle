@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { User, Shield, Info, Lock } from 'lucide-react';
+import { User, Shield, Info, Lock, LifeBuoy, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -140,6 +140,34 @@ export default function SettingsPage() {
                             Change Password
                         </Button>
                     </form>
+                </CardContent>
+            </Card>
+
+            {/* Support Card */}
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center gap-2">
+                        <LifeBuoy className="h-5 w-5 text-muted-foreground" />
+                        <CardTitle>Support</CardTitle>
+                    </div>
+                    <CardDescription>Report an issue to the Needle team</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">
+                        Found a bug or need help? Click below to send a pre-filled report with your account details.
+                    </p>
+                    <Button
+                        variant="outline"
+                        className="gap-2"
+                        asChild
+                    >
+                        <a
+                            href={`mailto:support@needle.in?subject=${encodeURIComponent(`Issue from ${user?.constituency || 'MP Office'}`)}&body=${encodeURIComponent(`Hi Needle Team,\n\nI'm writing from the ${user?.constituency || ''} office.\n\nUsername: ${user?.username || ''}\nConstituency: ${user?.constituency || ''}\nHouse: ${user?.house || ''}\n\nIssue description:\n[Please describe the issue here]\n\nThank you`)}`}
+                        >
+                            <ExternalLink className="h-4 w-4" />
+                            Report an Issue
+                        </a>
+                    </Button>
                 </CardContent>
             </Card>
 

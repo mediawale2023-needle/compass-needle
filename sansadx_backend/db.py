@@ -88,6 +88,7 @@ class Tenant(Base):
     subscription_plan = Column(String, default="Pro")
     config = Column(JSON, default=dict)
     is_active = Column(Boolean, default=True)
+    onboarding_state = Column(JSON, default=dict)   # {geography: bool, staff: bool, test_sent: bool, live: bool}
     created_at = Column(DateTime, default=datetime.utcnow)
 
     users = relationship("User", back_populates="tenant")
@@ -106,6 +107,7 @@ class User(Base):
     house = Column(String, default="Lok Sabha")
     display_name = Column(String, nullable=True)
     last_login = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True)
 
     tenant = relationship("Tenant", back_populates="users")
 
@@ -198,6 +200,29 @@ class ActivityHistory(Base):
     title = Column(String(500))
     content = Column(Text)
     extra_metadata = Column("metadata", Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Contact(Base):
+    """Constituent profile — one record per (tenant, phone) pair."""
+    __tablename__ = "contacts"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
+    phone = Column(String, index=True)
+    display_name = Column(String, nullable=True)
+    tags = Column(Text, nullable=True)          # JSON-encoded list e.g. '["Ward Councillor"]'
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True)
+
+
+class Announcement(Base):
+    """System-wide banners composed by admin, shown to all MP dashboard users."""
+    __tablename__ = "announcements"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    body = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
