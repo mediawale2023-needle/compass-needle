@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -78,7 +78,6 @@ function ErrorCard({ message, onRetry }) {
 
 export default function CSRPage() {
     const { user } = useAuth();
-    const color = user?.theme_color || '#006a4d';
 
     // ─── Live Data State ───
     const [proposals, setProposals] = useState({ candidates: [], monitoring: [] });
@@ -96,9 +95,7 @@ export default function CSRPage() {
     const [companiesError, setCompaniesError] = useState(null);
 
     // ─── Draft / DPR State ───
-    const [draftContent, setDraftContent] = useState({});
     const [draftLoading, setDraftLoading] = useState(null);
-    const [dprContent, setDprContent] = useState({});
     const [dprLoading, setDprLoading] = useState(null);
 
     // ─── Sheet State ───
@@ -175,7 +172,6 @@ export default function CSRPage() {
                 sector: company.Sector || '',
             }, { timeout: AI_TIMEOUT, noRetry: true });
             const content = data.content;
-            setDprContent(prev => ({ ...prev, [key]: content }));
             setOpenSheet({
                 type: 'dpr',
                 key,
@@ -183,9 +179,12 @@ export default function CSRPage() {
                 content,
             });
         } catch (err) {
-            const errMsg = 'Error generating DPR. Please try again.';
-            setDprContent(prev => ({ ...prev, [key]: errMsg }));
-            setOpenSheet({ type: 'dpr', key, title: `DPR — ${company.Company}`, content: errMsg });
+            setOpenSheet({
+                type: 'dpr',
+                key,
+                title: `DPR — ${company.Company}`,
+                content: 'Error generating DPR. Please try again.',
+            });
         } finally {
             setDprLoading(null);
         }
@@ -204,7 +203,6 @@ export default function CSRPage() {
                 letter_type: 'upscale',
             }, { timeout: AI_TIMEOUT, noRetry: true });
             const content = data.content;
-            setDraftContent(prev => ({ ...prev, [company.Company]: content }));
             setOpenSheet({
                 type: 'draft',
                 key: company.Company,
@@ -212,9 +210,12 @@ export default function CSRPage() {
                 content,
             });
         } catch (err) {
-            const errMsg = 'Error generating draft.';
-            setDraftContent(prev => ({ ...prev, [company.Company]: errMsg }));
-            setOpenSheet({ type: 'draft', key: company.Company, title: `Draft — ${company.Company}`, content: errMsg });
+            setOpenSheet({
+                type: 'draft',
+                key: company.Company,
+                title: `Draft — ${company.Company}`,
+                content: 'Error generating draft.',
+            });
         } finally {
             setDraftLoading(null);
         }
@@ -287,20 +288,22 @@ export default function CSRPage() {
 
             {/* ─── Tab Navigation ─── */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList>
-                    <TabsTrigger value="live">
-                        <Activity className="h-3.5 w-3.5 mr-1.5" />
-                        Live Projects ({totalCandidates + totalMonitoring})
-                    </TabsTrigger>
-                    <TabsTrigger value="matches">
-                        <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
-                        Strategic Matches ({totalMatches})
-                    </TabsTrigger>
-                    <TabsTrigger value="database">
-                        <Building2 className="h-3.5 w-3.5 mr-1.5" />
-                        Company Database
-                    </TabsTrigger>
-                </TabsList>
+                <div className="overflow-x-auto">
+                    <TabsList className="w-max min-w-full sm:w-auto">
+                        <TabsTrigger value="live">
+                            <Activity className="h-3.5 w-3.5 mr-1.5" />
+                            Live Projects ({totalCandidates + totalMonitoring})
+                        </TabsTrigger>
+                        <TabsTrigger value="matches">
+                            <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
+                            Strategic Matches ({totalMatches})
+                        </TabsTrigger>
+                        <TabsTrigger value="database">
+                            <Building2 className="h-3.5 w-3.5 mr-1.5" />
+                            Company Database
+                        </TabsTrigger>
+                    </TabsList>
+                </div>
 
                 {/* ═══════════════════════════════════════════
                     TAB 1: Live Grievance Clusters → CSR Projects
@@ -535,6 +538,7 @@ export default function CSRPage() {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
                                 type="text"
+                                aria-label="Search companies"
                                 placeholder="Search by company or focus area…"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
@@ -635,12 +639,14 @@ export default function CSRPage() {
                 Sheet — DPR / Draft Letter output
                ═══════════════════════════════════════════ */}
             <Sheet open={!!openSheet} onOpenChange={open => !open && setOpenSheet(null)}>
-                <SheetContent side="right" className="w-full sm:max-w-xl p-0 flex flex-col">
-                    <SheetHeader className="px-6 py-4 border-b border-border shrink-0">
+                {/* gap-0 overrides the base sheetVariants gap-4 which activates when we add flex flex-col */}
+                <SheetContent side="right" className="w-full sm:max-w-xl p-0 flex flex-col gap-0">
+                    {/* text-left overrides SheetHeader's default text-center sm:text-left */}
+                    <SheetHeader className="px-6 py-4 border-b border-border shrink-0 text-left">
                         <SheetTitle className="text-base leading-snug pr-6">
                             {openSheet?.title}
                         </SheetTitle>
-                        <SheetDescription className="text-xs text-muted-foreground">
+                        <SheetDescription>
                             {openSheet?.type === 'dpr'
                                 ? 'Detailed Project Report — review before submitting'
                                 : 'AI-drafted letter — review and edit before sending'}
@@ -661,7 +667,7 @@ export default function CSRPage() {
                     </ScrollArea>
 
                     {openSheet?.content && (
-                        <div className="px-6 py-4 border-t border-border shrink-0 flex justify-end gap-2">
+                        <SheetFooter className="px-6 py-4 border-t border-border shrink-0">
                             <Button variant="outline" onClick={() => setOpenSheet(null)}>
                                 Close
                             </Button>
@@ -677,7 +683,7 @@ export default function CSRPage() {
                                 <Download className="h-4 w-4" />
                                 Download
                             </Button>
-                        </div>
+                        </SheetFooter>
                     )}
                 </SheetContent>
             </Sheet>
