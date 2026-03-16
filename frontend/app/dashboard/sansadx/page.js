@@ -370,6 +370,14 @@ function BriefcaseInner() {
         fetchCases();
     }, [statusFilter, categoryFilter]);
 
+    // Auto-open a specific case when case_id is present in the URL (e.g. deep-linked from dashboard)
+    useEffect(() => {
+        const caseId = searchParams.get('case_id');
+        if (!caseId || cases.length === 0) return;
+        const match = cases.find(c => String(c.id) === caseId);
+        if (match) setSelected(match);
+    }, [cases, searchParams]);
+
     async function fetchCases() {
         setLoading(true);
         try {
