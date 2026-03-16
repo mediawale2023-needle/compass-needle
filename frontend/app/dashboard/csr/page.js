@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
-import { apiGet, apiPost, AI_TIMEOUT } from '@/lib/api';
+import { apiGet, apiPost, apiPatch, apiDelete, AI_TIMEOUT } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,9 +22,31 @@ import {
     TrendingUp,
     Activity,
     Building2,
+    Kanban,
+    Plus,
+    ChevronRight,
+    Trash2,
 } from 'lucide-react';
 
 const CSR_PILLS = ['All', 'Steel & Mining', 'Information Technology', 'Banking & Finance', 'Healthcare', 'Energy', 'Automobile'];
+
+const PIPELINE_STAGES = [
+    { key: 'identified', label: 'Identified', color: 'text-muted-foreground border-border' },
+    { key: 'contacted', label: 'Contacted', color: 'text-blue-700 border-blue-300' },
+    { key: 'proposal_sent', label: 'Proposal Sent', color: 'text-amber-700 border-amber-400' },
+    { key: 'negotiating', label: 'Negotiating', color: 'text-purple-700 border-purple-400' },
+    { key: 'approved', label: 'Approved', color: 'text-emerald-700 border-emerald-400' },
+    { key: 'funded', label: 'Funded', color: 'text-emerald-800 border-emerald-600' },
+];
+
+const STAGE_NEXT = {
+    identified: 'contacted',
+    contacted: 'proposal_sent',
+    proposal_sent: 'negotiating',
+    negotiating: 'approved',
+    approved: 'funded',
+    funded: null,
+};
 
 // ─── Skeleton for stat cards ───
 function StatSkeleton() {
@@ -104,6 +126,16 @@ export default function CSRPage() {
     // ─── Tab State ───
     const [activeTab, setActiveTab] = useState('live');
 
+    // ─── Pipeline State ───
+    const [pipelineByStage, setPipelineByStage] = useState({});
+    const [pipelineLoading, setPipelineLoading] = useState(false);
+    const [pipelineError, setPipelineError] = useState(null);
+    const [addingToStage, setAddingToStage] = useState(null); // stage key when add form is open
+    const [newCompanyName, setNewCompanyName] = useState('');
+    const [newCompanySector, setNewCompanySector] = useState('');
+    const [addLoading, setAddLoading] = useState(false);
+    const [movingId, setMovingId] = useState(null);
+
     // ─── Fetch live proposals from grievance data ───
     const fetchProposals = async () => {
         setProposalsLoading(true);
@@ -139,6 +171,64 @@ export default function CSRPage() {
 
     useEffect(() => { fetchProposals(); }, []);
     useEffect(() => { fetchMatches(); }, []);
+
+    // ─── Pipeline helpers ───
+    const fetchPipeline = async () => {
+        setPipelineLoading(true);
+        setPipelineError(null);
+        try {
+            const data = await apiGet('/api/csr/pipeline');
+            setPipelineByStage(data.by_stage || {});
+        } catch {
+            setPipelineError('Failed to load pipeline.');
+        } finally {
+            setPipelineLoading(false);
+        }
+    };
+    useEffect(() => { fetchPipeline(); }, []);
+
+    const addToPipeline = async (stage) => {
+        if (!newCompanyName.trim()) return;
+        setAddLoading(true);
+        try {
+            await apiPost('/api/csr/pipeline', {
+                company_name: newCompanyName.trim(),
+                sector: newCompanySector.trim(),
+                stage,
+            });
+            setNewCompanyName('');
+            setNewCompanySector('');
+            setAddingToStage(null);
+            await fetchPipeline();
+        } catch {
+            // keep form open on failure
+        } finally {
+            setAddLoading(false);
+        }
+    };
+
+    const moveToNextStage = async (entry) => {
+        const next = STAGE_NEXT[entry.stage];
+        if (!next) return;
+        setMovingId(entry.id);
+        try {
+            await apiPatch(`/api/csr/pipeline/${entry.id}`, { stage: next });
+            await fetchPipeline();
+        } catch {
+            // silently fail, user can retry
+        } finally {
+            setMovingId(null);
+        }
+    };
+
+    const deleteEntry = async (id) => {
+        try {
+            await apiDelete(`/api/csr/pipeline/${id}`);
+            await fetchPipeline();
+        } catch {
+            // silently fail
+        }
+    };
 
     // ─── Fetch CSR company database ───
     const fetchCompanies = async () => {
@@ -232,6 +322,8 @@ export default function CSRPage() {
     const totalCandidates = proposals.candidates.length;
     const totalMonitoring = proposals.monitoring.length;
     const totalMatches = strategicMatches.length;
+    const totalPipeline = Object.values(pipelineByStage).reduce((sum, arr) => sum + arr.length, 0);
+    const fundedCount = (pipelineByStage['funded'] || []).length;
 
     return (
         <div className="space-y-6">
@@ -243,7 +335,7 @@ export default function CSRPage() {
             </div>
 
             {/* ─── Summary Stats ─── */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {proposalsLoading ? (
                     <>
                         <StatSkeleton />
@@ -284,6 +376,21 @@ export default function CSRPage() {
                         </CardContent>
                     </Card>
                 )}
+                {pipelineLoading ? (
+                    <StatSkeleton />
+                ) : (
+                    <Card className="border-l-4 border-l-emerald-500">
+                        <CardContent className="p-5">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                Pipeline
+                            </p>
+                            <p className="text-3xl font-bold text-emerald-600 mt-1">{totalPipeline}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {fundedCount > 0 ? `${fundedCount} funded` : 'Companies being tracked'}
+                            </p>
+                        </CardContent>
+                    </Card>
+                )}
             </div>
 
             {/* ─── Tab Navigation ─── */}
@@ -301,6 +408,10 @@ export default function CSRPage() {
                         <TabsTrigger value="database">
                             <Building2 className="h-3.5 w-3.5 mr-1.5" />
                             Company Database
+                        </TabsTrigger>
+                        <TabsTrigger value="pipeline">
+                            <Kanban className="h-3.5 w-3.5 mr-1.5" />
+                            Pipeline
                         </TabsTrigger>
                     </TabsList>
                 </div>
@@ -356,9 +467,21 @@ export default function CSRPage() {
                                                             </div>
                                                             <span className="text-xs font-mono text-muted-foreground">{c.progress_pct}%</span>
                                                         </div>
-                                                        <p className="mt-2 text-xs text-muted-foreground">
-                                                            CSR Sector: <span className="font-semibold text-foreground">{c.csr_sector}</span>
-                                                        </p>
+                                                        <div className="mt-2 flex items-center justify-between">
+                                                            <p className="text-xs text-muted-foreground">
+                                                                Sector: <span className="font-semibold text-foreground">{c.csr_sector}</span>
+                                                            </p>
+                                                            {c.opportunity_score != null && (
+                                                                <span className="text-xs font-mono text-primary">
+                                                                    Score {c.opportunity_score}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {c.velocity_7d > 0 && (
+                                                            <p className="mt-1 text-xs text-amber-600">
+                                                                +{c.velocity_7d} in last 7 days
+                                                            </p>
+                                                        )}
                                                     </CardContent>
                                                 </Card>
                                             ))}
@@ -397,9 +520,21 @@ export default function CSRPage() {
                                                             </div>
                                                             <span className="text-xs font-mono text-muted-foreground">{c.progress_pct}%</span>
                                                         </div>
-                                                        <p className="mt-2 text-xs text-muted-foreground">
-                                                            CSR Sector: <span className="font-semibold text-foreground">{c.csr_sector}</span>
-                                                        </p>
+                                                        <div className="mt-2 flex items-center justify-between">
+                                                            <p className="text-xs text-muted-foreground">
+                                                                Sector: <span className="font-semibold text-foreground">{c.csr_sector}</span>
+                                                            </p>
+                                                            {c.opportunity_score != null && (
+                                                                <span className="text-xs font-mono text-amber-600">
+                                                                    Score {c.opportunity_score}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {c.velocity_7d > 0 && (
+                                                            <p className="mt-1 text-xs text-amber-600">
+                                                                +{c.velocity_7d} in last 7 days
+                                                            </p>
+                                                        )}
                                                     </CardContent>
                                                 </Card>
                                             ))}
@@ -631,6 +766,160 @@ export default function CSRPage() {
                                 </div>
                             )}
                         </Card>
+                    </div>
+                </TabsContent>
+
+                {/* ═══════════════════════════════════════════
+                    TAB 4: Funding Pipeline Board
+                   ═══════════════════════════════════════════ */}
+                <TabsContent value="pipeline" className="mt-6">
+                    <div className="space-y-4">
+                        <div>
+                            <p className="text-sm text-muted-foreground">
+                                Track companies through your CSR funding relationship pipeline.
+                            </p>
+                        </div>
+
+                        {pipelineLoading ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {[...Array(3)].map((_, i) => (
+                                    <Card key={i}>
+                                        <CardHeader className="pb-2">
+                                            <Skeleton className="h-4 w-24" />
+                                        </CardHeader>
+                                        <CardContent className="space-y-2">
+                                            {[...Array(2)].map((_, j) => <Skeleton key={j} className="h-16 w-full rounded-lg" />)}
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        ) : pipelineError ? (
+                            <ErrorCard message={pipelineError} onRetry={fetchPipeline} />
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {PIPELINE_STAGES.map(stage => {
+                                    const entries = pipelineByStage[stage.key] || [];
+                                    const isAdding = addingToStage === stage.key;
+                                    return (
+                                        <Card key={stage.key} className="flex flex-col">
+                                            <CardHeader className="pb-3 shrink-0">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge variant="outline" className={cn("text-xs", stage.color)}>
+                                                            {stage.label}
+                                                        </Badge>
+                                                        <span className="text-xs text-muted-foreground font-mono">
+                                                            {entries.length}
+                                                        </span>
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6"
+                                                        onClick={() => setAddingToStage(isAdding ? null : stage.key)}
+                                                        aria-label={`Add to ${stage.label}`}
+                                                    >
+                                                        <Plus className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </div>
+                                            </CardHeader>
+                                            <CardContent className="flex-1 space-y-2 pt-0">
+                                                {/* Add form */}
+                                                {isAdding && (
+                                                    <div className="border border-dashed border-border rounded-lg p-3 space-y-2 bg-muted/30">
+                                                        <Input
+                                                            placeholder="Company name"
+                                                            value={newCompanyName}
+                                                            onChange={e => setNewCompanyName(e.target.value)}
+                                                            className="h-7 text-sm"
+                                                            autoFocus
+                                                        />
+                                                        <Input
+                                                            placeholder="Sector (optional)"
+                                                            value={newCompanySector}
+                                                            onChange={e => setNewCompanySector(e.target.value)}
+                                                            className="h-7 text-sm"
+                                                        />
+                                                        <div className="flex gap-2">
+                                                            <Button
+                                                                size="sm"
+                                                                className="h-7 text-xs flex-1"
+                                                                disabled={addLoading || !newCompanyName.trim()}
+                                                                onClick={() => addToPipeline(stage.key)}
+                                                            >
+                                                                {addLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Add'}
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-7 text-xs"
+                                                                onClick={() => { setAddingToStage(null); setNewCompanyName(''); setNewCompanySector(''); }}
+                                                            >
+                                                                Cancel
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Entry cards */}
+                                                {entries.length === 0 && !isAdding ? (
+                                                    <p className="text-xs text-muted-foreground/60 text-center py-4 italic">
+                                                        No companies here yet
+                                                    </p>
+                                                ) : (
+                                                    entries.map(entry => {
+                                                        const nextStage = STAGE_NEXT[entry.stage];
+                                                        const nextLabel = nextStage
+                                                            ? PIPELINE_STAGES.find(s => s.key === nextStage)?.label
+                                                            : null;
+                                                        return (
+                                                            <div
+                                                                key={entry.id}
+                                                                className="border border-border rounded-lg p-3 bg-card space-y-1.5 group"
+                                                            >
+                                                                <div className="flex items-start justify-between gap-2">
+                                                                    <p className="text-sm font-semibold text-foreground leading-snug">
+                                                                        {entry.company_name}
+                                                                    </p>
+                                                                    <button
+                                                                        onClick={() => deleteEntry(entry.id)}
+                                                                        className="shrink-0 text-muted-foreground/40 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                        aria-label="Remove from pipeline"
+                                                                    >
+                                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                                {entry.sector && (
+                                                                    <p className="text-xs text-muted-foreground">{entry.sector}</p>
+                                                                )}
+                                                                {entry.estimated_amount && (
+                                                                    <p className="text-xs font-mono text-foreground">{entry.estimated_amount}</p>
+                                                                )}
+                                                                {nextLabel && (
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-6 text-xs w-full justify-start gap-1 text-muted-foreground hover:text-foreground px-0"
+                                                                        disabled={movingId === entry.id}
+                                                                        onClick={() => moveToNextStage(entry)}
+                                                                    >
+                                                                        {movingId === entry.id
+                                                                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                                                                            : <ChevronRight className="h-3 w-3" />
+                                                                        }
+                                                                        Move to {nextLabel}
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })
+                                                )}
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 </TabsContent>
             </Tabs>

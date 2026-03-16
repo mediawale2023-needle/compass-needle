@@ -4,7 +4,7 @@ All other files import engine, SessionLocal, and models from here.
 """
 import os
 import bcrypt
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Float
 try:
     from sqlalchemy.orm import declarative_base
 except ImportError:
@@ -246,6 +246,43 @@ class SpamFlag(Base):
     flag_reason = Column(Text)          # human-readable explanation
     message_preview = Column(String)    # first 120 chars of the raw message
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CSROpportunity(Base):
+    """Auto-detected CSR opportunities from grievance clustering."""
+    __tablename__ = "csr_opportunities"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
+    category = Column(String)
+    location = Column(String)
+    complaint_count = Column(Integer, default=0)
+    velocity_7d = Column(Integer, default=0)   # new complaints in last 7 days
+    velocity_30d = Column(Integer, default=0)  # new complaints in last 30 days
+    opportunity_score = Column(Float, default=0.0)  # composite 0–100
+    status = Column(String, default='emerging')  # emerging | monitoring | ready | funded
+    detected_at = Column(DateTime, default=datetime.utcnow)
+    last_scored_at = Column(DateTime, nullable=True)
+
+    tenant = relationship("Tenant", backref="csr_opportunities")
+
+
+class CSRPipelineEntry(Base):
+    """Tracks a company being pursued for CSR funding against an opportunity."""
+    __tablename__ = "csr_pipeline_entries"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
+    opportunity_id = Column(Integer, ForeignKey("csr_opportunities.id"), nullable=True)
+    company_name = Column(String, nullable=False)
+    sector = Column(String, nullable=True)
+    stage = Column(String, default='identified')  # identified | contacted | proposal_sent | negotiating | approved | funded
+    opportunity_score = Column(Float, default=0.0)
+    contact_person = Column(String, nullable=True)
+    estimated_amount = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+
+    tenant = relationship("Tenant", backref="csr_pipeline_entries")
 
 
 # ─────────────────────────────────────────

@@ -112,6 +112,10 @@ export async function apiPatch(path, body) {
     return api(path, { method: 'PATCH', body: JSON.stringify(body) });
 }
 
+export async function apiDelete(path) {
+    return api(path, { method: 'DELETE' });
+}
+
 /**
  * Authenticated fetch that returns a Blob (for file downloads).
  * Uses a 30s timeout to allow server-side PDF generation.
