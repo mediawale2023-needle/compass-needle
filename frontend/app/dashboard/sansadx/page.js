@@ -332,8 +332,10 @@ function BriefcaseInner() {
 
     const [cases, setCases] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [statusFilter, setStatusFilter] = useState('All');
-    const [categoryFilter, setCategoryFilter] = useState('');
+    // Initialise directly from URL so the very first fetch uses the correct filter,
+    // avoiding a race where the all-cases response overwrites the filtered one.
+    const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'All');
+    const [categoryFilter, setCategoryFilter] = useState(() => searchParams.get('category') || '');
     const [selected, setSelected] = useState(null);
     const [downloading, setDownloading] = useState(false);
     const [contactPhone, setContactPhone] = useState(null);
@@ -359,6 +361,8 @@ function BriefcaseInner() {
         }
     }
 
+    // Sync filters when the URL changes (e.g. browser back/forward, or navigating
+    // from another page with different params while this page is already mounted).
     useEffect(() => {
         const status = searchParams.get('status') || 'All';
         const cat = searchParams.get('category') || '';
@@ -366,8 +370,38 @@ function BriefcaseInner() {
         setCategoryFilter(cat);
     }, [searchParams]);
 
+    // Fetch cases whenever the active filter changes.
+    // The cancel flag ensures a slow in-flight response for a previous filter
+    // can never overwrite results for the current one.
     useEffect(() => {
+        let cancelled = false;
+
+        async function fetchCases() {
+            setLoading(true);
+            try {
+                const params = new URLSearchParams({ page: '1', limit: '100' });
+
+                if (statusFilter === 'other') {
+                    params.set('categories', OTHER_CATEGORIES.join(','));
+                } else if (statusFilter !== 'All') {
+                    params.set('status', statusFilter);
+                }
+
+                if (categoryFilter) {
+                    params.set('category', categoryFilter);
+                }
+
+                const data = await apiGet(`/api/cases?${params}`);
+                if (!cancelled) setCases(data.cases || []);
+            } catch (err) {
+                if (!cancelled) console.error(err);
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        }
+
         fetchCases();
+        return () => { cancelled = true; };
     }, [statusFilter, categoryFilter]);
 
     // Auto-open a specific case when case_id is present in the URL (e.g. deep-linked from dashboard)
@@ -377,30 +411,6 @@ function BriefcaseInner() {
         const match = cases.find(c => String(c.id) === caseId);
         if (match) setSelected(match);
     }, [cases, searchParams]);
-
-    async function fetchCases() {
-        setLoading(true);
-        try {
-            const params = new URLSearchParams({ page: '1', limit: '100' });
-
-            if (statusFilter === 'other') {
-                params.set('categories', OTHER_CATEGORIES.join(','));
-            } else if (statusFilter !== 'All') {
-                params.set('status', statusFilter);
-            }
-
-            if (categoryFilter) {
-                params.set('category', categoryFilter);
-            }
-
-            const data = await apiGet(`/api/cases?${params}`);
-            setCases(data.cases || []);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    }
 
     function switchTab(key) {
         setStatusFilter(key);
