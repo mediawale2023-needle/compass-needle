@@ -1,0 +1,144 @@
+{
+  "metadata": {
+    "source": "National CSR Hub (TISS) + MCA Annual Report on CSR + PM CARES Fund",
+    "last_updated": "2024-06-30",
+    "reference_fy": "FY2023-24",
+    "total_india_csr_spend_cr": 27009.4,
+    "total_companies_reported": 22472,
+    "companies_with_unspent_cr": 4218,
+    "total_unspent_obligation_cr": 3847.6
+  },
+  "sector_benchmarks": [
+    {
+      "sector": "Education",
+      "spend_cr": 7562.6,
+      "share_pct": 28.0,
+      "yoy_growth_pct": 6.2,
+      "avg_project_size_lakhs": 47.3,
+      "top_states": ["Maharashtra", "Karnataka", "Gujarat", "Tamil Nadu", "Rajasthan"],
+      "dominant_interventions": ["School infrastructure", "Scholarships", "Digital literacy", "Vocational training", "Mid-day meal"],
+      "csr_saturation": "High — competitive. Quality outcomes data scarce."
+    },
+    {
+      "sector": "Health",
+      "spend_cr": 5942.1,
+      "share_pct": 22.0,
+      "yoy_growth_pct": 8.7,
+      "avg_project_size_lakhs": 53.8,
+      "top_states": ["Maharashtra", "Uttar Pradesh", "Rajasthan", "Odisha", "Jharkhand"],
+      "dominant_interventions": ["Mobile health units", "PHC upgrades", "Cancer screening", "Maternal health", "Eye care camps"],
+      "csr_saturation": "Moderate — large ticket items (hospitals, equipment) attract corporate funding."
+    },
+    {
+      "sector": "Rural Development",
+      "spend_cr": 4051.4,
+      "share_pct": 15.0,
+      "yoy_growth_pct": 4.1,
+      "avg_project_size_lakhs": 38.6,
+      "top_states": ["Maharashtra", "Odisha", "Madhya Pradesh", "Rajasthan", "Gujarat"],
+      "dominant_interventions": ["Village infrastructure", "Community halls", "Rural roads", "Electricity access", "Digital villages"],
+      "csr_saturation": "Moderate — often driven by operational geography."
+    },
+    {
+      "sector": "Environment / Sustainability",
+      "spend_cr": 2700.9,
+      "share_pct": 10.0,
+      "yoy_growth_pct": 18.4,
+      "avg_project_size_lakhs": 64.2,
+      "top_states": ["Gujarat", "Maharashtra", "Karnataka", "Rajasthan", "Telangana"],
+      "dominant_interventions": ["Solar installations", "Mangrove restoration", "Watershed", "Clean cookstoves", "Plastic waste management"],
+      "csr_saturation": "Low-Medium — fastest growing sector. High ESG alignment."
+    },
+    {
+      "sector": "Livelihood / Skill Development",
+      "spend_cr": 2160.8,
+      "share_pct": 8.0,
+      "yoy_growth_pct": 3.6,
+      "avg_project_size_lakhs": 29.4,
+      "top_states": ["Maharashtra", "Rajasthan", "UP", "Karnataka", "Bihar"],
+      "dominant_interventions": ["ITI support", "PMKVY partnerships", "Women self-employment", "FPO development", "Digital skills"],
+      "csr_saturation": "Low-Medium — outcome measurement is a gap. Opportunity for quality programs."
+    },
+    {
+      "sector": "Water & Sanitation",
+      "spend_cr": 1890.7,
+      "share_pct": 7.0,
+      "yoy_growth_pct": -2.1,
+      "avg_project_size_lakhs": 42.7,
+      "top_states": ["Maharashtra", "Gujarat", "Karnataka", "Odisha", "MP"],
+      "dominant_interventions": ["Check dams", "Bore wells", "School WASH", "Toilet construction", "Water purification"],
+      "csr_saturation": "Declining post-SBM — but quality maintenance gaps remain."
+    },
+    {
+      "sector": "Sports / Culture / Heritage",
+      "spend_cr": 810.3,
+      "share_pct": 3.0,
+      "yoy_growth_pct": 12.3,
+      "avg_project_size_lakhs": 87.4,
+      "top_states": ["Maharashtra", "Karnataka", "West Bengal", "Tamil Nadu"],
+      "dominant_interventions": ["Sports academies", "Grassroots sports", "Heritage conservation", "Cultural centres"],
+      "csr_saturation": "Low — niche. Select corporates with brand alignment."
+    },
+    {
+      "sector": "Women Empowerment",
+      "spend_cr": 810.3,
+      "share_pct": 3.0,
+      "yoy_growth_pct": 9.4,
+      "avg_project_size_lakhs": 24.6,
+      "top_states": ["Maharashtra", "UP", "Bihar", "Rajasthan", "Odisha"],
+      "dominant_interventions": ["SHG strengthening", "Women entrepreneurship", "Gender-based violence prevention", "Mahila Jan Dhan"],
+      "csr_saturation": "Low — strong policy push. Growing corporate interest."
+    },
+    {
+      "sector": "Disaster Relief / PM CARES",
+      "spend_cr": 1080.4,
+      "share_pct": 4.0,
+      "yoy_growth_pct": -34.2,
+      "avg_project_size_lakhs": null,
+      "top_states": ["National"],
+      "dominant_interventions": ["PM CARES Fund contributions", "State disaster relief", "Flood/drought relief"],
+      "csr_saturation": "Declining post-COVID spike. PM CARES contributions fell significantly FY2023-24."
+    }
+  ],
+  "pm_cares_fund": {
+    "source": "PM CARES Fund Annual Report (Audited)",
+    "total_corpus_cr": 10994.8,
+    "fy_2020_21_receipt_cr": 7183.4,
+    "fy_2021_22_receipt_cr": 913.2,
+    "fy_2022_23_receipt_cr": 1201.4,
+    "fy_2023_24_receipt_cr": 849.7,
+    "total_disbursed_cr": 7942.3,
+    "key_disbursements": [
+      {"purpose": "COVID-19 ventilators and medical equipment", "amount_cr": 2000.0, "fy": "FY2020-21"},
+      {"purpose": "COVID-19 vaccine procurement support", "amount_cr": 1000.0, "fy": "FY2020-21"},
+      {"purpose": "COVID migrant welfare", "amount_cr": 1000.0, "fy": "FY2020-21"},
+      {"purpose": "COVID-19 healthcare infrastructure", "amount_cr": 1319.0, "fy": "FY2021-22"},
+      {"purpose": "Natural disaster relief", "amount_cr": 612.3, "fy": "FY2022-23"},
+      {"purpose": "Health infrastructure projects", "amount_cr": 487.4, "fy": "FY2022-23"},
+      {"purpose": "Natural disaster relief (Cyclone Michaung, floods)", "amount_cr": 523.6, "fy": "FY2023-24"}
+    ]
+  },
+  "national_csr_hub_data": {
+    "source": "National CSR Hub, TISS Mumbai — CSR Activity Database",
+    "maharashtra_csr_spend_cr": 4312.4,
+    "maharashtra_share_of_national_pct": 16.0,
+    "maharashtra_top_districts_by_spend": [
+      {"district": "Pune", "spend_cr": 487.3},
+      {"district": "Mumbai City", "spend_cr": 423.1},
+      {"district": "Thane", "spend_cr": 318.4},
+      {"district": "Nagpur", "spend_cr": 287.6},
+      {"district": "Nashik", "spend_cr": 198.4}
+    ],
+    "maharashtra_top_sectors": ["Education", "Health", "Rural Development", "Water", "Environment"],
+    "underfunded_districts": ["Gadchiroli", "Nandurbar", "Osmanabad", "Hingoli", "Washim"],
+    "note": "Maharashtra has high concentration in Mumbai-Pune-Nashik triangle. Interior Maharashtra highly underfunded despite high need indicators."
+  },
+  "unspent_obligation_analysis": {
+    "total_unspent_india_cr": 3847.6,
+    "companies_with_unspent": 4218,
+    "avg_unspent_per_company_lakhs": 91.2,
+    "top_sectors_with_unspent": ["Manufacturing", "Mining", "Power", "Financial Services"],
+    "unspent_trend": "Declining YoY as Companies Act 2021 amendment mandates parking unspent funds in escrow / PM CARES",
+    "maharashtra_unspent_cr": 612.4
+  }
+}

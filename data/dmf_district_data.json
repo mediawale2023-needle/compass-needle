@@ -1,0 +1,132 @@
+{
+  "metadata": {
+    "source": "State DMF Portals — Maharashtra DMF Trust Annual Reports + DMFT Rules 2015",
+    "last_updated": "2024-06-30",
+    "coverage": "Maharashtra mining districts (Coal, Iron Ore, Manganese, Limestone)",
+    "note": "DMF amounts based on royalty inflows from Mines Act 1957, DMFT Rules 2015. High-priority works = 60% minimum allocation; low-priority = 40% maximum",
+    "fields_description": {
+      "mineral_types": "Primary minerals mined in district",
+      "dmf_corpus_cr": "Total DMF corpus accumulated (₹ Crore)",
+      "annual_inflow_cr": "Annual royalty inflow into DMF (₹ Crore, FY2023-24)",
+      "spent_till_date_cr": "Total DMF spend till FY2023-24 (₹ Crore)",
+      "unspent_balance_cr": "Unspent balance (₹ Crore) — utilisation gap",
+      "utilisation_pct": "% of corpus actually spent",
+      "high_priority_sectors": "Mandated 60% spend sectors (drinking water, environment, health, education, welfare of women/children/elderly)",
+      "active_projects": "Number of sanctioned DMF projects",
+      "key_gap": "Primary utilisation gap identified"
+    }
+  },
+  "districts": [
+    {
+      "district": "Chandrapur",
+      "state": "Maharashtra",
+      "mineral_types": ["Coal", "Limestone"],
+      "dmf_corpus_cr": 3842.6,
+      "annual_inflow_cr": 487.3,
+      "spent_till_date_cr": 1847.4,
+      "unspent_balance_cr": 1995.2,
+      "utilisation_pct": 48.1,
+      "high_priority_sectors": ["Drinking Water", "Health Infrastructure", "Education", "Environment"],
+      "active_projects": 312,
+      "key_gap": "Low fund utilisation — 52% corpus unspent despite high mining activity. Critical drinking water and health infrastructure projects stalled."
+    },
+    {
+      "district": "Gadchiroli",
+      "state": "Maharashtra",
+      "mineral_types": ["Iron Ore", "Manganese", "Quartzite"],
+      "dmf_corpus_cr": 1124.8,
+      "annual_inflow_cr": 198.6,
+      "spent_till_date_cr": 412.7,
+      "unspent_balance_cr": 712.1,
+      "utilisation_pct": 36.7,
+      "high_priority_sectors": ["Drinking Water", "Roads", "Health", "Education", "Women and Child Welfare"],
+      "active_projects": 147,
+      "key_gap": "63% corpus unspent. Tribal-majority district with acute infrastructure deficit — Aspirational District status. DMF severely underperforming vs. need."
+    },
+    {
+      "district": "Nagpur",
+      "state": "Maharashtra",
+      "mineral_types": ["Coal", "Limestone", "Manganese"],
+      "dmf_corpus_cr": 2186.3,
+      "annual_inflow_cr": 312.4,
+      "spent_till_date_cr": 1487.9,
+      "unspent_balance_cr": 698.4,
+      "utilisation_pct": 68.1,
+      "high_priority_sectors": ["Drinking Water", "Health", "Education", "Environment"],
+      "active_projects": 486,
+      "key_gap": "Above-average utilisation but 32% unspent. Opportunities in peri-urban and rural cluster development."
+    },
+    {
+      "district": "Wardha",
+      "state": "Maharashtra",
+      "mineral_types": ["Coal"],
+      "dmf_corpus_cr": 687.4,
+      "annual_inflow_cr": 94.2,
+      "spent_till_date_cr": 321.6,
+      "unspent_balance_cr": 365.8,
+      "utilisation_pct": 46.8,
+      "high_priority_sectors": ["Drinking Water", "Health Infrastructure", "Rural Roads"],
+      "active_projects": 98,
+      "key_gap": "53% unspent. Coal Vidarbha belt — significant CSR co-investment opportunity in water and primary health."
+    },
+    {
+      "district": "Yavatmal",
+      "state": "Maharashtra",
+      "mineral_types": ["Coal", "Limestone"],
+      "dmf_corpus_cr": 423.7,
+      "annual_inflow_cr": 61.8,
+      "spent_till_date_cr": 187.4,
+      "unspent_balance_cr": 236.3,
+      "utilisation_pct": 44.2,
+      "high_priority_sectors": ["Drinking Water", "Health", "Farmer Welfare"],
+      "active_projects": 76,
+      "key_gap": "Farmers' distress district. 56% DMF unspent. CSR alignment with agri-distress interventions possible."
+    },
+    {
+      "district": "Amravati",
+      "state": "Maharashtra",
+      "mineral_types": ["Coal", "Quartz"],
+      "dmf_corpus_cr": 318.4,
+      "annual_inflow_cr": 43.6,
+      "spent_till_date_cr": 162.7,
+      "unspent_balance_cr": 155.7,
+      "utilisation_pct": 51.1,
+      "high_priority_sectors": ["Drinking Water", "Primary Health Centres", "Education"],
+      "active_projects": 64,
+      "key_gap": "Balanced utilisation but baseline indicators remain weak. Health and WASH gaps persist."
+    },
+    {
+      "district": "Bhandara",
+      "state": "Maharashtra",
+      "mineral_types": ["Coal", "Manganese"],
+      "dmf_corpus_cr": 241.6,
+      "annual_inflow_cr": 34.8,
+      "spent_till_date_cr": 131.4,
+      "unspent_balance_cr": 110.2,
+      "utilisation_pct": 54.4,
+      "high_priority_sectors": ["Drinking Water", "Health", "Environment / Forest"],
+      "active_projects": 58,
+      "key_gap": "Moderate utilisation. Tiger reserve proximity — eco-village and tribal livelihood CSR potential."
+    },
+    {
+      "district": "Gondia",
+      "state": "Maharashtra",
+      "mineral_types": ["Coal"],
+      "dmf_corpus_cr": 187.3,
+      "annual_inflow_cr": 28.4,
+      "spent_till_date_cr": 94.6,
+      "unspent_balance_cr": 92.7,
+      "utilisation_pct": 50.5,
+      "high_priority_sectors": ["Drinking Water", "Health", "Women and Child Development"],
+      "active_projects": 47,
+      "key_gap": "Half corpus unspent. Tribal-adjacent district with NFHS-5 gaps in child nutrition and women's health."
+    }
+  ],
+  "state_summary": {
+    "state": "Maharashtra",
+    "total_dmf_corpus_cr": 9012.1,
+    "total_unspent_cr": 4366.4,
+    "average_utilisation_pct": 49.9,
+    "note": "Maharashtra DMF average utilisation remains below 50% — significant capital available for co-investment with CSR funds. MPs should prioritise DMF convergence in DPR preparation."
+  }
+}

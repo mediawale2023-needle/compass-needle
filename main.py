@@ -118,6 +118,13 @@ app.include_router(admin_router, prefix="/api/admin")
 init_db()
 logger.info("Database initialised.")
 
+# Seed CSR company profiles from static JSON files on startup
+try:
+    from modules.csr_data_loader import seed_csr_companies
+    seed_csr_companies()
+except Exception as _csr_seed_err:
+    logger.warning(f"CSR company seed failed (non-fatal): {_csr_seed_err}")
+
 
 
 # ─────────────────────────────────────────
