@@ -926,6 +926,47 @@ def get_parliament_status(user=Depends(get_current_user)):
 # CSR
 # ─────────────────────────────────────────
 def _load_csr_data():
+    """Load CSR company data — prefers the csr_companies DB table, falls back to JSON files."""
+    try:
+        rows = _q("SELECT * FROM csr_companies ORDER BY name")
+        if rows:
+            result = []
+            for r in rows:
+                sp = r.get('sector_priorities')
+                if isinstance(sp, str):
+                    try:
+                        sp = json.loads(sp)
+                    except Exception:
+                        sp = []
+                result.append({
+                    'id': r['id'],
+                    'slug': r.get('slug', ''),
+                    'Company': r['name'],
+                    'District': r.get('district', ''),
+                    'Sector': r.get('sector', ''),
+                    'Type': 'Local' if r.get('company_type') == 'local' else 'Remote',
+                    'Status': r.get('status', 'active'),
+                    'Total_3Y': f"₹{r['total_3y_lakhs']} L" if r.get('total_3y_lakhs') else 'N/A',
+                    'Gap_Analysis': r.get('gap_analysis', ''),
+                    'sector_priorities': sp,
+                    'avg_ticket_size_lakhs': r.get('avg_ticket_size_lakhs'),
+                    'spend_2022_23': r.get('spend_2022_23'),
+                    'spend_2023_24': r.get('spend_2023_24'),
+                    'spend_2024_25': r.get('spend_2024_25'),
+                    'total_3y_lakhs': r.get('total_3y_lakhs'),
+                    'has_unspent_obligation': bool(r.get('has_unspent_obligation')),
+                    'Company_Type': 'Local' if r.get('company_type') == 'local' else 'Remote',
+                    'Spend_History': {
+                        '2022-23': f"₹{r['spend_2022_23']} L" if r.get('spend_2022_23') else None,
+                        '2023-24': f"₹{r['spend_2023_24']} L" if r.get('spend_2023_24') else None,
+                        '2024-25': f"₹{r['spend_2024_25']} L" if r.get('spend_2024_25') else None,
+                    },
+                })
+            return result
+    except Exception as e:
+        logger.debug(f"csr_companies DB read failed, falling back to JSON: {e}")
+
+    # JSON fallback
     all_data = []
     for path in ["csr_db.json", "csr_discovery.json"]:
         try:
@@ -970,10 +1011,140 @@ def get_csr_watchdog(user=Depends(get_current_user), district: Optional[str] = N
     data = _cached_load("csr_data", _load_csr_data)
     violators = [
         d for d in data
-        if "Local" in d.get("Type", "") and "ZERO SPEND" in d.get("Status", "")
-        and (not district or d.get("District") == district)
+        if d.get("company_type") == "local" or "Local" in d.get("Type", "")
+        if d.get("status") == "zero_spend" or "ZERO SPEND" in d.get("Status", "")
+        if not district or d.get("District") == district
     ]
     return {"violators": violators, "total": len(violators)}
+
+
+# ─────────────────────────────────────────
+# CSR COMPANY PROFILES
+# ─────────────────────────────────────────
+class CSRCompanyUpdateRequest(BaseModel):
+    contact_person: Optional[str] = None
+    contact_email: Optional[str] = None
+    notes: Optional[str] = None
+    unspent_obligation_lakhs: Optional[float] = None
+
+
+def _parse_sector_priorities(raw) -> list:
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, str):
+        try:
+            return json.loads(raw)
+        except Exception:
+            return [raw] if raw else []
+    return []
+
+
+def _row_to_profile(r: dict) -> dict:
+    """Convert a raw csr_companies DB row to a clean API response dict."""
+    return {
+        "id": r["id"],
+        "slug": r.get("slug", ""),
+        "name": r["name"],
+        "district": r.get("district", ""),
+        "state": r.get("state", "Maharashtra"),
+        "company_type": r.get("company_type", "remote"),
+        "sector": r.get("sector", ""),
+        "sector_priorities": _parse_sector_priorities(r.get("sector_priorities")),
+        "spend_2022_23": r.get("spend_2022_23"),
+        "spend_2023_24": r.get("spend_2023_24"),
+        "spend_2024_25": r.get("spend_2024_25"),
+        "total_3y_lakhs": r.get("total_3y_lakhs"),
+        "avg_ticket_size_lakhs": r.get("avg_ticket_size_lakhs"),
+        "status": r.get("status", "active"),
+        "has_unspent_obligation": bool(r.get("has_unspent_obligation")),
+        "unspent_obligation_lakhs": r.get("unspent_obligation_lakhs"),
+        "gap_analysis": r.get("gap_analysis", ""),
+        "contact_person": r.get("contact_person"),
+        "contact_email": r.get("contact_email"),
+        "notes": r.get("notes"),
+        "last_enriched_at": str(r["last_enriched_at"]) if r.get("last_enriched_at") else None,
+    }
+
+
+@router.get("/csr/companies/{company_id}/profile")
+def get_company_profile(company_id: int, user=Depends(get_current_user)):
+    """Return full enriched profile for a single CSR company by DB id."""
+    row = _q_one("SELECT * FROM csr_companies WHERE id = :id", {"id": company_id})
+    if not row:
+        raise HTTPException(404, "Company not found.")
+    profile = _row_to_profile(row)
+    # Attach pipeline entries for this company
+    try:
+        tid = get_tenant_or_fail(user)
+        pipeline_rows = _q("""
+            SELECT id, stage, opportunity_score, contact_person, estimated_amount,
+                   notes, created_at, updated_at
+            FROM csr_pipeline_entries
+            WHERE tenant_id = :tid AND company_name = :name
+            ORDER BY created_at DESC
+        """, {"tid": tid, "name": row["name"]})
+        profile["pipeline_entries"] = pipeline_rows
+    except Exception:
+        profile["pipeline_entries"] = []
+    return profile
+
+
+@router.get("/csr/companies/by-slug/{slug}")
+def get_company_by_slug(slug: str, user=Depends(get_current_user)):
+    """Return full enriched profile for a single CSR company by URL slug."""
+    row = _q_one("SELECT * FROM csr_companies WHERE slug = :slug", {"slug": slug})
+    if not row:
+        raise HTTPException(404, "Company not found.")
+    profile = _row_to_profile(row)
+    try:
+        tid = get_tenant_or_fail(user)
+        pipeline_rows = _q("""
+            SELECT id, stage, opportunity_score, contact_person, estimated_amount,
+                   notes, created_at, updated_at
+            FROM csr_pipeline_entries
+            WHERE tenant_id = :tid AND company_name = :name
+            ORDER BY created_at DESC
+        """, {"tid": tid, "name": row["name"]})
+        profile["pipeline_entries"] = pipeline_rows
+    except Exception:
+        profile["pipeline_entries"] = []
+    return profile
+
+
+@router.patch("/csr/companies/{company_id}/profile")
+def update_company_profile(company_id: int, req: CSRCompanyUpdateRequest, user=Depends(get_current_user)):
+    """
+    Update the mutable relationship / intelligence fields on a company profile.
+    Only contact_person, contact_email, notes, and unspent_obligation_lakhs are writable.
+    Enrichment fields (spend, sector, etc.) are managed by the data loader.
+    """
+    existing = _q_one("SELECT id FROM csr_companies WHERE id = :id", {"id": company_id})
+    if not existing:
+        raise HTTPException(404, "Company not found.")
+
+    updates: dict = {}
+    if req.contact_person is not None:
+        updates["contact_person"] = req.contact_person
+    if req.contact_email is not None:
+        updates["contact_email"] = req.contact_email
+    if req.notes is not None:
+        updates["notes"] = req.notes
+    if req.unspent_obligation_lakhs is not None:
+        updates["unspent_obligation_lakhs"] = req.unspent_obligation_lakhs
+
+    if not updates:
+        return {"message": "Nothing to update."}
+
+    updates["updated_at"] = datetime.utcnow()
+    updates["id"] = company_id
+    set_clause = ", ".join(f"{k} = :{k}" for k in updates if k != "id")
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(f"UPDATE csr_companies SET {set_clause} WHERE id = :id"), updates)
+        return {"message": "Company profile updated."}
+    except Exception:
+        logger.exception("Update company profile failed")
+        raise HTTPException(500, "Failed to update company profile.")
 
 
 @router.get("/csr/proposals")

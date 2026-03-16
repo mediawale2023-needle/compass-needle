@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { apiGet, apiPost, apiPatch, apiDelete, AI_TIMEOUT } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -100,6 +101,7 @@ function ErrorCard({ message, onRetry }) {
 
 export default function CSRPage() {
     const { user } = useAuth();
+    const router = useRouter();
 
     // ─── Live Data State ───
     const [proposals, setProposals] = useState({ candidates: [], monitoring: [] });
@@ -729,9 +731,20 @@ export default function CSRPage() {
                                         </TableHeader>
                                         <TableBody>
                                             {companies.map((c, i) => (
-                                                <TableRow key={i}>
+                                                <TableRow key={i} className="group">
                                                     <TableCell className="pl-6 text-muted-foreground font-mono text-xs">{i + 1}</TableCell>
-                                                    <TableCell className="font-semibold text-foreground">{c.Company}</TableCell>
+                                                    <TableCell>
+                                                        {c.slug ? (
+                                                            <button
+                                                                onClick={() => router.push(`/dashboard/csr/company/${c.slug}`)}
+                                                                className="font-semibold text-foreground hover:text-primary hover:underline text-left transition-colors"
+                                                            >
+                                                                {c.Company}
+                                                            </button>
+                                                        ) : (
+                                                            <span className="font-semibold text-foreground">{c.Company}</span>
+                                                        )}
+                                                    </TableCell>
                                                     <TableCell className="text-muted-foreground">{c.Sector || 'N/A'}</TableCell>
                                                     <TableCell
                                                         className="text-muted-foreground max-w-[150px] truncate"
@@ -739,25 +752,44 @@ export default function CSRPage() {
                                                     >
                                                         {c.Gap_Analysis || 'Community Development'}
                                                     </TableCell>
-                                                    <TableCell className="font-mono text-xs text-foreground">{c.Total_3Y || 'Undisclosed'}</TableCell>
+                                                    <TableCell className="font-mono text-xs text-foreground">
+                                                        {c.total_3y_lakhs != null
+                                                            ? `₹${c.total_3y_lakhs}L`
+                                                            : c.Total_3Y || 'Undisclosed'}
+                                                    </TableCell>
                                                     <TableCell>
-                                                        <Badge variant="secondary" className="text-[10px] uppercase">
-                                                            {c.Company_Type || 'Funding'}
+                                                        <Badge
+                                                            variant={c.status === 'zero_spend' ? 'destructive' : 'secondary'}
+                                                            className="text-[10px] uppercase"
+                                                        >
+                                                            {c.status === 'zero_spend' ? 'Zero Spend' : (c.company_type === 'local' ? 'Local' : 'Remote')}
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell className="text-right">
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            disabled={draftLoading === c.Company}
-                                                            onClick={() => draftLetter(c)}
-                                                            className="gap-1.5 whitespace-nowrap"
-                                                        >
-                                                            {draftLoading === c.Company
-                                                                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Drafting…</>
-                                                                : 'Generate Draft'
-                                                            }
-                                                        </Button>
+                                                        <div className="flex items-center justify-end gap-1.5">
+                                                            {c.slug && (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => router.push(`/dashboard/csr/company/${c.slug}`)}
+                                                                    className="text-xs h-7 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                >
+                                                                    View Profile
+                                                                </Button>
+                                                            )}
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                disabled={draftLoading === c.Company}
+                                                                onClick={() => draftLetter(c)}
+                                                                className="gap-1.5 whitespace-nowrap"
+                                                            >
+                                                                {draftLoading === c.Company
+                                                                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Drafting…</>
+                                                                    : 'Draft Letter'
+                                                                }
+                                                            </Button>
+                                                        </div>
                                                     </TableCell>
                                                 </TableRow>
                                             ))}

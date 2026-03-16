@@ -248,6 +248,41 @@ class SpamFlag(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class CSRCompany(Base):
+    """Enriched corporate CSR profile — migrated from csr_db.json + csr_discovery.json."""
+    __tablename__ = "csr_companies"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # Identification
+    name = Column(String, unique=True, nullable=False, index=True)
+    slug = Column(String, unique=True, nullable=False, index=True)   # URL-safe key
+    district = Column(String, index=True)
+    state = Column(String, default="Maharashtra")
+    # Classification
+    company_type = Column(String)                 # 'local' | 'remote'
+    sector = Column(String)                       # primary sector (normalised)
+    sector_priorities = Column(Text)              # JSON-encoded list e.g. '["Education","Health"]'
+    # Spending (all values in ₹ Lakhs)
+    spend_2022_23 = Column(Float, nullable=True)
+    spend_2023_24 = Column(Float, nullable=True)
+    spend_2024_25 = Column(Float, nullable=True)
+    total_3y_lakhs = Column(Float, nullable=True)
+    avg_ticket_size_lakhs = Column(Float, nullable=True)
+    # Compliance
+    status = Column(String, default='active')     # active | zero_spend | compliant
+    has_unspent_obligation = Column(Boolean, default=False)
+    unspent_obligation_lakhs = Column(Float, nullable=True)  # NULL until MCA data available
+    gap_analysis = Column(String, nullable=True)
+    # Relationship tracking
+    contact_person = Column(String, nullable=True)
+    contact_email = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)
+    # Metadata
+    last_enriched_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+
+
 class CSROpportunity(Base):
     """Auto-detected CSR opportunities from grievance clustering."""
     __tablename__ = "csr_opportunities"
