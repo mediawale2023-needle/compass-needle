@@ -66,6 +66,7 @@ export default function DashboardPage() {
     const [showNews, setShowNews] = useState(true);
     const [parliament, setParliament] = useState(null);
     const [staleCases, setStaleCases] = useState([]);
+    const [allCases, setAllCases] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -87,8 +88,9 @@ export default function DashboardPage() {
                 setNews({ national: nat.articles || [], local: loc.articles || [] });
                 setParliament(parl);
 
-                const allCases = cases.cases || cases.items || [];
-                const pending = allCases
+                const fetchedCases = cases.cases || cases.items || [];
+                setAllCases(fetchedCases);
+                const pending = fetchedCases
                     .filter(c => (c.status || '').toLowerCase() === 'new')
                     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
                     .slice(0, 6);
@@ -126,11 +128,22 @@ export default function DashboardPage() {
         { label: 'Resolved', value: statuses['resolved'] || 0, color: 'emerald', filter: 'resolved', icon: CheckCircle2 },
     ];
 
-    const REPORT_CARD_ITEMS = [
-        { label: 'Letters Drafted', value: reportCard?.letters_drafted ?? '—', icon: FileText },
-        { label: 'Questions Filed', value: reportCard?.questions_drafted ?? '—', icon: FileEdit },
-        { label: 'Docs Analysed', value: reportCard?.docs_analysed ?? '—', icon: Search },
-        { label: 'Cases Reviewed', value: reportCard?.cases_reviewed ?? '—', icon: CheckCircle2 },
+    const resolvedCount = statuses['resolved'] || 0;
+    const resolutionRate = totalCases > 0 ? Math.round((resolvedCount / totalCases) * 100) : 0;
+    const avgAge = allCases.length > 0
+        ? Math.round(allCases.reduce((sum, c) => sum + (daysAgo(c.created_at) || 0), 0) / allCases.length)
+        : 0;
+    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const newThisWeek = allCases.filter(c =>
+        (c.status || '').toLowerCase() === 'new' && new Date(c.created_at).getTime() > oneWeekAgo
+    ).length;
+    const topIssue = Object.keys(cats)[0] || '—';
+
+    const OUTCOME_METRICS = [
+        { label: 'Resolution Rate', value: totalCases > 0 ? `${resolutionRate}%` : '—', icon: CheckCircle2, highlight: resolutionRate >= 60 ? 'emerald' : resolutionRate >= 30 ? 'amber' : 'destructive' },
+        { label: 'Avg Case Age', value: allCases.length > 0 ? `${avgAge}d` : '—', icon: Clock, highlight: avgAge <= 7 ? 'emerald' : avgAge <= 14 ? 'amber' : 'destructive' },
+        { label: 'New This Week', value: newThisWeek, icon: TrendingUp, highlight: newThisWeek === 0 ? 'emerald' : newThisWeek <= 5 ? 'amber' : 'destructive' },
+        { label: 'Top Issue', value: topIssue, icon: AlertTriangle, highlight: 'default' },
     ];
 
     return (
@@ -360,28 +373,43 @@ export default function DashboardPage() {
 
                         {/* Right Column */}
                         <div className="space-y-6">
-                            {/* Report Card */}
+                            {/* Constituency Health */}
                             <Card>
                                 <CardHeader className="pb-3">
                                     <div className="flex items-center justify-between">
                                         <CardTitle className="flex items-center gap-2 text-base">
                                             <BarChart2 className="h-4 w-4 text-primary" />
-                                            Report Card
+                                            Constituency Health
                                         </CardTitle>
                                         <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                                            {reportCard?.period_label || new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+                                            {new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
                                         </span>
                                     </div>
-                                    <CardDescription>Your activity this month</CardDescription>
+                                    <CardDescription>Outcome metrics — not output</CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <div className="grid grid-cols-2 gap-3">
-                                        {REPORT_CARD_ITEMS.map(({ label, value, icon: Icon }) => (
-                                            <div key={label} className="rounded-lg p-3 bg-primary/5">
+                                        {OUTCOME_METRICS.map(({ label, value, icon: Icon, highlight }) => (
+                                            <div key={label} className={cn(
+                                                "rounded-lg p-3",
+                                                highlight === 'emerald' && "bg-emerald-50",
+                                                highlight === 'amber' && "bg-amber-50",
+                                                highlight === 'destructive' && "bg-destructive/5",
+                                                highlight === 'default' && "bg-primary/5",
+                                            )}>
                                                 <div className="flex items-center gap-1.5 mb-1">
-                                                    <Icon className="h-3.5 w-3.5 text-primary" />
+                                                    <Icon className={cn(
+                                                        "h-3.5 w-3.5",
+                                                        highlight === 'emerald' && "text-emerald-600",
+                                                        highlight === 'amber' && "text-amber-500",
+                                                        highlight === 'destructive' && "text-destructive",
+                                                        highlight === 'default' && "text-primary",
+                                                    )} />
                                                 </div>
-                                                <p className="text-2xl font-bold text-foreground">{value}</p>
+                                                <p className={cn(
+                                                    "text-2xl font-bold truncate",
+                                                    label === 'Top Issue' ? "text-base mt-1" : "text-foreground"
+                                                )}>{value}</p>
                                                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mt-0.5 leading-tight">{label}</p>
                                             </div>
                                         ))}
@@ -389,15 +417,15 @@ export default function DashboardPage() {
                                 </CardContent>
                             </Card>
 
-                            {/* Awaiting Response */}
+                            {/* Pending Triage */}
                             <Card>
                                 <CardHeader className="pb-3">
                                     <CardTitle className="flex items-center gap-2 text-base">
                                         <Clock className="h-4 w-4 text-amber-500" />
-                                        Awaiting Response
+                                        Pending Triage
                                     </CardTitle>
                                     <CardDescription>
-                                        New cases pending initiation
+                                        New cases no one has touched yet
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-0">
@@ -405,18 +433,20 @@ export default function DashboardPage() {
                                         <div className="divide-y divide-border -mx-6">
                                             {staleCases.map(c => {
                                                 const age = daysAgo(c.created_at);
-                                                const contact = c.user_phone || c.contact_name || '—';
-                                                const category = c.category || '—';
+                                                const summary = c.raw_message
+                                                    ? c.raw_message.slice(0, 80) + (c.raw_message.length > 80 ? '…' : '')
+                                                    : c.category || '—';
+                                                const sub = [c.category, c.user_phone].filter(Boolean).join(' · ');
                                                 return (
                                                     <button
                                                         key={c.id}
                                                         className="w-full px-6 py-3 flex items-start justify-between gap-2 hover:bg-accent/50 transition-colors text-left"
-                                                        onClick={() => router.push('/dashboard/sansadx?status=new')}
+                                                        onClick={() => router.push(`/dashboard/sansadx?status=new&case_id=${c.id}`)}
                                                     >
                                                         <div className="min-w-0">
                                                             <p className="text-xs font-bold text-muted-foreground">#{c.id}</p>
-                                                            <p className="text-sm font-medium text-foreground truncate">{contact}</p>
-                                                            <p className="text-xs text-muted-foreground truncate">{category}</p>
+                                                            <p className="text-sm font-medium text-foreground leading-snug line-clamp-2">{summary}</p>
+                                                            {sub && <p className="text-xs text-muted-foreground truncate mt-0.5">{sub}</p>}
                                                         </div>
                                                         <AgeBadge days={age} />
                                                     </button>
@@ -433,7 +463,7 @@ export default function DashboardPage() {
                                 <div className="px-6 py-3 border-t border-border">
                                     <Button variant="link" className="p-0 h-auto text-primary" asChild>
                                         <Link href="/dashboard/sansadx?status=new">
-                                            View all new cases →
+                                            View all pending cases →
                                         </Link>
                                     </Button>
                                 </div>
@@ -441,15 +471,20 @@ export default function DashboardPage() {
                         </div>
                     </div>
 
-                    {/* News Feed */}
+                    {/* Media Monitoring */}
                     <Card>
                         <CardHeader className="cursor-pointer" onClick={() => setShowNews(v => !v)}>
                             <div className="flex items-center justify-between">
-                                <CardTitle className="flex items-center gap-2">
-                                    <FileText className="h-5 w-5 text-primary" />
-                                    News Feed
-                                </CardTitle>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <div>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <FileText className="h-5 w-5 text-primary" />
+                                        Media Monitoring
+                                    </CardTitle>
+                                    <CardDescription className="mt-1">
+                                        Your name in the press · Critical issues in your constituency
+                                    </CardDescription>
+                                </div>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0">
                                     {showNews ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                 </Button>
                             </div>
@@ -458,14 +493,14 @@ export default function DashboardPage() {
                             <CardContent className="pt-0">
                                 <Tabs value={newsTab} onValueChange={setNewsTab}>
                                     <TabsList className="mb-4">
-                                        <TabsTrigger value="national">National</TabsTrigger>
-                                        <TabsTrigger value="local">Local</TabsTrigger>
+                                        <TabsTrigger value="national">In the News</TabsTrigger>
+                                        <TabsTrigger value="local">Constituency</TabsTrigger>
                                     </TabsList>
                                     <TabsContent value="national" className="mt-0">
-                                        <NewsList articles={news.national} />
+                                        <NewsList articles={news.national} emptyText="No press coverage found today" />
                                     </TabsContent>
                                     <TabsContent value="local" className="mt-0">
-                                        <NewsList articles={news.local} />
+                                        <NewsList articles={news.local} emptyText="No local coverage found today" />
                                     </TabsContent>
                                 </Tabs>
                             </CardContent>
@@ -477,11 +512,11 @@ export default function DashboardPage() {
     );
 }
 
-function NewsList({ articles }) {
+function NewsList({ articles, emptyText = 'No coverage found today' }) {
     if (articles.length === 0) {
         return (
             <p className="text-sm text-muted-foreground text-center py-4">
-                No coverage found today
+                {emptyText}
             </p>
         );
     }
