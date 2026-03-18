@@ -88,6 +88,141 @@ function ProjectCardSkeleton() {
     );
 }
 
+// ─── Opportunity Card with embedded company recommendations ───
+function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR, onScheduleMeeting, onFindNGO }) {
+    return (
+        <Card className={cn('border-l-4', statusColor)}>
+            <CardContent className="p-4">
+                {/* Header */}
+                <div className="flex justify-between items-start">
+                    <div>
+                        <p className="font-semibold text-foreground">{opp.category}</p>
+                        <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1">
+                            <MapPin className="h-3 w-3 shrink-0" />{opp.area}
+                        </p>
+                    </div>
+                    <Badge variant="outline" className={cn(
+                        'shrink-0',
+                        opp.status === 'ready'
+                            ? 'border-destructive text-destructive bg-destructive/5'
+                            : 'border-amber-500 text-amber-600 bg-amber-50',
+                    )}>
+                        {opp.volume} complaints
+                    </Badge>
+                </div>
+
+                {/* Progress bar */}
+                <div className="mt-3 flex items-center gap-3">
+                    <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                        <div
+                            className={cn('h-full rounded-full transition-all',
+                                opp.status === 'ready' ? 'bg-destructive' : 'bg-amber-500')}
+                            style={{ width: `${Math.min(100, opp.progress_pct || 0)}%` }}
+                        />
+                    </div>
+                    <span className="text-xs font-mono text-muted-foreground">{opp.progress_pct || 0}%</span>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                        Sector: <span className="font-semibold text-foreground">{opp.csr_sector}</span>
+                    </p>
+                    {opp.velocity_7d > 0 && (
+                        <span className="text-xs text-amber-600 flex items-center gap-1">
+                            <Zap className="h-3 w-3" />+{opp.velocity_7d} this week
+                        </span>
+                    )}
+                </div>
+
+                {/* Company Recommendations */}
+                {opp.top_companies && opp.top_companies.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                            <Target className="h-3 w-3" />Who to Approach
+                        </p>
+                        {opp.top_companies.map((co, ci) => {
+                            const dprKey = `${opp.category}-${co.name}`;
+                            return (
+                                <div key={ci} className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-foreground truncate">{co.name}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {co.sector}{co.district ? ` · ${co.district}` : ''}
+                                                {co.recommended_ask_amount ? ` · Suggested ask: ₹${co.recommended_ask_amount}L` : ''}
+                                            </p>
+                                        </div>
+                                        <Badge variant="outline" className={cn(
+                                            'shrink-0 font-mono text-xs',
+                                            co.match_score >= 70 && 'border-emerald-500 text-emerald-700 bg-emerald-50',
+                                            co.match_score >= 40 && co.match_score < 70 && 'border-amber-500 text-amber-700 bg-amber-50',
+                                            co.match_score < 40 && 'border-muted-foreground/30 text-muted-foreground',
+                                        )}>
+                                            {co.match_score}% fit
+                                        </Badge>
+                                    </div>
+
+                                    {co.reason && (
+                                        <p className="text-xs text-muted-foreground leading-relaxed">{co.reason}</p>
+                                    )}
+
+                                    {co.has_funded_similar && co.similar_projects?.length > 0 && (
+                                        <p className="text-xs text-primary flex items-center gap-1">
+                                            <CheckCircle2 className="h-3 w-3 shrink-0" />
+                                            Previously funded: {co.similar_projects[0].title}
+                                            {co.similar_projects[0].location ? ` in ${co.similar_projects[0].location}` : ''}
+                                        </p>
+                                    )}
+
+                                    <div className="flex flex-wrap items-start gap-2 pt-0.5">
+                                        {co.suggested_next_action === 'dpr' ? (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-7 text-xs gap-1.5"
+                                                disabled={dprLoading === dprKey}
+                                                onClick={() => onGenerateDPR(opp, co)}
+                                            >
+                                                {dprLoading === dprKey
+                                                    ? <><Loader2 className="h-3 w-3 animate-spin" />Generating…</>
+                                                    : 'Generate DPR'
+                                                }
+                                            </Button>
+                                        ) : co.suggested_next_action === 'meeting' ? (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-7 text-xs gap-1.5 text-blue-700 border-blue-300 hover:bg-blue-50"
+                                                onClick={() => onScheduleMeeting(co, opp)}
+                                            >
+                                                <Users className="h-3 w-3" />Add to Pipeline
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-7 text-xs gap-1.5 text-purple-700 border-purple-300 hover:bg-purple-50"
+                                                onClick={onFindNGO}
+                                            >
+                                                <Users className="h-3 w-3" />Find NGO Partner
+                                            </Button>
+                                        )}
+                                        {co.suggested_approach && (
+                                            <p className="text-xs text-muted-foreground leading-relaxed flex-1 min-w-0">
+                                                {co.suggested_approach}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 // ─── Error card ───
 function ErrorCard({ message, onRetry }) {
     return (
@@ -111,11 +246,11 @@ export default function CSRPage() {
     const router = useRouter();
 
     // ─── Live Data State ───
-    const [proposals, setProposals] = useState({ candidates: [], monitoring: [] });
+    const [opportunities, setOpportunities] = useState([]);
+    const [opportunitiesLoading, setOpportunitiesLoading] = useState(true);
+    const [opportunitiesError, setOpportunitiesError] = useState(null);
     const [strategicMatches, setStrategicMatches] = useState([]);
-    const [proposalsLoading, setProposalsLoading] = useState(true);
     const [matchesLoading, setMatchesLoading] = useState(true);
-    const [proposalsError, setProposalsError] = useState(null);
     const [matchesError, setMatchesError] = useState(null);
 
     // ─── Company Database State ───
@@ -159,21 +294,18 @@ export default function CSRPage() {
     const [syncLoading, setSyncLoading] = useState(false);
     const [syncMessage, setSyncMessage] = useState('');
 
-    // ─── Fetch live proposals from grievance data ───
-    const fetchProposals = async () => {
-        setProposalsLoading(true);
-        setProposalsError(null);
+    // ─── Fetch enriched opportunities with company recommendations ───
+    const fetchOpportunities = async () => {
+        setOpportunitiesLoading(true);
+        setOpportunitiesError(null);
         try {
-            const data = await apiGet('/api/csr/proposals');
-            setProposals({
-                candidates: data.candidates || [],
-                monitoring: data.monitoring || [],
-            });
+            const data = await apiGet('/api/csr/opportunities');
+            setOpportunities(data.opportunities || []);
         } catch (err) {
-            console.error('Proposals fetch failed:', err);
-            setProposalsError('Failed to load live grievance data.');
+            console.error('Opportunities fetch failed:', err);
+            setOpportunitiesError('Failed to load opportunities.');
         } finally {
-            setProposalsLoading(false);
+            setOpportunitiesLoading(false);
         }
     };
 
@@ -192,7 +324,7 @@ export default function CSRPage() {
         }
     };
 
-    useEffect(() => { fetchProposals(); }, []);
+    useEffect(() => { fetchOpportunities(); }, []);
     useEffect(() => { fetchMatches(); }, []);
 
     // ─── Pipeline helpers ───
@@ -381,6 +513,51 @@ export default function CSRPage() {
         }
     };
 
+    // ─── Generate DPR from opportunity-first recommendation ───
+    const generateDPRFromOpportunity = async (opp, company) => {
+        const key = `${opp.category}-${company.name}`;
+        setDprLoading(key);
+        try {
+            const data = await apiPost('/api/csr/generate-dpr', {
+                category: opp.category,
+                area: opp.area,
+                volume: opp.volume,
+                company: company.name,
+                sector: company.sector || opp.csr_sector || '',
+            }, { timeout: AI_TIMEOUT, noRetry: true });
+            setOpenSheet({
+                type: 'dpr',
+                key,
+                title: `DPR — ${opp.category} × ${company.name}`,
+                content: data.content,
+            });
+        } catch {
+            setOpenSheet({
+                type: 'dpr',
+                key,
+                title: `DPR — ${company.name}`,
+                content: 'Error generating DPR. Please try again.',
+            });
+        } finally {
+            setDprLoading(null);
+        }
+    };
+
+    // ─── Add recommended company to pipeline (contacted stage) ───
+    const addToPipelineFromOpportunity = async (company, opp) => {
+        try {
+            await apiPost('/api/csr/pipeline', {
+                company_name: company.name,
+                sector: company.sector || opp.csr_sector || '',
+                stage: 'contacted',
+                notes: `Recommended for: ${opp.category} in ${opp.area} (${opp.volume} complaints)`,
+            });
+            await fetchPipeline();
+        } catch {
+            // silently fail — pipeline tab will reflect state
+        }
+    };
+
     const downloadText = (text, filename) => {
         const blob = new Blob([text], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
@@ -389,8 +566,8 @@ export default function CSRPage() {
         URL.revokeObjectURL(url);
     };
 
-    const totalCandidates = proposals.candidates.length;
-    const totalMonitoring = proposals.monitoring.length;
+    const opportunitiesReady = opportunities.filter(o => o.status === 'ready').length;
+    const opportunitiesMonitoring = opportunities.filter(o => o.status === 'monitoring').length;
     const totalMatches = strategicMatches.length;
     const totalPipeline = Object.values(pipelineByStage).reduce((sum, arr) => sum + arr.length, 0);
     const fundedCount = (pipelineByStage['funded'] || []).length;
@@ -406,7 +583,7 @@ export default function CSRPage() {
 
             {/* ─── Summary Stats ─── */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {proposalsLoading ? (
+                {opportunitiesLoading ? (
                     <>
                         <StatSkeleton />
                         <StatSkeleton />
@@ -418,7 +595,7 @@ export default function CSRPage() {
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                                     CSR-Ready Projects
                                 </p>
-                                <p className="text-3xl font-bold text-destructive mt-1">{totalCandidates}</p>
+                                <p className="text-3xl font-bold text-destructive mt-1">{opportunitiesReady}</p>
                                 <p className="text-xs text-muted-foreground mt-1">200+ verified complaints</p>
                             </CardContent>
                         </Card>
@@ -427,7 +604,7 @@ export default function CSRPage() {
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                                     Monitoring
                                 </p>
-                                <p className="text-3xl font-bold text-amber-600 mt-1">{totalMonitoring}</p>
+                                <p className="text-3xl font-bold text-amber-600 mt-1">{opportunitiesMonitoring}</p>
                                 <p className="text-xs text-muted-foreground mt-1">100–199 complaints, approaching threshold</p>
                             </CardContent>
                         </Card>
@@ -469,7 +646,7 @@ export default function CSRPage() {
                     <TabsList className="w-max min-w-full sm:w-auto">
                         <TabsTrigger value="live">
                             <Activity className="h-3.5 w-3.5 mr-1.5" />
-                            Live Projects ({totalCandidates + totalMonitoring})
+                            Opportunities ({opportunities.length})
                         </TabsTrigger>
                         <TabsTrigger value="matches">
                             <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
@@ -495,17 +672,17 @@ export default function CSRPage() {
                 </div>
 
                 {/* ═══════════════════════════════════════════
-                    TAB 1: Live Grievance Clusters → CSR Projects
+                    TAB 1: Opportunities → Who to Approach
                    ═══════════════════════════════════════════ */}
                 <TabsContent value="live" className="mt-6">
                     <div className="space-y-6">
-                        {proposalsLoading ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {[...Array(4)].map((_, i) => <ProjectCardSkeleton key={i} />)}
+                        {opportunitiesLoading ? (
+                            <div className="space-y-4">
+                                {[...Array(3)].map((_, i) => <ProjectCardSkeleton key={i} />)}
                             </div>
-                        ) : proposalsError ? (
-                            <ErrorCard message={proposalsError} onRetry={fetchProposals} />
-                        ) : totalCandidates === 0 && totalMonitoring === 0 ? (
+                        ) : opportunitiesError ? (
+                            <ErrorCard message={opportunitiesError} onRetry={fetchOpportunities} />
+                        ) : opportunities.length === 0 ? (
                             <Card>
                                 <CardContent className="py-12 text-center">
                                     <p className="text-sm text-muted-foreground">No grievance clusters have reached the threshold yet.</p>
@@ -517,104 +694,48 @@ export default function CSRPage() {
                         ) : (
                             <>
                                 {/* CSR-Ready (200+) */}
-                                {totalCandidates > 0 && (
+                                {opportunitiesReady > 0 && (
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-2">
                                             <Badge variant="destructive">CSR-Ready</Badge>
-                                            <span className="text-xs text-muted-foreground">200+ verified complaints</span>
+                                            <span className="text-xs text-muted-foreground">200+ verified complaints — pitch companies now</span>
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {proposals.candidates.map((c, i) => (
-                                                <Card key={i} className="border-l-4 border-l-destructive">
-                                                    <CardContent className="p-4">
-                                                        <div className="flex justify-between items-start">
-                                                            <div>
-                                                                <p className="font-semibold text-foreground">{c.category}</p>
-                                                                <p className="text-sm text-muted-foreground mt-0.5">{c.area}</p>
-                                                            </div>
-                                                            <Badge variant="outline" className="border-destructive text-destructive bg-destructive/5 shrink-0">
-                                                                {c.volume} complaints
-                                                            </Badge>
-                                                        </div>
-                                                        <div className="mt-3 flex items-center gap-3">
-                                                            <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
-                                                                <div
-                                                                    className="h-full rounded-full bg-destructive transition-all"
-                                                                    style={{ width: `${Math.min(100, c.progress_pct)}%` }}
-                                                                />
-                                                            </div>
-                                                            <span className="text-xs font-mono text-muted-foreground">{c.progress_pct}%</span>
-                                                        </div>
-                                                        <div className="mt-2 flex items-center justify-between">
-                                                            <p className="text-xs text-muted-foreground">
-                                                                Sector: <span className="font-semibold text-foreground">{c.csr_sector}</span>
-                                                            </p>
-                                                            {c.opportunity_score != null && (
-                                                                <span className="text-xs font-mono text-primary">
-                                                                    Score {c.opportunity_score}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        {c.velocity_7d > 0 && (
-                                                            <p className="mt-1 text-xs text-amber-600">
-                                                                +{c.velocity_7d} in last 7 days
-                                                            </p>
-                                                        )}
-                                                    </CardContent>
-                                                </Card>
+                                        <div className="space-y-4">
+                                            {opportunities.filter(o => o.status === 'ready').map((opp, i) => (
+                                                <OpportunityCard
+                                                    key={i}
+                                                    opp={opp}
+                                                    statusColor="border-l-destructive"
+                                                    dprLoading={dprLoading}
+                                                    onGenerateDPR={generateDPRFromOpportunity}
+                                                    onScheduleMeeting={addToPipelineFromOpportunity}
+                                                    onFindNGO={() => setActiveTab('ngo')}
+                                                />
                                             ))}
                                         </div>
                                     </div>
                                 )}
 
                                 {/* Monitoring (100–199) */}
-                                {totalMonitoring > 0 && (
+                                {opportunitiesMonitoring > 0 && (
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-2">
                                             <Badge variant="outline" className="border-amber-500 text-amber-600 bg-amber-50">
                                                 Monitoring
                                             </Badge>
-                                            <span className="text-xs text-muted-foreground">Approaching threshold</span>
+                                            <span className="text-xs text-muted-foreground">Approaching threshold — identify companies early</span>
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {proposals.monitoring.map((c, i) => (
-                                                <Card key={i} className="border-l-4 border-l-amber-500">
-                                                    <CardContent className="p-4">
-                                                        <div className="flex justify-between items-start">
-                                                            <div>
-                                                                <p className="font-semibold text-foreground">{c.category}</p>
-                                                                <p className="text-sm text-muted-foreground mt-0.5">{c.area}</p>
-                                                            </div>
-                                                            <Badge variant="outline" className="border-amber-500 text-amber-600 bg-amber-50 shrink-0">
-                                                                {c.volume} complaints
-                                                            </Badge>
-                                                        </div>
-                                                        <div className="mt-3 flex items-center gap-3">
-                                                            <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
-                                                                <div
-                                                                    className="h-full rounded-full bg-amber-500 transition-all"
-                                                                    style={{ width: `${Math.min(100, c.progress_pct)}%` }}
-                                                                />
-                                                            </div>
-                                                            <span className="text-xs font-mono text-muted-foreground">{c.progress_pct}%</span>
-                                                        </div>
-                                                        <div className="mt-2 flex items-center justify-between">
-                                                            <p className="text-xs text-muted-foreground">
-                                                                Sector: <span className="font-semibold text-foreground">{c.csr_sector}</span>
-                                                            </p>
-                                                            {c.opportunity_score != null && (
-                                                                <span className="text-xs font-mono text-amber-600">
-                                                                    Score {c.opportunity_score}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        {c.velocity_7d > 0 && (
-                                                            <p className="mt-1 text-xs text-amber-600">
-                                                                +{c.velocity_7d} in last 7 days
-                                                            </p>
-                                                        )}
-                                                    </CardContent>
-                                                </Card>
+                                        <div className="space-y-4">
+                                            {opportunities.filter(o => o.status === 'monitoring').map((opp, i) => (
+                                                <OpportunityCard
+                                                    key={i}
+                                                    opp={opp}
+                                                    statusColor="border-l-amber-500"
+                                                    dprLoading={dprLoading}
+                                                    onGenerateDPR={generateDPRFromOpportunity}
+                                                    onScheduleMeeting={addToPipelineFromOpportunity}
+                                                    onFindNGO={() => setActiveTab('ngo')}
+                                                />
                                             ))}
                                         </div>
                                     </div>

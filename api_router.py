@@ -1505,27 +1505,40 @@ def _get_velocity(tenant_id: int, category: str, area: str, days: int) -> int:
 @router.get("/csr/opportunities")
 def get_csr_opportunities(user=Depends(get_current_user)):
     """
-    Returns all grievance clusters enriched with velocity and opportunity scores.
-    Combines CSR-ready candidates and monitoring clusters into a single scored list.
+    Returns CSR-eligible opportunities enriched with fit-scored company recommendations.
+
+    Matching uses company-first logic internally (company sector priorities drive the filter)
+    but output is opportunity-first: each cluster carries its top 3 recommended companies
+    with MP-facing reason, suggested next action, and approach guidance.
+
+    Response shape per opportunity:
+      { category, area, volume, status, csr_sector, velocity_7d, opportunity_score,
+        matched_company_count,
+        top_companies: [{ name, match_score, reason, suggested_next_action,
+                          suggested_approach, has_funded_similar, similar_projects,
+                          recommended_ask_amount, ... }] }
     """
     tid = get_tenant_or_fail(user)
     try:
-        from modules.csr_pipeline import get_grievance_clusters, CSR_MONITOR_THRESHOLD, match_companies
+        from modules.csr_pipeline import get_grievance_clusters, CSR_MONITOR_THRESHOLD
+        from modules.csr_matching_engine import get_top_companies_for_opportunity
+
         clusters = get_grievance_clusters(tid, CSR_MONITOR_THRESHOLD)
         csr_data = _cached_load("csr_data", _load_csr_data)
 
         enriched = []
         for c in clusters:
             v7 = _get_velocity(tid, c["category"], c.get("area", ""), 7)
-            matched = match_companies(c.get("csr_sector", ""), csr_data)
-            score = _compute_opportunity_score(c["volume"], v7, len(matched))
+            enriched_c = {**c, "velocity_7d": v7}
+            top_companies = get_top_companies_for_opportunity(enriched_c, csr_data, tid, top_n=3)
+            score = _compute_opportunity_score(c["volume"], v7, len(top_companies))
             enriched.append({
-                **c,
-                "velocity_7d": v7,
+                **enriched_c,
                 "opportunity_score": score,
-                "matched_company_count": len(matched),
+                "matched_company_count": len(top_companies),
+                "top_companies": top_companies,
             })
-        # Sort by score descending
+
         enriched.sort(key=lambda x: x["opportunity_score"], reverse=True)
         return {"opportunities": enriched, "total": len(enriched)}
     except Exception:
