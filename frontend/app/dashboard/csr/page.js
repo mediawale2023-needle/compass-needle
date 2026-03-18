@@ -142,24 +142,6 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR }) {
                                         <p className="text-xs text-muted-foreground leading-relaxed">{co.reason}</p>
                                     )}
 
-                                    {/* Score breakdown — why this fit % */}
-                                    <div className="flex flex-wrap gap-x-3 gap-y-1 pt-0.5">
-                                        {[
-                                            { label: 'Sector', value: co.sector_alignment_score },
-                                            { label: 'Geo', value: co.geographic_score },
-                                            { label: 'Window', value: co.funding_window_score },
-                                            { label: 'History', value: co.historical_score },
-                                            { label: 'Relation', value: co.relationship_score },
-                                        ].map(({ label, value }) => value != null && (
-                                            <span key={label} className={cn(
-                                                'text-[10px] font-mono',
-                                                value >= 70 ? 'text-emerald-600' : value >= 40 ? 'text-amber-600' : 'text-muted-foreground/70'
-                                            )}>
-                                                {label} {value}
-                                            </span>
-                                        ))}
-                                    </div>
-
                                     {co.has_funded_similar && co.similar_projects?.length > 0 && (
                                         <p className="text-xs text-primary flex items-center gap-1">
                                             <CheckCircle2 className="h-3 w-3 shrink-0" />
