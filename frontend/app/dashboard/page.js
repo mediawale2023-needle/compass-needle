@@ -161,6 +161,7 @@ export default function DashboardPage() {
     const [newsTab, setNewsTab] = useState('national');
     const [showNews, setShowNews] = useState(true);
     const [parliament, setParliament] = useState(null);
+    const [parlExpanded, setParlExpanded] = useState(false);
     const [pqCalendar, setPqCalendar] = useState(null);
     const [staleCases, setStaleCases] = useState([]);
     const [allCases, setAllCases] = useState([]);
@@ -256,28 +257,58 @@ export default function DashboardPage() {
                     <CardContent className="py-4">
                         {parliament.in_session ? (
                             <div className="space-y-3">
-                                <div className="flex items-center justify-between flex-wrap gap-2">
-                                    <div className="flex items-center gap-2">
-                                        <span className="relative flex h-2.5 w-2.5">
-                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                                        </span>
-                                        <span className="font-semibold text-emerald-800">
-                                            House in Session — {parliament.session_name}
-                                        </span>
+                                <button
+                                    onClick={() => setParlExpanded(v => !v)}
+                                    className="w-full text-left focus:outline-none"
+                                >
+                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="relative flex h-2.5 w-2.5">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                                            </span>
+                                            <span className="font-semibold text-emerald-800">
+                                                House in Session — {parliament.session_name}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-muted-foreground">
+                                                {parliament.day}, {parliament.date}
+                                            </span>
+                                            {parliament.business_items?.length > 0 && (
+                                                parlExpanded
+                                                    ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+                                                    : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                            )}
+                                        </div>
                                     </div>
-                                    <span className="text-xs text-muted-foreground">
-                                        {parliament.day}, {parliament.date}
-                                    </span>
-                                </div>
+                                </button>
                                 {parliament.business_items?.length > 0 && (
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {parliament.business_items.slice(0, 2).map((item, i) => (
-                                            <Badge key={i} variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200">
-                                                {item}
-                                            </Badge>
-                                        ))}
-                                    </div>
+                                    parlExpanded ? (
+                                        <ol className="space-y-1.5 border-t border-emerald-200 pt-3">
+                                            {parliament.business_items.map((item, i) => (
+                                                <li key={i} className="flex items-start gap-2 text-sm text-emerald-900">
+                                                    <span className="shrink-0 mt-0.5 h-4 w-4 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold flex items-center justify-center">
+                                                        {i + 1}
+                                                    </span>
+                                                    {item}
+                                                </li>
+                                            ))}
+                                        </ol>
+                                    ) : (
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {parliament.business_items.slice(0, 2).map((item, i) => (
+                                                <Badge key={i} variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200">
+                                                    {item}
+                                                </Badge>
+                                            ))}
+                                            {parliament.business_items.length > 2 && (
+                                                <Badge variant="outline" className="text-muted-foreground cursor-pointer" onClick={() => setParlExpanded(true)}>
+                                                    +{parliament.business_items.length - 2} more
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    )
                                 )}
                             </div>
                         ) : (
