@@ -23,38 +23,14 @@ import {
     TrendingUp,
     Activity,
     Building2,
-    Kanban,
-    Plus,
     ChevronRight,
-    Trash2,
-    Users,
-    BarChart3,
     CheckCircle2,
-    XCircle,
     MapPin,
     Zap,
     Target,
 } from 'lucide-react';
 
 const CSR_PILLS = ['All', 'Steel & Mining', 'Information Technology', 'Banking & Finance', 'Healthcare', 'Energy', 'Automobile'];
-
-const PIPELINE_STAGES = [
-    { key: 'identified', label: 'Identified', color: 'text-muted-foreground border-border' },
-    { key: 'contacted', label: 'Contacted', color: 'text-blue-700 border-blue-300' },
-    { key: 'proposal_sent', label: 'Proposal Sent', color: 'text-amber-700 border-amber-400' },
-    { key: 'negotiating', label: 'Negotiating', color: 'text-purple-700 border-purple-400' },
-    { key: 'approved', label: 'Approved', color: 'text-emerald-700 border-emerald-400' },
-    { key: 'funded', label: 'Funded', color: 'text-emerald-800 border-emerald-600' },
-];
-
-const STAGE_NEXT = {
-    identified: 'contacted',
-    contacted: 'proposal_sent',
-    proposal_sent: 'negotiating',
-    negotiating: 'approved',
-    approved: 'funded',
-    funded: null,
-};
 
 // ─── Skeleton for stat cards ───
 function StatSkeleton() {
@@ -270,30 +246,6 @@ export default function CSRPage() {
     // ─── Tab State ───
     const [activeTab, setActiveTab] = useState('live');
 
-    // ─── Pipeline State ───
-    const [pipelineByStage, setPipelineByStage] = useState({});
-    const [pipelineLoading, setPipelineLoading] = useState(false);
-    const [pipelineError, setPipelineError] = useState(null);
-    const [addingToStage, setAddingToStage] = useState(null); // stage key when add form is open
-    const [newCompanyName, setNewCompanyName] = useState('');
-    const [newCompanySector, setNewCompanySector] = useState('');
-    const [addLoading, setAddLoading] = useState(false);
-    const [movingId, setMovingId] = useState(null);
-
-    // ─── NGO Directory State ───
-    const [ngoPartners, setNgoPartners] = useState([]);
-    const [ngoLoading, setNgoLoading] = useState(false);
-    const [ngoError, setNgoError] = useState(null);
-    const [ngoSectorFilter, setNgoSectorFilter] = useState('');
-    const [ngoRiskFilter, setNgoRiskFilter] = useState('');
-    const [ngoSectors, setNgoSectors] = useState([]);
-
-    // ─── Analytics State ───
-    const [analytics, setAnalytics] = useState(null);
-    const [analyticsLoading, setAnalyticsLoading] = useState(false);
-    const [syncLoading, setSyncLoading] = useState(false);
-    const [syncMessage, setSyncMessage] = useState('');
-
     // ─── Fetch enriched opportunities with company recommendations ───
     const fetchOpportunities = async () => {
         setOpportunitiesLoading(true);
@@ -327,109 +279,6 @@ export default function CSRPage() {
     useEffect(() => { fetchOpportunities(); }, []);
     useEffect(() => { fetchMatches(); }, []);
 
-    // ─── Pipeline helpers ───
-    const fetchPipeline = async () => {
-        setPipelineLoading(true);
-        setPipelineError(null);
-        try {
-            const data = await apiGet('/api/csr/pipeline');
-            setPipelineByStage(data.by_stage || {});
-        } catch {
-            setPipelineError('Failed to load pipeline.');
-        } finally {
-            setPipelineLoading(false);
-        }
-    };
-    useEffect(() => { fetchPipeline(); }, []);
-
-    const addToPipeline = async (stage) => {
-        if (!newCompanyName.trim()) return;
-        setAddLoading(true);
-        try {
-            await apiPost('/api/csr/pipeline', {
-                company_name: newCompanyName.trim(),
-                sector: newCompanySector.trim(),
-                stage,
-            });
-            setNewCompanyName('');
-            setNewCompanySector('');
-            setAddingToStage(null);
-            await fetchPipeline();
-        } catch {
-            // keep form open on failure
-        } finally {
-            setAddLoading(false);
-        }
-    };
-
-    const moveToNextStage = async (entry) => {
-        const next = STAGE_NEXT[entry.stage];
-        if (!next) return;
-        setMovingId(entry.id);
-        try {
-            await apiPatch(`/api/csr/pipeline/${entry.id}`, { stage: next });
-            await fetchPipeline();
-        } catch {
-            // silently fail, user can retry
-        } finally {
-            setMovingId(null);
-        }
-    };
-
-    const deleteEntry = async (id) => {
-        try {
-            await apiDelete(`/api/csr/pipeline/${id}`);
-            await fetchPipeline();
-        } catch {
-            // silently fail
-        }
-    };
-
-    // ─── Fetch NGO partners ───
-    const fetchNGOs = async () => {
-        setNgoLoading(true);
-        setNgoError(null);
-        try {
-            const params = new URLSearchParams();
-            if (ngoSectorFilter) params.set('sector', ngoSectorFilter);
-            if (ngoRiskFilter) params.set('risk_level', ngoRiskFilter);
-            const data = await apiGet(`/api/csr/partners?${params}`);
-            setNgoPartners(data.partners || []);
-            setNgoSectors(data.sectors || []);
-        } catch {
-            setNgoError('Failed to load NGO partners.');
-        } finally {
-            setNgoLoading(false);
-        }
-    };
-
-    // ─── Fetch analytics ───
-    const fetchAnalytics = async () => {
-        setAnalyticsLoading(true);
-        try {
-            const data = await apiGet('/api/csr/analytics');
-            setAnalytics(data);
-        } catch {
-            // silently fail
-        } finally {
-            setAnalyticsLoading(false);
-        }
-    };
-
-    const triggerSync = async () => {
-        setSyncLoading(true);
-        setSyncMessage('');
-        try {
-            const data = await apiPost('/api/csr/opportunities/sync', {});
-            setSyncMessage(data.message || 'Sync complete.');
-            await fetchAnalytics();
-        } catch {
-            setSyncMessage('Sync failed. Please try again.');
-        } finally {
-            setSyncLoading(false);
-        }
-    };
-
     // ─── Fetch CSR company database ───
     const fetchCompanies = async () => {
         setCompaniesLoading(true);
@@ -448,8 +297,6 @@ export default function CSRPage() {
         }
     };
     useEffect(() => { fetchCompanies(); }, [search, selectedSector]);
-    useEffect(() => { fetchNGOs(); }, [ngoSectorFilter, ngoRiskFilter]);
-    useEffect(() => { fetchAnalytics(); }, []);
 
     // ─── Generate DPR from live data ───
     const generateDPR = async (match, company) => {
@@ -543,21 +390,6 @@ export default function CSRPage() {
         }
     };
 
-    // ─── Add recommended company to pipeline (contacted stage) ───
-    const addToPipelineFromOpportunity = async (company, opp) => {
-        try {
-            await apiPost('/api/csr/pipeline', {
-                company_name: company.name,
-                sector: company.sector || opp.csr_sector || '',
-                stage: 'contacted',
-                notes: `Recommended for: ${opp.category} in ${opp.area} (${opp.volume} complaints)`,
-            });
-            await fetchPipeline();
-        } catch {
-            // silently fail — pipeline tab will reflect state
-        }
-    };
-
     const downloadText = (text, filename) => {
         const blob = new Blob([text], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
@@ -569,8 +401,6 @@ export default function CSRPage() {
     const opportunitiesReady = opportunities.filter(o => o.status === 'ready').length;
     const opportunitiesMonitoring = opportunities.filter(o => o.status === 'monitoring').length;
     const totalMatches = strategicMatches.length;
-    const totalPipeline = Object.values(pipelineByStage).reduce((sum, arr) => sum + arr.length, 0);
-    const fundedCount = (pipelineByStage['funded'] || []).length;
 
     return (
         <div className="space-y-6">
@@ -623,21 +453,6 @@ export default function CSRPage() {
                         </CardContent>
                     </Card>
                 )}
-                {pipelineLoading ? (
-                    <StatSkeleton />
-                ) : (
-                    <Card className="border-l-4 border-l-emerald-500">
-                        <CardContent className="p-5">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                Pipeline
-                            </p>
-                            <p className="text-3xl font-bold text-emerald-600 mt-1">{totalPipeline}</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                                {fundedCount > 0 ? `${fundedCount} funded` : 'Companies being tracked'}
-                            </p>
-                        </CardContent>
-                    </Card>
-                )}
             </div>
 
             {/* ─── Tab Navigation ─── */}
@@ -655,18 +470,6 @@ export default function CSRPage() {
                         <TabsTrigger value="database">
                             <Building2 className="h-3.5 w-3.5 mr-1.5" />
                             Company Database
-                        </TabsTrigger>
-                        <TabsTrigger value="pipeline">
-                            <Kanban className="h-3.5 w-3.5 mr-1.5" />
-                            Pipeline
-                        </TabsTrigger>
-                        <TabsTrigger value="ngo">
-                            <Users className="h-3.5 w-3.5 mr-1.5" />
-                            NGO Partners
-                        </TabsTrigger>
-                        <TabsTrigger value="analytics">
-                            <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
-                            Analytics
                         </TabsTrigger>
                     </TabsList>
                 </div>
