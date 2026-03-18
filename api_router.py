@@ -923,6 +923,107 @@ def get_parliament_status(user=Depends(get_current_user)):
     return result
 
 
+@router.get("/parliament/pq-calendar")
+def get_pq_calendar(user=Depends(get_current_user)):
+    """
+    Returns the PQ submission window state for the next upcoming session.
+
+    window_state values:
+      in_session  — house is sitting; submission window for this session is long closed
+      open        — submission window is live; MP can file questions now
+      not_yet     — window hasn't opened yet (too far from next session)
+      closed      — deadline passed but session hasn't started yet
+    """
+    from datetime import date, timedelta
+
+    today = date.today()
+    tid = get_tenant_or_fail(user)
+
+    SESSIONS = [
+        {"name": "Budget Session (Part I)",  "start": date(2025, 1, 31),  "end": date(2025, 2, 13)},
+        {"name": "Budget Session (Part II)", "start": date(2025, 3, 10),  "end": date(2025, 5, 9)},
+        {"name": "Monsoon Session",          "start": date(2025, 7, 21),  "end": date(2025, 8, 13)},
+        {"name": "Winter Session",           "start": date(2025, 11, 24), "end": date(2025, 12, 20)},
+        {"name": "Budget Session (Part I)",  "start": date(2026, 1, 31),  "end": date(2026, 2, 14)},
+        {"name": "Budget Session (Part II)", "start": date(2026, 3, 2),   "end": date(2026, 5, 8)},
+        {"name": "Monsoon Session",          "start": date(2026, 7, 20),  "end": date(2026, 8, 14)},
+        {"name": "Winter Session",           "start": date(2026, 11, 25), "end": date(2026, 12, 20)},
+    ]
+
+    # Window: opens 45 days before session, closes 15 clear days before
+    WINDOW_OPEN_DAYS  = 45
+    WINDOW_CLOSE_DAYS = 15
+
+    # Is today inside a session?
+    current_session = next((s for s in SESSIONS if s["start"] <= today <= s["end"]), None)
+
+    # Target = current session if in one, else next upcoming
+    target = current_session or next((s for s in SESSIONS if s["start"] > today), None)
+
+    if not target:
+        return {"window_state": "unknown", "message": "No upcoming session data available."}
+
+    window_open  = target["start"] - timedelta(days=WINDOW_OPEN_DAYS)
+    window_close = target["start"] - timedelta(days=WINDOW_CLOSE_DAYS)
+
+    if current_session:
+        window_state    = "in_session"
+        days_remaining  = None
+        days_until_open = None
+        # Point ahead to the next session for awareness
+        next_sess = next((s for s in SESSIONS if s["start"] > today), None)
+        next_window_open = (next_sess["start"] - timedelta(days=WINDOW_OPEN_DAYS)).strftime("%d %b %Y") if next_sess else None
+        next_session_name = next_sess["name"] if next_sess else None
+    elif today < window_open:
+        window_state    = "not_yet"
+        days_remaining  = None
+        days_until_open = (window_open - today).days
+        next_window_open = window_open.strftime("%d %b %Y")
+        next_session_name = None
+    elif window_open <= today <= window_close:
+        window_state    = "open"
+        days_remaining  = (window_close - today).days
+        days_until_open = None
+        next_window_open = None
+        next_session_name = None
+    else:  # past close, before session starts
+        window_state    = "closed"
+        days_remaining  = None
+        days_until_open = None
+        next_window_open = None
+        next_session_name = None
+
+    # Count PQs drafted during this window period from the letterbox outbox
+    pqs_drafted = 0
+    try:
+        count_from = window_open if window_state in ("open", "closed") else target["start"] - timedelta(days=WINDOW_OPEN_DAYS)
+        row = _q_one("""
+            SELECT COUNT(*) as cnt FROM letterbox
+            WHERE tenant_id = :tid
+              AND direction = 'outbox'
+              AND issue_summary LIKE 'Drafter Generated (Question):%'
+              AND created_at >= :since
+        """, {"tid": tid, "since": count_from})
+        pqs_drafted = row["cnt"] if row else 0
+    except Exception:
+        pass
+
+    return {
+        "window_state":      window_state,
+        "target_session":    target["name"],
+        "session_start":     target["start"].strftime("%d %b %Y"),
+        "session_end":       target["end"].strftime("%d %b %Y"),
+        "window_open":       window_open.strftime("%d %b %Y"),
+        "window_close":      window_close.strftime("%d %b %Y"),
+        "days_remaining":    days_remaining,
+        "days_until_open":   days_until_open,
+        "pqs_drafted":       pqs_drafted,
+        # awareness fields (only set in in_session state)
+        "next_session_name": next_session_name if current_session else None,
+        "next_window_open":  next_window_open  if current_session else None,
+    }
+
+
 # ─────────────────────────────────────────
 # CSR
 # ─────────────────────────────────────────
