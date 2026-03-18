@@ -24,6 +24,7 @@ import {
     Activity,
     Building2,
     ChevronRight,
+    ChevronDown,
     CheckCircle2,
     MapPin,
     Zap,
@@ -74,7 +75,8 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR }) {
                     <div>
                         <p className="font-semibold text-foreground">{opp.category}</p>
                         <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1">
-                            <MapPin className="h-3 w-3 shrink-0" />{opp.area}
+                            <MapPin className="h-3 w-3 shrink-0" />
+                            {opp.constituency || opp.area || 'Constituency'}
                         </p>
                     </div>
                     <Badge variant="outline" className={cn(
@@ -86,6 +88,27 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR }) {
                         {opp.volume} complaints
                     </Badge>
                 </div>
+
+                {/* Affected areas dropdown */}
+                {opp.affected_areas?.length > 0 && (
+                    <details className="mt-2 group">
+                        <summary className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1 list-none select-none w-fit">
+                            <ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" />
+                            {opp.affected_areas.length} area{opp.affected_areas.length !== 1 ? 's' : ''} affected
+                        </summary>
+                        <ul className="mt-1.5 space-y-0.5 pl-4">
+                            {opp.affected_areas.map((a, i) => (
+                                <li key={i} className="text-xs text-muted-foreground flex items-center justify-between gap-4">
+                                    <span className="flex items-center gap-1">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-destructive/60 shrink-0" />
+                                        {a.area}
+                                    </span>
+                                    <span className="font-mono text-muted-foreground/70">{a.volume} complaints</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </details>
+                )}
 
                 {/* Progress bar */}
                 <div className="mt-3 flex items-center gap-3">
