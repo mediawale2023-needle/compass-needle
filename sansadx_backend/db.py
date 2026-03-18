@@ -289,7 +289,8 @@ class CSROpportunity(Base):
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
     category = Column(String)
-    location = Column(String)
+    location = Column(String)       # constituency name
+    affected_areas = Column(Text, nullable=True)  # JSON: [{area, volume}, ...]
     complaint_count = Column(Integer, default=0)
     velocity_7d = Column(Integer, default=0)   # new complaints in last 7 days
     velocity_30d = Column(Integer, default=0)  # new complaints in last 30 days

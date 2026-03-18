@@ -1160,7 +1160,7 @@ def get_csr_proposals(user=Depends(get_current_user)):
         def _enrich(clusters):
             enriched = []
             for c in clusters:
-                v7 = _get_velocity(tid, c["category"], c.get("area", ""), 7)
+                v7 = _get_velocity(tid, c["category"], 7)
                 matched = match_companies(c.get("csr_sector", ""), csr_data)
                 score = _compute_opportunity_score(c["volume"], v7, len(matched))
                 enriched.append({**c, "velocity_7d": v7, "opportunity_score": score})
@@ -1487,8 +1487,8 @@ def _compute_opportunity_score(volume: int, velocity_7d: int, matched_companies:
     return round(vol_score + vel_score + match_score + base_score, 1)
 
 
-def _get_velocity(tenant_id: int, category: str, area: str, days: int) -> int:
-    """Count complaints in a cluster in the last N days."""
+def _get_velocity(tenant_id: int, category: str, days: int) -> int:
+    """Count complaints for a category in the last N days (constituency-wide)."""
     cutoff = datetime.utcnow() - timedelta(days=days)
     try:
         row = _q_one("""
@@ -1507,14 +1507,12 @@ def _get_velocity(tenant_id: int, category: str, area: str, days: int) -> int:
 def get_csr_opportunities(user=Depends(get_current_user)):
     """
     Returns CSR-eligible opportunities enriched with fit-scored company recommendations.
-
-    Matching uses company-first logic internally (company sector priorities drive the filter)
-    but output is opportunity-first: each cluster carries its top 3 recommended companies
-    with MP-facing reason, suggested next action, and approach guidance.
+    Opportunities are grouped by issue type (category) at the constituency level.
+    Each opportunity carries an affected_areas list showing which micro-areas have complaints.
 
     Response shape per opportunity:
-      { category, area, volume, status, csr_sector, velocity_7d, opportunity_score,
-        matched_company_count,
+      { category, constituency, affected_areas, volume, status, csr_sector, velocity_7d,
+        opportunity_score, matched_company_count,
         top_companies: [{ name, match_score, reason, suggested_next_action,
                           suggested_approach, has_funded_similar, similar_projects,
                           recommended_ask_amount, ... }] }
@@ -1524,17 +1522,22 @@ def get_csr_opportunities(user=Depends(get_current_user)):
         from modules.csr_pipeline import get_grievance_clusters, CSR_MONITOR_THRESHOLD
         from modules.csr_matching_engine import get_top_companies_for_opportunity
 
+        tenant = _q_one("SELECT constituency FROM tenants WHERE id = :tid", {"tid": tid})
+        constituency = (tenant.get("constituency") or "") if tenant else ""
+
         clusters = get_grievance_clusters(tid, CSR_MONITOR_THRESHOLD)
         csr_data = _cached_load("csr_data", _load_csr_data)
 
         enriched = []
         for c in clusters:
-            v7 = _get_velocity(tid, c["category"], c.get("area", ""), 7)
-            enriched_c = {**c, "velocity_7d": v7}
+            v7 = _get_velocity(tid, c["category"], 7)
+            # Pass constituency as the geographic context for company matching
+            enriched_c = {**c, "velocity_7d": v7, "area": constituency}
             top_companies = get_top_companies_for_opportunity(enriched_c, csr_data, tid, top_n=3)
             score = _compute_opportunity_score(c["volume"], v7, len(top_companies))
             enriched.append({
                 **enriched_c,
+                "constituency": constituency,
                 "opportunity_score": score,
                 "matched_company_count": len(top_companies),
                 "top_companies": top_companies,
@@ -1766,53 +1769,62 @@ def sync_opportunities(user=Depends(get_current_user)):
         from modules.csr_pipeline import get_grievance_clusters, CATEGORY_SECTOR_MAP, CSR_MONITOR_THRESHOLD
         from modules.csr_matching_engine import rank_companies_for_opportunity, persist_matches
 
+        import json as _json
         now = datetime.utcnow()
+        tenant_row = _q_one("SELECT constituency FROM tenants WHERE id = :tid", {"tid": tid})
+        constituency = (tenant_row.get("constituency") or "") if tenant_row else ""
+
         clusters = get_grievance_clusters(tid, CSR_MONITOR_THRESHOLD)
         csr_data = _cached_load("csr_data", _load_csr_data)
 
         synced = 0
         for cluster in clusters:
             category = cluster["category"]
-            area = cluster.get("area", "")
             volume = cluster["volume"]
             csr_sector = CATEGORY_SECTOR_MAP.get(category, "General CSR")
-            v7 = _get_velocity(tid, category, area, 7)
-            v30 = _get_velocity(tid, category, area, 30)
+            affected_areas_json = _json.dumps(cluster.get("affected_areas", []))
+            v7 = _get_velocity(tid, category, 7)
+            v30 = _get_velocity(tid, category, 30)
             score = _compute_opportunity_score(volume, v7, 3)
             status = "ready" if volume >= 500 else "monitoring" if volume >= 200 else "emerging"
 
             with engine.begin() as conn:
                 existing = conn.execute(text("""
                     SELECT id FROM csr_opportunities
-                    WHERE tenant_id = :tid AND category = :cat AND location = :loc
-                """), {"tid": tid, "cat": category, "loc": area}).fetchone()
+                    WHERE tenant_id = :tid AND category = :cat
+                """), {"tid": tid, "cat": category}).fetchone()
 
                 if existing:
                     opp_id = existing[0]
                     conn.execute(text("""
                         UPDATE csr_opportunities
                         SET complaint_count=:vol, velocity_7d=:v7, velocity_30d=:v30,
-                            opportunity_score=:score, status=:status, last_scored_at=:now
+                            opportunity_score=:score, status=:status,
+                            location=:loc, affected_areas=:areas, last_scored_at=:now
                         WHERE id=:id
                     """), {"vol": volume, "v7": v7, "v30": v30, "score": score,
-                           "status": status, "now": now, "id": opp_id})
+                           "status": status, "loc": constituency, "areas": affected_areas_json,
+                           "now": now, "id": opp_id})
                 else:
                     result = conn.execute(text("""
                         INSERT INTO csr_opportunities
-                            (tenant_id, category, location, complaint_count,
-                             velocity_7d, velocity_30d, opportunity_score,
-                             status, detected_at, last_scored_at)
+                            (tenant_id, category, location, affected_areas,
+                             complaint_count, velocity_7d, velocity_30d,
+                             opportunity_score, status, detected_at, last_scored_at)
                         VALUES
-                            (:tid, :cat, :loc, :vol, :v7, :v30, :score,
+                            (:tid, :cat, :loc, :areas,
+                             :vol, :v7, :v30, :score,
                              :status, :now, :now)
-                    """), {"tid": tid, "cat": category, "loc": area,
-                           "vol": volume, "v7": v7, "v30": v30,
-                           "score": score, "status": status, "now": now})
+                    """), {"tid": tid, "cat": category, "loc": constituency,
+                           "areas": affected_areas_json, "vol": volume,
+                           "v7": v7, "v30": v30, "score": score,
+                           "status": status, "now": now})
                     opp_id = result.lastrowid
 
             # Compute and persist matches for this opportunity
-            opp_dict = {"category": category, "area": area, "volume": volume,
-                        "velocity_7d": v7, "csr_sector": csr_sector}
+            opp_dict = {"category": category, "area": constituency, "volume": volume,
+                        "velocity_7d": v7, "csr_sector": csr_sector,
+                        "affected_areas": cluster.get("affected_areas", [])}
             ranked = rank_companies_for_opportunity(opp_dict, csr_data, tid, top_n=10)
             persist_matches(opp_id, tid, ranked)
             synced += 1

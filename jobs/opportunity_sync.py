@@ -15,6 +15,7 @@ Usage:
 """
 import sys
 import os
+import json
 import logging
 from datetime import datetime, timedelta
 
@@ -38,9 +39,9 @@ def run():
     cutoff_7d = now - timedelta(days=7)
     cutoff_30d = now - timedelta(days=30)
 
-    # Load all active tenants
+    # Load all active tenants with their constituency
     try:
-        tenants = _q("SELECT id FROM tenants WHERE is_active = true OR is_active = 1")
+        tenants = _q("SELECT id, constituency FROM tenants WHERE is_active = true OR is_active = 1")
     except Exception as e:
         logger.error(f"Failed to load tenants: {e}")
         return
@@ -49,6 +50,8 @@ def run():
 
     for tenant in tenants:
         tid = tenant["id"]
+        constituency = tenant.get("constituency") or ""
+
         try:
             clusters = get_grievance_clusters(tid, CSR_MONITOR_THRESHOLD)
         except Exception as e:
@@ -57,11 +60,10 @@ def run():
 
         for cluster in clusters:
             category = cluster["category"]
-            area = cluster.get("area", "")
             volume = cluster["volume"]
-            csr_sector = CATEGORY_SECTOR_MAP.get(category, "General CSR")
+            affected_areas_json = json.dumps(cluster.get("affected_areas", []))
 
-            # Compute velocities
+            # Compute velocities (category-level, across all areas)
             try:
                 with engine.connect() as conn:
                     v7 = conn.execute(text("""
@@ -83,7 +85,7 @@ def run():
             # Compute opportunity score
             from api_router import _compute_opportunity_score
             try:
-                score = _compute_opportunity_score(volume, v7, 3)  # assume 3 matches avg
+                score = _compute_opportunity_score(volume, v7, 3)
             except Exception:
                 vol_s = min(40.0, (volume / 500.0) * 40.0)
                 vel_s = min(30.0, (v7 / 50.0) * 30.0)
@@ -97,13 +99,13 @@ def run():
             else:
                 status = "emerging"
 
-            # Upsert
+            # Upsert — keyed on (tenant_id, category) only; one row per issue type
             try:
                 with engine.begin() as conn:
                     existing = conn.execute(text("""
                         SELECT id FROM csr_opportunities
-                        WHERE tenant_id = :tid AND category = :cat AND location = :loc
-                    """), {"tid": tid, "cat": category, "loc": area}).fetchone()
+                        WHERE tenant_id = :tid AND category = :cat
+                    """), {"tid": tid, "cat": category}).fetchone()
 
                     if existing:
                         conn.execute(text("""
@@ -113,30 +115,35 @@ def run():
                                 velocity_30d = :v30,
                                 opportunity_score = :score,
                                 status = :status,
+                                location = :loc,
+                                affected_areas = :areas,
                                 last_scored_at = :now
                             WHERE id = :id
                         """), {
                             "vol": volume, "v7": v7, "v30": v30,
                             "score": score, "status": status,
+                            "loc": constituency, "areas": affected_areas_json,
                             "now": now, "id": existing[0]
                         })
                     else:
                         conn.execute(text("""
                             INSERT INTO csr_opportunities
-                                (tenant_id, category, location, complaint_count,
-                                 velocity_7d, velocity_30d, opportunity_score,
-                                 status, detected_at, last_scored_at)
+                                (tenant_id, category, location, affected_areas,
+                                 complaint_count, velocity_7d, velocity_30d,
+                                 opportunity_score, status, detected_at, last_scored_at)
                             VALUES
-                                (:tid, :cat, :loc, :vol, :v7, :v30, :score,
+                                (:tid, :cat, :loc, :areas,
+                                 :vol, :v7, :v30, :score,
                                  :status, :now, :now)
                         """), {
-                            "tid": tid, "cat": category, "loc": area,
+                            "tid": tid, "cat": category,
+                            "loc": constituency, "areas": affected_areas_json,
                             "vol": volume, "v7": v7, "v30": v30,
                             "score": score, "status": status, "now": now
                         })
                     total_upserted += 1
             except Exception as e:
-                logger.warning(f"Upsert failed for {category}/{area} tenant {tid}: {e}")
+                logger.warning(f"Upsert failed for {category} tenant {tid}: {e}")
 
     logger.info(f"Opportunity sync complete — {total_upserted} opportunities upserted across {len(tenants)} tenants")
     return {"upserted": total_upserted, "tenants": len(tenants)}
