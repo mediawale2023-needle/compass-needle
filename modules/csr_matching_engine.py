@@ -314,3 +314,306 @@ def persist_matches(opportunity_id: int, tenant_id: int, ranked: list):
         logger.info(f"Persisted {len(ranked)} matches for opportunity {opportunity_id}")
     except Exception as e:
         logger.warning(f"Failed to persist matches for opportunity {opportunity_id}: {e}")
+
+
+# ─────────────────────────────────────────
+# FIT SCORE — Company-first 5-dimensional matching
+#
+# Distinct from compute_match_score:
+#   - Replaces urgency_score (an opportunity property) with:
+#       funding_window_score  — is it the right time in the budget cycle?
+#       historical_score      — has the company funded this sector before?
+#   - Urgency is still used for ask-amount calculation but not for fit
+#   - Weights: sector 30%, geo 20%, funding_window 20%, history 15%, relationship 15%
+# ─────────────────────────────────────────
+
+def score_funding_window() -> float:
+    """
+    0–100 score based on India's CSR budget cycle (April–March FY).
+    Companies set annual CSR budgets in April. By January most budgets are exhausted.
+    Used to time outreach — a high score means now is a good time to pitch.
+    """
+    month = datetime.utcnow().month
+    if month == 4:            # Fresh FY — Board just approved budget
+        return 100.0
+    elif month in (5, 6):     # Q1 — active decisions, most budget available
+        return 85.0
+    elif month in (7, 8, 9):  # Q2 — mid-cycle, ~50% committed
+        return 65.0
+    elif month in (10, 11):   # Q3 — 70–80% committed
+        return 40.0
+    elif month == 12:          # Q3 end — nearly locked, pitch for next FY
+        return 25.0
+    else:                      # Jan–Mar (Q4) — budget exhausted or already allocated
+        return 15.0
+
+
+def score_historical_similarity(opportunity_sector: str, company_name: str, tenant_id: int) -> tuple:
+    """
+    Check csr_impact_reports for prior projects by this company in the same sector.
+    Returns (score 0–100, list of similar project summaries, up to 3).
+    """
+    try:
+        from core.db_helpers import _q
+        rows = _q("""
+            SELECT project_title, sector, location, utilised_amount_lakhs,
+                   beneficiary_count, status
+            FROM csr_impact_reports
+            WHERE tenant_id = :tid AND LOWER(company_name) = LOWER(:name)
+            ORDER BY created_at DESC
+            LIMIT 10
+        """, {"tid": tenant_id, "name": company_name})
+
+        if not rows:
+            return 0.0, []
+
+        opp_tags = set(t.lower() for t in SECTOR_ALIASES.get(opportunity_sector, [opportunity_sector]))
+        similar = []
+        sector_match_count = 0
+
+        for r in rows:
+            project_sector = (r.get("sector") or "").lower()
+            is_similar = bool(opp_tags) and any(tag in project_sector for tag in opp_tags)
+            if is_similar:
+                sector_match_count += 1
+                similar.append({
+                    "title": r.get("project_title"),
+                    "sector": r.get("sector"),
+                    "location": r.get("location"),
+                    "amount_lakhs": r.get("utilised_amount_lakhs"),
+                    "beneficiaries": r.get("beneficiary_count"),
+                    "status": r.get("status"),
+                })
+
+        # base 30 if any CSR history exists, +25 per similar-sector project (capped at +70)
+        base = 30.0
+        bonus = min(70.0, sector_match_count * 25.0)
+        return round(min(100.0, base + bonus), 1), similar[:3]
+    except Exception:
+        return 0.0, []
+
+
+def fit_score(opportunity: dict, company: dict, tenant_id: int) -> dict:
+    """
+    5-dimensional fit score measuring how well a company aligns with an opportunity.
+
+    Uses company-first logic internally: company priorities drive the match.
+    Urgency (complaint volume/velocity) is an opportunity property — kept for ask-amount
+    calculation but not counted in the fit score itself.
+
+    Weights:
+        30%  Sector Alignment      — does the company fund this sector?
+        20%  Geographic Score      — local presence vs national reach
+        20%  Funding Window        — is it the right time in the budget cycle?
+        15%  Historical Similarity — has the company funded similar projects before?
+        15%  Relationship Score    — existing pipeline entries / prior contact
+
+    Returns a dict with all sub-scores, composite fit_score, similar_projects, and
+    recommended_ask_amount (derived from urgency, separate from fit).
+    """
+    company_name = company.get("Company") or company.get("name", "")
+    sector = opportunity.get("csr_sector") or opportunity.get("category", "General CSR")
+    area = opportunity.get("area", "")
+
+    sector_s = score_sector_alignment(sector, company)
+    geo_s = score_geographic(area, company)
+    window_s = score_funding_window()
+    hist_s, similar_projects = score_historical_similarity(sector, company_name, tenant_id)
+    rel_s = score_relationship(company_name, tenant_id)
+
+    composite = round(
+        sector_s * 0.30
+        + geo_s * 0.20
+        + window_s * 0.20
+        + hist_s * 0.15
+        + rel_s * 0.15,
+        1,
+    )
+
+    # Ask amount uses urgency (opportunity property) — kept separate from fit
+    avg_ticket = company.get("avg_ticket_size_lakhs") or 0.0
+    urgency_s = score_urgency(opportunity.get("volume", 0), opportunity.get("velocity_7d", 0))
+    urgency_mult = 1.0 + (urgency_s / 100.0) * 0.5
+    recommended_ask = round(avg_ticket * urgency_mult, 1) if avg_ticket else None
+
+    return {
+        "fit_score": composite,
+        "sector_alignment_score": sector_s,
+        "geographic_score": geo_s,
+        "funding_window_score": window_s,
+        "historical_score": hist_s,
+        "relationship_score": rel_s,
+        "similar_projects": similar_projects,
+        "recommended_ask_amount": recommended_ask,
+    }
+
+
+def _build_recommendation_reason(
+    company_name: str,
+    scores: dict,
+    company: dict,
+    opportunity: dict,
+) -> str:
+    """Generate an MP-readable briefing line explaining why this company is recommended."""
+    parts = []
+    sector_s = scores.get("sector_alignment_score", 0)
+    geo_s = scores.get("geographic_score", 0)
+    window_s = scores.get("funding_window_score", 0)
+    hist_s = scores.get("historical_score", 0)
+    rel_s = scores.get("relationship_score", 0)
+    similar = scores.get("similar_projects", [])
+    area = opportunity.get("area", "the area")
+    opp_sector = opportunity.get("csr_sector") or opportunity.get("category", "this sector")
+
+    if sector_s >= 70:
+        parts.append(f"{opp_sector} is a core priority sector for this company")
+    elif sector_s >= 40:
+        parts.append(f"partial overlap with {opp_sector}")
+
+    if geo_s >= 90:
+        parts.append(f"local presence in {area}")
+    elif geo_s >= 60:
+        parts.append("regional presence in the state")
+    else:
+        parts.append("national-level funder, no local office")
+
+    if similar:
+        prev = similar[0]
+        parts.append(
+            f"funded similar project: {prev.get('title', 'similar work')} "
+            f"in {prev.get('location', 'the region')}"
+        )
+    elif hist_s >= 30:
+        parts.append("prior CSR spending history on record")
+
+    if window_s >= 85:
+        parts.append("Q1 budget window is open")
+    elif window_s >= 60:
+        parts.append("mid-cycle — some budget still available")
+    elif window_s >= 30:
+        parts.append("late cycle — target April for fresh allocation")
+    else:
+        parts.append("Q4 — pitch now to get on next FY plan")
+
+    if rel_s >= 60:
+        parts.append("existing relationship on record")
+    elif rel_s >= 40:
+        parts.append("prior contact established")
+
+    if not parts:
+        return "Potential fit based on sector and geography."
+    return ". ".join(p[0].upper() + p[1:] for p in parts) + "."
+
+
+def _determine_next_action(scores: dict, opportunity: dict) -> tuple:
+    """
+    Returns (action_key, approach_text) for the MP's recommended first step.
+
+    Rules (in priority order):
+    1. Existing relationship + good fit → DPR (skip cold outreach)
+    2. Funded similar projects → Meeting (leverage their track record)
+    3. Local company + no prior contact → Meeting (warm intro first)
+    4. Strong sector fit, no relationship → DPR + MP cover letter
+    5. Default → Meeting
+    """
+    rel_s = scores.get("relationship_score", 0)
+    hist_s = scores.get("historical_score", 0)
+    geo_s = scores.get("geographic_score", 0)
+    sector_s = scores.get("sector_alignment_score", 0)
+    volume = opportunity.get("volume", 0)
+    area = opportunity.get("area", "the constituency")
+
+    if rel_s >= 60:
+        return (
+            "dpr",
+            f"You have an existing relationship. Generate a DPR citing the {volume} verified "
+            f"complaints in {area} and share directly with their CSR head.",
+        )
+    if hist_s >= 50 and sector_s >= 60:
+        return (
+            "meeting",
+            f"This company has funded similar projects before — a warm conversation beats a cold "
+            f"DPR. Request a meeting and bring the {volume}-complaint cluster as evidence.",
+        )
+    if geo_s >= 90 and rel_s == 0:
+        return (
+            "meeting",
+            "Local company with no prior contact. Identify the CSR head (HR or Sustainability "
+            "dept) and request an introductory meeting before sending any formal proposal.",
+        )
+    if sector_s >= 70 and rel_s == 0:
+        return (
+            "dpr",
+            "Strong sector alignment — send a well-structured DPR with an MP cover letter. "
+            "Include grievance data to demonstrate verified community need.",
+        )
+    return (
+        "meeting",
+        "Start with an introductory call to understand their current CSR priorities "
+        "before committing to a formal DPR.",
+    )
+
+
+def build_company_recommendation(opportunity: dict, company: dict, tenant_id: int) -> dict:
+    """
+    Build a full MP-facing recommendation for one company against one opportunity.
+    Includes fit scores, narrative reason, prior project evidence, and next-action guidance.
+    Called by get_top_companies_for_opportunity.
+    """
+    scores = fit_score(opportunity, company, tenant_id)
+    company_name = company.get("Company") or company.get("name", "")
+    similar = scores.get("similar_projects", [])
+    reason = _build_recommendation_reason(company_name, scores, company, opportunity)
+    action_key, approach = _determine_next_action(scores, opportunity)
+
+    return {
+        "name": company_name,
+        "company_id": company.get("id"),
+        "slug": company.get("slug"),
+        "district": company.get("District") or company.get("district"),
+        "sector": company.get("Sector") or company.get("sector"),
+        "company_type": company.get("company_type") or company.get("Company_Type") or company.get("Type"),
+        "avg_ticket_size_lakhs": company.get("avg_ticket_size_lakhs"),
+        "total_3y_lakhs": company.get("total_3y_lakhs"),
+        "match_score": scores["fit_score"],
+        "sector_alignment_score": scores["sector_alignment_score"],
+        "geographic_score": scores["geographic_score"],
+        "funding_window_score": scores["funding_window_score"],
+        "historical_score": scores["historical_score"],
+        "relationship_score": scores["relationship_score"],
+        "recommended_ask_amount": scores.get("recommended_ask_amount"),
+        "reason": reason,
+        "has_funded_similar": len(similar) > 0,
+        "similar_projects": similar,
+        "suggested_next_action": action_key,
+        "suggested_approach": approach,
+    }
+
+
+def get_top_companies_for_opportunity(
+    opportunity: dict,
+    companies: list,
+    tenant_id: int,
+    top_n: int = 3,
+) -> list:
+    """
+    Score all companies against one opportunity using fit_score (5-dimensional),
+    return top N with full MP-facing recommendation enrichment.
+
+    This is the primary entry point for the opportunity-first matching flow.
+    Company-first logic is used internally: company priorities filter the match,
+    but output is surfaced per-opportunity for the MP.
+    """
+    results = []
+    for company in companies:
+        try:
+            rec = build_company_recommendation(opportunity, company, tenant_id)
+            if rec["match_score"] > 0:
+                results.append(rec)
+        except Exception as e:
+            logger.debug(
+                f"fit_score failed for {company.get('Company') or company.get('name')}: {e}"
+            )
+
+    results.sort(key=lambda x: x["match_score"], reverse=True)
+    return results[:top_n]

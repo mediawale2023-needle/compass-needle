@@ -23,38 +23,14 @@ import {
     TrendingUp,
     Activity,
     Building2,
-    Kanban,
-    Plus,
     ChevronRight,
-    Trash2,
-    Users,
-    BarChart3,
     CheckCircle2,
-    XCircle,
     MapPin,
     Zap,
     Target,
 } from 'lucide-react';
 
 const CSR_PILLS = ['All', 'Steel & Mining', 'Information Technology', 'Banking & Finance', 'Healthcare', 'Energy', 'Automobile'];
-
-const PIPELINE_STAGES = [
-    { key: 'identified', label: 'Identified', color: 'text-muted-foreground border-border' },
-    { key: 'contacted', label: 'Contacted', color: 'text-blue-700 border-blue-300' },
-    { key: 'proposal_sent', label: 'Proposal Sent', color: 'text-amber-700 border-amber-400' },
-    { key: 'negotiating', label: 'Negotiating', color: 'text-purple-700 border-purple-400' },
-    { key: 'approved', label: 'Approved', color: 'text-emerald-700 border-emerald-400' },
-    { key: 'funded', label: 'Funded', color: 'text-emerald-800 border-emerald-600' },
-];
-
-const STAGE_NEXT = {
-    identified: 'contacted',
-    contacted: 'proposal_sent',
-    proposal_sent: 'negotiating',
-    negotiating: 'approved',
-    approved: 'funded',
-    funded: null,
-};
 
 // ─── Skeleton for stat cards ───
 function StatSkeleton() {
@@ -88,6 +64,123 @@ function ProjectCardSkeleton() {
     );
 }
 
+// ─── Opportunity Card with embedded company recommendations ───
+function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR }) {
+    return (
+        <Card className={cn('border-l-4', statusColor)}>
+            <CardContent className="p-4">
+                {/* Header */}
+                <div className="flex justify-between items-start">
+                    <div>
+                        <p className="font-semibold text-foreground">{opp.category}</p>
+                        <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1">
+                            <MapPin className="h-3 w-3 shrink-0" />{opp.area}
+                        </p>
+                    </div>
+                    <Badge variant="outline" className={cn(
+                        'shrink-0',
+                        opp.status === 'ready'
+                            ? 'border-destructive text-destructive bg-destructive/5'
+                            : 'border-amber-500 text-amber-600 bg-amber-50',
+                    )}>
+                        {opp.volume} complaints
+                    </Badge>
+                </div>
+
+                {/* Progress bar */}
+                <div className="mt-3 flex items-center gap-3">
+                    <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                        <div
+                            className={cn('h-full rounded-full transition-all',
+                                opp.status === 'ready' ? 'bg-destructive' : 'bg-amber-500')}
+                            style={{ width: `${Math.min(100, opp.progress_pct || 0)}%` }}
+                        />
+                    </div>
+                    <span className="text-xs font-mono text-muted-foreground">{opp.progress_pct || 0}%</span>
+                </div>
+
+                <div className="mt-2 flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                        Sector: <span className="font-semibold text-foreground">{opp.csr_sector}</span>
+                    </p>
+                    {opp.velocity_7d > 0 && (
+                        <span className="text-xs text-amber-600 flex items-center gap-1">
+                            <Zap className="h-3 w-3" />+{opp.velocity_7d} this week
+                        </span>
+                    )}
+                </div>
+
+                {/* Company Recommendations */}
+                {opp.top_companies && opp.top_companies.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                            <Target className="h-3 w-3" />Who to Approach
+                        </p>
+                        {opp.top_companies.map((co, ci) => {
+                            const dprKey = `${opp.category}-${co.name}`;
+                            return (
+                                <div key={ci} className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-foreground truncate">{co.name}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {co.sector}{co.district ? ` · ${co.district}` : ''}
+                                                {co.recommended_ask_amount ? ` · Suggested ask: ₹${co.recommended_ask_amount}L` : ''}
+                                            </p>
+                                        </div>
+                                        <Badge variant="outline" className={cn(
+                                            'shrink-0 font-mono text-xs',
+                                            co.match_score >= 70 && 'border-emerald-500 text-emerald-700 bg-emerald-50',
+                                            co.match_score >= 40 && co.match_score < 70 && 'border-amber-500 text-amber-700 bg-amber-50',
+                                            co.match_score < 40 && 'border-muted-foreground/30 text-muted-foreground',
+                                        )}>
+                                            {co.match_score}% fit
+                                        </Badge>
+                                    </div>
+
+                                    {co.reason && (
+                                        <p className="text-xs text-muted-foreground leading-relaxed">{co.reason}</p>
+                                    )}
+
+                                    {co.has_funded_similar && co.similar_projects?.length > 0 && (
+                                        <p className="text-xs text-primary flex items-center gap-1">
+                                            <CheckCircle2 className="h-3 w-3 shrink-0" />
+                                            Previously funded: {co.similar_projects[0].title}
+                                            {co.similar_projects[0].location ? ` in ${co.similar_projects[0].location}` : ''}
+                                        </p>
+                                    )}
+
+                                    <div className="flex flex-wrap items-start gap-2 pt-0.5">
+                                        {co.suggested_next_action === 'dpr' && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-7 text-xs gap-1.5"
+                                                disabled={dprLoading === dprKey}
+                                                onClick={() => onGenerateDPR(opp, co)}
+                                            >
+                                                {dprLoading === dprKey
+                                                    ? <><Loader2 className="h-3 w-3 animate-spin" />Generating…</>
+                                                    : 'Generate DPR'
+                                                }
+                                            </Button>
+                                        )}
+                                        {co.suggested_approach && (
+                                            <p className="text-xs text-muted-foreground leading-relaxed flex-1 min-w-0">
+                                                {co.suggested_approach}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 // ─── Error card ───
 function ErrorCard({ message, onRetry }) {
     return (
@@ -111,11 +204,11 @@ export default function CSRPage() {
     const router = useRouter();
 
     // ─── Live Data State ───
-    const [proposals, setProposals] = useState({ candidates: [], monitoring: [] });
+    const [opportunities, setOpportunities] = useState([]);
+    const [opportunitiesLoading, setOpportunitiesLoading] = useState(true);
+    const [opportunitiesError, setOpportunitiesError] = useState(null);
     const [strategicMatches, setStrategicMatches] = useState([]);
-    const [proposalsLoading, setProposalsLoading] = useState(true);
     const [matchesLoading, setMatchesLoading] = useState(true);
-    const [proposalsError, setProposalsError] = useState(null);
     const [matchesError, setMatchesError] = useState(null);
 
     // ─── Company Database State ───
@@ -135,45 +228,18 @@ export default function CSRPage() {
     // ─── Tab State ───
     const [activeTab, setActiveTab] = useState('live');
 
-    // ─── Pipeline State ───
-    const [pipelineByStage, setPipelineByStage] = useState({});
-    const [pipelineLoading, setPipelineLoading] = useState(false);
-    const [pipelineError, setPipelineError] = useState(null);
-    const [addingToStage, setAddingToStage] = useState(null); // stage key when add form is open
-    const [newCompanyName, setNewCompanyName] = useState('');
-    const [newCompanySector, setNewCompanySector] = useState('');
-    const [addLoading, setAddLoading] = useState(false);
-    const [movingId, setMovingId] = useState(null);
-
-    // ─── NGO Directory State ───
-    const [ngoPartners, setNgoPartners] = useState([]);
-    const [ngoLoading, setNgoLoading] = useState(false);
-    const [ngoError, setNgoError] = useState(null);
-    const [ngoSectorFilter, setNgoSectorFilter] = useState('');
-    const [ngoRiskFilter, setNgoRiskFilter] = useState('');
-    const [ngoSectors, setNgoSectors] = useState([]);
-
-    // ─── Analytics State ───
-    const [analytics, setAnalytics] = useState(null);
-    const [analyticsLoading, setAnalyticsLoading] = useState(false);
-    const [syncLoading, setSyncLoading] = useState(false);
-    const [syncMessage, setSyncMessage] = useState('');
-
-    // ─── Fetch live proposals from grievance data ───
-    const fetchProposals = async () => {
-        setProposalsLoading(true);
-        setProposalsError(null);
+    // ─── Fetch enriched opportunities with company recommendations ───
+    const fetchOpportunities = async () => {
+        setOpportunitiesLoading(true);
+        setOpportunitiesError(null);
         try {
-            const data = await apiGet('/api/csr/proposals');
-            setProposals({
-                candidates: data.candidates || [],
-                monitoring: data.monitoring || [],
-            });
+            const data = await apiGet('/api/csr/opportunities');
+            setOpportunities(data.opportunities || []);
         } catch (err) {
-            console.error('Proposals fetch failed:', err);
-            setProposalsError('Failed to load live grievance data.');
+            console.error('Opportunities fetch failed:', err);
+            setOpportunitiesError('Failed to load opportunities.');
         } finally {
-            setProposalsLoading(false);
+            setOpportunitiesLoading(false);
         }
     };
 
@@ -192,111 +258,8 @@ export default function CSRPage() {
         }
     };
 
-    useEffect(() => { fetchProposals(); }, []);
+    useEffect(() => { fetchOpportunities(); }, []);
     useEffect(() => { fetchMatches(); }, []);
-
-    // ─── Pipeline helpers ───
-    const fetchPipeline = async () => {
-        setPipelineLoading(true);
-        setPipelineError(null);
-        try {
-            const data = await apiGet('/api/csr/pipeline');
-            setPipelineByStage(data.by_stage || {});
-        } catch {
-            setPipelineError('Failed to load pipeline.');
-        } finally {
-            setPipelineLoading(false);
-        }
-    };
-    useEffect(() => { fetchPipeline(); }, []);
-
-    const addToPipeline = async (stage) => {
-        if (!newCompanyName.trim()) return;
-        setAddLoading(true);
-        try {
-            await apiPost('/api/csr/pipeline', {
-                company_name: newCompanyName.trim(),
-                sector: newCompanySector.trim(),
-                stage,
-            });
-            setNewCompanyName('');
-            setNewCompanySector('');
-            setAddingToStage(null);
-            await fetchPipeline();
-        } catch {
-            // keep form open on failure
-        } finally {
-            setAddLoading(false);
-        }
-    };
-
-    const moveToNextStage = async (entry) => {
-        const next = STAGE_NEXT[entry.stage];
-        if (!next) return;
-        setMovingId(entry.id);
-        try {
-            await apiPatch(`/api/csr/pipeline/${entry.id}`, { stage: next });
-            await fetchPipeline();
-        } catch {
-            // silently fail, user can retry
-        } finally {
-            setMovingId(null);
-        }
-    };
-
-    const deleteEntry = async (id) => {
-        try {
-            await apiDelete(`/api/csr/pipeline/${id}`);
-            await fetchPipeline();
-        } catch {
-            // silently fail
-        }
-    };
-
-    // ─── Fetch NGO partners ───
-    const fetchNGOs = async () => {
-        setNgoLoading(true);
-        setNgoError(null);
-        try {
-            const params = new URLSearchParams();
-            if (ngoSectorFilter) params.set('sector', ngoSectorFilter);
-            if (ngoRiskFilter) params.set('risk_level', ngoRiskFilter);
-            const data = await apiGet(`/api/csr/partners?${params}`);
-            setNgoPartners(data.partners || []);
-            setNgoSectors(data.sectors || []);
-        } catch {
-            setNgoError('Failed to load NGO partners.');
-        } finally {
-            setNgoLoading(false);
-        }
-    };
-
-    // ─── Fetch analytics ───
-    const fetchAnalytics = async () => {
-        setAnalyticsLoading(true);
-        try {
-            const data = await apiGet('/api/csr/analytics');
-            setAnalytics(data);
-        } catch {
-            // silently fail
-        } finally {
-            setAnalyticsLoading(false);
-        }
-    };
-
-    const triggerSync = async () => {
-        setSyncLoading(true);
-        setSyncMessage('');
-        try {
-            const data = await apiPost('/api/csr/opportunities/sync', {});
-            setSyncMessage(data.message || 'Sync complete.');
-            await fetchAnalytics();
-        } catch {
-            setSyncMessage('Sync failed. Please try again.');
-        } finally {
-            setSyncLoading(false);
-        }
-    };
 
     // ─── Fetch CSR company database ───
     const fetchCompanies = async () => {
@@ -316,8 +279,6 @@ export default function CSRPage() {
         }
     };
     useEffect(() => { fetchCompanies(); }, [search, selectedSector]);
-    useEffect(() => { fetchNGOs(); }, [ngoSectorFilter, ngoRiskFilter]);
-    useEffect(() => { fetchAnalytics(); }, []);
 
     // ─── Generate DPR from live data ───
     const generateDPR = async (match, company) => {
@@ -381,6 +342,36 @@ export default function CSRPage() {
         }
     };
 
+    // ─── Generate DPR from opportunity-first recommendation ───
+    const generateDPRFromOpportunity = async (opp, company) => {
+        const key = `${opp.category}-${company.name}`;
+        setDprLoading(key);
+        try {
+            const data = await apiPost('/api/csr/generate-dpr', {
+                category: opp.category,
+                area: opp.area,
+                volume: opp.volume,
+                company: company.name,
+                sector: company.sector || opp.csr_sector || '',
+            }, { timeout: AI_TIMEOUT, noRetry: true });
+            setOpenSheet({
+                type: 'dpr',
+                key,
+                title: `DPR — ${opp.category} × ${company.name}`,
+                content: data.content,
+            });
+        } catch {
+            setOpenSheet({
+                type: 'dpr',
+                key,
+                title: `DPR — ${company.name}`,
+                content: 'Error generating DPR. Please try again.',
+            });
+        } finally {
+            setDprLoading(null);
+        }
+    };
+
     const downloadText = (text, filename) => {
         const blob = new Blob([text], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
@@ -389,11 +380,9 @@ export default function CSRPage() {
         URL.revokeObjectURL(url);
     };
 
-    const totalCandidates = proposals.candidates.length;
-    const totalMonitoring = proposals.monitoring.length;
+    const opportunitiesReady = opportunities.filter(o => o.status === 'ready').length;
+    const opportunitiesMonitoring = opportunities.filter(o => o.status === 'monitoring').length;
     const totalMatches = strategicMatches.length;
-    const totalPipeline = Object.values(pipelineByStage).reduce((sum, arr) => sum + arr.length, 0);
-    const fundedCount = (pipelineByStage['funded'] || []).length;
 
     return (
         <div className="space-y-6">
@@ -406,7 +395,7 @@ export default function CSRPage() {
 
             {/* ─── Summary Stats ─── */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {proposalsLoading ? (
+                {opportunitiesLoading ? (
                     <>
                         <StatSkeleton />
                         <StatSkeleton />
@@ -418,7 +407,7 @@ export default function CSRPage() {
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                                     CSR-Ready Projects
                                 </p>
-                                <p className="text-3xl font-bold text-destructive mt-1">{totalCandidates}</p>
+                                <p className="text-3xl font-bold text-destructive mt-1">{opportunitiesReady}</p>
                                 <p className="text-xs text-muted-foreground mt-1">200+ verified complaints</p>
                             </CardContent>
                         </Card>
@@ -427,7 +416,7 @@ export default function CSRPage() {
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                                     Monitoring
                                 </p>
-                                <p className="text-3xl font-bold text-amber-600 mt-1">{totalMonitoring}</p>
+                                <p className="text-3xl font-bold text-amber-600 mt-1">{opportunitiesMonitoring}</p>
                                 <p className="text-xs text-muted-foreground mt-1">100–199 complaints, approaching threshold</p>
                             </CardContent>
                         </Card>
@@ -446,21 +435,6 @@ export default function CSRPage() {
                         </CardContent>
                     </Card>
                 )}
-                {pipelineLoading ? (
-                    <StatSkeleton />
-                ) : (
-                    <Card className="border-l-4 border-l-emerald-500">
-                        <CardContent className="p-5">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                Pipeline
-                            </p>
-                            <p className="text-3xl font-bold text-emerald-600 mt-1">{totalPipeline}</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                                {fundedCount > 0 ? `${fundedCount} funded` : 'Companies being tracked'}
-                            </p>
-                        </CardContent>
-                    </Card>
-                )}
             </div>
 
             {/* ─── Tab Navigation ─── */}
@@ -469,7 +443,7 @@ export default function CSRPage() {
                     <TabsList className="w-max min-w-full sm:w-auto">
                         <TabsTrigger value="live">
                             <Activity className="h-3.5 w-3.5 mr-1.5" />
-                            Live Projects ({totalCandidates + totalMonitoring})
+                            Opportunities ({opportunities.length})
                         </TabsTrigger>
                         <TabsTrigger value="matches">
                             <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
@@ -479,33 +453,21 @@ export default function CSRPage() {
                             <Building2 className="h-3.5 w-3.5 mr-1.5" />
                             Company Database
                         </TabsTrigger>
-                        <TabsTrigger value="pipeline">
-                            <Kanban className="h-3.5 w-3.5 mr-1.5" />
-                            Pipeline
-                        </TabsTrigger>
-                        <TabsTrigger value="ngo">
-                            <Users className="h-3.5 w-3.5 mr-1.5" />
-                            NGO Partners
-                        </TabsTrigger>
-                        <TabsTrigger value="analytics">
-                            <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
-                            Analytics
-                        </TabsTrigger>
                     </TabsList>
                 </div>
 
                 {/* ═══════════════════════════════════════════
-                    TAB 1: Live Grievance Clusters → CSR Projects
+                    TAB 1: Opportunities → Who to Approach
                    ═══════════════════════════════════════════ */}
                 <TabsContent value="live" className="mt-6">
                     <div className="space-y-6">
-                        {proposalsLoading ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {[...Array(4)].map((_, i) => <ProjectCardSkeleton key={i} />)}
+                        {opportunitiesLoading ? (
+                            <div className="space-y-4">
+                                {[...Array(3)].map((_, i) => <ProjectCardSkeleton key={i} />)}
                             </div>
-                        ) : proposalsError ? (
-                            <ErrorCard message={proposalsError} onRetry={fetchProposals} />
-                        ) : totalCandidates === 0 && totalMonitoring === 0 ? (
+                        ) : opportunitiesError ? (
+                            <ErrorCard message={opportunitiesError} onRetry={fetchOpportunities} />
+                        ) : opportunities.length === 0 ? (
                             <Card>
                                 <CardContent className="py-12 text-center">
                                     <p className="text-sm text-muted-foreground">No grievance clusters have reached the threshold yet.</p>
@@ -517,104 +479,44 @@ export default function CSRPage() {
                         ) : (
                             <>
                                 {/* CSR-Ready (200+) */}
-                                {totalCandidates > 0 && (
+                                {opportunitiesReady > 0 && (
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-2">
                                             <Badge variant="destructive">CSR-Ready</Badge>
-                                            <span className="text-xs text-muted-foreground">200+ verified complaints</span>
+                                            <span className="text-xs text-muted-foreground">200+ verified complaints — pitch companies now</span>
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {proposals.candidates.map((c, i) => (
-                                                <Card key={i} className="border-l-4 border-l-destructive">
-                                                    <CardContent className="p-4">
-                                                        <div className="flex justify-between items-start">
-                                                            <div>
-                                                                <p className="font-semibold text-foreground">{c.category}</p>
-                                                                <p className="text-sm text-muted-foreground mt-0.5">{c.area}</p>
-                                                            </div>
-                                                            <Badge variant="outline" className="border-destructive text-destructive bg-destructive/5 shrink-0">
-                                                                {c.volume} complaints
-                                                            </Badge>
-                                                        </div>
-                                                        <div className="mt-3 flex items-center gap-3">
-                                                            <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
-                                                                <div
-                                                                    className="h-full rounded-full bg-destructive transition-all"
-                                                                    style={{ width: `${Math.min(100, c.progress_pct)}%` }}
-                                                                />
-                                                            </div>
-                                                            <span className="text-xs font-mono text-muted-foreground">{c.progress_pct}%</span>
-                                                        </div>
-                                                        <div className="mt-2 flex items-center justify-between">
-                                                            <p className="text-xs text-muted-foreground">
-                                                                Sector: <span className="font-semibold text-foreground">{c.csr_sector}</span>
-                                                            </p>
-                                                            {c.opportunity_score != null && (
-                                                                <span className="text-xs font-mono text-primary">
-                                                                    Score {c.opportunity_score}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        {c.velocity_7d > 0 && (
-                                                            <p className="mt-1 text-xs text-amber-600">
-                                                                +{c.velocity_7d} in last 7 days
-                                                            </p>
-                                                        )}
-                                                    </CardContent>
-                                                </Card>
+                                        <div className="space-y-4">
+                                            {opportunities.filter(o => o.status === 'ready').map((opp, i) => (
+                                                <OpportunityCard
+                                                    key={i}
+                                                    opp={opp}
+                                                    statusColor="border-l-destructive"
+                                                    dprLoading={dprLoading}
+                                                    onGenerateDPR={generateDPRFromOpportunity}
+                                                />
                                             ))}
                                         </div>
                                     </div>
                                 )}
 
                                 {/* Monitoring (100–199) */}
-                                {totalMonitoring > 0 && (
+                                {opportunitiesMonitoring > 0 && (
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-2">
                                             <Badge variant="outline" className="border-amber-500 text-amber-600 bg-amber-50">
                                                 Monitoring
                                             </Badge>
-                                            <span className="text-xs text-muted-foreground">Approaching threshold</span>
+                                            <span className="text-xs text-muted-foreground">Approaching threshold — identify companies early</span>
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {proposals.monitoring.map((c, i) => (
-                                                <Card key={i} className="border-l-4 border-l-amber-500">
-                                                    <CardContent className="p-4">
-                                                        <div className="flex justify-between items-start">
-                                                            <div>
-                                                                <p className="font-semibold text-foreground">{c.category}</p>
-                                                                <p className="text-sm text-muted-foreground mt-0.5">{c.area}</p>
-                                                            </div>
-                                                            <Badge variant="outline" className="border-amber-500 text-amber-600 bg-amber-50 shrink-0">
-                                                                {c.volume} complaints
-                                                            </Badge>
-                                                        </div>
-                                                        <div className="mt-3 flex items-center gap-3">
-                                                            <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
-                                                                <div
-                                                                    className="h-full rounded-full bg-amber-500 transition-all"
-                                                                    style={{ width: `${Math.min(100, c.progress_pct)}%` }}
-                                                                />
-                                                            </div>
-                                                            <span className="text-xs font-mono text-muted-foreground">{c.progress_pct}%</span>
-                                                        </div>
-                                                        <div className="mt-2 flex items-center justify-between">
-                                                            <p className="text-xs text-muted-foreground">
-                                                                Sector: <span className="font-semibold text-foreground">{c.csr_sector}</span>
-                                                            </p>
-                                                            {c.opportunity_score != null && (
-                                                                <span className="text-xs font-mono text-amber-600">
-                                                                    Score {c.opportunity_score}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        {c.velocity_7d > 0 && (
-                                                            <p className="mt-1 text-xs text-amber-600">
-                                                                +{c.velocity_7d} in last 7 days
-                                                            </p>
-                                                        )}
-                                                    </CardContent>
-                                                </Card>
+                                        <div className="space-y-4">
+                                            {opportunities.filter(o => o.status === 'monitoring').map((opp, i) => (
+                                                <OpportunityCard
+                                                    key={i}
+                                                    opp={opp}
+                                                    statusColor="border-l-amber-500"
+                                                    dprLoading={dprLoading}
+                                                    onGenerateDPR={generateDPRFromOpportunity}
+                                                />
                                             ))}
                                         </div>
                                     </div>
@@ -877,499 +779,6 @@ export default function CSRPage() {
                     </div>
                 </TabsContent>
 
-                {/* ═══════════════════════════════════════════
-                    TAB 4: Funding Pipeline Board
-                   ═══════════════════════════════════════════ */}
-                <TabsContent value="pipeline" className="mt-6">
-                    <div className="space-y-4">
-                        <div>
-                            <p className="text-sm text-muted-foreground">
-                                Track companies through your CSR funding relationship pipeline.
-                            </p>
-                        </div>
-
-                        {pipelineLoading ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {[...Array(3)].map((_, i) => (
-                                    <Card key={i}>
-                                        <CardHeader className="pb-2">
-                                            <Skeleton className="h-4 w-24" />
-                                        </CardHeader>
-                                        <CardContent className="space-y-2">
-                                            {[...Array(2)].map((_, j) => <Skeleton key={j} className="h-16 w-full rounded-lg" />)}
-                                        </CardContent>
-                                    </Card>
-                                ))}
-                            </div>
-                        ) : pipelineError ? (
-                            <ErrorCard message={pipelineError} onRetry={fetchPipeline} />
-                        ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {PIPELINE_STAGES.map(stage => {
-                                    const entries = pipelineByStage[stage.key] || [];
-                                    const isAdding = addingToStage === stage.key;
-                                    return (
-                                        <Card key={stage.key} className="flex flex-col">
-                                            <CardHeader className="pb-3 shrink-0">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2">
-                                                        <Badge variant="outline" className={cn("text-xs", stage.color)}>
-                                                            {stage.label}
-                                                        </Badge>
-                                                        <span className="text-xs text-muted-foreground font-mono">
-                                                            {entries.length}
-                                                        </span>
-                                                    </div>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-6 w-6"
-                                                        onClick={() => setAddingToStage(isAdding ? null : stage.key)}
-                                                        aria-label={`Add to ${stage.label}`}
-                                                    >
-                                                        <Plus className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </div>
-                                            </CardHeader>
-                                            <CardContent className="flex-1 space-y-2 pt-0">
-                                                {/* Add form */}
-                                                {isAdding && (
-                                                    <div className="border border-dashed border-border rounded-lg p-3 space-y-2 bg-muted/30">
-                                                        <Input
-                                                            placeholder="Company name"
-                                                            value={newCompanyName}
-                                                            onChange={e => setNewCompanyName(e.target.value)}
-                                                            className="h-7 text-sm"
-                                                            autoFocus
-                                                        />
-                                                        <Input
-                                                            placeholder="Sector (optional)"
-                                                            value={newCompanySector}
-                                                            onChange={e => setNewCompanySector(e.target.value)}
-                                                            className="h-7 text-sm"
-                                                        />
-                                                        <div className="flex gap-2">
-                                                            <Button
-                                                                size="sm"
-                                                                className="h-7 text-xs flex-1"
-                                                                disabled={addLoading || !newCompanyName.trim()}
-                                                                onClick={() => addToPipeline(stage.key)}
-                                                            >
-                                                                {addLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Add'}
-                                                            </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="h-7 text-xs"
-                                                                onClick={() => { setAddingToStage(null); setNewCompanyName(''); setNewCompanySector(''); }}
-                                                            >
-                                                                Cancel
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* Entry cards */}
-                                                {entries.length === 0 && !isAdding ? (
-                                                    <p className="text-xs text-muted-foreground/60 text-center py-4 italic">
-                                                        No companies here yet
-                                                    </p>
-                                                ) : (
-                                                    entries.map(entry => {
-                                                        const nextStage = STAGE_NEXT[entry.stage];
-                                                        const nextLabel = nextStage
-                                                            ? PIPELINE_STAGES.find(s => s.key === nextStage)?.label
-                                                            : null;
-                                                        return (
-                                                            <div
-                                                                key={entry.id}
-                                                                className="border border-border rounded-lg p-3 bg-card space-y-1.5 group"
-                                                            >
-                                                                <div className="flex items-start justify-between gap-2">
-                                                                    <p className="text-sm font-semibold text-foreground leading-snug">
-                                                                        {entry.company_name}
-                                                                    </p>
-                                                                    <button
-                                                                        onClick={() => deleteEntry(entry.id)}
-                                                                        className="shrink-0 text-muted-foreground/40 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                        aria-label="Remove from pipeline"
-                                                                    >
-                                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                                    </button>
-                                                                </div>
-                                                                {entry.sector && (
-                                                                    <p className="text-xs text-muted-foreground">{entry.sector}</p>
-                                                                )}
-                                                                {entry.estimated_amount && (
-                                                                    <p className="text-xs font-mono text-foreground">{entry.estimated_amount}</p>
-                                                                )}
-                                                                {nextLabel && (
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="sm"
-                                                                        className="h-6 text-xs w-full justify-start gap-1 text-muted-foreground hover:text-foreground px-0"
-                                                                        disabled={movingId === entry.id}
-                                                                        onClick={() => moveToNextStage(entry)}
-                                                                    >
-                                                                        {movingId === entry.id
-                                                                            ? <Loader2 className="h-3 w-3 animate-spin" />
-                                                                            : <ChevronRight className="h-3 w-3" />
-                                                                        }
-                                                                        Move to {nextLabel}
-                                                                    </Button>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })
-                                                )}
-                                            </CardContent>
-                                        </Card>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-                </TabsContent>
-
-                {/* ═══════════════════════════════════════════
-                    TAB 5: NGO Partner Directory
-                   ═══════════════════════════════════════════ */}
-                <TabsContent value="ngo" className="mt-6">
-                    <div className="space-y-4">
-                        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-                            <div>
-                                <h2 className="text-base font-semibold text-foreground">NGO Implementation Partners</h2>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    Pre-screened implementation partners for CSR projects. Green = verified, Red = flagged.
-                                </p>
-                            </div>
-                            <div className="flex gap-2 flex-wrap">
-                                <select
-                                    className="text-xs border border-border rounded-md px-2 py-1.5 bg-background text-foreground"
-                                    value={ngoRiskFilter}
-                                    onChange={e => setNgoRiskFilter(e.target.value)}
-                                >
-                                    <option value="">All Risk Levels</option>
-                                    <option value="Green">Green (Verified)</option>
-                                    <option value="Yellow">Yellow (Unverified)</option>
-                                    <option value="Red">Red (Flagged)</option>
-                                </select>
-                                <select
-                                    className="text-xs border border-border rounded-md px-2 py-1.5 bg-background text-foreground"
-                                    value={ngoSectorFilter}
-                                    onChange={e => setNgoSectorFilter(e.target.value)}
-                                >
-                                    <option value="">All Sectors</option>
-                                    {ngoSectors.map(s => (
-                                        <option key={s} value={s}>{s}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        {ngoLoading ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                                {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-32 rounded-lg" />)}
-                            </div>
-                        ) : ngoError ? (
-                            <ErrorCard message={ngoError} onRetry={fetchNGOs} />
-                        ) : ngoPartners.length === 0 ? (
-                            <Card>
-                                <CardContent className="py-12 text-center text-muted-foreground text-sm">
-                                    No NGO partners found.
-                                </CardContent>
-                            </Card>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                                {ngoPartners.map((ngo, i) => {
-                                    const isGreen = ngo.Risk_Level === 'Green';
-                                    const isRed = ngo.Risk_Level === 'Red';
-                                    return (
-                                        <Card key={i} className={cn(
-                                            "border-l-4",
-                                            isGreen ? "border-l-emerald-500" : isRed ? "border-l-destructive" : "border-l-amber-400"
-                                        )}>
-                                            <CardContent className="p-4 space-y-2">
-                                                <div className="flex items-start justify-between gap-2">
-                                                    <p className="text-sm font-semibold text-foreground leading-snug">
-                                                        {ngo.NGO_Name}
-                                                    </p>
-                                                    <Badge
-                                                        variant={isGreen ? "default" : isRed ? "destructive" : "secondary"}
-                                                        className="shrink-0 text-[10px]"
-                                                    >
-                                                        {isGreen ? (
-                                                            <><CheckCircle2 className="h-2.5 w-2.5 mr-1" />{ngo.Risk_Level}</>
-                                                        ) : isRed ? (
-                                                            <><XCircle className="h-2.5 w-2.5 mr-1" />{ngo.Risk_Level}</>
-                                                        ) : ngo.Risk_Level}
-                                                    </Badge>
-                                                </div>
-                                                {ngo.Sector && (
-                                                    <p className="text-xs text-muted-foreground">{ngo.Sector}</p>
-                                                )}
-                                                {ngo.Capabilities && (
-                                                    <p className="text-xs text-foreground/70 line-clamp-2">{ngo.Capabilities}</p>
-                                                )}
-                                                <div className="flex gap-3 text-[10px] text-muted-foreground font-mono">
-                                                    {ngo.Darpan_ID && <span>Darpan: {ngo.Darpan_ID}</span>}
-                                                    {ngo.CSR_1_Number && <span>CSR-1: {ngo.CSR_1_Number}</span>}
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-                </TabsContent>
-
-                {/* ═══════════════════════════════════════════
-                    TAB 6: Analytics Dashboard
-                   ═══════════════════════════════════════════ */}
-                <TabsContent value="analytics" className="mt-6">
-                    <div className="space-y-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="text-base font-semibold text-foreground">CSR Intelligence Analytics</h2>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    Pipeline conversion, geographic heatmap, funding totals, and opportunity scoreboard.
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {syncMessage && (
-                                    <span className="text-xs text-muted-foreground">{syncMessage}</span>
-                                )}
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={triggerSync}
-                                    disabled={syncLoading}
-                                    className="gap-1.5"
-                                >
-                                    {syncLoading
-                                        ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Syncing…</>
-                                        : <><RefreshCw className="h-3.5 w-3.5" /> Sync Opportunities</>
-                                    }
-                                </Button>
-                            </div>
-                        </div>
-
-                        {analyticsLoading ? (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {[1,2,3,4].map(i => <Skeleton key={i} className="h-24 rounded-lg" />)}
-                            </div>
-                        ) : analytics ? (
-                            <>
-                                {/* KPI Row */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <Card className="border-l-4 border-l-primary">
-                                        <CardContent className="p-4">
-                                            <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Companies in DB</p>
-                                            <p className="text-2xl font-bold text-foreground mt-1">{analytics.total_companies_in_db ?? '—'}</p>
-                                        </CardContent>
-                                    </Card>
-                                    <Card className="border-l-4 border-l-destructive">
-                                        <CardContent className="p-4">
-                                            <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Zero Spend Violators</p>
-                                            <p className="text-2xl font-bold text-destructive mt-1">{analytics.watchdog_zero_spend_count ?? '—'}</p>
-                                        </CardContent>
-                                    </Card>
-                                    <Card className="border-l-4 border-l-emerald-500">
-                                        <CardContent className="p-4">
-                                            <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Total Utilised (₹L)</p>
-                                            <p className="text-2xl font-bold text-emerald-600 mt-1">
-                                                {analytics.constituency_funding_totals?.total_utilised
-                                                    ? `₹${analytics.constituency_funding_totals.total_utilised.toFixed(1)}L`
-                                                    : '—'}
-                                            </p>
-                                        </CardContent>
-                                    </Card>
-                                    <Card className="border-l-4 border-l-amber-500">
-                                        <CardContent className="p-4">
-                                            <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Pipeline Potential (₹L)</p>
-                                            <p className="text-2xl font-bold text-amber-600 mt-1">
-                                                {analytics.pipeline_potential_lakhs
-                                                    ? `₹${parseFloat(analytics.pipeline_potential_lakhs).toFixed(0)}L`
-                                                    : '—'}
-                                            </p>
-                                        </CardContent>
-                                    </Card>
-                                </div>
-
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    {/* Pipeline Funnel */}
-                                    {analytics.pipeline_funnel?.length > 0 && (
-                                        <Card>
-                                            <CardHeader className="pb-3">
-                                                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
-                                                    <Target className="h-4 w-4 text-primary" />
-                                                    Pipeline Funnel
-                                                </CardTitle>
-                                            </CardHeader>
-                                            <CardContent className="space-y-2">
-                                                {analytics.pipeline_funnel.map((stage, i) => (
-                                                    <div key={stage.stage} className="flex items-center gap-3">
-                                                        <span className="text-xs text-muted-foreground w-28 shrink-0 capitalize">
-                                                            {stage.stage.replace('_', ' ')}
-                                                        </span>
-                                                        <div className="flex-1 bg-muted rounded-full h-2">
-                                                            <div
-                                                                className="h-2 rounded-full bg-primary transition-all"
-                                                                style={{
-                                                                    width: `${Math.max(4, (stage.count / Math.max(...analytics.pipeline_funnel.map(s => s.count), 1)) * 100)}%`
-                                                                }}
-                                                            />
-                                                        </div>
-                                                        <span className="text-xs font-mono text-foreground w-8 text-right">{stage.count}</span>
-                                                    </div>
-                                                ))}
-                                            </CardContent>
-                                        </Card>
-                                    )}
-
-                                    {/* Top Sectors */}
-                                    {analytics.top_sectors?.length > 0 && (
-                                        <Card>
-                                            <CardHeader className="pb-3">
-                                                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
-                                                    <Zap className="h-4 w-4 text-amber-500" />
-                                                    Top Grievance Sectors
-                                                </CardTitle>
-                                            </CardHeader>
-                                            <CardContent className="space-y-2">
-                                                {analytics.top_sectors.slice(0, 6).map((s, i) => (
-                                                    <div key={s.category} className="flex items-center gap-3">
-                                                        <span className="text-xs text-muted-foreground w-32 shrink-0 truncate" title={s.category}>
-                                                            {s.category}
-                                                        </span>
-                                                        <div className="flex-1 bg-muted rounded-full h-2">
-                                                            <div
-                                                                className="h-2 rounded-full bg-amber-500 transition-all"
-                                                                style={{
-                                                                    width: `${Math.max(4, (s.total_volume / Math.max(...analytics.top_sectors.map(x => x.total_volume), 1)) * 100)}%`
-                                                                }}
-                                                            />
-                                                        </div>
-                                                        <span className="text-xs font-mono text-foreground w-10 text-right">{s.total_volume}</span>
-                                                    </div>
-                                                ))}
-                                            </CardContent>
-                                        </Card>
-                                    )}
-
-                                    {/* Opportunity Scoreboard */}
-                                    {analytics.opportunity_scoreboard?.length > 0 && (
-                                        <Card className="lg:col-span-2">
-                                            <CardHeader className="pb-3">
-                                                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
-                                                    <TrendingUp className="h-4 w-4 text-primary" />
-                                                    Opportunity Scoreboard
-                                                </CardTitle>
-                                                <CardDescription className="text-xs">Top-scored clusters ranked by opportunity score (0–100)</CardDescription>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <div className="space-y-2">
-                                                    {analytics.opportunity_scoreboard.map((opp, i) => (
-                                                        <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                                                            <span className="text-xs font-mono text-muted-foreground w-4">{i + 1}</span>
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="text-sm font-medium text-foreground truncate">
-                                                                    {opp.category}
-                                                                </p>
-                                                                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                                                    <MapPin className="h-3 w-3" />
-                                                                    {opp.location || 'Unknown'} · {opp.complaint_count} complaints
-                                                                </p>
-                                                            </div>
-                                                            <div className="flex items-center gap-2 shrink-0">
-                                                                <Badge
-                                                                    variant={opp.status === 'ready' ? 'default' : 'secondary'}
-                                                                    className="text-[10px]"
-                                                                >
-                                                                    {opp.status}
-                                                                </Badge>
-                                                                <span className="text-sm font-bold text-primary w-10 text-right">
-                                                                    {opp.opportunity_score?.toFixed(0)}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    )}
-
-                                    {/* Geographic Heatmap */}
-                                    {analytics.geographic_heatmap?.length > 0 && (
-                                        <Card className="lg:col-span-2">
-                                            <CardHeader className="pb-3">
-                                                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
-                                                    <MapPin className="h-4 w-4 text-blue-500" />
-                                                    Geographic Heatmap
-                                                </CardTitle>
-                                                <CardDescription className="text-xs">Complaint volume by area — highest priority zones</CardDescription>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                                                    {analytics.geographic_heatmap.slice(0, 16).map((area, i) => {
-                                                        const maxComplaints = analytics.geographic_heatmap[0]?.total_complaints || 1;
-                                                        const intensity = area.total_complaints / maxComplaints;
-                                                        return (
-                                                            <div
-                                                                key={area.district}
-                                                                className="rounded-lg p-3 text-center"
-                                                                style={{
-                                                                    backgroundColor: `rgba(239, 68, 68, ${0.1 + intensity * 0.6})`,
-                                                                    border: `1px solid rgba(239, 68, 68, ${0.2 + intensity * 0.5})`
-                                                                }}
-                                                            >
-                                                                <p className="text-xs font-semibold text-foreground truncate" title={area.district}>
-                                                                    {area.district || 'Unknown'}
-                                                                </p>
-                                                                <p className="text-lg font-bold text-foreground">{area.total_complaints}</p>
-                                                                <p className="text-[10px] text-muted-foreground">{area.cluster_count} clusters</p>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    )}
-
-                                    {/* Beneficiary Impact */}
-                                    {analytics.constituency_funding_totals?.total_beneficiaries > 0 && (
-                                        <Card>
-                                            <CardHeader className="pb-3">
-                                                <CardTitle className="text-sm font-semibold">Constituency Impact</CardTitle>
-                                            </CardHeader>
-                                            <CardContent className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <p className="text-xs text-muted-foreground">Total Projects</p>
-                                                    <p className="text-2xl font-bold text-foreground">
-                                                        {analytics.constituency_funding_totals.project_count || 0}
-                                                    </p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-muted-foreground">Beneficiaries</p>
-                                                    <p className="text-2xl font-bold text-emerald-600">
-                                                        {(analytics.constituency_funding_totals.total_beneficiaries || 0).toLocaleString()}
-                                                    </p>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    )}
-                                </div>
-                            </>
-                        ) : (
-                            <Card>
-                                <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                                    No analytics data available. Click "Sync Opportunities" to generate.
-                                </CardContent>
-                            </Card>
-                        )}
-                    </div>
-                </TabsContent>
             </Tabs>
 
             {/* ═══════════════════════════════════════════

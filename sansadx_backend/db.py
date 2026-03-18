@@ -434,52 +434,6 @@ class OpportunityCompanyMatch(Base):
     company = relationship("CSRCompany", backref="opportunity_matches")
 
 
-class CSRImpactReport(Base):
-    """
-    Tracks project completion and generates utilisation certificates.
-    Created when a pipeline entry moves to 'funded' and project completes.
-    """
-    __tablename__ = "csr_impact_reports"
-
-    id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
-    pipeline_entry_id = Column(Integer, ForeignKey("csr_pipeline_entries.id"), nullable=True)
-    company_name = Column(String, nullable=False)
-    project_title = Column(String, nullable=False)
-    sector = Column(String)
-    location = Column(String)
-
-    # Financials
-    sanctioned_amount_lakhs = Column(Float, nullable=True)
-    utilised_amount_lakhs = Column(Float, nullable=True)
-    unspent_amount_lakhs = Column(Float, nullable=True)
-
-    # Impact metrics
-    beneficiary_count = Column(Integer, nullable=True)
-    beneficiary_type = Column(String, nullable=True)   # e.g. "households", "students"
-    cost_per_beneficiary = Column(Float, nullable=True)
-
-    # Project dates
-    project_start_date = Column(DateTime, nullable=True)
-    project_end_date = Column(DateTime, nullable=True)
-    completion_percentage = Column(Integer, default=0)
-
-    # Status lifecycle
-    status = Column(String, default='active')  # active | completed | stalled | audited
-
-    # Report content
-    narrative_summary = Column(Text, nullable=True)
-    sdg_alignment = Column(Text, nullable=True)         # JSON list of SDG codes
-    photo_urls = Column(Text, nullable=True)            # JSON list of URLs
-    certificate_generated_at = Column(DateTime, nullable=True)
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
-
-    tenant = relationship("Tenant", backref="csr_impact_reports")
-    pipeline_entry = relationship("CSRPipelineEntry", backref="impact_reports")
-
-
 class CSRDocument(Base):
     """
     Document registry for RAG — stores CSR reports, policies, annual reports.

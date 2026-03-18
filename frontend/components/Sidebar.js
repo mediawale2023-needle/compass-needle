@@ -31,7 +31,6 @@ const NAV_ITEMS = [
     { name: 'Drafter', path: '/dashboard/drafter', icon: PenTool },
     { name: 'Schemes', path: '/dashboard/schemes', icon: Gift },
     { name: 'CSR Intelligence', path: '/dashboard/csr', icon: Users },
-    { name: 'CSR Impact Reports', path: '/dashboard/csr/impact', icon: Gift },
     { name: 'Archives', path: '/dashboard/archives', icon: Archive },
     { name: 'Settings', path: '/dashboard/settings', icon: Settings },
 ];
