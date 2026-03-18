@@ -168,23 +168,6 @@ def generate_report(tenant_id: int) -> dict:
         logger.warning(f"Match highlights failed: {e}")
         report["match_highlights"] = []
 
-    # ── 6. Impact Updates ──
-    try:
-        impact = _q("""
-            SELECT company_name, project_title, sector, completion_percentage,
-                   utilised_amount_lakhs, beneficiary_count, updated_at
-            FROM csr_impact_reports
-            WHERE tenant_id = :tid AND updated_at >= :cutoff
-            ORDER BY updated_at DESC
-        """, {"tid": tenant_id, "cutoff": week_ago})
-        report["impact_updates"] = {
-            "projects_updated": len(impact),
-            "projects": [dict(i) for i in impact],
-        }
-    except Exception as e:
-        logger.warning(f"Impact updates failed: {e}")
-        report["impact_updates"] = {}
-
     return report
 
 
