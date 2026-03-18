@@ -27,7 +27,103 @@ import {
     ExternalLink,
     Briefcase,
     BarChart2,
+    CalendarClock,
+    FileQuestion,
 } from 'lucide-react';
+
+function PQCalendarCard({ pq }) {
+    if (!pq || pq.window_state === 'unknown') return null;
+
+    const configs = {
+        open: {
+            border:   'border-l-blue-500',
+            bg:       'bg-blue-50/50',
+            dot:      'bg-blue-500',
+            ping:     'bg-blue-400',
+            label:    `${pq.days_remaining} day${pq.days_remaining !== 1 ? 's' : ''} left to submit`,
+            sublabel: `Deadline: ${pq.window_close}`,
+            showCta:  true,
+        },
+        not_yet: {
+            border:   'border-l-muted',
+            bg:       '',
+            dot:      'bg-muted-foreground/40',
+            ping:     null,
+            label:    `PQ window opens in ${pq.days_until_open} day${pq.days_until_open !== 1 ? 's' : ''}`,
+            sublabel: `Opens ${pq.next_window_open} · Closes ${pq.window_close}`,
+            showCta:  false,
+        },
+        closed: {
+            border:   'border-l-amber-400',
+            bg:       'bg-amber-50/30',
+            dot:      'bg-amber-400',
+            ping:     null,
+            label:    'Submission deadline passed',
+            sublabel: `${pq.target_session} starts ${pq.session_start}`,
+            showCta:  false,
+        },
+        in_session: {
+            border:   'border-l-muted',
+            bg:       '',
+            dot:      'bg-muted-foreground/40',
+            ping:     null,
+            label:    pq.next_session_name
+                        ? `PQ window for ${pq.next_session_name} opens ${pq.next_window_open}`
+                        : 'PQ submissions open during recess',
+            sublabel: null,
+            showCta:  false,
+        },
+    };
+
+    const cfg = configs[pq.window_state] || configs.not_yet;
+
+    return (
+        <Card className={cn('border-l-4', cfg.border, cfg.bg)}>
+            <CardContent className="py-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-start gap-2.5">
+                        <div className="mt-0.5 shrink-0">
+                            {cfg.ping ? (
+                                <span className="relative flex h-2.5 w-2.5">
+                                    <span className={cn('animate-ping absolute inline-flex h-full w-full rounded-full opacity-75', cfg.ping)} />
+                                    <span className={cn('relative inline-flex rounded-full h-2.5 w-2.5', cfg.dot)} />
+                                </span>
+                            ) : (
+                                <span className={cn('block h-2.5 w-2.5 rounded-full', cfg.dot)} />
+                            )}
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <CalendarClock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="text-sm font-semibold text-foreground">
+                                    PQ Calendar — {pq.target_session}
+                                </span>
+                                {pq.pqs_drafted > 0 && (
+                                    <Badge variant="secondary" className="flex items-center gap-1 text-[10px]">
+                                        <FileQuestion className="h-2.5 w-2.5" />
+                                        {pq.pqs_drafted} drafted
+                                    </Badge>
+                                )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">{cfg.label}</p>
+                            {cfg.sublabel && (
+                                <p className="text-xs text-muted-foreground/70 mt-0.5">{cfg.sublabel}</p>
+                            )}
+                        </div>
+                    </div>
+                    {cfg.showCta && (
+                        <Button asChild size="sm">
+                            <Link href="/dashboard/drafter?mode=question">
+                                Draft a PQ
+                                <ArrowRight className="h-4 w-4 ml-1" />
+                            </Link>
+                        </Button>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
 
 const QUICK_ACTIONS = [
     { label: 'Upload Letter', href: '/dashboard/letterbox', desc: 'Scan or upload', icon: Mail },
@@ -65,6 +161,7 @@ export default function DashboardPage() {
     const [newsTab, setNewsTab] = useState('national');
     const [showNews, setShowNews] = useState(true);
     const [parliament, setParliament] = useState(null);
+    const [pqCalendar, setPqCalendar] = useState(null);
     const [staleCases, setStaleCases] = useState([]);
     const [allCases, setAllCases] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -72,7 +169,7 @@ export default function DashboardPage() {
     useEffect(() => {
         async function load() {
             try {
-                const [sum, rc, nat, loc, parl, cases] = await Promise.all([
+                const [sum, rc, nat, loc, parl, cases, pqCal] = await Promise.all([
                     apiGet('/api/dashboard/summary').catch(() => ({
                         category_breakdown: {}, status_breakdown: {}, red_zones: [], critical_count: 0,
                     })),
@@ -81,12 +178,14 @@ export default function DashboardPage() {
                     apiGet('/api/news?news_type=local').catch(() => ({ articles: [] })),
                     apiGet('/api/parliament/status').catch(() => null),
                     apiGet('/api/cases?page=1&limit=50').catch(() => ({ cases: [] })),
+                    apiGet('/api/parliament/pq-calendar').catch(() => null),
                 ]);
 
                 setSummary(sum);
                 setReportCard(rc);
                 setNews({ national: nat.articles || [], local: loc.articles || [] });
                 setParliament(parl);
+                setPqCalendar(pqCal);
 
                 const fetchedCases = cases.cases || cases.items || [];
                 setAllCases(fetchedCases);
@@ -172,20 +271,12 @@ export default function DashboardPage() {
                                     </span>
                                 </div>
                                 {parliament.business_items?.length > 0 && (
-                                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {parliament.business_items.slice(0, 2).map((item, i) => (
-                                                <Badge key={i} variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200">
-                                                    {item}
-                                                </Badge>
-                                            ))}
-                                        </div>
-                                        <Button asChild size="sm">
-                                            <Link href={`/dashboard/drafter?topic=${encodeURIComponent(parliament.business_items[0] || '')}`}>
-                                                Draft a PQ
-                                                <ArrowRight className="h-4 w-4 ml-1" />
-                                            </Link>
-                                        </Button>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {parliament.business_items.slice(0, 2).map((item, i) => (
+                                            <Badge key={i} variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200">
+                                                {item}
+                                            </Badge>
+                                        ))}
                                     </div>
                                 )}
                             </div>
@@ -205,6 +296,9 @@ export default function DashboardPage() {
                     </CardContent>
                 </Card>
             )}
+
+            {/* PQ Calendar */}
+            <PQCalendarCard pq={pqCalendar} />
 
             {/* Attention Banner */}
             {hasUrgent && (
