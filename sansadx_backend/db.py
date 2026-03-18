@@ -435,6 +435,29 @@ class OpportunityCompanyMatch(Base):
     company = relationship("CSRCompany", backref="opportunity_matches")
 
 
+class ResolutionMessage(Base):
+    """
+    Tracks resolution messages drafted by staff and approved by MP before sending to constituents.
+    Workflow: draft → pending_approval → approved/rejected → sent/failed
+    """
+    __tablename__ = "resolution_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("cases.id"), index=True, nullable=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=False)
+    message_body = Column(Text, nullable=False)
+    status = Column(String, default="draft")  # draft | pending_approval | approved | rejected | sent | failed
+    drafted_by = Column(String, nullable=False)       # username
+    approved_by = Column(String, nullable=True)       # username of MP/approver
+    approved_at = Column(DateTime, nullable=True)
+    sent_at = Column(DateTime, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+
+    tenant = relationship("Tenant", backref="resolution_messages")
+
+
 class CSRDocument(Base):
     """
     Document registry for RAG — stores CSR reports, policies, annual reports.

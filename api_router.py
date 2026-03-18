@@ -329,6 +329,315 @@ def update_case_status(case_id: int, body: StatusUpdate, user=Depends(get_curren
 
 
 # ─────────────────────────────────────────
+# RESOLUTION MESSAGES
+# Workflow: staff drafts → submits for approval → MP approves → send
+# Monthly limit: 5,000 messages per tenant
+# ─────────────────────────────────────────
+MONTHLY_SEND_LIMIT = 5000
+
+
+def _get_monthly_send_count(tenant_id: int) -> int:
+    """Count resolution messages sent this calendar month for this tenant."""
+    from calendar import monthrange
+    now = datetime.utcnow()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    row = _q_one(
+        """SELECT COUNT(*) as cnt FROM resolution_messages
+           WHERE tenant_id = :tid AND status = 'sent' AND sent_at >= :start""",
+        {"tid": tenant_id, "start": month_start}
+    )
+    return row["cnt"] if row else 0
+
+
+class ResolutionDraftBody(BaseModel):
+    message_body: str
+
+
+class ResolutionRejectBody(BaseModel):
+    reason: str = ""
+
+
+@router.get("/cases/{case_id}/resolution")
+def get_resolution(case_id: int, user=Depends(get_current_user)):
+    """Get the latest resolution message for a case."""
+    tid = get_tenant_or_fail(user)
+    # Verify case belongs to tenant
+    case = _q_one("SELECT id, user_phone FROM cases WHERE id = :cid AND tenant_id = :tid",
+                  {"cid": case_id, "tid": tid})
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    resolution = _q_one(
+        """SELECT * FROM resolution_messages
+           WHERE case_id = :cid AND tenant_id = :tid
+           ORDER BY created_at DESC LIMIT 1""",
+        {"cid": case_id, "tid": tid}
+    )
+
+    monthly_sent = _get_monthly_send_count(tid)
+
+    if resolution:
+        for field in ["created_at", "updated_at", "approved_at", "sent_at"]:
+            val = resolution.get(field)
+            if val and hasattr(val, "isoformat"):
+                resolution[field] = val.isoformat()
+
+    return {
+        "resolution": resolution,
+        "monthly_sent": monthly_sent,
+        "monthly_limit": MONTHLY_SEND_LIMIT,
+        "constituent_phone": case["user_phone"],
+    }
+
+
+@router.post("/cases/{case_id}/resolution")
+def save_resolution_draft(case_id: int, body: ResolutionDraftBody, user=Depends(get_current_user)):
+    """Save or update a resolution message draft. Staff drafts; MP can also draft."""
+    tid = get_tenant_or_fail(user)
+    role = user.get("role", "user")
+    username = user["username"]
+
+    case = _q_one("SELECT id FROM cases WHERE id = :cid AND tenant_id = :tid",
+                  {"cid": case_id, "tid": tid})
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    if not body.message_body or not body.message_body.strip():
+        raise HTTPException(400, "Message body cannot be empty")
+
+    # Check if there's already an active (non-sent) resolution for this case
+    existing = _q_one(
+        """SELECT id, status FROM resolution_messages
+           WHERE case_id = :cid AND tenant_id = :tid AND status NOT IN ('sent', 'failed')
+           ORDER BY created_at DESC LIMIT 1""",
+        {"cid": case_id, "tid": tid}
+    )
+
+    with engine.begin() as conn:
+        if existing:
+            # Only allow editing if draft or rejected; not if pending/approved
+            if existing["status"] in ("pending_approval", "approved"):
+                raise HTTPException(
+                    409,
+                    f"A resolution is already {existing['status']}. Ask an approver to reject it first."
+                )
+            conn.execute(text(
+                """UPDATE resolution_messages
+                   SET message_body = :body, status = 'draft',
+                       approved_by = NULL, approved_at = NULL,
+                       rejection_reason = NULL, updated_at = :now
+                   WHERE id = :rid"""
+            ), {"body": body.message_body.strip(), "now": datetime.utcnow(), "rid": existing["id"]})
+            rid = existing["id"]
+        else:
+            result = conn.execute(text(
+                """INSERT INTO resolution_messages
+                   (case_id, tenant_id, message_body, status, drafted_by, created_at)
+                   VALUES (:cid, :tid, :body, 'draft', :user, :now)"""
+            ), {"cid": case_id, "tid": tid, "body": body.message_body.strip(),
+                "user": username, "now": datetime.utcnow()})
+            rid = result.lastrowid if hasattr(result, "lastrowid") else None
+
+    return {"success": True, "resolution_id": rid, "status": "draft"}
+
+
+@router.post("/cases/{case_id}/resolution/submit")
+def submit_resolution_for_approval(case_id: int, user=Depends(get_current_user)):
+    """Staff submits a draft resolution for MP approval."""
+    tid = get_tenant_or_fail(user)
+
+    resolution = _q_one(
+        """SELECT * FROM resolution_messages
+           WHERE case_id = :cid AND tenant_id = :tid AND status = 'draft'
+           ORDER BY created_at DESC LIMIT 1""",
+        {"cid": case_id, "tid": tid}
+    )
+    if not resolution:
+        raise HTTPException(404, "No draft resolution found for this case")
+
+    with engine.begin() as conn:
+        conn.execute(text(
+            "UPDATE resolution_messages SET status = 'pending_approval', updated_at = :now WHERE id = :rid"
+        ), {"now": datetime.utcnow(), "rid": resolution["id"]})
+
+    return {"success": True, "status": "pending_approval"}
+
+
+@router.post("/cases/{case_id}/resolution/approve")
+def approve_resolution(case_id: int, user=Depends(get_current_user)):
+    """MP or approver approves a pending resolution. Only mp role allowed."""
+    tid = get_tenant_or_fail(user)
+    role = user.get("role", "user")
+    if role not in ("mp", "admin", "super_admin"):
+        raise HTTPException(403, "Only the MP or admin can approve resolution messages")
+
+    resolution = _q_one(
+        """SELECT * FROM resolution_messages
+           WHERE case_id = :cid AND tenant_id = :tid AND status = 'pending_approval'
+           ORDER BY created_at DESC LIMIT 1""",
+        {"cid": case_id, "tid": tid}
+    )
+    if not resolution:
+        raise HTTPException(404, "No resolution pending approval for this case")
+
+    with engine.begin() as conn:
+        conn.execute(text(
+            """UPDATE resolution_messages
+               SET status = 'approved', approved_by = :approver, approved_at = :now, updated_at = :now
+               WHERE id = :rid"""
+        ), {"approver": user["username"], "now": datetime.utcnow(), "rid": resolution["id"]})
+
+    return {"success": True, "status": "approved"}
+
+
+@router.post("/cases/{case_id}/resolution/reject")
+def reject_resolution(case_id: int, body: ResolutionRejectBody, user=Depends(get_current_user)):
+    """MP or approver rejects a pending resolution, sending it back to draft."""
+    tid = get_tenant_or_fail(user)
+    role = user.get("role", "user")
+    if role not in ("mp", "admin", "super_admin"):
+        raise HTTPException(403, "Only the MP or admin can reject resolution messages")
+
+    resolution = _q_one(
+        """SELECT * FROM resolution_messages
+           WHERE case_id = :cid AND tenant_id = :tid AND status = 'pending_approval'
+           ORDER BY created_at DESC LIMIT 1""",
+        {"cid": case_id, "tid": tid}
+    )
+    if not resolution:
+        raise HTTPException(404, "No resolution pending approval for this case")
+
+    with engine.begin() as conn:
+        conn.execute(text(
+            """UPDATE resolution_messages
+               SET status = 'rejected', rejection_reason = :reason,
+                   approved_by = NULL, approved_at = NULL, updated_at = :now
+               WHERE id = :rid"""
+        ), {"reason": body.reason or "", "now": datetime.utcnow(), "rid": resolution["id"]})
+
+    return {"success": True, "status": "rejected"}
+
+
+@router.post("/cases/{case_id}/resolution/send")
+def send_resolution_message(case_id: int, user=Depends(get_current_user)):
+    """
+    Send an approved resolution message to the constituent via WhatsApp.
+    Only mp role can trigger send. Enforces monthly limit of 5,000 messages.
+    """
+    import os
+    import requests as http_req
+
+    tid = get_tenant_or_fail(user)
+    role = user.get("role", "user")
+    if role not in ("mp", "admin", "super_admin"):
+        raise HTTPException(403, "Only the MP can send resolution messages")
+
+    # Enforce monthly limit
+    monthly_sent = _get_monthly_send_count(tid)
+    if monthly_sent >= MONTHLY_SEND_LIMIT:
+        raise HTTPException(429, f"Monthly send limit of {MONTHLY_SEND_LIMIT} messages reached")
+
+    resolution = _q_one(
+        """SELECT rm.*, c.user_phone
+           FROM resolution_messages rm
+           JOIN cases c ON rm.case_id = c.id
+           WHERE rm.case_id = :cid AND rm.tenant_id = :tid AND rm.status = 'approved'
+           ORDER BY rm.created_at DESC LIMIT 1""",
+        {"cid": case_id, "tid": tid}
+    )
+    if not resolution:
+        raise HTTPException(404, "No approved resolution found. It must be approved before sending.")
+
+    to_number = (resolution["user_phone"] or "").replace("whatsapp:", "")
+    if not to_number:
+        raise HTTPException(400, "No phone number for this constituent")
+
+    phone_number_id = os.getenv("META_PHONE_NUMBER_ID")
+    access_token = os.getenv("META_ACCESS_TOKEN")
+
+    if not phone_number_id or not access_token:
+        raise HTTPException(503, "WhatsApp credentials not configured")
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to_number,
+        "type": "text",
+        "text": {"body": resolution["message_body"]},
+    }
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        resp = http_req.post(
+            f"https://graph.facebook.com/v21.0/{phone_number_id}/messages",
+            json=payload,
+            headers=headers,
+            timeout=15,
+        )
+        resp.raise_for_status()
+    except Exception as exc:
+        # Mark as failed
+        with engine.begin() as conn:
+            conn.execute(text(
+                "UPDATE resolution_messages SET status = 'failed', updated_at = :now WHERE id = :rid"
+            ), {"now": datetime.utcnow(), "rid": resolution["id"]})
+        raise HTTPException(502, f"Failed to send WhatsApp message: {exc}")
+
+    # Mark as sent and update the case response_to_citizen
+    with engine.begin() as conn:
+        conn.execute(text(
+            """UPDATE resolution_messages
+               SET status = 'sent', sent_at = :now, updated_at = :now WHERE id = :rid"""
+        ), {"now": datetime.utcnow(), "rid": resolution["id"]})
+        conn.execute(text(
+            """UPDATE cases SET response_to_citizen = :body, status = 'resolved',
+               resolved_at = :now, updated_at = :now WHERE id = :cid AND tenant_id = :tid"""
+        ), {"body": resolution["message_body"], "now": datetime.utcnow(),
+            "cid": case_id, "tid": tid})
+
+    return {"success": True, "status": "sent"}
+
+
+@router.get("/resolutions/pending")
+def get_pending_resolutions(user=Depends(get_current_user)):
+    """
+    Get all resolution messages pending approval (for the MP approval queue).
+    Also includes approved messages ready to send.
+    """
+    tid = get_tenant_or_fail(user)
+    role = user.get("role", "user")
+    if role not in ("mp", "admin", "super_admin"):
+        raise HTTPException(403, "Only the MP or admin can view the approval queue")
+
+    items = _q(
+        """SELECT rm.id, rm.case_id, rm.message_body, rm.status, rm.drafted_by,
+                  rm.approved_by, rm.approved_at, rm.created_at, rm.updated_at,
+                  c.user_phone, c.category, c.raw_message, c.location, c.assembly
+           FROM resolution_messages rm
+           JOIN cases c ON rm.case_id = c.id
+           WHERE rm.tenant_id = :tid AND rm.status IN ('pending_approval', 'approved')
+           ORDER BY rm.created_at ASC""",
+        {"tid": tid}
+    )
+
+    for item in items:
+        for field in ["created_at", "updated_at", "approved_at"]:
+            val = item.get(field)
+            if val and hasattr(val, "isoformat"):
+                item[field] = val.isoformat()
+
+    monthly_sent = _get_monthly_send_count(tid)
+
+    return {
+        "items": items,
+        "monthly_sent": monthly_sent,
+        "monthly_limit": MONTHLY_SEND_LIMIT,
+    }
+
+
+# ─────────────────────────────────────────
 # PROFILE
 # ─────────────────────────────────────────
 @router.get("/profile")

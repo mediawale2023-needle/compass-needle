@@ -21,12 +21,14 @@ import {
     Compass,
     ChevronLeft,
     ChevronRight,
+    CheckSquare,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Letterbox', path: '/dashboard/letterbox', icon: Mail, badgeKey: 'letterbox' },
     { name: 'Briefcase', path: '/dashboard/sansadx', icon: Briefcase, badgeKey: 'briefcase' },
+    { name: 'Approvals', path: '/dashboard/approvals', icon: CheckSquare, badgeKey: 'approvals', mpOnly: true },
     { name: 'Research Desk', path: '/dashboard/copilot', icon: BookOpen },
     { name: 'Drafter', path: '/dashboard/drafter', icon: PenTool },
     { name: 'Schemes', path: '/dashboard/schemes', icon: Gift },
@@ -120,7 +122,11 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                 {/* Navigation */}
                 <ScrollArea className="flex-1 py-2">
                     <nav className="px-2 space-y-1">
-                        {NAV_ITEMS.map((item) => {
+                        {NAV_ITEMS.filter(item => {
+                            if (!item.mpOnly) return true;
+                            const role = user?.role || 'user';
+                            return role === 'mp' || role === 'admin' || role === 'super_admin';
+                        }).map((item) => {
                             const Icon = item.icon;
                             const active = pathname === item.path || 
                                 (item.path !== '/dashboard' && pathname.startsWith(item.path));
