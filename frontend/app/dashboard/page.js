@@ -285,16 +285,30 @@ export default function DashboardPage() {
                                 </button>
                                 {parliament.business_items?.length > 0 && (
                                     parlExpanded ? (
-                                        <ol className="space-y-1.5 border-t border-emerald-200 pt-3">
-                                            {parliament.business_items.map((item, i) => (
-                                                <li key={i} className="flex items-start gap-2 text-sm text-emerald-900">
-                                                    <span className="shrink-0 mt-0.5 h-4 w-4 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold flex items-center justify-center">
-                                                        {i + 1}
-                                                    </span>
-                                                    {item}
-                                                </li>
-                                            ))}
-                                        </ol>
+                                        <div className="border-t border-emerald-200 pt-3 space-y-2">
+                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
+                                                {parliament.business_scraped ? 'Today\'s Business (Live)' : 'Typical Daily Schedule'}
+                                            </p>
+                                            <ol className="space-y-1.5">
+                                                {parliament.business_items.map((item, i) => (
+                                                    <li key={i} className="flex items-start gap-2 text-sm text-emerald-900">
+                                                        <span className="shrink-0 mt-0.5 h-4 w-4 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold flex items-center justify-center">
+                                                            {i + 1}
+                                                        </span>
+                                                        {item}
+                                                    </li>
+                                                ))}
+                                            </ol>
+                                            <a
+                                                href={parliament.sansad_link}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:underline mt-1"
+                                            >
+                                                <ExternalLink className="h-3 w-3" />
+                                                View on Sansad.in
+                                            </a>
+                                        </div>
                                     ) : (
                                         <div className="flex flex-wrap gap-1.5">
                                             {parliament.business_items.slice(0, 2).map((item, i) => (

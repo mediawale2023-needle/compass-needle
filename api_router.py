@@ -868,15 +868,88 @@ def get_parliament_status(user=Depends(get_current_user)):
 
     business_items = []
     try:
+        import re as _re
+        from bs4 import BeautifulSoup
+
         house_path = "ls" if "lok" in house.lower() else "rs"
-        resp = http_requests.get(f"https://sansad.in/{house_path}", timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+        _headers = {
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml",
+        }
+
+        # ── Strategy 1: sansad.in home page ──────────────────────────────
+        resp = http_requests.get(f"https://sansad.in/{house_path}", timeout=6, headers=_headers)
         if resp.ok:
-            from bs4 import BeautifulSoup
             soup = BeautifulSoup(resp.text, "html.parser")
-            for tag in soup.find_all(["li", "p", "div"], class_=lambda c: c and ("agenda" in str(c).lower() or "business" in str(c).lower())):
-                text_val = tag.get_text(strip=True)
-                if text_val and 10 < len(text_val) < 500:
-                    business_items.append(text_val)
+
+            # a) Find any heading whose text mentions "business" / "today"
+            #    then harvest the immediately following list
+            for heading in soup.find_all(_re.compile(r"^h[1-6]$", _re.I)):
+                heading_text = heading.get_text(" ", strip=True).lower()
+                if any(kw in heading_text for kw in ("business", "today", "agenda", "lok sabha", "rajya sabha")):
+                    container = heading.find_next_sibling()
+                    while container:
+                        items = container.find_all("li")
+                        for li in items:
+                            t = li.get_text(" ", strip=True)
+                            if 8 < len(t) < 600:
+                                business_items.append(t)
+                        if business_items:
+                            break
+                        container = container.find_next_sibling()
+
+            # b) Any <ol> on the page whose <li>s look parliamentary
+            if not business_items:
+                PARL_KEYWORDS = _re.compile(
+                    r"(question|zero hour|bill|resolution|motion|calling attention|"
+                    r"starred|unstarred|private member|adjournment|obituary|statement|"
+                    r"ministry|minister|introduced|laid|referred)",
+                    _re.I,
+                )
+                for ol in soup.find_all(["ol", "ul"]):
+                    candidates = []
+                    for li in ol.find_all("li", recursive=False):
+                        t = li.get_text(" ", strip=True)
+                        if 8 < len(t) < 600 and PARL_KEYWORDS.search(t):
+                            candidates.append(t)
+                    if len(candidates) >= 2:
+                        business_items = candidates
+                        break
+
+            # c) Flat li sweep with parliamentary keyword filter
+            if not business_items:
+                PARL_KEYWORDS = _re.compile(
+                    r"(question hour|zero hour|bill|resolution|motion|starred|"
+                    r"unstarred|calling attention|private member|adjournment|statement|"
+                    r"government business|legislative business|financial business)",
+                    _re.I,
+                )
+                seen = set()
+                for li in soup.find_all("li"):
+                    t = li.get_text(" ", strip=True)
+                    if 8 < len(t) < 400 and PARL_KEYWORDS.search(t) and t not in seen:
+                        seen.add(t)
+                        business_items.append(t)
+                        if len(business_items) >= 10:
+                            break
+
+        # ── Strategy 2: Lok Sabha docs list-of-business PDF index ────────
+        if not business_items:
+            lob_url = (
+                "https://loksabhadocs.nic.in/Business/"
+                if "lok" in house.lower()
+                else "https://rajyasabha.nic.in/rsnew/business/business.aspx"
+            )
+            resp2 = http_requests.get(lob_url, timeout=6, headers=_headers)
+            if resp2.ok:
+                soup2 = BeautifulSoup(resp2.text, "html.parser")
+                for li in soup2.find_all("li"):
+                    t = li.get_text(" ", strip=True)
+                    if 8 < len(t) < 400:
+                        business_items.append(t)
+                        if len(business_items) >= 10:
+                            break
+
     except Exception:
         pass
 
@@ -890,10 +963,11 @@ def get_parliament_status(user=Depends(get_current_user)):
             "date": today.strftime("%d %B %Y"),
             "day": today.strftime("%A"),
             "business_items": business_items or [
-                "Question Hour (11:00 AM - 12:00 PM)",
-                "Zero Hour (12:00 PM - 1:00 PM)",
-                "Legislative Business / Government Business",
+                "Question Hour (11:00 AM – 12:00 PM)",
+                "Zero Hour (12:00 PM – 1:00 PM)",
+                "Legislative / Government Business",
             ],
+            "business_scraped": bool(business_items),
             "sansad_link": f"https://sansad.in/{'ls' if 'lok' in house.lower() else 'rs'}",
         }
     elif current_session and is_weekend:
