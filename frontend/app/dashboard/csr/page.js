@@ -81,11 +81,11 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR }) {
                     </div>
                     <Badge variant="outline" className={cn(
                         'shrink-0',
-                        opp.status === 'ready'
-                            ? 'border-destructive text-destructive bg-destructive/5'
+                        opp.status === 'verify'
+                            ? 'border-primary text-primary bg-primary/5'
                             : 'border-amber-500 text-amber-600 bg-amber-50',
                     )}>
-                        {opp.volume} complaints
+                        {opp.volume} reports
                     </Badge>
                 </div>
 
@@ -115,7 +115,7 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR }) {
                     <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
                         <div
                             className={cn('h-full rounded-full transition-all',
-                                opp.status === 'ready' ? 'bg-destructive' : 'bg-amber-500')}
+                                opp.status === 'verify' ? 'bg-primary' : 'bg-amber-500')}
                             style={{ width: `${Math.min(100, opp.progress_pct || 0)}%` }}
                         />
                     </div>
@@ -183,8 +183,8 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR }) {
                                                 onClick={() => onGenerateDPR(opp, co)}
                                             >
                                                 {dprLoading === dprKey
-                                                    ? <><Loader2 className="h-3 w-3 animate-spin" />Generating…</>
-                                                    : 'Generate DPR'
+                                                    ? <><Loader2 className="h-3 w-3 animate-spin" />Generating...</>
+                                                    : 'Generate Concept Note'
                                                 }
                                             </Button>
                                         )}
@@ -303,7 +303,7 @@ export default function CSRPage() {
     };
     useEffect(() => { fetchCompanies(); }, [search, selectedSector]);
 
-    // ─── Generate DPR from live data ───
+    // ─── Generate Concept Note from live data ───
     const generateDPR = async (match, company) => {
         const key = `${match.category}-${company.Company}`;
         setDprLoading(key);
@@ -319,14 +319,14 @@ export default function CSRPage() {
             setOpenSheet({
                 type: 'dpr',
                 key,
-                title: `DPR — ${match.category} × ${company.Company}`,
+                title: `Concept Note — ${match.category} × ${company.Company}`,
                 content,
             });
         } catch (err) {
             setOpenSheet({
                 type: 'dpr',
                 key,
-                title: `DPR — ${company.Company}`,
+                title: `Concept Note — ${company.Company}`,
                 content: 'Error generating DPR. Please try again.',
             });
         } finally {
@@ -365,7 +365,7 @@ export default function CSRPage() {
         }
     };
 
-    // ─── Generate DPR from opportunity-first recommendation ───
+    // ─── Generate Concept Note from opportunity-first recommendation ───
     const generateDPRFromOpportunity = async (opp, company) => {
         const key = `${opp.category}-${company.name}`;
         setDprLoading(key);
@@ -380,14 +380,14 @@ export default function CSRPage() {
             setOpenSheet({
                 type: 'dpr',
                 key,
-                title: `DPR — ${opp.category} × ${company.name}`,
+                title: `Concept Note — ${opp.category} × ${company.name}`,
                 content: data.content,
             });
         } catch {
             setOpenSheet({
                 type: 'dpr',
                 key,
-                title: `DPR — ${company.name}`,
+                title: `Concept Note — ${company.name}`,
                 content: 'Error generating DPR. Please try again.',
             });
         } finally {
@@ -403,8 +403,8 @@ export default function CSRPage() {
         URL.revokeObjectURL(url);
     };
 
-    const opportunitiesReady = opportunities.filter(o => o.status === 'ready').length;
-    const opportunitiesMonitoring = opportunities.filter(o => o.status === 'monitoring').length;
+    const opportunitiesReady = opportunities.filter(o => o.status === 'verify').length;
+    const opportunitiesMonitoring = opportunities.filter(o => o.status === 'watch').length;
     const totalMatches = strategicMatches.length;
 
     return (
@@ -425,22 +425,22 @@ export default function CSRPage() {
                     </>
                 ) : (
                     <>
-                        <Card className="border-l-4 border-l-destructive">
+                        <Card className="border-l-4 border-l-primary">
                             <CardContent className="p-5">
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                    CSR-Ready Projects
+                                    Needs Field Verification
                                 </p>
-                                <p className="text-3xl font-bold text-destructive mt-1">{opportunitiesReady}</p>
-                                <p className="text-xs text-muted-foreground mt-1">200+ verified complaints</p>
+                                <p className="text-3xl font-bold text-primary mt-1">{opportunitiesReady}</p>
+                                <p className="text-xs text-muted-foreground mt-1">High complaint volume — verify on ground</p>
                             </CardContent>
                         </Card>
                         <Card className="border-l-4 border-l-amber-500">
                             <CardContent className="p-5">
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                    Monitoring
+                                    Tracking
                                 </p>
                                 <p className="text-3xl font-bold text-amber-600 mt-1">{opportunitiesMonitoring}</p>
-                                <p className="text-xs text-muted-foreground mt-1">100–199 complaints, approaching threshold</p>
+                                <p className="text-xs text-muted-foreground mt-1">Growing complaint cluster — monitor</p>
                             </CardContent>
                         </Card>
                     </>
@@ -495,21 +495,21 @@ export default function CSRPage() {
                                 <CardContent className="py-12 text-center">
                                     <p className="text-sm text-muted-foreground">No grievance clusters have reached the threshold yet.</p>
                                     <p className="text-xs text-muted-foreground/60 mt-2">
-                                        Clusters appear here when 100+ complaints accumulate for the same issue and location.
+                                        Clusters appear here when enough complaints accumulate for the same issue and location.
                                     </p>
                                 </CardContent>
                             </Card>
                         ) : (
                             <>
-                                {/* CSR-Ready (200+) */}
+                                {/* Needs Field Verification (200+) */}
                                 {opportunitiesReady > 0 && (
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-2">
-                                            <Badge variant="destructive">CSR-Ready</Badge>
-                                            <span className="text-xs text-muted-foreground">200+ verified complaints — pitch companies now</span>
+                                            <Badge variant="outline" className="border-primary text-primary bg-primary/5">Verify on Ground</Badge>
+                                            <span className="text-xs text-muted-foreground">High complaint volume — confirm need before company outreach</span>
                                         </div>
                                         <div className="space-y-4">
-                                            {opportunities.filter(o => o.status === 'ready').map((opp, i) => (
+                                            {opportunities.filter(o => o.status === 'verify').map((opp, i) => (
                                                 <OpportunityCard
                                                     key={i}
                                                     opp={opp}
@@ -522,17 +522,17 @@ export default function CSRPage() {
                                     </div>
                                 )}
 
-                                {/* Monitoring (100–199) */}
+                                {/* Tracking (100–199) */}
                                 {opportunitiesMonitoring > 0 && (
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-2">
                                             <Badge variant="outline" className="border-amber-500 text-amber-600 bg-amber-50">
-                                                Monitoring
+                                                Tracking
                                             </Badge>
-                                            <span className="text-xs text-muted-foreground">Approaching threshold — identify companies early</span>
+                                            <span className="text-xs text-muted-foreground">Growing cluster — watch for further increase</span>
                                         </div>
                                         <div className="space-y-4">
-                                            {opportunities.filter(o => o.status === 'monitoring').map((opp, i) => (
+                                            {opportunities.filter(o => o.status === 'watch').map((opp, i) => (
                                                 <OpportunityCard
                                                     key={i}
                                                     opp={opp}
@@ -580,30 +580,20 @@ export default function CSRPage() {
                                 <CardContent className="py-12 text-center">
                                     <p className="text-sm text-muted-foreground">No strategic matches found yet.</p>
                                     <p className="text-xs text-muted-foreground/60 mt-2">
-                                        Matches appear when grievance clusters (100+ complaints) can be mapped to CSR-eligible companies.
+                                        Matches appear when grievance clusters can be mapped to companies with relevant CSR sector priorities.
                                     </p>
                                 </CardContent>
                             </Card>
                         ) : (
                             strategicMatches.map((match, mi) => {
-                                const isCritical = match.badge === 'CRITICAL';
-                                const isMajor = match.badge === 'MAJOR';
                                 return (
                                     <Card key={mi}>
                                         <CardHeader className="pb-3">
                                             <div className="flex flex-wrap items-center justify-between gap-2">
                                                 <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <CardTitle className="text-base">{match.category}</CardTitle>
-                                                        <Badge variant={isCritical ? 'destructive' : 'outline'} className={cn(
-                                                            !isCritical && isMajor && "border-amber-500 text-amber-600 bg-amber-50",
-                                                            !isCritical && !isMajor && "border-blue-400 text-blue-700 bg-blue-50",
-                                                        )}>
-                                                            {match.badge}
-                                                        </Badge>
-                                                    </div>
+                                                    <CardTitle className="text-base">{match.category}</CardTitle>
                                                     <CardDescription className="mt-1">
-                                                        {match.area} · <span className="font-semibold">{match.volume}</span> verified complaints
+                                                        {match.area} · <span className="font-semibold">{match.volume}</span> grievance reports
                                                     </CardDescription>
                                                 </div>
                                                 <p className="text-xs text-muted-foreground">
@@ -642,8 +632,8 @@ export default function CSRPage() {
                                                                                 className="gap-1.5 whitespace-nowrap"
                                                                             >
                                                                                 {dprLoading === dprKey
-                                                                                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>
-                                                                                    : 'Generate DPR'
+                                                                                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating...</>
+                                                                                    : 'Generate Concept Note'
                                                                                 }
                                                                             </Button>
                                                                         </TableCell>
@@ -830,7 +820,7 @@ export default function CSRPage() {
                         ) : (
                             <div className="flex items-center gap-2 text-muted-foreground py-4">
                                 <Loader2 className="h-4 w-4 animate-spin" />
-                                <span className="text-sm">Generating…</span>
+                                <span className="text-sm">Generating...</span>
                             </div>
                         )}
                     </ScrollArea>

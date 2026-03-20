@@ -3,12 +3,14 @@ csr_matching_engine.py — Multi-dimensional CSR opportunity ↔ company scoring
 
 Scoring dimensions (weights):
   35%  Sector Alignment   — overlap between opportunity sector and company sector_priorities
-  25%  Geographic Score   — same district / same state / national
-  25%  Urgency Score      — complaint volume + 7-day velocity
-  15%  Relationship Score — existing pipeline entries, prior contact established
+  40%  Geographic Score   — same district / same state / national
+  25%  Relationship Score — existing pipeline entries, prior contact established
 
 Final match_score = weighted sum, 0–100.
-Recommended ask amount = company avg_ticket_size_lakhs × urgency_multiplier.
+Recommended ask amount = company avg_ticket_size_lakhs (base, not volume-inflated).
+
+Note: Complaint velocity removed — CSR decisions run on 6–18 month cycles,
+not on weekly complaint spikes. Volume is used only to identify clusters, not to score them.
 """
 import json
 import logging
@@ -95,13 +97,11 @@ def score_geographic(opportunity_area: str, company: dict) -> float:
 
 def score_urgency(volume: int, velocity_7d: int) -> float:
     """
-    0–100 urgency score from complaint volume and recent velocity.
-    Volume contribution  (cap 500): 60%
-    Velocity contribution (cap 50): 40%
+    Stub retained for call-site compatibility. Always returns 0.
+    Urgency scoring based on complaint volume and velocity has been removed:
+    corporate CSR decisions operate on annual budget cycles, not weekly complaint spikes.
     """
-    vol_score = min(60.0, (volume / 500.0) * 60.0)
-    vel_score = min(40.0, (velocity_7d / 50.0) * 40.0)
-    return round(vol_score + vel_score, 1)
+    return 0.0
 
 
 def score_relationship(company_name: str, tenant_id: int) -> float:
@@ -147,8 +147,8 @@ def score_relationship(company_name: str, tenant_id: int) -> float:
 def compute_match_score(
     opportunity_sector: str,
     opportunity_area: str,
-    volume: int,
-    velocity_7d: int,
+    volume: int,        # kept for API compatibility; not used in scoring
+    velocity_7d: int,   # kept for API compatibility; not used in scoring
     company: dict,
     tenant_id: int,
 ) -> dict:
@@ -159,35 +159,32 @@ def compute_match_score(
     """
     sector_score = score_sector_alignment(opportunity_sector, company)
     geo_score = score_geographic(opportunity_area, company)
-    urgency_score = score_urgency(volume, velocity_7d)
     rel_score = score_relationship(company.get("Company") or company.get("name", ""), tenant_id)
 
-    # Weighted composite
+    # Weighted composite — sector 35%, geography 40%, relationship 25%
     composite = round(
         sector_score * 0.35
-        + geo_score * 0.25
-        + urgency_score * 0.25
-        + rel_score * 0.15,
+        + geo_score * 0.40
+        + rel_score * 0.25,
         1
     )
 
-    # Recommended ask amount: avg ticket × urgency multiplier
+    # Recommended ask amount: avg ticket (base, not volume-inflated)
     avg_ticket = company.get("avg_ticket_size_lakhs") or 0.0
-    urgency_mult = 1.0 + (urgency_score / 100.0) * 0.5  # 1.0 → 1.5×
-    recommended_ask = round(avg_ticket * urgency_mult, 1) if avg_ticket else None
+    recommended_ask = round(avg_ticket, 1) if avg_ticket else None
 
     return {
         "match_score": composite,
         "sector_alignment_score": sector_score,
         "geographic_score": geo_score,
-        "urgency_score": urgency_score,
+        "urgency_score": 0.0,  # removed
         "relationship_score": rel_score,
         "recommended_ask_amount": recommended_ask,
-        "ask_rationale": _build_rationale(sector_score, geo_score, urgency_score, rel_score, recommended_ask),
+        "ask_rationale": _build_rationale(sector_score, geo_score, rel_score, recommended_ask),
     }
 
 
-def _build_rationale(sector: float, geo: float, urgency: float, rel: float, ask: float | None) -> str:
+def _build_rationale(sector: float, geo: float, rel: float, ask: float | None) -> str:
     """Generate a one-line human-readable rationale for the match score."""
     parts = []
     if sector >= 70:
@@ -204,17 +201,12 @@ def _build_rationale(sector: float, geo: float, urgency: float, rel: float, ask:
     else:
         parts.append("national reach only")
 
-    if urgency >= 70:
-        parts.append("high-urgency cluster")
-    elif urgency >= 40:
-        parts.append("moderate urgency")
-
     if rel >= 40:
         parts.append("existing relationship")
 
     rationale = "Match based on: " + ", ".join(parts) + "."
     if ask:
-        rationale += f" Suggested ask: ₹{ask}L."
+        rationale += f" Avg ticket size: ₹{ask}L."
     return rationale
 
 
@@ -430,11 +422,9 @@ def fit_score(opportunity: dict, company: dict, tenant_id: int) -> dict:
         1,
     )
 
-    # Ask amount uses urgency (opportunity property) — kept separate from fit
+    # Recommended ask: base avg ticket, not inflated by complaint volume
     avg_ticket = company.get("avg_ticket_size_lakhs") or 0.0
-    urgency_s = score_urgency(opportunity.get("volume", 0), opportunity.get("velocity_7d", 0))
-    urgency_mult = 1.0 + (urgency_s / 100.0) * 0.5
-    recommended_ask = round(avg_ticket * urgency_mult, 1) if avg_ticket else None
+    recommended_ask = round(avg_ticket, 1) if avg_ticket else None
 
     return {
         "fit_score": composite,

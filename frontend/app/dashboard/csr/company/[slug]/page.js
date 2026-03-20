@@ -159,10 +159,10 @@ export default function CompanyProfilePage({ params }) {
                     '2023-24': company.spend_2023_24 ? `₹${company.spend_2023_24}L` : 'N/A',
                     '2024-25': company.spend_2024_25 ? `₹${company.spend_2024_25}L` : 'N/A',
                 },
-                letter_type: company.status === 'zero_spend' ? 'show_cause' : 'upscale',
+                letter_type: 'upscale',
             }, { timeout: AI_TIMEOUT, noRetry: true });
             setOpenSheet({
-                title: `${company.status === 'zero_spend' ? 'Show Cause' : 'Upscale'} Letter — ${company.name}`,
+                title: `Partnership Letter — ${company.name}`,
                 type: 'letter',
                 content: data.content,
             });
@@ -317,10 +317,11 @@ export default function CompanyProfilePage({ params }) {
                         <p className="text-sm font-semibold text-destructive">Section 135 Compliance Issue</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                             This company has local operations but zero recorded CSR spend.
-                            Under the Companies Act 2013, companies meeting net profit or turnover thresholds
-                            are mandated to spend 2% of average net profits on CSR activities.
+                            Under the Companies Act 2013, companies meeting net profit, turnover, or net worth thresholds
+                            are required to spend 2% of average net profits on Schedule VII activities.
+                            MCA and the Registrar of Companies are the enforcement authority.
                             {company.unspent_obligation_lakhs
-                                ? ` Estimated unspent obligation: ₹${company.unspent_obligation_lakhs}L.`
+                                ? ` Reported unspent obligation: ₹${company.unspent_obligation_lakhs}L (per MCA data). Unspent amounts must be transferred to designated Schedule VII funds — they cannot be redirected.`
                                 : ' Exact obligation requires MCA net-profit data.'}
                         </p>
                     </div>
