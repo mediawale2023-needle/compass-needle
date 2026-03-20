@@ -65,8 +65,21 @@ function ProjectCardSkeleton() {
     );
 }
 
+// ─── FY Window pill — reused on both opportunity and company cards ───
+function FYPill({ window: w, label }) {
+    if (!w) return null;
+    return (
+        <span className={cn(
+            'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide border',
+            w === 'prime'   && 'bg-emerald-50 border-emerald-300 text-emerald-700',
+            w === 'late'    && 'bg-amber-50 border-amber-300 text-amber-700',
+            w === 'next_fy' && 'bg-muted border-border text-muted-foreground',
+        )}>{label}</span>
+    );
+}
+
 // ─── Opportunity Card with embedded company recommendations ───
-function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR, evidence, onEvidenceChange }) {
+function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR, evidence, onEvidenceChange, fyWindow }) {
     return (
         <Card className={cn('border-l-4', statusColor)}>
             <CardContent className="p-4">
@@ -79,14 +92,17 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR, evidence
                             {opp.constituency || opp.area || 'Constituency'}
                         </p>
                     </div>
-                    <Badge variant="outline" className={cn(
-                        'shrink-0',
-                        opp.status === 'verify'
-                            ? 'border-primary text-primary bg-primary/5'
-                            : 'border-amber-500 text-amber-600 bg-amber-50',
-                    )}>
-                        {opp.volume} reports
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1">
+                        <Badge variant="outline" className={cn(
+                            'shrink-0',
+                            opp.status === 'verify'
+                                ? 'border-primary text-primary bg-primary/5'
+                                : 'border-amber-500 text-amber-600 bg-amber-50',
+                        )}>
+                            {opp.volume} reports
+                        </Badge>
+                        {fyWindow && <FYPill window={fyWindow.window} label={fyWindow.label} />}
+                    </div>
                 </div>
 
                 {/* Affected areas dropdown */}
@@ -255,6 +271,7 @@ export default function CSRPage() {
     const [opportunities, setOpportunities] = useState([]);
     const [opportunitiesLoading, setOpportunitiesLoading] = useState(true);
     const [opportunitiesError, setOpportunitiesError] = useState(null);
+    const [fyWindow, setFyWindow] = useState(null); // { window, label, description }
     const [strategicMatches, setStrategicMatches] = useState([]);
     const [matchesLoading, setMatchesLoading] = useState(true);
     const [matchesError, setMatchesError] = useState(null);
@@ -290,6 +307,7 @@ export default function CSRPage() {
         try {
             const data = await apiGet('/api/csr/opportunities');
             setOpportunities(data.opportunities || []);
+            if (data.fy_window) setFyWindow(data.fy_window);
         } catch (err) {
             console.error('Opportunities fetch failed:', err);
             setOpportunitiesError('Failed to load opportunities.');
@@ -422,11 +440,16 @@ export default function CSRPage() {
                 evidence_text,
                 evidence_filename,
             }, { timeout: AI_TIMEOUT, noRetry: true });
+            const fyNote = fyWindow?.window === 'next_fy'
+                ? '\n\n---\nNote: Current FY budget is likely locked (January–March). Save this document for April outreach when fresh CSR budgets are allocated.'
+                : fyWindow?.window === 'late'
+                ? '\n\n---\nNote: Budgets are mostly committed (November–December). This note may be better timed for next FY — follow up in April.'
+                : '';
             setOpenSheet({
                 type: 'dpr',
                 key,
                 title: `Concept Note — ${opp.category} × ${company.name}`,
-                content: data.content,
+                content: data.content + fyNote,
             });
         } catch {
             setOpenSheet({
@@ -460,6 +483,19 @@ export default function CSRPage() {
                     Match constituency needs to corporate social responsibility opportunities
                 </p>
             </div>
+
+            {/* ─── FY Calendar Banner ─── */}
+            {fyWindow && (
+                <div className={cn(
+                    'flex items-start gap-3 rounded-lg border px-4 py-3 text-sm',
+                    fyWindow.window === 'prime' && 'bg-emerald-50 border-emerald-200 text-emerald-800',
+                    fyWindow.window === 'late'  && 'bg-amber-50 border-amber-200 text-amber-800',
+                    fyWindow.window === 'next_fy' && 'bg-muted border-border text-muted-foreground',
+                )}>
+                    <span className="font-semibold shrink-0">{fyWindow.label}:</span>
+                    <span>{fyWindow.description}</span>
+                </div>
+            )}
 
             {/* ─── Summary Stats ─── */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -563,6 +599,7 @@ export default function CSRPage() {
                                                     onGenerateDPR={generateDPRFromOpportunity}
                                                     evidence={evidenceFiles[opp.category] || null}
                                                     onEvidenceChange={handleEvidenceChange}
+                                                    fyWindow={fyWindow}
                                                 />
                                             ))}
                                         </div>
@@ -588,6 +625,7 @@ export default function CSRPage() {
                                                     onGenerateDPR={generateDPRFromOpportunity}
                                                     evidence={evidenceFiles[opp.category] || null}
                                                     onEvidenceChange={handleEvidenceChange}
+                                                    fyWindow={fyWindow}
                                                 />
                                             ))}
                                         </div>
@@ -804,6 +842,7 @@ export default function CSRPage() {
                                                         >
                                                             {c.status === 'zero_spend' ? 'Zero Spend' : (c.company_type === 'local' ? 'Local' : 'Remote')}
                                                         </Badge>
+                                                        {fyWindow && <FYPill window={fyWindow.window} label={fyWindow.label} />}
                                                     </TableCell>
                                                     <TableCell className="text-right">
                                                         <div className="flex items-center justify-end gap-1.5">
