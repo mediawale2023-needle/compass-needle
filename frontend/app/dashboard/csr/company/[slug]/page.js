@@ -317,12 +317,15 @@ export default function CompanyProfilePage({ params }) {
                         <p className="text-sm font-semibold text-destructive">Section 135 Compliance Issue</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                             This company has local operations but zero recorded CSR spend.
-                            Under the Companies Act 2013, companies meeting net profit, turnover, or net worth thresholds
-                            are required to spend 2% of average net profits on Schedule VII activities.
-                            MCA and the Registrar of Companies are the enforcement authority.
+                            Under the Companies Act 2013, companies meeting the net profit, turnover, or net worth thresholds
+                            must spend 2% of average net profits on Schedule VII activities each financial year.
                             {company.unspent_obligation_lakhs
-                                ? ` Reported unspent obligation: ₹${company.unspent_obligation_lakhs}L (per MCA data). Unspent amounts must be transferred to designated Schedule VII funds — they cannot be redirected.`
+                                ? ` Reported unspent obligation: ₹${company.unspent_obligation_lakhs}L (per MCA disclosure).`
                                 : ' Exact obligation requires MCA net-profit data.'}
+                            {' '}Under the 2021 Amendment Rules, any unspent amount must be transferred within 6 months
+                            of the financial year end to a designated Schedule VII fund (e.g. PM CARES, PM National Relief Fund).
+                            This transfer obligation is owed to MCA — MPs have no authority over it.
+                            Enforcement rests with the Registrar of Companies and MCA.
                         </p>
                     </div>
                 </div>
@@ -475,11 +478,14 @@ export default function CompanyProfilePage({ params }) {
                                 </div>
                                 {isZeroSpend && (
                                     <div>
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Unspent Obligation (₹L)</p>
+                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Unspent Obligation (₹L, MCA-reported)</p>
                                         <p className="text-sm text-foreground mt-0.5 font-mono">
                                             {company.unspent_obligation_lakhs != null
                                                 ? `₹${company.unspent_obligation_lakhs}L`
                                                 : <span className="italic text-muted-foreground">Requires MCA data</span>}
+                                        </p>
+                                        <p className="text-[10px] text-muted-foreground/70 mt-0.5 leading-tight">
+                                            Must be transferred by company to a Schedule VII fund within 6 months of FY end (2021 Rules). Not redirectable by MP.
                                         </p>
                                     </div>
                                 )}
@@ -513,14 +519,17 @@ export default function CompanyProfilePage({ params }) {
                                 </div>
                                 {isZeroSpend && (
                                     <div className="space-y-1">
-                                        <label className="text-xs font-medium text-muted-foreground">Unspent Obligation (₹ Lakhs)</label>
+                                        <label className="text-xs font-medium text-muted-foreground">Unspent Obligation — MCA Disclosed (₹ Lakhs)</label>
                                         <Input
                                             type="number"
                                             value={editContact.unspent_obligation_lakhs}
                                             onChange={e => setEditContact(p => ({ ...p, unspent_obligation_lakhs: e.target.value }))}
-                                            placeholder="e.g. 45"
+                                            placeholder="e.g. 45 — from MCA annual return"
                                             className="h-8 text-sm"
                                         />
+                                        <p className="text-[10px] text-muted-foreground/70 leading-tight">
+                                            Record the figure from MCA disclosures only. This obligation is owed to MCA, not to the MP's office.
+                                        </p>
                                     </div>
                                 )}
                                 <div className="space-y-1">

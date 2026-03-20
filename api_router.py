@@ -1218,6 +1218,9 @@ def update_company_profile(company_id: int, req: CSRCompanyUpdateRequest, user=D
     """
     Update the mutable relationship / intelligence fields on a company profile.
     Only contact_person, contact_email, notes, and unspent_obligation_lakhs are writable.
+    unspent_obligation_lakhs is a reference figure sourced from MCA disclosures; it is not
+    controlled by or owed to the MP's office. Under the 2021 Amendment Rules the company must
+    transfer unspent amounts to a designated Schedule VII fund within 6 months of FY end.
     Enrichment fields (spend, sector, etc.) are managed by the data loader.
     """
     existing = _q_one("SELECT id FROM csr_companies WHERE id = :id", {"id": company_id})
@@ -1355,7 +1358,8 @@ CONTEXT:
 - Sector Focus: <user_input>{sanitize_prompt_input(req.sector)}</user_input>
 - Spending History:
 {history_str}
-TONE: Professional, collegial. Express appreciation for existing CSR work where applicable, and invite discussion on a specific project opportunity. Do not make demands or imply legal obligations. FORMAT: Formal Indian government letter. No emojis.
+TONE: Professional, collegial. Express appreciation for existing CSR work where applicable, and invite discussion on a specific project opportunity.
+CONSTRAINTS: Do not make demands, cite Section 135, or imply any legal obligation. Do not position the MP as an approver or decision-maker in the company's CSR process — the statutory chain (CSR Committee → Board) rests entirely with the company. The MP's role is to share constituency context and propose dialogue. FORMAT: Formal Indian government letter. No emojis.
 Generate ONLY the letter text."""
 
         response = client.models.generate_content(
@@ -1495,7 +1499,7 @@ PROJECT DETAILS:
 - Location: <user_input>{sanitize_prompt_input(req.area)}</user_input>
 - Target Sector: <user_input>{sanitize_prompt_input(req.sector or req.category)}</user_input>
 {ngo_section}
-DOCUMENT STRUCTURE (this is a Concept Note, not a final DPR — it is a pre-meeting document):
+DOCUMENT STRUCTURE (Concept Note — a pre-meeting document to initiate CSR dialogue):
 1. COVER NOTE
 2. EXECUTIVE SUMMARY
 3. PROBLEM STATEMENT (describe the nature and geographic scope of the issue)
@@ -1504,8 +1508,13 @@ DOCUMENT STRUCTURE (this is a Concept Note, not a final DPR — it is a pre-meet
 6. SDG ALIGNMENT
 7. IMPLEMENTATION PARTNERS (use the vetted NGO partners listed above if provided; otherwise suggest suitable types)
 8. MONITORING & EVALUATION FRAMEWORK
-9. MP'S ENDORSEMENT LINE
-IMPORTANT: Do not cite raw complaint counts as evidence. Do not include branding, wall plaques, or press coverage in the document.
+9. CONTACT & FOLLOW-UP (Office of the MP, constituency, contact details — for dialogue only)
+
+STATUTORY CONSTRAINTS — MUST FOLLOW:
+- The statutory CSR approval chain under the Companies Act 2013 is: CSR Committee → Board of Directors → Implementation. The MP is not part of this chain.
+- Do NOT include any MP endorsement line, MP sign-off block, or language implying the MP approves, champions, or has authority over the project.
+- Do NOT cite raw complaint counts as evidence.
+- Do NOT include branding, wall plaques, or press coverage in the document.
 TONE: Professional, factual. No emojis. Generate ONLY the document text."""
 
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)

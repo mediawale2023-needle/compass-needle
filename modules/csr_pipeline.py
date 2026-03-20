@@ -147,8 +147,9 @@ def generate_csr_proposal(cluster, company_name, constituency="the constituency"
             pass
 
     prompt = f"""
-    Act as a Senior CSR Consultant for an Indian Member of Parliament.
-    Write a 'Detailed Project Proposal' (DPR) Executive Summary.
+    You are drafting a CSR Concept Note on behalf of a constituency office.
+    This is a pre-meeting document to initiate dialogue with a company's CSR team.
+    It is NOT a formal proposal and does not constitute any approval or commitment.
 
     TARGET COMPANY: {company_name}
     CONSTITUENCY: {constituency}
@@ -160,13 +161,18 @@ def generate_csr_proposal(cluster, company_name, constituency="the constituency"
     - Active period: {days_active}
 
     STRUCTURE:
-    1. Executive Summary: What the problem is and why it needs attention in {constituency}.
-    2. Project Scope: What needs to be built/fixed across the affected areas.
-    3. Impact Assessment: Estimated number of beneficiaries.
-    4. Budget Estimate: Conservative cost estimate for the project.
-    5. SDG Alignment: Which UN Sustainable Development Goals this addresses.
-    6. MP Endorsement Line: Space for the MP to sign as the project champion.
+    1. Problem Summary: What the issue is and its geographic scope in {constituency}.
+    2. Proposed Intervention: What type of project could address the need.
+    3. Estimated Beneficiaries: Conservative estimate.
+    4. Indicative Budget: Conservative cost range for discussion.
+    5. SDG Alignment: Relevant UN Sustainable Development Goals.
+    6. Contact: Office of the MP, {constituency} (for follow-up queries).
 
-    Tone: Professional, data-driven, ready-to-sign. Do NOT fabricate any statistics beyond what is provided.
+    IMPORTANT CONSTRAINTS:
+    - The MP is not in the statutory CSR approval chain. Decisions rest with the company's
+      CSR Committee and Board under Section 135 of the Companies Act 2013.
+    - Do not frame the MP as a decision-maker, approver, or project champion in the document.
+    - Do not include any MP endorsement or sign-off line implying authority over the project.
+    - Tone: Professional, factual. Do NOT fabricate any statistics beyond what is provided.
     """
     return ask_openai(prompt, temperature=0.5)
