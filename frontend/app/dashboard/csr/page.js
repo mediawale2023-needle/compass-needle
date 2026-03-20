@@ -27,8 +27,8 @@ import {
     ChevronDown,
     CheckCircle2,
     MapPin,
-    Zap,
     Target,
+    Paperclip,
 } from 'lucide-react';
 
 const CSR_PILLS = ['All', 'Steel & Mining', 'Information Technology', 'Banking & Finance', 'Healthcare', 'Energy', 'Automobile'];
@@ -66,7 +66,7 @@ function ProjectCardSkeleton() {
 }
 
 // ─── Opportunity Card with embedded company recommendations ───
-function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR }) {
+function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR, evidence, onEvidenceChange }) {
     return (
         <Card className={cn('border-l-4', statusColor)}>
             <CardContent className="p-4">
@@ -122,14 +122,39 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR }) {
                     <span className="text-xs font-mono text-muted-foreground">{opp.progress_pct || 0}%</span>
                 </div>
 
-                <div className="mt-2 flex items-center justify-between">
+                <div className="mt-2">
                     <p className="text-xs text-muted-foreground">
                         Sector: <span className="font-semibold text-foreground">{opp.csr_sector}</span>
                     </p>
-                    {opp.velocity_7d > 0 && (
-                        <span className="text-xs text-amber-600 flex items-center gap-1">
-                            <Zap className="h-3 w-3" />+{opp.velocity_7d} this week
-                        </span>
+                </div>
+
+                {/* ─── Supporting Evidence attachment ─── */}
+                <div className="mt-3 space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5 cursor-pointer w-fit">
+                        <Paperclip className="h-3 w-3" />
+                        Supporting Evidence
+                        <input
+                            type="file"
+                            accept=".txt,.pdf,.doc,.docx"
+                            className="sr-only"
+                            onChange={e => onEvidenceChange && onEvidenceChange(opp.category, e.target.files[0])}
+                        />
+                    </label>
+                    {evidence?.name ? (
+                        <div className="flex items-center gap-1.5 text-xs text-primary bg-primary/5 border border-primary/20 rounded px-2 py-1 w-fit">
+                            <Paperclip className="h-3 w-3 shrink-0" />
+                            <span className="truncate max-w-[180px]">{evidence.name}</span>
+                            <button
+                                onClick={() => onEvidenceChange && onEvidenceChange(opp.category, null)}
+                                className="ml-1 text-muted-foreground hover:text-destructive shrink-0"
+                                aria-label="Remove evidence"
+                            >×</button>
+                        </div>
+                    ) : (
+                        <div className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                            <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+                            <span>This proposal relies only on grievance data. Attach a government document (Jal Jeevan report, district survey, panchayat record) to strengthen credibility.</span>
+                        </div>
                     )}
                 </div>
 
@@ -180,7 +205,7 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR }) {
                                                 size="sm"
                                                 className="h-7 text-xs gap-1.5"
                                                 disabled={dprLoading === dprKey}
-                                                onClick={() => onGenerateDPR(opp, co)}
+                                                onClick={() => onGenerateDPR(opp, co, evidence)}
                                             >
                                                 {dprLoading === dprKey
                                                     ? <><Loader2 className="h-3 w-3 animate-spin" />Generating...</>
@@ -244,6 +269,13 @@ export default function CSRPage() {
     // ─── Draft / DPR State ───
     const [draftLoading, setDraftLoading] = useState(null);
     const [dprLoading, setDprLoading] = useState(null);
+
+    // ─── Evidence files — keyed by opp.category ───
+    const [evidenceFiles, setEvidenceFiles] = useState({}); // { [category]: File | null }
+
+    const handleEvidenceChange = (category, file) => {
+        setEvidenceFiles(prev => ({ ...prev, [category]: file || null }));
+    };
 
     // ─── Sheet State ───
     const [openSheet, setOpenSheet] = useState(null); // { type: 'dpr'|'draft', key, title, content }
@@ -327,7 +359,7 @@ export default function CSRPage() {
                 type: 'dpr',
                 key,
                 title: `Concept Note — ${company.Company}`,
-                content: 'Error generating DPR. Please try again.',
+                content: 'Error generating concept note. Please try again.',
             });
         } finally {
             setDprLoading(null);
@@ -366,16 +398,29 @@ export default function CSRPage() {
     };
 
     // ─── Generate Concept Note from opportunity-first recommendation ───
-    const generateDPRFromOpportunity = async (opp, company) => {
+    const generateDPRFromOpportunity = async (opp, company, evidenceFile) => {
         const key = `${opp.category}-${company.name}`;
         setDprLoading(key);
         try {
+            // Read evidence file text if provided
+            let evidence_text = '';
+            let evidence_filename = '';
+            if (evidenceFile) {
+                evidence_filename = evidenceFile.name;
+                try {
+                    evidence_text = await evidenceFile.text();
+                } catch {
+                    evidence_text = '';
+                }
+            }
             const data = await apiPost('/api/csr/generate-dpr', {
                 category: opp.category,
                 area: opp.area,
                 volume: opp.volume,
                 company: company.name,
                 sector: company.sector || opp.csr_sector || '',
+                evidence_text,
+                evidence_filename,
             }, { timeout: AI_TIMEOUT, noRetry: true });
             setOpenSheet({
                 type: 'dpr',
@@ -388,7 +433,7 @@ export default function CSRPage() {
                 type: 'dpr',
                 key,
                 title: `Concept Note — ${company.name}`,
-                content: 'Error generating DPR. Please try again.',
+                content: 'Error generating concept note. Please try again.',
             });
         } finally {
             setDprLoading(null);
@@ -428,10 +473,10 @@ export default function CSRPage() {
                         <Card className="border-l-4 border-l-primary">
                             <CardContent className="p-5">
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                    Needs Field Verification
+                                    Field Verification Needed
                                 </p>
                                 <p className="text-3xl font-bold text-primary mt-1">{opportunitiesReady}</p>
-                                <p className="text-xs text-muted-foreground mt-1">High complaint volume — verify on ground</p>
+                                <p className="text-xs text-muted-foreground mt-1">Internal trigger — confirm need on ground first</p>
                             </CardContent>
                         </Card>
                         <Card className="border-l-4 border-l-amber-500">
@@ -440,7 +485,7 @@ export default function CSRPage() {
                                     Tracking
                                 </p>
                                 <p className="text-3xl font-bold text-amber-600 mt-1">{opportunitiesMonitoring}</p>
-                                <p className="text-xs text-muted-foreground mt-1">Growing complaint cluster — monitor</p>
+                                <p className="text-xs text-muted-foreground mt-1">Internal trigger — watch for further growth</p>
                             </CardContent>
                         </Card>
                     </>
@@ -505,17 +550,19 @@ export default function CSRPage() {
                                 {opportunitiesReady > 0 && (
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-2">
-                                            <Badge variant="outline" className="border-primary text-primary bg-primary/5">Verify on Ground</Badge>
-                                            <span className="text-xs text-muted-foreground">High complaint volume — confirm need before company outreach</span>
+                                            <Badge variant="outline" className="border-primary text-primary bg-primary/5">Field Verification Needed</Badge>
+                                            <span className="text-xs text-muted-foreground">Internal trigger only — verify the need before any company outreach</span>
                                         </div>
                                         <div className="space-y-4">
                                             {opportunities.filter(o => o.status === 'verify').map((opp, i) => (
                                                 <OpportunityCard
                                                     key={i}
                                                     opp={opp}
-                                                    statusColor="border-l-destructive"
+                                                    statusColor="border-l-primary"
                                                     dprLoading={dprLoading}
                                                     onGenerateDPR={generateDPRFromOpportunity}
+                                                    evidence={evidenceFiles[opp.category] || null}
+                                                    onEvidenceChange={handleEvidenceChange}
                                                 />
                                             ))}
                                         </div>
@@ -539,6 +586,8 @@ export default function CSRPage() {
                                                     statusColor="border-l-amber-500"
                                                     dprLoading={dprLoading}
                                                     onGenerateDPR={generateDPRFromOpportunity}
+                                                    evidence={evidenceFiles[opp.category] || null}
+                                                    onEvidenceChange={handleEvidenceChange}
                                                 />
                                             ))}
                                         </div>
@@ -807,7 +856,7 @@ export default function CSRPage() {
                         </SheetTitle>
                         <SheetDescription>
                             {openSheet?.type === 'dpr'
-                                ? 'Detailed Project Report — review before submitting'
+                                ? 'Concept Note — pre-meeting document, review before sharing'
                                 : 'AI-drafted letter — review and edit before sending'}
                         </SheetDescription>
                     </SheetHeader>
@@ -834,8 +883,8 @@ export default function CSRPage() {
                                 onClick={() => downloadText(
                                     openSheet.content,
                                     openSheet.type === 'dpr'
-                                        ? `DPR_${openSheet.key}.txt`
-                                        : `CSR_Proposal_${openSheet.key}.txt`
+                                        ? `ConceptNote_${openSheet.key}.txt`
+                                        : `CSR_Letter_${openSheet.key}.txt`
                                 )}
                                 className="gap-2"
                             >
