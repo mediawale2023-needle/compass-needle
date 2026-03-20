@@ -1,14 +1,21 @@
 """
 csr_matching_engine.py — Multi-dimensional CSR opportunity ↔ company scoring.
 
-Scoring dimensions (weights):
-  35%  Sector Alignment   — overlap between opportunity sector and company sector_priorities
-  25%  Geographic Score   — same district / same state / national
-  25%  Urgency Score      — complaint volume + 7-day velocity
-  15%  Relationship Score — existing pipeline entries, prior contact established
+fit_score dimensions (weights):
+  30%  Sector Alignment   — overlap between opportunity sector and company sector_priorities
+  20%  Geographic Score   — same district / same state / national
+  20%  Funding Window     — is it the right moment in India's April–March CSR budget cycle?
+  15%  Historical Score   — has the company funded this sector before?
+  15%  Readiness Score    — does this opportunity have a vetted NGO partner + specific affected areas?
 
-Final match_score = weighted sum, 0–100.
-Recommended ask amount = company avg_ticket_size_lakhs × urgency_multiplier.
+compute_match_score (legacy bulk-scorer) dimensions:
+  35%  Sector Alignment
+  40%  Geographic Score
+  25%  Relationship Score — existing pipeline entries / prior contact (kept for pipeline logic)
+
+Recommended ask amount = company avg_ticket_size_lakhs (not volume-inflated).
+
+Complaint velocity is NOT a scoring input — CSR decisions run on 6–18 month cycles.
 """
 import json
 import logging
@@ -93,15 +100,59 @@ def score_geographic(opportunity_area: str, company: dict) -> float:
         return 30.0
 
 
-def score_urgency(volume: int, velocity_7d: int) -> float:
+def score_readiness(opportunity: dict) -> float:
     """
-    0–100 urgency score from complaint volume and recent velocity.
-    Volume contribution  (cap 500): 60%
-    Velocity contribution (cap 50): 40%
+    0–100 readiness score for an opportunity — does it have the prerequisites
+    for a credible CSR pitch?
+
+    Computed from opportunity-level signals, not company signals:
+      NGO available for sector (pre-computed by caller, stored as readiness_ngo_available): +60
+      Specific affected areas identified (len > 0):                                         +40
+
+    Callers should set opportunity['readiness_ngo_available'] = True/False before
+    passing the opportunity to this function.  If not set, defaults to False.
     """
-    vol_score = min(60.0, (volume / 500.0) * 60.0)
-    vel_score = min(40.0, (velocity_7d / 50.0) * 40.0)
-    return round(vol_score + vel_score, 1)
+    score = 0.0
+    if opportunity.get("readiness_ngo_available"):
+        score += 60.0
+    if opportunity.get("affected_areas") and len(opportunity["affected_areas"]) > 0:
+        score += 40.0
+    return min(100.0, score)
+
+
+def fy_window_label() -> dict:
+    """
+    Returns a dict describing the current position in India's April–March CSR budget cycle.
+    Used by the API and frontend for FY status banners.
+    """
+    month = datetime.utcnow().month
+    if 4 <= month <= 10:
+        return {
+            "window": "prime",
+            "label": "FY Window Open",
+            "description": (
+                "April–October is the prime outreach window. "
+                "Companies are actively allocating their CSR budgets."
+            ),
+        }
+    elif month in (11, 12):
+        return {
+            "window": "late",
+            "label": "Late Addition",
+            "description": (
+                "November–December: budgets are mostly committed. "
+                "Flag companies for next-FY planning or ask about supplementary allocations."
+            ),
+        }
+    else:  # January–March
+        return {
+            "window": "next_fy",
+            "label": "Next FY Only",
+            "description": (
+                "January–March: current FY budget is locked. "
+                "Use this period to prepare materials — target April for fresh allocation."
+            ),
+        }
 
 
 def score_relationship(company_name: str, tenant_id: int) -> float:
@@ -147,8 +198,8 @@ def score_relationship(company_name: str, tenant_id: int) -> float:
 def compute_match_score(
     opportunity_sector: str,
     opportunity_area: str,
-    volume: int,
-    velocity_7d: int,
+    volume: int,        # kept for API compatibility; not used in scoring
+    velocity_7d: int,   # kept for API compatibility; not used in scoring
     company: dict,
     tenant_id: int,
 ) -> dict:
@@ -159,35 +210,32 @@ def compute_match_score(
     """
     sector_score = score_sector_alignment(opportunity_sector, company)
     geo_score = score_geographic(opportunity_area, company)
-    urgency_score = score_urgency(volume, velocity_7d)
     rel_score = score_relationship(company.get("Company") or company.get("name", ""), tenant_id)
 
-    # Weighted composite
+    # Weighted composite — sector 35%, geography 40%, relationship 25%
     composite = round(
         sector_score * 0.35
-        + geo_score * 0.25
-        + urgency_score * 0.25
-        + rel_score * 0.15,
+        + geo_score * 0.40
+        + rel_score * 0.25,
         1
     )
 
-    # Recommended ask amount: avg ticket × urgency multiplier
+    # Recommended ask amount: avg ticket (base, not volume-inflated)
     avg_ticket = company.get("avg_ticket_size_lakhs") or 0.0
-    urgency_mult = 1.0 + (urgency_score / 100.0) * 0.5  # 1.0 → 1.5×
-    recommended_ask = round(avg_ticket * urgency_mult, 1) if avg_ticket else None
+    recommended_ask = round(avg_ticket, 1) if avg_ticket else None
 
     return {
         "match_score": composite,
         "sector_alignment_score": sector_score,
         "geographic_score": geo_score,
-        "urgency_score": urgency_score,
+        "urgency_score": 0.0,  # removed
         "relationship_score": rel_score,
         "recommended_ask_amount": recommended_ask,
-        "ask_rationale": _build_rationale(sector_score, geo_score, urgency_score, rel_score, recommended_ask),
+        "ask_rationale": _build_rationale(sector_score, geo_score, rel_score, recommended_ask),
     }
 
 
-def _build_rationale(sector: float, geo: float, urgency: float, rel: float, ask: float | None) -> str:
+def _build_rationale(sector: float, geo: float, rel: float, ask: float | None) -> str:
     """Generate a one-line human-readable rationale for the match score."""
     parts = []
     if sector >= 70:
@@ -204,17 +252,12 @@ def _build_rationale(sector: float, geo: float, urgency: float, rel: float, ask:
     else:
         parts.append("national reach only")
 
-    if urgency >= 70:
-        parts.append("high-urgency cluster")
-    elif urgency >= 40:
-        parts.append("moderate urgency")
-
     if rel >= 40:
         parts.append("existing relationship")
 
     rationale = "Match based on: " + ", ".join(parts) + "."
     if ask:
-        rationale += f" Suggested ask: ₹{ask}L."
+        rationale += f" Avg ticket size: ₹{ask}L."
     return rationale
 
 
@@ -402,14 +445,14 @@ def fit_score(opportunity: dict, company: dict, tenant_id: int) -> dict:
     calculation but not counted in the fit score itself.
 
     Weights:
-        30%  Sector Alignment      — does the company fund this sector?
-        20%  Geographic Score      — local presence vs national reach
-        20%  Funding Window        — is it the right time in the budget cycle?
-        15%  Historical Similarity — has the company funded similar projects before?
-        15%  Relationship Score    — existing pipeline entries / prior contact
+        30%  Sector Alignment   — does the company fund this sector?
+        20%  Geographic Score   — local presence vs national reach
+        20%  Funding Window     — is it the right time in the budget cycle?
+        15%  Historical Score   — has the company funded similar projects before?
+        15%  Readiness Score    — does this opportunity have an NGO + specific affected areas?
 
-    Returns a dict with all sub-scores, composite fit_score, similar_projects, and
-    recommended_ask_amount (derived from urgency, separate from fit).
+    Relationship score is still computed and returned in the dict (for next-action logic),
+    but does not contribute to the composite fit_score.
     """
     company_name = company.get("Company") or company.get("name", "")
     sector = opportunity.get("csr_sector") or opportunity.get("category", "General CSR")
@@ -419,22 +462,21 @@ def fit_score(opportunity: dict, company: dict, tenant_id: int) -> dict:
     geo_s = score_geographic(area, company)
     window_s = score_funding_window()
     hist_s, similar_projects = score_historical_similarity(sector, company_name, tenant_id)
-    rel_s = score_relationship(company_name, tenant_id)
+    readiness_s = score_readiness(opportunity)
+    rel_s = score_relationship(company_name, tenant_id)  # kept for next-action logic only
 
     composite = round(
         sector_s * 0.30
         + geo_s * 0.20
         + window_s * 0.20
         + hist_s * 0.15
-        + rel_s * 0.15,
+        + readiness_s * 0.15,
         1,
     )
 
-    # Ask amount uses urgency (opportunity property) — kept separate from fit
+    # Recommended ask: base avg ticket, not inflated by complaint volume
     avg_ticket = company.get("avg_ticket_size_lakhs") or 0.0
-    urgency_s = score_urgency(opportunity.get("volume", 0), opportunity.get("velocity_7d", 0))
-    urgency_mult = 1.0 + (urgency_s / 100.0) * 0.5
-    recommended_ask = round(avg_ticket * urgency_mult, 1) if avg_ticket else None
+    recommended_ask = round(avg_ticket, 1) if avg_ticket else None
 
     return {
         "fit_score": composite,
@@ -442,6 +484,7 @@ def fit_score(opportunity: dict, company: dict, tenant_id: int) -> dict:
         "geographic_score": geo_s,
         "funding_window_score": window_s,
         "historical_score": hist_s,
+        "readiness_score": readiness_s,
         "relationship_score": rel_s,
         "similar_projects": similar_projects,
         "recommended_ask_amount": recommended_ask,
@@ -493,12 +536,13 @@ def _build_recommendation_reason(
     elif window_s >= 30:
         parts.append("late cycle — target April for fresh allocation")
     else:
-        parts.append("Q4 — pitch now to get on next FY plan")
+        parts.append("Q4 — prepare now, pitch in April")
 
-    if rel_s >= 60:
-        parts.append("existing relationship on record")
-    elif rel_s >= 40:
-        parts.append("prior contact established")
+    readiness_s = scores.get("readiness_score", 0)
+    if readiness_s >= 80:
+        parts.append("vetted NGO partner available, affected areas mapped")
+    elif readiness_s >= 50:
+        parts.append("NGO partner available for implementation")
 
     if not parts:
         return "Potential fit based on sector and geography."
@@ -526,31 +570,32 @@ def _determine_next_action(scores: dict, opportunity: dict) -> tuple:
     if rel_s >= 60:
         return (
             "dpr",
-            f"You have an existing relationship. Generate a DPR citing the {volume} verified "
-            f"complaints in {area} and share directly with their CSR head.",
+            f"You have an existing relationship with this company. "
+            f"Generate a Concept Note for {area} and share directly with their CSR head.",
         )
     if hist_s >= 50 and sector_s >= 60:
         return (
             "meeting",
-            f"This company has funded similar projects before — a warm conversation beats a cold "
-            f"DPR. Request a meeting and bring the {volume}-complaint cluster as evidence.",
+            "This company has funded similar projects before — a warm conversation is more "
+            "effective than a cold proposal. Request a meeting and bring government evidence "
+            "of the need.",
         )
     if geo_s >= 90 and rel_s == 0:
         return (
             "meeting",
             "Local company with no prior contact. Identify the CSR head (HR or Sustainability "
-            "dept) and request an introductory meeting before sending any formal proposal.",
+            "dept) and request an introductory meeting before sending any formal document.",
         )
     if sector_s >= 70 and rel_s == 0:
         return (
             "dpr",
-            "Strong sector alignment — send a well-structured DPR with an MP cover letter. "
-            "Include grievance data to demonstrate verified community need.",
+            "Strong sector alignment — generate a Concept Note with an MP cover letter. "
+            "Attach a government document (district survey, Jal Jeevan report) as evidence.",
         )
     return (
         "meeting",
         "Start with an introductory call to understand their current CSR priorities "
-        "before committing to a formal DPR.",
+        "before committing to a formal Concept Note.",
     )
 
 

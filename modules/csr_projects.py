@@ -116,7 +116,7 @@ def render_csr_projects(username):
                             2. Technical Specifications: Brief mention of high-quality standards.
                             3. Impact Assessment: How many lives changed.
                             4. Budget Summary.
-                            5. Branding Value: How {target_comp} will get visibility (branding on walls/plaques).
+                            5. Implementation Partner: Recommended NGO profile and why they are suited to execute this project.
                             
                             Tone: Professional, Technocratic, Ready-to-Sign.
                             """

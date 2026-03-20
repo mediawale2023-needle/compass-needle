@@ -1,8 +1,8 @@
 """
 CSR Pipeline — Connects SansadX grievances to CSR funding opportunities.
 
-When 200+ complaints about the same issue accumulate in a specific area,
-the system auto-flags it as a CSR Proposal Candidate.
+Complaint clusters are surfaced as areas that need field verification before
+any outreach to companies. Volume thresholds are internal signals only.
 """
 import logging
 from sqlalchemy import text
@@ -11,8 +11,8 @@ from datetime import datetime, timedelta
 logger = logging.getLogger("needle.csr_pipeline")
 
 # --- CONFIGURATION ---
-CSR_PROPOSAL_THRESHOLD = 200 # Minimum complaints to qualify for CSR proposal
-CSR_MONITOR_THRESHOLD = 100 # Minimum complaints to start monitoring
+CSR_PROPOSAL_THRESHOLD = 200 # Internal threshold to surface cluster for field verification
+CSR_MONITOR_THRESHOLD = 100 # Internal threshold to begin tracking a cluster
 
 # Category → CSR Sector mapping
 CATEGORY_SECTOR_MAP = {
@@ -42,6 +42,7 @@ def get_grievance_clusters(tenant_id, min_threshold=CSR_MONITOR_THRESHOLD):
     """
     Fetch grievance clusters grouped by category (constituency-level) that meet the threshold.
     Each cluster aggregates complaints across all micro-areas into one opportunity per issue type.
+    Clusters are internal signals for where to investigate — not eligibility certificates.
     Returns list of dicts with cluster data including affected_areas breakdown.
     """
     engine = _get_engine()
@@ -103,7 +104,7 @@ def get_grievance_clusters(tenant_id, min_threshold=CSR_MONITOR_THRESHOLD):
                 "first_report": row[2],
                 "last_report": row[3],
                 "progress_pct": min(100, int((volume / CSR_PROPOSAL_THRESHOLD) * 100)),
-                "status": "ready" if volume >= CSR_PROPOSAL_THRESHOLD else "monitoring",
+                "status": "verify" if volume >= CSR_PROPOSAL_THRESHOLD else "watch",
                 "csr_sector": CATEGORY_SECTOR_MAP.get(category, "General CSR"),
                 "affected_areas": areas_by_category.get(category, []),
             })
@@ -114,15 +115,15 @@ def get_grievance_clusters(tenant_id, min_threshold=CSR_MONITOR_THRESHOLD):
 
 
 def get_csr_candidates(tenant_id):
-    """Returns clusters that have crossed the 200-complaint threshold (CSR-ready)."""
+    """Returns clusters above the upper threshold — flagged for field verification."""
     clusters = get_grievance_clusters(tenant_id, CSR_PROPOSAL_THRESHOLD)
-    return [c for c in clusters if c["status"] == "ready"]
+    return [c for c in clusters if c["status"] == "verify"]
 
 
 def get_monitoring_clusters(tenant_id):
-    """Returns clusters approaching threshold (100-199 complaints)."""
+    """Returns clusters being tracked (100-199 complaints)."""
     clusters = get_grievance_clusters(tenant_id, CSR_MONITOR_THRESHOLD)
-    return [c for c in clusters if c["status"] == "monitoring"]
+    return [c for c in clusters if c["status"] == "watch"]
 
 
 def match_companies(csr_sector, csr_data):
@@ -146,29 +147,32 @@ def generate_csr_proposal(cluster, company_name, constituency="the constituency"
             pass
 
     prompt = f"""
-    Act as a Senior CSR Consultant for an Indian Member of Parliament.
-    Write a 'Detailed Project Proposal' (DPR) Executive Summary.
+    You are drafting a CSR Concept Note on behalf of a constituency office.
+    This is a pre-meeting document to initiate dialogue with a company's CSR team.
+    It is NOT a formal proposal and does not constitute any approval or commitment.
 
     TARGET COMPANY: {company_name}
     CONSTITUENCY: {constituency}
 
-    DATA-BACKED EVIDENCE:
+    CONTEXT:
     - Issue: {cluster['category']} ({cluster['csr_sector']})
     - Constituency: {constituency}
     - Affected areas: {', '.join(a['area'] for a in cluster.get('affected_areas', [])) or constituency}
-    - Verified citizen reports: {cluster['volume']} unique complaints
     - Active period: {days_active}
-    - This is NOT an estimate — these are real, verified citizen grievances collected via WhatsApp.
 
     STRUCTURE:
-    1. Executive Summary: Why this project is urgent (cite the {cluster['volume']} verified reports).
-    2. Project Scope: What needs to be built/fixed across the affected areas in {constituency}.
-    3. Impact Assessment: Number of beneficiaries (based on complaint volume).
-    4. Budget Estimate: Conservative cost estimate for the project.
-    5. SDG Alignment: Which UN Sustainable Development Goals this addresses.
-    6. Branding Value: How {company_name} gets visibility (wall branding, plaques, press coverage).
-    7. MP Endorsement Line: Space for the MP to sign as the project champion.
+    1. Problem Summary: What the issue is and its geographic scope in {constituency}.
+    2. Proposed Intervention: What type of project could address the need.
+    3. Estimated Beneficiaries: Conservative estimate.
+    4. Indicative Budget: Conservative cost range for discussion.
+    5. SDG Alignment: Relevant UN Sustainable Development Goals.
+    6. Contact: Office of the MP, {constituency} (for follow-up queries).
 
-    Tone: Professional, data-driven, ready-to-sign. Do NOT fabricate any statistics beyond what is provided.
+    IMPORTANT CONSTRAINTS:
+    - The MP is not in the statutory CSR approval chain. Decisions rest with the company's
+      CSR Committee and Board under Section 135 of the Companies Act 2013.
+    - Do not frame the MP as a decision-maker, approver, or project champion in the document.
+    - Do not include any MP endorsement or sign-off line implying authority over the project.
+    - Tone: Professional, factual. Do NOT fabricate any statistics beyond what is provided.
     """
     return ask_openai(prompt, temperature=0.5)
