@@ -20,7 +20,6 @@ import {
     AlertTriangle,
     Download,
     RefreshCw,
-    TrendingUp,
     Activity,
     Building2,
     ChevronRight,
@@ -272,9 +271,6 @@ export default function CSRPage() {
     const [opportunitiesLoading, setOpportunitiesLoading] = useState(true);
     const [opportunitiesError, setOpportunitiesError] = useState(null);
     const [fyWindow, setFyWindow] = useState(null); // { window, label, description }
-    const [strategicMatches, setStrategicMatches] = useState([]);
-    const [matchesLoading, setMatchesLoading] = useState(true);
-    const [matchesError, setMatchesError] = useState(null);
 
     // ─── Company Database State ───
     const [companies, setCompanies] = useState([]);
@@ -316,23 +312,7 @@ export default function CSRPage() {
         }
     };
 
-    // ─── Fetch strategic matches (live gaps ↔ CSR companies) ───
-    const fetchMatches = async () => {
-        setMatchesLoading(true);
-        setMatchesError(null);
-        try {
-            const data = await apiPost('/api/csr/strategic-matches', {});
-            setStrategicMatches(data.matches || []);
-        } catch (err) {
-            console.error('Strategic matches fetch failed:', err);
-            setMatchesError('Failed to load strategic matches.');
-        } finally {
-            setMatchesLoading(false);
-        }
-    };
-
     useEffect(() => { fetchOpportunities(); }, []);
-    useEffect(() => { fetchMatches(); }, []);
 
     // ─── Fetch CSR company database ───
     const fetchCompanies = async () => {
@@ -352,37 +332,6 @@ export default function CSRPage() {
         }
     };
     useEffect(() => { fetchCompanies(); }, [search, selectedSector]);
-
-    // ─── Generate Concept Note from live data ───
-    const generateDPR = async (match, company) => {
-        const key = `${match.category}-${company.Company}`;
-        setDprLoading(key);
-        try {
-            const data = await apiPost('/api/csr/generate-dpr', {
-                category: match.category,
-                area: match.area,
-                volume: match.volume,
-                company: company.Company,
-                sector: company.Sector || '',
-            }, { timeout: AI_TIMEOUT, noRetry: true });
-            const content = data.content;
-            setOpenSheet({
-                type: 'dpr',
-                key,
-                title: `Concept Note — ${match.category} × ${company.Company}`,
-                content,
-            });
-        } catch (err) {
-            setOpenSheet({
-                type: 'dpr',
-                key,
-                title: `Concept Note — ${company.Company}`,
-                content: 'Error generating concept note. Please try again.',
-            });
-        } finally {
-            setDprLoading(null);
-        }
-    };
 
     // ─── Draft letter from company database ───
     const draftLetter = async (company) => {
@@ -473,7 +422,6 @@ export default function CSRPage() {
 
     const opportunitiesReady = opportunities.filter(o => o.status === 'verify').length;
     const opportunitiesMonitoring = opportunities.filter(o => o.status === 'watch').length;
-    const totalMatches = strategicMatches.length;
 
     return (
         <div className="space-y-6">
@@ -526,19 +474,6 @@ export default function CSRPage() {
                         </Card>
                     </>
                 )}
-                {matchesLoading ? (
-                    <StatSkeleton />
-                ) : (
-                    <Card className="border-l-4 border-l-primary">
-                        <CardContent className="p-5">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                Strategic Matches
-                            </p>
-                            <p className="text-3xl font-bold text-primary mt-1">{totalMatches}</p>
-                            <p className="text-xs text-muted-foreground mt-1">Live gaps matched to CSR companies</p>
-                        </CardContent>
-                    </Card>
-                )}
             </div>
 
             {/* ─── Tab Navigation ─── */}
@@ -548,10 +483,6 @@ export default function CSRPage() {
                         <TabsTrigger value="live">
                             <Activity className="h-3.5 w-3.5 mr-1.5" />
                             Opportunities ({opportunities.length})
-                        </TabsTrigger>
-                        <TabsTrigger value="matches">
-                            <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
-                            Strategic Matches ({totalMatches})
                         </TabsTrigger>
                         <TabsTrigger value="database">
                             <Building2 className="h-3.5 w-3.5 mr-1.5" />
@@ -637,114 +568,7 @@ export default function CSRPage() {
                 </TabsContent>
 
                 {/* ═══════════════════════════════════════════
-                    TAB 2: Strategic Matches (Live Gaps ↔ Companies)
-                   ═══════════════════════════════════════════ */}
-                <TabsContent value="matches" className="mt-6">
-                    <div className="space-y-4">
-                        {matchesLoading ? (
-                            <div className="space-y-4">
-                                {[...Array(2)].map((_, i) => (
-                                    <Card key={i}>
-                                        <CardHeader className="pb-3">
-                                            <div className="flex items-center gap-2">
-                                                <Skeleton className="h-5 w-32" />
-                                                <Skeleton className="h-5 w-16 rounded-full" />
-                                            </div>
-                                            <Skeleton className="h-3 w-48 mt-1" />
-                                        </CardHeader>
-                                        <CardContent>
-                                            <div className="space-y-2">
-                                                {[...Array(3)].map((_, j) => <Skeleton key={j} className="h-10 w-full" />)}
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ))}
-                            </div>
-                        ) : matchesError ? (
-                            <ErrorCard message={matchesError} onRetry={fetchMatches} />
-                        ) : strategicMatches.length === 0 ? (
-                            <Card>
-                                <CardContent className="py-12 text-center">
-                                    <p className="text-sm text-muted-foreground">No strategic matches found yet.</p>
-                                    <p className="text-xs text-muted-foreground/60 mt-2">
-                                        Matches appear when grievance clusters can be mapped to companies with relevant CSR sector priorities.
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        ) : (
-                            strategicMatches.map((match, mi) => {
-                                return (
-                                    <Card key={mi}>
-                                        <CardHeader className="pb-3">
-                                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                                <div>
-                                                    <CardTitle className="text-base">{match.category}</CardTitle>
-                                                    <CardDescription className="mt-1">
-                                                        {match.area} · <span className="font-semibold">{match.volume}</span> grievance reports
-                                                    </CardDescription>
-                                                </div>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Matched sectors: {match.matched_sectors?.join(', ')}
-                                                </p>
-                                            </div>
-                                        </CardHeader>
-                                        <CardContent className="pt-0">
-                                            {match.matched_companies?.length > 0 ? (
-                                                <div className="overflow-x-auto rounded-md border border-border">
-                                                    <Table>
-                                                        <TableHeader>
-                                                            <TableRow>
-                                                                <TableHead>Company</TableHead>
-                                                                <TableHead>Sector</TableHead>
-                                                                <TableHead>3Y Spend</TableHead>
-                                                                <TableHead>District</TableHead>
-                                                                <TableHead className="text-right">Action</TableHead>
-                                                            </TableRow>
-                                                        </TableHeader>
-                                                        <TableBody>
-                                                            {match.matched_companies.map((comp, ci) => {
-                                                                const dprKey = `${match.category}-${comp.Company}`;
-                                                                return (
-                                                                    <TableRow key={ci}>
-                                                                        <TableCell className="font-semibold text-foreground">{comp.Company}</TableCell>
-                                                                        <TableCell className="text-muted-foreground">{comp.Sector || 'N/A'}</TableCell>
-                                                                        <TableCell className="font-mono text-xs text-foreground">{comp.Total_3Y || 'N/A'}</TableCell>
-                                                                        <TableCell className="text-muted-foreground">{comp.District || '—'}</TableCell>
-                                                                        <TableCell className="text-right">
-                                                                            <Button
-                                                                                variant="outline"
-                                                                                size="sm"
-                                                                                disabled={dprLoading === dprKey}
-                                                                                onClick={() => generateDPR(match, comp)}
-                                                                                className="gap-1.5 whitespace-nowrap"
-                                                                            >
-                                                                                {dprLoading === dprKey
-                                                                                    ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating...</>
-                                                                                    : 'Generate Concept Note'
-                                                                                }
-                                                                            </Button>
-                                                                        </TableCell>
-                                                                    </TableRow>
-                                                                );
-                                                            })}
-                                                        </TableBody>
-                                                    </Table>
-                                                </div>
-                                            ) : (
-                                                <p className="text-xs text-muted-foreground italic">
-                                                    No matching companies found in the database for this sector.
-                                                </p>
-                                            )}
-                                        </CardContent>
-                                    </Card>
-                                );
-                            })
-                        )}
-                    </div>
-                </TabsContent>
-
-                {/* ═══════════════════════════════════════════
-                    TAB 3: Company Database (existing static data)
+                    TAB 2: Company Database
                    ═══════════════════════════════════════════ */}
                 <TabsContent value="database" className="mt-6">
                     <div className="space-y-4">
