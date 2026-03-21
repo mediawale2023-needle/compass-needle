@@ -29,7 +29,7 @@ const NAV_ITEMS = [
     { name: 'Briefcase', path: '/dashboard/sansadx', icon: Briefcase, badgeKey: 'briefcase' },
     { name: 'Research Desk', path: '/dashboard/copilot', icon: BookOpen },
     { name: 'Drafter', path: '/dashboard/drafter', icon: PenTool },
-    { name: 'Schemes', path: '/dashboard/schemes', icon: Gift },
+    { name: 'Ministry Watch', path: '/dashboard/schemes', icon: Gift },
     { name: 'CSR Intelligence', path: '/dashboard/csr', icon: Users },
     { name: 'Archives', path: '/dashboard/archives', icon: Archive },
     { name: 'Settings', path: '/dashboard/settings', icon: Settings },
