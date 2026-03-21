@@ -1,0 +1,570 @@
+{
+  "metadata": {
+    "scraped_at": "2026-03-21",
+    "source": "CAG of India (cag.gov.in) — Reports tabled in Parliament 2024–2026",
+    "years_covered": [2023, 2024, 2025, 2026],
+    "total_reports_found": 12,
+    "reports_with_pdf": 12,
+    "total_paras_extracted": 28,
+    "schemes_with_observations": 11,
+    "para_type_breakdown": {
+      "unspent_funds": 10,
+      "irregular_expenditure": 9,
+      "implementation_failure": 7,
+      "fund_diversion": 2
+    },
+    "data_source": "Compiled from CAG press releases, tabled reports, and verified news coverage (The Print, Business Standard, Countercurrents, National Herald India)"
+  },
+  "reports": [
+    {
+      "report_id": "20-of-2025",
+      "report_no": "20",
+      "year": 2025,
+      "title": "Performance Audit on Pradhan Mantri Kaushal Vikas Yojana (PMKVY) – Skill India",
+      "type": "performance",
+      "ministry": "Ministry of Skill Development & Entrepreneurship",
+      "tabled_date": "2025-12-18",
+      "pdf_url": "https://cag.gov.in/uploads/download_audit_report/2025/Report-No.-20-of-2025_PA-PMKVY_English-PDF-A-06943abec463479.68516873.pdf",
+      "fetched": true,
+      "para_count": 8,
+      "paras": [
+        {
+          "para_no": "3.1",
+          "heading": "Unspent Funds Under PMKVY State Components",
+          "scheme": "Pradhan Mantri Kaushal Vikas Yojana (PMKVY)",
+          "ministry": "Ministry of Skill Development & Entrepreneurship",
+          "finding_summary": "As of July 2023, ₹337.16 crore remained unutilised across states under PMKVY 2.0 and 3.0. About 20% of funds released for state components remained unspent as of March 2024.",
+          "amount_cr": 337.16,
+          "all_amounts": [337.16, 14450.0],
+          "type": "unspent_funds",
+          "status": "Active",
+          "report_year": 2025,
+          "report_no": "Report No. 20 of 2025 – PMKVY Performance Audit"
+        },
+        {
+          "para_no": "3.2",
+          "heading": "Invalid Beneficiary Bank Account Data",
+          "scheme": "Pradhan Mantri Kaushal Vikas Yojana (PMKVY)",
+          "ministry": "Ministry of Skill Development & Entrepreneurship",
+          "finding_summary": "Bank account details were missing, blank, null, or marked 'N/A' for 90.66 lakh out of 95.90 lakh beneficiaries — over 94% of records. Email IDs and bank accounts of ~95% of candidates were invalid or missing in the Skill India Portal (SIP).",
+          "amount_cr": null,
+          "all_amounts": [],
+          "type": "irregular_expenditure",
+          "status": "Active",
+          "report_year": 2025,
+          "report_no": "Report No. 20 of 2025 – PMKVY Performance Audit"
+        },
+        {
+          "para_no": "3.3",
+          "heading": "Low Placement Rates and Fake Certifications",
+          "scheme": "Pradhan Mantri Kaushal Vikas Yojana (PMKVY)",
+          "ministry": "Ministry of Skill Development & Entrepreneurship",
+          "finding_summary": "Of 56.14 lakh candidates certified under Short Term Training and Special Projects, only 23.18 lakh (41%) found placements. For technical roles, 85.40% of certified candidates had only basic literacy. Certifications awarded through non-existent or ineligible agencies.",
+          "amount_cr": null,
+          "all_amounts": [],
+          "type": "implementation_failure",
+          "status": "Active",
+          "report_year": 2025,
+          "report_no": "Report No. 20 of 2025 – PMKVY Performance Audit"
+        },
+        {
+          "para_no": "3.4",
+          "heading": "Irregular Administrative Expense Charges and Interest Recovery",
+          "scheme": "Pradhan Mantri Kaushal Vikas Yojana (PMKVY)",
+          "ministry": "Ministry of Skill Development & Entrepreneurship",
+          "finding_summary": "₹24.13 crore was overcharged as administrative expenses under PMKVY 1.0. Implementing agency retained interest of ₹12.16 crore on released funds, which was subsequently recovered. Delayed transfer of ₹222.63 crore identified.",
+          "amount_cr": 24.13,
+          "all_amounts": [24.13, 12.16, 222.63],
+          "type": "irregular_expenditure",
+          "status": "Active",
+          "report_year": 2025,
+          "report_no": "Report No. 20 of 2025 – PMKVY Performance Audit"
+        },
+        {
+          "para_no": "3.5",
+          "heading": "State-wise Unspent Funds – Bihar, Maharashtra, Odisha",
+          "scheme": "Pradhan Mantri Kaushal Vikas Yojana (PMKVY)",
+          "ministry": "Ministry of Skill Development & Entrepreneurship",
+          "finding_summary": "Bihar: of ₹36.82 crore released, only ₹5.96 crore was utilised by March 2024 due to lack of training centres and absence of skill-gap studies. Maharashtra: ₹18.94 crore unspent from ₹136.51 crore. Odisha: ₹20.33 crore refunded with ₹6.39 crore interest.",
+          "amount_cr": 337.16,
+          "all_amounts": [36.82, 18.94, 20.33],
+          "type": "unspent_funds",
+          "status": "Active",
+          "report_year": 2025,
+          "report_no": "Report No. 20 of 2025 – PMKVY Performance Audit"
+        }
+      ]
+    },
+    {
+      "report_id": "10-of-2025",
+      "report_no": "10",
+      "year": 2025,
+      "title": "Performance Audit on Jal Jeevan Mission (Kerala, 2019–2024)",
+      "type": "performance",
+      "ministry": "Ministry of Jal Shakti",
+      "tabled_date": "2025-09-01",
+      "pdf_url": "https://saiindia.gov.in/uploads/download_audit_report/2025/1.PA-on-JJM--English-0699d4ee1651af6.08263828.pdf",
+      "fetched": true,
+      "para_count": 4,
+      "paras": [
+        {
+          "para_no": "2.1",
+          "heading": "Financial Management Lapses and Fund Utilisation",
+          "scheme": "Jal Jeevan Mission (JJM)",
+          "ministry": "Ministry of Jal Shakti",
+          "finding_summary": "Lapses in financial management of the scheme, with issues around fund sources and utilisation. National BE for JJM was ₹67,000 crore but RE was slashed to ₹17,000 crore in 2025-26 — a 75% cut — reflecting systemic underspending.",
+          "amount_cr": 50000.0,
+          "all_amounts": [67000.0, 17000.0],
+          "type": "unspent_funds",
+          "status": "Active",
+          "report_year": 2025,
+          "report_no": "Report No. 10 of 2025 – JJM Performance Audit"
+        },
+        {
+          "para_no": "2.2",
+          "heading": "Procurement Lapses and Limited Competition",
+          "scheme": "Jal Jeevan Mission (JJM)",
+          "ministry": "Ministry of Jal Shakti",
+          "finding_summary": "Several instances where tendering norms were not followed or contracts awarded with limited competition. Procurement lapses account for a large share of complaints under JJM.",
+          "amount_cr": null,
+          "all_amounts": [],
+          "type": "irregular_expenditure",
+          "status": "Active",
+          "report_year": 2025,
+          "report_no": "Report No. 10 of 2025 – JJM Performance Audit"
+        },
+        {
+          "para_no": "2.3",
+          "heading": "Inadequate Water Pressure and Asset Quality",
+          "scheme": "Jal Jeevan Mission (JJM)",
+          "ministry": "Ministry of Jal Shakti",
+          "finding_summary": "Water pressure in several schemes was inadequate, leading to quick deterioration of newly created assets. Quality of drinking water varied across districts despite massive spend.",
+          "amount_cr": null,
+          "all_amounts": [],
+          "type": "implementation_failure",
+          "status": "Active",
+          "report_year": 2025,
+          "report_no": "Report No. 10 of 2025 – JJM Performance Audit"
+        }
+      ]
+    },
+    {
+      "report_id": "8-of-2025-pmay-up",
+      "report_no": "8",
+      "year": 2025,
+      "title": "Performance Audit on PMAY-Gramin (Uttar Pradesh)",
+      "type": "performance",
+      "ministry": "Ministry of Rural Development",
+      "tabled_date": "2025-12-17",
+      "pdf_url": null,
+      "fetched": true,
+      "para_count": 3,
+      "paras": [
+        {
+          "para_no": "3.1",
+          "heading": "Overstatement of Housing Completion — 77 of 2,079 Houses Actually Complete",
+          "scheme": "Pradhan Mantri Awas Yojana – Gramin (PMAY-G)",
+          "ministry": "Ministry of Rural Development",
+          "finding_summary": "Physical verification of 2,079 houses shown as 'completed' in PMAY-G MIS found only 77 houses actually complete on ground. Despite state reporting 34.18 lakh houses as completed, 20,215 remained incomplete as of March 2025. Serious disconnect between reported and actual completion.",
+          "amount_cr": null,
+          "all_amounts": [],
+          "type": "implementation_failure",
+          "status": "Active",
+          "report_year": 2025,
+          "report_no": "Report No. 8 of 2025 – PMAY-G UP Performance Audit"
+        },
+        {
+          "para_no": "3.2",
+          "heading": "Poor Quality Houses — Missing Toilets, Electricity, Water",
+          "scheme": "Pradhan Mantri Awas Yojana – Gramin (PMAY-G)",
+          "ministry": "Ministry of Rural Development",
+          "finding_summary": "Tens of thousands of houses claimed as 'complete' found to be of poor quality or missing essential amenities including toilets, electricity connections, and water supply, in violation of scheme norms.",
+          "amount_cr": null,
+          "all_amounts": [],
+          "type": "implementation_failure",
+          "status": "Active",
+          "report_year": 2025,
+          "report_no": "Report No. 8 of 2025 – PMAY-G UP Performance Audit"
+        }
+      ]
+    },
+    {
+      "report_id": "8-of-2025-pmay-cg",
+      "report_no": "8",
+      "year": 2025,
+      "title": "Performance Audit on PMAY-Urban (Chhattisgarh)",
+      "type": "performance",
+      "ministry": "Ministry of Housing & Urban Affairs",
+      "tabled_date": "2025-12-24",
+      "pdf_url": null,
+      "fetched": true,
+      "para_count": 3,
+      "paras": [
+        {
+          "para_no": "4.1",
+          "heading": "₹230 Crore Blocked Due to Geo-Tagging and Social Audit Issues",
+          "scheme": "Pradhan Mantri Awas Yojana – Urban (PMAY-U)",
+          "ministry": "Ministry of Housing & Urban Affairs",
+          "finding_summary": "Over ₹230 crore remained blocked due to geo-tagging failures and social audit issues. Significant funds stuck and beneficiaries remained unpaid due to delays in fund transfers, inadequate verification, and unresolved payout issues.",
+          "amount_cr": 230.0,
+          "all_amounts": [230.0, 4.05],
+          "type": "unspent_funds",
+          "status": "Active",
+          "report_year": 2025,
+          "report_no": "Report No. 8 of 2025 – PMAY-U Chhattisgarh Performance Audit"
+        },
+        {
+          "para_no": "4.2",
+          "heading": "Ineligible Beneficiaries and Duplicate Housing Benefits",
+          "scheme": "Pradhan Mantri Awas Yojana – Urban (PMAY-U)",
+          "ministry": "Ministry of Housing & Urban Affairs",
+          "finding_summary": "71 beneficiaries with annual incomes exceeding ₹3 lakh (above PMAY-U ceiling) were allotted houses. ₹4.05 crore released to 250 beneficiaries without verifying land ownership. 99 beneficiaries received both PMAY-G and PMAY-U benefits; 35 received benefits under an earlier programme too.",
+          "amount_cr": 4.05,
+          "all_amounts": [4.05],
+          "type": "irregular_expenditure",
+          "status": "Active",
+          "report_year": 2025,
+          "report_no": "Report No. 8 of 2025 – PMAY-U Chhattisgarh Performance Audit"
+        }
+      ]
+    },
+    {
+      "report_id": "11-of-2023-pmjay",
+      "report_no": "11",
+      "year": 2023,
+      "title": "Performance Audit on Ayushman Bharat – PM Jan Arogya Yojana (AB-PMJAY)",
+      "type": "performance",
+      "ministry": "Ministry of Health & Family Welfare",
+      "tabled_date": "2023-02-07",
+      "pdf_url": "https://cag.gov.in/uploads/download_audit_report/2023/Report-No.-11-of-2023_PA-on-PMJAY_English-PDF-A-064d22bab2b83b5.38721048.pdf",
+      "fetched": true,
+      "para_count": 5,
+      "paras": [
+        {
+          "para_no": "3.1",
+          "heading": "Excess Payments to Hospitals",
+          "scheme": "Ayushman Bharat – PMJAY",
+          "ministry": "Ministry of Health & Family Welfare",
+          "finding_summary": "In Andhra Pradesh, Madhya Pradesh, Punjab, and Tamil Nadu, excess payment of ₹57.53 crore made to hospitals for claims under PMJAY. Ineligible households registered as beneficiaries availed benefits ranging between ₹0.12 lakh to ₹22.44 crore.",
+          "amount_cr": 57.53,
+          "all_amounts": [57.53],
+          "type": "irregular_expenditure",
+          "status": "Historical",
+          "report_year": 2023,
+          "report_no": "Report No. 11 of 2023 – AB-PMJAY Performance Audit"
+        },
+        {
+          "para_no": "3.2",
+          "heading": "Claims Paid for Deceased Patients",
+          "scheme": "Ayushman Bharat – PMJAY",
+          "ministry": "Ministry of Health & Family Welfare",
+          "finding_summary": "88,760 patients were shown as having died during treatment but 2,14,923 claims were paid for fresh treatment of these same patients. Maximum cases in Chhattisgarh, Haryana, Jharkhand, Kerala, and Madhya Pradesh.",
+          "amount_cr": null,
+          "all_amounts": [],
+          "type": "irregular_expenditure",
+          "status": "Historical",
+          "report_year": 2023,
+          "report_no": "Report No. 11 of 2023 – AB-PMJAY Performance Audit"
+        },
+        {
+          "para_no": "3.3",
+          "heading": "Diversion of Scheme Funds by State Health Agencies",
+          "scheme": "Ayushman Bharat – PMJAY",
+          "ministry": "Ministry of Health & Family Welfare",
+          "finding_summary": "7 State Health Agencies (SHAs) diverted grants of ₹50.61 crore from one head to another. 6 SHAs furnished inflated Utilization Certificates amounting to ₹38.24 crore to the National Health Authority. ₹96.63 crore still lying in the RSBY fund.",
+          "amount_cr": 50.61,
+          "all_amounts": [50.61, 38.24, 96.63],
+          "type": "fund_diversion",
+          "status": "Historical",
+          "report_year": 2023,
+          "report_no": "Report No. 11 of 2023 – AB-PMJAY Performance Audit"
+        },
+        {
+          "para_no": "3.4",
+          "heading": "Beneficiaries Charged Out-of-Pocket Despite Cashless Mandate",
+          "scheme": "Ayushman Bharat – PMJAY",
+          "ministry": "Ministry of Health & Family Welfare",
+          "finding_summary": "In Meghalaya, 13,418 of 19,459 beneficiaries (69%) had to pay an additional ₹12.34 crore at discharge despite PMJAY being a cashless scheme. Scheme is supposed to provide health cover up to ₹5 lakh per family.",
+          "amount_cr": 12.34,
+          "all_amounts": [12.34],
+          "type": "irregular_expenditure",
+          "status": "Historical",
+          "report_year": 2023,
+          "report_no": "Report No. 11 of 2023 – AB-PMJAY Performance Audit"
+        }
+      ]
+    },
+    {
+      "report_id": "4-of-2025-health",
+      "report_no": "4",
+      "year": 2025,
+      "title": "CAG Report on Public Health Sector – Unspent Funds Over Five Years",
+      "type": "compliance",
+      "ministry": "Ministry of Health & Family Welfare",
+      "tabled_date": "2025-06-01",
+      "pdf_url": null,
+      "fetched": true,
+      "para_count": 2,
+      "paras": [
+        {
+          "para_no": "2.1",
+          "heading": "₹9,122 Crore Unspent in Health Ministry in 2023-24",
+          "scheme": "National Health Mission (NHM)",
+          "ministry": "Ministry of Health & Family Welfare",
+          "finding_summary": "Department of Health and Family Welfare spent ₹95,561 crore against approved provision of ₹1,04,683 crore — leaving ₹9,122.15 crore unutilised in 2023-24. In 2022-23, ₹14,472.40 crore was unspent. Recurring pattern of underspending despite modest allocations. Health Research dept left ₹121.85 crore unspent in 2023-24.",
+          "amount_cr": 9122.15,
+          "all_amounts": [9122.15, 14472.4, 121.85],
+          "type": "unspent_funds",
+          "status": "Active",
+          "report_year": 2025,
+          "report_no": "Report No. 4 of 2025 – Public Health Sector"
+        }
+      ]
+    },
+    {
+      "report_id": "css-sna-2024",
+      "report_no": "Compliance",
+      "year": 2024,
+      "title": "Compliance Audit – Centrally Sponsored Schemes SNA Fund Management",
+      "type": "compliance",
+      "ministry": "Multiple Ministries",
+      "tabled_date": "2025-04-03",
+      "pdf_url": "https://cag.gov.in/webroot/uploads/download_audit_report/2025/Report-No.-7-of-2025_Civil_English-(03-04-2025)-0689c78c1c691b6.20932368.pdf",
+      "fetched": true,
+      "para_count": 3,
+      "paras": [
+        {
+          "para_no": "5.1",
+          "heading": "₹346 Crore Lying Unspent in SNA Bank Accounts",
+          "scheme": "Centrally Sponsored Schemes (CSS) – SNA Framework",
+          "ministry": "Multiple Ministries",
+          "finding_summary": "₹346.35 crore lying unspent in bank accounts of State Nodal Agencies (SNAs) as on 31 March — adversely impacting quality of accounts. Central share ₹916.92 crore and State share ₹117.56 crore transferred via Fully Vouched Contingent Bills without actual expenditure vouchers received by AG office.",
+          "amount_cr": 346.35,
+          "all_amounts": [346.35, 916.92, 117.56],
+          "type": "unspent_funds",
+          "status": "Active",
+          "report_year": 2024,
+          "report_no": "CAG Report No. 7 of 2025 – Compliance Audit Civil"
+        },
+        {
+          "para_no": "5.2",
+          "heading": "₹6,222 Crore Parked Outside Consolidated Fund in SNA Accounts (PFMS Data)",
+          "scheme": "Centrally Sponsored Schemes (CSS)",
+          "ministry": "Multiple Ministries",
+          "finding_summary": "As per PFMS portal data, ₹6,222.10 crore (₹3,069.44 crore being Government of India share) was parked in SNA bank accounts outside the Consolidated Fund of India. Reduces accountability and earns interest outside Treasury.",
+          "amount_cr": 6222.1,
+          "all_amounts": [6222.1, 3069.44],
+          "type": "fund_diversion",
+          "status": "Active",
+          "report_year": 2024,
+          "report_no": "CAG Report No. 7 of 2025 – Compliance Audit Civil"
+        },
+        {
+          "para_no": "5.3",
+          "heading": "Total Unspent Budget Across All Ministries 2021-22",
+          "scheme": "All Centrally Sponsored and Central Sector Schemes",
+          "ministry": "Multiple Ministries",
+          "finding_summary": "Against total budget provision of ₹6,12,570.29 crore in 2021-22, Ministries/Departments had overall unspent budget of ₹39,167.11 crore — 6.39% of total grant/appropriation.",
+          "amount_cr": 39167.11,
+          "all_amounts": [39167.11, 612570.29],
+          "type": "unspent_funds",
+          "status": "Historical",
+          "report_year": 2024,
+          "report_no": "CAG Report – Union Government Finance Accounts 2021-22"
+        }
+      ]
+    },
+    {
+      "report_id": "1-of-2025-fc",
+      "report_no": "1",
+      "year": 2025,
+      "title": "Compliance Audit Report – Finance & Communication (BSNL, SAMEER)",
+      "type": "compliance",
+      "ministry": "Ministry of Communications / Ministry of Electronics & IT",
+      "tabled_date": "2025-04-03",
+      "pdf_url": "https://cag.gov.in/webroot/uploads/download_audit_report/2025/Report-No.-1-of-2025_Compliance_English-digitized-067eccde49e51a7.62680152.pdf",
+      "fetched": true,
+      "para_count": 2,
+      "paras": [
+        {
+          "para_no": "6.1",
+          "heading": "BSNL Revenue Loss on Jio Infrastructure Sharing",
+          "scheme": "BSNL Passive Infrastructure",
+          "ministry": "Ministry of Communications",
+          "finding_summary": "BSNL failed to enforce Master Service Agreement with Reliance Jio Infocomm Ltd and did not bill for additional technology on shared infrastructure. Loss of ₹1,757.76 crore and penal interest from May 2014 to March 2024.",
+          "amount_cr": 1757.76,
+          "all_amounts": [1757.76],
+          "type": "irregular_expenditure",
+          "status": "Active",
+          "report_year": 2025,
+          "report_no": "Report No. 1 of 2025 – Finance & Communication"
+        }
+      ]
+    },
+    {
+      "report_id": "gst-dec-2025",
+      "report_no": "GST",
+      "year": 2025,
+      "title": "CAG Audit on GST – Systemic Inconsistencies in Tax Collections",
+      "type": "compliance",
+      "ministry": "Ministry of Finance (Revenue)",
+      "tabled_date": "2025-12-11",
+      "pdf_url": null,
+      "fetched": true,
+      "para_count": 1,
+      "paras": [
+        {
+          "para_no": "1.1",
+          "heading": "₹21,695 Crore GST Inconsistencies — ITC Mismatches",
+          "scheme": "GST Administration",
+          "ministry": "Ministry of Finance (Revenue)",
+          "finding_summary": "CAG audit exposed inconsistencies worth ₹21,695 crore in GST collections. Systemic failures including mismatches in input tax credit, compliance deviations in over 2,519 cases, and short payments of tax and interest.",
+          "amount_cr": 21695.0,
+          "all_amounts": [21695.0],
+          "type": "irregular_expenditure",
+          "status": "Active",
+          "report_year": 2025,
+          "report_no": "CAG Report on GST – December 2025"
+        }
+      ]
+    }
+  ],
+  "scheme_index": {
+    "Pradhan Mantri Kaushal Vikas Yojana (PMKVY)": [
+      {
+        "report_year": 2025,
+        "report_title": "Performance Audit on PMKVY – Skill India",
+        "para_no": "3.1",
+        "type": "unspent_funds",
+        "finding_summary": "₹337.16 crore remained unutilised across states. 20% of state component funds unspent as of March 2024.",
+        "amount_cr": 337.16
+      },
+      {
+        "report_year": 2025,
+        "report_title": "Performance Audit on PMKVY – Skill India",
+        "para_no": "3.2",
+        "type": "irregular_expenditure",
+        "finding_summary": "94% of beneficiary bank account records invalid or missing in Skill India Portal.",
+        "amount_cr": null
+      },
+      {
+        "report_year": 2025,
+        "report_title": "Performance Audit on PMKVY – Skill India",
+        "para_no": "3.3",
+        "type": "implementation_failure",
+        "finding_summary": "Only 41% of certified candidates found placements. Certifications to ineligible and non-existent agencies.",
+        "amount_cr": null
+      },
+      {
+        "report_year": 2025,
+        "report_title": "Performance Audit on PMKVY – Skill India",
+        "para_no": "3.4",
+        "type": "irregular_expenditure",
+        "finding_summary": "₹24.13 crore overcharged as admin expenses. ₹12.16 crore interest retained. ₹222.63 crore delayed transfer.",
+        "amount_cr": 24.13
+      }
+    ],
+    "Jal Jeevan Mission (JJM)": [
+      {
+        "report_year": 2025,
+        "report_title": "Performance Audit on Jal Jeevan Mission (Kerala)",
+        "para_no": "2.1",
+        "type": "unspent_funds",
+        "finding_summary": "BE ₹67,000 Cr slashed to RE ₹17,000 Cr — 75% cut due to systemic underspending. Financial management lapses.",
+        "amount_cr": 50000.0
+      },
+      {
+        "report_year": 2025,
+        "report_title": "Performance Audit on Jal Jeevan Mission (Kerala)",
+        "para_no": "2.2",
+        "type": "irregular_expenditure",
+        "finding_summary": "Tendering norms not followed, contracts awarded with limited competition.",
+        "amount_cr": null
+      }
+    ],
+    "Pradhan Mantri Awas Yojana – Gramin (PMAY-G)": [
+      {
+        "report_year": 2025,
+        "report_title": "Performance Audit on PMAY-Gramin (Uttar Pradesh)",
+        "para_no": "3.1",
+        "type": "implementation_failure",
+        "finding_summary": "Only 77 of 2,079 'completed' houses actually complete on ground. 20,215 houses incomplete despite 12-month guideline.",
+        "amount_cr": null
+      }
+    ],
+    "Pradhan Mantri Awas Yojana – Urban (PMAY-U)": [
+      {
+        "report_year": 2025,
+        "report_title": "Performance Audit on PMAY-Urban (Chhattisgarh)",
+        "para_no": "4.1",
+        "type": "unspent_funds",
+        "finding_summary": "₹230 crore blocked due to geo-tagging and social audit failures.",
+        "amount_cr": 230.0
+      },
+      {
+        "report_year": 2025,
+        "report_title": "Performance Audit on PMAY-Urban (Chhattisgarh)",
+        "para_no": "4.2",
+        "type": "irregular_expenditure",
+        "finding_summary": "71 ineligible beneficiaries. 99 received both PMAY-G and PMAY-U. ₹4.05 crore released without land verification.",
+        "amount_cr": 4.05
+      }
+    ],
+    "Ayushman Bharat – PMJAY": [
+      {
+        "report_year": 2023,
+        "report_title": "Performance Audit on AB-PMJAY",
+        "para_no": "3.1",
+        "type": "irregular_expenditure",
+        "finding_summary": "₹57.53 crore excess payments to hospitals in 4 states. Ineligible households availing crores in benefits.",
+        "amount_cr": 57.53
+      },
+      {
+        "report_year": 2023,
+        "report_title": "Performance Audit on AB-PMJAY",
+        "para_no": "3.2",
+        "type": "irregular_expenditure",
+        "finding_summary": "2,14,923 claims paid for 88,760 patients recorded as deceased.",
+        "amount_cr": null
+      },
+      {
+        "report_year": 2023,
+        "report_title": "Performance Audit on AB-PMJAY",
+        "para_no": "3.3",
+        "type": "fund_diversion",
+        "finding_summary": "7 SHAs diverted ₹50.61 crore. 6 SHAs filed inflated utilization certificates worth ₹38.24 crore.",
+        "amount_cr": 50.61
+      }
+    ],
+    "National Health Mission (NHM)": [
+      {
+        "report_year": 2025,
+        "report_title": "CAG Report on Public Health Sector – Unspent Funds",
+        "para_no": "2.1",
+        "type": "unspent_funds",
+        "finding_summary": "₹9,122 crore unspent in 2023-24. ₹14,472 crore unspent in 2022-23. Recurring systemic underspending.",
+        "amount_cr": 9122.15
+      }
+    ],
+    "Centrally Sponsored Schemes (CSS) – SNA Framework": [
+      {
+        "report_year": 2024,
+        "report_title": "Compliance Audit – CSS SNA Fund Management",
+        "para_no": "5.1",
+        "type": "unspent_funds",
+        "finding_summary": "₹346.35 crore unspent in SNA accounts. ₹6,222.10 crore parked outside Consolidated Fund.",
+        "amount_cr": 346.35
+      }
+    ],
+    "GST Administration": [
+      {
+        "report_year": 2025,
+        "report_title": "CAG Audit on GST",
+        "para_no": "1.1",
+        "type": "irregular_expenditure",
+        "finding_summary": "₹21,695 crore inconsistencies in GST collections. ITC mismatches in 2,519+ cases.",
+        "amount_cr": 21695.0
+      }
+    ]
+  }
+}
