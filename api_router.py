@@ -827,6 +827,70 @@ def get_fund_intel(user=Depends(get_current_user)):
     return fund_data
 
 
+def _load_accountability_data():
+    try:
+        with open("accountability_data.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+@router.get("/schemes/accountability")
+def get_accountability_radar(user=Depends(get_current_user)):
+    """Accountability Radar: BE→RE→Actual expenditure trends + parliament scrutiny overlay."""
+    acc_data = _cached_load("accountability", _load_accountability_data)
+    if not acc_data:
+        return {"ministries": [], "metadata": {}, "parliament_overlay": []}
+
+    # Load parliament Q&A data as scrutiny overlay
+    fund_data = _cached_load("fund_intel", _load_fund_intel)
+    fi_by_ministry = {}
+    if fund_data:
+        for fi in fund_data.get("ministries", []):
+            key = fi["ministry"].upper().replace("MINISTRY OF ", "").replace("MINISTRY FOR ", "").replace(" AND ", " & ")
+            fi_by_ministry[key] = {
+                "total_questions": fi.get("total_questions", 0),
+                "tag_counts": fi.get("tag_counts", {}),
+                "questions": (fi.get("questions") or [])[:5],  # top 5 most recent
+            }
+
+    # Merge parliament scrutiny into accountability records
+    for m in acc_data.get("ministries", []):
+        m_key = m["ministry"].upper().replace(" AND ", " & ")
+        # Try exact then partial match
+        pq = fi_by_ministry.get(m_key)
+        if not pq:
+            for k, v in fi_by_ministry.items():
+                if k in m_key or m_key in k:
+                    pq = v
+                    break
+        m["parliament_questions"] = pq["total_questions"] if pq else 0
+        m["parliament_tag_counts"] = pq["tag_counts"] if pq else {}
+        m["parliament_questions_list"] = pq["questions"] if pq else []
+
+    # Compute summary stats
+    ministries = acc_data.get("ministries", [])
+    lapse_risk_count = sum(1 for m in ministries if m.get("lapse_risk"))
+    last_year_utils = [
+        m["trend"][-2]["util_pct"]
+        for m in ministries
+        if len(m.get("trend", [])) >= 2 and m["trend"][-2].get("util_pct") is not None
+    ]
+    avg_util = round(sum(last_year_utils) / len(last_year_utils), 1) if last_year_utils else None
+
+    return {
+        "ministries": ministries,
+        "metadata": acc_data.get("metadata", {}),
+        "summary": {
+            "total_be_cr": sum(m.get("be_cr", 0) for m in ministries),
+            "total_re_cr": sum(m.get("re_cr", 0) for m in ministries),
+            "lapse_risk_count": lapse_risk_count,
+            "avg_util_last_year_pct": avg_util,
+            "current_fy": acc_data.get("metadata", {}).get("current_fy", "2024-25"),
+        },
+    }
+
+
 # ─────────────────────────────────────────
 # PARLIAMENT SESSION STATUS
 # ─────────────────────────────────────────

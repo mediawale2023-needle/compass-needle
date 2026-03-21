@@ -15,6 +15,7 @@ export default function SchemesPage() {
     const [data, setData] = useState({});
     const [loading, setLoading] = useState(true);
     const [fundIntel, setFundIntel] = useState(null);
+    const [accountability, setAccountability] = useState(null);
     const [expanded, setExpanded] = useState(null);
 
     // Finder state
@@ -37,13 +38,15 @@ export default function SchemesPage() {
     useEffect(() => {
         async function load() {
             try {
-                const [d, fi] = await Promise.all([
+                const [d, fi, acc] = await Promise.all([
                     apiGet('/api/schemes/all'),
                     apiGet('/api/schemes/fund-intel').catch(() => null),
+                    apiGet('/api/schemes/accountability').catch(() => null),
                 ]);
                 setSchemes(d.schemes || []);
                 setData(d);
                 if (fi && fi.ministries) setFundIntel(fi);
+                if (acc && acc.ministries) setAccountability(acc);
             } catch (err) { console.error(err); }
             finally { setLoading(false); }
         }
@@ -123,7 +126,7 @@ export default function SchemesPage() {
             <div className="sansad-tabs">
                 {[
                     { key: 'overview', label: 'Ministry Overview' },
-                    { key: 'intel', label: 'Fund Intelligence' },
+                    { key: 'intel', label: 'Accountability Radar' },
                     { key: 'finder', label: 'Scheme Finder' },
                     { key: 'citizen', label: 'Citizen Matcher' },
                 ].map(t => (
@@ -213,93 +216,70 @@ export default function SchemesPage() {
                 </div>
             )}
 
-            {/* TAB: Fund Intelligence (merged Radar + Parliament Scrutiny) */}
+            {/* TAB: Accountability Radar — BE → RE → Actual expenditure + Parliament scrutiny */}
             {tab === 'intel' && (() => {
-                const meta = fundIntel?.metadata || {};
-                const fiMinistries = fundIntel?.ministries || [];
+                const acc = accountability || {};
+                const accMinistries = acc.ministries || [];
+                const accMeta = acc.metadata || {};
+                const summary = acc.summary || {};
+                const currentFY = summary.current_fy || '2024-25';
+                const [prevFY, prev2FY] = (() => {
+                    const yr = parseInt(currentFY.split('-')[0]);
+                    return [`${yr - 1}-${String(yr).slice(-2)}`, `${yr - 2}-${String(yr - 1).slice(-2)}`];
+                })();
 
-                // Build a lookup from fund intel by normalized ministry name for merging
-                const normName = s => s.toUpperCase()
-                    .replace(/MINISTRY OF |MINISTRY FOR |DEPARTMENT OF /g, '')
-                    .replace(/&/g, 'AND').trim();
+                // Util color: green ≥ 90%, amber 75–89%, red < 75%, gray null
+                const utilColor = pct => pct == null ? '#9ca3af' : pct >= 90 ? '#16a34a' : pct >= 75 ? '#d97706' : '#dc2626';
+                const utilLabel = pct => pct == null ? 'No data' : pct >= 90 ? 'On track' : pct >= 75 ? 'Moderate risk' : 'Lapse risk';
+                const tagColor = tag => ({ utilization: '#3b82f6', unspent: '#dc2626', allocation: '#8b5cf6', release: '#06b6d4', delay: '#f59e0b' })[tag] || '#6b7280';
 
-                const fiByNorm = {};
-                fiMinistries.forEach(m => { fiByNorm[normName(m.ministry)] = m; });
-
-                // Merge ministrySummary (from schemes_db) with fiMinistries (from parliament)
-                // Primary list: ministrySummary enriched with fi data
-                const mergedList = ministrySummary.map(m => {
-                    const key = normName(m.ministry);
-                    // Try to match by key or partial match
-                    let fi = fiByNorm[key];
-                    if (!fi) {
-                        const keys = Object.keys(fiByNorm);
-                        const partial = keys.find(k => k.includes(key) || key.includes(k));
-                        fi = partial ? fiByNorm[partial] : null;
+                // Filter logic
+                const filtered = accMinistries.filter(m => {
+                    if (intelFilter === 'lapse') return m.lapse_risk;
+                    if (intelFilter === 'high') {
+                        const last = m.trend?.find(t => t.fy === prevFY);
+                        return last?.util_pct != null && last.util_pct >= 85;
                     }
-                    return {
-                        ...m,
-                        fi_questions: fi?.total_questions || 0,
-                        fi_tag_counts: fi?.tag_counts || {},
-                        fi_questions_list: (fi?.questions || []).sort((a, b) => (b.date || '').localeCompare(a.date || '')),
-                        fi_severity: fi?.severity_score || 0,
-                        fi_budget_cr: fi?.budget_cr || 0,
-                        fi_schemes: fi?.schemes || [],
-                        fi_has_data: !!fi,
-                    };
-                });
-
-                // Also include fi-only ministries not in ministrySummary
-                const coveredNorms = new Set(mergedList.map(m => normName(m.ministry)));
-                fiMinistries.forEach(fi => {
-                    if (!coveredNorms.has(normName(fi.ministry))) {
-                        mergedList.push({
-                            ministry: fi.full_name || fi.ministry,
-                            budget: fi.budget_cr || 0,
-                            count: fi.scheme_count || 0,
-                            top_scheme: fi.schemes?.[0]?.name || '',
-                            fi_questions: fi.total_questions,
-                            fi_tag_counts: fi.tag_counts || {},
-                            fi_questions_list: (fi.questions || []).sort((a, b) => (b.date || '').localeCompare(a.date || '')),
-                            fi_severity: fi.severity_score || 0,
-                            fi_budget_cr: fi.budget_cr || 0,
-                            fi_schemes: fi.schemes || [],
-                            fi_has_data: true,
-                        });
-                    }
-                });
-
-                mergedList.sort((a, b) => b.budget - a.budget);
-
-                // Filter
-                const filtered = mergedList.filter(m => {
-                    if (intelFilter === 'scrutinized') return m.fi_questions > 0;
-                    if (intelFilter === 'unspent') return (m.fi_tag_counts.unspent || 0) > 0;
-                    if (intelFilter === 'utilization') return (m.fi_tag_counts.utilization || 0) > 0;
+                    if (intelFilter === 'scrutiny') return (m.parliament_questions || 0) > 0;
                     return true;
                 });
 
-                const totalBudget = mergedList.reduce((s, m) => s + (m.budget || 0), 0);
-                const totalQs = meta.total_fund_questions || fiMinistries.reduce((s, m) => s + m.total_questions, 0);
-                const scrutinizedCount = mergedList.filter(m => m.fi_questions > 0).length;
+                const lapseCount = accMinistries.filter(m => m.lapse_risk).length;
+                const totalBE = summary.total_be_cr || accMinistries.reduce((s, m) => s + (m.be_cr || 0), 0);
 
-                const severityColor = s => s >= 50 ? '#dc2626' : s >= 25 ? '#f59e0b' : '#6b7280';
-                const tagColor = tag => ({ utilization: '#3b82f6', unspent: '#dc2626', allocation: '#8b5cf6', release: '#06b6d4', delay: '#f59e0b' })[tag] || '#6b7280';
-                const tagLabel = tag => ({ utilization: 'Utilization', unspent: 'Unspent', allocation: 'Allocation', release: 'Release', budget: 'Budget', delay: 'Delay', general: 'General' })[tag] || tag;
+                if (!accMinistries.length) {
+                    return (
+                        <div className="text-center py-16 text-gray-400 text-sm">
+                            <div className="text-2xl mb-2">📊</div>
+                            <div>Accountability data loading...</div>
+                            <div className="text-xs mt-1">Check that the backend is running and /api/schemes/accountability responds.</div>
+                        </div>
+                    );
+                }
 
                 return (
                     <div className="space-y-5">
+                        {/* Source banner */}
+                        <div className="flex items-start gap-3 px-4 py-3 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg">
+                            <span className="text-base mt-0.5">⚠️</span>
+                            <div>
+                                <strong>Data limitations:</strong> BE/RE from Union Budget documents. Actuals available for FY {prevFY} and earlier (6–9 month lag post year-end).
+                                FY {currentFY} actuals not yet published. Figures approximate — refresh via <code className="bg-amber-100 px-1 rounded">scripts/fetch_accountability_data.py</code>.
+                                PFMS real-time data and CAG audit paras require separate integration (see below).
+                            </div>
+                        </div>
+
                         {/* Top metrics */}
                         <div className="grid grid-cols-4 gap-3">
                             {[
-                                { label: 'Total Budget Tracked', value: `₹${(totalBudget / 1000).toFixed(0)}K Cr`, sub: `${mergedList.length} ministries` },
-                                { label: 'Parliament Questions', value: totalQs, sub: `FY ${meta.financial_year || '2025-26'} · LS ${meta.lok_sabha || 18}` },
-                                { label: 'Under Scrutiny', value: scrutinizedCount, sub: 'ministries questioned by MPs' },
-                                { label: 'Unspent Flags', value: mergedList.reduce((s, m) => s + (m.fi_tag_counts.unspent || 0), 0), sub: 'Q&As about unused funds' },
+                                { label: `Total BE ${currentFY}`, value: `₹${(totalBE / 1000).toFixed(0)}K Cr`, sub: `${accMinistries.length} ministries tracked` },
+                                { label: 'Lapse Risk', value: lapseCount, sub: 'ministries with <80% hist. utilization', alert: lapseCount > 0 },
+                                { label: 'Avg Utilization', value: summary.avg_util_last_year_pct != null ? `${summary.avg_util_last_year_pct}%` : '—', sub: `FY ${prevFY} actuals vs RE` },
+                                { label: 'Parliament Scrutiny', value: accMinistries.filter(m => m.parliament_questions > 0).length, sub: `ministries questioned in LS 18` },
                             ].map(s => (
                                 <div key={s.label} className="sansad-card">
                                     <div className="sansad-card-body text-center py-3">
-                                        <div className="text-lg font-bold" style={{ color }}>{s.value}</div>
+                                        <div className="text-lg font-bold" style={{ color: s.alert ? '#dc2626' : color }}>{s.value}</div>
                                         <div className="text-[10px] text-gray-500 uppercase">{s.label}</div>
                                         <div className="text-[9px] text-gray-400">{s.sub}</div>
                                     </div>
@@ -308,13 +288,13 @@ export default function SchemesPage() {
                         </div>
 
                         {/* Filter pills */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-400 font-semibold uppercase">Filter:</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs text-gray-400 font-semibold uppercase">Show:</span>
                             {[
                                 { key: 'all', label: 'All Ministries' },
-                                { key: 'scrutinized', label: 'Parliament Questioned' },
-                                { key: 'unspent', label: 'Unspent Fund Flags' },
-                                { key: 'utilization', label: 'Utilization Q&As' },
+                                { key: 'lapse', label: `⚠ Lapse Risk (${lapseCount})` },
+                                { key: 'high', label: '✓ High Utilization' },
+                                { key: 'scrutiny', label: 'Parliament Scrutinized' },
                             ].map(f => (
                                 <button key={f.key} onClick={() => setIntelFilter(f.key)}
                                     className="px-3 py-1 text-[11px] font-semibold border"
@@ -324,155 +304,192 @@ export default function SchemesPage() {
                                     {f.label}
                                 </button>
                             ))}
-                            <span className="text-xs text-gray-400 ml-auto">{filtered.length} ministries</span>
+                            <span className="text-xs text-gray-400 ml-auto">{filtered.length} of {accMinistries.length} ministries</span>
                         </div>
 
-                        {/* Ministry list */}
+                        {/* Ministry cards */}
                         <div className="space-y-2">
                             {filtered.map((m, i) => {
-                                const isOpen = expanded === `fi${i}`;
-                                const hasPQ = m.fi_questions > 0;
-                                const maxBudget = mergedList[0]?.budget || 1;
-                                const budgetPct = Math.max(2, (m.budget / maxBudget) * 100);
-                                const unspentCount = m.fi_tag_counts.unspent || 0;
-                                const utilCount = m.fi_tag_counts.utilization || 0;
+                                const isOpen = expanded === `acc${i}`;
+                                const prevTrend = m.trend?.find(t => t.fy === prevFY);
+                                const prev2Trend = m.trend?.find(t => t.fy === prev2FY);
+                                const curTrend = m.trend?.find(t => t.fy === currentFY);
+                                const prevUtil = prevTrend?.util_pct ?? null;
+                                const hasScrutiny = (m.parliament_questions || 0) > 0;
+
+                                // BE → RE bar: RE as % of BE
+                                const rePct = curTrend?.re_cr && curTrend?.be_cr
+                                    ? Math.min(120, (curTrend.re_cr / curTrend.be_cr) * 100)
+                                    : (m.re_cr && m.be_cr ? Math.min(120, (m.re_cr / m.be_cr) * 100) : 100);
+                                // Actual bar: actual as % of RE (previous year)
+                                const actualPct = prevUtil != null ? Math.min(110, prevUtil) : null;
+
+                                const lapseBorderColor = m.lapse_risk ? '#dc2626' : hasScrutiny ? '#f59e0b' : 'transparent';
 
                                 return (
-                                    <div key={i} className="sansad-card" style={{
-                                        borderLeft: hasPQ ? `4px solid ${severityColor(m.fi_severity)}` : '4px solid transparent'
-                                    }}>
+                                    <div key={i} className="sansad-card" style={{ borderLeft: `4px solid ${lapseBorderColor}` }}>
                                         <div className="sansad-card-body py-3">
                                             {/* Header row */}
-                                            <div className="flex items-center justify-between cursor-pointer"
-                                                onClick={() => setExpanded(isOpen ? null : `fi${i}`)}>
+                                            <div className="flex items-start justify-between cursor-pointer gap-4"
+                                                onClick={() => setExpanded(isOpen ? null : `acc${i}`)}>
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <span className="text-sm font-semibold text-gray-800 truncate">
-                                                            {m.ministry.replace('Ministry of ', '').replace('Ministry for ', '')}
+                                                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                                                        <span className="text-sm font-semibold text-gray-800">
+                                                            {m.full_name?.replace('Ministry of ', '').replace('Ministry for ', '') || m.ministry}
                                                         </span>
-                                                        {hasPQ && (
-                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{
-                                                                background: severityColor(m.fi_severity) + '18',
-                                                                color: severityColor(m.fi_severity)
-                                                            }}>
-                                                                {m.fi_questions} Parliament Q{m.fi_questions > 1 ? 's' : ''}
+                                                        {m.lapse_risk && (
+                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ background: '#fef2f2', color: '#dc2626' }}>
+                                                                ⚠ Lapse Risk
                                                             </span>
                                                         )}
-                                                        {unspentCount > 0 && (
-                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ background: '#fef2f2', color: '#dc2626' }}>
-                                                                {unspentCount} Unspent Flag{unspentCount > 1 ? 's' : ''}
+                                                        {hasScrutiny && (
+                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ background: '#fffbeb', color: '#d97706' }}>
+                                                                {m.parliament_questions} Parliament Q{m.parliament_questions > 1 ? 's' : ''}
                                                             </span>
                                                         )}
                                                     </div>
-                                                    {/* Budget bar */}
-                                                    <div className="mt-1.5 flex items-center gap-2">
-                                                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                            <div className="h-full rounded-full" style={{ width: `${budgetPct}%`, background: color, opacity: 0.65 }} />
+
+                                                    {/* BE → RE → Actual visualization */}
+                                                    <div className="space-y-1">
+                                                        {/* BE bar */}
+                                                        <div className="flex items-center gap-2 text-[10px]">
+                                                            <span className="w-14 text-gray-400 font-mono shrink-0">BE {currentFY.slice(-2)}</span>
+                                                            <div className="flex-1 h-3 bg-gray-100 rounded-sm overflow-hidden">
+                                                                <div className="h-full rounded-sm" style={{ width: '100%', background: '#e5e7eb' }} />
+                                                            </div>
+                                                            <span className="w-24 text-right text-gray-600 font-semibold shrink-0">
+                                                                ₹{(m.be_cr || 0).toLocaleString('en-IN')} Cr
+                                                            </span>
                                                         </div>
-                                                        <span className="text-[11px] font-bold shrink-0" style={{ color }}>
-                                                            ₹{m.budget.toLocaleString('en-IN')} Cr
-                                                        </span>
-                                                        <span className="text-[10px] text-gray-400 shrink-0">{m.count} schemes</span>
+                                                        {/* RE bar */}
+                                                        <div className="flex items-center gap-2 text-[10px]">
+                                                            <span className="w-14 text-gray-400 font-mono shrink-0">RE {currentFY.slice(-2)}</span>
+                                                            <div className="flex-1 h-3 bg-gray-100 rounded-sm overflow-hidden">
+                                                                <div className="h-full rounded-sm" style={{
+                                                                    width: `${rePct}%`,
+                                                                    background: rePct < 90 ? '#f59e0b' : color,
+                                                                    opacity: 0.7,
+                                                                }} />
+                                                            </div>
+                                                            <span className="w-24 text-right font-semibold shrink-0" style={{ color: rePct < 90 ? '#d97706' : '#374151' }}>
+                                                                ₹{(m.re_cr || 0).toLocaleString('en-IN')} Cr
+                                                                {rePct < 95 && <span className="ml-1 text-amber-600">↓{(100 - rePct).toFixed(0)}%</span>}
+                                                            </span>
+                                                        </div>
+                                                        {/* Actual bar (previous year) */}
+                                                        <div className="flex items-center gap-2 text-[10px]">
+                                                            <span className="w-14 text-gray-400 font-mono shrink-0">Actual {prevFY.slice(-2)}</span>
+                                                            <div className="flex-1 h-3 bg-gray-100 rounded-sm overflow-hidden">
+                                                                {actualPct != null ? (
+                                                                    <div className="h-full rounded-sm" style={{
+                                                                        width: `${actualPct}%`,
+                                                                        background: utilColor(prevUtil),
+                                                                        opacity: 0.85,
+                                                                    }} />
+                                                                ) : (
+                                                                    <div className="h-full rounded-sm w-full" style={{ background: '#f3f4f6' }} />
+                                                                )}
+                                                            </div>
+                                                            <span className="w-24 text-right font-semibold shrink-0" style={{ color: utilColor(prevUtil) }}>
+                                                                {prevTrend?.actual_cr != null
+                                                                    ? `₹${prevTrend.actual_cr.toLocaleString('en-IN')} Cr`
+                                                                    : '—'
+                                                                }
+                                                                {prevUtil != null && (
+                                                                    <span className="ml-1">({prevUtil}%)</span>
+                                                                )}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <span className="text-gray-300 ml-4 text-xs">{isOpen ? '▲' : '▼'}</span>
+                                                <span className="text-gray-300 text-xs shrink-0 mt-1">{isOpen ? '▲' : '▼'}</span>
                                             </div>
 
                                             {/* Expanded panel */}
                                             {isOpen && (
-                                                <div className="mt-3 pt-3 border-t space-y-4" style={{ borderColor: '#eee' }}>
-                                                    {/* Stats row */}
-                                                    <div className="grid grid-cols-3 gap-3">
-                                                        <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
-                                                            <div className="text-sm font-bold" style={{ color }}>₹{m.budget.toLocaleString('en-IN')} Cr</div>
-                                                            <div className="text-[10px] text-gray-500 uppercase">Budget Allocated</div>
-                                                            <div className="text-[9px] text-gray-400">{m.count} active schemes</div>
-                                                        </div>
-                                                        <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
-                                                            <div className="text-sm font-bold text-gray-800">{m.fi_questions}</div>
-                                                            <div className="text-[10px] text-gray-500 uppercase">Parliament Q&As</div>
-                                                            <div className="text-[9px] text-gray-400">MPs raised in LS {meta.lok_sabha || 18}</div>
-                                                        </div>
-                                                        <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
-                                                            <div className="text-sm font-bold" style={{ color: unspentCount > 0 ? '#dc2626' : '#6b7280' }}>
-                                                                {unspentCount > 0 ? `${unspentCount} raised` : '—'}
-                                                            </div>
-                                                            <div className="text-[10px] text-gray-500 uppercase">Unspent / Lapsed</div>
-                                                            <div className="text-[9px] text-gray-400">questions about unused funds</div>
-                                                        </div>
+                                                <div className="mt-4 pt-4 border-t space-y-4" style={{ borderColor: '#eee' }}>
+
+                                                    {/* 3-year trend table */}
+                                                    <div>
+                                                        <div className="text-[10px] text-gray-500 uppercase font-semibold mb-2">3-Year Expenditure Trend</div>
+                                                        <table className="w-full text-xs border-collapse">
+                                                            <thead>
+                                                                <tr className="text-[10px] text-gray-400 uppercase">
+                                                                    <th className="text-left py-1 pr-3 font-medium">FY</th>
+                                                                    <th className="text-right py-1 px-3 font-medium">BE (Cr)</th>
+                                                                    <th className="text-right py-1 px-3 font-medium">RE (Cr)</th>
+                                                                    <th className="text-right py-1 px-3 font-medium">Actual (Cr)</th>
+                                                                    <th className="text-right py-1 font-medium">Util %</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {(m.trend || []).map((t, j) => (
+                                                                    <tr key={j} className="border-t" style={{ borderColor: '#f0f0f0' }}>
+                                                                        <td className="py-1.5 pr-3 font-mono text-gray-500">{t.fy}</td>
+                                                                        <td className="py-1.5 px-3 text-right text-gray-600">{t.be_cr?.toLocaleString('en-IN') || '—'}</td>
+                                                                        <td className="py-1.5 px-3 text-right text-gray-600">{t.re_cr?.toLocaleString('en-IN') || '—'}</td>
+                                                                        <td className="py-1.5 px-3 text-right font-semibold" style={{ color: t.actual_cr ? '#374151' : '#9ca3af' }}>
+                                                                            {t.actual_cr?.toLocaleString('en-IN') || (t.fy === currentFY ? 'Pending' : '—')}
+                                                                        </td>
+                                                                        <td className="py-1.5 text-right font-bold" style={{ color: utilColor(t.util_pct) }}>
+                                                                            {t.util_pct != null ? `${t.util_pct}%` : (t.fy === currentFY ? 'Pending' : '—')}
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                        {m.data_confidence === 'medium' && (
+                                                            <div className="text-[9px] text-gray-400 mt-1">* Figures approximate — medium confidence. Refresh for latest.</div>
+                                                        )}
                                                     </div>
 
-                                                    {/* Tag breakdown */}
-                                                    {hasPQ && Object.keys(m.fi_tag_counts).length > 0 && (
+                                                    {/* Lapse risk reason */}
+                                                    {m.lapse_risk && m.lapse_risk_reason && (
+                                                        <div className="p-3 text-xs rounded-lg" style={{ background: '#fef2f2', borderLeft: '3px solid #dc2626' }}>
+                                                            <div className="font-semibold text-red-700 mb-1">Why Lapse Risk is Flagged</div>
+                                                            <div className="text-red-600">{m.lapse_risk_reason}</div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Key schemes */}
+                                                    {m.top_schemes?.length > 0 && (
                                                         <div>
-                                                            <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1.5">What MPs Asked About</div>
-                                                            <div className="flex gap-2 flex-wrap">
-                                                                {Object.entries(m.fi_tag_counts)
+                                                            <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1.5">Key Schemes Under This Ministry</div>
+                                                            <div className="flex gap-1.5 flex-wrap">
+                                                                {m.top_schemes.map((s, k) => (
+                                                                    <span key={k} className="text-[11px] px-2 py-0.5 rounded-full border" style={{ borderColor: `${color}40`, color, background: `${color}08` }}>
+                                                                        {s}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Parliament scrutiny */}
+                                                    {hasScrutiny && (
+                                                        <div>
+                                                            <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1.5">
+                                                                Parliament Scrutiny Signal <span className="normal-case text-gray-400 font-normal">(scrutiny signal, not fund data)</span>
+                                                            </div>
+                                                            <div className="flex gap-2 flex-wrap mb-2">
+                                                                {Object.entries(m.parliament_tag_counts || {})
                                                                     .sort((a, b) => b[1] - a[1])
                                                                     .map(([tag, cnt]) => (
                                                                         <span key={tag} className="text-[11px] font-semibold px-2 py-0.5 rounded" style={{
                                                                             background: tagColor(tag) + '18', color: tagColor(tag)
                                                                         }}>
-                                                                            {tagLabel(tag)}: {cnt}
+                                                                            {tag.charAt(0).toUpperCase() + tag.slice(1)}: {cnt}
                                                                         </span>
                                                                     ))
                                                                 }
                                                             </div>
-                                                        </div>
-                                                    )}
-
-                                                    {/* Schemes under this ministry */}
-                                                    {(m.fi_schemes.length > 0 || schemes.filter(s => s.ministry === m.ministry).length > 0) && (
-                                                        <div>
-                                                            <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1.5">Schemes & Allocation</div>
                                                             <div className="space-y-1">
-                                                                {(m.fi_schemes.length > 0
-                                                                    ? m.fi_schemes
-                                                                    : schemes.filter(s => s.ministry === m.ministry)
-                                                                        .sort((a, b) => (b.budget_numeric || 0) - (a.budget_numeric || 0))
-                                                                        .map(s => ({ name: s.name, budget_allocation: s.budget_allocation, alloc_cr: s.budget_numeric || 0, focus: s.focus }))
-                                                                ).slice(0, 8).map((s, j) => (
-                                                                    <div key={j} className="flex items-center justify-between text-xs py-1 border-b last:border-0" style={{ borderColor: '#f0f0f0' }}>
-                                                                        <span className="text-gray-700 font-medium truncate" style={{ maxWidth: '65%' }}>
-                                                                            {s.name}
-                                                                        </span>
-                                                                        <span className="font-semibold text-gray-600 shrink-0">
-                                                                            {s.budget_allocation || (s.alloc_cr > 0 ? `₹${s.alloc_cr.toLocaleString('en-IN')} Cr` : 'N/A')}
-                                                                        </span>
+                                                                {(m.parliament_questions_list || []).slice(0, 4).map((q, j) => (
+                                                                    <div key={j} className="text-xs text-gray-600 flex gap-2 py-1 border-b last:border-0" style={{ borderColor: '#f0f0f0' }}>
+                                                                        <span className="text-gray-400 font-mono text-[10px] shrink-0 mt-0.5">{q.date?.slice(0, 7) || '—'}</span>
+                                                                        <span>{q.title}</span>
                                                                     </div>
                                                                 ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {/* Parliament Q&A list */}
-                                                    {m.fi_questions_list.length > 0 && (
-                                                        <div>
-                                                            <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1.5">Parliament Questions Raised</div>
-                                                            <div className="space-y-1.5">
-                                                                {m.fi_questions_list.slice(0, 8).map((q, j) => (
-                                                                    <div key={j} className="text-xs py-1.5 border-b last:border-0" style={{ borderColor: '#f0f0f0' }}>
-                                                                        <div className="flex items-start gap-2">
-                                                                            <span className="text-gray-400 shrink-0 font-mono text-[10px] mt-0.5">{q.date?.slice(0, 7) || '—'}</span>
-                                                                            <span className="text-gray-700">{q.title}</span>
-                                                                        </div>
-                                                                        {q.tags && q.tags.filter(t => t !== 'general').length > 0 && (
-                                                                            <div className="flex gap-1 mt-1 ml-10">
-                                                                                {q.tags.filter(t => t !== 'general').map(t => (
-                                                                                    <span key={t} style={{ fontSize: 9, color: tagColor(t), background: tagColor(t) + '15' }}
-                                                                                        className="px-1.5 py-0.5 rounded font-bold uppercase">
-                                                                                        {t}
-                                                                                    </span>
-                                                                                ))}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                ))}
-                                                                {m.fi_questions_list.length > 8 && (
-                                                                    <div className="text-[10px] text-gray-400 text-right">
-                                                                        +{m.fi_questions_list.length - 8} more questions
-                                                                    </div>
-                                                                )}
                                                             </div>
                                                         </div>
                                                     )}
@@ -484,8 +501,47 @@ export default function SchemesPage() {
                             })}
                         </div>
 
+                        {/* Coming soon section */}
+                        <div className="sansad-card">
+                            <div className="sansad-card-header" style={{ background: '#374151' }}>
+                                Coming Soon — Data Integrations Pending
+                            </div>
+                            <div className="sansad-card-body">
+                                <div className="grid grid-cols-3 gap-4">
+                                    {[
+                                        {
+                                            icon: '🏦',
+                                            title: 'PFMS Real-Time Expenditure',
+                                            desc: 'Within-year quarterly actuals from Public Financial Management System. Enables Q3 lapse flagging — critical for timely intervention.',
+                                            status: 'Needs CGA / MoF coordination. No public API.',
+                                        },
+                                        {
+                                            icon: '📋',
+                                            title: 'CAG Para Tracker',
+                                            desc: 'Scheme-wise audit objections from Comptroller & Auditor General reports. Flags schemes with active financial irregularities.',
+                                            status: 'PDFs available at cag.gov.in. Parsing pipeline in development.',
+                                        },
+                                        {
+                                            icon: '🗺️',
+                                            title: 'State-wise Comparison',
+                                            desc: 'Which states are underperforming vs national average on CSS implementation. Critical for MP to pressure state government.',
+                                            status: 'Available for 15 flagship schemes via data.gov.in. Expanding coverage.',
+                                        },
+                                    ].map((item, i) => (
+                                        <div key={i} className="p-3 border rounded-lg bg-gray-50" style={{ borderColor: '#e5e7eb' }}>
+                                            <div className="text-xl mb-2">{item.icon}</div>
+                                            <div className="text-xs font-bold text-gray-700 mb-1">{item.title}</div>
+                                            <div className="text-[11px] text-gray-500 mb-2">{item.desc}</div>
+                                            <div className="text-[10px] text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-100">{item.status}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="text-[10px] text-gray-400 text-right">
-                            Source: Budget data from Ministry Annual Reports · Parliament Q&A: ePARLib (sansad.in) LS {meta.lok_sabha || 18} · FY {meta.financial_year || '2025-26'} · Updated: {meta.enriched_at || meta.scraped_at || 'N/A'}
+                            Expenditure source: Union Budget documents + Open Budgets India (openbudgetsindia.org) ·
+                            Parliament Q&A: ePARLib (sansad.in) LS 18 · Updated: {accMeta.last_updated || 'N/A'}
                         </div>
                     </div>
                 );

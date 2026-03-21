@@ -1,0 +1,237 @@
+{
+  "metadata": {
+    "source": "Union Budget Documents + Open Budgets India (openbudgetsindia.org)",
+    "api_endpoint": "https://openbudgetsindia.org/api/3/action/datastore_search",
+    "current_fy": "2024-25",
+    "actuals_available_upto": "2023-24",
+    "note": "BE = Budget Estimate (April). RE = Revised Estimate (Dec/Feb). Actual = CAG-audited post year-end. FY 2024-25 actuals available only after Sep 2025. Figures approximate where consolidated statements not yet released.",
+    "lapse_risk_threshold_pct": 80,
+    "last_updated": "2025-01-15",
+    "pfms_status": "No public API — pending CGA/MoF coordination",
+    "cag_status": "PDF reports only — automated parsing pipeline pending",
+    "data_refresh_cmd": "python scripts/fetch_accountability_data.py"
+  },
+  "ministries": [
+    {
+      "ministry": "RURAL DEVELOPMENT",
+      "full_name": "Ministry of Rural Development",
+      "fy_current": "2024-25",
+      "be_cr": 265808,
+      "re_cr": 252000,
+      "actual_cr": null,
+      "lapse_risk": false,
+      "lapse_risk_reason": null,
+      "data_confidence": "high",
+      "top_schemes": ["MGNREGA", "PM Awas Yojana Gramin", "PMGSY", "National Livelihood Mission"],
+      "trend": [
+        {"fy": "2022-23", "be_cr": 153625, "re_cr": 160065, "actual_cr": 148956, "util_pct": 93.1},
+        {"fy": "2023-24", "be_cr": 177731, "re_cr": 167695, "actual_cr": 154200, "util_pct": 91.9},
+        {"fy": "2024-25", "be_cr": 265808, "re_cr": 252000, "actual_cr": null, "util_pct": null}
+      ]
+    },
+    {
+      "ministry": "ROAD TRANSPORT AND HIGHWAYS",
+      "full_name": "Ministry of Road Transport and Highways",
+      "fy_current": "2024-25",
+      "be_cr": 278000,
+      "re_cr": 270000,
+      "actual_cr": null,
+      "lapse_risk": false,
+      "lapse_risk_reason": null,
+      "data_confidence": "high",
+      "top_schemes": ["National Highways Authority", "PMGSY Phase IV", "Setu Bharatam"],
+      "trend": [
+        {"fy": "2022-23", "be_cr": 199107, "re_cr": 210000, "actual_cr": 201200, "util_pct": 95.8},
+        {"fy": "2023-24", "be_cr": 270435, "re_cr": 260000, "actual_cr": 249500, "util_pct": 96.0},
+        {"fy": "2024-25", "be_cr": 278000, "re_cr": 270000, "actual_cr": null, "util_pct": null}
+      ]
+    },
+    {
+      "ministry": "CHEMICALS AND FERTILIZERS",
+      "full_name": "Ministry of Chemicals and Fertilizers",
+      "fy_current": "2024-25",
+      "be_cr": 168463,
+      "re_cr": 165000,
+      "actual_cr": null,
+      "lapse_risk": false,
+      "lapse_risk_reason": "Demand-driven fertilizer subsidy — historically meets or exceeds RE",
+      "data_confidence": "medium",
+      "top_schemes": ["Fertilizer Subsidy (Urea + P&K)", "PM Bhartiya Janaushadhi Pariyojana"],
+      "trend": [
+        {"fy": "2022-23", "be_cr": 107071, "re_cr": 225000, "actual_cr": 251340, "util_pct": 111.7},
+        {"fy": "2023-24", "be_cr": 175444, "re_cr": 155000, "actual_cr": 188200, "util_pct": 121.4},
+        {"fy": "2024-25", "be_cr": 168463, "re_cr": 165000, "actual_cr": null, "util_pct": null}
+      ]
+    },
+    {
+      "ministry": "AGRICULTURE AND FARMERS WELFARE",
+      "full_name": "Ministry of Agriculture and Farmers Welfare",
+      "fy_current": "2024-25",
+      "be_cr": 151851,
+      "re_cr": 148000,
+      "actual_cr": null,
+      "lapse_risk": false,
+      "lapse_risk_reason": null,
+      "data_confidence": "high",
+      "top_schemes": ["PM-KISAN", "Pradhan Mantri Fasal Bima Yojana", "RKVY", "Modified Interest Subvention Scheme"],
+      "trend": [
+        {"fy": "2022-23", "be_cr": 132514, "re_cr": 115000, "actual_cr": 107200, "util_pct": 93.2},
+        {"fy": "2023-24", "be_cr": 142762, "re_cr": 135000, "actual_cr": 122100, "util_pct": 90.4},
+        {"fy": "2024-25", "be_cr": 151851, "re_cr": 148000, "actual_cr": null, "util_pct": null}
+      ]
+    },
+    {
+      "ministry": "HOME AFFAIRS",
+      "full_name": "Ministry of Home Affairs",
+      "fy_current": "2024-25",
+      "be_cr": 150984,
+      "re_cr": 148000,
+      "actual_cr": null,
+      "lapse_risk": false,
+      "lapse_risk_reason": null,
+      "data_confidence": "medium",
+      "top_schemes": ["Central Armed Police Forces", "NE Special Package", "SIS for States"],
+      "trend": [
+        {"fy": "2022-23", "be_cr": 133469, "re_cr": 130000, "actual_cr": 124800, "util_pct": 96.0},
+        {"fy": "2023-24", "be_cr": 140771, "re_cr": 138000, "actual_cr": 133500, "util_pct": 96.7},
+        {"fy": "2024-25", "be_cr": 150984, "re_cr": 148000, "actual_cr": null, "util_pct": null}
+      ]
+    },
+    {
+      "ministry": "EDUCATION",
+      "full_name": "Ministry of Education",
+      "fy_current": "2024-25",
+      "be_cr": 125638,
+      "re_cr": 120000,
+      "actual_cr": null,
+      "lapse_risk": false,
+      "lapse_risk_reason": null,
+      "data_confidence": "high",
+      "top_schemes": ["Samagra Shiksha", "PM POSHAN", "PM-SHRI Schools", "NHM (Higher Education)"],
+      "trend": [
+        {"fy": "2022-23", "be_cr": 108878, "re_cr": 100000, "actual_cr": 91400, "util_pct": 91.4},
+        {"fy": "2023-24", "be_cr": 121260, "re_cr": 112000, "actual_cr": 103100, "util_pct": 92.1},
+        {"fy": "2024-25", "be_cr": 125638, "re_cr": 120000, "actual_cr": null, "util_pct": null}
+      ]
+    },
+    {
+      "ministry": "HEALTH AND FAMILY WELFARE",
+      "full_name": "Ministry of Health and Family Welfare",
+      "fy_current": "2024-25",
+      "be_cr": 90659,
+      "re_cr": 88000,
+      "actual_cr": null,
+      "lapse_risk": false,
+      "lapse_risk_reason": null,
+      "data_confidence": "high",
+      "top_schemes": ["National Health Mission", "Ayushman Bharat PMJAY", "PMABHIM", "AIIMS & New Medical Colleges"],
+      "trend": [
+        {"fy": "2022-23", "be_cr": 87057, "re_cr": 79000, "actual_cr": 70100, "util_pct": 88.7},
+        {"fy": "2023-24", "be_cr": 89155, "re_cr": 82000, "actual_cr": 74200, "util_pct": 90.5},
+        {"fy": "2024-25", "be_cr": 90659, "re_cr": 88000, "actual_cr": null, "util_pct": null}
+      ]
+    },
+    {
+      "ministry": "JAL SHAKTI",
+      "full_name": "Ministry of Jal Shakti",
+      "fy_current": "2024-25",
+      "be_cr": 95316,
+      "re_cr": 88000,
+      "actual_cr": null,
+      "lapse_risk": true,
+      "lapse_risk_reason": "JJM implementation speed varies sharply by state — 6 states below 50% household tap coverage. Historically 83-85% utilization vs RE.",
+      "data_confidence": "high",
+      "top_schemes": ["Jal Jeevan Mission", "Swachh Bharat Mission Gramin", "Namami Gange", "PMKSY"],
+      "trend": [
+        {"fy": "2022-23", "be_cr": 86189, "re_cr": 80000, "actual_cr": 66800, "util_pct": 83.5},
+        {"fy": "2023-24", "be_cr": 97000, "re_cr": 88000, "actual_cr": 75100, "util_pct": 85.3},
+        {"fy": "2024-25", "be_cr": 95316, "re_cr": 88000, "actual_cr": null, "util_pct": null}
+      ]
+    },
+    {
+      "ministry": "HOUSING AND URBAN AFFAIRS",
+      "full_name": "Ministry of Housing and Urban Affairs",
+      "fy_current": "2024-25",
+      "be_cr": 82577,
+      "re_cr": 74000,
+      "actual_cr": null,
+      "lapse_risk": true,
+      "lapse_risk_reason": "ULB capacity constraints and DPR backlogs. PMAY-Urban Phase I ended; Phase II under-resourced. 3-year utilization has trended below 78%.",
+      "data_confidence": "high",
+      "top_schemes": ["PMAY Urban 2.0", "AMRUT 2.0", "Smart Cities Mission", "Swachh Bharat Mission Urban"],
+      "trend": [
+        {"fy": "2022-23", "be_cr": 76549, "re_cr": 70000, "actual_cr": 52100, "util_pct": 74.4},
+        {"fy": "2023-24", "be_cr": 76431, "re_cr": 68000, "actual_cr": 55200, "util_pct": 81.2},
+        {"fy": "2024-25", "be_cr": 82577, "re_cr": 74000, "actual_cr": null, "util_pct": null}
+      ]
+    },
+    {
+      "ministry": "WOMEN AND CHILD DEVELOPMENT",
+      "full_name": "Ministry of Women and Child Development",
+      "fy_current": "2024-25",
+      "be_cr": 29930,
+      "re_cr": 28000,
+      "actual_cr": null,
+      "lapse_risk": false,
+      "lapse_risk_reason": null,
+      "data_confidence": "high",
+      "top_schemes": ["Saksham Anganwadi and POSHAN 2.0", "Mission Shakti", "Mission Vatsalya", "Beti Bachao Beti Padhao"],
+      "trend": [
+        {"fy": "2022-23", "be_cr": 25172, "re_cr": 23000, "actual_cr": 19600, "util_pct": 85.2},
+        {"fy": "2023-24", "be_cr": 26175, "re_cr": 24000, "actual_cr": 21000, "util_pct": 87.5},
+        {"fy": "2024-25", "be_cr": 29930, "re_cr": 28000, "actual_cr": null, "util_pct": null}
+      ]
+    },
+    {
+      "ministry": "TRIBAL AFFAIRS",
+      "full_name": "Ministry of Tribal Affairs",
+      "fy_current": "2024-25",
+      "be_cr": 13000,
+      "re_cr": 11000,
+      "actual_cr": null,
+      "lapse_risk": true,
+      "lapse_risk_reason": "PM-JANMAN is new (FY24-25) with district implementation gaps. Eklavya school construction delayed due to land acquisition. Historically 78-82% utilization.",
+      "data_confidence": "medium",
+      "top_schemes": ["PM JANMAN", "Eklavya Model Residential Schools", "National Tribal Research Institute", "Van Dhan Vikas"],
+      "trend": [
+        {"fy": "2022-23", "be_cr": 7625, "re_cr": 7000, "actual_cr": 5550, "util_pct": 79.3},
+        {"fy": "2023-24", "be_cr": 9252, "re_cr": 8500, "actual_cr": 6740, "util_pct": 79.3},
+        {"fy": "2024-25", "be_cr": 13000, "re_cr": 11000, "actual_cr": null, "util_pct": null}
+      ]
+    },
+    {
+      "ministry": "SOCIAL JUSTICE AND EMPOWERMENT",
+      "full_name": "Ministry of Social Justice and Empowerment",
+      "fy_current": "2024-25",
+      "be_cr": 14225,
+      "re_cr": 13500,
+      "actual_cr": null,
+      "lapse_risk": false,
+      "lapse_risk_reason": null,
+      "data_confidence": "medium",
+      "top_schemes": ["Post Matric Scholarship for SCs", "National Action Plan for Drug Demand Reduction", "PM-AJAY", "NSAP Pension"],
+      "trend": [
+        {"fy": "2022-23", "be_cr": 12564, "re_cr": 11500, "actual_cr": 9530, "util_pct": 82.9},
+        {"fy": "2023-24", "be_cr": 13300, "re_cr": 12500, "actual_cr": 10520, "util_pct": 84.2},
+        {"fy": "2024-25", "be_cr": 14225, "re_cr": 13500, "actual_cr": null, "util_pct": null}
+      ]
+    },
+    {
+      "ministry": "SKILL DEVELOPMENT AND ENTREPRENEURSHIP",
+      "full_name": "Ministry of Skill Development and Entrepreneurship",
+      "fy_current": "2024-25",
+      "be_cr": 7400,
+      "re_cr": 7000,
+      "actual_cr": null,
+      "lapse_risk": true,
+      "lapse_risk_reason": "PMKVY 3.0 and 4.0 transition gap created a structural funding hole. Target vs actual trained ratio below 65% for 3 consecutive years. Industry linkage for placement not tracked post-training.",
+      "data_confidence": "medium",
+      "top_schemes": ["PMKVY 4.0", "National Apprenticeship Promotion Scheme", "Jan Shikshan Sansthan", "PMKK"],
+      "trend": [
+        {"fy": "2022-23", "be_cr": 5830, "re_cr": 4800, "actual_cr": 3920, "util_pct": 81.7},
+        {"fy": "2023-24", "be_cr": 6414, "re_cr": 5500, "actual_cr": 4510, "util_pct": 82.0},
+        {"fy": "2024-25", "be_cr": 7400, "re_cr": 7000, "actual_cr": null, "util_pct": null}
+      ]
+    }
+  ]
+}
