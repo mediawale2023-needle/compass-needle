@@ -105,6 +105,13 @@ DATA_ERROR_CORRECTIONS = {
     "Namami Gange Programme": (3500, "PLAUSIBLE", "₹3,500 Cr — plausible for NMCG"),
     "National Water Mission": (1275, "PLAUSIBLE", "₹1,275 Cr — NWM BE is in this range"),
     "National Hydrology Project": (600, "PLAUSIBLE", "₹600 Cr — consistent with World Bank project"),
+    # Agriculture / Fisheries — ₹38,000 Cr is NHM copy-paste placeholder
+    "Rashtriya Gokul Mission (RGM)": (2400, "DATA_ERROR", "₹38,000 Cr is placeholder; RGM BE 2025-26 ~₹2,400 Cr"),
+    "National Scheme of Welfare of Fishermen (NSWF)": (790, "DATA_ERROR", "₹38,000 Cr is placeholder; NSWF BE ~₹790 Cr"),
+    # Ports / Shipping
+    "National Waterways": (1700, "DATA_ERROR", "₹38,000 Cr is placeholder; National Waterways (IWAI) BE ~₹1,700 Cr"),
+    # Skill Development
+    "National Apprenticeship Promotion Scheme (NAPS)": (3000, "DATA_ERROR", "₹38,000 Cr is placeholder; NAPS BE ~₹3,000 Cr"),
 }
 
 # Verified actual BE values from pfms_data (ground truth)
@@ -295,13 +302,20 @@ def build_enriched_data():
                 record["data_quality"] = "NOT_A_SCHEME"
                 record["be_cr"] = 0
                 stats["not_a_scheme"] += 1
+            elif status in ("MERGED", "COMPLETED", "DISCONTINUED", "RENAMED"):
+                # Scheme no longer has its own budget line — zero it out
+                record["data_quality"] = "STATUS_CORRECTED"
+                record["be_cr"] = 0
+                stats["status_corrected"] += 1
             else:
                 record["data_quality"] = "STATUS_CORRECTED"
                 stats["status_corrected"] += 1
 
-        # 2. Check if there's a verified PFMS match (highest priority)
+        # 2. Check if there's a verified PFMS match (highest priority).
+        # Skip budget steps for schemes already zeroed out as inactive.
+        already_inactive = record["data_quality"] == "STATUS_CORRECTED" and record["be_cr"] == 0
         pfms_key = fuzzy_match_pfms(name_lower)
-        if pfms_key and pfms_key in PFMS_VERIFIED:
+        if pfms_key and pfms_key in PFMS_VERIFIED and not already_inactive:
             v = PFMS_VERIFIED[pfms_key]
             record["be_cr"] = v["be_cr"]
             record["re_cr"] = v["re_cr"]
@@ -311,7 +325,7 @@ def build_enriched_data():
             record["budget_source"] = "pfms_verified"
             record["data_quality"] = "VERIFIED"
             stats["verified_pfms"] += 1
-        elif name in _DATA_ERROR_NORM:
+        elif name in _DATA_ERROR_NORM and not already_inactive:
             # 3. Apply data error corrections
             corrected_be, flag, note = _DATA_ERROR_NORM[name]
             record["be_cr"] = corrected_be
@@ -320,7 +334,7 @@ def build_enriched_data():
             record["correction_note"] = note
             record["data_quality"] = "CORRECTED"
             stats["data_error_corrected"] += 1
-        else:
+        elif not already_inactive:
             # 4. Parse raw budget_allocation from schemes_db
             parsed = parse_budget_crore(raw_alloc)
             if parsed is not None:
