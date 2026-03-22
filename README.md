@@ -1,34 +1,64 @@
-# Needle — Parliamentary Intelligence Platform
+# Compass Needle — Parliamentary Intelligence Platform
 
 AI-powered constituency management system for Members of Parliament.
 
-Citizens send grievances via WhatsApp → AI categorizes & routes them → MPs manage cases from a web dashboard.
+Citizens send grievances via WhatsApp → AI categorises & routes them → MPs manage cases, draft responses, and track constituency health from a web dashboard.
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  WhatsApp        │────▶│  FastAPI Backend  │◀────│  MP Dashboard    │
-│  (Twilio)        │     │  (Python)         │     │  (Next.js)       │
-└─────────────────┘     └──────┬───────────┘     └──────────────────┘
-                               │                          ▲
-                               │                          │
-                        ┌──────▼───────────┐     ┌───────┴──────────┐
-                        │  PostgreSQL       │     │  Admin Dashboard  │
-                        │  (Railway)        │     │  (Next.js)        │
-                        └──────────────────┘     └──────────────────┘
+ ┌─────────────────┐        ┌───────────────────┐        ┌──────────────────┐
+ │  WhatsApp        │──────▶ │  FastAPI Backend   │ ◀───── │  MP Dashboard    │
+ │  (Meta Cloud)    │        │  (Python 3.11)     │        │  (Next.js 15)    │
+ └─────────────────┘        └────────┬──────────┘        └──────────────────┘
+                                     │                            ▲
+                              ┌──────▼──────────┐        ┌───────┴──────────┐
+                              │  PostgreSQL      │        │  Admin Dashboard  │
+                              │  (Railway)       │        │  (Next.js 15)     │
+                              └─────────────────┘        └──────────────────┘
 ```
 
-| Service | Tech | URL |
-|---------|------|-----|
-| Backend API | FastAPI + Python 3.11 | `needle-backend.up.railway.app` |
-| MP Dashboard | Next.js 15 | `needle-frontend.up.railway.app` |
-| Admin Dashboard | Next.js 15 | `needle-admin.up.railway.app` |
-| Database | PostgreSQL | Railway managed |
-| WhatsApp | Twilio Webhook | `/whatsapp/webhook` |
-| AI Engine | OpenAI GPT-4 | Via API |
+| Service | Tech | Deployment |
+|---------|------|------------|
+| Backend API | FastAPI + Uvicorn | Railway (Dockerfile) |
+| MP Dashboard | Next.js 15 + Tailwind | Railway (Railpack) |
+| Admin Dashboard | Next.js 15 + Tailwind | Railway (Railpack) |
+| Database | PostgreSQL 15 | Railway managed |
+| WhatsApp | Meta Cloud API v21.0 | Webhook at `/whatsapp/webhook` |
+| AI — Grievance Engine | OpenAI GPT-4o-mini | JSON mode, multi-language |
+| AI — Research & Drafting | Google Gemini | Document analysis, letter drafting |
+
+---
+
+## Features
+
+### MP Dashboard
+
+| Module | Description |
+|--------|-------------|
+| **Dashboard** | Case stats, category breakdown, red zones, constituency news, Parliament status |
+| **Letterbox** | Inbound/outbound physical letter management with Gemini Vision OCR |
+| **Briefcase** | WhatsApp grievance cases — full detail modal with status actions (resolve, escalate, close) |
+| **Research Desk** | Upload documents, get AI-powered intelligence briefings, chat with context |
+| **Drafter** | Generate constituency letters, Parliament questions, speeches, PMB drafts |
+| **Schemes** | Search 1500+ govt schemes filtered by ministry, category, beneficiary type |
+| **CSR Intelligence** | Live grievance clusters → CSR company matching → DPR generation |
+| **Archives** | Saved drafts and research history |
+| **Settings** | MP profile, language preferences, theme selection |
+
+### Admin Dashboard
+
+| Module | Description |
+|--------|-------------|
+| **Command Centre** | MP cards, system-wide stats |
+| **Create MP** | Tenant + user + profile provisioning |
+| **Profiles** | Edit MP identity, drafter config, key facts |
+| **Geography** | Upload polling station data, manage constituency mappings |
+| **Override Rules** | Location → assembly constituency override rules |
+| **Intelligence** | Platform health, case explorer, analytics |
+| **Settings** | Admin password, manage editors |
 
 ---
 
@@ -36,58 +66,53 @@ Citizens send grievances via WhatsApp → AI categorizes & routes them → MPs m
 
 ```
 compass-needle/
-├── main.py                    # FastAPI entry point, WhatsApp webhook
-├── api_router.py              # MP-facing REST API (1200 lines)
-├── admin_api.py               # Admin REST API (1040 lines)
+├── main.py                     # FastAPI entry point + WhatsApp webhook
+├── api_router.py               # MP-facing REST API (1400+ lines)
+├── admin_api.py                # Admin REST API (1100+ lines)
+│
 ├── sansadx_backend/
-│   ├── db.py                  # Unified DB models & engine (single source of truth)
-│   ├── ai_engine.py           # OpenAI integration & geography context
-│   └── prompts.py             # System prompts & taxonomy
-├── db.py                      # Compatibility shim (re-exports from sansadx_backend/db.py)
+│   ├── db.py                   # Unified DB engine, ORM models, connection pooling
+│   ├── ai_engine.py            # OpenAI GPT-4o-mini integration + geography context
+│   └── prompts.py              # System prompts & grievance taxonomy
+│
+├── core/
+│   ├── gemini_client.py        # Gemini AI singleton client
+│   ├── db_helpers.py           # Query helpers (_q, _q_one, _parse_meta)
+│   ├── rate_limiter.py         # SlowAPI rate limiting config
+│   ├── security_config.py      # CORS, JWT, headers, password policy
+│   └── security_logger.py      # Security event logging
+│
 ├── modules/
-│   ├── geography_resolver.py  # Polling station → Assembly Constituency mapping
-│   ├── drafter.py             # Letter/speech/PMB drafting engine
-│   ├── copilot.py             # AI document analysis & chat
-│   ├── case_intelligence.py   # Case analytics & platform health
-│   ├── news_intel.py          # News aggregation (national + constituency)
-│   ├── sansadx.py             # Sansad TV integration
-│   ├── constituencies.py      # 543 Lok Sabha constituencies list
-│   ├── persistence.py         # Archives & DNA samples
-│   ├── profile_loader.py      # Tenant profile management
-│   └── ...                    # CSR modules, settings, translator
-├── frontend/                  # MP Dashboard (Next.js)
+│   ├── auth.py                 # JWT auth, tenant extraction, input sanitisation
+│   ├── geography_resolver.py   # Location → assembly constituency mapping
+│   ├── csr_pipeline.py         # CSR opportunity matching engine
+│   ├── schemes_api.py          # 1500+ government schemes search
+│   ├── letterbox.py            # Physical letter management
+│   └── ...                     # News intel, CSR modules, fund intel
+│
+├── frontend/                   # MP Dashboard (Next.js 15)
 │   ├── app/
-│   │   ├── page.js            # Login
-│   │   └── dashboard/         # Protected routes
-│   │       ├── page.js        # Overview (cases, stats, charts)
-│   │       ├── drafter/       # Letter & speech drafting
-│   │       ├── copilot/       # AI document analysis
-│   │       ├── csr/           # CSR project discovery
-│   │       ├── archives/      # Saved drafts
-│   │       ├── sansadx/       # Parliament TV
-│   │       └── settings/      # Profile & preferences
+│   │   ├── page.js             # Login
+│   │   └── dashboard/          # Protected routes (9 pages)
+│   ├── components/             # Sidebar, UI components
 │   └── lib/
-│       ├── api.js             # API client with JWT auth
-│       └── auth.js            # Auth context provider
-├── admin/                     # Admin Dashboard (Next.js)
+│       ├── api.js              # API client with JWT, retry, timeout
+│       └── auth.js             # Auth context provider
+│
+├── admin/                      # Admin Dashboard (Next.js 15)
 │   ├── app/
-│   │   ├── page.js            # Admin login
-│   │   └── dashboard/
-│   │       ├── page.js        # Overview (MP cards, stats)
-│   │       ├── mps/new/       # Create MP
-│   │       ├── profiles/      # Edit MP profiles
-│   │       ├── geography/     # Upload polling station data
-│   │       ├── rules/         # Geography override rules
-│   │       ├── intelligence/  # Case analytics (3 views)
-│   │       └── settings/      # Admin password & editors
+│   │   └── dashboard/          # Admin-only protected routes
 │   └── lib/
-│       ├── api.js             # Admin API client
-│       └── auth.js            # Admin auth context
+│       ├── api.js              # Admin API client
+│       └── auth.js             # Admin auth context
+│
 ├── data/
-│   └── geography/             # Polling station JSON files per constituency
-├── Dockerfile                 # Backend Docker build
-├── requirements.txt           # Python dependencies
-└── tenant_overrides.json      # WhatsApp number → tenant mapping
+│   └── geography/              # Polling station JSON files per constituency
+│
+├── Dockerfile                  # Backend container (Python 3.11-slim)
+├── docker-compose.yml          # Local dev: Postgres + API + Streamlit (legacy)
+├── requirements.txt            # Python dependencies (pinned versions)
+└── tenant_overrides.json       # WhatsApp number → tenant mapping
 ```
 
 ---
@@ -100,23 +125,19 @@ compass-needle/
 |----------|----------|-------------|
 | `DATABASE_URL` | ✅ | PostgreSQL connection string |
 | `JWT_SECRET` | ✅ | Token signing key (min 32 chars) |
-| `OPENAI_API_KEY` | ✅ | GPT-4 API access |
-| `TWILIO_ACCOUNT_SID` | ✅ | WhatsApp messaging |
-| `TWILIO_AUTH_TOKEN` | ✅ | WhatsApp auth |
-| `TWILIO_WHATSAPP_NUMBER` | ✅ | Twilio sandbox/number |
+| `OPENAI_API_KEY` | ✅ | GPT-4o-mini for grievance classification |
+| `GEMINI_API_KEY` | ✅ | Gemini for copilot, drafter, letterbox OCR |
+| `META_PHONE_NUMBER_ID` | ✅ | Meta WhatsApp Business phone number ID |
+| `META_ACCESS_TOKEN` | ✅ | Meta permanent System User token |
+| `META_VERIFY_TOKEN` | ✅ | Webhook verification token (you define it) |
+| `META_APP_SECRET` | ✅ | Meta App Secret (for webhook signature validation) |
 | `SENTRY_DSN` | Optional | Error monitoring |
 
-### Admin Dashboard (Railway)
+### Frontends (Railway)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `NEXT_PUBLIC_API_URL` | ✅ | Backend URL (e.g. `https://needle-backend.up.railway.app`) |
-
-### MP Dashboard (Railway)
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `NEXT_PUBLIC_API_URL` | ✅ | Backend URL |
 
 ---
 
@@ -124,13 +145,14 @@ compass-needle/
 
 | Model | Table | Purpose |
 |-------|-------|---------|
-| `Tenant` | `tenants` | MP organization (name, constituency, WhatsApp number) |
+| `Tenant` | `tenants` | MP organisation (name, constituency, WhatsApp number) |
 | `User` | `users` | Credentials & roles (mp, admin, sysadmin, editor) |
 | `Case` | `cases` | Citizen grievances from WhatsApp |
+| `LetterboxItem` | `letterbox` | Physical letter records (inbound/outbound) |
 | `TenantProfile` | `tenant_profiles` | MP identity, party, key facts, languages |
-| `Archive` | `archives` | Saved drafts |
+| `Archive` | `archives` | Saved drafts (letters, questions, speeches) |
 | `DNASample` | `dna_samples` | Writing style templates |
-| `ActivityHistory` | `activity_history` | User activity log |
+| `ActivityHistory` | `activity_history` | User activity audit log |
 
 ---
 
@@ -139,34 +161,44 @@ compass-needle/
 ### WhatsApp Grievance Intake
 ```
 Citizen sends WhatsApp message
-  → Twilio forwards to /whatsapp/webhook
-  → Tenant lookup (JSON overrides → DB fallback)
-  → AI Engine categorizes (GPT-4)
+  → Meta Cloud API forwards to POST /whatsapp/webhook
+  → X-Hub-Signature-256 validated (HMAC-SHA256)
+  → Tenant lookup (display_phone_number → DB)
+  → AI Engine categorises (GPT-4o-mini, multi-language)
   → Geography resolution (location → assembly constituency)
-  → Case saved to database
-  → AI-generated response sent to citizen
+  → Case saved to PostgreSQL
+  → AI-generated response sent back to citizen
 ```
 
 ### MP Dashboard
 ```
-MP logs in → JWT issued → Dashboard loads
-  → Cases (filter by status, category, constituency)
-  → Drafter (letters, speeches, PMBs, questions)
-  → Copilot (upload & analyze documents)
-  → News (national + constituency-level)
-  → CSR (project discovery & proposals)
+MP logs in → JWT issued (8h expiry) → Dashboard loads
+  → Briefcase: Grievance cases with detail modal + status actions
+  → Letterbox: Physical letters with OCR via Gemini Vision
+  → Drafter: AI-generated letters, speeches, PMBs, Parliament questions
+  → Research Desk: Upload & analyse documents, chat with context
+  → Schemes: Search 1500+ government schemes
+  → CSR Intelligence: Live grievance-to-CSR matching + DPR generation
 ```
 
-### Admin Dashboard
-```
-Admin logs in → JWT issued → Command Center loads
-  → Create/manage MPs (tenant + user + profile)
-  → Edit profiles (identity, drafter config)
-  → Upload geography (polling station PDFs)
-  → Override rules (location → constituency mapping)
-  → Case Intelligence (health, explorer, analytics)
-  → Manage editors & settings
-```
+---
+
+## Security
+
+| Feature | Implementation |
+|---------|---------------|
+| Authentication | JWT (HS256, 8h expiry, 32-char+ secret enforced at startup) |
+| Password hashing | bcrypt only — non-bcrypt hashes rejected |
+| Role-based access | mp, admin, super_admin, sysadmin, editor |
+| Webhook security | Meta X-Hub-Signature-256 HMAC validation |
+| Rate limiting | Login: 5/min, AI: 3/min, Webhook: 20/min (SlowAPI) |
+| SQL injection | Parameterised queries only (SQLAlchemy `text()` binds) |
+| Error handling | Generic API responses — no `str(e)` leaks |
+| Security headers | X-Frame-Options, X-Content-Type-Options, XSS protection |
+| Multi-tenant isolation | All queries scoped by `tenant_id` from JWT |
+| Production guard | `RuntimeError` if `DATABASE_URL` missing — no SQLite fallback |
+| AI prompt safety | Input sanitisation + `<document_content>` tags for injection defence |
+| Monitoring | Sentry integration (optional) |
 
 ---
 
@@ -174,15 +206,13 @@ Admin logs in → JWT issued → Command Center loads
 
 ### Backend
 ```bash
-# Install dependencies
 pip install -r requirements.txt
 
-# Set environment variables
-export DATABASE_URL="postgresql://..."
-export JWT_SECRET="your-secret-key-at-least-32-chars"
+export DATABASE_URL="postgresql://user:pass@localhost:5432/needle_db"
+export JWT_SECRET="your-secret-key-at-least-32-characters"
 export OPENAI_API_KEY="sk-..."
+export GEMINI_API_KEY="..."
 
-# Run
 uvicorn main:app --reload --port 8000
 ```
 
@@ -206,22 +236,13 @@ npm run dev    # → http://localhost:3001
 
 ## Deployment (Railway)
 
-The project runs as **3 Railway services** from the same GitHub repo:
+Three services from the same GitHub repo, auto-deploy on push to `main`:
 
-1. **Backend** — Root directory: `/`, Builder: Dockerfile
-2. **MP Frontend** — Root directory: `/frontend`, Builder: Railpack
-3. **Admin Frontend** — Root directory: `/admin`, Builder: Railpack
-
-Each service auto-deploys on push to `main`.
-
----
-
-## Security
-
-- JWT-based authentication (separate tokens for MP and admin)
-- bcrypt password hashing (no plaintext storage)
-- Role-based access control (mp, admin, super_admin, sysadmin, editor)
-- Sentry error monitoring (optional)
+| Service | Root Directory | Builder |
+|---------|---------------|---------|
+| Backend | `/` | Dockerfile |
+| MP Frontend | `/frontend` | Railpack |
+| Admin Frontend | `/admin` | Railpack |
 
 ---
 
