@@ -58,8 +58,37 @@ router = APIRouter()
 # JWT HELPERS
 # ─────────────────────────────────────────
 def create_token(data: dict) -> str:
-    payload = {**data, "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)}
+    payload = {**data, "iat": datetime.utcnow().timestamp(), "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def is_token_revoked(username: str, token_issued_at: float) -> bool:
+    """Check if a user's tokens were revoked after this token was issued."""
+    try:
+        row = _q_one(
+            "SELECT revoked_at FROM token_blocklist WHERE username = :u ORDER BY revoked_at DESC LIMIT 1",
+            {"u": username}
+        )
+        if row and row.get("revoked_at"):
+            revoked_at = row["revoked_at"]
+            if hasattr(revoked_at, 'timestamp'):
+                return token_issued_at < revoked_at.timestamp()
+    except Exception:
+        pass  # If table doesn't exist yet, allow all tokens
+    return False
+
+
+def revoke_user_tokens(username: str):
+    """Revoke all existing tokens for a user (call on password change/logout)."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("INSERT INTO token_blocklist (username, revoked_at) VALUES (:u, :now)"),
+                {"u": username, "now": datetime.utcnow()}
+            )
+        logger.info(f"Revoked all tokens for user: {username}")
+    except Exception as e:
+        logger.error(f"Token revocation failed for {username}: {e}")
 
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -68,6 +97,10 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         username = payload.get("sub")
         if not username:
             raise HTTPException(401, "Invalid token")
+        # Check if token was revoked (issued before last password change/logout)
+        token_iat = payload.get("iat", 0)
+        if is_token_revoked(username, token_iat):
+            raise HTTPException(401, "Token has been revoked. Please login again.")
         user = _q_one("SELECT * FROM users WHERE username = :u", {"u": username})
         if not user:
             raise HTTPException(401, "User not found")
@@ -154,6 +187,14 @@ def login(req: LoginRequest, request: Request):
             "theme_color": "#006a4d" if house == "Lok Sabha" else "#8d153a",
         }
     }
+
+
+@router.post("/logout")
+def logout(user=Depends(get_current_user)):
+    """Revoke all tokens for the current user — forces re-login on all devices."""
+    username = user.get("username", "")
+    revoke_user_tokens(username)
+    return {"success": True, "message": "Logged out. All sessions invalidated."}
 
 
 @router.get("/auth/me")

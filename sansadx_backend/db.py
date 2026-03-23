@@ -165,6 +165,13 @@ class Archive(Base):
 
     tenant = relationship("Tenant", backref="archives")
 
+class TokenBlocklist(Base):
+    """Revoked JWT tokens. Checked on every authenticated request."""
+    __tablename__ = "token_blocklist"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, index=True, nullable=False)
+    revoked_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
 class LetterboxItem(Base):
     """Unified tracking for physical Inbox (grievances) and Outbox (official MP letters)."""
     __tablename__ = "letterbox"

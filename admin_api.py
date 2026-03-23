@@ -79,8 +79,37 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 
 def create_admin_token(data: dict) -> str:
-    payload = {**data, "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)}
+    payload = {**data, "iat": datetime.utcnow().timestamp(), "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def _is_token_revoked(username: str, token_issued_at: float) -> bool:
+    """Check if a user's tokens were revoked after this token was issued."""
+    try:
+        row = _q_one(
+            "SELECT revoked_at FROM token_blocklist WHERE username = :u ORDER BY revoked_at DESC LIMIT 1",
+            {"u": username}
+        )
+        if row and row.get("revoked_at"):
+            revoked_at = row["revoked_at"]
+            if hasattr(revoked_at, 'timestamp'):
+                return token_issued_at < revoked_at.timestamp()
+    except Exception:
+        pass
+    return False
+
+
+def _revoke_user_tokens(username: str):
+    """Revoke all existing tokens for a user."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("INSERT INTO token_blocklist (username, revoked_at) VALUES (:u, :now)"),
+                {"u": username, "now": datetime.utcnow()}
+            )
+        logger.info(f"Revoked all tokens for user: {username}")
+    except Exception as e:
+        logger.error(f"Token revocation failed for {username}: {e}")
 
 
 def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -91,6 +120,10 @@ def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(security)
         role = payload.get("role", "")
         if not username or role not in ADMIN_ROLES:
             raise HTTPException(403, "Admin access required")
+        # Check blocklist
+        token_iat = payload.get("iat", 0)
+        if _is_token_revoked(username, token_iat):
+            raise HTTPException(401, "Token has been revoked. Please login again.")
         user = _q_one("SELECT * FROM users WHERE username = :u", {"u": username})
         if not user or user.get("role") not in ADMIN_ROLES:
             raise HTTPException(403, "Admin access required")
@@ -502,6 +535,8 @@ def reset_mp_password(tenant_id: int, req: ResetPasswordRequest, _=Depends(get_a
             raise HTTPException(404, "MP not found")
         user.password_hash = hash_password(req.new_password)
         db.commit()
+        # Revoke all existing tokens for this MP
+        _revoke_user_tokens(user.username)
         return {"success": True}
     except HTTPException:
         raise
@@ -602,6 +637,8 @@ def reset_admin_password(req: AdminPasswordResetRequest, user=Depends(get_admin_
         if u:
             u.password_hash = hash_password(req.new_password)
             db.commit()
+            # Revoke all existing tokens for this admin
+            _revoke_user_tokens(user["username"])
         return {"success": True}
     except Exception as e:
         db.rollback()
@@ -609,6 +646,13 @@ def reset_admin_password(req: AdminPasswordResetRequest, user=Depends(get_admin_
         raise HTTPException(500, "Internal server error")
     finally:
         db.close()
+
+
+@router.post("/logout")
+def admin_logout(user=Depends(get_admin_user)):
+    """Revoke all tokens for the current admin — forces re-login."""
+    _revoke_user_tokens(user.get("username", ""))
+    return {"success": True, "message": "Logged out. All sessions invalidated."}
 
 
 # ═══════════════════════════════════════════

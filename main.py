@@ -144,6 +144,24 @@ try:
 except Exception:
     pass  # Column already exists — expected on subsequent deploys
 
+# ─── Migration: create token_blocklist table (idempotent) ───
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS token_blocklist (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR NOT NULL,
+                revoked_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_token_blocklist_username
+            ON token_blocklist (username)
+        """))
+        logger.info("Migration: token_blocklist table ready")
+except Exception as e:
+    logger.warning(f"token_blocklist migration skipped: {e}")
+
 # Seed CSR company profiles from static JSON files on startup
 try:
     from modules.csr_data_loader import seed_csr_companies
