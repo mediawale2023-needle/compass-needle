@@ -382,6 +382,8 @@ async def copilot_upload(file: UploadFile = File(...), user=Depends(get_current_
     try:
         import pymupdf
         content = await file.read()
+        if len(content) > 10 * 1024 * 1024:  # 10 MB
+            raise HTTPException(413, "File too large. Maximum size is 10 MB.")
         doc = pymupdf.open(stream=content, filetype="pdf")
         pages = []
         for i, page in enumerate(doc):
@@ -2661,9 +2663,13 @@ async def letterbox_upload(
 ):
     tid = get_tenant_or_fail(user)
     
-    # Read file bytes
+    # Read file bytes (max 10 MB)
     try:
         content = await file.read()
+        if len(content) > 10 * 1024 * 1024:  # 10 MB
+            raise HTTPException(413, "File too large. Maximum size is 10 MB.")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Failed to read uploaded file")
         raise HTTPException(500, "Failed to read the uploaded file")
