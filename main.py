@@ -407,87 +407,123 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         )
         return
 
-    # ── Normal AI processing ─────────────────────────────────────
-    user_context = get_user_context(sender)
-    full_prompt = f"{user_context}\n\nUSER MESSAGE: {message_body}"
-    ai_result = ask_chatgpt_agent(full_prompt, tenant_id=current_tenant)
-
-    if isinstance(ai_result, str):
-        try:
-            ai_result = json.loads(ai_result)
-        except Exception:
-            ai_result = {"status": "INCOMPLETE", "political_response": ai_result, "grievance_data": {}}
-
-    # Parse AI result
-    grievance = ai_result.get("grievance_data", {}) or {}
-    status = str(ai_result.get("status", "new")).lower()
-    categories = grievance.get("categories", ["General"])
-    category = categories[0] if isinstance(categories, list) and categories else "General"
-    political_reply = ai_result.get("political_response", "Thank you.")
-
-    location_name = grievance.get("location")
-    final_constituency = None
-
-    # Geo mapping — case-insensitive DB override first
-    if location_name:
-        lookup_key = str(location_name).lower().strip()
-        try:
-            geo_map = get_geo_overrides(current_tenant)
-            geo_map_lower = {k.lower(): v for k, v in geo_map.items()}
-            final_constituency = geo_map_lower.get(lookup_key)
-            if final_constituency:
-                logger.info(f"Geo match: {lookup_key} → {final_constituency}")
-        except Exception:
-            pass
-
-    # Fallback geo resolution
-    if not final_constituency:
-        final_constituency = (
-            grievance.get("assembly_constituency") or
-            grievance.get("constituency") or
-            ai_result.get("constituency") or
-            ai_result.get("assembly_constituency")
-        )
-        if (not final_constituency or final_constituency == "Unknown") and location_name:
-            _, resolved = resolve_constituency(location_name, current_tenant)
-            final_constituency = resolved if resolved and resolved != "Unknown" else None
-
-    if not final_constituency:
-        final_constituency = "Unknown"
-
-    meta_data = {
-        "user_intent": status,
-        "location_resolved": bool(location_name and final_constituency != "Unknown"),
-        "matched_value": location_name or "",
-        "assembly_constituency": final_constituency,
-        "summary": grievance.get("summary", message_body[:100])
-    }
-
-    # Save to database
+    # ── STEP 1: Save raw grievance to DB immediately ────────────
+    # This ensures the message is never lost, even if AI fails.
+    case_id = None
     try:
         with engine.begin() as conn:
-            conn.execute(
+            result = conn.execute(
                 text("""
                     INSERT INTO cases
                     (tenant_id, user_phone, category, raw_message, status, case_metadata, is_critical, created_at)
-                    VALUES (:tid, :phone, :cat, :msg, :stat, :meta, :crit, :now)
+                    VALUES (:tid, :phone, 'Uncategorised', :msg, 'pending', :meta, false, :now)
+                    RETURNING id
                 """),
                 {
                     "tid": current_tenant,
                     "phone": sender,
-                    "cat": category,
                     "msg": message_body,
-                    "stat": status,
-                    "meta": json.dumps(meta_data),
-                    "crit": ai_result.get("is_critical", False) or (status == "emergency"),
+                    "meta": json.dumps({"summary": message_body[:200]}),
                     "now": datetime.utcnow(),
                 }
             )
-            logger.info(f"Saved: status='{status}' tenant={current_tenant} constituency='{final_constituency}'")
+            row = result.fetchone()
+            case_id = row[0] if row else None
+            logger.info(f"Saved raw grievance: case_id={case_id} tenant={current_tenant}")
     except Exception as e:
-        logger.error(f"DB save failed: {e}")
+        logger.error(f"CRITICAL: DB save failed for raw grievance: {e}")
+        # Even if DB fails, still try to acknowledge the citizen
+        send_whatsapp_message(sender, "Thank you for contacting us. Your message has been received.")
+        return
 
-    send_whatsapp_message(sender, political_reply)
+    # ── STEP 2: AI classification (if this fails, the grievance is still saved) ──
+    try:
+        user_context = get_user_context(sender)
+        full_prompt = f"{user_context}\n\nUSER MESSAGE: {message_body}"
+        ai_result = ask_chatgpt_agent(full_prompt, tenant_id=current_tenant)
+
+        if isinstance(ai_result, str):
+            try:
+                ai_result = json.loads(ai_result)
+            except Exception:
+                ai_result = {"status": "INCOMPLETE", "political_response": ai_result, "grievance_data": {}}
+
+        # Parse AI result
+        grievance = ai_result.get("grievance_data", {}) or {}
+        status = str(ai_result.get("status", "new")).lower()
+        categories = grievance.get("categories", ["General"])
+        category = categories[0] if isinstance(categories, list) and categories else "General"
+        political_reply = ai_result.get("political_response", "Thank you for contacting us. Your message has been received.")
+
+        location_name = grievance.get("location")
+        final_constituency = None
+
+        # Geo mapping — case-insensitive DB override first
+        if location_name:
+            lookup_key = str(location_name).lower().strip()
+            try:
+                geo_map = get_geo_overrides(current_tenant)
+                geo_map_lower = {k.lower(): v for k, v in geo_map.items()}
+                final_constituency = geo_map_lower.get(lookup_key)
+                if final_constituency:
+                    logger.info(f"Geo match: {lookup_key} → {final_constituency}")
+            except Exception:
+                pass
+
+        # Fallback geo resolution
+        if not final_constituency:
+            final_constituency = (
+                grievance.get("assembly_constituency") or
+                grievance.get("constituency") or
+                ai_result.get("constituency") or
+                ai_result.get("assembly_constituency")
+            )
+            if (not final_constituency or final_constituency == "Unknown") and location_name:
+                _, resolved = resolve_constituency(location_name, current_tenant)
+                final_constituency = resolved if resolved and resolved != "Unknown" else None
+
+        if not final_constituency:
+            final_constituency = "Unknown"
+
+        meta_data = {
+            "user_intent": status,
+            "location_resolved": bool(location_name and final_constituency != "Unknown"),
+            "matched_value": location_name or "",
+            "assembly_constituency": final_constituency,
+            "summary": grievance.get("summary", message_body[:100])
+        }
+
+        # ── STEP 3: Update the saved case with AI results ──
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    text("""
+                        UPDATE cases
+                        SET category = :cat, status = :stat, case_metadata = :meta,
+                            is_critical = :crit
+                        WHERE id = :cid
+                    """),
+                    {
+                        "cat": category,
+                        "stat": status,
+                        "meta": json.dumps(meta_data),
+                        "crit": ai_result.get("is_critical", False) or (status == "emergency"),
+                        "cid": case_id,
+                    }
+                )
+                logger.info(f"AI updated case {case_id}: status='{status}' category='{category}' constituency='{final_constituency}'")
+        except Exception as e:
+            logger.error(f"DB update failed for case {case_id}: {e}")
+
+        send_whatsapp_message(sender, political_reply)
+
+    except Exception as e:
+        # AI failed — grievance is still saved as pending/Uncategorised
+        logger.error(f"AI processing failed for case {case_id}: {e}")
+        send_whatsapp_message(
+            sender,
+            "Thank you for contacting us. Your message has been received and will be reviewed by our team."
+        )
 
 
 @app.post("/whatsapp/webhook")
