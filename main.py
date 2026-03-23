@@ -118,6 +118,21 @@ app.include_router(admin_router, prefix="/api/admin")
 init_db()
 logger.info("Database initialised.")
 
+# ─── Migration: add tenant_id to archives table (idempotent) ───
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE archives ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)"))
+        logger.info("Migration: added tenant_id column to archives table")
+        # Backfill: set tenant_id from the users table
+        conn.execute(text("""
+            UPDATE archives SET tenant_id = (
+                SELECT u.tenant_id FROM users u WHERE u.username = archives.user LIMIT 1
+            ) WHERE tenant_id IS NULL
+        """))
+        logger.info("Migration: backfilled archives.tenant_id from users table")
+except Exception:
+    pass  # Column already exists — expected on subsequent deploys
+
 # Seed CSR company profiles from static JSON files on startup
 try:
     from modules.csr_data_loader import seed_csr_companies

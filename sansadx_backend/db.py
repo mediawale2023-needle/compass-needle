@@ -155,12 +155,15 @@ class Archive(Base):
     """Stores saved drafts/archives for users."""
     __tablename__ = "archives"
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=True)
     user = Column(String, index=True)
     date = Column(String)
     category = Column(String, default="General")
     title = Column(String)
     content = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    tenant = relationship("Tenant", backref="archives")
 
 class LetterboxItem(Base):
     """Unified tracking for physical Inbox (grievances) and Outbox (official MP letters)."""
