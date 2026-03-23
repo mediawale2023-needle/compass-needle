@@ -42,6 +42,17 @@ except Exception:
 # ─────────────────────────────────────────
 # UNIFIED DB (single engine, single source)
 # ─────────────────────────────────────────
+
+# ─── Mandatory env var checks ───
+META_APP_SECRET = os.getenv("META_APP_SECRET", "")
+if not META_APP_SECRET:
+    import sys
+    logging.critical(
+        "META_APP_SECRET is NOT set. WhatsApp webhook will reject ALL "
+        "messages until it is configured. Get it from Meta App Dashboard → "
+        "App Settings → Basic → App Secret."
+    )
+
 from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_geo_overrides
 
 # ─────────────────────────────────────────
@@ -482,24 +493,23 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
 @app.post("/whatsapp/webhook")
 @_webhook_decorate
 async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
-    # ── Validate Meta signature (X-Hub-Signature-256) ──
-    app_secret = os.getenv("META_APP_SECRET")
-    if app_secret:
-        raw_body = await request.body()
-        signature_header = request.headers.get("X-Hub-Signature-256", "")
-        if not signature_header.startswith("sha256="):
-            logger.warning("Webhook rejected: missing X-Hub-Signature-256 header")
-            raise HTTPException(status_code=403, detail="Invalid signature")
-        expected = "sha256=" + hmac.new(
-            app_secret.encode(), raw_body, hashlib.sha256
-        ).hexdigest()
-        if not hmac.compare_digest(signature_header, expected):
-            logger.warning("Webhook rejected: signature mismatch")
-            raise HTTPException(status_code=403, detail="Invalid signature")
-        data = json.loads(raw_body)
-    else:
-        logger.warning("META_APP_SECRET not set — webhook signature validation DISABLED")
-        data = await request.json()
+    # ── Validate Meta signature (X-Hub-Signature-256) — MANDATORY ──
+    if not META_APP_SECRET:
+        logger.error("Webhook rejected: META_APP_SECRET not configured")
+        raise HTTPException(status_code=503, detail="Webhook not configured")
+
+    raw_body = await request.body()
+    signature_header = request.headers.get("X-Hub-Signature-256", "")
+    if not signature_header.startswith("sha256="):
+        logger.warning("Webhook rejected: missing X-Hub-Signature-256 header")
+        raise HTTPException(status_code=403, detail="Invalid signature")
+    expected = "sha256=" + hmac.new(
+        META_APP_SECRET.encode(), raw_body, hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(signature_header, expected):
+        logger.warning("Webhook rejected: signature mismatch")
+        raise HTTPException(status_code=403, detail="Invalid signature")
+    data = json.loads(raw_body)
 
     # Meta sends a status update or a real message — ignore status pings
     try:
