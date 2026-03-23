@@ -4,7 +4,6 @@ Mounted in main.py as app.include_router(api_router, prefix="/api")
 """
 import os
 import json
-import uuid
 import bcrypt
 import logging
 from datetime import datetime, timedelta
@@ -59,66 +58,20 @@ router = APIRouter()
 # JWT HELPERS
 # ─────────────────────────────────────────
 def create_token(data: dict) -> str:
-    exp = datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)
-    payload = {**data, "exp": exp, "jti": str(uuid.uuid4())}
+    payload = {**data, "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
-
-def revoke_user_tokens(username: str, token_exp: datetime | None = None) -> None:
-    """Invalidate all active sessions for a user by inserting a wildcard blocklist row.
-    We use a sentinel jti of 'user:<username>' to represent 'all tokens issued before now'.
-    get_current_user checks issued-at (iat) against the latest revocation timestamp."""
-    try:
-        expires = token_exp or (datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS))
-        with engine.begin() as conn:
-            # Upsert: update revoked_at if a row already exists for this user sentinel
-            conn.execute(text("""
-                INSERT INTO token_blocklist (jti, username, revoked_at, expires_at)
-                VALUES (:jti, :uname, :now, :exp)
-                ON CONFLICT (jti) DO UPDATE SET revoked_at = EXCLUDED.revoked_at
-            """), {
-                "jti": f"user:{username}",
-                "uname": username,
-                "now": datetime.utcnow(),
-                "exp": expires,
-            })
-    except Exception as e:
-        logger.error(f"revoke_user_tokens failed for {username}: {e}")
 
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         username = payload.get("sub")
-        jti = payload.get("jti")
         if not username:
             raise HTTPException(401, "Invalid token")
-
-        # Check token-specific blocklist entry
-        if jti:
-            blocked = _q_one(
-                "SELECT id FROM token_blocklist WHERE jti = :jti",
-                {"jti": jti}
-            )
-            if blocked:
-                raise HTTPException(401, "Token has been revoked")
-
-        # Check user-level revocation (all tokens issued before the revocation time)
-        user_sentinel = _q_one(
-            "SELECT revoked_at FROM token_blocklist WHERE jti = :jti",
-            {"jti": f"user:{username}"}
-        )
-        if user_sentinel:
-            issued_at = datetime.utcfromtimestamp(payload.get("iat", 0))
-            if issued_at <= user_sentinel["revoked_at"]:
-                raise HTTPException(401, "Session invalidated. Please log in again.")
-
         user = _q_one("SELECT * FROM users WHERE username = :u", {"u": username})
         if not user:
             raise HTTPException(401, "User not found")
         return user
-    except HTTPException:
-        raise
     except JWTError:
         if log_security_event:
             log_security_event(
@@ -217,29 +170,6 @@ def get_me(user=Depends(get_current_user)):
         "house": house,
         "theme_color": "#006a4d" if house == "Lok Sabha" else "#8d153a",
     }
-
-
-@router.post("/auth/logout")
-def logout(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    user=Depends(get_current_user),
-):
-    """Revoke the current token so it cannot be reused after logout."""
-    try:
-        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        jti = payload.get("jti")
-        exp_ts = payload.get("exp")
-        exp_dt = datetime.utcfromtimestamp(exp_ts) if exp_ts else (datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS))
-        if jti:
-            with engine.begin() as conn:
-                conn.execute(text("""
-                    INSERT INTO token_blocklist (jti, username, revoked_at, expires_at)
-                    VALUES (:jti, :uname, :now, :exp)
-                    ON CONFLICT (jti) DO NOTHING
-                """), {"jti": jti, "uname": user["username"], "now": datetime.utcnow(), "exp": exp_dt})
-    except Exception as e:
-        logger.warning(f"Logout blocklist insert failed: {e}")
-    return {"success": True}
 
 
 # ─────────────────────────────────────────
@@ -452,8 +382,6 @@ async def copilot_upload(file: UploadFile = File(...), user=Depends(get_current_
     try:
         import pymupdf
         content = await file.read()
-        if len(content) > 10 * 1024 * 1024:  # 10 MB
-            raise HTTPException(413, "File too large. Maximum size is 10 MB.")
         doc = pymupdf.open(stream=content, filetype="pdf")
         pages = []
         for i, page in enumerate(doc):
@@ -2733,14 +2661,12 @@ async def letterbox_upload(
 ):
     tid = get_tenant_or_fail(user)
     
-    # Read file bytes (enforce 10 MB limit before any processing)
+    # Read file bytes
     try:
         content = await file.read()
     except Exception as e:
         logger.exception("Failed to read uploaded file")
         raise HTTPException(500, "Failed to read the uploaded file")
-    if len(content) > 10 * 1024 * 1024:  # 10 MB
-        raise HTTPException(413, "File too large. Maximum size is 10 MB.")
 
     # Determine MIME type
     filename_lower = file.filename.lower() if file.filename else ""

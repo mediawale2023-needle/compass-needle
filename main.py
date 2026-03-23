@@ -118,32 +118,6 @@ app.include_router(admin_router, prefix="/api/admin")
 init_db()
 logger.info("Database initialised.")
 
-# Warn loudly if META_APP_SECRET is missing — webhook will reject all messages
-if not os.getenv("META_APP_SECRET"):
-    logger.critical(
-        "SECURITY WARNING: META_APP_SECRET is not set. "
-        "The WhatsApp webhook will reject all incoming messages with HTTP 503 "
-        "until this environment variable is configured."
-    )
-
-# ── Idempotent migration: ensure archives.tenant_id column exists ──────────
-try:
-    with engine.begin() as _conn:
-        _conn.execute(text(
-            "ALTER TABLE archives ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id)"
-        ))
-        # Backfill: link existing rows to their tenant via the users table
-        _conn.execute(text("""
-            UPDATE archives a
-            SET tenant_id = u.tenant_id
-            FROM users u
-            WHERE a.user = u.username
-              AND a.tenant_id IS NULL
-        """))
-    logger.info("Migration: archives.tenant_id column ensured.")
-except Exception as _arch_err:
-    logger.warning(f"archives.tenant_id migration skipped (non-fatal): {_arch_err}")
-
 # Seed CSR company profiles from static JSON files on startup
 try:
     from modules.csr_data_loader import seed_csr_companies
@@ -407,32 +381,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         )
         return
 
-    # ── SAVE FIRST — insert pending row so message is never lost ────────────
-    pending_case_id = None
-    try:
-        with engine.begin() as conn:
-            result = conn.execute(
-                text("""
-                    INSERT INTO cases
-                    (tenant_id, user_phone, category, raw_message, status, case_metadata, is_critical, created_at)
-                    VALUES (:tid, :phone, 'Uncategorised', :msg, 'pending',
-                            :meta, false, :now)
-                    RETURNING id
-                """),
-                {
-                    "tid": current_tenant,
-                    "phone": sender,
-                    "msg": message_body,
-                    "meta": json.dumps({"pending_ai": True}),
-                    "now": datetime.utcnow(),
-                }
-            )
-            pending_case_id = result.fetchone()[0]
-            logger.info(f"Pre-saved pending case id={pending_case_id} tenant={current_tenant}")
-    except Exception as e:
-        logger.error(f"Pre-save DB insert failed: {e}")
-
-    # ── AI processing ────────────────────────────────────────────
+    # ── Normal AI processing ─────────────────────────────────────
     user_context = get_user_context(sender)
     full_prompt = f"{user_context}\n\nUSER MESSAGE: {message_body}"
     ai_result = ask_chatgpt_agent(full_prompt, tenant_id=current_tenant)
@@ -488,50 +437,29 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         "summary": grievance.get("summary", message_body[:100])
     }
 
-    # ── UPDATE the pre-saved row with AI results (or insert fresh if pre-save failed) ──
+    # Save to database
     try:
         with engine.begin() as conn:
-            if pending_case_id is not None:
-                conn.execute(
-                    text("""
-                        UPDATE cases
-                        SET category = :cat,
-                            status   = :stat,
-                            case_metadata = :meta,
-                            is_critical   = :crit
-                        WHERE id = :case_id
-                    """),
-                    {
-                        "cat":     category,
-                        "stat":    status,
-                        "meta":    json.dumps(meta_data),
-                        "crit":    ai_result.get("is_critical", False) or (status == "emergency"),
-                        "case_id": pending_case_id,
-                    }
-                )
-                logger.info(f"Updated case id={pending_case_id} status='{status}' tenant={current_tenant} constituency='{final_constituency}'")
-            else:
-                # Pre-save failed earlier — insert now as a best-effort fallback
-                conn.execute(
-                    text("""
-                        INSERT INTO cases
-                        (tenant_id, user_phone, category, raw_message, status, case_metadata, is_critical, created_at)
-                        VALUES (:tid, :phone, :cat, :msg, :stat, :meta, :crit, :now)
-                    """),
-                    {
-                        "tid":  current_tenant,
-                        "phone": sender,
-                        "cat":  category,
-                        "msg":  message_body,
-                        "stat": status,
-                        "meta": json.dumps(meta_data),
-                        "crit": ai_result.get("is_critical", False) or (status == "emergency"),
-                        "now":  datetime.utcnow(),
-                    }
-                )
-                logger.info(f"Fallback insert: status='{status}' tenant={current_tenant} constituency='{final_constituency}'")
+            conn.execute(
+                text("""
+                    INSERT INTO cases
+                    (tenant_id, user_phone, category, raw_message, status, case_metadata, is_critical, created_at)
+                    VALUES (:tid, :phone, :cat, :msg, :stat, :meta, :crit, :now)
+                """),
+                {
+                    "tid": current_tenant,
+                    "phone": sender,
+                    "cat": category,
+                    "msg": message_body,
+                    "stat": status,
+                    "meta": json.dumps(meta_data),
+                    "crit": ai_result.get("is_critical", False) or (status == "emergency"),
+                    "now": datetime.utcnow(),
+                }
+            )
+            logger.info(f"Saved: status='{status}' tenant={current_tenant} constituency='{final_constituency}'")
     except Exception as e:
-        logger.error(f"DB update/save failed: {e}")
+        logger.error(f"DB save failed: {e}")
 
     send_whatsapp_message(sender, political_reply)
 
@@ -541,26 +469,22 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
 async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     # ── Validate Meta signature (X-Hub-Signature-256) ──
     app_secret = os.getenv("META_APP_SECRET")
-    if not app_secret:
-        logger.critical(
-            "META_APP_SECRET is not configured. "
-            "Refusing all webhook payloads until the secret is set. "
-            "Set META_APP_SECRET in your environment to enable WhatsApp processing."
-        )
-        raise HTTPException(status_code=503, detail="Webhook not configured")
-
-    raw_body = await request.body()
-    signature_header = request.headers.get("X-Hub-Signature-256", "")
-    if not signature_header.startswith("sha256="):
-        logger.warning("Webhook rejected: missing X-Hub-Signature-256 header")
-        raise HTTPException(status_code=403, detail="Invalid signature")
-    expected = "sha256=" + hmac.new(
-        app_secret.encode(), raw_body, hashlib.sha256
-    ).hexdigest()
-    if not hmac.compare_digest(signature_header, expected):
-        logger.warning("Webhook rejected: signature mismatch")
-        raise HTTPException(status_code=403, detail="Invalid signature")
-    data = json.loads(raw_body)
+    if app_secret:
+        raw_body = await request.body()
+        signature_header = request.headers.get("X-Hub-Signature-256", "")
+        if not signature_header.startswith("sha256="):
+            logger.warning("Webhook rejected: missing X-Hub-Signature-256 header")
+            raise HTTPException(status_code=403, detail="Invalid signature")
+        expected = "sha256=" + hmac.new(
+            app_secret.encode(), raw_body, hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(signature_header, expected):
+            logger.warning("Webhook rejected: signature mismatch")
+            raise HTTPException(status_code=403, detail="Invalid signature")
+        data = json.loads(raw_body)
+    else:
+        logger.warning("META_APP_SECRET not set — webhook signature validation DISABLED")
+        data = await request.json()
 
     # Meta sends a status update or a real message — ignore status pings
     try:
