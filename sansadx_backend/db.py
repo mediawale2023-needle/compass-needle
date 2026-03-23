@@ -155,6 +155,7 @@ class Archive(Base):
     """Stores saved drafts/archives for users."""
     __tablename__ = "archives"
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=True)
     user = Column(String, index=True)
     date = Column(String)
     category = Column(String, default="General")
@@ -456,6 +457,19 @@ class CSRDocument(Base):
     ingested_at = Column(DateTime, default=datetime.utcnow)
 
     company = relationship("CSRCompany", backref="documents")
+
+
+class TokenBlocklist(Base):
+    """
+    Stores revoked JWT token IDs (jti).
+    Checked on every authenticated request so stolen/old tokens are rejected immediately.
+    """
+    __tablename__ = "token_blocklist"
+    id = Column(Integer, primary_key=True, index=True)
+    jti = Column(String, unique=True, index=True, nullable=False)
+    username = Column(String, index=True, nullable=False)
+    revoked_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=False)  # mirrors original token exp; allows safe pruning
 
 
 # ─────────────────────────────────────────

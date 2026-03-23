@@ -22,6 +22,7 @@ from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantP
 from core.db_helpers import _q, _q_one, _parse_meta
 from modules.constituencies import ALL_CONSTITUENCIES
 from modules.auth import get_tenant_or_fail
+from api_router import revoke_user_tokens
 
 logger = logging.getLogger("needle.admin_api")
 
@@ -84,17 +85,38 @@ def create_admin_token(data: dict) -> str:
 
 
 def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Verify JWT and ensure user has an admin role."""
+    """Verify JWT, check blocklist, and ensure user has an admin role."""
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         username = payload.get("sub")
+        jti = payload.get("jti")
         role = payload.get("role", "")
         if not username or role not in ADMIN_ROLES:
             raise HTTPException(403, "Admin access required")
+
+        # Token-specific revocation check
+        if jti:
+            blocked = _q_one("SELECT id FROM token_blocklist WHERE jti = :jti", {"jti": jti})
+            if blocked:
+                raise HTTPException(401, "Token has been revoked")
+
+        # User-level revocation check
+        user_sentinel = _q_one(
+            "SELECT revoked_at FROM token_blocklist WHERE jti = :jti",
+            {"jti": f"user:{username}"}
+        )
+        if user_sentinel:
+            from datetime import timezone
+            issued_at = datetime.utcfromtimestamp(payload.get("iat", 0))
+            if issued_at <= user_sentinel["revoked_at"]:
+                raise HTTPException(401, "Session invalidated. Please log in again.")
+
         user = _q_one("SELECT * FROM users WHERE username = :u", {"u": username})
         if not user or user.get("role") not in ADMIN_ROLES:
             raise HTTPException(403, "Admin access required")
         return user
+    except HTTPException:
+        raise
     except JWTError:
         raise HTTPException(401, "Invalid or expired token")
 
@@ -502,6 +524,7 @@ def reset_mp_password(tenant_id: int, req: ResetPasswordRequest, _=Depends(get_a
             raise HTTPException(404, "MP not found")
         user.password_hash = hash_password(req.new_password)
         db.commit()
+        revoke_user_tokens(user.username)
         return {"success": True}
     except HTTPException:
         raise
@@ -602,6 +625,7 @@ def reset_admin_password(req: AdminPasswordResetRequest, user=Depends(get_admin_
         if u:
             u.password_hash = hash_password(req.new_password)
             db.commit()
+            revoke_user_tokens(user["username"])
         return {"success": True}
     except Exception as e:
         db.rollback()
