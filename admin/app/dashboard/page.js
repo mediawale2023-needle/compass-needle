@@ -46,6 +46,9 @@ export default function DashboardOverview() {
                     onChange={(e) => setSearch(e.target.value)}
                     style={{ flex: 1 }}
                 />
+                <Link href="/dashboard/prs/new" className="btn-secondary" style={{ textDecoration: 'none', whiteSpace: 'nowrap', padding: '10px 16px' }}>
+                    + Create PR (Needle AI)
+                </Link>
                 <Link href="/dashboard/mps/new" className="btn-primary" style={{ textDecoration: 'none', whiteSpace: 'nowrap' }}>
                     + Add New MP
                 </Link>
@@ -77,10 +80,21 @@ function StatCard({ icon, value, label, accent }) {
 }
 
 function MpCard({ mp }) {
+    const isPR = mp.role === 'pr';
     const initials = mp.display_name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
     const isLS = mp.house === 'Lok Sabha';
     const completeness = mp.completeness || 0;
     const fillClass = completeness >= 70 ? 'fill-good' : completeness >= 40 ? 'fill-mid' : 'fill-low';
+
+    let bgStyle = 'linear-gradient(135deg, #1f2937, #111827)'; // Dark Gray for PR
+    let tagLabel = 'PR';
+    let tagStyle = { background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe' };
+
+    if (!isPR) {
+        bgStyle = isLS ? 'linear-gradient(135deg, #006a4d, #00875f)' : 'linear-gradient(135deg, #8d153a, #b91c50)';
+        tagLabel = isLS ? 'LS' : 'RS';
+        tagStyle = isLS ? { background: '#ecfdf5', color: '#047857' } : { background: '#fdf2f8', color: '#be185d' };
+    }
 
     return (
         <div className="mp-card">
@@ -88,7 +102,7 @@ function MpCard({ mp }) {
                 width: 44, height: 44, borderRadius: 12,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontWeight: 700, fontSize: '1rem', color: 'white', flexShrink: 0,
-                background: isLS ? 'linear-gradient(135deg, #006a4d, #00875f)' : 'linear-gradient(135deg, #8d153a, #b91c50)',
+                background: bgStyle,
             }}>
                 {initials}
             </div>
@@ -101,7 +115,7 @@ function MpCard({ mp }) {
                     <div className={`completeness-fill ${fillClass}`} style={{ width: `${completeness}%` }} />
                 </div>
             </div>
-            <span className={`tag ${isLS ? 'tag-ls' : 'tag-rs'}`}>{isLS ? 'LS' : 'RS'}</span>
+            <span className="tag" style={tagStyle}>{tagLabel}</span>
         </div>
     );
 }
