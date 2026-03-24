@@ -215,14 +215,6 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
     const [loadingActivity, setLoadingActivity] = useState(false);
     const [showEscalation, setShowEscalation] = useState(false);
 
-    if (!caseItem) return null;
-
-    const c = caseItem;
-    const meta = c.case_metadata || {};
-    const createdAt = c.created_at ? new Date(c.created_at) : null;
-    const updatedAt = c.updated_at ? new Date(c.updated_at) : null;
-    const currentStatus = (c.status || 'new').toLowerCase();
-
     useEffect(() => {
         if (!caseItem) return;
         setNotes(caseItem.notes_for_staff || '');
@@ -235,6 +227,14 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
             .catch(() => setActivities([]))
             .finally(() => setLoadingActivity(false));
     }, [caseItem]);
+
+    if (!caseItem) return null;
+
+    const c = caseItem;
+    const meta = c.case_metadata || {};
+    const createdAt = c.created_at ? new Date(c.created_at) : null;
+    const updatedAt = c.updated_at ? new Date(c.updated_at) : null;
+    const currentStatus = (c.status || 'new').toLowerCase();
 
     const handleStatusChange = async (newStatus) => {
         setUpdating(newStatus);
