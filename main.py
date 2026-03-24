@@ -326,12 +326,13 @@ def _save_spam_flag(tenant_id: int, phone: str, flag_type: str, reason: str, mes
 # ─────────────────────────────────────────
 def send_whatsapp_message(to_number: str, body_text: str):
     """Send a WhatsApp reply via Meta Cloud API."""
-    phone_number_id = os.getenv("META_PHONE_NUMBER_ID")
+    # Support both env var names — .env uses WHATSAPP_PHONE_NUMBER_ID
+    phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID")
     access_token = os.getenv("META_ACCESS_TOKEN")
 
     if not phone_number_id or not access_token:
-        logger.error("META_PHONE_NUMBER_ID or META_ACCESS_TOKEN not set.")
-        return
+        logger.error("WHATSAPP_PHONE_NUMBER_ID or META_ACCESS_TOKEN not set.")
+        raise ValueError("WhatsApp API credentials not configured")
 
     # Strip any whatsapp: prefix — Meta uses bare numbers
     to_number = to_number.replace("whatsapp:", "")
@@ -350,11 +351,16 @@ def send_whatsapp_message(to_number: str, body_text: str):
     try:
         resp = http_requests.post(url, json=payload, headers=headers, timeout=10)
         if resp.ok:
-            logger.info(f"WhatsApp reply sent to {to_number} (id={resp.json().get('messages', [{}])[0].get('id')})")
+            msg_id = resp.json().get('messages', [{}])[0].get('id', 'unknown')
+            logger.info(f"WhatsApp reply sent to {to_number} (id={msg_id})")
+            return True
         else:
-            logger.error(f"Meta send failed: {resp.status_code} {resp.text}")
-    except Exception as e:
+            error_detail = resp.text[:300]
+            logger.error(f"Meta send failed: {resp.status_code} {error_detail}")
+            raise RuntimeError(f"Meta API error {resp.status_code}: {error_detail}")
+    except http_requests.exceptions.RequestException as e:
         logger.error(f"Meta send error: {e}")
+        raise RuntimeError(f"WhatsApp send failed: {e}")
 
 
 # ─────────────────────────────────────────
@@ -406,7 +412,7 @@ async def verify_webhook(request: Request):
 def _process_incoming_message(sender: str, message_body: str, receiver_number: str = ""):
     """Background task: AI processing + DB save + reply. Runs after 200 is returned to Meta."""
     if not receiver_number:
-        receiver_number = os.getenv("META_PHONE_NUMBER_ID", "")
+        receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
     current_tenant = 1
 
     # Tenant lookup — DB overrides first, then users table
