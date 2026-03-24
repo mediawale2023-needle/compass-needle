@@ -86,6 +86,7 @@ class Tenant(Base):
     constituency = Column(String)
     whatsapp_number = Column(String, unique=True)
     subscription_plan = Column(String, default="Pro")
+    tenant_type = Column(String, default="mp")        # "mp" or "aspirant"
     config = Column(JSON, default=dict)
     is_active = Column(Boolean, default=True)
     onboarding_state = Column(JSON, default=dict)   # {geography: bool, staff: bool, test_sent: bool, live: bool}

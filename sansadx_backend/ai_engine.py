@@ -232,10 +232,10 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         data["assembly_constituency"] = correct_constituency
                         data["constituency"] = correct_constituency
                         
-                        # --- FIXED: Only set completed if NOT emergency or offensive ---
+                        # --- FIXED: Keep status as "new" so staff must manually triage ---
                         original_status = data.get("status", "").lower()
                         if original_status not in ("emergency", "offensive"):
-                            data["status"] = "completed"
+                            data["status"] = "new"
                         
                         # Set is_critical for emergency cases
                         if original_status == "emergency":

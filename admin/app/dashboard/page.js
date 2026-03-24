@@ -25,10 +25,11 @@ export default function DashboardOverview() {
         <>
             {/* Stat Cards */}
             {stats && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 16, marginBottom: '1.5rem' }}>
                     <StatCard icon="👥" value={stats.total_mps} label="Total MPs" accent="#006a4d" />
                     <StatCard icon="🏛️" value={stats.lok_sabha} label="Lok Sabha" accent="#059669" />
                     <StatCard icon="🏛️" value={stats.rajya_sabha} label="Rajya Sabha" accent="#8d153a" />
+                    <StatCard icon="⚡" value={stats.total_prs || 0} label="Needle AI" accent="#2563eb" />
                     <StatCard icon="📋" value={stats.total_profiles} label="Profiles" accent="#d97706" />
                     <StatCard icon="📩" value={stats.total_cases} label="Total Cases" accent="#0891b2" />
                 </div>

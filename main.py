@@ -162,6 +162,21 @@ try:
 except Exception as e:
     logger.warning(f"token_blocklist migration skipped: {e}")
 
+# ─── Migration: add tenant_type column to tenants table (idempotent) ───
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE tenants ADD COLUMN tenant_type VARCHAR DEFAULT 'mp'"))
+        logger.info("Migration: added tenant_type column to tenants table")
+        # Backfill: mark PR tenants based on config->type
+        conn.execute(text("""
+            UPDATE tenants SET tenant_type = 'aspirant'
+            WHERE tenant_type = 'mp'
+              AND config::text LIKE '%"type": "PR"%'
+        """))
+        logger.info("Migration: backfilled tenant_type for existing PR tenants")
+except Exception:
+    pass  # Column already exists — expected on subsequent deploys
+
 # Seed CSR company profiles from static JSON files on startup
 try:
     from modules.csr_data_loader import seed_csr_companies

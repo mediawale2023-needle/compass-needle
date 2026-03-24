@@ -281,6 +281,7 @@ def admin_stats(_=Depends(get_admin_user)):
         total_mps = db.query(User).filter(User.role == "mp").count()
         ls_count = db.query(User).filter(User.role == "mp", User.house == "Lok Sabha").count()
         rs_count = db.query(User).filter(User.role == "mp", User.house == "Rajya Sabha").count()
+        total_prs = db.query(User).filter(User.role == "pr").count()
         total_profiles = db.query(TenantProfile).count()
         try:
             total_cases = db.query(Case).count()
@@ -290,6 +291,7 @@ def admin_stats(_=Depends(get_admin_user)):
             "total_mps": total_mps,
             "lok_sabha": ls_count,
             "rajya_sabha": rs_count,
+            "total_prs": total_prs,
             "total_profiles": total_profiles,
             "total_cases": total_cases,
         }
@@ -379,6 +381,7 @@ def create_mp(req: CreateMPRequest, _=Depends(get_admin_user)):
             constituency=req.constituency,
             whatsapp_number=req.whatsapp_number or f"temp_{datetime.now().timestamp()}",
             subscription_plan="Pro",
+            tenant_type="mp",
             config={"language": "English", "type": req.house.upper().replace(" ", "_"), "map_enabled": True},
         )
         db.add(new_tenant)
@@ -448,6 +451,7 @@ def create_pr(req: CreatePRRequest, _=Depends(get_admin_user)):
             constituency=req.constituency or "General",
             whatsapp_number=wa_number,
             subscription_plan="Pro",
+            tenant_type="aspirant",
             config={"language": "English", "type": "PR", "map_enabled": True},
         )
         db.add(new_tenant)
