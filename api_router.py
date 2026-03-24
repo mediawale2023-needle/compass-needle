@@ -498,7 +498,7 @@ def notify_citizen(case_id: int, user=Depends(get_current_user)):
 
     # Try to send via Meta WhatsApp Cloud API
     try:
-        from main import send_whatsapp_message
+        from modules.whatsapp import send_whatsapp_message
         send_whatsapp_message(phone, message)
         try:
             _log_case_activity(tid, case_id, user.get("username", ""), "citizen_notified", new_value=status)
