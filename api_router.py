@@ -496,18 +496,15 @@ def notify_citizen(case_id: int, user=Depends(get_current_user)):
 
     message = status_messages.get(status, f"Update on your grievance ({case_ref}): Status is now '{status}'.")
 
-    # Try to send via WhatsApp
+    # Try to send via Meta WhatsApp Cloud API
     try:
-        from sansadx_backend.twilio_client import send_whatsapp_message
-        success = send_whatsapp_message(wa_number, phone, message)
-        if success:
-            try:
-                _log_case_activity(tid, case_id, user.get("username", ""), "citizen_notified", new_value=status)
-            except Exception:
-                pass
-            return {"success": True, "message": "Notification sent"}
-        else:
-            raise HTTPException(500, "WhatsApp message failed. May be outside 24-hour window.")
+        from main import send_whatsapp_message
+        send_whatsapp_message(phone, message)
+        try:
+            _log_case_activity(tid, case_id, user.get("username", ""), "citizen_notified", new_value=status)
+        except Exception:
+            pass
+        return {"success": True, "message": "Notification sent via WhatsApp"}
     except ImportError:
         raise HTTPException(500, "WhatsApp module not available")
     except Exception as e:

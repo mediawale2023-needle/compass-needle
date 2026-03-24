@@ -2,10 +2,10 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/lib/auth';
-import { apiGet, apiPatch, apiDelete, apiBlob } from '@/lib/api';
+import { apiGet, apiPost, apiPatch, apiDelete, apiBlob } from '@/lib/api';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/toast';
-import { X, Loader2, AlertTriangle, CheckCircle, Download, User, Tag, FileText } from 'lucide-react';
+import { X, Loader2, AlertTriangle, CheckCircle, Download, User, Tag, FileText, Send } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -210,6 +210,7 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
     const [notes, setNotes] = useState('');
     const [response, setResponse] = useState('');
     const [savingNotes, setSavingNotes] = useState(false);
+    const [notifying, setNotifying] = useState(false);
     const [assignee, setAssignee] = useState('');
     const [activities, setActivities] = useState([]);
     const [loadingActivity, setLoadingActivity] = useState(false);
@@ -384,10 +385,32 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
                                 className="min-h-[60px]"
                             />
                         </div>
-                        <Button onClick={saveNotes} disabled={savingNotes}>
-                            {savingNotes ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                            Save Notes
-                        </Button>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <Button onClick={saveNotes} disabled={savingNotes}>
+                                {savingNotes ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                Save Notes
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                disabled={notifying || !c.user_phone}
+                                onClick={async () => {
+                                    setNotifying(true);
+                                    try {
+                                        await apiPost(`/api/cases/${c.id}/notify`);
+                                        toast.success('WhatsApp update sent to citizen');
+                                    } catch (err) {
+                                        console.error('Notify failed:', err);
+                                        toast.error('Failed to send WhatsApp notification');
+                                    } finally {
+                                        setNotifying(false);
+                                    }
+                                }}
+                            >
+                                {notifying ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                                Send Update via WhatsApp
+                            </Button>
+                        </div>
                     </div>
 
                     <Separator />
