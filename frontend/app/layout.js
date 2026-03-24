@@ -1,6 +1,7 @@
 import './globals.css';
 import { AuthProvider } from '@/lib/auth';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { ToastProvider } from '@/components/ui/toast';
 
 export const metadata = {
     title: 'Needle - Parliamentary Intelligence',
@@ -23,7 +24,9 @@ export default function RootLayout({ children }) {
             </head>
             <body className="min-h-screen bg-background font-sans antialiased">
                 <TooltipProvider>
-                    <AuthProvider>{children}</AuthProvider>
+                    <AuthProvider>
+                        <ToastProvider>{children}</ToastProvider>
+                    </AuthProvider>
                 </TooltipProvider>
             </body>
         </html>

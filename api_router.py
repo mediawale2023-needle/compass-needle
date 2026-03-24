@@ -266,17 +266,29 @@ def dashboard_summary(user=Depends(get_current_user)):
 # ─────────────────────────────────────────
 # CASES
 # ─────────────────────────────────────────
+def _generate_case_ref(tenant_id):
+    """Generate a human-readable case reference like NDL-2024-00042."""
+    year = datetime.utcnow().year
+    count = _q_one(
+        "SELECT COUNT(*) as cnt FROM cases WHERE tenant_id = :tid AND EXTRACT(YEAR FROM created_at) = :yr",
+        {"tid": tenant_id, "yr": year}
+    )
+    seq = (count["cnt"] if count else 0) + 1
+    return f"NDL-{year}-{seq:05d}"
+
+
 @router.get("/cases")
 def get_cases(
     user=Depends(get_current_user),
     status: Optional[str] = None,
     category: Optional[str] = None,
     categories: Optional[str] = None,
+    search: Optional[str] = None,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
 ):
     tid = get_tenant_or_fail(user)
-    conditions = ["c.tenant_id = :tid"]
+    conditions = ["c.tenant_id = :tid", "(c.is_deleted = false OR c.is_deleted IS NULL)"]
     params = {"tid": tid}
 
     if status:
@@ -292,12 +304,16 @@ def get_cases(
             conditions.append(f"c.category IN ({placeholders})")
             for i, c in enumerate(cat_list):
                 params[f"cat_{i}"] = c
+    if search:
+        conditions.append("(c.user_phone ILIKE :search OR c.raw_message ILIKE :search)")
+        params["search"] = f"%{search}%"
 
     where = " AND ".join(conditions)
     offset = (page - 1) * limit
 
     count_row = _q_one(f"SELECT COUNT(*) as cnt FROM cases c WHERE {where}", params)
     total = count_row["cnt"] if count_row else 0
+    pages = (total + limit - 1) // limit if limit > 0 else 0
 
     cases = _q(f"""
         SELECT c.id, c.user_phone, c.category, c.status, c.raw_message,
@@ -330,7 +346,7 @@ def get_cases(
             if val and hasattr(val, "isoformat"):
                 c[field] = val.isoformat()
 
-    return {"cases": cases, "total": total, "page": page, "limit": limit}
+    return {"cases": cases, "total": total, "page": page, "limit": limit, "pages": pages}
 
 
 @router.get("/cases/{case_id}")
@@ -357,16 +373,398 @@ class StatusUpdate(BaseModel):
     status: str
 
 
+def _log_case_activity(tenant_id, case_id, username, action, old_value=None, new_value=None, details=None):
+    """Log an activity entry for a case."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "INSERT INTO case_activity_log (tenant_id, case_id, username, action, old_value, new_value, details, created_at) "
+                "VALUES (:tid, :cid, :user, :action, :old, :new, :details, :now)"
+            ), {"tid": tenant_id, "cid": case_id, "user": username, "action": action,
+                "old": old_value, "new": new_value, "details": details, "now": datetime.utcnow()})
+    except Exception:
+        pass
+
+
 @router.patch("/cases/{case_id}/status")
 def update_case_status(case_id: int, body: StatusUpdate, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
+    current = _q_one("SELECT status FROM cases WHERE id = :cid AND tenant_id = :tid", {"cid": case_id, "tid": tid})
+    old_status = current["status"] if current else None
+
     with engine.begin() as conn:
         result = conn.execute(text(
             "UPDATE cases SET status = :st, updated_at = :now WHERE id = :cid AND tenant_id = :tid"
         ), {"st": body.status, "now": datetime.utcnow(), "cid": case_id, "tid": tid})
     if result.rowcount == 0:
         raise HTTPException(404, "Case not found")
+
+    try:
+        _log_case_activity(tid, case_id, user.get("username", ""), "status_change", old_value=old_status, new_value=body.status)
+    except Exception:
+        pass
+
     return {"success": True}
+
+
+class CaseNotesUpdate(BaseModel):
+    notes_for_staff: Optional[str] = None
+    response_to_citizen: Optional[str] = None
+    assigned_to: Optional[str] = None
+
+
+@router.patch("/cases/{case_id}")
+def update_case(case_id: int, body: CaseNotesUpdate, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    updates = []
+    params = {"cid": case_id, "tid": tid, "now": datetime.utcnow()}
+
+    if body.notes_for_staff is not None:
+        updates.append("notes_for_staff = :notes")
+        params["notes"] = body.notes_for_staff
+    if body.response_to_citizen is not None:
+        updates.append("response_to_citizen = :response")
+        params["response"] = body.response_to_citizen
+    if body.assigned_to is not None:
+        updates.append("assigned_to = :assigned")
+        params["assigned"] = body.assigned_to
+
+    if not updates:
+        raise HTTPException(400, "No fields to update")
+
+    updates.append("updated_at = :now")
+    set_clause = ", ".join(updates)
+
+    with engine.begin() as conn:
+        result = conn.execute(text(
+            f"UPDATE cases SET {set_clause} WHERE id = :cid AND tenant_id = :tid"
+        ), params)
+
+    if result.rowcount == 0:
+        raise HTTPException(404, "Case not found")
+
+    try:
+        _log_case_activity(tid, case_id, user.get("username", ""), "case_updated", details=str({k: v for k, v in params.items() if k not in ("cid", "tid", "now")}))
+    except Exception:
+        pass
+
+    return {"success": True}
+
+
+@router.get("/cases/{case_id}/activity")
+def get_case_activity(case_id: int, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    activities = _q(
+        "SELECT * FROM case_activity_log WHERE case_id = :cid AND tenant_id = :tid ORDER BY created_at DESC LIMIT 50",
+        {"cid": case_id, "tid": tid}
+    )
+    for a in activities:
+        if a.get("created_at") and hasattr(a["created_at"], "isoformat"):
+            a["created_at"] = a["created_at"].isoformat()
+    return {"activities": activities}
+
+
+@router.post("/cases/{case_id}/notify")
+def notify_citizen(case_id: int, user=Depends(get_current_user)):
+    """Send a WhatsApp status update to the citizen. Uses the 24-hour customer service window."""
+    tid = get_tenant_or_fail(user)
+    case = _q_one(
+        "SELECT c.*, t.whatsapp_number as wa_number FROM cases c "
+        "JOIN tenants t ON c.tenant_id = t.id "
+        "WHERE c.id = :cid AND c.tenant_id = :tid",
+        {"cid": case_id, "tid": tid}
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    phone = case.get("user_phone")
+    wa_number = case.get("wa_number")
+    status = case.get("status", "")
+    case_ref = case.get("case_ref", f"#{case_id}")
+
+    if not phone or not wa_number:
+        raise HTTPException(400, "Cannot notify: missing phone or WhatsApp number")
+
+    # Build status message
+    status_messages = {
+        "new": f"Your grievance ({case_ref}) has been received and is being reviewed.",
+        "in_progress": f"Update on your grievance ({case_ref}): We are actively working on this. Our team is looking into the matter.",
+        "escalated": f"Update on your grievance ({case_ref}): This has been escalated to the relevant government authority for immediate attention.",
+        "resolved": f"Good news! Your grievance ({case_ref}) has been resolved. If you're not satisfied with the resolution, please reply 'NO' to reopen.",
+        "closed": f"Your grievance ({case_ref}) has been closed. Thank you for reaching out.",
+    }
+
+    message = status_messages.get(status, f"Update on your grievance ({case_ref}): Status is now '{status}'.")
+
+    # Try to send via WhatsApp
+    try:
+        from sansadx_backend.twilio_client import send_whatsapp_message
+        success = send_whatsapp_message(wa_number, phone, message)
+        if success:
+            try:
+                _log_case_activity(tid, case_id, user.get("username", ""), "citizen_notified", new_value=status)
+            except Exception:
+                pass
+            return {"success": True, "message": "Notification sent"}
+        else:
+            raise HTTPException(500, "WhatsApp message failed. May be outside 24-hour window.")
+    except ImportError:
+        raise HTTPException(500, "WhatsApp module not available")
+    except Exception as e:
+        raise HTTPException(500, f"Notification failed: {str(e)}")
+
+
+@router.delete("/cases/{case_id}")
+def delete_case(case_id: int, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    role = user.get("role", "user")
+    if role not in ("mp", "pr", "admin"):
+        raise HTTPException(403, "Only MP/PR accounts can delete cases")
+
+    with engine.begin() as conn:
+        result = conn.execute(text(
+            "UPDATE cases SET is_deleted = true, deleted_at = :now, deleted_by = :by, updated_at = :now "
+            "WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)"
+        ), {"now": datetime.utcnow(), "by": user.get("username", ""), "cid": case_id, "tid": tid})
+
+    if result.rowcount == 0:
+        raise HTTPException(404, "Case not found or already deleted")
+
+    try:
+        _log_case_activity(tid, case_id, user.get("username", ""), "deleted")
+    except Exception:
+        pass
+
+    return {"success": True}
+
+
+@router.get("/cases/deleted")
+def get_deleted_cases(user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    role = user.get("role", "user")
+    if role not in ("mp", "pr", "admin"):
+        raise HTTPException(403, "Only MP/PR accounts can view deleted cases")
+
+    seven_days_ago = datetime.utcnow() - timedelta(days=7)
+    cases = _q(
+        "SELECT * FROM cases WHERE tenant_id = :tid AND is_deleted = true AND deleted_at >= :since ORDER BY deleted_at DESC",
+        {"tid": tid, "since": seven_days_ago}
+    )
+    for c in cases:
+        for field in ["created_at", "updated_at", "deleted_at"]:
+            val = c.get(field)
+            if val and hasattr(val, "isoformat"):
+                c[field] = val.isoformat()
+    return {"cases": cases}
+
+
+@router.post("/cases/backfill-refs")
+def backfill_case_refs(user=Depends(get_current_user)):
+    """Backfill case_ref for existing cases that don't have one. MP/PR only."""
+    tid = get_tenant_or_fail(user)
+    role = user.get("role", "user")
+    if role not in ("mp", "pr", "admin"):
+        raise HTTPException(403, "Only MP/PR accounts can run backfill")
+
+    cases_without_ref = _q(
+        "SELECT id, created_at FROM cases WHERE tenant_id = :tid AND (case_ref IS NULL OR case_ref = '') ORDER BY created_at ASC",
+        {"tid": tid}
+    )
+
+    updated = 0
+    for c in cases_without_ref:
+        created = c.get("created_at")
+        year = created.year if created else datetime.utcnow().year
+        # Count cases before this one in the same year
+        count = _q_one(
+            "SELECT COUNT(*) as cnt FROM cases WHERE tenant_id = :tid AND EXTRACT(YEAR FROM created_at) = :yr AND id < :cid",
+            {"tid": tid, "yr": year, "cid": c["id"]}
+        )
+        seq = (count["cnt"] if count else 0) + 1
+        ref = f"NDL-{year}-{seq:05d}"
+        with engine.begin() as conn:
+            conn.execute(text(
+                "UPDATE cases SET case_ref = :ref WHERE id = :cid AND tenant_id = :tid"
+            ), {"ref": ref, "cid": c["id"], "tid": tid})
+        updated += 1
+
+    return {"success": True, "updated": updated}
+
+
+@router.get("/staff")
+def get_staff(user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    staff = _q(
+        "SELECT id, username, display_name, role FROM users WHERE tenant_id = :tid AND is_active = true",
+        {"tid": tid}
+    )
+    return {"staff": staff}
+
+
+# ─────────────────────────────────────────
+# OFFICERS
+# ─────────────────────────────────────────
+class OfficerCreate(BaseModel):
+    name: str
+    designation: str
+    department: str = ""
+    email: str = ""
+    phone: str = ""
+    jurisdiction: str = ""
+    categories: list = []
+
+
+@router.get("/officers")
+def get_officers(user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    officers = _q("SELECT * FROM officers WHERE tenant_id = :tid AND is_active = true ORDER BY name", {"tid": tid})
+    for o in officers:
+        if o.get("created_at") and hasattr(o["created_at"], "isoformat"):
+            o["created_at"] = o["created_at"].isoformat()
+    return {"officers": officers}
+
+
+@router.post("/officers")
+def create_officer(body: OfficerCreate, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    role = user.get("role", "user")
+    if role not in ("mp", "pr", "admin"):
+        raise HTTPException(403, "Only MP/PR accounts can manage officers")
+
+    with engine.begin() as conn:
+        result = conn.execute(text(
+            "INSERT INTO officers (tenant_id, name, designation, department, email, phone, jurisdiction, categories, created_at) "
+            "VALUES (:tid, :name, :desg, :dept, :email, :phone, :juris, :cats, :now) RETURNING id"
+        ), {"tid": tid, "name": body.name, "desg": body.designation, "dept": body.department,
+            "email": body.email, "phone": body.phone, "juris": body.jurisdiction,
+            "cats": json.dumps(body.categories), "now": datetime.utcnow()})
+        officer_id = result.fetchone()[0]
+    return {"success": True, "id": officer_id}
+
+
+@router.delete("/officers/{officer_id}")
+def delete_officer(officer_id: int, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    role = user.get("role", "user")
+    if role not in ("mp", "pr", "admin"):
+        raise HTTPException(403, "Only MP/PR accounts can manage officers")
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE officers SET is_active = false WHERE id = :oid AND tenant_id = :tid"), {"oid": officer_id, "tid": tid})
+    return {"success": True}
+
+
+# ─────────────────────────────────────────
+# ESCALATIONS
+# ─────────────────────────────────────────
+class EscalationCreate(BaseModel):
+    case_id: int
+    officer_id: int
+    letter_content: str
+    deadline: str = ""
+
+
+@router.post("/escalations")
+def create_escalation(body: EscalationCreate, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    deadline_dt = None
+    if body.deadline:
+        try:
+            deadline_dt = datetime.fromisoformat(body.deadline)
+        except Exception:
+            pass
+
+    with engine.begin() as conn:
+        result = conn.execute(text(
+            "INSERT INTO escalations (tenant_id, case_id, officer_id, letter_content, deadline, created_by, created_at) "
+            "VALUES (:tid, :cid, :oid, :letter, :deadline, :by, :now) RETURNING id"
+        ), {"tid": tid, "cid": body.case_id, "oid": body.officer_id, "letter": body.letter_content,
+            "deadline": deadline_dt, "by": user.get("username", ""), "now": datetime.utcnow()})
+        esc_id = result.fetchone()[0]
+
+    with engine.begin() as conn:
+        conn.execute(text(
+            "UPDATE cases SET status = 'escalated', updated_at = :now WHERE id = :cid AND tenant_id = :tid"
+        ), {"now": datetime.utcnow(), "cid": body.case_id, "tid": tid})
+
+    try:
+        _log_case_activity(tid, body.case_id, user.get("username", ""), "escalated", new_value=str(body.officer_id))
+    except Exception:
+        pass
+
+    return {"success": True, "id": esc_id}
+
+
+@router.get("/escalations")
+def get_escalations(case_id: Optional[int] = None, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    if case_id:
+        escalations = _q(
+            "SELECT e.*, o.name as officer_name, o.designation, o.email as officer_email "
+            "FROM escalations e LEFT JOIN officers o ON e.officer_id = o.id "
+            "WHERE e.tenant_id = :tid AND e.case_id = :cid ORDER BY e.created_at DESC",
+            {"tid": tid, "cid": case_id}
+        )
+    else:
+        escalations = _q(
+            "SELECT e.*, o.name as officer_name, o.designation, o.email as officer_email "
+            "FROM escalations e LEFT JOIN officers o ON e.officer_id = o.id "
+            "WHERE e.tenant_id = :tid ORDER BY e.created_at DESC LIMIT 100",
+            {"tid": tid}
+        )
+    for e in escalations:
+        for field in ["created_at", "updated_at", "email_sent_at", "deadline"]:
+            val = e.get(field)
+            if val and hasattr(val, "isoformat"):
+                e[field] = val.isoformat()
+    return {"escalations": escalations}
+
+
+@router.post("/escalations/{escalation_id}/send")
+def send_escalation_email_endpoint(escalation_id: int, user=Depends(get_current_user)):
+    """Send the escalation letter via email to the officer."""
+    tid = get_tenant_or_fail(user)
+
+    esc = _q_one(
+        "SELECT e.*, o.name as officer_name, o.designation, o.email as officer_email "
+        "FROM escalations e LEFT JOIN officers o ON e.officer_id = o.id "
+        "WHERE e.id = :eid AND e.tenant_id = :tid",
+        {"eid": escalation_id, "tid": tid}
+    )
+    if not esc:
+        raise HTTPException(404, "Escalation not found")
+
+    if esc.get("email_sent"):
+        raise HTTPException(400, "Email already sent for this escalation")
+
+    # Get MP profile for the letter header
+    profile = _q_one("SELECT mp_name, constituency FROM tenant_profiles WHERE tenant_id = :tid", {"tid": tid})
+    mp_name = profile.get("mp_name", "Member of Parliament") if profile else "Member of Parliament"
+    constituency = profile.get("constituency", "") if profile else ""
+
+    # Get case ref
+    case = _q_one("SELECT case_ref FROM cases WHERE id = :cid", {"cid": esc["case_id"]})
+    case_ref = case.get("case_ref", "") if case else ""
+
+    from modules.email_dispatch import send_escalation_email
+    success, message_id, error = send_escalation_email(
+        officer_email=esc.get("officer_email", ""),
+        officer_name=esc.get("officer_name", ""),
+        officer_designation=esc.get("designation", ""),
+        mp_name=mp_name,
+        constituency=constituency,
+        case_ref=case_ref,
+        letter_content=esc.get("letter_content", ""),
+    )
+
+    if success:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "UPDATE escalations SET email_sent = true, email_sent_at = :now, email_message_id = :mid, updated_at = :now "
+                "WHERE id = :eid"
+            ), {"now": datetime.utcnow(), "mid": message_id, "eid": escalation_id})
+        return {"success": True, "message_id": message_id}
+    else:
+        raise HTTPException(500, f"Email failed: {error}")
 
 
 # ─────────────────────────────────────────
@@ -2907,6 +3305,22 @@ def upsert_contact(phone: str, req: ContactUpsert, user=Depends(get_current_user
     except Exception:
         logger.exception("Contact upsert failed")
         raise HTTPException(500, "Failed to save contact")
+
+
+# ─────────────────────────────────────────
+# CLUSTERS (Intelligence)
+# ─────────────────────────────────────────
+@router.get("/clusters")
+def get_clusters(user=Depends(get_current_user)):
+    """Get auto-clustered cases for the current tenant."""
+    tid = get_tenant_or_fail(user)
+    try:
+        from jobs.auto_cluster import run_clustering
+        clusters = run_clustering(tenant_id=tid)
+        return {"clusters": clusters}
+    except Exception as e:
+        logger.exception("Clustering failed")
+        return {"clusters": [], "error": str(e)}
 
 
 # ─────────────────────────────────────────

@@ -186,6 +186,27 @@ try:
 except Exception:
     pass
 
+# ─── Migration: add new columns for Phase 2-3 features (idempotent) ───
+for _col_sql in [
+    "ALTER TABLE cases ADD COLUMN assigned_to VARCHAR",
+    "ALTER TABLE cases ADD COLUMN is_deleted BOOLEAN DEFAULT false",
+    "ALTER TABLE cases ADD COLUMN deleted_at TIMESTAMP",
+    "ALTER TABLE cases ADD COLUMN deleted_by VARCHAR",
+    "ALTER TABLE cases ADD COLUMN case_ref VARCHAR",
+]:
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(_col_sql))
+            logger.info(f"Migration: {_col_sql}")
+    except Exception:
+        pass
+
+try:
+    with engine.begin() as conn:
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_cases_case_ref ON cases (case_ref)"))
+except Exception:
+    pass
+
 # Seed CSR company profiles from static JSON files on startup
 try:
     from modules.csr_data_loader import seed_csr_companies

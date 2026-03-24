@@ -2,8 +2,9 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/lib/auth';
-import { apiGet, apiPatch, apiBlob } from '@/lib/api';
+import { apiGet, apiPatch, apiDelete, apiBlob } from '@/lib/api';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useToast } from '@/components/ui/toast';
 import { X, Loader2, AlertTriangle, CheckCircle, Download, User, Tag, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ import { cn } from '@/lib/utils';
 
 const TABS = [
     { key: 'All', label: 'All Cases' },
+    { key: 'my_cases', label: 'My Cases' },
     { key: 'new', label: 'New' },
     { key: 'in_progress', label: 'In Progress' },
     { key: 'resolved', label: 'Resolved' },
@@ -202,8 +204,16 @@ function ContactPanel({ phone, color, onClose }) {
     );
 }
 
-function CaseModal({ caseItem, color, onClose, onStatusChange }) {
+function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
+    const toast = useToast();
     const [updating, setUpdating] = useState(null);
+    const [notes, setNotes] = useState('');
+    const [response, setResponse] = useState('');
+    const [savingNotes, setSavingNotes] = useState(false);
+    const [assignee, setAssignee] = useState('');
+    const [activities, setActivities] = useState([]);
+    const [loadingActivity, setLoadingActivity] = useState(false);
+    const [showEscalation, setShowEscalation] = useState(false);
 
     if (!caseItem) return null;
 
@@ -213,15 +223,72 @@ function CaseModal({ caseItem, color, onClose, onStatusChange }) {
     const updatedAt = c.updated_at ? new Date(c.updated_at) : null;
     const currentStatus = (c.status || 'new').toLowerCase();
 
+    useEffect(() => {
+        if (!caseItem) return;
+        setNotes(caseItem.notes_for_staff || '');
+        setResponse(caseItem.response_to_citizen || '');
+        setAssignee(caseItem.assigned_to || '');
+
+        setLoadingActivity(true);
+        apiGet(`/api/cases/${caseItem.id}/activity`)
+            .then(d => setActivities(d.activities || []))
+            .catch(() => setActivities([]))
+            .finally(() => setLoadingActivity(false));
+    }, [caseItem]);
+
     const handleStatusChange = async (newStatus) => {
         setUpdating(newStatus);
         try {
             await apiPatch(`/api/cases/${c.id}/status`, { status: newStatus });
             onStatusChange(c.id, newStatus);
+            toast.success(`Case marked as ${newStatus}`);
         } catch (err) {
             console.error('Status update failed:', err);
+            toast.error('Failed to update status');
         } finally {
             setUpdating(null);
+        }
+    };
+
+    const saveNotes = async () => {
+        setSavingNotes(true);
+        try {
+            await apiPatch(`/api/cases/${c.id}`, {
+                notes_for_staff: notes || null,
+                response_to_citizen: response || null,
+            });
+            toast.success('Notes saved successfully');
+        } catch (err) {
+            console.error('Failed to save notes:', err);
+            toast.error('Failed to save notes');
+        } finally {
+            setSavingNotes(false);
+        }
+    };
+
+    const handleAssign = async (username) => {
+        try {
+            await apiPatch(`/api/cases/${c.id}`, { assigned_to: username || null });
+            setAssignee(username);
+            onStatusChange(c.id, currentStatus);
+            toast.success(`Case assigned to ${username || 'unassigned'}`);
+        } catch (err) {
+            console.error('Failed to assign:', err);
+            toast.error('Failed to assign case');
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!window.confirm('Are you sure you want to delete this case? This cannot be undone.')) {
+            return;
+        }
+        try {
+            await apiDelete(`/api/cases/${c.id}`);
+            onClose();
+            toast.success('Case deleted successfully');
+        } catch (err) {
+            console.error('Failed to delete case:', err);
+            toast.error('Failed to delete case');
         }
     };
 
@@ -275,24 +342,6 @@ function CaseModal({ caseItem, color, onClose, onStatusChange }) {
                         </div>
                     )}
 
-                    {c.response_to_citizen && (
-                        <div>
-                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Response Sent</div>
-                            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-                                {c.response_to_citizen}
-                            </div>
-                        </div>
-                    )}
-
-                    {c.notes_for_staff && (
-                        <div>
-                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Staff Notes</div>
-                            <div className="bg-amber-50 border border-amber-100 rounded-lg p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-                                {c.notes_for_staff}
-                            </div>
-                        </div>
-                    )}
-
                     <Separator />
 
                     <div>
@@ -313,6 +362,101 @@ function CaseModal({ caseItem, color, onClose, onStatusChange }) {
                             ))}
                         </div>
                     </div>
+
+                    <Separator />
+
+                    <div className="space-y-4">
+                        <div>
+                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Notes for Staff</div>
+                            <Textarea
+                                value={notes}
+                                onChange={e => setNotes(e.target.value)}
+                                placeholder="Internal notes..."
+                                className="min-h-[60px]"
+                            />
+                        </div>
+                        <div>
+                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Response to Citizen</div>
+                            <Textarea
+                                value={response}
+                                onChange={e => setResponse(e.target.value)}
+                                placeholder="Response message..."
+                                className="min-h-[60px]"
+                            />
+                        </div>
+                        <Button onClick={saveNotes} disabled={savingNotes}>
+                            {savingNotes ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                            Save Notes
+                        </Button>
+                    </div>
+
+                    <Separator />
+
+                    <div>
+                        <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Assign To</div>
+                        <select
+                            value={assignee}
+                            onChange={e => handleAssign(e.target.value)}
+                            className="w-full border rounded-lg p-2 text-sm"
+                        >
+                            <option value="">Unassigned</option>
+                            {staff.map(s => (
+                                <option key={s.username} value={s.username}>
+                                    {s.display_name || s.username}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <Separator />
+
+                    <div>
+                        <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Activity Log</div>
+                        {loadingActivity ? (
+                            <div className="flex items-center justify-center py-4">
+                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            </div>
+                        ) : (
+                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                                {activities.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground">No activity yet</p>
+                                ) : (
+                                    activities.map(a => (
+                                        <div key={a.id} className="flex items-start gap-2 text-xs">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                                            <div>
+                                                <span className="font-medium">{a.username}</span> {a.action.replace('_', ' ')}
+                                                {a.new_value && <span className="text-muted-foreground"> → {a.new_value}</span>}
+                                                <div className="text-muted-foreground">{a.created_at ? new Date(a.created_at).toLocaleString('en-IN') : ''}</div>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    <Separator />
+
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowEscalation(true)}
+                            className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                        >
+                            Escalate to Officer
+                        </Button>
+                        {(user?.role === 'mp' || user?.role === 'pr') && (
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={handleDelete}
+                            >
+                                Delete Case
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
                 <DialogFooter>
@@ -325,6 +469,7 @@ function CaseModal({ caseItem, color, onClose, onStatusChange }) {
 
 function BriefcaseInner() {
     const { user } = useAuth();
+    const toast = useToast();
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -332,13 +477,16 @@ function BriefcaseInner() {
 
     const [cases, setCases] = useState([]);
     const [loading, setLoading] = useState(true);
-    // Initialise directly from URL so the very first fetch uses the correct filter,
-    // avoiding a race where the all-cases response overwrites the filtered one.
     const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'All');
     const [categoryFilter, setCategoryFilter] = useState(() => searchParams.get('category') || '');
     const [selected, setSelected] = useState(null);
     const [downloading, setDownloading] = useState(false);
     const [contactPhone, setContactPhone] = useState(null);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalCases, setTotalCases] = useState(0);
+    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [staff, setStaff] = useState([]);
 
     async function downloadReport() {
         setDownloading(true);
@@ -354,34 +502,50 @@ function BriefcaseInner() {
             a.download = `grievance_report_${new Date().toISOString().slice(0, 10)}.pdf`;
             a.click();
             URL.revokeObjectURL(url);
+            toast.success('Report downloaded successfully');
         } catch (err) {
             console.error('Report download failed:', err);
+            toast.error('Failed to download report');
         } finally {
             setDownloading(false);
         }
     }
 
-    // Sync filters when the URL changes (e.g. browser back/forward, or navigating
-    // from another page with different params while this page is already mounted).
+    // Sync filters when the URL changes
     useEffect(() => {
         const status = searchParams.get('status') || 'All';
         const cat = searchParams.get('category') || '';
         setStatusFilter(status);
         setCategoryFilter(cat);
+        setPage(1);
     }, [searchParams]);
 
-    // Fetch cases whenever the active filter changes.
-    // The cancel flag ensures a slow in-flight response for a previous filter
-    // can never overwrite results for the current one.
+    // Fetch staff on mount
+    useEffect(() => {
+        apiGet('/api/staff')
+            .then(d => setStaff(d.staff || []))
+            .catch(() => {
+                console.error('Failed to fetch staff');
+            });
+    }, []);
+
+    // Fetch cases whenever the active filter or page changes
     useEffect(() => {
         let cancelled = false;
 
         async function fetchCases() {
             setLoading(true);
             try {
-                const params = new URLSearchParams({ page: '1', limit: '100' });
+                const params = new URLSearchParams({
+                    page: String(page),
+                    limit: '50'
+                });
 
-                if (statusFilter === 'other') {
+                if (statusFilter === 'my_cases') {
+                    if (user?.username) {
+                        params.set('assigned_to', user.username);
+                    }
+                } else if (statusFilter === 'other') {
                     params.set('categories', OTHER_CATEGORIES.join(','));
                 } else if (statusFilter !== 'All') {
                     params.set('status', statusFilter);
@@ -392,9 +556,17 @@ function BriefcaseInner() {
                 }
 
                 const data = await apiGet(`/api/cases?${params}`);
-                if (!cancelled) setCases(data.cases || []);
+                if (!cancelled) {
+                    setCases(data.cases || []);
+                    setTotalPages(data.pages || 1);
+                    setTotalCases(data.total || 0);
+                    setSelectedIds(new Set());
+                }
             } catch (err) {
-                if (!cancelled) console.error(err);
+                if (!cancelled) {
+                    console.error(err);
+                    toast.error('Failed to load cases');
+                }
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -402,9 +574,9 @@ function BriefcaseInner() {
 
         fetchCases();
         return () => { cancelled = true; };
-    }, [statusFilter, categoryFilter]);
+    }, [statusFilter, categoryFilter, page, user?.username]);
 
-    // Auto-open a specific case when case_id is present in the URL (e.g. deep-linked from dashboard)
+    // Auto-open a specific case when case_id is present in the URL
     useEffect(() => {
         const caseId = searchParams.get('case_id');
         if (!caseId || cases.length === 0) return;
@@ -414,6 +586,7 @@ function BriefcaseInner() {
 
     function switchTab(key) {
         setStatusFilter(key);
+        setPage(1);
         const url = new URL(window.location.href);
         if (key === 'All') url.searchParams.delete('status');
         else url.searchParams.set('status', key);
@@ -422,6 +595,7 @@ function BriefcaseInner() {
 
     function clearCategoryFilter() {
         setCategoryFilter('');
+        setPage(1);
         const url = new URL(window.location.href);
         url.searchParams.delete('category');
         window.history.replaceState({}, '', url.toString());
@@ -443,6 +617,34 @@ function BriefcaseInner() {
         }
         return '';
     };
+
+    async function bulkStatusChange(newStatus) {
+        const ids = [...selectedIds];
+        if (ids.length === 0) return;
+        try {
+            await Promise.all(ids.map(id => apiPatch(`/api/cases/${id}/status`, { status: newStatus })));
+            setCases(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: newStatus } : c));
+            setSelectedIds(new Set());
+            toast.success(`Updated ${ids.length} case${ids.length !== 1 ? 's' : ''} to ${newStatus}`);
+        } catch (err) {
+            console.error(err);
+            toast.error('Bulk update failed');
+        }
+    }
+
+    async function bulkAssign(username) {
+        const ids = [...selectedIds];
+        if (ids.length === 0) return;
+        try {
+            await Promise.all(ids.map(id => apiPatch(`/api/cases/${id}`, { assigned_to: username || null })));
+            setCases(prev => prev.map(c => ids.includes(c.id) ? { ...c, assigned_to: username } : c));
+            setSelectedIds(new Set());
+            toast.success(`Assigned ${ids.length} case${ids.length !== 1 ? 's' : ''} to ${username || 'unassigned'}`);
+        } catch (err) {
+            console.error(err);
+            toast.error('Bulk assign failed');
+        }
+    }
 
     return (
         <div className="space-y-6">
@@ -505,11 +707,49 @@ function BriefcaseInner() {
                     </div>
                 )}
 
+                {selectedIds.size > 0 && (
+                    <div className="px-6 py-3 border-b bg-primary/5 flex items-center gap-4">
+                        <span className="text-sm font-medium">{selectedIds.size} selected</span>
+                        <select
+                            className="text-sm border rounded px-2 py-1"
+                            value=""
+                            onChange={(e) => {
+                                if (e.target.value) {
+                                    bulkStatusChange(e.target.value);
+                                    e.target.value = '';
+                                }
+                            }}
+                        >
+                            <option value="">Bulk Status...</option>
+                            {STATUS_OPTIONS.map(s => (
+                                <option key={s.value} value={s.value}>{s.label}</option>
+                            ))}
+                        </select>
+                        <select
+                            className="text-sm border rounded px-2 py-1"
+                            value=""
+                            onChange={(e) => {
+                                if (e.target.value) {
+                                    bulkAssign(e.target.value);
+                                    e.target.value = '';
+                                }
+                            }}
+                        >
+                            <option value="">Bulk Assign...</option>
+                            {staff.map(s => (
+                                <option key={s.username} value={s.username}>{s.display_name || s.username}</option>
+                            ))}
+                        </select>
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+                    </div>
+                )}
+
                 <CardContent className="pt-0">
                     {loading ? (
                         <div className="space-y-3 py-6">
                             {[1, 2, 3, 4, 5].map(i => (
                                 <div key={i} className="flex items-center gap-4">
+                                    <Skeleton className="h-4 w-4" />
                                     <Skeleton className="h-4 w-12" />
                                     <Skeleton className="h-4 w-24" />
                                     <Skeleton className="h-4 w-32" />
@@ -533,7 +773,18 @@ function BriefcaseInner() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead className="w-16 pl-6">#</TableHead>
+                                        <TableHead className="w-10 pl-6">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedIds.size === cases.length && cases.length > 0}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) setSelectedIds(new Set(cases.map(c => c.id)));
+                                                    else setSelectedIds(new Set());
+                                                }}
+                                                className="rounded border-border"
+                                            />
+                                        </TableHead>
+                                        <TableHead className="w-16">#</TableHead>
                                         <TableHead>Contact</TableHead>
                                         <TableHead>Category</TableHead>
                                         <TableHead>Location</TableHead>
@@ -549,7 +800,24 @@ function BriefcaseInner() {
                                             className={cn("cursor-pointer", getRowHighlight(c.status, c.category))}
                                             onClick={() => setSelected(c)}
                                         >
-                                            <TableCell className="pl-6 font-mono text-xs text-muted-foreground">
+                                            <TableCell className="pl-6">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedIds.has(c.id)}
+                                                    onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedIds(prev => {
+                                                            const next = new Set(prev);
+                                                            if (e.target.checked) next.add(c.id);
+                                                            else next.delete(c.id);
+                                                            return next;
+                                                        });
+                                                    }}
+                                                    onClick={e => e.stopPropagation()}
+                                                    className="rounded border-border"
+                                                />
+                                            </TableCell>
+                                            <TableCell className="font-mono text-xs text-muted-foreground">
                                                 {c.id}
                                             </TableCell>
                                             <TableCell className="font-mono text-xs">
@@ -584,6 +852,30 @@ function BriefcaseInner() {
                         </div>
                     )}
                 </CardContent>
+
+                <div className="px-6 py-3 border-t flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                        Page {page} of {totalPages} ({totalCases} total cases)
+                    </span>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={page <= 1}
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                        >
+                            Previous
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={page >= totalPages}
+                            onClick={() => setPage(p => p + 1)}
+                        >
+                            Next
+                        </Button>
+                    </div>
+                </div>
             </Card>
 
             <CaseModal
@@ -591,6 +883,8 @@ function BriefcaseInner() {
                 color={color}
                 onClose={() => setSelected(null)}
                 onStatusChange={handleStatusChange}
+                staff={staff}
+                user={user}
             />
 
             <ContactPanel

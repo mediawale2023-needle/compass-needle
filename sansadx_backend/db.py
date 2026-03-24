@@ -128,12 +128,62 @@ class Case(Base):
     is_critical = Column(Boolean, default=False)
     response_to_citizen = Column(Text, nullable=True)
     notes_for_staff = Column(Text, nullable=True)
+    assigned_to = Column(String, nullable=True)
     case_metadata = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
     resolved_at = Column(DateTime, nullable=True)
+    is_deleted = Column(Boolean, default=False)
+    deleted_at = Column(DateTime, nullable=True)
+    deleted_by = Column(String, nullable=True)
+    case_ref = Column(String, nullable=True, index=True)
 
     tenant = relationship("Tenant", back_populates="cases")
+
+
+class CaseActivityLog(Base):
+    __tablename__ = "case_activity_log"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"))
+    case_id = Column(Integer, ForeignKey("cases.id"))
+    username = Column(String)
+    action = Column(String)
+    old_value = Column(String, nullable=True)
+    new_value = Column(String, nullable=True)
+    details = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Officer(Base):
+    __tablename__ = "officers"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"))
+    name = Column(String)
+    designation = Column(String)
+    department = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    jurisdiction = Column(String, nullable=True)
+    categories = Column(JSON, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Escalation(Base):
+    __tablename__ = "escalations"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"))
+    case_id = Column(Integer, ForeignKey("cases.id"))
+    officer_id = Column(Integer, ForeignKey("officers.id"))
+    letter_content = Column(Text)
+    email_sent = Column(Boolean, default=False)
+    email_sent_at = Column(DateTime, nullable=True)
+    email_message_id = Column(String, nullable=True)
+    deadline = Column(DateTime, nullable=True)
+    status = Column(String, default="sent")
+    created_by = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True)
 
 
 class TenantProfile(Base):
