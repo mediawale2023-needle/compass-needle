@@ -436,10 +436,11 @@ def create_pr(req: CreatePRRequest, _=Depends(get_admin_user)):
         if db.query(User).filter(User.username == req.username).first():
             raise HTTPException(400, "Username already exists")
 
+        import uuid
         new_tenant = Tenant(
             name=req.name,
             constituency=req.constituency or "General",
-            whatsapp_number=req.whatsapp_number or f"temp_{datetime.now().timestamp()}",
+            whatsapp_number=req.whatsapp_number or f"pr_{uuid.uuid4().hex[:12]}",
             subscription_plan="Pro",
             config={"language": "English", "type": "PR", "map_enabled": True},
         )
