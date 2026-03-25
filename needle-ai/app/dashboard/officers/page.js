@@ -52,8 +52,10 @@ export default function OfficersPage() {
         setLoading(true);
         try {
             const data = await apiGet('/api/officers');
+            console.log('[Officers] GET /api/officers response:', JSON.stringify(data));
             setOfficers(data.officers || []);
-        } catch {
+        } catch (err) {
+            console.error('[Officers] GET failed:', err);
             toast.error('Failed to load officers');
         } finally {
             setLoading(false);
@@ -70,12 +72,14 @@ export default function OfficersPage() {
         }
         setSubmitting(true);
         try {
-            await apiPost('/api/officers', form);
+            const result = await apiPost('/api/officers', form);
+            console.log('[Officers] POST /api/officers response:', JSON.stringify(result));
             toast.success('Officer added successfully');
             setForm({ name: '', designation: '', department: '', email: '', phone: '', jurisdiction: '', categories: [] });
             setShowAdd(false);
             await fetchOfficers();
         } catch (err) {
+            console.error('[Officers] POST failed:', err);
             toast.error('Failed to add officer: ' + (err.message || 'Unknown error'));
         } finally {
             setSubmitting(false);
