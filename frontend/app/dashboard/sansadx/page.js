@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { apiGet, apiPost, apiPatch, apiDelete, apiBlob } from '@/lib/api';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/toast';
-import { X, Loader2, AlertTriangle, CheckCircle, Download, User, Tag, FileText, Send } from 'lucide-react';
+import { X, Loader2, AlertTriangle, CheckCircle, Download, User, Tag, FileText, Send, Mail, Shield } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -195,6 +195,197 @@ function ContactPanel({ phone, color, onClose }) {
                         </div>
                     </div>
                 )}
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose}>Close</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function EscalationModal({ caseItem, color, open, onClose, toast }) {
+    const [officers, setOfficers] = useState([]);
+    const [selectedOfficer, setSelectedOfficer] = useState('');
+    const [letterContent, setLetterContent] = useState('');
+    const [escalations, setEscalations] = useState([]);
+    const [submitting, setSubmitting] = useState(false);
+    const [sendingEmail, setSendingEmail] = useState(null);
+    const [loadingOfficers, setLoadingOfficers] = useState(false);
+
+    useEffect(() => {
+        if (!open) return;
+        setLoadingOfficers(true);
+        Promise.all([
+            apiGet('/api/officers').catch(() => ({ officers: [] })),
+            apiGet(`/api/escalations?case_id=${caseItem.id}`).catch(() => ({ escalations: [] })),
+        ]).then(([oData, eData]) => {
+            setOfficers(oData.officers || []);
+            setEscalations(eData.escalations || []);
+        }).finally(() => setLoadingOfficers(false));
+    }, [open, caseItem?.id]);
+
+    useEffect(() => {
+        if (open) {
+            const cat = caseItem?.category || 'this matter';
+            const ref = caseItem?.case_ref || `#${caseItem?.id}`;
+            const loc = caseItem?.location || '';
+            const msg = caseItem?.raw_message || '';
+            setLetterContent(
+`Subject: Escalation of Citizen Grievance ${ref}
+
+Respected Sir/Madam,
+
+I am writing to bring to your urgent attention a citizen grievance (Ref: ${ref}) related to ${cat}${loc ? ` in ${loc}` : ''}.
+
+Citizen's complaint:
+"${msg.slice(0, 300)}${msg.length > 300 ? '...' : ''}"
+
+This issue requires immediate attention and resolution. Kindly look into this matter and take necessary action at the earliest.
+
+Thank you for your cooperation.
+
+Regards,
+MP Office`);
+        }
+    }, [open, caseItem]);
+
+    const handleEscalate = async () => {
+        if (!selectedOfficer) {
+            toast.error('Please select an officer');
+            return;
+        }
+        setSubmitting(true);
+        try {
+            await apiPost('/api/escalations', {
+                case_id: caseItem.id,
+                officer_id: parseInt(selectedOfficer),
+                letter_content: letterContent,
+                deadline: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+            });
+            toast.success('Case escalated to officer');
+            const eData = await apiGet(`/api/escalations?case_id=${caseItem.id}`).catch(() => ({ escalations: [] }));
+            setEscalations(eData.escalations || []);
+            setSelectedOfficer('');
+        } catch (err) {
+            toast.error('Failed to escalate: ' + (err.message || 'Unknown error'));
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleSendEmail = async (escalationId) => {
+        setSendingEmail(escalationId);
+        try {
+            await apiPost(`/api/escalations/${escalationId}/send`);
+            toast.success('Email sent to officer');
+            const eData = await apiGet(`/api/escalations?case_id=${caseItem.id}`).catch(() => ({ escalations: [] }));
+            setEscalations(eData.escalations || []);
+        } catch (err) {
+            toast.error('Failed to send email: ' + (err.message || 'Unknown error'));
+        } finally {
+            setSendingEmail(null);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onClose}>
+            <DialogContent className="max-w-xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader className="p-0 -m-6 mb-0">
+                    <div className="p-5 text-white rounded-t-xl" style={{ background: color || '#b45309' }}>
+                        <DialogDescription className="text-white/80 text-xs uppercase tracking-widest font-semibold mb-1">
+                            Escalation · Case #{caseItem?.id}
+                        </DialogDescription>
+                        <DialogTitle className="text-lg font-bold text-white">Escalate to Officer</DialogTitle>
+                    </div>
+                </DialogHeader>
+
+                <div className="space-y-5 pt-6">
+                    {/* Officer picker */}
+                    <div>
+                        <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Select Officer</div>
+                        {loadingOfficers ? (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading officers...</div>
+                        ) : officers.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No officers configured. Add officers in Settings first.</p>
+                        ) : (
+                            <select
+                                value={selectedOfficer}
+                                onChange={e => setSelectedOfficer(e.target.value)}
+                                className="w-full border rounded-lg p-2 text-sm"
+                            >
+                                <option value="">— Select Officer —</option>
+                                {officers.map(o => (
+                                    <option key={o.id} value={o.id}>
+                                        {o.name} — {o.designation}{o.department ? `, ${o.department}` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+                    </div>
+
+                    {/* Letter content */}
+                    <div>
+                        <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Escalation Letter</div>
+                        <Textarea
+                            value={letterContent}
+                            onChange={e => setLetterContent(e.target.value)}
+                            className="min-h-[180px] text-sm font-mono"
+                        />
+                    </div>
+
+                    <Button
+                        onClick={handleEscalate}
+                        disabled={submitting || !selectedOfficer}
+                        className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                    >
+                        {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Shield className="h-4 w-4 mr-2" />}
+                        Escalate Case
+                    </Button>
+
+                    {/* Escalation history */}
+                    {escalations.length > 0 && (
+                        <>
+                            <Separator />
+                            <div>
+                                <div className="text-xs text-muted-foreground uppercase font-medium mb-3">Escalation History</div>
+                                <div className="space-y-3">
+                                    {escalations.map(esc => (
+                                        <div key={esc.id} className="border rounded-lg p-3 space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <span className="text-sm font-medium">{esc.officer_name || 'Officer'}</span>
+                                                    {esc.designation && <span className="text-xs text-muted-foreground ml-2">{esc.designation}</span>}
+                                                </div>
+                                                <Badge variant={esc.email_sent ? 'default' : 'outline'} className="text-[10px]">
+                                                    {esc.email_sent ? '✓ Email Sent' : 'Not Sent'}
+                                                </Badge>
+                                            </div>
+                                            {esc.deadline && (
+                                                <p className="text-xs text-muted-foreground">Deadline: {new Date(esc.deadline).toLocaleDateString('en-IN')}</p>
+                                            )}
+                                            {!esc.email_sent && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                                                    disabled={sendingEmail === esc.id}
+                                                    onClick={() => handleSendEmail(esc.id)}
+                                                >
+                                                    {sendingEmail === esc.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Mail className="h-3 w-3 mr-1" />}
+                                                    Send Email to Officer
+                                                </Button>
+                                            )}
+                                            {esc.email_sent && esc.email_sent_at && (
+                                                <p className="text-xs text-emerald-600">Sent on {new Date(esc.email_sent_at).toLocaleString('en-IN')}</p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
 
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose}>Close</Button>
@@ -486,6 +677,16 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
                     <Button variant="outline" onClick={onClose}>Close</Button>
                 </DialogFooter>
             </DialogContent>
+
+            {showEscalation && (
+                <EscalationModal
+                    caseItem={c}
+                    color="#b45309"
+                    open={showEscalation}
+                    onClose={() => setShowEscalation(false)}
+                    toast={toast}
+                />
+            )}
         </Dialog>
     );
 }

@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { apiGet, apiPatch } from '@/lib/api';
+import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
+import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
 import {
     Select,
     SelectContent,
@@ -28,6 +30,10 @@ import {
     X,
     Filter,
     Loader2,
+    Send,
+    Mail,
+    Shield,
+    Trash2,
 } from 'lucide-react';
 
 const STATUS_OPTIONS = [
@@ -84,7 +90,51 @@ function CaseCard({ caseItem, onSelect, selected }) {
     );
 }
 
-function CaseDetail({ caseItem, onStatusChange, updating }) {
+function CaseDetail({ caseItem, onStatusChange, updating, onRefresh }) {
+    const toast = useToast();
+    const [notes, setNotes] = useState('');
+    const [response, setResponse] = useState('');
+    const [savingNotes, setSavingNotes] = useState(false);
+    const [notifying, setNotifying] = useState(false);
+    const [activities, setActivities] = useState([]);
+    const [loadingActivity, setLoadingActivity] = useState(false);
+
+    // Escalation state
+    const [showEscalation, setShowEscalation] = useState(false);
+    const [officers, setOfficers] = useState([]);
+    const [selectedOfficer, setSelectedOfficer] = useState('');
+    const [letterContent, setLetterContent] = useState('');
+    const [escalations, setEscalations] = useState([]);
+    const [submitting, setSubmitting] = useState(false);
+    const [sendingEmail, setSendingEmail] = useState(null);
+
+    useEffect(() => {
+        if (!caseItem) return;
+        setNotes(caseItem.notes_for_staff || '');
+        setResponse(caseItem.response_to_citizen || '');
+        setShowEscalation(false);
+
+        setLoadingActivity(true);
+        apiGet(`/api/cases/${caseItem.id}/activity`)
+            .then(d => setActivities(d.activities || []))
+            .catch(() => setActivities([]))
+            .finally(() => setLoadingActivity(false));
+    }, [caseItem?.id]);
+
+    const loadEscalationData = useCallback(async () => {
+        if (!caseItem) return;
+        const [oData, eData] = await Promise.all([
+            apiGet('/api/officers').catch(() => ({ officers: [] })),
+            apiGet(`/api/escalations?case_id=${caseItem.id}`).catch(() => ({ escalations: [] })),
+        ]);
+        setOfficers(oData.officers || []);
+        setEscalations(eData.escalations || []);
+    }, [caseItem?.id]);
+
+    useEffect(() => {
+        if (showEscalation) loadEscalationData();
+    }, [showEscalation, loadEscalationData]);
+
     if (!caseItem) {
         return (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-20">
@@ -94,12 +144,95 @@ function CaseDetail({ caseItem, onStatusChange, updating }) {
         );
     }
 
+    const saveNotes = async () => {
+        setSavingNotes(true);
+        try {
+            await apiPatch(`/api/cases/${caseItem.id}`, {
+                notes_for_staff: notes || null,
+                response_to_citizen: response || null,
+            });
+            toast.success('Notes saved successfully');
+        } catch (err) {
+            toast.error('Failed to save notes');
+        } finally {
+            setSavingNotes(false);
+        }
+    };
+
+    const handleNotify = async () => {
+        setNotifying(true);
+        try {
+            await apiPost(`/api/cases/${caseItem.id}/notify`);
+            toast.success('WhatsApp update sent to citizen');
+        } catch (err) {
+            toast.error('Failed to send WhatsApp notification');
+        } finally {
+            setNotifying(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!window.confirm('Are you sure you want to delete this case?')) return;
+        try {
+            await apiDelete(`/api/cases/${caseItem.id}`);
+            toast.success('Case deleted');
+            if (onRefresh) onRefresh();
+        } catch (err) {
+            toast.error('Failed to delete case');
+        }
+    };
+
+    const handleEscalate = async () => {
+        if (!selectedOfficer) {
+            toast.error('Please select an officer');
+            return;
+        }
+        setSubmitting(true);
+        try {
+            const cat = caseItem.category || 'this matter';
+            const ref = caseItem.case_ref || `#${caseItem.id}`;
+            const loc = caseItem.location || '';
+            const msg = caseItem.raw_message || '';
+            const letter = letterContent || `Subject: Escalation of Citizen Grievance ${ref}\n\nRespected Sir/Madam,\n\nI am writing about a citizen grievance (Ref: ${ref}) related to ${cat}${loc ? ` in ${loc}` : ''}.\n\nCitizen's complaint:\n"${msg.slice(0, 300)}"\n\nKindly take necessary action at the earliest.\n\nRegards,\nOffice of the Representative`;
+
+            await apiPost('/api/escalations', {
+                case_id: caseItem.id,
+                officer_id: parseInt(selectedOfficer),
+                letter_content: letter,
+                deadline: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+            });
+            toast.success('Case escalated to officer');
+            await loadEscalationData();
+            setSelectedOfficer('');
+            setLetterContent('');
+        } catch (err) {
+            toast.error('Failed to escalate: ' + (err.message || 'Unknown error'));
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleSendEmail = async (escalationId) => {
+        setSendingEmail(escalationId);
+        try {
+            await apiPost(`/api/escalations/${escalationId}/send`);
+            toast.success('Email sent to officer');
+            await loadEscalationData();
+        } catch (err) {
+            toast.error('Failed to send email');
+        } finally {
+            setSendingEmail(null);
+        }
+    };
+
     return (
-        <div className="p-5 space-y-5">
+        <div className="p-5 space-y-5 overflow-y-auto">
             {/* Header */}
             <div className="flex items-start justify-between">
                 <div>
-                    <h3 className="font-semibold text-foreground">Case #{caseItem.id}</h3>
+                    <h3 className="font-semibold text-foreground">
+                        Case {caseItem.case_ref || `#${caseItem.id}`}
+                    </h3>
                     <p className="text-sm text-muted-foreground mt-0.5">{caseItem.user_phone}</p>
                 </div>
                 <Select
@@ -145,16 +278,6 @@ function CaseDetail({ caseItem, onStatusChange, updating }) {
                 </div>
             </div>
 
-            {/* AI Response */}
-            {caseItem.response_to_citizen && (
-                <div>
-                    <p className="text-[11px] text-muted-foreground mb-1.5">AI Auto-Response Sent</p>
-                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
-                        <p className="text-sm text-foreground">{caseItem.response_to_citizen}</p>
-                    </div>
-                </div>
-            )}
-
             {/* Critical Flag */}
             {caseItem.is_critical && (
                 <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
@@ -162,15 +285,183 @@ function CaseDetail({ caseItem, onStatusChange, updating }) {
                     <span className="text-sm font-medium text-destructive">Flagged as Critical / Emergency</span>
                 </div>
             )}
+
+            <Separator />
+
+            {/* Notes & Response */}
+            <div className="space-y-3">
+                <div>
+                    <p className="text-[11px] text-muted-foreground uppercase font-medium mb-1.5">Notes for Staff</p>
+                    <Textarea
+                        value={notes}
+                        onChange={e => setNotes(e.target.value)}
+                        placeholder="Internal notes..."
+                        className="min-h-[60px] text-sm"
+                    />
+                </div>
+                <div>
+                    <p className="text-[11px] text-muted-foreground uppercase font-medium mb-1.5">Response to Citizen</p>
+                    <Textarea
+                        value={response}
+                        onChange={e => setResponse(e.target.value)}
+                        placeholder="Response message..."
+                        className="min-h-[60px] text-sm"
+                    />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <Button size="sm" onClick={saveNotes} disabled={savingNotes}>
+                        {savingNotes ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                        Save Notes
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                        disabled={notifying || !caseItem.user_phone}
+                        onClick={handleNotify}
+                    >
+                        {notifying ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
+                        Send Update via WhatsApp
+                    </Button>
+                </div>
+            </div>
+
+            <Separator />
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-200 text-amber-700 hover:bg-amber-50"
+                    onClick={() => setShowEscalation(!showEscalation)}
+                >
+                    <Shield className="h-3 w-3 mr-1" />
+                    {showEscalation ? 'Hide Escalation' : 'Escalate to Officer'}
+                </Button>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-red-200 text-red-600 hover:bg-red-50 ml-auto"
+                    onClick={handleDelete}
+                >
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    Delete
+                </Button>
+            </div>
+
+            {/* Escalation Panel */}
+            {showEscalation && (
+                <div className="border border-amber-200 rounded-lg p-4 bg-amber-50/50 space-y-4">
+                    <p className="text-xs text-amber-800 uppercase font-semibold">Escalation</p>
+
+                    {officers.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No officers configured. Add officers via the API or admin panel.</p>
+                    ) : (
+                        <>
+                            <select
+                                value={selectedOfficer}
+                                onChange={e => setSelectedOfficer(e.target.value)}
+                                className="w-full border rounded-lg p-2 text-sm bg-white"
+                            >
+                                <option value="">— Select Officer —</option>
+                                {officers.map(o => (
+                                    <option key={o.id} value={o.id}>
+                                        {o.name} — {o.designation}{o.department ? `, ${o.department}` : ''}
+                                    </option>
+                                ))}
+                            </select>
+
+                            <Textarea
+                                value={letterContent}
+                                onChange={e => setLetterContent(e.target.value)}
+                                placeholder="Escalation letter content (auto-generated on submit if empty)..."
+                                className="min-h-[100px] text-sm bg-white"
+                            />
+
+                            <Button
+                                size="sm"
+                                onClick={handleEscalate}
+                                disabled={submitting || !selectedOfficer}
+                                className="bg-amber-600 hover:bg-amber-700 text-white"
+                            >
+                                {submitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Shield className="h-3 w-3 mr-1" />}
+                                Escalate Case
+                            </Button>
+                        </>
+                    )}
+
+                    {/* Escalation history */}
+                    {escalations.length > 0 && (
+                        <div className="space-y-2 pt-2 border-t border-amber-200">
+                            <p className="text-xs text-amber-800 font-medium">Escalation History</p>
+                            {escalations.map(esc => (
+                                <div key={esc.id} className="bg-white border rounded-lg p-3 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium">{esc.officer_name || 'Officer'}</span>
+                                        <Badge variant={esc.email_sent ? 'default' : 'outline'} className="text-[10px]">
+                                            {esc.email_sent ? '✓ Sent' : 'Not Sent'}
+                                        </Badge>
+                                    </div>
+                                    {esc.deadline && (
+                                        <p className="text-xs text-muted-foreground">Deadline: {new Date(esc.deadline).toLocaleDateString('en-IN')}</p>
+                                    )}
+                                    {!esc.email_sent && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                                            disabled={sendingEmail === esc.id}
+                                            onClick={() => handleSendEmail(esc.id)}
+                                        >
+                                            {sendingEmail === esc.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Mail className="h-3 w-3 mr-1" />}
+                                            Send Email to Officer
+                                        </Button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            <Separator />
+
+            {/* Activity Log */}
+            <div>
+                <p className="text-[11px] text-muted-foreground uppercase font-medium mb-2">Activity Log</p>
+                {loadingActivity ? (
+                    <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                ) : activities.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No activity yet</p>
+                ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {activities.map(a => (
+                            <div key={a.id} className="flex items-start gap-2 text-xs">
+                                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                                <div>
+                                    <span className="font-medium">{a.username}</span> {a.action.replace(/_/g, ' ')}
+                                    {a.new_value && <span className="text-muted-foreground"> → {a.new_value}</span>}
+                                    <div className="text-muted-foreground">{a.created_at ? new Date(a.created_at).toLocaleString('en-IN') : ''}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
 
 export default function MessagesPage() {
+    const toast = useToast();
     const [cases, setCases] = useState([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [totalCases, setTotalCases] = useState(0);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [selectedCase, setSelectedCase] = useState(null);
@@ -185,8 +476,10 @@ export default function MessagesPage() {
             const data = await apiGet(path);
             setCases(data.cases || []);
             setTotalPages(data.pages || 1);
+            setTotalCases(data.total || 0);
         } catch {
             setCases([]);
+            toast.error('Failed to load messages');
         } finally {
             setLoading(false);
         }
@@ -202,8 +495,9 @@ export default function MessagesPage() {
             if (selectedCase?.id === caseId) {
                 setSelectedCase(prev => ({ ...prev, status: newStatus }));
             }
+            toast.success(`Status updated to ${newStatus}`);
         } catch {
-            // Fail silently
+            toast.error('Failed to update status');
         } finally {
             setUpdating(false);
         }
@@ -220,7 +514,7 @@ export default function MessagesPage() {
             <div className="flex items-center justify-between">
                 <h1 className="text-xl font-bold text-foreground">Messages</h1>
                 <Badge variant="outline" className="text-xs">
-                    {cases.length} shown
+                    Page {page} of {totalPages} ({totalCases} total)
                 </Badge>
             </div>
 
@@ -304,6 +598,7 @@ export default function MessagesPage() {
                         caseItem={selectedCase}
                         onStatusChange={handleStatusChange}
                         updating={updating}
+                        onRefresh={() => { setSelectedCase(null); fetchCases(); }}
                     />
                 </div>
             </div>
