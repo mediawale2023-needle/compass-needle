@@ -2,13 +2,14 @@
 
 ## Project Overview
 
-**Compass Needle** is a parliamentary intelligence platform for Indian Members of Parliament (MPs). It provides:
+**Compass Needle** is a parliamentary intelligence platform for Indian Members of Parliament (MPs) and Public Representatives (PRs/aspirants). It provides:
 - WhatsApp-based citizen grievance intake and AI classification
 - MP dashboard for case management, letter drafting, scheme discovery
+- PR dashboard (Needle AI) for lightweight grievance management
 - Admin dashboard for tenant/MP management and analytics
 - AI-powered research, CSR matching, and constituency intelligence
 
-**Monorepo structure:** Three Railway-deployed services sharing one PostgreSQL database.
+**Monorepo structure:** Four Railway-deployed services sharing one PostgreSQL database.
 
 ---
 
@@ -18,11 +19,13 @@
 |---|---|---|
 | Backend API | Python 3.11 + FastAPI | `/` (root) |
 | MP Dashboard | Next.js 15 + React 19 + Tailwind | `/frontend` |
+| PR Dashboard (Needle AI) | Next.js + React + Tailwind | `/needle-ai` |
 | Admin Dashboard | Next.js 15 + React 19 + Tailwind | `/admin` |
 | Database | PostgreSQL 15 | Railway managed |
 | AI (classification) | OpenAI GPT-4o-mini | `sansadx_backend/ai_engine.py` |
 | AI (drafting/OCR) | Google Gemini | `core/gemini_client.py` |
-| WhatsApp | Meta Cloud API v21.0 | `main.py` webhook |
+| WhatsApp outbound | Meta Cloud API v21.0 | `modules/whatsapp.py` |
+| WhatsApp inbound | Meta webhook | `main.py` |
 
 **Multi-tenant:** All DB queries are scoped by `tenant_id`. Each MP is a tenant.
 
@@ -44,6 +47,7 @@ modules/                    # 40+ feature modules
   drafter.py                # AI letter/speech/PMB generation
   letterbox.py              # Physical letter management + OCR
   schemes_api.py            # 1500+ government schemes search
+  whatsapp.py               # Meta Cloud API send helper (shared module)
   copilot.py                # AI research assistant
   csr_pipeline.py           # CSR opportunity matching
   news_intel.py             # Constituency news aggregation
@@ -53,6 +57,17 @@ core/
   rate_limiter.py           # SlowAPI configuration
   security_config.py        # CORS, JWT, security headers
   security_logger.py        # Security event logging
+jobs/                       # Background/cron tasks
+  auto_cluster.py           # Auto-cluster similar grievances
+  weekly_report.py          # Scheduled weekly reports
+  mca_csr_sync.py           # CSR data sync from MCA
+needle-ai/                  # PR Dashboard (separate Next.js app)
+  app/dashboard/
+    page.js                 # Today — stats + recent messages
+    messages/page.js        # Split-view case list + detail
+    contacts/page.js        # Contact CRM (built from cases)
+    reports/page.js         # Analytics + PDF export
+    settings/page.js        # Profile, WhatsApp config, subscription
 scripts/
   security_startup_check.py # Validates env vars before startup
   migrate_passwords_to_bcrypt.py
@@ -76,12 +91,14 @@ DATABASE_URL=postgresql://...
 JWT_SECRET=<min 32 chars, random>
 OPENAI_API_KEY=...
 GEMINI_API_KEY=...
-META_PHONE_NUMBER_ID=...
-META_ACCESS_TOKEN=...
+WHATSAPP_PHONE_NUMBER_ID=...       # Meta Business phone number ID
+META_ACCESS_TOKEN=...               # ⚠️ Expires! Use permanent System User token
 META_VERIFY_TOKEN=...
 META_APP_SECRET=...
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
+
+> **⚠️ META_ACCESS_TOKEN expires.** Generate a permanent System User token in Meta Business Suite to avoid outages. The env var is `WHATSAPP_PHONE_NUMBER_ID` (not `META_PHONE_NUMBER_ID`).
 
 ### Install dependencies
 ```bash
@@ -187,13 +204,14 @@ Defined in `sansadx_backend/db.py`:
 
 ## Deployment
 
-Deployed on **Railway** — three services auto-deploy on push to `main`:
+Deployed on **Railway** — four services auto-deploy on push to `main`:
 
-| Service | Root Dir | Builder |
-|---|---|---|
-| Backend API | `/` | Dockerfile |
-| MP Frontend | `/frontend` | Railpack (Next.js) |
-| Admin Frontend | `/admin` | Railpack (Next.js) |
+| Service | Root Dir | Builder | URL |
+|---|---|---|---|
+| Backend API | `/` | Dockerfile | `needle-backend.up.railway.app` |
+| MP Frontend | `/frontend` | Railpack (Next.js) | `compass-needle-production.up.railway.app` |
+| PR Dashboard | `/needle-ai` | Railpack (Next.js) | `needle-ai-production.up.railway.app` |
+| Admin Frontend | `/admin` | Railpack (Next.js) | `admin-production.up.railway.app` |
 
 **Before deploying to production**, run through `DEPLOYMENT_GUIDE.md`:
 1. Rotate all credentials (OpenAI, Gemini, Meta, JWT secret)
@@ -228,3 +246,20 @@ Static JSON loaded at startup (not in DB):
 - Production deploys from `main` (Railway watches this branch)
 - Development branch convention: `claude/<feature>-<id>`
 - Git user configured as `Claude (noreply@anthropic.com)` in this environment
+
+---
+
+## MP Dashboard vs PR Dashboard
+
+| Feature | MP (`/frontend`) | PR (`/needle-ai`) |
+|---|---|---|
+| Briefcase (grievances) | ✅ Full: bulk ops, assign, notes, activity log | ✅ Lite: messages + status change |
+| Drafter (letters/speeches) | ✅ | ❌ Not relevant for PRs |
+| Letterbox (physical mail OCR) | ✅ | ❌ |
+| PQ Calendar | ✅ | ❌ |
+| Schemes | ✅ | ❌ |
+| CSR Matching | ✅ | ❌ |
+| Copilot (AI Research) | ✅ | ❌ |
+| Contacts CRM | ❌ | ✅ |
+| Reports / PDF Export | ❌ | ✅ |
+| Send Update via WhatsApp | ✅ (Meta Cloud API) | ❌ (planned) |
