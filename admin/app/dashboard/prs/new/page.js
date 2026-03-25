@@ -53,7 +53,7 @@ export default function CreatePRPage() {
         <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '1.5rem' }}>
                 <button className="btn-secondary" onClick={() => router.push('/dashboard')}>← Back</button>
-                <div className="section-title" style={{ margin: 0, border: 'none', paddingBottom: 0 }}>Create PR (Needle AI Login)</div>
+                <div className="section-title" style={{ margin: 0, border: 'none', paddingBottom: 0 }}>Create PR (Ambassador Login)</div>
             </div>
 
             <form onSubmit={handleSubmit}>

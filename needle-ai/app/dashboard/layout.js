@@ -74,7 +74,7 @@ export default function DashboardLayout({ children }) {
                     <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
                         <Menu className="h-5 w-5" />
                     </Button>
-                    <span className="ml-3 font-semibold text-foreground">Needle AI</span>
+                    <span className="ml-3 font-semibold text-foreground">Ambassador</span>
                 </div>
 
                 <div className="p-4 md:p-6 max-w-7xl mx-auto">

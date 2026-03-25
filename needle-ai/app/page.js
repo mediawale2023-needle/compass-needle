@@ -55,7 +55,7 @@ export default function LoginPage() {
                     <Zap className="h-7 w-7 text-primary-foreground" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground">Needle AI</h1>
+                    <h1 className="text-2xl font-bold text-foreground">Ambassador</h1>
                     <p className="text-sm text-muted-foreground">Grievance Intelligence Platform</p>
                 </div>
             </div>
@@ -123,7 +123,7 @@ export default function LoginPage() {
             </Card>
 
             <p className="mt-6 text-xs text-muted-foreground">
-                Powered by Needle AI
+                Powered by Ambassador
             </p>
         </div>
     );

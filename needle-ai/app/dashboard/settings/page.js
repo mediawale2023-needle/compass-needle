@@ -134,7 +134,7 @@ export default function SettingsPage() {
                         Support
                     </h2>
                     <p className="text-sm text-muted-foreground">
-                        Need help? Contact our support team for assistance with your Needle AI account.
+                        Need help? Contact our support team for assistance with your Ambassador account.
                     </p>
                     <Button variant="outline" className="mt-3" asChild>
                         <a href="mailto:support@needleai.in">

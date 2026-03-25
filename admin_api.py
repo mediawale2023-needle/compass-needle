@@ -430,7 +430,7 @@ def create_mp(req: CreateMPRequest, _=Depends(get_admin_user)):
 
 @router.post("/prs")
 def create_pr(req: CreatePRRequest, _=Depends(get_admin_user)):
-    """Create a new PR (Needle AI login) — tenant + user + profile."""
+    """Create a new PR (Ambassador login) — tenant + user + profile."""
     pw_err = validate_password(req.password)
     if pw_err:
         raise HTTPException(400, pw_err)

@@ -6,7 +6,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'], display: 'swap' });
 
 export const metadata = {
-    title: 'Needle AI — Grievance Intelligence',
+    title: 'Ambassador — Grievance Intelligence',
     description: 'AI-powered grievance management for political leaders',
     themeColor: '#2563eb',
 };

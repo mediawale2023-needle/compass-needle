@@ -67,7 +67,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                         <Zap className="h-5 w-5 text-primary-foreground" />
                     </div>
                     <div className={cn("flex-1 min-w-0", collapsed && "md:hidden")}>
-                        <h1 className="font-bold text-foreground truncate">Needle AI</h1>
+                        <h1 className="font-bold text-foreground truncate">Ambassador</h1>
                         <p className="text-xs text-muted-foreground truncate">Grievance Intelligence</p>
                     </div>
 

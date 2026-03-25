@@ -1,5 +1,5 @@
 /**
- * API client for Needle AI — wraps fetch with JWT auth, retries, and timeout.
+ * API client for Ambassador — wraps fetch with JWT auth, retries, and timeout.
  * Points to the same backend as Compass Needle via NEXT_PUBLIC_API_URL.
  */
 

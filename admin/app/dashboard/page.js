@@ -29,7 +29,7 @@ export default function DashboardOverview() {
                     <StatCard icon="👥" value={stats.total_mps} label="Total MPs" accent="#006a4d" />
                     <StatCard icon="🏛️" value={stats.lok_sabha} label="Lok Sabha" accent="#059669" />
                     <StatCard icon="🏛️" value={stats.rajya_sabha} label="Rajya Sabha" accent="#8d153a" />
-                    <StatCard icon="⚡" value={stats.total_prs || 0} label="Needle AI" accent="#2563eb" />
+                    <StatCard icon="⚡" value={stats.total_prs || 0} label="Ambassador" accent="#2563eb" />
                     <StatCard icon="📋" value={stats.total_profiles} label="Profiles" accent="#d97706" />
                     <StatCard icon="📩" value={stats.total_cases} label="Total Cases" accent="#0891b2" />
                 </div>
@@ -48,7 +48,7 @@ export default function DashboardOverview() {
                     style={{ flex: 1 }}
                 />
                 <Link href="/dashboard/prs/new" className="btn-secondary" style={{ textDecoration: 'none', whiteSpace: 'nowrap', padding: '10px 16px' }}>
-                    + Create PR (Needle AI)
+                    + Create PR (Ambassador)
                 </Link>
                 <Link href="/dashboard/mps/new" className="btn-primary" style={{ textDecoration: 'none', whiteSpace: 'nowrap' }}>
                     + Add New MP

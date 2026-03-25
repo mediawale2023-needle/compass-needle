@@ -5,7 +5,7 @@
 **Compass Needle** is a parliamentary intelligence platform for Indian Members of Parliament (MPs) and Public Representatives (PRs/aspirants). It provides:
 - WhatsApp-based citizen grievance intake and AI classification
 - MP dashboard for case management, letter drafting, scheme discovery
-- PR dashboard (Needle AI) for lightweight grievance management
+- PR dashboard (Ambassador) for lightweight grievance management
 - Admin dashboard for tenant/MP management and analytics
 - AI-powered research, CSR matching, and constituency intelligence
 
@@ -19,7 +19,7 @@
 |---|---|---|
 | Backend API | Python 3.11 + FastAPI | `/` (root) |
 | MP Dashboard | Next.js 15 + React 19 + Tailwind | `/frontend` |
-| PR Dashboard (Needle AI) | Next.js + React + Tailwind | `/needle-ai` |
+| PR Dashboard (Ambassador) | Next.js + React + Tailwind | `/needle-ai` |
 | Admin Dashboard | Next.js 15 + React 19 + Tailwind | `/admin` |
 | Database | PostgreSQL 15 | Railway managed |
 | AI (classification) | OpenAI GPT-4o-mini | `sansadx_backend/ai_engine.py` |
@@ -61,7 +61,7 @@ jobs/                       # Background/cron tasks
   auto_cluster.py           # Auto-cluster similar grievances
   weekly_report.py          # Scheduled weekly reports
   mca_csr_sync.py           # CSR data sync from MCA
-needle-ai/                  # PR Dashboard (separate Next.js app)
+needle-ai/                  # Ambassador PR Dashboard (separate Next.js app)
   app/dashboard/
     page.js                 # Today — stats + recent messages
     messages/page.js        # Split-view case list + detail
