@@ -207,6 +207,52 @@ try:
 except Exception:
     pass
 
+# ─── Migration: create officers table (idempotent) ───
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS officers (
+                id SERIAL PRIMARY KEY,
+                tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+                name VARCHAR NOT NULL,
+                designation VARCHAR NOT NULL DEFAULT '',
+                department VARCHAR DEFAULT '',
+                email VARCHAR DEFAULT '',
+                phone VARCHAR DEFAULT '',
+                jurisdiction VARCHAR DEFAULT '',
+                categories JSON,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_officers_tenant ON officers (tenant_id)"))
+        logger.info("Migration: officers table ready")
+except Exception as e:
+    logger.warning(f"officers migration skipped: {e}")
+
+# ─── Migration: create escalations table (idempotent) ───
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS escalations (
+                id SERIAL PRIMARY KEY,
+                tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+                case_id INTEGER NOT NULL REFERENCES cases(id),
+                officer_id INTEGER NOT NULL REFERENCES officers(id),
+                letter_content TEXT DEFAULT '',
+                deadline DATE,
+                email_sent BOOLEAN DEFAULT FALSE,
+                email_sent_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT NOW(),
+                created_by VARCHAR DEFAULT ''
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_escalations_case ON escalations (case_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_escalations_officer ON escalations (officer_id)"))
+        logger.info("Migration: escalations table ready")
+except Exception as e:
+    logger.warning(f"escalations migration skipped: {e}")
+
 # Seed CSR company profiles from static JSON files on startup
 try:
     from modules.csr_data_loader import seed_csr_companies
