@@ -769,10 +769,12 @@ def send_escalation_email_endpoint(escalation_id: int, user=Depends(get_current_
 class EscalationDraftRequest(BaseModel):
     case_id: int
     officer_id: int
+    language: str = "English"
 
 
 @router.post("/escalations/ai-draft")
-def generate_escalation_draft(body: EscalationDraftRequest, user=Depends(get_current_user)):
+@_limit_ai
+def generate_escalation_draft(body: EscalationDraftRequest, request: Request, user=Depends(get_current_user)):
     """Generate an AI draft escalation letter for a case → officer pair."""
     tid = get_tenant_or_fail(user)
 
@@ -801,11 +803,25 @@ def generate_escalation_draft(body: EscalationDraftRequest, user=Depends(get_cur
     officer_name = officer.get("name") or "Concerned Officer"
     designation  = officer.get("designation") or "Officer"
     department   = officer.get("department") or ""
-    deadline_str = (datetime.utcnow() + __import__("datetime").timedelta(days=7)).strftime("%d %B %Y")
+    from datetime import timedelta
+    deadline_str = (datetime.utcnow() + timedelta(days=7)).strftime("%d %B %Y")
+    is_hindi = body.language == "Hindi"
+
+    lang_instruction = """
+LANGUAGE: Hindi (Devanagari script)
+- Use formal Rajbhasha (राजभाषा), NOT conversational Hindi
+- Use: "कृपया" (please), "अनुरोध" (request), "संबंधित" (related to), "विभाग" (department)
+- Use "आवश्यक कार्यवाही" for "necessary action", "तत्काल ध्यान" for "immediate attention"
+- Honorific: "श्री/श्रीमती" for officers
+- Formal sentence endings: "...किया जाए।", "...की जाए।"
+- Subject line in Hindi
+- Date in Hindi format is acceptable""" if is_hindi else "LANGUAGE: English — formal government correspondence style"
 
     prompt = f"""You are drafting a formal escalation letter on behalf of {mp_name} ({mp_office}).
 
 TASK: Write a concise, professional escalation letter to a government officer regarding a citizen grievance.
+
+{lang_instruction}
 
 CASE DETAILS:
 - Reference: {ref}

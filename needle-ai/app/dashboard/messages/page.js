@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
+import { apiGet, apiPost, apiPatch, apiDelete, AI_TIMEOUT } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -104,6 +104,7 @@ function CaseModal({ caseItem, onClose, onStatusChange, toast }) {
     const [submitting, setSubmitting] = useState(false);
     const [sendingEmail, setSendingEmail] = useState(null);
     const [generatingDraft, setGeneratingDraft] = useState(false);
+    const [draftLanguage, setDraftLanguage] = useState('English');
 
     useEffect(() => {
         if (!caseItem) return;
@@ -222,11 +223,12 @@ function CaseModal({ caseItem, onClose, onStatusChange, toast }) {
             const data = await apiPost('/api/escalations/ai-draft', {
                 case_id: c.id,
                 officer_id: parseInt(selectedOfficer),
-            });
+                language: draftLanguage,
+            }, { timeout: AI_TIMEOUT });
             setLetterContent(data.draft || '');
             toast.success('Draft generated — review before sending');
-        } catch {
-            toast.error('Failed to generate draft');
+        } catch (err) {
+            toast.error('Draft failed: ' + (err.message || 'Unknown error'));
         } finally {
             setGeneratingDraft(false);
         }
@@ -359,19 +361,37 @@ function CaseModal({ caseItem, onClose, onStatusChange, toast }) {
                                         ))}
                                     </select>
                                     <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between">
+                                        <div className="flex items-center justify-between gap-2 flex-wrap">
                                             <span className="text-xs text-amber-800 font-medium">Escalation Letter</span>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="h-7 text-xs border-violet-200 text-violet-700 hover:bg-violet-50"
-                                                disabled={generatingDraft || !selectedOfficer}
-                                                onClick={handleGenerateDraft}
-                                            >
-                                                {generatingDraft
-                                                    ? <><Loader2 className="h-3 w-3 animate-spin mr-1" />Generating...</>
-                                                    : <>✦ Generate with AI</>}
-                                            </Button>
+                                            <div className="flex items-center gap-1.5">
+                                                <div className="flex rounded-md border border-violet-200 overflow-hidden text-[11px]">
+                                                    {['English', 'Hindi'].map(lang => (
+                                                        <button
+                                                            key={lang}
+                                                            onClick={() => setDraftLanguage(lang)}
+                                                            className={cn(
+                                                                'px-2.5 py-1 font-medium transition-colors',
+                                                                draftLanguage === lang
+                                                                    ? 'bg-violet-600 text-white'
+                                                                    : 'text-violet-700 hover:bg-violet-50'
+                                                            )}
+                                                        >
+                                                            {lang === 'Hindi' ? 'हिंदी' : 'EN'}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-7 text-xs border-violet-200 text-violet-700 hover:bg-violet-50"
+                                                    disabled={generatingDraft || !selectedOfficer}
+                                                    onClick={handleGenerateDraft}
+                                                >
+                                                    {generatingDraft
+                                                        ? <><Loader2 className="h-3 w-3 animate-spin mr-1" />Generating...</>
+                                                        : <>✦ Generate with AI</>}
+                                                </Button>
+                                            </div>
                                         </div>
                                         <Textarea
                                             value={letterContent}
