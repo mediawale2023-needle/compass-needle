@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { Card, CardContent } from '@/components/ui/card';
@@ -47,9 +47,8 @@ const TABS = [
     { key: 'new', label: 'New' },
     { key: 'in_progress', label: 'In Progress' },
     { key: 'resolved', label: 'Resolved' },
-    { key: 'escalated', label: 'Escalated' },
+    { key: 'escalated', label: '📧 Escalated' },
     { key: 'closed', label: 'Closed' },
-    { key: '__escalations__', label: '📧 Sent to Officer' },
 ];
 
 const STATUS_OPTIONS = [
@@ -423,10 +422,11 @@ export default function MessagesPage() {
     const [escalations, setEscalations] = useState([]);
     const [loadingEscalations, setLoadingEscalations] = useState(false);
     const [sendingEmail, setSendingEmail] = useState(null);
-    const isEscalationTab = statusFilter === '__escalations__';
+    const [expandedLetter, setExpandedLetter] = useState(null);
+    const isEscalationTab = statusFilter === 'escalated';
 
     const fetchCases = useCallback(async () => {
-        if (statusFilter === '__escalations__') return; // handled separately
+        if (statusFilter === 'escalated') return; // handled separately by escalation view
         setLoading(true);
         try {
             const params = new URLSearchParams({ page: String(page), limit: '50' });
@@ -634,11 +634,13 @@ export default function MessagesPage() {
                                             <TableHead>Escalated By</TableHead>
                                             <TableHead>Date</TableHead>
                                             <TableHead className="w-28">Action</TableHead>
+                                            <TableHead className="w-24">Letter</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {escalations.map(esc => (
-                                            <TableRow key={esc.id} className={esc.email_sent ? '' : 'border-l-4 border-l-amber-400 bg-amber-50/30'}>
+                                            <React.Fragment key={esc.id}>
+                                            <TableRow className={esc.email_sent ? '' : 'border-l-4 border-l-amber-400 bg-amber-50/30'}>
                                                 <TableCell className="pl-6 font-mono text-xs text-muted-foreground">#{esc.case_id}</TableCell>
                                                 <TableCell className="font-medium">{esc.officer_name || '-'}</TableCell>
                                                 <TableCell className="text-sm text-muted-foreground">{esc.designation || '-'}</TableCell>
@@ -679,7 +681,32 @@ export default function MessagesPage() {
                                                         </span>
                                                     )}
                                                 </TableCell>
+                                                <TableCell>
+                                                    {esc.letter_content && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="text-xs h-7 text-muted-foreground hover:text-foreground"
+                                                            onClick={() => setExpandedLetter(expandedLetter === esc.id ? null : esc.id)}
+                                                        >
+                                                            {expandedLetter === esc.id ? 'Hide' : 'View'}
+                                                        </Button>
+                                                    )}
+                                                </TableCell>
                                             </TableRow>
+                                            {expandedLetter === esc.id && (
+                                                <TableRow key={`letter-${esc.id}`} className="bg-slate-50">
+                                                    <TableCell colSpan={9} className="px-6 pb-4 pt-2">
+                                                        <div className="text-xs text-muted-foreground uppercase font-semibold mb-2 flex items-center gap-1">
+                                                            <Mail className="h-3 w-3" /> Email sent to officer
+                                                        </div>
+                                                        <pre className="text-sm text-foreground whitespace-pre-wrap font-mono bg-white border rounded-lg p-4 leading-relaxed max-h-72 overflow-y-auto">
+                                                            {esc.letter_content}
+                                                        </pre>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                            </React.Fragment>
                                         ))}
                                     </TableBody>
                                 </Table>
