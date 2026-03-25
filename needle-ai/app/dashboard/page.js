@@ -1,223 +1,340 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { apiGet } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import {
-    MessageSquare,
-    AlertTriangle,
-    CheckCircle2,
-    Clock,
-    TrendingUp,
-    Users,
-    MapPin,
-    Zap,
+    MessageSquare, AlertTriangle, CheckCircle2,
+    Shield, Mail, MapPin, ArrowRight, Users, Zap,
 } from 'lucide-react';
 
-function StatCard({ icon: Icon, label, value, color, loading }) {
-    return (
-        <Card className="card-hover">
-            <CardContent className="p-4 flex items-center gap-4">
-                <div className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
-                    <Icon className="h-6 w-6 text-white" />
-                </div>
-                <div className="min-w-0">
-                    <p className="text-sm text-muted-foreground">{label}</p>
-                    {loading ? (
-                        <Skeleton className="h-7 w-16 mt-1" />
-                    ) : (
-                        <p className="text-2xl font-bold text-foreground">{value}</p>
-                    )}
-                </div>
-            </CardContent>
-        </Card>
-    );
+// ── Utilities ─────────────────────────────────────────────────────
+
+function getGreeting() {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
 }
 
-function CategoryItem({ name, count, total }) {
-    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+function getTodayDate() {
+    return new Date().toLocaleDateString('en-IN', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    });
+}
+
+// ── Stat Card ─────────────────────────────────────────────────────
+
+function StatCard({ label, value, borderColor, loading, onClick }) {
     return (
-        <div className="flex items-center justify-between py-2">
-            <span className="text-sm text-foreground truncate">{name}</span>
-            <div className="flex items-center gap-3">
-                <div className="w-24 h-2 bg-secondary rounded-full overflow-hidden">
-                    <div
-                        className="h-full bg-primary rounded-full transition-all duration-500"
-                        style={{ width: `${pct}%` }}
-                    />
-                </div>
-                <span className="text-sm font-medium text-muted-foreground w-8 text-right">{count}</span>
-            </div>
+        <div
+            className={cn(
+                'bg-card border rounded-xl p-5 flex flex-col gap-1 border-l-4',
+                borderColor,
+                onClick && 'cursor-pointer hover:shadow-md transition-shadow'
+            )}
+            onClick={onClick}
+        >
+            {loading ? (
+                <>
+                    <Skeleton className="h-9 w-14" />
+                    <Skeleton className="h-4 w-24 mt-1" />
+                </>
+            ) : (
+                <>
+                    <span className="text-3xl font-bold text-foreground tabular-nums">{value ?? 0}</span>
+                    <span className="text-sm text-muted-foreground">{label}</span>
+                </>
+            )}
         </div>
     );
 }
 
-export default function TodayPage() {
+// ── Horizontal Bar ────────────────────────────────────────────────
+
+function HBar({ name, count, max, color = 'bg-blue-400' }) {
+    const pct = max > 0 ? Math.round((count / max) * 100) : 0;
+    return (
+        <div className="flex items-center gap-3 py-1.5">
+            <span className="text-sm text-foreground w-36 truncate shrink-0">{name}</span>
+            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                <div className={cn('h-full rounded-full transition-all duration-500', color)} style={{ width: `${pct}%` }} />
+            </div>
+            <span className="text-sm font-medium text-muted-foreground w-8 text-right tabular-nums">{count}</span>
+        </div>
+    );
+}
+
+// ── Action Alert ──────────────────────────────────────────────────
+
+function ActionAlert({ icon: Icon, iconColor, title, subtitle, href, router }) {
+    return (
+        <div
+            className="flex items-start justify-between gap-3 p-3 rounded-lg border hover:bg-muted/40 cursor-pointer transition-colors group"
+            onClick={() => router.push(href)}
+        >
+            <div className="flex items-start gap-3 min-w-0">
+                <Icon className={cn('h-4 w-4 shrink-0 mt-0.5', iconColor)} />
+                <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground leading-snug">{title}</p>
+                    {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+                </div>
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5 group-hover:translate-x-0.5 transition-transform" />
+        </div>
+    );
+}
+
+// ── Quick Action Button ────────────────────────────────────────────
+
+function QuickAction({ icon: Icon, iconColor, label, href, router }) {
+    return (
+        <button
+            onClick={() => router.push(href)}
+            className="w-full flex items-center justify-between px-4 py-3 rounded-lg border hover:bg-muted/40 transition-colors group text-left"
+        >
+            <div className="flex items-center gap-3">
+                <Icon className={cn('h-4 w-4', iconColor)} />
+                <span className="text-sm font-medium text-foreground">{label}</span>
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+        </button>
+    );
+}
+
+// ── Page ──────────────────────────────────────────────────────────
+
+export default function HomePage() {
     const { user } = useAuth();
+    const router = useRouter();
     const [summary, setSummary] = useState(null);
-    const [recentCases, setRecentCases] = useState([]);
+    const [escalations, setEscalations] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const [summaryData, casesData] = await Promise.all([
-                    apiGet('/api/dashboard/summary').catch(() => null),
-                    apiGet('/api/cases?page=1&per_page=5').catch(() => ({ cases: [] })),
-                ]);
-                setSummary(summaryData);
-                setRecentCases(casesData.cases || []);
-            } catch {
-                // Fail silently
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchData();
+        Promise.all([
+            apiGet('/api/dashboard/summary').catch(() => null),
+            apiGet('/api/escalations').catch(() => ({ escalations: [] })),
+        ]).then(([s, e]) => {
+            setSummary(s);
+            setEscalations(e?.escalations || []);
+        }).finally(() => setLoading(false));
     }, []);
 
-    const byStatus = summary?.by_status || [];
-    const byCategory = summary?.by_category || [];
-    const totalCases = summary?.total || 0;
-    const newCount = byStatus.find(s => s.status === 'new')?.count || 0;
-    const emergencyCount = byStatus.find(s => s.status === 'emergency')?.count || 0;
-    const resolvedCount = byStatus.find(s => s.status === 'resolved')?.count || 0;
-    const inProgressCount = byStatus.find(s => s.status === 'in_progress')?.count || 0;
+    const sb          = summary?.status_breakdown || {};
+    const cb          = summary?.category_breakdown || {};
+    const redZones    = summary?.red_zones || [];
+    const critical    = summary?.critical_count || 0;
+    const total       = summary?.total_cases || 0;
 
-    const greeting = () => {
-        const hour = new Date().getHours();
-        if (hour < 12) return 'Good morning';
-        if (hour < 17) return 'Good afternoon';
-        return 'Good evening';
-    };
+    const newCount       = sb.new || 0;
+    const escalatedCount = sb.escalated || 0;
+    const resolvedCount  = sb.resolved || 0;
+
+    const unsentEscalations = escalations.filter(e => !e.email_sent).length;
+
+    const categoryList = Object.entries(cb)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 7)
+        .map(([name, count]) => ({ name, count }));
+
+    const maxCat  = categoryList[0]?.count || 1;
+    const maxArea = redZones[0]?.count || 1;
+
+    // Build action alerts — only show items that are actually actionable
+    const actionAlerts = [
+        unsentEscalations > 0 && {
+            icon: Mail,
+            iconColor: 'text-amber-500',
+            title: `${unsentEscalations} escalated case${unsentEscalations !== 1 ? 's' : ''} — officer email not sent`,
+            subtitle: 'Letters are ready but not dispatched yet',
+            href: '/dashboard/messages',
+        },
+        newCount > 0 && {
+            icon: MessageSquare,
+            iconColor: 'text-blue-500',
+            title: `${newCount} new case${newCount !== 1 ? 's' : ''} waiting for response`,
+            subtitle: 'Review, assign, or resolve incoming grievances',
+            href: '/dashboard/messages',
+        },
+        critical > 0 && {
+            icon: AlertTriangle,
+            iconColor: 'text-red-500',
+            title: `${critical} critical case${critical !== 1 ? 's' : ''} still open`,
+            subtitle: 'High-priority issues flagged in your constituency',
+            href: '/dashboard/messages',
+        },
+    ].filter(Boolean);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 max-w-6xl">
+
             {/* Header */}
             <div>
                 <h1 className="text-2xl font-bold text-foreground">
-                    {greeting()}, {user?.display_name?.split(' ')[0] || 'there'}
+                    {getGreeting()}, {user?.display_name?.split(' ')[0] || 'there'}
                 </h1>
-                <p className="text-muted-foreground mt-1">
-                    Here's what's happening in your constituency today.
-                </p>
+                <p className="text-sm text-muted-foreground mt-0.5">{getTodayDate()}</p>
             </div>
 
-            {/* Stats Grid */}
+            {/* Stat Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
-                    icon={MessageSquare}
-                    label="New Messages"
+                    label="New Cases"
                     value={newCount}
-                    color="bg-blue-500"
+                    borderColor="border-l-blue-500"
+                    loading={loading}
+                    onClick={() => router.push('/dashboard/messages')}
+                />
+                <StatCard
+                    label="Escalated"
+                    value={escalatedCount}
+                    borderColor="border-l-red-400"
+                    loading={loading}
+                    onClick={() => router.push('/dashboard/messages')}
+                />
+                <StatCard
+                    label="Critical Open"
+                    value={critical}
+                    borderColor="border-l-red-600"
                     loading={loading}
                 />
                 <StatCard
-                    icon={AlertTriangle}
-                    label="Emergency"
-                    value={emergencyCount}
-                    color="bg-red-500"
-                    loading={loading}
-                />
-                <StatCard
-                    icon={Clock}
-                    label="In Progress"
-                    value={inProgressCount}
-                    color="bg-amber-500"
-                    loading={loading}
-                />
-                <StatCard
-                    icon={CheckCircle2}
                     label="Resolved"
                     value={resolvedCount}
-                    color="bg-emerald-500"
+                    borderColor="border-l-green-500"
                     loading={loading}
                 />
             </div>
 
-            <div className="grid lg:grid-cols-2 gap-6">
-                {/* Top Categories */}
-                <Card>
-                    <CardContent className="p-5">
-                        <div className="flex items-center gap-2 mb-4">
-                            <TrendingUp className="h-5 w-5 text-primary" />
-                            <h2 className="font-semibold text-foreground">Top Categories</h2>
-                        </div>
-                        {loading ? (
-                            <div className="space-y-3">
-                                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
-                            </div>
-                        ) : byCategory.length > 0 ? (
-                            <div className="divide-y divide-border">
-                                {byCategory.slice(0, 8).map((cat) => (
-                                    <CategoryItem
-                                        key={cat.category}
-                                        name={cat.category}
-                                        count={cat.count}
-                                        total={totalCases}
-                                    />
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-sm text-muted-foreground py-4 text-center">No data yet</p>
-                        )}
-                    </CardContent>
-                </Card>
+            {/* Main Grid: 3/5 left + 2/5 right */}
+            <div className="grid lg:grid-cols-5 gap-6 items-start">
 
-                {/* Recent Messages */}
-                <Card>
-                    <CardContent className="p-5">
-                        <div className="flex items-center gap-2 mb-4">
-                            <Zap className="h-5 w-5 text-primary" />
-                            <h2 className="font-semibold text-foreground">Recent Messages</h2>
-                        </div>
-                        {loading ? (
-                            <div className="space-y-3">
-                                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
-                            </div>
-                        ) : recentCases.length > 0 ? (
-                            <div className="space-y-3">
-                                {recentCases.map((c) => (
-                                    <div key={c.id} className="flex items-start gap-3 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
-                                        <div className="shrink-0 mt-0.5">
-                                            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <p className="text-sm text-foreground line-clamp-2">{c.raw_message}</p>
-                                            <div className="flex items-center gap-2 mt-1.5">
-                                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                                    {c.category || 'General'}
-                                                </Badge>
-                                                {c.location && (
-                                                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                                                        <MapPin className="h-3 w-3" />
-                                                        {c.location}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <Badge
-                                            variant="outline"
-                                            className={`shrink-0 text-[10px] ${
-                                                c.status === 'new' ? 'status-new' :
-                                                c.status === 'emergency' ? 'status-escalated' :
-                                                c.status === 'resolved' ? 'status-resolved' :
-                                                'status-in_progress'
-                                            }`}
-                                        >
-                                            {c.status}
-                                        </Badge>
+                {/* Left Column */}
+                <div className="lg:col-span-3 space-y-6">
+
+                    {/* Top Issue Categories */}
+                    <Card>
+                        <CardContent className="p-5">
+                            <h2 className="font-semibold text-foreground mb-4">Top Issue Categories</h2>
+                            {loading ? (
+                                <div className="space-y-3">
+                                    {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-6 w-full" />)}
+                                </div>
+                            ) : categoryList.length > 0 ? (
+                                <div className="divide-y divide-border/50">
+                                    {categoryList.map(({ name, count }) => (
+                                        <HBar key={name} name={name} count={count} max={maxCat} color="bg-blue-400" />
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground py-6 text-center">No data yet</p>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {/* High-Complaint Areas — only shown when data exists */}
+                    {(loading || redZones.length > 0) && (
+                        <Card>
+                            <CardContent className="p-5">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                                        <h2 className="font-semibold text-foreground">High-Complaint Areas</h2>
                                     </div>
-                                ))}
+                                    <span className="text-xs text-muted-foreground">3+ cases</span>
+                                </div>
+                                {loading ? (
+                                    <div className="space-y-3">
+                                        {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-6 w-full" />)}
+                                    </div>
+                                ) : (
+                                    <div className="divide-y divide-border/50">
+                                        {redZones.slice(0, 6).map(({ area, count }) => (
+                                            <HBar key={area} name={area} count={count} max={maxArea} color="bg-primary/60" />
+                                        ))}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
+
+                {/* Right Column */}
+                <div className="lg:col-span-2 space-y-6">
+
+                    {/* Needs Action */}
+                    <Card>
+                        <CardContent className="p-5">
+                            <div className="mb-4">
+                                <h2 className="font-semibold text-foreground">Needs Action</h2>
+                                <p className="text-xs text-muted-foreground mt-0.5">What requires attention right now</p>
                             </div>
-                        ) : (
-                            <p className="text-sm text-muted-foreground py-4 text-center">No messages yet. Share your WhatsApp number to start receiving grievances.</p>
-                        )}
-                    </CardContent>
-                </Card>
+                            {loading ? (
+                                <div className="space-y-2">
+                                    {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}
+                                </div>
+                            ) : !total ? (
+                                /* Empty state — no cases at all */
+                                <div className="py-6 text-center space-y-2">
+                                    <Zap className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+                                    <p className="text-sm font-medium text-foreground">No cases yet</p>
+                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                        Share your WhatsApp number with voters to start receiving grievances.
+                                    </p>
+                                </div>
+                            ) : actionAlerts.length > 0 ? (
+                                <div className="space-y-2">
+                                    {actionAlerts.map((alert, i) => (
+                                        <ActionAlert key={i} {...alert} router={router} />
+                                    ))}
+                                </div>
+                            ) : (
+                                /* All clear */
+                                <div className="py-6 text-center">
+                                    <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-2" />
+                                    <p className="text-sm font-medium text-foreground">All clear</p>
+                                    <p className="text-xs text-muted-foreground mt-1">No urgent items right now</p>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {/* Quick Actions */}
+                    <Card>
+                        <CardContent className="p-5">
+                            <h2 className="font-semibold text-foreground mb-4">Quick Actions</h2>
+                            <div className="space-y-2">
+                                <QuickAction
+                                    icon={MessageSquare}
+                                    iconColor="text-blue-500"
+                                    label="View All Cases"
+                                    href="/dashboard/messages"
+                                    router={router}
+                                />
+                                <QuickAction
+                                    icon={Shield}
+                                    iconColor="text-amber-500"
+                                    label="Officer Dispatches"
+                                    href="/dashboard/messages"
+                                    router={router}
+                                />
+                                <QuickAction
+                                    icon={Users}
+                                    iconColor="text-primary"
+                                    label="Manage Officers"
+                                    href="/dashboard/officers"
+                                    router={router}
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                </div>
             </div>
         </div>
     );
