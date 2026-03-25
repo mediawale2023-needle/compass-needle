@@ -103,6 +103,7 @@ function CaseModal({ caseItem, onClose, onStatusChange, toast }) {
     const [escalations, setEscalations] = useState([]);
     const [submitting, setSubmitting] = useState(false);
     const [sendingEmail, setSendingEmail] = useState(null);
+    const [generatingDraft, setGeneratingDraft] = useState(false);
 
     useEffect(() => {
         if (!caseItem) return;
@@ -211,6 +212,23 @@ function CaseModal({ caseItem, onClose, onStatusChange, toast }) {
             toast.error('Failed to escalate: ' + (err.message || 'Unknown'));
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handleGenerateDraft = async () => {
+        if (!selectedOfficer) { toast.error('Select an officer first'); return; }
+        setGeneratingDraft(true);
+        try {
+            const data = await apiPost('/api/escalations/ai-draft', {
+                case_id: c.id,
+                officer_id: parseInt(selectedOfficer),
+            });
+            setLetterContent(data.draft || '');
+            toast.success('Draft generated — review before sending');
+        } catch {
+            toast.error('Failed to generate draft');
+        } finally {
+            setGeneratingDraft(false);
         }
     };
 
@@ -340,7 +358,31 @@ function CaseModal({ caseItem, onClose, onStatusChange, toast }) {
                                             <option key={o.id} value={o.id}>{o.name} — {o.designation}{o.department ? `, ${o.department}` : ''}</option>
                                         ))}
                                     </select>
-                                    <Textarea value={letterContent} onChange={e => setLetterContent(e.target.value)} placeholder="Escalation letter (auto-generated if empty)..." className="min-h-[80px] text-sm bg-white" />
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs text-amber-800 font-medium">Escalation Letter</span>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-7 text-xs border-violet-200 text-violet-700 hover:bg-violet-50"
+                                                disabled={generatingDraft || !selectedOfficer}
+                                                onClick={handleGenerateDraft}
+                                            >
+                                                {generatingDraft
+                                                    ? <><Loader2 className="h-3 w-3 animate-spin mr-1" />Generating...</>
+                                                    : <>✦ Generate with AI</>}
+                                            </Button>
+                                        </div>
+                                        <Textarea
+                                            value={letterContent}
+                                            onChange={e => setLetterContent(e.target.value)}
+                                            placeholder="Select an officer and click 'Generate with AI', or write manually..."
+                                            className="min-h-[120px] text-sm bg-white font-mono"
+                                        />
+                                        {letterContent && (
+                                            <p className="text-[10px] text-amber-700">Review the draft carefully before escalating.</p>
+                                        )}
+                                    </div>
                                     <Button size="sm" onClick={handleEscalate} disabled={submitting || !selectedOfficer} className="bg-amber-600 hover:bg-amber-700 text-white">
                                         {submitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Shield className="h-3 w-3 mr-1" />}
                                         Escalate Case

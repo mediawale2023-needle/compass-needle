@@ -766,6 +766,87 @@ def send_escalation_email_endpoint(escalation_id: int, user=Depends(get_current_
         raise HTTPException(500, f"Email failed: {error}")
 
 
+class EscalationDraftRequest(BaseModel):
+    case_id: int
+    officer_id: int
+
+
+@router.post("/escalations/ai-draft")
+def generate_escalation_draft(body: EscalationDraftRequest, user=Depends(get_current_user)):
+    """Generate an AI draft escalation letter for a case → officer pair."""
+    tid = get_tenant_or_fail(user)
+
+    case = _q_one(
+        "SELECT * FROM cases WHERE id = :cid AND tenant_id = :tid",
+        {"cid": body.case_id, "tid": tid}
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    officer = _q_one(
+        "SELECT * FROM officers WHERE id = :oid AND tenant_id = :tid",
+        {"oid": body.officer_id, "tid": tid}
+    )
+    if not officer:
+        raise HTTPException(404, "Officer not found")
+
+    tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
+    mp_name   = (tenant or {}).get("display_name") or (tenant or {}).get("name") or "The Representative"
+    mp_office = (tenant or {}).get("office_name") or "Office of the Representative"
+
+    ref        = case.get("case_ref") or f"#{case['id']}"
+    category   = case.get("category") or "Civic Matter"
+    location   = case.get("location") or ""
+    message    = (case.get("raw_message") or "")[:500]
+    officer_name = officer.get("name") or "Concerned Officer"
+    designation  = officer.get("designation") or "Officer"
+    department   = officer.get("department") or ""
+    deadline_str = (datetime.utcnow() + __import__("datetime").timedelta(days=7)).strftime("%d %B %Y")
+
+    prompt = f"""You are drafting a formal escalation letter on behalf of {mp_name} ({mp_office}).
+
+TASK: Write a concise, professional escalation letter to a government officer regarding a citizen grievance.
+
+CASE DETAILS:
+- Reference: {ref}
+- Category: {category}
+- Location: {location if location else "the constituency"}
+- Citizen's Complaint: "{message}"
+
+RECIPIENT:
+- Name: {officer_name}
+- Designation: {designation}{f", {department}" if department else ""}
+
+LETTER REQUIREMENTS:
+- Formal tone, government correspondence style
+- Subject line referencing the case and category
+- Briefly summarise the citizen's complaint in 2-3 sentences
+- Request the officer to investigate and take necessary action
+- Set a response deadline of {deadline_str}
+- Close with office name: {mp_office}
+- Length: 150–250 words maximum
+- Output ONLY the letter text, no explanations or metadata
+
+DO NOT invent any statistics, case numbers, or facts not provided above."""
+
+    try:
+        client = get_gemini_client()
+        if not client:
+            raise HTTPException(500, "GEMINI_API_KEY not configured")
+        from google.genai import types as _gt
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=_gt.GenerateContentConfig(temperature=0.2),
+        )
+        return {"draft": response.text}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Escalation AI draft failed")
+        raise HTTPException(500, "Failed to generate draft")
+
+
 # ─────────────────────────────────────────
 # PROFILE
 # ─────────────────────────────────────────
