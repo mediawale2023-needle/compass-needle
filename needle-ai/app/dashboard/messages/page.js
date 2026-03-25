@@ -36,6 +36,8 @@ import {
     Shield,
     Trash2,
     Download,
+    Clock,
+    ExternalLink,
 } from 'lucide-react';
 
 // ─── Constants ────────────────────────────────────────────────────
@@ -47,6 +49,7 @@ const TABS = [
     { key: 'resolved', label: 'Resolved' },
     { key: 'escalated', label: 'Escalated' },
     { key: 'closed', label: 'Closed' },
+    { key: '__escalations__', label: '📧 Sent to Officer' },
 ];
 
 const STATUS_OPTIONS = [
@@ -416,7 +419,14 @@ export default function MessagesPage() {
     const [selected, setSelected] = useState(null);
     const [selectedIds, setSelectedIds] = useState(new Set());
 
+    // Escalation tab state
+    const [escalations, setEscalations] = useState([]);
+    const [loadingEscalations, setLoadingEscalations] = useState(false);
+    const [sendingEmail, setSendingEmail] = useState(null);
+    const isEscalationTab = statusFilter === '__escalations__';
+
     const fetchCases = useCallback(async () => {
+        if (statusFilter === '__escalations__') return; // handled separately
         setLoading(true);
         try {
             const params = new URLSearchParams({ page: String(page), limit: '50' });
@@ -436,7 +446,34 @@ export default function MessagesPage() {
         }
     }, [page, statusFilter, categoryFilter, search]);
 
+    const fetchEscalations = useCallback(async () => {
+        setLoadingEscalations(true);
+        try {
+            const data = await apiGet('/api/escalations');
+            setEscalations(data.escalations || []);
+        } catch {
+            setEscalations([]);
+            toast.error('Failed to load escalations');
+        } finally {
+            setLoadingEscalations(false);
+        }
+    }, []);
+
+    const handleSendEmail = async (escalationId) => {
+        setSendingEmail(escalationId);
+        try {
+            await apiPost(`/api/escalations/${escalationId}/send`);
+            toast.success('Email sent to officer');
+            await fetchEscalations();
+        } catch (err) {
+            toast.error('Email failed: ' + (err.message || 'Unknown error'));
+        } finally {
+            setSendingEmail(null);
+        }
+    };
+
     useEffect(() => { fetchCases(); }, [fetchCases]);
+    useEffect(() => { if (isEscalationTab) fetchEscalations(); }, [isEscalationTab, fetchEscalations]);
 
     const switchTab = (key) => {
         setStatusFilter(key);
@@ -564,108 +601,208 @@ export default function MessagesPage() {
 
                 {/* Table */}
                 <CardContent className="pt-0">
-                    {loading ? (
-                        <div className="space-y-3 py-6">
-                            {[1, 2, 3, 4, 5].map(i => (
-                                <div key={i} className="flex items-center gap-4">
-                                    <Skeleton className="h-4 w-4" />
-                                    <Skeleton className="h-4 w-12" />
-                                    <Skeleton className="h-4 w-24" />
-                                    <Skeleton className="h-4 w-32" />
-                                    <Skeleton className="h-4 w-24" />
-                                    <Skeleton className="h-6 w-20" />
-                                    <Skeleton className="h-4 flex-1" />
-                                </div>
-                            ))}
-                        </div>
-                    ) : cases.length === 0 ? (
-                        <div className="text-center py-16">
-                            <CheckCircle2 className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                            <p className="text-muted-foreground">
-                                No cases found{categoryFilter ? ` in "${categoryFilter}"` : ''}
-                                {statusFilter !== 'All' ? ` with status "${statusFilter}"` : ''}.
-                            </p>
-                        </div>
+                    {isEscalationTab ? (
+                        /* ─── Escalation Table ─── */
+                        loadingEscalations ? (
+                            <div className="space-y-3 py-6">
+                                {[1, 2, 3, 4].map(i => (
+                                    <div key={i} className="flex items-center gap-4">
+                                        <Skeleton className="h-4 w-12" />
+                                        <Skeleton className="h-4 w-32" />
+                                        <Skeleton className="h-4 w-24" />
+                                        <Skeleton className="h-6 w-20" />
+                                        <Skeleton className="h-4 w-24" />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : escalations.length === 0 ? (
+                            <div className="text-center py-16">
+                                <Mail className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+                                <p className="text-muted-foreground">No escalations yet</p>
+                                <p className="text-xs text-muted-foreground mt-1">Escalate cases to officers from the case detail modal</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto -mx-6">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="pl-6 w-16">Case #</TableHead>
+                                            <TableHead>Officer</TableHead>
+                                            <TableHead>Designation</TableHead>
+                                            <TableHead>Email Status</TableHead>
+                                            <TableHead>Deadline</TableHead>
+                                            <TableHead>Escalated By</TableHead>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead className="w-28">Action</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {escalations.map(esc => (
+                                            <TableRow key={esc.id} className={esc.email_sent ? '' : 'border-l-4 border-l-amber-400 bg-amber-50/30'}>
+                                                <TableCell className="pl-6 font-mono text-xs text-muted-foreground">#{esc.case_id}</TableCell>
+                                                <TableCell className="font-medium">{esc.officer_name || '-'}</TableCell>
+                                                <TableCell className="text-sm text-muted-foreground">{esc.designation || '-'}</TableCell>
+                                                <TableCell>
+                                                    {esc.email_sent ? (
+                                                        <Badge variant="default" className="bg-green-100 text-green-700 gap-1">
+                                                            <CheckCircle2 className="h-3 w-3" /> Sent
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="border-amber-300 text-amber-700 gap-1">
+                                                            <Clock className="h-3 w-3" /> Not Sent
+                                                        </Badge>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-sm text-muted-foreground">
+                                                    {esc.deadline ? new Date(esc.deadline).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                                                </TableCell>
+                                                <TableCell className="text-sm text-muted-foreground">{esc.created_by || '-'}</TableCell>
+                                                <TableCell className="text-xs text-muted-foreground">
+                                                    {esc.created_at ? new Date(esc.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '-'}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {!esc.email_sent && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="border-blue-200 text-blue-700 hover:bg-blue-50 text-xs h-7"
+                                                            disabled={sendingEmail === esc.id}
+                                                            onClick={() => handleSendEmail(esc.id)}
+                                                        >
+                                                            {sendingEmail === esc.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Mail className="h-3 w-3 mr-1" />}
+                                                            Send
+                                                        </Button>
+                                                    )}
+                                                    {esc.email_sent && esc.email_sent_at && (
+                                                        <span className="text-[10px] text-green-600">
+                                                            {new Date(esc.email_sent_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                                                        </span>
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )
                     ) : (
-                        <div className="overflow-x-auto -mx-6">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-10 pl-6">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedIds.size === cases.length && cases.length > 0}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) setSelectedIds(new Set(cases.map(c => c.id)));
-                                                    else setSelectedIds(new Set());
-                                                }}
-                                                className="rounded border-border"
-                                            />
-                                        </TableHead>
-                                        <TableHead className="w-16">#</TableHead>
-                                        <TableHead>Contact</TableHead>
-                                        <TableHead>Category</TableHead>
-                                        <TableHead>Location</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className="max-w-[250px]">Message</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {cases.map(c => (
-                                        <TableRow
-                                            key={c.id}
-                                            className={cn("cursor-pointer", getRowHighlight(c.status))}
-                                            onClick={() => setSelected(c)}
-                                        >
-                                            <TableCell className="pl-6">
+                        /* ─── Cases Table ─── */
+                        loading ? (
+                            <div className="space-y-3 py-6">
+                                {[1, 2, 3, 4, 5].map(i => (
+                                    <div key={i} className="flex items-center gap-4">
+                                        <Skeleton className="h-4 w-4" />
+                                        <Skeleton className="h-4 w-12" />
+                                        <Skeleton className="h-4 w-24" />
+                                        <Skeleton className="h-4 w-32" />
+                                        <Skeleton className="h-4 w-24" />
+                                        <Skeleton className="h-6 w-20" />
+                                        <Skeleton className="h-4 flex-1" />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : cases.length === 0 ? (
+                            <div className="text-center py-16">
+                                <CheckCircle2 className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                                <p className="text-muted-foreground">
+                                    No cases found{categoryFilter ? ` in "${categoryFilter}"` : ''}
+                                    {statusFilter !== 'All' ? ` with status "${statusFilter}"` : ''}.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto -mx-6">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-10 pl-6">
                                                 <input
                                                     type="checkbox"
-                                                    checked={selectedIds.has(c.id)}
+                                                    checked={selectedIds.size === cases.length && cases.length > 0}
                                                     onChange={(e) => {
-                                                        e.stopPropagation();
-                                                        setSelectedIds(prev => {
-                                                            const next = new Set(prev);
-                                                            if (e.target.checked) next.add(c.id);
-                                                            else next.delete(c.id);
-                                                            return next;
-                                                        });
+                                                        if (e.target.checked) setSelectedIds(new Set(cases.map(c => c.id)));
+                                                        else setSelectedIds(new Set());
                                                     }}
-                                                    onClick={e => e.stopPropagation()}
                                                     className="rounded border-border"
                                                 />
-                                            </TableCell>
-                                            <TableCell className="font-mono text-xs text-muted-foreground">{c.id}</TableCell>
-                                            <TableCell className="font-mono text-xs">{c.user_phone || '-'}</TableCell>
-                                            <TableCell className="font-medium">{c.category || 'General'}</TableCell>
-                                            <TableCell className="text-muted-foreground">{c.location || '-'}</TableCell>
-                                            <TableCell>{getStatusBadge(c.status)}</TableCell>
-                                            <TableCell className="max-w-[250px]">
-                                                <span className="truncate block text-muted-foreground" title={c.raw_message}>
-                                                    {c.raw_message || '-'}
-                                                </span>
-                                            </TableCell>
+                                            </TableHead>
+                                            <TableHead className="w-16">#</TableHead>
+                                            <TableHead>Contact</TableHead>
+                                            <TableHead>Category</TableHead>
+                                            <TableHead>Location</TableHead>
+                                            <TableHead>Status</TableHead>
+                                            <TableHead className="max-w-[250px]">Message</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {cases.map(c => (
+                                            <TableRow
+                                                key={c.id}
+                                                className={cn("cursor-pointer", getRowHighlight(c.status))}
+                                                onClick={() => setSelected(c)}
+                                            >
+                                                <TableCell className="pl-6">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedIds.has(c.id)}
+                                                        onChange={(e) => {
+                                                            e.stopPropagation();
+                                                            setSelectedIds(prev => {
+                                                                const next = new Set(prev);
+                                                                if (e.target.checked) next.add(c.id);
+                                                                else next.delete(c.id);
+                                                                return next;
+                                                            });
+                                                        }}
+                                                        onClick={e => e.stopPropagation()}
+                                                        className="rounded border-border"
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="font-mono text-xs text-muted-foreground">{c.id}</TableCell>
+                                                <TableCell className="font-mono text-xs">{c.user_phone || '-'}</TableCell>
+                                                <TableCell className="font-medium">{c.category || 'General'}</TableCell>
+                                                <TableCell className="text-muted-foreground">{c.location || '-'}</TableCell>
+                                                <TableCell>{getStatusBadge(c.status)}</TableCell>
+                                                <TableCell className="max-w-[250px]">
+                                                    <span className="truncate block text-muted-foreground" title={c.raw_message}>
+                                                        {c.raw_message || '-'}
+                                                    </span>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )
                     )}
                 </CardContent>
 
-                {/* Pagination */}
-                <div className="px-6 py-3 border-t flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">
-                        Page {page} of {totalPages} ({totalCases} total cases)
-                    </span>
-                    <div className="flex gap-2">
-                        <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
-                            Previous
-                        </Button>
-                        <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
-                            Next
-                        </Button>
+                {/* Pagination (hide on escalation tab) */}
+                {!isEscalationTab && (
+                    <div className="px-6 py-3 border-t flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">
+                            Page {page} of {totalPages} ({totalCases} total cases)
+                        </span>
+                        <div className="flex gap-2">
+                            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+                                Previous
+                            </Button>
+                            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+                                Next
+                            </Button>
+                        </div>
                     </div>
-                </div>
+                )}
+                {isEscalationTab && escalations.length > 0 && (
+                    <div className="px-6 py-3 border-t">
+                        <span className="text-sm text-muted-foreground">
+                            {escalations.length} escalation{escalations.length !== 1 ? 's' : ''} total
+                            {' · '}
+                            {escalations.filter(e => e.email_sent).length} emails sent
+                            {' · '}
+                            {escalations.filter(e => !e.email_sent).length} pending
+                        </span>
+                    </div>
+                )}
             </Card>
 
             {/* Case Modal */}
