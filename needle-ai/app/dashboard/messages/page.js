@@ -46,9 +46,10 @@ const TABS = [
     { key: 'All', label: 'All Cases' },
     { key: 'new', label: 'New' },
     { key: 'in_progress', label: 'In Progress' },
-    { key: 'resolved', label: 'Resolved' },
     { key: 'escalated', label: '📧 Escalated' },
+    { key: 'resolved', label: 'Resolved' },
     { key: 'closed', label: 'Closed' },
+    { key: 'spam', label: '🚫 Spam' },
 ];
 
 const STATUS_OPTIONS = [
@@ -57,6 +58,7 @@ const STATUS_OPTIONS = [
     { value: 'resolved', label: 'Resolved', className: 'bg-green-100 text-green-700' },
     { value: 'escalated', label: 'Escalated', className: 'bg-red-100 text-red-700' },
     { value: 'closed', label: 'Closed', className: 'bg-slate-100 text-slate-600' },
+    { value: 'spam', label: 'Spam', className: 'bg-orange-100 text-orange-700' },
 ];
 
 const CATEGORY_OPTIONS = [
@@ -78,6 +80,7 @@ function getRowHighlight(status) {
     const s = (status || '').toLowerCase();
     if (s === 'new' || s === 'escalated') return 'border-l-4 border-l-red-500 bg-red-50/50';
     if (s === 'resolved' || s === 'in_progress') return 'border-l-4 border-l-green-500 bg-green-50/30';
+    if (s === 'spam') return 'border-l-4 border-l-orange-400 bg-orange-50/30 opacity-70';
     return '';
 }
 
