@@ -632,8 +632,8 @@ def create_officer(body: OfficerCreate, user=Depends(get_current_user)):
 
     with engine.begin() as conn:
         result = conn.execute(text(
-            "INSERT INTO officers (tenant_id, name, designation, department, email, phone, jurisdiction, categories, created_at) "
-            "VALUES (:tid, :name, :desg, :dept, :email, :phone, :juris, :cats, :now) RETURNING id"
+            "INSERT INTO officers (tenant_id, name, designation, department, email, phone, jurisdiction, categories, is_active, created_at) "
+            "VALUES (:tid, :name, :desg, :dept, :email, :phone, :juris, :cats, true, :now) RETURNING id"
         ), {"tid": tid, "name": body.name, "desg": body.designation, "dept": body.department,
             "email": body.email, "phone": body.phone, "juris": body.jurisdiction,
             "cats": json.dumps(body.categories), "now": datetime.utcnow()})

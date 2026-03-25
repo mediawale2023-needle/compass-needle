@@ -253,6 +253,14 @@ try:
 except Exception as e:
     logger.warning(f"escalations migration skipped: {e}")
 
+# ─── Migration: backfill officers.is_active NULL → true ───
+try:
+    with engine.begin() as conn:
+        result = conn.execute(text("UPDATE officers SET is_active = true WHERE is_active IS NULL"))
+        logger.info(f"Migration: backfilled officers.is_active (rows updated: {result.rowcount})")
+except Exception as e:
+    logger.warning(f"officers backfill skipped: {e}")
+
 # Seed CSR company profiles from static JSON files on startup
 try:
     from modules.csr_data_loader import seed_csr_companies
