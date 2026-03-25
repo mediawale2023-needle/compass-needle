@@ -132,6 +132,17 @@
 .animate-slide-in-right { animation: slideInRight 0.3s ease-out forwards; }
 .animate-pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
 
+/* Command Center headline typography */
+.headline-hero {
+  @apply text-3xl md:text-4xl font-bold tracking-tight text-foreground;
+}
+.headline-section {
+  @apply text-xl md:text-2xl font-bold tracking-tight text-foreground;
+}
+.headline-card {
+  @apply text-lg font-semibold text-foreground;
+}
+
 /* Focus ring utility */
 .focus-ring {
   @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
