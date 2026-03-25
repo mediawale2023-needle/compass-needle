@@ -614,7 +614,9 @@ class OfficerCreate(BaseModel):
 @router.get("/officers")
 def get_officers(user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
+    logger.info(f"[DEBUG] GET /officers — tenant_id={tid}, user={user.get('username')}")
     officers = _q("SELECT * FROM officers WHERE tenant_id = :tid AND is_active = true ORDER BY name", {"tid": tid})
+    logger.info(f"[DEBUG] GET /officers — returned {len(officers)} officers")
     for o in officers:
         if o.get("created_at") and hasattr(o["created_at"], "isoformat"):
             o["created_at"] = o["created_at"].isoformat()
