@@ -17,6 +17,7 @@ import {
     Zap,
     ChevronLeft,
     ChevronRight,
+    Shield,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
     { name: 'Messages', path: '/dashboard/messages', icon: MessageSquare, badgeKey: 'messages' },
     { name: 'Contacts', path: '/dashboard/contacts', icon: Users },
     { name: 'Reports', path: '/dashboard/reports', icon: BarChart3 },
+    { name: 'Officers', path: '/dashboard/officers', icon: Shield },
     { name: 'Settings', path: '/dashboard/settings', icon: Settings },
 ];
 

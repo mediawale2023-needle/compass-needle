@@ -44,6 +44,15 @@ const STATUS_OPTIONS = [
     { value: 'closed', label: 'Closed', color: 'status-closed' },
 ];
 
+const CATEGORY_OPTIONS = [
+    'External Affairs', 'Railways', 'Infrastructure', 'Telecom',
+    'Postal Services', 'Education (Central)', 'Banking & Finance',
+    'Labor & Employment', 'Law & Order', 'Energy',
+    'Infrastructure (State)', 'Food Supply', 'Transport',
+    'Revenue & Land', 'Sanitation', 'Water', 'Civic Amenities',
+    'Public Health', 'Civic Admin', 'Private/Legal',
+];
+
 function CaseCard({ caseItem, onSelect, selected }) {
     const statusObj = STATUS_OPTIONS.find(s => s.value === caseItem.status) || STATUS_OPTIONS[0];
     const timeAgo = (dateStr) => {
@@ -464,6 +473,7 @@ export default function MessagesPage() {
     const [totalCases, setTotalCases] = useState(0);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [categoryFilter, setCategoryFilter] = useState('all');
     const [selectedCase, setSelectedCase] = useState(null);
     const [updating, setUpdating] = useState(false);
 
@@ -472,6 +482,7 @@ export default function MessagesPage() {
         try {
             let path = `/api/cases?page=${page}&per_page=20`;
             if (statusFilter && statusFilter !== 'all') path += `&status=${statusFilter}`;
+            if (categoryFilter && categoryFilter !== 'all') path += `&category=${encodeURIComponent(categoryFilter)}`;
             if (search) path += `&search=${encodeURIComponent(search)}`;
             const data = await apiGet(path);
             setCases(data.cases || []);
@@ -483,7 +494,7 @@ export default function MessagesPage() {
         } finally {
             setLoading(false);
         }
-    }, [page, statusFilter, search]);
+    }, [page, statusFilter, categoryFilter, search]);
 
     useEffect(() => { fetchCases(); }, [fetchCases]);
 
@@ -523,14 +534,14 @@ export default function MessagesPage() {
                 <form onSubmit={handleSearch} className="flex-1 relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                        placeholder="Search messages, phone numbers..."
+                        placeholder="Search phone, message, location..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="pl-9"
                     />
                 </form>
                 <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="w-36">
                         <Filter className="h-4 w-4 mr-2" />
                         <SelectValue placeholder="All Status" />
                     </SelectTrigger>
@@ -538,6 +549,17 @@ export default function MessagesPage() {
                         <SelectItem value="all">All Status</SelectItem>
                         {STATUS_OPTIONS.map(s => (
                             <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(1); }}>
+                    <SelectTrigger className="w-44">
+                        <SelectValue placeholder="All Categories" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {CATEGORY_OPTIONS.map(c => (
+                            <SelectItem key={c} value={c}>{c}</SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
