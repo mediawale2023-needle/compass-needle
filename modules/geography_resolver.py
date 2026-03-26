@@ -8,11 +8,63 @@ Geography Resolver (MULTI-TENANT)
 
 import json
 import logging
+import unicodedata
 from pathlib import Path
 from typing import Dict, Any, Optional
 import re
 import string
 from difflib import SequenceMatcher
+
+# ==========================================
+# DEVANAGARI TRANSLITERATION
+# ==========================================
+
+# Simplified Devanagari → Roman map sufficient for Indian location names.
+# Covers consonants, vowels, matras, and common nukta variants.
+_DEVA_MAP = {
+    # Vowels (independent)
+    'अ': 'a', 'आ': 'aa', 'इ': 'i', 'ई': 'ee', 'उ': 'u', 'ऊ': 'oo',
+    'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au', 'ऋ': 'ri', 'अं': 'an',
+    # Consonants
+    'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'ङ': 'ng',
+    'च': 'ch', 'छ': 'chh', 'ज': 'j', 'झ': 'jh', 'ञ': 'n',
+    'ट': 't', 'ठ': 'th', 'ड': 'd', 'ढ': 'dh', 'ण': 'n',
+    'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n',
+    'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm',
+    'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v', 'श': 'sh',
+    'ष': 'sh', 'स': 's', 'ह': 'h', 'ळ': 'l', 'क्ष': 'ksh', 'ज्ञ': 'gya',
+    # Nukta variants (ड़, ढ़, etc.)
+    'ड़': 'r', 'ढ़': 'rh', 'ज़': 'z', 'फ़': 'f', 'ग़': 'g', 'ख़': 'kh',
+    # Matras (vowel signs attached to consonants)
+    'ा': 'a', 'ि': 'i', 'ी': 'ee', 'ु': 'u', 'ू': 'oo',
+    'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au', 'ृ': 'ri',
+    # Anusvara / visarga / halant
+    'ं': 'n', 'ँ': 'n', 'ः': 'h', '्': '',
+    # Digits
+    '०': '0', '१': '1', '२': '2', '३': '3', '४': '4',
+    '५': '5', '६': '6', '७': '7', '८': '8', '९': '9',
+}
+
+# Devanagari Unicode range: U+0900–U+097F
+_DEVA_RE = re.compile(r'[\u0900-\u097F]')
+
+
+def _is_devanagari(text: str) -> bool:
+    return bool(_DEVA_RE.search(text))
+
+
+def _transliterate(text: str) -> str:
+    """
+    Convert Devanagari text to a simplified Roman form suitable for
+    fuzzy matching against casual English spellings of Indian place names.
+    Non-Devanagari characters pass through unchanged.
+    """
+    # Multi-char sequences first (nukta composites, conjuncts)
+    for deva, roman in sorted(_DEVA_MAP.items(), key=lambda x: -len(x[0])):
+        text = text.replace(deva, roman)
+    # Remove any remaining Devanagari characters not in the map
+    text = _DEVA_RE.sub('', text)
+    return text.strip()
 
 # --- CONFIG & PATHS ---
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -138,13 +190,26 @@ def load_geography_index() -> bool:
                 
                 keywords = get_keywords(raw_loc) | get_keywords(raw_bldg)
                 
+                # Also store locality_en if present (set by Gemini OCR)
+                raw_loc_en = s.get("locality_en", "").replace("\n", " ").strip()
+
+                # Transliterate Devanagari locality to Roman for cross-script matching
+                if _is_devanagari(raw_loc):
+                    transliterated = normalize(_transliterate(raw_loc))
+                elif raw_loc_en:
+                    transliterated = normalize(raw_loc_en)
+                else:
+                    transliterated = ""
+
                 if keywords or station:
                     _geography_index["assemblies"][assembly]["entries"].append({
                         "orig_name": raw_loc,
                         "norm_name": norm_loc,
                         "spaceless_name": norm_loc.replace(" ", ""),
+                        "transliterated": transliterated,
+                        "spaceless_transliterated": transliterated.replace(" ", ""),
                         "station": station,
-                        "keywords": keywords
+                        "keywords": keywords,
                     })
             files_loaded += 1
             logger.debug(f"   Indexed {assembly}: {len(stations)} locations")
@@ -180,21 +245,36 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
             score = 0
             match_type = "none"
 
-            # A. EXACT SUBSTRING (Highest Quality)
+            tl = entry.get("transliterated", "")
+            tl_spaceless = entry.get("spaceless_transliterated", "")
+
+            # A. EXACT SUBSTRING — original script (Highest Quality)
             if entry["norm_name"] and entry["norm_name"] in clean_text:
                 score = 100 - len(entry["norm_name"]) + 50
                 match_type = "exact"
-            
-            # B. SPACELESS MATCH (Fixes "Shahunagar")
+
+            # B. EXACT SUBSTRING — transliterated (Roman citizen text vs Hindi index)
+            elif tl and len(tl) > 3 and tl in clean_text:
+                score = 95
+                match_type = "exact_transliterated"
+
+            # C. SPACELESS MATCH — original (Fixes "Shahunagar")
             elif entry["spaceless_name"] and len(entry["spaceless_name"]) > 4 and entry["spaceless_name"] in spaceless_text:
                 score = 90
                 match_type = "spaceless"
 
-            # C. FUZZY KEYWORD MATCH (Fixes Typos — strict threshold, long words only)
+            # D. SPACELESS MATCH — transliterated
+            elif tl_spaceless and len(tl_spaceless) > 4 and tl_spaceless in spaceless_text:
+                score = 88
+                match_type = "spaceless_transliterated"
+
+            # E. FUZZY KEYWORD MATCH — also checks transliterated keywords
             else:
+                tl_keywords = set(tl.split()) if tl else set()
+                all_dk = entry["keywords"] | tl_keywords
                 for uk in user_keywords:
-                    if len(uk) < 5: continue  # Skip short words for fuzzy
-                    for dk in entry["keywords"]:
+                    if len(uk) < 5: continue
+                    for dk in all_dk:
                         if len(dk) < 5: continue
                         sim = similarity_score(uk, dk)
                         if sim > 92:
