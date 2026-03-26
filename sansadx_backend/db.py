@@ -4,7 +4,7 @@ All other files import engine, SessionLocal, and models from here.
 """
 import os
 import bcrypt
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Float
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Float, text as sa_text
 try:
     from sqlalchemy.orm import declarative_base
 except ImportError:
@@ -523,5 +523,31 @@ class CSRDocument(Base):
 # INIT — Create all tables
 # ─────────────────────────────────────────
 def init_db():
-    """Create all tables. Safe to call on every startup."""
+    """Create all tables and run additive column migrations. Safe to call on every startup."""
+    import logging
     Base.metadata.create_all(bind=engine)
+
+    # Additive migrations — safe to run repeatedly (IF NOT EXISTS / DO NOTHING)
+    _migrations = [
+        # Added for AI classification metadata and criticality flag
+        "ALTER TABLE cases ADD COLUMN IF NOT EXISTS is_critical BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_metadata JSONB",
+        # Added for soft-delete support
+        "ALTER TABLE cases ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE cases ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP",
+        "ALTER TABLE cases ADD COLUMN IF NOT EXISTS deleted_by VARCHAR",
+        # Added for case reference numbers
+        "ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_ref VARCHAR",
+        # Added for case assignment and staff notes
+        "ALTER TABLE cases ADD COLUMN IF NOT EXISTS assigned_to VARCHAR",
+        "ALTER TABLE cases ADD COLUMN IF NOT EXISTS notes_for_staff TEXT",
+        "ALTER TABLE cases ADD COLUMN IF NOT EXISTS response_to_citizen TEXT",
+        "ALTER TABLE cases ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP",
+    ]
+    with engine.connect() as conn:
+        for stmt in _migrations:
+            try:
+                conn.execute(sa_text(stmt))
+            except Exception as e:
+                logging.warning("Migration skipped (%s): %s", stmt[:60], e)
+        conn.commit()
