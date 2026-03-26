@@ -141,8 +141,8 @@ try:
             ) WHERE tenant_id IS NULL
         """))
         logger.info("Migration: backfilled archives.tenant_id from users table")
-except Exception:
-    pass  # Column already exists — expected on subsequent deploys
+except Exception:  # nosec B110 — idempotent migration; "column already exists" is expected
+    pass
 
 # ─── Migration: create token_blocklist table (idempotent) ───
 try:
@@ -172,8 +172,8 @@ for _col_sql in [
         with engine.begin() as conn:
             conn.execute(text(_col_sql))
             logger.info(f"Migration: {_col_sql}")
-    except Exception:
-        pass  # Column already exists — expected on subsequent deploys
+    except Exception:  # nosec B110 — idempotent migration
+        pass
 
 # Backfill tenant_type for existing PR tenants
 try:
@@ -183,7 +183,7 @@ try:
             WHERE tenant_type = 'mp'
               AND config::text LIKE '%"type": "PR"%'
         """))
-except Exception:
+except Exception:  # nosec B110 — idempotent migration
     pass
 
 # ─── Migration: add new columns for Phase 2-3 features (idempotent) ───
@@ -198,13 +198,13 @@ for _col_sql in [
         with engine.begin() as conn:
             conn.execute(text(_col_sql))
             logger.info(f"Migration: {_col_sql}")
-    except Exception:
+    except Exception:  # nosec B110 — idempotent migration
         pass
 
 try:
     with engine.begin() as conn:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_cases_case_ref ON cases (case_ref)"))
-except Exception:
+except Exception:  # nosec B110 — idempotent migration
     pass
 
 # ─── Migration: create officers table (idempotent) ───
@@ -440,7 +440,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             current_tenant = phone_map[receiver_number]
             logger.info(f"DB override match: {receiver_number} → Tenant {current_tenant}")
     except Exception:
-        pass
+        logger.warning("Tenant phone mapping lookup failed for %s — using default tenant", receiver_number)
 
     if current_tenant == 1:
         try:
@@ -555,7 +555,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
                 if final_constituency:
                     logger.info(f"Geo match: {lookup_key} → {final_constituency}")
             except Exception:
-                pass
+                logger.warning("Geo override lookup failed for tenant %s", current_tenant)
 
         # Fallback geo resolution
         if not final_constituency:

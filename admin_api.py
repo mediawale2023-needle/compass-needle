@@ -74,7 +74,7 @@ def verify_password(password: str, stored_hash: str) -> bool:
         if stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$"):
             return bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8"))
     except Exception:
-        pass
+        logger.warning("bcrypt verification failed — possible hash corruption")
     return False
 
 
@@ -95,7 +95,7 @@ def _is_token_revoked(username: str, token_issued_at: float) -> bool:
             if hasattr(revoked_at, 'timestamp'):
                 return token_issued_at < revoked_at.timestamp()
     except Exception:
-        pass
+        logger.warning("Token revocation check failed — defaulting to not revoked")
     return False
 
 
@@ -251,7 +251,7 @@ def admin_login(req: AdminLoginRequest, request: Request):
                 {"now": datetime.utcnow(), "u": req.username},
             )
     except Exception:
-        pass
+        logger.warning("Failed to update last_login for %s", req.username)
 
     admin_tid = get_tenant_or_fail(user)
     token = create_admin_token({
@@ -1052,10 +1052,10 @@ def case_explorer(
 
     where = " AND ".join(conditions)
 
-    count_row = _q_one(f"SELECT COUNT(*) AS cnt FROM cases c WHERE {where}", params) or {"cnt": 0}
+    count_row = _q_one(f"SELECT COUNT(*) AS cnt FROM cases c WHERE {where}", params) or {"cnt": 0}  # nosec B608
     total = count_row["cnt"]
 
-    cases = _q(f"""
+    cases = _q(f"""  # nosec B608
         SELECT c.id, c.tenant_id, t.name AS mp_name, t.constituency,
                c.user_phone, c.category, c.status, c.raw_message,
                c.case_metadata, c.is_critical, c.created_at, c.updated_at,
@@ -1248,8 +1248,8 @@ def seed_test_cases(tid: int = 0, _=Depends(get_admin_user)):
                 msg_list = messages.get(cluster["category"], ["complaint"])
                 case = Case(
                     tenant_id=tid,
-                    user_phone=random.choice(phones),
-                    raw_message=random.choice(msg_list),
+                    user_phone=random.choice(phones),  # nosec B311 — test data generation, not security-sensitive
+                    raw_message=random.choice(msg_list),  # nosec B311
                     category=cluster["category"],
                     status="completed",
                     location=cluster["location"],
@@ -1262,7 +1262,7 @@ def seed_test_cases(tid: int = 0, _=Depends(get_admin_user)):
                         "matched_value": cluster["location"],
                         "assembly_constituency": cluster["location"],
                     }),
-                    created_at=datetime.utcnow() - timedelta(days=random.randint(1, 90)),
+                    created_at=datetime.utcnow() - timedelta(days=random.randint(1, 90)),  # nosec B311
                 )
                 db.add(case)
                 total_inserted += 1

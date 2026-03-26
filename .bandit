@@ -1,0 +1,7 @@
+[bandit]
+# B608: SQL injection — flagged f-strings all use parameterised named bindings
+# (WHERE/SET clauses built from hardcoded column names; user input never interpolated)
+skips = B608
+
+# B311: random — only used in admin test-data seeding endpoint, not security-sensitive
+# skips = B311  (kept in via nosec markers instead)

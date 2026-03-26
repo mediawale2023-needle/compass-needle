@@ -50,7 +50,8 @@ def get_jurisdiction_context(tenant_id=1):
                                 elif isinstance(item, dict):
                                     if "locality" in item: known_areas.add(item["locality"])
                                     elif "name" in item: known_areas.add(item["name"])
-                except: pass
+                except Exception:
+                    pass  # nosec B110 — malformed geo JSON file, skip and continue
 
     # 2. Load from tenant_overrides DB (tenant-specific locations)
     try:
@@ -67,11 +68,13 @@ def get_jurisdiction_context(tenant_id=1):
                         overrides = json.load(f)
                     tenant_geo = overrides.get("geo_overrides", {}).get(str(tenant_id), {})
                     known_areas.update(tenant_geo.keys())
-                except: pass
+                except Exception:
+                    pass  # nosec B110 — fallback JSON read failure, continue without overrides
                 break
 
     if not known_areas: return ""
-    return ", ".join(sorted(list(known_areas))[:300])
+    import itertools
+    return ", ".join(itertools.islice(sorted(known_areas), 300))
 
 # ==========================================
 # 3. LANGUAGE DETECTION (rule-based, pre-GPT)
