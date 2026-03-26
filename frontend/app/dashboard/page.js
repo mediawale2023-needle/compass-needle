@@ -6,9 +6,10 @@ import { apiGet } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     Loader2,
     AlertTriangle,
@@ -19,262 +20,116 @@ import {
     Gift,
     ArrowRight,
     TrendingUp,
-    TrendingDown,
     Clock,
     FileText,
-    MapPin,
-    MessageSquare,
-    Users,
-    Flame,
+    ChevronDown,
+    ChevronUp,
+    ExternalLink,
+    Briefcase,
+    BarChart2,
     CalendarClock,
     FileQuestion,
-    Zap,
-    Target,
-    Eye,
 } from 'lucide-react';
 
-// Priority indicator component
-function PriorityIndicator({ level }) {
-    if (level === 'critical') {
-        return (
-            <span className="inline-flex items-center gap-1.5 text-destructive font-semibold text-xs">
-                <Flame className="h-3.5 w-3.5" />
-                HIGH PRIORITY
-            </span>
-        );
-    }
-    if (level === 'attention') {
-        return (
-            <span className="inline-flex items-center gap-1.5 text-amber-600 font-semibold text-xs">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                NEEDS ATTENTION
-            </span>
-        );
-    }
-    return null;
-}
-
-// Today's Briefing Item - Headline style
-function BriefingItem({ headline, subtext, priority, onClick, trend }) {
-    return (
-        <button
-            onClick={onClick}
-            className={cn(
-                "w-full text-left p-4 rounded-lg transition-all duration-200 group",
-                "hover:bg-accent/50",
-                priority === 'critical' && "bg-destructive/5 border-l-4 border-l-destructive",
-                priority === 'attention' && "bg-amber-50/50 border-l-4 border-l-amber-500",
-                !priority && "border-l-4 border-l-transparent hover:border-l-primary/30"
-            )}
-        >
-            <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                    {priority && (
-                        <div className="mb-2">
-                            <PriorityIndicator level={priority} />
-                        </div>
-                    )}
-                    <h3 className="text-base font-semibold text-foreground group-hover:text-primary transition-colors leading-snug">
-                        {headline}
-                    </h3>
-                    {subtext && (
-                        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                            {subtext}
-                        </p>
-                    )}
-                </div>
-                {trend && (
-                    <div className={cn(
-                        "flex items-center gap-1 text-xs font-bold shrink-0 px-2 py-1 rounded",
-                        trend > 0 ? "text-destructive bg-destructive/10" : "text-emerald-600 bg-emerald-50"
-                    )}>
-                        {trend > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                        {Math.abs(trend)}%
-                    </div>
-                )}
-            </div>
-        </button>
-    );
-}
-
-// Action Card - "What You Should Do Today"
-function ActionCard({ icon: Icon, title, description, href, urgent }) {
-    return (
-        <Link href={href}>
-            <Card className={cn(
-                "h-full transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer group",
-                urgent && "ring-2 ring-destructive/20 bg-destructive/5"
-            )}>
-                <CardContent className="p-5">
-                    <div className="flex items-start gap-4">
-                        <div className={cn(
-                            "h-12 w-12 rounded-xl flex items-center justify-center shrink-0",
-                            urgent ? "bg-destructive/10" : "bg-primary/10"
-                        )}>
-                            <Icon className={cn(
-                                "h-6 w-6",
-                                urgent ? "text-destructive" : "text-primary"
-                            )} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                                <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                                    {title}
-                                </h3>
-                                {urgent && (
-                                    <Badge variant="destructive" className="text-[10px] h-5">
-                                        Urgent
-                                    </Badge>
-                                )}
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-1">
-                                {description}
-                            </p>
-                        </div>
-                        <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all shrink-0" />
-                    </div>
-                </CardContent>
-            </Card>
-        </Link>
-    );
-}
-
-// Insight Card - Active metrics instead of passive
-function InsightCard({ label, value, change, changeLabel, icon: Icon, highlight }) {
-    return (
-        <div className={cn(
-            "p-4 rounded-xl",
-            highlight === 'critical' && "bg-destructive/10",
-            highlight === 'warning' && "bg-amber-50",
-            highlight === 'success' && "bg-emerald-50",
-            !highlight && "bg-accent/50"
-        )}>
-            <div className="flex items-center gap-2 mb-2">
-                <Icon className={cn(
-                    "h-4 w-4",
-                    highlight === 'critical' && "text-destructive",
-                    highlight === 'warning' && "text-amber-600",
-                    highlight === 'success' && "text-emerald-600",
-                    !highlight && "text-primary"
-                )} />
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    {label}
-                </span>
-            </div>
-            <p className={cn(
-                "text-2xl font-bold",
-                highlight === 'critical' && "text-destructive",
-                highlight === 'warning' && "text-amber-700",
-                highlight === 'success' && "text-emerald-700",
-                !highlight && "text-foreground"
-            )}>
-                {value}
-            </p>
-            {change !== undefined && (
-                <p className={cn(
-                    "text-xs mt-1",
-                    change > 0 ? "text-destructive" : "text-emerald-600"
-                )}>
-                    {change > 0 ? '+' : ''}{change}% {changeLabel}
-                </p>
-            )}
-        </div>
-    );
-}
-
-// PQ Calendar Card
 function PQCalendarCard({ pq }) {
     if (!pq || pq.window_state === 'unknown') return null;
 
     const configs = {
         open: {
-            border: 'border-l-primary',
-            bg: 'bg-primary/5',
-            dot: 'bg-primary',
-            ping: 'bg-primary/60',
-            label: `${pq.days_remaining} day${pq.days_remaining !== 1 ? 's' : ''} left to submit`,
+            border:   'border-l-blue-500',
+            bg:       'bg-blue-50/50',
+            dot:      'bg-blue-500',
+            ping:     'bg-blue-400',
+            label:    `${pq.days_remaining} day${pq.days_remaining !== 1 ? 's' : ''} left to submit`,
             sublabel: `Deadline: ${pq.window_close}`,
-            showCta: true,
-            urgent: pq.days_remaining <= 3,
+            showCta:  true,
         },
         not_yet: {
-            border: 'border-l-muted',
-            bg: '',
-            dot: 'bg-muted-foreground/40',
-            ping: null,
-            label: `PQ window opens in ${pq.days_until_open} day${pq.days_until_open !== 1 ? 's' : ''}`,
-            sublabel: `Opens ${pq.next_window_open}`,
-            showCta: false,
+            border:   'border-l-muted',
+            bg:       '',
+            dot:      'bg-muted-foreground/40',
+            ping:     null,
+            label:    `PQ window opens in ${pq.days_until_open} day${pq.days_until_open !== 1 ? 's' : ''}`,
+            sublabel: `Opens ${pq.next_window_open} · Closes ${pq.window_close}`,
+            showCta:  false,
         },
         closed: {
-            border: 'border-l-amber-400',
-            bg: 'bg-amber-50/30',
-            dot: 'bg-amber-400',
-            ping: null,
-            label: 'Submission deadline passed',
+            border:   'border-l-amber-400',
+            bg:       'bg-amber-50/30',
+            dot:      'bg-amber-400',
+            ping:     null,
+            label:    'Submission deadline passed',
             sublabel: `${pq.target_session} starts ${pq.session_start}`,
-            showCta: false,
+            showCta:  false,
         },
         in_session: {
-            border: 'border-l-muted',
-            bg: '',
-            dot: 'bg-muted-foreground/40',
-            ping: null,
-            label: pq.next_session_name
-                ? `PQ window for ${pq.next_session_name} opens ${pq.next_window_open}`
-                : 'PQ submissions open during recess',
+            border:   'border-l-muted',
+            bg:       '',
+            dot:      'bg-muted-foreground/40',
+            ping:     null,
+            label:    pq.next_session_name
+                        ? `PQ window for ${pq.next_session_name} opens ${pq.next_window_open}`
+                        : 'PQ submissions open during recess',
             sublabel: null,
-            showCta: false,
+            showCta:  false,
         },
     };
 
     const cfg = configs[pq.window_state] || configs.not_yet;
 
     return (
-        <div className={cn('rounded-lg border-l-4 p-4', cfg.border, cfg.bg)}>
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-start gap-3">
-                    <div className="mt-1 shrink-0">
-                        {cfg.ping ? (
-                            <span className="relative flex h-2.5 w-2.5">
-                                <span className={cn('animate-ping absolute inline-flex h-full w-full rounded-full opacity-75', cfg.ping)} />
-                                <span className={cn('relative inline-flex rounded-full h-2.5 w-2.5', cfg.dot)} />
-                            </span>
-                        ) : (
-                            <span className={cn('block h-2.5 w-2.5 rounded-full', cfg.dot)} />
-                        )}
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <CalendarClock className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span className="text-sm font-semibold text-foreground">
-                                PQ Calendar — {pq.target_session}
-                            </span>
-                            {pq.pqs_drafted > 0 && (
-                                <Badge variant="secondary" className="text-[10px]">
-                                    <FileQuestion className="h-2.5 w-2.5 mr-1" />
-                                    {pq.pqs_drafted} drafted
-                                </Badge>
+        <Card className={cn('border-l-4', cfg.border, cfg.bg)}>
+            <CardContent className="py-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-start gap-2.5">
+                        <div className="mt-0.5 shrink-0">
+                            {cfg.ping ? (
+                                <span className="relative flex h-2.5 w-2.5">
+                                    <span className={cn('animate-ping absolute inline-flex h-full w-full rounded-full opacity-75', cfg.ping)} />
+                                    <span className={cn('relative inline-flex rounded-full h-2.5 w-2.5', cfg.dot)} />
+                                </span>
+                            ) : (
+                                <span className={cn('block h-2.5 w-2.5 rounded-full', cfg.dot)} />
                             )}
                         </div>
-                        <p className="text-sm text-muted-foreground mt-0.5">{cfg.label}</p>
-                        {cfg.sublabel && (
-                            <p className="text-xs text-muted-foreground/70 mt-0.5">{cfg.sublabel}</p>
-                        )}
+                        <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <CalendarClock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="text-sm font-semibold text-foreground">
+                                    PQ Calendar — {pq.target_session}
+                                </span>
+                                {pq.pqs_drafted > 0 && (
+                                    <Badge variant="secondary" className="flex items-center gap-1 text-[10px]">
+                                        <FileQuestion className="h-2.5 w-2.5" />
+                                        {pq.pqs_drafted} drafted
+                                    </Badge>
+                                )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">{cfg.label}</p>
+                            {cfg.sublabel && (
+                                <p className="text-xs text-muted-foreground/70 mt-0.5">{cfg.sublabel}</p>
+                            )}
+                        </div>
                     </div>
+                    {cfg.showCta && (
+                        <Button asChild size="sm">
+                            <Link href="/dashboard/drafter?mode=question">
+                                Draft a PQ
+                                <ArrowRight className="h-4 w-4 ml-1" />
+                            </Link>
+                        </Button>
+                    )}
                 </div>
-                {cfg.showCta && (
-                    <Button asChild size="sm" variant={cfg.urgent ? "destructive" : "default"}>
-                        <Link href="/dashboard/drafter?mode=question">
-                            Draft a PQ
-                            <ArrowRight className="h-4 w-4 ml-1" />
-                        </Link>
-                    </Button>
-                )}
-            </div>
-        </div>
+            </CardContent>
+        </Card>
     );
 }
+
+const QUICK_ACTIONS = [
+    { label: 'Upload Letter', href: '/dashboard/letterbox', desc: 'Scan or upload', icon: Mail },
+    { label: 'Draft Response', href: '/dashboard/drafter', desc: 'AI-assisted writing', icon: PenTool },
+    { label: 'Find a Scheme', href: '/dashboard/schemes', desc: 'Match constituents', icon: Gift },
+];
 
 function daysAgo(dateStr) {
     if (!dateStr) return null;
@@ -282,24 +137,43 @@ function daysAgo(dateStr) {
     return Math.floor(diff / (1000 * 60 * 60 * 24));
 }
 
+function AgeBadge({ days }) {
+    if (days === null) return null;
+    return (
+        <Badge variant="outline" className={cn(
+            "text-[10px] font-bold shrink-0",
+            days >= 14 && "border-destructive text-destructive bg-destructive/10",
+            days >= 7 && days < 14 && "border-amber-500 text-amber-600 bg-amber-50",
+            days < 7 && "border-emerald-500 text-emerald-600 bg-emerald-50"
+        )}>
+            {days}d
+        </Badge>
+    );
+}
+
 export default function DashboardPage() {
     const { user } = useAuth();
     const router = useRouter();
 
     const [summary, setSummary] = useState(null);
+    const [reportCard, setReportCard] = useState(null);
     const [news, setNews] = useState({ national: [], local: [] });
+    const [newsTab, setNewsTab] = useState('national');
+    const [showNews, setShowNews] = useState(true);
     const [parliament, setParliament] = useState(null);
     const [pqCalendar, setPqCalendar] = useState(null);
+    const [staleCases, setStaleCases] = useState([]);
     const [allCases, setAllCases] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         async function load() {
             try {
-                const [sum, nat, loc, parl, cases, pqCal] = await Promise.all([
+                const [sum, rc, nat, loc, parl, cases, pqCal] = await Promise.all([
                     apiGet('/api/dashboard/summary').catch(() => ({
                         category_breakdown: {}, status_breakdown: {}, red_zones: [], critical_count: 0,
                     })),
+                    apiGet('/api/activity/report-card').catch(() => null),
                     apiGet('/api/news?news_type=national').catch(() => ({ articles: [] })),
                     apiGet('/api/news?news_type=local').catch(() => ({ articles: [] })),
                     apiGet('/api/parliament/status').catch(() => null),
@@ -308,10 +182,18 @@ export default function DashboardPage() {
                 ]);
 
                 setSummary(sum);
+                setReportCard(rc);
                 setNews({ national: nat.articles || [], local: loc.articles || [] });
                 setParliament(parl);
                 setPqCalendar(pqCal);
-                setAllCases(cases.cases || cases.items || []);
+
+                const fetchedCases = cases.cases || cases.items || [];
+                setAllCases(fetchedCases);
+                const pending = fetchedCases
+                    .filter(c => (c.status || '').toLowerCase() === 'new')
+                    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+                    .slice(0, 6);
+                setStaleCases(pending);
             } catch (err) {
                 console.error(err);
                 setSummary({ category_breakdown: {}, status_breakdown: {}, red_zones: [], critical_count: 0 });
@@ -325,214 +207,127 @@ export default function DashboardPage() {
     if (loading) return (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <span className="text-sm text-muted-foreground">Loading your command center...</span>
+            <span className="text-sm text-muted-foreground">Loading dashboard...</span>
         </div>
     );
 
-    // Derive insights from data
     const cats = summary?.category_breakdown || {};
     const statuses = summary?.status_breakdown || {};
     const totalCases = Object.values(statuses).reduce((a, b) => a + b, 0);
+    const maxCat = Math.max(...Object.values(cats), 1);
     const newCount = statuses['new'] || 0;
-    const inProgressCount = statuses['in_progress'] || 0;
-    const resolvedCount = statuses['resolved'] || 0;
-    const redZones = summary?.red_zones || [];
+    const redCount = summary?.red_zones?.length || 0;
+    const hasUrgent = newCount > 0 || redCount > 0;
     const isEmpty = totalCases === 0;
 
-    // Calculate trends and insights
+    const STAT_CARDS = [
+        { label: 'Total Cases', value: totalCases, color: 'primary', filter: '', icon: Briefcase },
+        { label: 'New / Open', value: statuses['new'] || 0, color: 'blue', filter: 'new', icon: AlertTriangle },
+        { label: 'In Progress', value: statuses['in_progress'] || 0, color: 'amber', filter: 'in_progress', icon: Clock },
+        { label: 'Resolved', value: statuses['resolved'] || 0, color: 'emerald', filter: 'resolved', icon: CheckCircle2 },
+    ];
+
+    const resolvedCount = statuses['resolved'] || 0;
     const resolutionRate = totalCases > 0 ? Math.round((resolvedCount / totalCases) * 100) : 0;
     const avgAge = allCases.length > 0
         ? Math.round(allCases.reduce((sum, c) => sum + (daysAgo(c.created_at) || 0), 0) / allCases.length)
         : 0;
-    
-    // Get top issues with counts
-    const topIssues = Object.entries(cats)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3);
-    
-    // Get pending cases for actions
-    const pendingCases = allCases
-        .filter(c => (c.status || '').toLowerCase() === 'new')
-        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-    const oldestPending = pendingCases[0];
-    const oldestAge = oldestPending ? daysAgo(oldestPending.created_at) : 0;
+    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const newThisWeek = allCases.filter(c =>
+        (c.status || '').toLowerCase() === 'new' && new Date(c.created_at).getTime() > oneWeekAgo
+    ).length;
+    const topIssue = Object.keys(cats)[0] || '—';
 
-    // Build Today's Briefing items - Active insights, not passive metrics
-    const briefingItems = [];
-
-    // Critical: Cases needing attention
-    if (newCount > 5) {
-        briefingItems.push({
-            headline: `${newCount} unattended grievances in your inbox`,
-            subtext: oldestAge > 7 
-                ? `The oldest has been waiting ${oldestAge} days. Your response rate is slipping.` 
-                : 'Several constituents are waiting for your response.',
-            priority: 'critical',
-            onClick: () => router.push('/dashboard/sansadx?status=new'),
-        });
-    } else if (newCount > 0) {
-        briefingItems.push({
-            headline: `${newCount} new case${newCount !== 1 ? 's' : ''} awaiting review`,
-            subtext: 'Quick triage recommended before end of day.',
-            priority: newCount >= 3 ? 'attention' : null,
-            onClick: () => router.push('/dashboard/sansadx?status=new'),
-        });
-    }
-
-    // Red zones / hot spots
-    if (redZones.length > 0) {
-        briefingItems.push({
-            headline: `${redZones[0]} has rising complaints`,
-            subtext: `This area is generating more cases than average. Consider a field visit.`,
-            priority: 'attention',
-            trend: 30,
-            onClick: () => router.push(`/dashboard/sansadx?zone=${encodeURIComponent(redZones[0])}`),
-        });
-    }
-
-    // Top category insight
-    if (topIssues.length > 0) {
-        const [topCat, topCount] = topIssues[0];
-        const catPct = totalCases > 0 ? Math.round((topCount / totalCases) * 100) : 0;
-        briefingItems.push({
-            headline: `"${topCat}" is your #1 issue (${catPct}% of cases)`,
-            subtext: topIssues.length > 1 
-                ? `Followed by "${topIssues[1][0]}" and "${topIssues[2]?.[0] || 'others'}"` 
-                : 'Consider addressing this category in your next public communication.',
-            onClick: () => router.push(`/dashboard/sansadx?category=${encodeURIComponent(topCat)}`),
-        });
-    }
-
-    // Parliament session context
-    if (parliament?.in_session) {
-        briefingItems.push({
-            headline: `House is in session: ${parliament.session_name}`,
-            subtext: parliament.business_items?.length > 0 
-                ? `Today: ${parliament.business_items.slice(0, 2).join(', ')}` 
-                : 'Track proceedings and prepare for questions.',
-            onClick: () => router.push('/dashboard/drafter?mode=question'),
-        });
-    }
-
-    // Media mentions
-    const relevantNews = [...(news.national || []), ...(news.local || [])].slice(0, 1);
-    if (relevantNews.length > 0) {
-        briefingItems.push({
-            headline: 'You are in the news today',
-            subtext: relevantNews[0]?.title?.slice(0, 80) + '...',
-            onClick: () => window.open(relevantNews[0]?.link, '_blank'),
-        });
-    }
-
-    // Fallback: If no briefing items, show a positive message
-    if (briefingItems.length === 0) {
-        briefingItems.push({
-            headline: 'All caught up for today',
-            subtext: 'No urgent matters require your attention. Great work staying on top of things!',
-        });
-    }
-
-    // Build action items - "What You Should Do Today"
-    const actions = [];
-    
-    if (newCount > 0) {
-        actions.push({
-            icon: MessageSquare,
-            title: `Respond to ${newCount} pending case${newCount !== 1 ? 's' : ''}`,
-            description: oldestAge > 3 ? `Oldest waiting ${oldestAge} days` : 'Keep response time low',
-            href: '/dashboard/sansadx?status=new',
-            urgent: oldestAge > 7,
-        });
-    }
-
-    if (redZones.length > 0) {
-        actions.push({
-            icon: MapPin,
-            title: `Visit ${redZones[0]}`,
-            description: 'High complaint density — constituents need to see you',
-            href: `/dashboard/sansadx?zone=${encodeURIComponent(redZones[0])}`,
-            urgent: false,
-        });
-    }
-
-    if (pqCalendar?.window_state === 'open' && pqCalendar.days_remaining <= 5) {
-        actions.push({
-            icon: PenTool,
-            title: 'Draft a Parliamentary Question',
-            description: `${pqCalendar.days_remaining} days left before deadline`,
-            href: '/dashboard/drafter?mode=question',
-            urgent: pqCalendar.days_remaining <= 2,
-        });
-    }
-
-    // Default actions if none derived
-    if (actions.length === 0) {
-        actions.push(
-            {
-                icon: Mail,
-                title: 'Upload a letter',
-                description: 'Scan or upload constituent correspondence',
-                href: '/dashboard/letterbox',
-                urgent: false,
-            },
-            {
-                icon: Gift,
-                title: 'Find a scheme',
-                description: 'Match constituents to government benefits',
-                href: '/dashboard/schemes',
-                urgent: false,
-            }
-        );
-    }
-
-    // Ensure we always have 3 actions
-    const defaultActions = [
-        { icon: Mail, title: 'Upload a letter', description: 'Scan or upload correspondence', href: '/dashboard/letterbox', urgent: false },
-        { icon: PenTool, title: 'Draft a response', description: 'AI-assisted writing', href: '/dashboard/drafter', urgent: false },
-        { icon: Gift, title: 'Find a scheme', description: 'Match to benefits', href: '/dashboard/schemes', urgent: false },
+    const OUTCOME_METRICS = [
+        { label: 'Resolution Rate', value: totalCases > 0 ? `${resolutionRate}%` : '—', icon: CheckCircle2, highlight: resolutionRate >= 60 ? 'emerald' : resolutionRate >= 30 ? 'amber' : 'destructive' },
+        { label: 'Avg Case Age', value: allCases.length > 0 ? `${avgAge}d` : '—', icon: Clock, highlight: avgAge <= 7 ? 'emerald' : avgAge <= 14 ? 'amber' : 'destructive' },
+        { label: 'New This Week', value: newThisWeek, icon: TrendingUp, highlight: newThisWeek === 0 ? 'emerald' : newThisWeek <= 5 ? 'amber' : 'destructive' },
+        { label: 'Top Issue', value: topIssue, icon: AlertTriangle, highlight: 'default' },
     ];
-    while (actions.length < 3) {
-        const next = defaultActions.find(d => !actions.some(a => a.href === d.href));
-        if (next) actions.push(next);
-        else break;
-    }
 
     return (
-        <div className="space-y-8 max-w-5xl mx-auto">
-            {/* HERO: Today's Briefing */}
-            <section className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="headline-hero">
-                            Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, {user?.display_name?.split(' ')[0]}
-                        </h1>
-                        <p className="text-muted-foreground mt-1">
-                            {new Date().toLocaleDateString('en-IN', { 
-                                weekday: 'long', 
-                                day: 'numeric', 
-                                month: 'long' 
-                            })} — Here&apos;s what matters today
-                        </p>
-                    </div>
-                </div>
-
-                {/* Today's Briefing Card - Full width hero */}
-                <Card className="border-2 border-primary/10">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center gap-2 headline-section">
-                            <Eye className="h-6 w-6 text-primary" />
-                            Today&apos;s Briefing
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-2">
-                        <div className="divide-y divide-border">
-                            {briefingItems.slice(0, 5).map((item, i) => (
-                                <BriefingItem key={i} {...item} />
-                            ))}
-                        </div>
+        <div className="space-y-6">
+            {/* Parliament Status */}
+            {parliament && (
+                <Card className={cn(
+                    "border-l-4",
+                    parliament.in_session ? "border-l-emerald-500 bg-emerald-50/50" : "border-l-muted"
+                )}>
+                    <CardContent className="py-4">
+                        {parliament.in_session ? (
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="relative flex h-2.5 w-2.5">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                                        </span>
+                                        <span className="font-semibold text-emerald-800">
+                                            House in Session — {parliament.session_name}
+                                        </span>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">
+                                        {parliament.day}, {parliament.date}
+                                    </span>
+                                </div>
+                                {parliament.business_items?.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {parliament.business_items.slice(0, 2).map((item, i) => (
+                                            <Badge key={i} variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200">
+                                                {item}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40" />
+                                    <span className="text-sm text-muted-foreground">{parliament.message}</span>
+                                </div>
+                                {parliament.next_session && (
+                                    <span className="text-xs text-muted-foreground">
+                                        Next: {parliament.next_session}
+                                    </span>
+                                )}
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
-            </section>
+            )}
+
+            {/* PQ Calendar */}
+            <PQCalendarCard pq={pqCalendar} />
+
+            {/* Attention Banner */}
+            {hasUrgent && (
+                <Card className="border-destructive/50 bg-destructive/5">
+                    <CardContent className="py-4 flex items-center justify-between gap-4 flex-wrap">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
+                                <AlertTriangle className="h-5 w-5 text-destructive" />
+                            </div>
+                            <div>
+                                <p className="font-semibold text-destructive">
+                                    {newCount > 0 && `${newCount} new grievance${newCount !== 1 ? 's' : ''} need${newCount === 1 ? 's' : ''} attention`}
+                                    {newCount > 0 && redCount > 0 && ' · '}
+                                    {redCount > 0 && `${redCount} zone${redCount !== 1 ? 's' : ''} flagged`}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Review these items to keep your constituents happy
+                                </p>
+                            </div>
+                        </div>
+                        <Button variant="destructive" size="sm" asChild>
+                            <Link href="/dashboard/sansadx?status=new">
+                                Review Now
+                                <ArrowRight className="h-4 w-4 ml-1" />
+                            </Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Empty State */}
             {isEmpty ? (
@@ -542,7 +337,7 @@ export default function DashboardPage() {
                             <Building2 className="h-10 w-10 text-primary" />
                         </div>
                         <div>
-                            <h2 className="headline-card">Welcome to your Command Center</h2>
+                            <h2 className="text-lg font-bold text-foreground">Welcome to Compass Needle</h2>
                             <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
                                 Your constituency office is ready. Start by uploading a letter from a constituent,
                                 logging a new case, or drafting your first parliamentary question.
@@ -563,109 +358,277 @@ export default function DashboardPage() {
                 </Card>
             ) : (
                 <>
-                    {/* ACTION STRIP: What You Should Do Today */}
-                    <section className="space-y-4">
-                        <div className="flex items-center gap-2">
-                            <Zap className="h-5 w-5 text-primary" />
-                            <h2 className="headline-section">What You Should Do Today</h2>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {actions.slice(0, 3).map((action, i) => (
-                                <ActionCard key={i} {...action} />
-                            ))}
-                        </div>
-                    </section>
+                    {/* Quick Actions */}
+                    <div className="grid grid-cols-3 gap-3">
+                        {QUICK_ACTIONS.map(({ label, href, desc, icon: Icon }) => (
+                            <Link key={href} href={href}>
+                                <Card className="h-full card-hover cursor-pointer">
+                                    <CardContent className="p-4 text-center">
+                                        <div className="h-10 w-10 mx-auto rounded-lg bg-primary/10 flex items-center justify-center mb-3">
+                                            <Icon className="h-5 w-5 text-primary" />
+                                        </div>
+                                        <p className="text-sm font-semibold text-foreground">{label}</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+                                    </CardContent>
+                                </Card>
+                            </Link>
+                        ))}
+                    </div>
 
-                    {/* PQ Calendar - contextual */}
-                    {pqCalendar && pqCalendar.window_state !== 'unknown' && (
-                        <PQCalendarCard pq={pqCalendar} />
-                    )}
+                    {/* Stat Cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        {STAT_CARDS.map(({ label, value, color, filter, icon: Icon }) => {
+                            const href = filter ? `/dashboard/sansadx?status=${filter}` : '/dashboard/sansadx';
+                            return (
+                                <Link key={label} href={href}>
+                                    <Card className={cn(
+                                        "card-hover cursor-pointer border-l-4",
+                                        color === 'primary' && "border-l-primary",
+                                        color === 'blue' && "border-l-blue-500",
+                                        color === 'amber' && "border-l-amber-500",
+                                        color === 'emerald' && "border-l-emerald-500"
+                                    )}>
+                                        <CardContent className="p-5">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                                    {label}
+                                                </span>
+                                                <Icon className={cn(
+                                                    "h-4 w-4",
+                                                    color === 'primary' && "text-primary",
+                                                    color === 'blue' && "text-blue-500",
+                                                    color === 'amber' && "text-amber-500",
+                                                    color === 'emerald' && "text-emerald-500"
+                                                )} />
+                                            </div>
+                                            <p className="text-3xl font-bold text-foreground">{value}</p>
+                                            <p className="text-xs text-muted-foreground mt-2">
+                                                View cases →
+                                            </p>
+                                        </CardContent>
+                                    </Card>
+                                </Link>
+                            );
+                        })}
+                    </div>
 
-                    {/* INSIGHTS GRID: Active metrics */}
-                    <section className="space-y-4">
-                        <div className="flex items-center gap-2">
-                            <Target className="h-5 w-5 text-primary" />
-                            <h2 className="headline-section">Your Pulse</h2>
-                        </div>
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                            <InsightCard
-                                label="Pending Response"
-                                value={newCount}
-                                icon={Clock}
-                                highlight={newCount > 10 ? 'critical' : newCount > 5 ? 'warning' : newCount > 0 ? null : 'success'}
-                            />
-                            <InsightCard
-                                label="In Progress"
-                                value={inProgressCount}
-                                icon={TrendingUp}
-                            />
-                            <InsightCard
-                                label="Resolution Rate"
-                                value={`${resolutionRate}%`}
-                                icon={CheckCircle2}
-                                highlight={resolutionRate >= 60 ? 'success' : resolutionRate >= 30 ? 'warning' : 'critical'}
-                            />
-                            <InsightCard
-                                label="Avg Response Time"
-                                value={`${avgAge}d`}
-                                icon={Users}
-                                highlight={avgAge <= 5 ? 'success' : avgAge <= 14 ? 'warning' : 'critical'}
-                            />
-                        </div>
-                    </section>
+                    {/* Main Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Category Breakdown */}
+                        <Card className="lg:col-span-2">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <TrendingUp className="h-5 w-5 text-primary" />
+                                    Category Breakdown
+                                </CardTitle>
+                                <CardDescription>
+                                    Click any category to view those cases in Briefcase
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {Object.keys(cats).length > 0 ? (
+                                    <div className="space-y-4">
+                                        {Object.entries(cats)
+                                            .sort((a, b) => b[1] - a[1])
+                                            .slice(0, 8)
+                                            .map(([cat, count]) => {
+                                                const pct = Math.round((count / maxCat) * 100);
+                                                return (
+                                                    <button
+                                                        key={cat}
+                                                        className="w-full text-left group"
+                                                        onClick={() => router.push(`/dashboard/sansadx?category=${encodeURIComponent(cat)}`)}
+                                                    >
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
+                                                                {cat}
+                                                            </span>
+                                                            <span className="text-sm font-bold text-foreground">
+                                                                {count}
+                                                            </span>
+                                                        </div>
+                                                        <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+                                                            <div
+                                                                className="h-full rounded-full bg-primary transition-all group-hover:bg-primary/80"
+                                                                style={{ width: `${pct}%` }}
+                                                            />
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8 text-muted-foreground">
+                                        No data available
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
 
-                    {/* Top Issues - Condensed */}
-                    {topIssues.length > 0 && (
-                        <section className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <FileText className="h-5 w-5 text-primary" />
-                                    <h2 className="headline-section">Top Issues</h2>
+                        {/* Right Column */}
+                        <div className="space-y-6">
+                            {/* Constituency Health */}
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="flex items-center gap-2 text-base">
+                                            <BarChart2 className="h-4 w-4 text-primary" />
+                                            Constituency Health
+                                        </CardTitle>
+                                        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                                            {new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+                                        </span>
+                                    </div>
+                                    <CardDescription>Outcome metrics — not output</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {OUTCOME_METRICS.map(({ label, value, icon: Icon, highlight }) => (
+                                            <div key={label} className={cn(
+                                                "rounded-lg p-3",
+                                                highlight === 'emerald' && "bg-emerald-50",
+                                                highlight === 'amber' && "bg-amber-50",
+                                                highlight === 'destructive' && "bg-destructive/5",
+                                                highlight === 'default' && "bg-primary/5",
+                                            )}>
+                                                <div className="flex items-center gap-1.5 mb-1">
+                                                    <Icon className={cn(
+                                                        "h-3.5 w-3.5",
+                                                        highlight === 'emerald' && "text-emerald-600",
+                                                        highlight === 'amber' && "text-amber-500",
+                                                        highlight === 'destructive' && "text-destructive",
+                                                        highlight === 'default' && "text-primary",
+                                                    )} />
+                                                </div>
+                                                <p className={cn(
+                                                    "text-2xl font-bold truncate",
+                                                    label === 'Top Issue' ? "text-base mt-1" : "text-foreground"
+                                                )}>{value}</p>
+                                                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mt-0.5 leading-tight">{label}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Pending Triage */}
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="flex items-center gap-2 text-base">
+                                        <Clock className="h-4 w-4 text-amber-500" />
+                                        Pending Triage
+                                    </CardTitle>
+                                    <CardDescription>
+                                        New cases no one has touched yet
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-0">
+                                    {staleCases.length > 0 ? (
+                                        <div className="divide-y divide-border -mx-6">
+                                            {staleCases.map(c => {
+                                                const age = daysAgo(c.created_at);
+                                                const summary = c.raw_message
+                                                    ? c.raw_message.slice(0, 80) + (c.raw_message.length > 80 ? '…' : '')
+                                                    : c.category || '—';
+                                                const sub = [c.category, c.user_phone].filter(Boolean).join(' · ');
+                                                return (
+                                                    <button
+                                                        key={c.id}
+                                                        className="w-full px-6 py-3 flex items-start justify-between gap-2 hover:bg-accent/50 transition-colors text-left"
+                                                        onClick={() => router.push(`/dashboard/sansadx?status=new&case_id=${c.id}`)}
+                                                    >
+                                                        <div className="min-w-0">
+                                                            <p className="text-xs font-bold text-muted-foreground">#{c.id}</p>
+                                                            <p className="text-sm font-medium text-foreground leading-snug line-clamp-2">{summary}</p>
+                                                            {sub && <p className="text-xs text-muted-foreground truncate mt-0.5">{sub}</p>}
+                                                        </div>
+                                                        <AgeBadge days={age} />
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-2 text-emerald-600 py-2">
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            <span className="text-sm">All new cases actioned — great work!</span>
+                                        </div>
+                                    )}
+                                </CardContent>
+                                <div className="px-6 py-3 border-t border-border">
+                                    <Button variant="link" className="p-0 h-auto text-primary" asChild>
+                                        <Link href="/dashboard/sansadx?status=new">
+                                            View all pending cases →
+                                        </Link>
+                                    </Button>
                                 </div>
-                                <Button variant="ghost" size="sm" asChild>
-                                    <Link href="/dashboard/sansadx">
-                                        View all cases
-                                        <ArrowRight className="h-4 w-4 ml-1" />
-                                    </Link>
+                            </Card>
+                        </div>
+                    </div>
+
+                    {/* Media Monitoring */}
+                    <Card>
+                        <CardHeader className="cursor-pointer" onClick={() => setShowNews(v => !v)}>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <FileText className="h-5 w-5 text-primary" />
+                                        Media Monitoring
+                                    </CardTitle>
+                                    <CardDescription className="mt-1">
+                                        Your name in the press · Critical issues in your constituency
+                                    </CardDescription>
+                                </div>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0">
+                                    {showNews ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                 </Button>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {topIssues.map(([cat, count], i) => {
-                                    const pct = totalCases > 0 ? Math.round((count / totalCases) * 100) : 0;
-                                    return (
-                                        <button
-                                            key={cat}
-                                            onClick={() => router.push(`/dashboard/sansadx?category=${encodeURIComponent(cat)}`)}
-                                            className="text-left p-4 rounded-xl bg-card border border-border hover:border-primary/30 hover:bg-accent/50 transition-all group"
-                                        >
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="text-xs font-bold text-muted-foreground">
-                                                    #{i + 1}
-                                                </span>
-                                                <span className="text-xs font-semibold text-primary">
-                                                    {pct}%
-                                                </span>
-                                            </div>
-                                            <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors truncate">
-                                                {cat}
-                                            </h3>
-                                            <p className="text-sm text-muted-foreground mt-1">
-                                                {count} case{count !== 1 ? 's' : ''}
-                                            </p>
-                                            <div className="mt-3 w-full h-1.5 bg-secondary rounded-full overflow-hidden">
-                                                <div
-                                                    className="h-full rounded-full bg-primary transition-all"
-                                                    style={{ width: `${pct}%` }}
-                                                />
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </section>
-                    )}
+                        </CardHeader>
+                        {showNews && (
+                            <CardContent className="pt-0">
+                                <Tabs value={newsTab} onValueChange={setNewsTab}>
+                                    <TabsList className="mb-4">
+                                        <TabsTrigger value="national">In the News</TabsTrigger>
+                                        <TabsTrigger value="local">Constituency</TabsTrigger>
+                                    </TabsList>
+                                    <TabsContent value="national" className="mt-0">
+                                        <NewsList articles={news.national} emptyText="No press coverage found today" />
+                                    </TabsContent>
+                                    <TabsContent value="local" className="mt-0">
+                                        <NewsList articles={news.local} emptyText="No local coverage found today" />
+                                    </TabsContent>
+                                </Tabs>
+                            </CardContent>
+                        )}
+                    </Card>
                 </>
             )}
         </div>
+    );
+}
+
+function NewsList({ articles, emptyText = 'No coverage found today' }) {
+    if (articles.length === 0) {
+        return (
+            <p className="text-sm text-muted-foreground text-center py-4">
+                {emptyText}
+            </p>
+        );
+    }
+    return (
+        <ul className="space-y-3">
+            {articles.slice(0, 5).map((a, i) => (
+                <li key={i}>
+                    <a
+                        href={a.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group flex items-start gap-2 text-sm text-foreground hover:text-primary transition-colors"
+                    >
+                        <ExternalLink className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground group-hover:text-primary" />
+                        <span className="leading-snug">{a.title}</span>
+                    </a>
+                </li>
+            ))}
+        </ul>
     );
 }

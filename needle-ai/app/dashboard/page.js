@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils';
 import {
     MessageSquare, AlertTriangle, CheckCircle2,
     Shield, Mail, MapPin, ArrowRight, Users, Zap,
-    Clock, TrendingUp, Target,
 } from 'lucide-react';
 
 // ── Utilities ─────────────────────────────────────────────────────
@@ -51,42 +50,6 @@ function StatCard({ label, value, borderColor, loading, onClick }) {
                     <span className="text-sm text-muted-foreground">{label}</span>
                 </>
             )}
-        </div>
-    );
-}
-
-// ── Insight Card (Your Pulse) ─────────────────────────────────────
-
-function InsightCard({ label, value, icon: Icon, highlight }) {
-    return (
-        <div className={cn(
-            'p-4 rounded-xl',
-            highlight === 'critical' && 'bg-destructive/10',
-            highlight === 'warning' && 'bg-amber-50',
-            highlight === 'success' && 'bg-emerald-50',
-            !highlight && 'bg-accent/50'
-        )}>
-            <div className="flex items-center gap-2 mb-2">
-                <Icon className={cn(
-                    'h-4 w-4',
-                    highlight === 'critical' && 'text-destructive',
-                    highlight === 'warning' && 'text-amber-600',
-                    highlight === 'success' && 'text-emerald-600',
-                    !highlight && 'text-primary'
-                )} />
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    {label}
-                </span>
-            </div>
-            <p className={cn(
-                'text-2xl font-bold',
-                highlight === 'critical' && 'text-destructive',
-                highlight === 'warning' && 'text-amber-700',
-                highlight === 'success' && 'text-emerald-700',
-                !highlight && 'text-foreground'
-            )}>
-                {value}
-            </p>
         </div>
     );
 }
@@ -171,9 +134,6 @@ export default function HomePage() {
     const newCount       = sb.new || 0;
     const escalatedCount = sb.escalated || 0;
     const resolvedCount  = sb.resolved || 0;
-    const inProgressCount = sb.in_progress || 0;
-
-    const resolutionRate = total > 0 ? Math.round((resolvedCount / total) * 100) : 0;
 
     const unsentEscalations = escalations.filter(e => !e.email_sent).length;
 
@@ -249,39 +209,6 @@ export default function HomePage() {
                     borderColor="border-l-green-500"
                     loading={loading}
                 />
-            </div>
-
-            {/* Your Pulse */}
-            <div>
-                <div className="flex items-center gap-2 mb-3">
-                    <Target className="h-4 w-4 text-primary" />
-                    <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Your Pulse</h2>
-                </div>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <InsightCard
-                        label="Pending Response"
-                        value={newCount}
-                        icon={Clock}
-                        highlight={newCount > 10 ? 'critical' : newCount > 5 ? 'warning' : newCount > 0 ? null : 'success'}
-                    />
-                    <InsightCard
-                        label="Escalated"
-                        value={escalatedCount}
-                        icon={TrendingUp}
-                        highlight={escalatedCount > 5 ? 'warning' : null}
-                    />
-                    <InsightCard
-                        label="Resolution Rate"
-                        value={`${resolutionRate}%`}
-                        icon={CheckCircle2}
-                        highlight={resolutionRate >= 60 ? 'success' : resolutionRate >= 30 ? 'warning' : 'critical'}
-                    />
-                    <InsightCard
-                        label="In Progress"
-                        value={inProgressCount}
-                        icon={Users}
-                    />
-                </div>
             </div>
 
             {/* Main Grid: 3/5 left + 2/5 right */}

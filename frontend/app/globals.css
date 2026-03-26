@@ -4,36 +4,30 @@
 
 @layer base {
   :root {
-    /* Warm beige background with deep navy primary - Campaign Command Center */
-    --background: 32 33% 95%;
-    --foreground: 222 47% 11%;
-    --card: 36 33% 97%;
-    --card-foreground: 222 47% 11%;
-    --popover: 36 33% 97%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 222 47% 20%;
-    --primary-foreground: 36 33% 97%;
-    --secondary: 32 20% 90%;
-    --secondary-foreground: 222 47% 20%;
-    --muted: 32 15% 88%;
-    --muted-foreground: 222 20% 40%;
-    --accent: 32 30% 92%;
-    --accent-foreground: 222 47% 15%;
-    --destructive: 0 72% 51%;
+    --background: 0 0% 98%;
+    --foreground: 224 71% 4%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 71% 4%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71% 4%;
+    --primary: 160 84% 24%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 9% 46%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 160 84% 95%;
+    --accent-foreground: 160 84% 24%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 11%;
-    --border: 32 20% 85%;
-    --input: 32 20% 85%;
-    --ring: 222 47% 20%;
-    --radius: 0.5rem;
-
-    /* Priority colors */
-    --priority-critical: 0 72% 51%;
-    --priority-attention: 38 92% 50%;
-    --priority-normal: 222 20% 40%;
+    --warning-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 160 84% 24%;
+    --radius: 0.625rem;
 
     /* Lok Sabha - refined emerald */
     --color-ls: #047857;
@@ -46,37 +40,37 @@
     --color-rs-dark: #881337;
     
     /* Chart colors */
-    --chart-1: 222 47% 30%;
-    --chart-2: 222 40% 45%;
-    --chart-3: 32 50% 55%;
-    --chart-4: 38 92% 50%;
-    --chart-5: 0 72% 51%;
+    --chart-1: 160 84% 39%;
+    --chart-2: 173 80% 40%;
+    --chart-3: 197 71% 52%;
+    --chart-4: 43 96% 56%;
+    --chart-5: 27 96% 61%;
   }
 
   .dark {
-    --background: 222 47% 8%;
-    --foreground: 32 33% 95%;
-    --card: 222 47% 11%;
-    --card-foreground: 32 33% 95%;
-    --popover: 222 47% 11%;
-    --popover-foreground: 32 33% 95%;
-    --primary: 32 33% 90%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 222 30% 18%;
-    --secondary-foreground: 32 33% 90%;
-    --muted: 222 30% 18%;
-    --muted-foreground: 32 20% 65%;
-    --accent: 222 30% 22%;
-    --accent-foreground: 32 33% 95%;
-    --destructive: 0 72% 51%;
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
+    --card: 224 71% 6%;
+    --card-foreground: 213 31% 91%;
+    --popover: 224 71% 6%;
+    --popover-foreground: 213 31% 91%;
+    --primary: 160 84% 39%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 215 28% 17%;
+    --secondary-foreground: 213 31% 91%;
+    --muted: 215 28% 17%;
+    --muted-foreground: 218 11% 65%;
+    --accent: 215 28% 17%;
+    --accent-foreground: 160 84% 50%;
+    --destructive: 0 63% 31%;
     --destructive-foreground: 0 0% 98%;
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 11%;
-    --border: 222 30% 18%;
-    --input: 222 30% 18%;
-    --ring: 32 33% 90%;
+    --warning-foreground: 0 0% 100%;
+    --border: 215 28% 17%;
+    --input: 215 28% 17%;
+    --ring: 160 84% 39%;
   }
 }
 
@@ -91,38 +85,6 @@
   h1, h2, h3, h4, h5, h6 {
     @apply text-balance font-semibold tracking-tight;
   }
-  /* Command Center headline typography */
-  .headline-hero {
-    @apply text-3xl md:text-4xl font-bold tracking-tight text-foreground;
-  }
-  .headline-section {
-    @apply text-xl md:text-2xl font-bold tracking-tight text-foreground;
-  }
-  .headline-card {
-    @apply text-lg font-semibold text-foreground;
-  }
-  .text-insight {
-    @apply text-sm font-medium text-foreground;
-  }
-}
-
-/* Priority indicators */
-.priority-critical {
-  @apply text-destructive;
-}
-.priority-critical::before {
-  content: '';
-  @apply inline-block w-2 h-2 rounded-full bg-destructive mr-2 animate-pulse;
-}
-.priority-attention {
-  @apply text-warning;
-}
-.priority-attention::before {
-  content: '';
-  @apply inline-block w-0 h-0 mr-2;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-bottom: 8px solid hsl(var(--warning));
 }
 
 /* Modern scrollbar */
