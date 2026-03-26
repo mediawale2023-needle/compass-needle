@@ -284,6 +284,7 @@ def get_cases(
     category: Optional[str] = None,
     categories: Optional[str] = None,
     search: Optional[str] = None,
+    assigned_to: Optional[str] = None,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
 ):
@@ -305,8 +306,11 @@ def get_cases(
             for i, c in enumerate(cat_list):
                 params[f"cat_{i}"] = c
     if search:
-        conditions.append("(c.user_phone ILIKE :search OR c.raw_message ILIKE :search)")
+        conditions.append("(c.user_phone ILIKE :search OR c.raw_message ILIKE :search OR c.case_ref ILIKE :search OR c.location ILIKE :search)")
         params["search"] = f"%{search}%"
+    if assigned_to:
+        conditions.append("c.assigned_to = :assigned_to")
+        params["assigned_to"] = assigned_to
 
     where = " AND ".join(conditions)
     offset = (page - 1) * limit
@@ -553,6 +557,177 @@ def get_deleted_cases(user=Depends(get_current_user)):
             if val and hasattr(val, "isoformat"):
                 c[field] = val.isoformat()
     return {"cases": cases}
+
+
+@router.patch("/cases/{case_id}/restore")
+def restore_case(case_id: int, user=Depends(get_current_user)):
+    """Restore a soft-deleted case (within 7-day window). MP/PR only."""
+    tid = get_tenant_or_fail(user)
+    role = user.get("role", "user")
+    if role not in ("mp", "pr", "admin"):
+        raise HTTPException(403, "Only MP/PR accounts can restore cases")
+
+    with engine.begin() as conn:
+        result = conn.execute(text(
+            "UPDATE cases SET is_deleted = false, deleted_at = NULL, deleted_by = NULL, updated_at = :now "
+            "WHERE id = :cid AND tenant_id = :tid AND is_deleted = true"
+        ), {"now": datetime.utcnow(), "cid": case_id, "tid": tid})
+
+    if result.rowcount == 0:
+        raise HTTPException(404, "Case not found or not deleted")
+
+    try:
+        _log_case_activity(tid, case_id, user.get("username", ""), "restored")
+    except Exception:
+        pass  # nosec B110
+
+    return {"success": True}
+
+
+@router.get("/cases/{case_id}/similar")
+def get_similar_cases(case_id: int, user=Depends(get_current_user)):
+    """Return cases from the same phone or same category+location within last 30 days."""
+    tid = get_tenant_or_fail(user)
+    source = _q_one(
+        "SELECT user_phone, category, location, assembly FROM cases WHERE id = :cid AND tenant_id = :tid",
+        {"cid": case_id, "tid": tid}
+    )
+    if not source:
+        raise HTTPException(404, "Case not found")
+
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    phone = source.get("user_phone")
+    category = source.get("category")
+    location = source.get("location") or ""
+
+    similar = _q("""
+        SELECT id, case_ref, user_phone, category, status, location, assembly,
+               raw_message, created_at
+        FROM cases
+        WHERE tenant_id = :tid
+          AND id != :cid
+          AND (is_deleted = false OR is_deleted IS NULL)
+          AND created_at >= :since
+          AND (
+              user_phone = :phone
+              OR (category = :category AND (location = :location OR (location IS NULL AND :location = '')))
+          )
+        ORDER BY created_at DESC
+        LIMIT 10
+    """, {"tid": tid, "cid": case_id, "phone": phone, "category": category,
+          "location": location, "since": thirty_days_ago})
+
+    for c in similar:
+        val = c.get("created_at")
+        if val and hasattr(val, "isoformat"):
+            c["created_at"] = val.isoformat()
+        c["message_preview"] = (c.get("raw_message") or "")[:120]
+
+    return {"cases": similar, "source_phone": phone, "source_category": category}
+
+
+# --- OTP store for WhatsApp notify confirmation (in-memory, 5-min expiry) ---
+import secrets as _secrets
+_notify_otps: dict = {}
+
+
+@router.post("/cases/{case_id}/notify/request-otp")
+def request_notify_otp(case_id: int, user=Depends(get_current_user)):
+    """Generate and send a 6-digit OTP to the MP's registered WhatsApp number."""
+    tid = get_tenant_or_fail(user)
+    case = _q_one(
+        "SELECT c.id, c.case_ref, t.whatsapp_number FROM cases c "
+        "JOIN tenants t ON c.tenant_id = t.id "
+        "WHERE c.id = :cid AND c.tenant_id = :tid AND (c.is_deleted = false OR c.is_deleted IS NULL)",
+        {"cid": case_id, "tid": tid}
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    wa_number = case.get("whatsapp_number")
+    if not wa_number:
+        raise HTTPException(400, "No WhatsApp number registered for this account")
+
+    otp = str(_secrets.randbelow(900000) + 100000)
+    _notify_otps[(tid, case_id)] = {
+        "otp": otp,
+        "expires_at": datetime.utcnow() + timedelta(minutes=5),
+        "username": user.get("username", ""),
+    }
+
+    try:
+        from modules.whatsapp import send_whatsapp_message
+        case_ref = case.get("case_ref") or f"#{case_id}"
+        send_whatsapp_message(
+            wa_number,
+            f"[Needle] Your confirmation OTP for sending a citizen update on case {case_ref} is: *{otp}*\n\nThis code expires in 5 minutes. Do not share it."
+        )
+    except Exception as e:
+        _notify_otps.pop((tid, case_id), None)
+        raise HTTPException(500, f"Failed to send OTP: {str(e)}")
+
+    return {"success": True, "message": f"OTP sent to registered WhatsApp number ending in {wa_number[-4:]}"}
+
+
+class NotifyConfirmBody(BaseModel):
+    otp: str
+
+
+@router.post("/cases/{case_id}/notify/confirm")
+def confirm_notify(case_id: int, body: NotifyConfirmBody, user=Depends(get_current_user)):
+    """Verify OTP and send the WhatsApp status update to the citizen."""
+    tid = get_tenant_or_fail(user)
+    key = (tid, case_id)
+    entry = _notify_otps.get(key)
+
+    if not entry:
+        raise HTTPException(400, "No OTP requested for this case. Please request a new OTP.")
+    if datetime.utcnow() > entry["expires_at"]:
+        _notify_otps.pop(key, None)
+        raise HTTPException(400, "OTP has expired. Please request a new one.")
+    if body.otp.strip() != entry["otp"]:
+        raise HTTPException(400, "Incorrect OTP. Please check and try again.")
+
+    _notify_otps.pop(key, None)
+
+    # Now send the actual citizen notification (reuse notify logic)
+    case = _q_one(
+        "SELECT c.*, t.whatsapp_number as wa_number FROM cases c "
+        "JOIN tenants t ON c.tenant_id = t.id "
+        "WHERE c.id = :cid AND c.tenant_id = :tid",
+        {"cid": case_id, "tid": tid}
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    phone = case.get("user_phone")
+    status = case.get("status", "")
+    case_ref = case.get("case_ref", f"#{case_id}")
+
+    if not phone:
+        raise HTTPException(400, "Cannot notify: citizen phone number missing")
+
+    status_messages = {
+        "new": f"Your grievance ({case_ref}) has been received and is being reviewed.",
+        "in_progress": f"Update on your grievance ({case_ref}): We are actively working on this.",
+        "escalated": f"Update on your grievance ({case_ref}): This has been escalated to the relevant authority.",
+        "resolved": f"Good news! Your grievance ({case_ref}) has been resolved. If unsatisfied, reply 'NO' to reopen.",
+        "closed": f"Your grievance ({case_ref}) has been closed. Thank you for reaching out.",
+    }
+    message = status_messages.get(status, f"Update on your grievance ({case_ref}): Status is now '{status}'.")
+
+    try:
+        from modules.whatsapp import send_whatsapp_message
+        send_whatsapp_message(phone, message)
+        try:
+            _log_case_activity(tid, case_id, user.get("username", ""), "citizen_notified", new_value=status)
+        except Exception:
+            pass  # nosec B110
+        return {"success": True, "message": "Notification sent to citizen via WhatsApp"}
+    except ImportError:
+        raise HTTPException(500, "WhatsApp module not available")
+    except Exception as e:
+        raise HTTPException(500, f"Notification failed: {str(e)}")
 
 
 @router.post("/cases/backfill-refs")

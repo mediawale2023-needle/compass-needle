@@ -28,6 +28,8 @@ const TABS = [
     { key: 'escalated', label: 'Escalated' },
     { key: 'closed', label: 'Closed' },
     { key: 'other', label: 'Other' },
+    { key: 'clusters', label: 'Related Clusters' },
+    { key: 'deleted', label: 'Deleted' },
 ];
 
 const STATUS_OPTIONS = [
@@ -401,24 +403,44 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
     const [notes, setNotes] = useState('');
     const [response, setResponse] = useState('');
     const [savingNotes, setSavingNotes] = useState(false);
-    const [notifying, setNotifying] = useState(false);
     const [assignee, setAssignee] = useState('');
     const [activities, setActivities] = useState([]);
     const [loadingActivity, setLoadingActivity] = useState(false);
     const [showEscalation, setShowEscalation] = useState(false);
+    const [draftSaved, setDraftSaved] = useState(false);
+    const [similarCases, setSimilarCases] = useState([]);
+    const [otpOpen, setOtpOpen] = useState(false);
+    const [otpValue, setOtpValue] = useState('');
+    const [otpRequesting, setOtpRequesting] = useState(false);
+    const [otpConfirming, setOtpConfirming] = useState(false);
 
+    // Load from localStorage or server values when case opens
     useEffect(() => {
         if (!caseItem) return;
-        setNotes(caseItem.notes_for_staff || '');
-        setResponse(caseItem.response_to_citizen || '');
+        const savedNotes = localStorage.getItem(`draft_notes_${caseItem.id}`);
+        const savedResponse = localStorage.getItem(`draft_response_${caseItem.id}`);
+        setNotes(savedNotes !== null ? savedNotes : (caseItem.notes_for_staff || ''));
+        setResponse(savedResponse !== null ? savedResponse : (caseItem.response_to_citizen || ''));
         setAssignee(caseItem.assigned_to || '');
+        setDraftSaved(savedNotes !== null || savedResponse !== null);
 
         setLoadingActivity(true);
         apiGet(`/api/cases/${caseItem.id}/activity`)
             .then(d => setActivities(d.activities || []))
             .catch(() => setActivities([]))
             .finally(() => setLoadingActivity(false));
-    }, [caseItem]);
+
+        apiGet(`/api/cases/${caseItem.id}/similar`)
+            .then(d => setSimilarCases(d.cases || []))
+            .catch(() => setSimilarCases([]));
+    }, [caseItem?.id]);
+
+    // Autosave draft to localStorage on every keystroke
+    useEffect(() => {
+        if (!caseItem) return;
+        localStorage.setItem(`draft_notes_${caseItem.id}`, notes);
+        localStorage.setItem(`draft_response_${caseItem.id}`, response);
+    }, [notes, response, caseItem?.id]);
 
     if (!caseItem) return null;
 
@@ -449,12 +471,42 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
                 notes_for_staff: notes || null,
                 response_to_citizen: response || null,
             });
+            localStorage.removeItem(`draft_notes_${c.id}`);
+            localStorage.removeItem(`draft_response_${c.id}`);
+            setDraftSaved(false);
             toast.success('Notes saved successfully');
         } catch (err) {
             console.error('Failed to save notes:', err);
             toast.error('Failed to save notes');
         } finally {
             setSavingNotes(false);
+        }
+    };
+
+    const requestOtp = async () => {
+        setOtpRequesting(true);
+        try {
+            await apiPost(`/api/cases/${c.id}/notify/request-otp`);
+            setOtpOpen(true);
+            setOtpValue('');
+        } catch (err) {
+            toast.error(err.message || 'Failed to send OTP');
+        } finally {
+            setOtpRequesting(false);
+        }
+    };
+
+    const confirmOtp = async () => {
+        setOtpConfirming(true);
+        try {
+            await apiPost(`/api/cases/${c.id}/notify/confirm`, { otp: otpValue });
+            setOtpOpen(false);
+            setOtpValue('');
+            toast.success('WhatsApp update sent to citizen');
+        } catch (err) {
+            toast.error(err.message || 'Incorrect OTP');
+        } finally {
+            setOtpConfirming(false);
         }
     };
 
@@ -559,7 +611,10 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
 
                     <div className="space-y-4">
                         <div>
-                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Notes for Staff</div>
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="text-xs text-muted-foreground uppercase font-medium">Notes for Staff</div>
+                                {draftSaved && <span className="text-xs text-amber-600 font-medium">● Draft saved locally</span>}
+                            </div>
                             <Textarea
                                 value={notes}
                                 onChange={e => setNotes(e.target.value)}
@@ -578,31 +633,41 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
                             <Button onClick={saveNotes} disabled={savingNotes}>
-                                {savingNotes ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                {savingNotes ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                                 Save Notes
                             </Button>
                             <Button
                                 variant="outline"
                                 className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                                disabled={notifying || !c.user_phone}
-                                onClick={async () => {
-                                    setNotifying(true);
-                                    try {
-                                        await apiPost(`/api/cases/${c.id}/notify`);
-                                        toast.success('WhatsApp update sent to citizen');
-                                    } catch (err) {
-                                        console.error('Notify failed:', err);
-                                        toast.error('Failed to send WhatsApp notification');
-                                    } finally {
-                                        setNotifying(false);
-                                    }
-                                }}
+                                disabled={otpRequesting || !c.user_phone}
+                                onClick={requestOtp}
                             >
-                                {notifying ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                                {otpRequesting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
                                 Send Update via WhatsApp
                             </Button>
                         </div>
                     </div>
+
+                    {/* Similar / related cases */}
+                    {similarCases.length > 0 && (
+                        <>
+                            <Separator />
+                            <div>
+                                <div className="text-xs text-muted-foreground uppercase font-medium mb-2">
+                                    Related Cases ({similarCases.length})
+                                </div>
+                                <div className="space-y-1 max-h-36 overflow-y-auto">
+                                    {similarCases.map(s => (
+                                        <div key={s.id} className="flex items-center gap-2 text-xs py-1 border-b last:border-0">
+                                            <span className="font-mono text-muted-foreground shrink-0">#{s.id}</span>
+                                            {getStatusBadge(s.status)}
+                                            <span className="truncate text-muted-foreground">{s.message_preview}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </>
+                    )}
 
                     <Separator />
 
@@ -687,6 +752,36 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
                     toast={toast}
                 />
             )}
+
+            {/* OTP confirmation dialog */}
+            <Dialog open={otpOpen} onOpenChange={open => { setOtpOpen(open); if (!open) setOtpValue(''); }}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>Confirm WhatsApp Notification</DialogTitle>
+                        <DialogDescription>
+                            An OTP has been sent to your registered WhatsApp number. Enter it below to send the status update to the citizen.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-2">
+                        <Input
+                            placeholder="6-digit OTP"
+                            value={otpValue}
+                            onChange={e => setOtpValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            maxLength={6}
+                            className="text-center text-2xl tracking-widest font-mono"
+                            onKeyDown={e => e.key === 'Enter' && otpValue.length === 6 && confirmOtp()}
+                            autoFocus
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => { setOtpOpen(false); setOtpValue(''); }}>Cancel</Button>
+                        <Button onClick={confirmOtp} disabled={otpValue.length !== 6 || otpConfirming}>
+                            {otpConfirming ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                            Confirm & Send
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </Dialog>
     );
 }
@@ -711,6 +806,14 @@ function BriefcaseInner() {
     const [totalCases, setTotalCases] = useState(0);
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [staff, setStaff] = useState([]);
+    const [searchInput, setSearchInput] = useState('');
+    const [search, setSearch] = useState('');
+    const [pageSize, setPageSize] = useState(50);
+    const [hasNewCases, setHasNewCases] = useState(false);
+    const [clusters, setClusters] = useState([]);
+    const [loadingClusters, setLoadingClusters] = useState(false);
+    const [deletedCases, setDeletedCases] = useState([]);
+    const [loadingDeleted, setLoadingDeleted] = useState(false);
 
     async function downloadReport() {
         setDownloading(true);
@@ -744,17 +847,44 @@ function BriefcaseInner() {
         setPage(1);
     }, [searchParams]);
 
+    // Debounce search input → search param
+    useEffect(() => {
+        const t = setTimeout(() => { setSearch(searchInput); setPage(1); }, 400);
+        return () => clearTimeout(t);
+    }, [searchInput]);
+
     // Fetch staff on mount
     useEffect(() => {
         apiGet('/api/staff')
             .then(d => setStaff(d.staff || []))
-            .catch(() => {
-                console.error('Failed to fetch staff');
-            });
+            .catch(() => { console.error('Failed to fetch staff'); });
     }, []);
 
-    // Fetch cases whenever the active filter or page changes
+    // Fetch clusters when that tab is active
+    const fetchClusters = async () => {
+        setLoadingClusters(true);
+        try {
+            const d = await apiGet('/api/clusters');
+            setClusters(d.clusters || []);
+        } catch { setClusters([]); }
+        finally { setLoadingClusters(false); }
+    };
+
+    // Fetch deleted cases when that tab is active
+    const fetchDeleted = async () => {
+        setLoadingDeleted(true);
+        try {
+            const d = await apiGet('/api/cases/deleted');
+            setDeletedCases(d.cases || []);
+        } catch { setDeletedCases([]); }
+        finally { setLoadingDeleted(false); }
+    };
+
+    // Fetch cases whenever the active filter, page, search, or page size changes
     useEffect(() => {
+        if (statusFilter === 'clusters') { fetchClusters(); return; }
+        if (statusFilter === 'deleted') { fetchDeleted(); return; }
+
         let cancelled = false;
 
         async function fetchCases() {
@@ -762,22 +892,19 @@ function BriefcaseInner() {
             try {
                 const params = new URLSearchParams({
                     page: String(page),
-                    limit: '50'
+                    limit: String(pageSize),
                 });
 
                 if (statusFilter === 'my_cases') {
-                    if (user?.username) {
-                        params.set('assigned_to', user.username);
-                    }
+                    if (user?.username) params.set('assigned_to', user.username);
                 } else if (statusFilter === 'other') {
                     params.set('categories', OTHER_CATEGORIES.join(','));
                 } else if (statusFilter !== 'All') {
                     params.set('status', statusFilter);
                 }
 
-                if (categoryFilter) {
-                    params.set('category', categoryFilter);
-                }
+                if (categoryFilter) params.set('category', categoryFilter);
+                if (search) params.set('search', search);
 
                 const data = await apiGet(`/api/cases?${params}`);
                 if (!cancelled) {
@@ -785,6 +912,7 @@ function BriefcaseInner() {
                     setTotalPages(data.pages || 1);
                     setTotalCases(data.total || 0);
                     setSelectedIds(new Set());
+                    setHasNewCases(false);
                 }
             } catch (err) {
                 if (!cancelled) {
@@ -798,7 +926,25 @@ function BriefcaseInner() {
 
         fetchCases();
         return () => { cancelled = true; };
-    }, [statusFilter, categoryFilter, page, user?.username]);
+    }, [statusFilter, categoryFilter, page, user?.username, search, pageSize]);
+
+    // Poll every 30s for new cases (only on visible tabs with live data)
+    useEffect(() => {
+        if (statusFilter === 'clusters' || statusFilter === 'deleted') return;
+        const interval = setInterval(async () => {
+            if (document.visibilityState !== 'visible') return;
+            try {
+                const params = new URLSearchParams({ page: '1', limit: '1' });
+                if (statusFilter === 'my_cases' && user?.username) params.set('assigned_to', user.username);
+                else if (statusFilter === 'other') params.set('categories', OTHER_CATEGORIES.join(','));
+                else if (statusFilter !== 'All') params.set('status', statusFilter);
+                if (search) params.set('search', search);
+                const data = await apiGet(`/api/cases?${params}`);
+                if ((data.total || 0) > totalCases) setHasNewCases(true);
+            } catch { /* silent */ }
+        }, 30000);
+        return () => clearInterval(interval);
+    }, [statusFilter, totalCases, user?.username, search]);
 
     // Auto-open a specific case when case_id is present in the URL
     useEffect(() => {
@@ -811,11 +957,23 @@ function BriefcaseInner() {
     function switchTab(key) {
         setStatusFilter(key);
         setPage(1);
+        setSearch('');
+        setSearchInput('');
         const url = new URL(window.location.href);
         if (key === 'All') url.searchParams.delete('status');
         else url.searchParams.set('status', key);
         window.history.replaceState({}, '', url.toString());
     }
+
+    const handleRestore = async (caseId) => {
+        try {
+            await apiPatch(`/api/cases/${caseId}/restore`, {});
+            setDeletedCases(prev => prev.filter(c => c.id !== caseId));
+            toast.success('Case restored successfully');
+        } catch (err) {
+            toast.error(err.message || 'Failed to restore case');
+        }
+    };
 
     function clearCategoryFilter() {
         setCategoryFilter('');
@@ -893,6 +1051,21 @@ function BriefcaseInner() {
                 </Button>
             </div>
 
+            {hasNewCases && (
+                <div
+                    className="flex items-center justify-between gap-3 px-4 py-2 rounded-lg text-sm font-medium mb-2"
+                    style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46' }}
+                >
+                    <span>New cases arrived since last refresh.</span>
+                    <button
+                        className="text-xs underline"
+                        onClick={() => { setHasNewCases(false); setPage(1); }}
+                    >
+                        Refresh now
+                    </button>
+                </div>
+            )}
+
             <Card>
                 <CardHeader className="pb-0">
                     <div className="overflow-x-auto -mx-6 px-6">
@@ -914,6 +1087,31 @@ function BriefcaseInner() {
                             </TabsList>
                         </Tabs>
                     </div>
+
+                    {statusFilter !== 'clusters' && statusFilter !== 'deleted' && (
+                        <div className="flex items-center gap-2 mt-3">
+                            <div className="relative flex-1 max-w-sm">
+                                <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                                </svg>
+                                <Input
+                                    className="pl-8 h-8 text-sm"
+                                    placeholder="Search by phone, message, ref, location…"
+                                    value={searchInput}
+                                    onChange={e => setSearchInput(e.target.value)}
+                                />
+                            </div>
+                            <select
+                                className="text-sm border rounded px-2 py-1 h-8"
+                                value={pageSize}
+                                onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
+                            >
+                                {[25, 50, 100].map(n => (
+                                    <option key={n} value={n}>{n} / page</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                 </CardHeader>
 
                 {categoryFilter && (
@@ -969,7 +1167,85 @@ function BriefcaseInner() {
                 )}
 
                 <CardContent className="pt-0">
-                    {loading ? (
+                    {/* ── Clusters tab ── */}
+                    {statusFilter === 'clusters' ? (
+                        loadingClusters ? (
+                            <div className="space-y-3 py-6">{[1,2,3].map(i => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}</div>
+                        ) : clusters.length === 0 ? (
+                            <div className="text-center py-16 text-muted-foreground">No clusters found in the last 30 days.</div>
+                        ) : (
+                            <div className="divide-y">
+                                {clusters.map((cl, i) => (
+                                    <div key={i} className="py-4">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div>
+                                                <span className="font-semibold text-sm">{cl.category}</span>
+                                                {cl.location && cl.location !== 'Unknown' && (
+                                                    <span className="text-muted-foreground text-sm ml-2">· {cl.location}</span>
+                                                )}
+                                            </div>
+                                            <Badge variant="secondary">{cl.count} cases</Badge>
+                                        </div>
+                                        <div className="space-y-1">
+                                            {(cl.cases || []).slice(0, 5).map(c => (
+                                                <div
+                                                    key={c.id}
+                                                    className="text-xs text-muted-foreground flex items-center gap-2 cursor-pointer hover:text-foreground"
+                                                    onClick={() => setSelected({ id: c.id, ...c })}
+                                                >
+                                                    <span className="shrink-0">{getStatusBadge(c.status)}</span>
+                                                    <span className="truncate">{c.message_preview}</span>
+                                                </div>
+                                            ))}
+                                            {cl.count > 5 && (
+                                                <p className="text-xs text-muted-foreground">+{cl.count - 5} more cases in this cluster</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )
+                    ) : statusFilter === 'deleted' ? (
+                        /* ── Deleted tab ── */
+                        loadingDeleted ? (
+                            <div className="space-y-3 py-6">{[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}</div>
+                        ) : deletedCases.length === 0 ? (
+                            <div className="text-center py-16 text-muted-foreground">No deleted cases in the last 7 days.</div>
+                        ) : (
+                            <div className="overflow-x-auto -mx-6">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="pl-6">#</TableHead>
+                                            <TableHead>Contact</TableHead>
+                                            <TableHead>Category</TableHead>
+                                            <TableHead>Deleted At</TableHead>
+                                            <TableHead>Deleted By</TableHead>
+                                            <TableHead className="text-right pr-6">Action</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {deletedCases.map(c => (
+                                            <TableRow key={c.id} className="opacity-60">
+                                                <TableCell className="pl-6 font-mono text-xs text-muted-foreground">{c.id}</TableCell>
+                                                <TableCell className="font-mono text-xs">{c.user_phone || '-'}</TableCell>
+                                                <TableCell>{c.category || 'General'}</TableCell>
+                                                <TableCell className="text-xs text-muted-foreground">
+                                                    {c.deleted_at ? new Date(c.deleted_at).toLocaleString('en-IN') : '-'}
+                                                </TableCell>
+                                                <TableCell className="text-xs">{c.deleted_by || '-'}</TableCell>
+                                                <TableCell className="text-right pr-6">
+                                                    <Button size="sm" variant="outline" onClick={() => handleRestore(c.id)}>
+                                                        Restore
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )
+                    ) : loading ? (
                         <div className="space-y-3 py-6">
                             {[1, 2, 3, 4, 5].map(i => (
                                 <div key={i} className="flex items-center gap-4">
@@ -989,7 +1265,8 @@ function BriefcaseInner() {
                             <CheckCircle className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
                             <p className="text-muted-foreground">
                                 No cases found{categoryFilter ? ` in "${categoryFilter}"` : ''}
-                                {statusFilter !== 'All' ? ` with status "${statusFilter}"` : ''}.
+                                {statusFilter !== 'All' ? ` with status "${statusFilter}"` : ''}
+                                {search ? ` matching "${search}"` : ''}.
                             </p>
                         </div>
                     ) : (
@@ -1077,29 +1354,27 @@ function BriefcaseInner() {
                     )}
                 </CardContent>
 
-                <div className="px-6 py-3 border-t flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">
-                        Page {page} of {totalPages} ({totalCases} total cases)
-                    </span>
-                    <div className="flex gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={page <= 1}
-                            onClick={() => setPage(p => Math.max(1, p - 1))}
-                        >
-                            Previous
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={page >= totalPages}
-                            onClick={() => setPage(p => p + 1)}
-                        >
-                            Next
-                        </Button>
+                {statusFilter !== 'clusters' && statusFilter !== 'deleted' && (
+                    <div className="px-6 py-3 border-t flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">
+                            Page {page} of {totalPages} · <strong>{totalCases}</strong> total cases
+                            {search && <span> · filtered by "{search}"</span>}
+                        </span>
+                        <div className="flex gap-2">
+                            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
+                                Previous
+                            </Button>
+                            {totalPages > 2 && (
+                                <span className="flex items-center px-2 text-sm text-muted-foreground">
+                                    {page} / {totalPages}
+                                </span>
+                            )}
+                            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+                                Next
+                            </Button>
+                        </div>
                     </div>
-                </div>
+                )}
             </Card>
 
             <CaseModal
