@@ -850,9 +850,18 @@ async def upload_pdf(file: UploadFile = File(...), _=Depends(get_admin_user)):
     except Exception as e:
         raise HTTPException(500, f"PDF parse error: {e}")
 
-    # Fallback: if pdfplumber extracted nothing, try Gemini Vision OCR
-    if not stations:
-        logger.info("pdfplumber extracted no stations — falling back to Gemini Vision OCR")
+    # Fallback: use Gemini Vision OCR if pdfplumber found nothing OR
+    # if the extracted text is font-encoded (Krutidev/DevLys) garbage.
+    # Krutidev PDFs render Hindi via custom ASCII→glyph fonts; pdfplumber
+    # extracts the raw ASCII bytes which look like "?kjcjk", "tV~Vkjh".
+    # Telltale patterns: <+, >M+, ~, ]+, etc. in locality strings.
+    _krutidev_pat = re.compile(r'[<>~\]\^\\]{1}|\+[a-z]|[a-z]\+')
+    if not stations or any(
+        _krutidev_pat.search(s.get("locality", ""))
+        for s in stations[:20]
+        if not any('\u0900' <= c <= '\u097F' for c in s.get("locality", ""))
+    ):
+        logger.info("Font-encoded or empty PDF detected — falling back to Gemini Vision OCR")
         stations = _ocr_pdf_with_gemini(content)
         debug_info["gemini_ocr_used"] = True
 
