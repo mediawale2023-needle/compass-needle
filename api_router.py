@@ -319,14 +319,17 @@ def get_cases(
     total = count_row["cnt"] if count_row else 0
     pages = (total + limit - 1) // limit if limit > 0 else 0
 
-    cases = _q(f"""  # nosec B608
+    cases = _q(  # nosec B608
+        f"""
         SELECT c.id, c.user_phone, c.category, c.status, c.raw_message,
                c.case_metadata, c.is_critical, c.created_at, c.updated_at,
                c.response_to_citizen, c.notes_for_staff
         FROM cases c WHERE {where}
         ORDER BY c.created_at DESC
         LIMIT :lim OFFSET :off
-    """, {**params, "lim": limit, "off": offset})
+        """,
+        {**params, "lim": limit, "off": offset}
+    )
 
     for c in cases:
         meta = c.get("case_metadata")
