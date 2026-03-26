@@ -24,7 +24,7 @@ export default function AnnouncementsPage() {
 
     const showMsg = (msg) => {
         setActionMsg(msg);
-        setTimeout(() => setActionMsg(''), 3000);
+        setTimeout(() => setActionMsg(''), 3500);
     };
 
     const handleCreate = async (e) => {
@@ -35,7 +35,7 @@ export default function AnnouncementsPage() {
             const created = await apiPost('/api/admin/announcements', form);
             setAnnouncements(prev => [created, ...prev]);
             setForm({ title: '', body: '' });
-            showMsg('Announcement created and published.');
+            showMsg('Announcement published to all MP dashboards.');
         } catch (err) {
             showMsg(`Error: ${err.message}`);
         } finally {
@@ -64,33 +64,24 @@ export default function AnnouncementsPage() {
         }
     };
 
+    const formatDate = (ts) => ts
+        ? new Date(ts).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : '—';
+
     return (
         <>
-            <div className="section-title">Announcements</div>
-            <p style={{ color: '#6b7f76', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-                Compose banners that appear on all MP dashboards. Active announcements are shown immediately.
-            </p>
-
-            {actionMsg && (
-                <div style={{ padding: '10px 16px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8, color: '#065f46', marginBottom: '1rem', fontSize: '0.85rem' }}>
-                    {actionMsg}
-                </div>
-            )}
-
-            {error && (
-                <div style={{ padding: '10px 16px', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 8, color: '#be123c', marginBottom: '1rem', fontSize: '0.85rem' }}>
-                    {error}
-                </div>
-            )}
+            {actionMsg && <div className="toast toast-success">{actionMsg}</div>}
+            {error && <div className="toast toast-error">{error}</div>}
 
             {/* Composer */}
             <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
-                <h3 style={{ fontWeight: 700, color: '#1a2e28', marginBottom: '1rem', fontSize: '0.95rem' }}>
-                    📢 New Announcement
-                </h3>
+                <div className="section-title">New Announcement</div>
+                <p style={{ color: '#6b7f76', fontSize: '0.8rem', marginTop: -8, marginBottom: '1rem' }}>
+                    Active announcements appear as banners on all MP dashboards immediately.
+                </p>
                 <form onSubmit={handleCreate}>
-                    <div style={{ marginBottom: '0.75rem' }}>
-                        <label style={{ fontSize: '0.8rem', color: '#6b7f76', fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                    <div className="form-row">
+                        <label className="form-label">
                             Title <span style={{ color: '#e11d48' }}>*</span>
                         </label>
                         <input
@@ -99,12 +90,11 @@ export default function AnnouncementsPage() {
                             onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                             placeholder="e.g. Scheduled maintenance on Saturday"
                             required
-                            style={{ width: '100%' }}
                         />
                     </div>
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label style={{ fontSize: '0.8rem', color: '#6b7f76', fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                            Body <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>(optional)</span>
+                    <div className="form-row">
+                        <label className="form-label">
+                            Body <span style={{ fontWeight: 400, color: '#94a3b8' }}>(optional)</span>
                         </label>
                         <textarea
                             className="form-input"
@@ -112,21 +102,34 @@ export default function AnnouncementsPage() {
                             onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
                             placeholder="Additional details shown below the title…"
                             rows={2}
-                            style={{ width: '100%', resize: 'vertical' }}
+                            style={{ resize: 'vertical' }}
                         />
                     </div>
-                    <button className="btn-primary" type="submit" disabled={submitting || !form.title.trim()}>
-                        {submitting ? 'Publishing…' : 'Publish Announcement'}
-                    </button>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <button className="btn-primary" type="submit" disabled={submitting || !form.title.trim()} style={{ padding: '9px 28px' }}>
+                            {submitting ? 'Publishing…' : 'Publish Announcement'}
+                        </button>
+                    </div>
                 </form>
             </div>
 
             {/* List */}
             {loading ? (
-                <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7f76' }}>Loading…</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {[...Array(3)].map((_, i) => <div key={i} className="skeleton" style={{ height: 76, borderRadius: 10 }} />)}
+                </div>
             ) : announcements.length === 0 ? (
-                <div className="glass-panel" style={{ textAlign: 'center', color: '#6b7f76', padding: '2rem' }}>
-                    No announcements yet. Create one above.
+                <div className="glass-panel">
+                    <div className="empty-state">
+                        <div className="empty-state-icon">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M22 10.5V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h12.5"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                                <path d="M18 15.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/><path d="M20.27 17.27 22 19"/>
+                            </svg>
+                        </div>
+                        <div className="empty-state-title">No announcements yet</div>
+                        <div className="empty-state-desc">Create one above — it will appear on all MP dashboards immediately</div>
+                    </div>
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -136,40 +139,37 @@ export default function AnnouncementsPage() {
                             className="glass-panel"
                             style={{
                                 display: 'flex', alignItems: 'flex-start', gap: '1rem',
-                                opacity: a.is_active ? 1 : 0.6,
-                                borderLeft: `4px solid ${a.is_active ? '#006a4d' : '#94a3b8'}`,
-                                padding: '1rem 1.2rem',
+                                opacity: a.is_active ? 1 : 0.65,
+                                borderLeft: `3px solid ${a.is_active ? '#006a4d' : '#cbd5e1'}`,
+                                padding: '14px 18px',
+                                transition: 'opacity 0.2s',
                             }}
                         >
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 700, color: '#1a2e28', marginBottom: a.body ? 4 : 0 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 600, color: '#1a2e28', marginBottom: a.body ? 4 : 0, fontSize: '0.9rem' }}>
                                     {a.title}
                                 </div>
                                 {a.body && (
-                                    <div style={{ fontSize: '0.83rem', color: '#6b7f76' }}>{a.body}</div>
+                                    <div style={{ fontSize: '0.82rem', color: '#6b7f76', marginBottom: 6 }}>{a.body}</div>
                                 )}
-                                <div style={{ fontSize: '0.73rem', color: '#94a3b8', marginTop: 6 }}>
-                                    Created {a.created_at ? new Date(a.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                                <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                                    Published {formatDate(a.created_at)}
                                 </div>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                                <span style={{
-                                    padding: '3px 10px', borderRadius: 20,
-                                    background: a.is_active ? '#ecfdf5' : '#f8fafc',
-                                    color: a.is_active ? '#065f46' : '#64748b',
-                                    fontSize: '0.73rem', fontWeight: 600,
-                                }}>
-                                    {a.is_active ? '● Live' : '○ Inactive'}
+                                <span className={`badge badge-dot ${a.is_active ? 'badge-green' : 'badge-slate'}`}>
+                                    {a.is_active ? 'Live' : 'Inactive'}
                                 </span>
-                                <button
-                                    onClick={() => handleToggle(a)}
-                                    style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #e2ebe5', background: '#fff', color: '#1a2e28', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit' }}
-                                >
+                                <button className="btn-ghost" onClick={() => handleToggle(a)}>
                                     {a.is_active ? 'Deactivate' : 'Activate'}
                                 </button>
                                 <button
                                     onClick={() => handleDelete(a.id)}
-                                    style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: '#fff1f2', color: '#be123c', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}
+                                    style={{
+                                        padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                                        fontFamily: 'inherit', background: '#fff1f2', color: '#be123c',
+                                        fontSize: '0.76rem', fontWeight: 600,
+                                    }}
                                 >
                                     Delete
                                 </button>

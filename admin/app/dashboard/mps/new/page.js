@@ -25,14 +25,11 @@ export default function CreateMPPage() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!form.name || !form.username || !form.password) {
-            setError('Fill all required fields');
-            return;
-        }
+        if (!form.name || !form.username || !form.password) { setError('Fill all required fields'); return; }
         setLoading(true);
         setError('');
         try {
-            const payload = {
+            await apiPost('/api/admin/mps', {
                 name: form.name,
                 username: form.username,
                 password: form.password,
@@ -45,9 +42,8 @@ export default function CreateMPPage() {
                 languages: form.languages ? form.languages.split(',').map(s => s.trim()).filter(Boolean) : ['English', 'Hindi'],
                 key_facts: form.key_facts ? form.key_facts.split('\n').map(s => s.trim()).filter(Boolean) : [],
                 alt_names: form.alt_names ? form.alt_names.split(',').map(s => s.trim()).filter(Boolean) : [],
-            };
-            await apiPost('/api/admin/mps', payload);
-            setSuccess(`Created ${form.name}`);
+            });
+            setSuccess(`Created ${form.name} — redirecting…`);
             setTimeout(() => router.push('/dashboard'), 1500);
         } catch (err) {
             setError(err.message);
@@ -58,33 +54,34 @@ export default function CreateMPPage() {
 
     return (
         <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '1.5rem' }}>
-                <button className="btn-secondary" onClick={() => router.push('/dashboard')}>← Back</button>
-                <div className="section-title" style={{ margin: 0, border: 'none', paddingBottom: 0 }}>Add New MP</div>
+            <div style={{ marginBottom: '1.5rem' }}>
+                <button className="btn-secondary" onClick={() => router.push('/dashboard')} style={{ fontSize: '0.8rem', padding: '6px 14px' }}>
+                    ← Back to Overview
+                </button>
             </div>
 
             <form onSubmit={handleSubmit}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: '1.25rem' }}>
                     {/* Left Column */}
                     <div className="glass-panel">
-                        <h3 style={{ color: '#1a2e28', fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Identity & Login</h3>
+                        <div className="section-title">Identity & Login</div>
 
-                        <div style={{ marginBottom: 12 }}>
+                        <div className="form-row">
                             <label className="form-label">MP Full Name *</label>
-                            <input className="form-input" placeholder="Hon. Shri/Smt..." value={form.name} onChange={set('name')} required />
+                            <input className="form-input" placeholder="Hon. Shri/Smt…" value={form.name} onChange={set('name')} required />
                         </div>
-                        <div style={{ marginBottom: 12 }}>
+                        <div className="form-row">
                             <label className="form-label">Display Name</label>
                             <input className="form-input" placeholder="Dashboard display name" value={form.display_name} onChange={set('display_name')} />
                         </div>
-                        <div style={{ marginBottom: 12 }}>
+                        <div className="form-row">
                             <label className="form-label">House *</label>
                             <select className="form-input" value={form.house} onChange={set('house')}>
                                 <option value="Lok Sabha">Lok Sabha</option>
                                 <option value="Rajya Sabha">Rajya Sabha</option>
                             </select>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                             <div>
                                 <label className="form-label">Username *</label>
                                 <input className="form-input" placeholder="username" value={form.username} onChange={set('username')} required />
@@ -96,21 +93,21 @@ export default function CreateMPPage() {
                         </div>
 
                         {form.house === 'Lok Sabha' ? (
-                            <div style={{ marginBottom: 12 }}>
+                            <div className="form-row">
                                 <label className="form-label">Parliamentary Constituency *</label>
                                 <select className="form-input" value={form.constituency} onChange={set('constituency')}>
-                                    <option value="">Select...</option>
+                                    <option value="">Select…</option>
                                     {constituencies.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             </div>
                         ) : (
-                            <div style={{ marginBottom: 12 }}>
-                                <label className="form-label">State/Nominated</label>
+                            <div className="form-row">
+                                <label className="form-label">State / Nominated</label>
                                 <input className="form-input" placeholder="e.g. Maharashtra" value={form.constituency} onChange={set('constituency')} />
                             </div>
                         )}
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                             <div>
                                 <label className="form-label">State *</label>
                                 <input className="form-input" placeholder="e.g. Karnataka" value={form.state} onChange={set('state')} />
@@ -120,37 +117,37 @@ export default function CreateMPPage() {
                                 <input className="form-input" placeholder="e.g. BJP, INC" value={form.party} onChange={set('party')} />
                             </div>
                         </div>
-                        <div style={{ marginBottom: 12 }}>
-                            <label className="form-label">WhatsApp</label>
-                            <input className="form-input" placeholder="+91..." value={form.whatsapp_number} onChange={set('whatsapp_number')} />
+                        <div className="form-row">
+                            <label className="form-label">WhatsApp Number</label>
+                            <input className="form-input" placeholder="+91…" value={form.whatsapp_number} onChange={set('whatsapp_number')} />
                         </div>
                     </div>
 
                     {/* Right Column */}
                     <div className="glass-panel">
-                        <h3 style={{ color: '#1a2e28', fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Profile Data</h3>
+                        <div className="section-title">Profile Data</div>
 
-                        <div style={{ marginBottom: 12 }}>
-                            <label className="form-label">Languages (comma-separated)</label>
+                        <div className="form-row">
+                            <label className="form-label">Languages <span style={{ fontWeight: 400, color: '#94a3b8' }}>(comma-separated)</span></label>
                             <input className="form-input" placeholder="English, Hindi, Kannada" value={form.languages} onChange={set('languages')} />
                         </div>
-                        <div style={{ marginBottom: 12 }}>
-                            <label className="form-label">Key Facts (one per line)</label>
-                            <textarea className="form-input" placeholder="Major industrial hub\nBorder district" rows={4} value={form.key_facts} onChange={set('key_facts')} />
+                        <div className="form-row">
+                            <label className="form-label">Key Facts <span style={{ fontWeight: 400, color: '#94a3b8' }}>(one per line)</span></label>
+                            <textarea className="form-input" placeholder="Major industrial hub&#10;Border district" rows={5} value={form.key_facts} onChange={set('key_facts')} />
                         </div>
-                        <div style={{ marginBottom: 12 }}>
-                            <label className="form-label">Alt Constituency Names (comma-separated)</label>
+                        <div className="form-row">
+                            <label className="form-label">Alt Constituency Names <span style={{ fontWeight: 400, color: '#94a3b8' }}>(comma-separated)</span></label>
                             <input className="form-input" placeholder="Belagavi, Belgaum" value={form.alt_names} onChange={set('alt_names')} />
                         </div>
                     </div>
                 </div>
 
-                {error && <div style={{ background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.15)', color: '#dc2626', padding: '10px 14px', borderRadius: 10, fontSize: '0.82rem', marginTop: '1rem' }}>{error}</div>}
-                {success && <div style={{ background: 'rgba(5,150,105,0.06)', border: '1px solid rgba(5,150,105,0.15)', color: '#059669', padding: '10px 14px', borderRadius: 10, fontSize: '0.82rem', marginTop: '1rem' }}>{success}</div>}
+                {error && <div className="toast toast-error">{error}</div>}
+                {success && <div className="toast toast-success">{success}</div>}
 
-                <div style={{ marginTop: '1.5rem', textAlign: 'right' }}>
-                    <button type="submit" className="btn-primary" disabled={loading} style={{ padding: '12px 32px', fontSize: '0.9rem' }}>
-                        {loading ? 'Creating...' : 'Create MP'}
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button type="submit" className="btn-primary" disabled={loading} style={{ padding: '10px 32px', fontSize: '0.88rem' }}>
+                        {loading ? 'Creating…' : 'Create MP'}
                     </button>
                 </div>
             </form>

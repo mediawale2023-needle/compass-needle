@@ -40,6 +40,11 @@ export default function GeographyUploadPage() {
         } catch { }
     };
 
+    const showMsg = (type, text) => {
+        setMsg({ type, text });
+        setTimeout(() => setMsg({ type: '', text: '' }), 4000);
+    };
+
     const aConst = aSelection === '__new__' ? newAssembly : aSelection;
 
     const handleParsePDF = async () => {
@@ -52,9 +57,9 @@ export default function GeographyUploadPage() {
             const stations = r.stations || [];
             setParsedStations(stations);
             setJsonText(JSON.stringify(stations, null, 2));
-            setMsg({ type: 'success', text: `Extracted ${stations.length} stations` });
+            showMsg('success', `Extracted ${stations.length} stations`);
         } catch (err) {
-            setMsg({ type: 'error', text: err.message });
+            showMsg('error', err.message);
         } finally {
             setParsing(false);
         }
@@ -64,15 +69,16 @@ export default function GeographyUploadPage() {
         try {
             const data = JSON.parse(jsonText);
             await apiPut(`/api/admin/geography/${encodeURIComponent(pConst)}/${encodeURIComponent(aConst)}`, { data });
-            setMsg({ type: 'success', text: 'Saved!' });
+            showMsg('success', 'Geography data saved successfully.');
             setParsedStations(null);
             loadSavedFiles();
         } catch {
-            setMsg({ type: 'error', text: 'Invalid JSON' });
+            showMsg('error', 'Invalid JSON — please check the editor.');
         }
     };
 
     const handleDeleteGeo = async (pc, ac) => {
+        if (!confirm(`Delete assembly "${ac}" from ${pc}?`)) return;
         try {
             await apiDelete(`/api/admin/geography/${encodeURIComponent(pc)}/${encodeURIComponent(ac)}`);
             loadSavedFiles();
@@ -81,57 +87,66 @@ export default function GeographyUploadPage() {
 
     return (
         <>
-            <div className="section-title">Upload Polling Station Data</div>
+            {msg.text && <div className={`toast ${msg.type === 'success' ? 'toast-success' : 'toast-error'}`}>{msg.text}</div>}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: '1rem' }}>
-                <div>
-                    <label className="form-label">Parliamentary Constituency</label>
-                    <select className="form-input" value={pConst} onChange={e => { setPConst(e.target.value); setASelection(''); }}>
-                        <option value="">Select...</option>
-                        {constituencies.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                </div>
-                <div>
-                    <label className="form-label">Assembly Constituency</label>
-                    {pConst ? (
-                        <>
-                            <select className="form-input" value={aSelection} onChange={e => setASelection(e.target.value)}>
-                                {assemblies.map(a => <option key={a} value={a}>{a}</option>)}
-                                <option value="__new__">+ Add New Assembly...</option>
+            {/* Upload form */}
+            <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
+                <div className="section-title">Upload Polling Station Data</div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: '1rem' }}>
+                    <div className="form-row" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Parliamentary Constituency</label>
+                        <select className="form-input" value={pConst} onChange={e => { setPConst(e.target.value); setASelection(''); }}>
+                            <option value="">Select…</option>
+                            {constituencies.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
+                    <div className="form-row" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Assembly Constituency</label>
+                        {pConst ? (
+                            <>
+                                <select className="form-input" value={aSelection} onChange={e => setASelection(e.target.value)}>
+                                    <option value="">Select…</option>
+                                    {assemblies.map(a => <option key={a} value={a}>{a}</option>)}
+                                    <option value="__new__">+ Add New Assembly…</option>
+                                </select>
+                                {aSelection === '__new__' && (
+                                    <input
+                                        className="form-input"
+                                        style={{ marginTop: 8 }}
+                                        placeholder="e.g. Belgaum Uttar"
+                                        value={newAssembly}
+                                        onChange={e => setNewAssembly(e.target.value)}
+                                    />
+                                )}
+                            </>
+                        ) : (
+                            <select className="form-input" disabled>
+                                <option>Select a parliamentary constituency first</option>
                             </select>
-                            {aSelection === '__new__' && (
-                                <input className="form-input" style={{ marginTop: 8 }} placeholder="e.g. Belgaum Uttar" value={newAssembly} onChange={e => setNewAssembly(e.target.value)} />
-                            )}
-                        </>
-                    ) : (
-                        <select className="form-input" disabled><option>Select a Parliamentary Constituency first</option></select>
-                    )}
+                        )}
+                    </div>
                 </div>
-            </div>
 
-            <div style={{ marginBottom: '1rem' }}>
-                <label className="form-label">Upload Election Commission PDF</label>
-                <input type="file" accept=".pdf" ref={fileRef} className="form-input" style={{ padding: 8 }} />
-            </div>
+                <div className="form-row">
+                    <label className="form-label">Election Commission PDF</label>
+                    <input type="file" accept=".pdf" ref={fileRef} className="form-input" style={{ padding: 8 }} />
+                </div>
 
-            {pConst && aConst && (
-                <button className="btn-primary" onClick={handleParsePDF} disabled={parsing} style={{ width: '100%', marginBottom: '1rem' }}>
-                    {parsing ? 'Parsing...' : 'Parse PDF'}
+                <button
+                    className="btn-primary"
+                    onClick={handleParsePDF}
+                    disabled={!pConst || !aConst || parsing}
+                    style={{ width: '100%' }}
+                >
+                    {parsing ? 'Parsing PDF…' : 'Parse PDF'}
                 </button>
-            )}
+            </div>
 
-            {msg.text && (
-                <div style={{
-                    background: msg.type === 'success' ? 'rgba(5,150,105,0.06)' : 'rgba(220,38,38,0.06)',
-                    border: `1px solid ${msg.type === 'success' ? 'rgba(5,150,105,0.15)' : 'rgba(220,38,38,0.15)'}`,
-                    color: msg.type === 'success' ? '#059669' : '#dc2626',
-                    padding: '10px 14px', borderRadius: 10, fontSize: '0.82rem', marginBottom: '1rem',
-                }}>{msg.text}</div>
-            )}
-
+            {/* JSON editor */}
             {parsedStations && (
                 <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
-                    <h3 style={{ color: '#1a2e28', fontSize: '1rem', fontWeight: 600, marginBottom: 12 }}>JSON Editor</h3>
+                    <div className="section-title">JSON Editor — Review Before Saving</div>
                     <textarea
                         className="form-input"
                         rows={14}
@@ -140,33 +155,74 @@ export default function GeographyUploadPage() {
                         style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
                     />
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
-                        <button className="btn-primary" onClick={handleSave}>Save</button>
-                        <button className="btn-secondary" onClick={() => setParsedStations(null)}>Discard</button>
+                        <button className="btn-primary" onClick={handleSave}>Save to Database</button>
+                        <button className="btn-secondary" onClick={() => { setParsedStations(null); setJsonText(''); }}>Discard</button>
                     </div>
                 </div>
             )}
 
-            <hr style={{ border: 'none', borderTop: '1px solid #e2ebe5', margin: '1.5rem 0' }} />
+            <hr className="divider" />
 
-            <div className="section-title">Saved Geography Files</div>
+            {/* Saved geography list */}
+            <div className="section-title" style={{ marginBottom: '1rem' }}>Saved Geography Files</div>
+
             {savedPCs.length === 0 ? (
-                <div className="glass-panel" style={{ textAlign: 'center', color: '#6b7f76', padding: '2rem' }}>No geography data uploaded yet.</div>
-            ) : (
-                savedPCs.map(pc => (
-                    <div key={pc} className="glass-panel" style={{ marginBottom: 12 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
-                            onClick={() => setSavedData(prev => ({ ...prev, [`${pc}_open`]: !prev[`${pc}_open`] }))}>
-                            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>🏛️ {pc}</span>
-                            <span style={{ color: '#6b7f76', fontSize: '0.75rem' }}>{(savedData[pc] || []).length} assemblies</span>
+                <div className="glass-panel">
+                    <div className="empty-state">
+                        <div className="empty-state-icon">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6l9-4 9 4v12l-9 4-9-4V6z"/><path d="M12 2v20M3 6l9 4 9-4"/>
+                            </svg>
                         </div>
-                        {savedData[`${pc}_open`] && (savedData[pc] || []).map(ac => (
-                            <div key={ac} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid #f0f4f1', marginTop: 8 }}>
-                                <span style={{ fontSize: '0.85rem' }}><strong>{ac}</strong></span>
-                                <button className="btn-danger" style={{ fontSize: '0.72rem', padding: '4px 10px' }} onClick={() => handleDeleteGeo(pc, ac)}>Delete</button>
-                            </div>
-                        ))}
+                        <div className="empty-state-title">No geography data uploaded yet</div>
+                        <div className="empty-state-desc">Upload an Election Commission PDF above to get started</div>
                     </div>
-                ))
+                </div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {savedPCs.map(pc => (
+                        <div key={pc} className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
+                            <div
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', cursor: 'pointer' }}
+                                onClick={() => setSavedData(prev => ({ ...prev, [`${pc}_open`]: !prev[`${pc}_open`] }))}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#006a4d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M3 6l9-4 9 4v12l-9 4-9-4V6z"/>
+                                    </svg>
+                                    <span style={{ fontWeight: 600, fontSize: '0.88rem', color: '#1a2e28' }}>{pc}</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <span className="badge badge-slate">{(savedData[pc] || []).length} assemblies</span>
+                                    <svg
+                                        width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7f76" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                                        style={{ transform: savedData[`${pc}_open`] ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+                                    >
+                                        <polyline points="6 9 12 15 18 9"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            {savedData[`${pc}_open`] && (
+                                <div style={{ borderTop: '1px solid #e2ebe5' }}>
+                                    {(savedData[pc] || []).length === 0 ? (
+                                        <div style={{ padding: '12px 16px', color: '#6b7f76', fontSize: '0.82rem' }}>No assemblies found</div>
+                                    ) : (savedData[pc] || []).map(ac => (
+                                        <div key={ac} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid #f0f4f1' }}>
+                                            <span style={{ fontSize: '0.85rem', color: '#1a2e28' }}>{ac}</span>
+                                            <button
+                                                className="btn-danger"
+                                                style={{ fontSize: '0.72rem', padding: '4px 10px' }}
+                                                onClick={() => handleDeleteGeo(pc, ac)}
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
             )}
         </>
     );

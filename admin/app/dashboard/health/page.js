@@ -3,10 +3,17 @@ import { useState, useEffect } from 'react';
 import { apiGet } from '@/lib/api';
 
 const STATUS_STYLES = {
-    active:   { bg: '#ecfdf5', color: '#065f46', dot: '#10b981', label: 'Active' },
-    stale:    { bg: '#fffbeb', color: '#92400e', dot: '#f59e0b', label: 'Stale' },
-    inactive: { bg: '#fff1f2', color: '#9f1239', dot: '#f43f5e', label: 'Inactive' },
-    no_data:  { bg: '#f8fafc', color: '#64748b', dot: '#94a3b8', label: 'No Data' },
+    active:   { badgeClass: 'badge badge-green badge-dot', dotColor: '#10b981', label: 'Active' },
+    stale:    { badgeClass: 'badge badge-amber badge-dot', dotColor: '#f59e0b', label: 'Stale' },
+    inactive: { badgeClass: 'badge badge-red badge-dot',  dotColor: '#f43f5e', label: 'Inactive' },
+    no_data:  { badgeClass: 'badge badge-slate badge-dot', dotColor: '#94a3b8', label: 'No Data' },
+};
+
+const SUMMARY_COLORS = {
+    active:   { accent: '#10b981', bg: '#ecfdf5' },
+    stale:    { accent: '#f59e0b', bg: '#fffbeb' },
+    inactive: { accent: '#f43f5e', bg: '#fff1f2' },
+    no_data:  { accent: '#94a3b8', bg: '#f8fafc' },
 };
 
 export default function TenantHealthPage() {
@@ -26,79 +33,68 @@ export default function TenantHealthPage() {
 
     return (
         <>
-            <div className="section-title">Tenant Health</div>
-            <p style={{ color: '#6b7f76', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-                Monitor MP tenant activity status across the platform.
-            </p>
-
-            {/* Summary row */}
+            {/* Summary Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: '1.5rem' }}>
-                {Object.entries(STATUS_STYLES).map(([key, s]) => (
-                    <div key={key} className="stat-card" style={{ borderLeft: `4px solid ${s.dot}` }}>
-                        <div style={{ fontSize: '1.8rem', fontWeight: 800, color: s.dot, lineHeight: 1 }}>
-                            {counts[key]}
+                {Object.entries(STATUS_STYLES).map(([key, s]) => {
+                    const c = SUMMARY_COLORS[key];
+                    return (
+                        <div key={key} className="stat-card" style={{ borderLeft: `3px solid ${c.accent}` }}>
+                            <div style={{ fontSize: '1.9rem', fontWeight: 800, color: c.accent, lineHeight: 1, letterSpacing: '-1px' }}>
+                                {counts[key]}
+                            </div>
+                            <div style={{ color: '#6b7f76', fontSize: '0.72rem', fontWeight: 500, marginTop: 5, textTransform: 'uppercase', letterSpacing: '0.7px' }}>
+                                {s.label}
+                            </div>
                         </div>
-                        <div style={{ color: '#6b7f76', fontSize: '0.75rem', fontWeight: 500, marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                            {s.label}
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
 
-            {error && (
-                <div style={{ padding: '12px 16px', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 8, color: '#be123c', marginBottom: '1rem', fontSize: '0.85rem' }}>
-                    {error}
-                </div>
-            )}
+            {error && <div className="toast toast-error" style={{ marginBottom: '1rem' }}>{error}</div>}
 
             {loading ? (
-                <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7f76' }}>Loading…</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {[...Array(5)].map((_, i) => <div key={i} className="skeleton" style={{ height: 48, borderRadius: 8 }} />)}
+                </div>
             ) : tenants.length === 0 ? (
-                <div className="glass-panel" style={{ textAlign: 'center', color: '#6b7f76', padding: '2rem' }}>
-                    No tenant data available.
+                <div className="glass-panel">
+                    <div className="empty-state">
+                        <div className="empty-state-title">No tenant data available</div>
+                        <div className="empty-state-desc">Tenant health data will appear once MPs are active</div>
+                    </div>
                 </div>
             ) : (
                 <div className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                    <table className="data-table">
                         <thead>
-                            <tr style={{ background: '#f0f7f4', borderBottom: '1px solid #e2ebe5' }}>
-                                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 600, color: '#1a2e28' }}>MP / Tenant</th>
-                                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 600, color: '#1a2e28' }}>Constituency</th>
-                                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 600, color: '#1a2e28' }}>Status</th>
-                                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 600, color: '#1a2e28' }}>Last Case</th>
-                                <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 600, color: '#1a2e28' }}>Last Login</th>
-                                <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600, color: '#1a2e28' }}>Cases (30d)</th>
+                            <tr>
+                                <th>MP / Tenant</th>
+                                <th>Constituency</th>
+                                <th>Status</th>
+                                <th>Last Case</th>
+                                <th>Last Login</th>
+                                <th style={{ textAlign: 'right' }}>Cases (30d)</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {tenants.map((t, i) => {
+                            {tenants.map((t) => {
                                 const s = STATUS_STYLES[t.status] || STATUS_STYLES.no_data;
                                 return (
-                                    <tr key={t.tenant_id} style={{ borderBottom: i < tenants.length - 1 ? '1px solid #e2ebe5' : 'none' }}>
-                                        <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1a2e28' }}>
+                                    <tr key={t.tenant_id}>
+                                        <td style={{ fontWeight: 600 }}>
                                             {t.mp_name || `Tenant #${t.tenant_id}`}
                                         </td>
-                                        <td style={{ padding: '12px 16px', color: '#6b7f76' }}>
-                                            {t.constituency || '—'}
+                                        <td style={{ color: '#6b7f76' }}>{t.constituency || '—'}</td>
+                                        <td>
+                                            <span className={s.badgeClass}>{s.label}</span>
                                         </td>
-                                        <td style={{ padding: '12px 16px' }}>
-                                            <span style={{
-                                                display: 'inline-flex', alignItems: 'center', gap: 6,
-                                                padding: '3px 10px', borderRadius: 20,
-                                                background: s.bg, color: s.color,
-                                                fontSize: '0.75rem', fontWeight: 600,
-                                            }}>
-                                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.dot, display: 'inline-block' }} />
-                                                {s.label}
-                                            </span>
-                                        </td>
-                                        <td style={{ padding: '12px 16px', color: '#6b7f76', fontSize: '0.8rem' }}>
+                                        <td style={{ color: '#6b7f76', fontSize: '0.8rem' }}>
                                             {t.last_case_at ? new Date(t.last_case_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                                         </td>
-                                        <td style={{ padding: '12px 16px', color: '#6b7f76', fontSize: '0.8rem' }}>
+                                        <td style={{ color: '#6b7f76', fontSize: '0.8rem' }}>
                                             {t.last_login_at ? new Date(t.last_login_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                                         </td>
-                                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600, color: '#1a2e28' }}>
+                                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#1a2e28' }}>
                                             {t.cases_last_30d ?? '—'}
                                         </td>
                                     </tr>
