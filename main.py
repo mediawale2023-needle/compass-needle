@@ -896,22 +896,7 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
             pass
         return
 
-    # Acknowledge receipt and reset the 45-second inactivity timer
     _schedule_batch_flush(sender, current_tenant, receiver_number)
-
-    if page_count == 1:
-        ack = (
-            "Page 1 received.\n"
-            "Send more pages if this is a multi-page letter.\n"
-            "I'll process automatically in 60 seconds."
-        )
-    else:
-        ack = f"Page {page_count} added. Send more pages or wait — I'll process in 60 seconds."
-
-    try:
-        send_whatsapp_message(sender, ack)
-    except Exception as exc:
-        logger.warning(f"Batch ack message failed: {exc}")
 
 
 _MOVE_PATTERN = re.compile(
