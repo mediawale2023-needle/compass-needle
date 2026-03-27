@@ -938,18 +938,22 @@ Return ONLY the raw JSON array. No markdown, no backticks, no explanation."""
         client = genai.Client(api_key=api_key)
 
         # Upload the PDF as a file — Gemini processes all pages in one request
+        pdf_bytes = _io.BytesIO(content)
         uploaded_file = client.files.upload(
-            file=_io.BytesIO(content),
+            file=pdf_bytes,
             config=gtypes.UploadFileConfig(mime_type="application/pdf", display_name="polling_stations.pdf"),
         )
-        logger.info(f"Gemini Files API: uploaded PDF ({len(content)//1024}KB), uri={uploaded_file.uri}")
+        logger.info(f"Gemini Files API: uploaded PDF ({len(content)//1024}KB), uri={uploaded_file.uri}, state={getattr(uploaded_file, 'state', 'unknown')}")
 
         response = client.models.generate_content(
             model="gemini-1.5-flash",
-            contents=[
-                gtypes.Part(file_data=gtypes.FileData(file_uri=uploaded_file.uri, mime_type="application/pdf")),
-                gtypes.Part(text=prompt),
-            ],
+            contents=gtypes.Content(
+                role="user",
+                parts=[
+                    gtypes.Part(file_data=gtypes.FileData(file_uri=uploaded_file.uri, mime_type="application/pdf")),
+                    gtypes.Part(text=prompt),
+                ],
+            ),
             config=gtypes.GenerateContentConfig(temperature=0.1),
         )
 
