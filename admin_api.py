@@ -942,37 +942,59 @@ Return ONLY the raw JSON array. No markdown, no backticks, no explanation."""
 
     try:
         doc = fitz.open(stream=content, filetype="pdf")
-        for page in doc:
+        total_pages = len(doc)
+        for page_idx, page in enumerate(doc):
             try:
                 pix = page.get_pixmap(dpi=150)
                 img_bytes = pix.tobytes("png")
             except Exception as e:
                 errors.append(f"Page {page.number} render error: {e}")
                 continue
-            try:
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=gtypes.Content(
-                        role="user",
-                        parts=[
-                            gtypes.Part(inline_data=gtypes.Blob(mime_type="image/png", data=img_bytes)),
-                            gtypes.Part(text=prompt),
-                        ],
-                    ),
-                    config=gtypes.GenerateContentConfig(
-                        temperature=0.1,
-                        response_mime_type="application/json",
-                    ),
-                )
-                raw = response.text.strip() if response.text else ""
-                if raw.startswith("```"):
-                    raw = re.sub(r"^```[a-z]*\n?", "", raw)
-                    raw = re.sub(r"\n?```$", "", raw)
-                page_stations = json.loads(raw)
-                if isinstance(page_stations, list):
-                    stations.extend(page_stations)
-            except Exception as e:
-                errors.append(f"Page {page.number} Gemini error: {e}")
+
+            # Retry with exponential backoff for rate limits (429)
+            max_retries = 5
+            for attempt in range(max_retries + 1):
+                try:
+                    response = client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=gtypes.Content(
+                            role="user",
+                            parts=[
+                                gtypes.Part(inline_data=gtypes.Blob(mime_type="image/png", data=img_bytes)),
+                                gtypes.Part(text=prompt),
+                            ],
+                        ),
+                        config=gtypes.GenerateContentConfig(
+                            temperature=0.1,
+                            response_mime_type="application/json",
+                        ),
+                    )
+                    raw = response.text.strip() if response.text else ""
+                    if raw.startswith("```"):
+                        raw = re.sub(r"^```[a-z]*\n?", "", raw)
+                        raw = re.sub(r"\n?```$", "", raw)
+                    page_stations = json.loads(raw)
+                    if isinstance(page_stations, list):
+                        stations.extend(page_stations)
+                    logger.info(f"Gemini OCR page {page_idx+1}/{total_pages}: extracted {len(page_stations) if isinstance(page_stations, list) else 0} stations")
+                    break  # Success
+                except Exception as e:
+                    err_str = str(e)
+                    is_rate_limit = "429" in err_str or "Too Many Requests" in err_str or "RESOURCE_EXHAUSTED" in err_str
+                    if is_rate_limit and attempt < max_retries:
+                        import time
+                        delay = min(60, 2 ** (attempt + 1))  # 2, 4, 8, 16, 32 seconds
+                        logger.warning(f"Gemini rate limit on page {page_idx+1}, retry {attempt+1}/{max_retries} after {delay}s")
+                        time.sleep(delay)
+                        continue
+                    errors.append(f"Page {page.number} Gemini error: {e}")
+                    break
+
+            # Inter-page delay to avoid rate limits
+            if page_idx < total_pages - 1:
+                import time
+                time.sleep(1.5)
+
         doc.close()
     except Exception as e:
         return [], f"PDF open error: {e}"
