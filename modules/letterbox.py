@@ -205,6 +205,7 @@ def extract_letter_fields(
     mime_type: str,
     tenant_id: int,
     direction_hint: Optional[str] = None,
+    extra_pages: Optional[list] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Run Gemini Vision on a physical letter image to extract structured fields.
@@ -216,6 +217,10 @@ def extract_letter_fields(
     Returns a dict with: direction, sender_name, village, phone_number, subject,
                          category, priority, ocr_text, date_of_letter
     Returns None on any failure — caller must handle None by setting status='needs_review'.
+
+    extra_pages: list of (bytes, mime_type) tuples for pages 2, 3, etc.
+                 All pages are passed to Gemini in a single call so context
+                 is preserved across the full letter.
     """
     try:
         from core.gemini_client import get_gemini_client
@@ -235,17 +240,23 @@ def extract_letter_fields(
         hint = None
 
     prompt = _build_directed_prompt(hint) if hint else _CLASSIFY_AND_EXTRACT_PROMPT
+    page_count = 1 + (len(extra_pages) if extra_pages else 0)
 
     logger.info(f"Letterbox: Gemini Vision extraction — tenant={tenant_id}, "
-                f"mime={mime_type}, size={len(image_bytes)}B, hint={hint or 'classify'}")
+                f"pages={page_count}, hint={hint or 'classify'}")
+
+    # Build contents list: all pages first, then the prompt
+    # Gemini reads all pages together for cross-page context (e.g. signature on last page)
+    contents: list = [types.Part.from_bytes(data=image_bytes, mime_type=mime_type)]
+    if extra_pages:
+        for pb, pm in extra_pages:
+            contents.append(types.Part.from_bytes(data=pb, mime_type=pm))
+    contents.append(prompt)
 
     try:
         response = client.models.generate_content(
             model="gemini-2.5-flash",
-            contents=[
-                types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-                prompt,
-            ],
+            contents=contents,
             config=types.GenerateContentConfig(
                 temperature=0.1,
                 response_mime_type="application/json",

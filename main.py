@@ -9,6 +9,7 @@ import json
 import hmac
 import hashlib
 import logging
+import threading
 import sentry_sdk
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
@@ -128,6 +129,7 @@ app.include_router(admin_router, prefix="/api/admin")
 # ─────────────────────────────────────────
 init_db()
 logger.info("Database initialised.")
+_sweep_stale_batches()
 
 # ─── Migration: add tenant_id to archives table (idempotent) ───
 try:
@@ -300,6 +302,56 @@ try:
         logger.info("Migration: letterbox indexes ready")
 except Exception as e:
     logger.warning(f"Letterbox index migration skipped: {e}")
+
+# ─── Migration: page_count column on letterbox ───
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE letterbox ADD COLUMN page_count INTEGER DEFAULT 1"))
+        logger.info("Migration: added page_count to letterbox")
+except Exception:  # nosec B110 — idempotent
+    pass
+
+# ─── Migration: letterbox_pages table (stores pages 2+ of multi-page letters) ───
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS letterbox_pages (
+                id           SERIAL PRIMARY KEY,
+                letterbox_id INTEGER NOT NULL REFERENCES letterbox(id) ON DELETE CASCADE,
+                page_number  INTEGER NOT NULL,
+                image_data   BYTEA   NOT NULL,
+                image_mime   VARCHAR NOT NULL DEFAULT 'image/jpeg'
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_letterbox_pages_letter ON letterbox_pages (letterbox_id)"))
+        logger.info("Migration: letterbox_pages table ready")
+except Exception as e:
+    logger.warning(f"letterbox_pages migration skipped: {e}")
+
+# ─── Migration: letterbox_batches table (accumulates multi-page WhatsApp images) ───
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS letterbox_batches (
+                id              SERIAL PRIMARY KEY,
+                tenant_id       INTEGER NOT NULL REFERENCES tenants(id),
+                sender_phone    VARCHAR NOT NULL,
+                receiver_number VARCHAR NOT NULL DEFAULT '',
+                images          JSONB   NOT NULL DEFAULT '[]',
+                direction_hint  VARCHAR,
+                last_image_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+                status          VARCHAR NOT NULL DEFAULT 'pending',
+                created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_letterbox_batches_active
+            ON letterbox_batches (sender_phone, tenant_id)
+            WHERE status = 'pending'
+        """))
+        logger.info("Migration: letterbox_batches table ready")
+except Exception as e:
+    logger.warning(f"letterbox_batches migration skipped: {e}")
 
 # Seed CSR company profiles from static JSON files on startup
 try:
@@ -490,114 +542,201 @@ def _resolve_tenant(receiver_number: str) -> int:
     return current_tenant
 
 
-_CAPTION_INBOX_KEYWORDS  = {"in", "inbox", "received", "incoming"}
-_CAPTION_OUTBOX_KEYWORDS = {"out", "outbox", "sent", "dispatch", "dispatched"}
+# ─────────────────────────────────────────
+# MULTI-PAGE LETTER BATCH SYSTEM
+# ─────────────────────────────────────────
+# PA sends multiple images for a single multi-page letter.
+# Each image is queued in DB. After BATCH_FLUSH_DELAY seconds of
+# inactivity (or an explicit "DONE" command), all pages are processed
+# together as one letterbox entry.
+
+BATCH_FLUSH_DELAY = 60  # seconds of silence before auto-processing
+
+_batch_timers: dict = {}
+_batch_lock = threading.Lock()
 
 
-def _parse_direction_hint(caption: str) -> str | None:
-    """Return 'inbox', 'outbox', or None based on the PA's WhatsApp caption."""
-    word = caption.strip().lower().split()[0] if caption.strip() else ""
-    if word in _CAPTION_INBOX_KEYWORDS:
-        return "inbox"
-    if word in _CAPTION_OUTBOX_KEYWORDS:
-        return "outbox"
-    return None  # let AI classify
-
-
-def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_number: str = "", caption: str = ""):
+def _add_to_batch(tenant_id: int, sender: str, receiver_number: str,
+                  media_id: str, mime_type: str, direction_hint: str | None) -> int:
     """
-    Background task: PA sends a photo of a physical letter via WhatsApp.
-    Pipeline: download image → save raw (source of truth) → Gemini OCR+classify → update → confirm.
+    Append one image to the pending batch for this sender.
+    Creates the batch row if it doesn't exist.
+    Returns the new page count.
+    """
+    with engine.begin() as conn:
+        row = conn.execute(text("""
+            SELECT id, images, direction_hint FROM letterbox_batches
+            WHERE sender_phone = :phone AND tenant_id = :tid AND status = 'pending'
+            LIMIT 1
+        """), {"phone": sender, "tid": tenant_id}).fetchone()
 
-    Direction is determined by:
-      1. Caption keyword override (e.g. "out", "inbox")
-      2. Gemini Vision classifying letterhead vs citizen letter (fallback)
+        new_image = {"media_id": media_id, "mime_type": mime_type}
 
-    No letter is ever lost — DB row is saved before OCR runs.
+        if row:
+            images = list(row[1]) if row[1] else []
+            images.append(new_image)
+            # Keep the first caption's direction_hint; later pages usually have no caption
+            effective_hint = row[2] or direction_hint
+            conn.execute(text("""
+                UPDATE letterbox_batches
+                SET images = :imgs, last_image_at = :now, direction_hint = :hint
+                WHERE id = :id
+            """), {"imgs": json.dumps(images), "now": datetime.utcnow(),
+                   "hint": effective_hint, "id": row[0]})
+            return len(images)
+        else:
+            conn.execute(text("""
+                INSERT INTO letterbox_batches
+                    (tenant_id, sender_phone, receiver_number, images, direction_hint, last_image_at)
+                VALUES (:tid, :phone, :recv, :imgs, :hint, :now)
+            """), {
+                "tid":  tenant_id,
+                "phone": sender,
+                "recv": receiver_number,
+                "imgs": json.dumps([new_image]),
+                "hint": direction_hint,
+                "now":  datetime.utcnow(),
+            })
+            return 1
+
+
+def _schedule_batch_flush(sender: str, tenant_id: int, receiver_number: str):
+    """Reset the 45-second inactivity timer for this sender's batch."""
+    key = (sender, tenant_id)
+    with _batch_lock:
+        existing = _batch_timers.get(key)
+        if existing:
+            existing.cancel()
+        t = threading.Timer(
+            BATCH_FLUSH_DELAY,
+            _flush_letter_batch,
+            args=(sender, tenant_id, receiver_number)
+        )
+        _batch_timers[key] = t
+        t.daemon = True
+        t.start()
+
+
+def _flush_letter_batch(sender: str, tenant_id: int, receiver_number: str):
+    """
+    Process all accumulated pages in a batch as a single letterbox entry.
+    Called either by the inactivity timer or immediately on 'DONE' command.
     """
     from modules.letterbox import download_meta_image, generate_diary_number, extract_letter_fields
 
-    if not receiver_number:
-        receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
+    # Cancel any pending timer
+    key = (sender, tenant_id)
+    with _batch_lock:
+        t = _batch_timers.pop(key, None)
+        if t:
+            t.cancel()
 
-    current_tenant = _resolve_tenant(receiver_number)
-
-    # PA whitelist check — sender must be a registered active user for this tenant
+    # Claim the batch atomically
     try:
-        with engine.connect() as conn:
-            pa_row = conn.execute(
-                text("""SELECT id, display_name FROM users
-                        WHERE phone = :phone AND tenant_id = :tid AND is_active = true
-                        LIMIT 1"""),
-                {"phone": sender, "tid": current_tenant}
-            ).fetchone()
+        with engine.begin() as conn:
+            batch = conn.execute(text("""
+                UPDATE letterbox_batches SET status = 'processing'
+                WHERE sender_phone = :phone AND tenant_id = :tid AND status = 'pending'
+                RETURNING id, images, direction_hint
+            """), {"phone": sender, "tid": tenant_id}).fetchone()
     except Exception as exc:
-        logger.error(f"PA check DB query failed: {exc}")
+        logger.error(f"Failed to claim letterbox batch for {sender}: {exc}")
         return
 
-    if not pa_row:
-        logger.info(f"Image from {sender} — not a registered PA for tenant {current_tenant}, ignoring")
+    if not batch:
+        return  # already processed or no batch
+
+    batch_id, images_json, direction_hint = batch
+    images = list(images_json) if images_json else []
+    if not images:
         return
 
-    pa_name = pa_row[1] or "Staff"
-    direction_hint = _parse_direction_hint(caption)
-    logger.info(f"PA letter intake: sender={sender} ({pa_name}), tenant={current_tenant}, "
-                f"media_id={media_id}, caption_hint={direction_hint or 'auto-classify'}")
+    page_count = len(images)
+    logger.info(f"Flushing batch id={batch_id}: {page_count} page(s) from {sender}, tenant={tenant_id}")
 
-    # ── STEP 1: Download image immediately — Meta URLs expire in ~5 min ──
-    try:
-        image_bytes, resolved_mime = download_meta_image(media_id)
-    except Exception as exc:
-        logger.error(f"Failed to download Meta image: {exc}")
+    # ── Download all page images from Meta ──
+    page_bytes: list[tuple[bytes, str]] = []
+    for img in images:
         try:
-            send_whatsapp_message(sender, "Sorry, could not retrieve the image. Please resend.")
+            b, m = download_meta_image(img["media_id"])
+            page_bytes.append((b, m))
+        except Exception as exc:
+            logger.warning(f"Failed to download page {img['media_id']}: {exc}")
+
+    if not page_bytes:
+        logger.error(f"All image downloads failed for batch {batch_id}")
+        try:
+            send_whatsapp_message(sender, "Sorry, could not retrieve the images. Please resend.")
+        except Exception:
+            pass
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("UPDATE letterbox_batches SET status = 'failed' WHERE id = :id"),
+                             {"id": batch_id})
         except Exception:
             pass
         return
 
-    # ── STEP 2: Save raw entry to DB immediately — source of truth ──
-    # Direction defaults to 'inbox' until Gemini classifies; corrected in STEP 4.
+    first_bytes, first_mime = page_bytes[0]
+    extra_pages = page_bytes[1:] if len(page_bytes) > 1 else None
+
+    # ── Save raw entry immediately (source of truth) ──
     letter_id = None
     diary_number = None
     try:
         with engine.begin() as conn:
             result = conn.execute(text("""
                 INSERT INTO letterbox (
-                    tenant_id, direction, image_data, image_mime,
+                    tenant_id, direction, image_data, image_mime, page_count,
                     status, source, sender_phone, created_at,
                     citizen_name, issue_summary, urgency_level
                 ) VALUES (
-                    :tid, :dir, :img, :mime,
+                    :tid, :dir, :img, :mime, :pages,
                     'processing', 'whatsapp', :phone, :now,
                     '[NOT FOUND]', '[Processing...]', 'Normal'
                 ) RETURNING id
             """), {
-                "tid":   current_tenant,
-                "dir":   direction_hint or "inbox",   # placeholder; corrected after OCR
-                "img":   image_bytes,
-                "mime":  resolved_mime,
+                "tid":   tenant_id,
+                "dir":   direction_hint or "inbox",
+                "img":   first_bytes,
+                "mime":  first_mime,
+                "pages": page_count,
                 "phone": sender,
                 "now":   datetime.utcnow(),
             })
             letter_id = result.fetchone()[0]
             diary_number = generate_diary_number(letter_id)
-            conn.execute(
-                text("UPDATE letterbox SET diary_number = :dn WHERE id = :lid"),
-                {"dn": diary_number, "lid": letter_id}
-            )
-        logger.info(f"Letter saved (raw): id={letter_id}, diary={diary_number}")
+            conn.execute(text("UPDATE letterbox SET diary_number = :dn WHERE id = :lid"),
+                         {"dn": diary_number, "lid": letter_id})
+        logger.info(f"Multi-page letter saved: id={letter_id}, diary={diary_number}, pages={page_count}")
     except Exception as exc:
-        logger.error(f"CRITICAL: Failed to save PA letter to DB: {exc}")
+        logger.error(f"CRITICAL: Failed to save batch letter to DB: {exc}")
         try:
-            send_whatsapp_message(sender, "Sorry, there was an error saving the letter. Please try again.")
+            send_whatsapp_message(sender, "Sorry, there was a database error. Please contact support.")
         except Exception:
             pass
         return
 
-    # ── STEP 3: Gemini Vision — extract fields + classify direction (if no hint) ──
-    extracted = extract_letter_fields(image_bytes, resolved_mime, current_tenant, direction_hint)
+    # ── Save additional pages to letterbox_pages ──
+    if extra_pages:
+        try:
+            with engine.begin() as conn:
+                for i, (pb, pm) in enumerate(extra_pages, start=2):
+                    conn.execute(text("""
+                        INSERT INTO letterbox_pages (letterbox_id, page_number, image_data, image_mime)
+                        VALUES (:lid, :pnum, :data, :mime)
+                    """), {"lid": letter_id, "pnum": i, "data": pb, "mime": pm})
+        except Exception as exc:
+            logger.error(f"Failed to save extra pages for letter {letter_id}: {exc}")
 
-    # ── STEP 4: Update row with extracted fields and confirmed direction ──
+    # ── Gemini extraction (all pages in one call) ──
+    extracted = extract_letter_fields(
+        first_bytes, first_mime, tenant_id,
+        direction_hint=direction_hint,
+        extra_pages=extra_pages
+    )
+
+    # ── Update letterbox row ──
     try:
         if extracted:
             final_direction = extracted.get("direction", direction_hint or "inbox")
@@ -630,38 +769,134 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
         else:
             final_direction = direction_hint or "inbox"
             with engine.begin() as conn:
-                conn.execute(
-                    text("""UPDATE letterbox SET status = 'needs_review',
-                                issue_summary = '[OCR failed — please review manually]'
-                            WHERE id = :lid"""),
-                    {"lid": letter_id}
-                )
+                conn.execute(text("""
+                    UPDATE letterbox SET status = 'needs_review',
+                        issue_summary = '[OCR failed — please review manually]'
+                    WHERE id = :lid
+                """), {"lid": letter_id})
     except Exception as exc:
-        logger.error(f"Failed to update letter {letter_id} after extraction: {exc}")
+        logger.error(f"Failed to update letter {letter_id} post-extraction: {exc}")
         final_direction = direction_hint or "inbox"
 
-    # ── STEP 5: WhatsApp confirmation to PA ──
+    # Mark batch done
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("UPDATE letterbox_batches SET status = 'done' WHERE id = :id"),
+                         {"id": batch_id})
+    except Exception:
+        pass
+
+    # ── Confirm to PA ──
     direction_label = "INBOX" if final_direction == "inbox" else "OUTBOX"
+    pages_label = f"{page_count} page{'s' if page_count > 1 else ''}"
     if extracted:
         confirm_msg = (
-            f"Saved to {direction_label} — Ref: {diary_number}\n"
+            f"Saved to {direction_label} — Ref: {diary_number} ({pages_label})\n"
             f"{'Sender' if final_direction == 'inbox' else 'Recipient'}: "
             f"{extracted.get('sender_name', '[Unknown]')}\n"
             f"Category: {extracted.get('category', 'General / Other')}\n"
             f"Summary: {extracted.get('subject', '')[:120]}\n\n"
-            f"If the direction is wrong, reply: MOVE {diary_number} {'OUT' if final_direction == 'inbox' else 'IN'}"
+            f"If direction is wrong: MOVE {diary_number} {'OUT' if final_direction == 'inbox' else 'IN'}"
         )
     else:
         confirm_msg = (
-            f"Letter image received and saved — Ref: {diary_number}\n"
-            f"OCR could not read the image clearly. "
-            f"Open the Letterbox dashboard to fill in details manually.\n\n"
-            f"To correct the direction, reply: MOVE {diary_number} OUT  (or IN)"
+            f"Letter saved ({pages_label}) — Ref: {diary_number}\n"
+            f"OCR could not read clearly. Open Letterbox dashboard to fill in details."
         )
     try:
         send_whatsapp_message(sender, confirm_msg)
     except Exception as exc:
-        logger.warning(f"WhatsApp confirmation to PA failed: {exc}")
+        logger.warning(f"WhatsApp batch confirmation failed: {exc}")
+
+
+def _sweep_stale_batches():
+    """
+    On startup: flush any batches left pending from a previous server instance.
+    Any batch whose last_image_at is > BATCH_FLUSH_DELAY seconds ago is processed.
+    """
+    try:
+        stale_cutoff = datetime.utcnow() - timedelta(seconds=BATCH_FLUSH_DELAY)
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT sender_phone, tenant_id, receiver_number FROM letterbox_batches
+                WHERE status = 'pending' AND last_image_at < :cutoff
+            """), {"cutoff": stale_cutoff}).fetchall()
+        for row in rows:
+            logger.info(f"Startup sweep: flushing stale batch for {row[0]}, tenant={row[1]}")
+            threading.Thread(
+                target=_flush_letter_batch,
+                args=(row[0], row[1], row[2]),
+                daemon=True
+            ).start()
+    except Exception as exc:
+        logger.warning(f"Stale batch sweep failed: {exc}")
+
+
+_CAPTION_INBOX_KEYWORDS  = {"in", "inbox", "received", "incoming"}
+_CAPTION_OUTBOX_KEYWORDS = {"out", "outbox", "sent", "dispatch", "dispatched"}
+
+
+def _parse_direction_hint(caption: str) -> str | None:
+    """Return 'inbox', 'outbox', or None based on the PA's WhatsApp caption."""
+    word = caption.strip().lower().split()[0] if caption.strip() else ""
+    if word in _CAPTION_INBOX_KEYWORDS:
+        return "inbox"
+    if word in _CAPTION_OUTBOX_KEYWORDS:
+        return "outbox"
+    return None  # let AI classify
+
+
+def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_number: str = "", caption: str = ""):
+    """
+    Background task: PA sends a photo of a physical letter via WhatsApp.
+
+    Each image is added to a DB-backed batch for this sender.
+    After BATCH_FLUSH_DELAY seconds of inactivity (or explicit DONE command),
+    _flush_letter_batch processes all pages together as one letterbox entry.
+
+    This naturally handles single-page letters (batch of 1) and multi-page letters.
+    """
+
+    if not receiver_number:
+        receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
+
+    current_tenant = _resolve_tenant(receiver_number)
+
+    # PA whitelist check — sender must be a registered active user for this tenant
+    try:
+        with engine.connect() as conn:
+            pa_row = conn.execute(
+                text("""SELECT id, display_name FROM users
+                        WHERE phone = :phone AND tenant_id = :tid AND is_active = true
+                        LIMIT 1"""),
+                {"phone": sender, "tid": current_tenant}
+            ).fetchone()
+    except Exception as exc:
+        logger.error(f"PA check DB query failed: {exc}")
+        return
+
+    if not pa_row:
+        logger.info(f"Image from {sender} — not a registered PA for tenant {current_tenant}, ignoring")
+        return
+
+    pa_name = pa_row[1] or "Staff"
+    direction_hint = _parse_direction_hint(caption)
+    logger.info(f"PA image received: sender={sender} ({pa_name}), tenant={current_tenant}, "
+                f"media_id={media_id}, caption_hint={direction_hint or 'auto-classify'}")
+
+    # Add this image to the pending batch (creates batch if first image)
+    try:
+        page_count = _add_to_batch(current_tenant, sender, receiver_number,
+                                   media_id, mime_type, direction_hint)
+    except Exception as exc:
+        logger.error(f"Failed to add image to batch: {exc}")
+        try:
+            send_whatsapp_message(sender, "Sorry, could not queue the image. Please resend.")
+        except Exception:
+            pass
+        return
+
+    _schedule_batch_flush(sender, current_tenant, receiver_number)
 
 
 _MOVE_PATTERN = re.compile(
@@ -725,6 +960,53 @@ def _handle_pa_move_command(sender: str, diary_ref: str, direction_str: str, rec
             send_whatsapp_message(sender, "Sorry, could not update the letter. Please try again.")
         except Exception:
             pass
+
+
+def _handle_pa_done_command(sender: str, receiver_number: str = ""):
+    """
+    PA typed DONE — immediately flush their pending batch without waiting for the timer.
+    Silently ignored if sender is not a registered PA or has no pending batch.
+    """
+    if not receiver_number:
+        receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
+
+    current_tenant = _resolve_tenant(receiver_number)
+
+    # PA whitelist check
+    try:
+        with engine.connect() as conn:
+            pa_row = conn.execute(
+                text("SELECT id FROM users WHERE phone = :phone AND tenant_id = :tid AND is_active = true LIMIT 1"),
+                {"phone": sender, "tid": current_tenant}
+            ).fetchone()
+    except Exception as exc:
+        logger.error(f"PA check failed in DONE handler: {exc}")
+        return
+
+    if not pa_row:
+        return  # not a PA — fall through silently (message already sent to citizen flow)
+
+    # Check if there's actually a pending batch
+    try:
+        with engine.connect() as conn:
+            batch = conn.execute(text("""
+                SELECT id FROM letterbox_batches
+                WHERE sender_phone = :phone AND tenant_id = :tid AND status = 'pending'
+                LIMIT 1
+            """), {"phone": sender, "tid": current_tenant}).fetchone()
+    except Exception as exc:
+        logger.error(f"Batch check failed in DONE handler: {exc}")
+        return
+
+    if not batch:
+        try:
+            send_whatsapp_message(sender, "No pending letter batch found. Send images first.")
+        except Exception:
+            pass
+        return
+
+    logger.info(f"DONE command from PA {sender} — flushing batch immediately")
+    _flush_letter_batch(sender, current_tenant, receiver_number)
 
 
 def _process_incoming_message(sender: str, message_body: str, receiver_number: str = ""):
@@ -938,7 +1220,11 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         message_body = msg["text"]["body"].strip()
         if not message_body:
             return {"status": "ignored"}
-        # Check for PA MOVE correction command before routing to citizen flow
+        # DONE command — immediately flush any pending batch for this PA
+        if message_body.upper() == "DONE":
+            background_tasks.add_task(_handle_pa_done_command, sender, display_number)
+            return {"status": "received"}
+        # MOVE correction command
         move_match = _MOVE_PATTERN.match(message_body)
         if move_match:
             background_tasks.add_task(
