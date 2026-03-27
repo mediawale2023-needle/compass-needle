@@ -953,10 +953,13 @@ Return ONLY the raw JSON array. No markdown, no backticks, no explanation."""
 
             # Retry with exponential backoff for rate limits (429)
             max_retries = 5
+            # Use 2.0-flash for OCR — much higher free-tier rate limits than 2.5-flash
+            models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash"]
+            current_model = models_to_try[0]
             for attempt in range(max_retries + 1):
                 try:
                     response = client.models.generate_content(
-                        model="gemini-2.5-flash",
+                        model=current_model,
                         contents=gtypes.Content(
                             role="user",
                             parts=[
@@ -983,8 +986,12 @@ Return ONLY the raw JSON array. No markdown, no backticks, no explanation."""
                     is_rate_limit = "429" in err_str or "Too Many Requests" in err_str or "RESOURCE_EXHAUSTED" in err_str
                     if is_rate_limit and attempt < max_retries:
                         import time
+                        # Switch to fallback model after 2 attempts
+                        if attempt >= 2 and len(models_to_try) > 1 and current_model == models_to_try[0]:
+                            current_model = models_to_try[1]
+                            logger.warning(f"Switching to fallback model {current_model} for page {page_idx+1}")
                         delay = min(60, 2 ** (attempt + 1))  # 2, 4, 8, 16, 32 seconds
-                        logger.warning(f"Gemini rate limit on page {page_idx+1}, retry {attempt+1}/{max_retries} after {delay}s")
+                        logger.warning(f"Gemini rate limit on page {page_idx+1} ({current_model}), retry {attempt+1}/{max_retries} after {delay}s")
                         time.sleep(delay)
                         continue
                     errors.append(f"Page {page.number} Gemini error: {e}")
