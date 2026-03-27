@@ -550,7 +550,7 @@ def _resolve_tenant(receiver_number: str) -> int:
 # inactivity (or an explicit "DONE" command), all pages are processed
 # together as one letterbox entry.
 
-BATCH_FLUSH_DELAY = 45  # seconds of silence before auto-processing
+BATCH_FLUSH_DELAY = 60  # seconds of silence before auto-processing
 
 _batch_timers: dict = {}
 _batch_lock = threading.Lock()
@@ -902,12 +902,11 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
     if page_count == 1:
         ack = (
             "Page 1 received.\n"
-            "Send more pages if this is a multi-page letter, "
-            "or type DONE to process immediately.\n"
-            "I'll process automatically after 45 seconds."
+            "Send more pages if this is a multi-page letter.\n"
+            "I'll process automatically in 60 seconds."
         )
     else:
-        ack = f"Page {page_count} added. Send more or type DONE to process now."
+        ack = f"Page {page_count} added. Send more pages or wait — I'll process in 60 seconds."
 
     try:
         send_whatsapp_message(sender, ack)
