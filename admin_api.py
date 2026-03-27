@@ -947,13 +947,7 @@ Return ONLY the raw JSON array. No markdown, no backticks, no explanation."""
 
         response = client.models.generate_content(
             model="gemini-1.5-flash",
-            contents=gtypes.Content(
-                role="user",
-                parts=[
-                    gtypes.Part(file_data=gtypes.FileData(file_uri=uploaded_file.uri, mime_type="application/pdf")),
-                    gtypes.Part(text=prompt),
-                ],
-            ),
+            contents=[uploaded_file, prompt],
             config=gtypes.GenerateContentConfig(temperature=0.1),
         )
 
