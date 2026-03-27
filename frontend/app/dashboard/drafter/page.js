@@ -24,12 +24,15 @@ export default function DrafterPage() {
 
     const [mode, setMode] = useState('letter');
 
+    // Letterbox linkage — if opened from a letterbox item, auto-update its status on save
+    const letterboxId = searchParams.get('letterbox_id') || null;
+
     // Letter fields
     const [recipientType, setRecipientType] = useState('Cabinet Minister');
     const [recipientName, setRecipientName] = useState(searchParams.get('recipient') || '');
     const [ministry, setMinistry] = useState('');
     const [subject, setSubject] = useState(searchParams.get('subject') || '');
-    const [reference, setReference] = useState('');
+    const [reference, setReference] = useState(searchParams.get('diary_ref') || '');
     const [keyPoints, setKeyPoints] = useState(searchParams.get('context') || '');
     const [tone, setTone] = useState('Assertive (Opposition Style)');
     const [language, setLanguage] = useState('English');
@@ -85,6 +88,20 @@ export default function DrafterPage() {
                     : { ministry: pqMinistry, language: pqLang },
             });
             setSaved(true);
+
+            // If this draft was triggered from a Letterbox inbox item, advance its status to 'drafted'
+            if (letterboxId) {
+                try {
+                    const token = localStorage.getItem('needle_token');
+                    await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/letterbox/${letterboxId}`, {
+                        method: 'PATCH',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: 'drafted' }),
+                    });
+                } catch (_) {
+                    // Non-critical — don't block the save UX
+                }
+            }
         } catch (err) {
             alert('Failed to save: ' + err.message);
         }
