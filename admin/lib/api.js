@@ -101,8 +101,8 @@ export function apiPatch(path, body) { return api(path, { method: 'PATCH', body:
 export function apiPut(path, body) { return api(path, { method: 'PUT', body: JSON.stringify(body) }); }
 export function apiDelete(path) { return api(path, { method: 'DELETE' }); }
 
-export async function apiUpload(path, file) {
+export async function apiUpload(path, file, timeoutMs = 300_000) {
     const formData = new FormData();
     formData.append('file', file);
-    return api(path, { method: 'POST', body: formData });
+    return api(path, { method: 'POST', body: formData, timeout: timeoutMs, maxRetries: 0 });
 }
