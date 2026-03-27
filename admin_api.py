@@ -1169,8 +1169,8 @@ def case_explorer(
     count_row = _q_one(f"SELECT COUNT(*) AS cnt FROM cases c WHERE {where}", params) or {"cnt": 0}  # nosec B608
     total = count_row["cnt"]
 
-    cases = _q(f"""  # nosec B608
-        SELECT c.id, c.tenant_id, t.name AS mp_name, t.constituency,
+    cases = _q(  # nosec B608
+        f"""SELECT c.id, c.tenant_id, t.name AS mp_name, t.constituency,
                c.user_phone, c.category, c.status, c.raw_message,
                c.case_metadata, c.is_critical, c.created_at, c.updated_at,
                c.response_to_citizen, c.notes_for_staff
