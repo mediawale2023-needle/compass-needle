@@ -84,24 +84,10 @@ export default function DrafterPage() {
                 title,
                 content: draft,
                 metadata: mode === 'letter'
-                    ? { recipient: recipientName, ministry, tone, language }
+                    ? { recipient: recipientName, ministry, tone, language, letterbox_ref: letterboxId || undefined }
                     : { ministry: pqMinistry, language: pqLang },
             });
             setSaved(true);
-
-            // If this draft was triggered from a Letterbox inbox item, advance its status to 'drafted'
-            if (letterboxId) {
-                try {
-                    const token = localStorage.getItem('needle_token');
-                    await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/letterbox/${letterboxId}`, {
-                        method: 'PATCH',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ status: 'drafted' }),
-                    });
-                } catch (_) {
-                    // Non-critical — don't block the save UX
-                }
-            }
         } catch (err) {
             alert('Failed to save: ' + err.message);
         }

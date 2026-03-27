@@ -490,13 +490,31 @@ def _resolve_tenant(receiver_number: str) -> int:
     return current_tenant
 
 
-def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_number: str = ""):
+_CAPTION_INBOX_KEYWORDS  = {"in", "inbox", "received", "incoming"}
+_CAPTION_OUTBOX_KEYWORDS = {"out", "outbox", "sent", "dispatch", "dispatched"}
+
+
+def _parse_direction_hint(caption: str) -> str | None:
+    """Return 'inbox', 'outbox', or None based on the PA's WhatsApp caption."""
+    word = caption.strip().lower().split()[0] if caption.strip() else ""
+    if word in _CAPTION_INBOX_KEYWORDS:
+        return "inbox"
+    if word in _CAPTION_OUTBOX_KEYWORDS:
+        return "outbox"
+    return None  # let AI classify
+
+
+def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_number: str = "", caption: str = ""):
     """
     Background task: PA sends a photo of a physical letter via WhatsApp.
-    Pipeline: download image → save raw (source of truth) → Gemini OCR → update → confirm.
-    No letter is lost even if OCR fails.
+    Pipeline: download image → save raw (source of truth) → Gemini OCR+classify → update → confirm.
+
+    Direction is determined by:
+      1. Caption keyword override (e.g. "out", "inbox")
+      2. Gemini Vision classifying letterhead vs citizen letter (fallback)
+
+    No letter is ever lost — DB row is saved before OCR runs.
     """
-    import base64
     from modules.letterbox import download_meta_image, generate_diary_number, extract_letter_fields
 
     if not receiver_number:
@@ -522,7 +540,9 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
         return
 
     pa_name = pa_row[1] or "Staff"
-    logger.info(f"PA letter intake: sender={sender} ({pa_name}), tenant={current_tenant}, media_id={media_id}")
+    direction_hint = _parse_direction_hint(caption)
+    logger.info(f"PA letter intake: sender={sender} ({pa_name}), tenant={current_tenant}, "
+                f"media_id={media_id}, caption_hint={direction_hint or 'auto-classify'}")
 
     # ── STEP 1: Download image immediately — Meta URLs expire in ~5 min ──
     try:
@@ -536,6 +556,7 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
         return
 
     # ── STEP 2: Save raw entry to DB immediately — source of truth ──
+    # Direction defaults to 'inbox' until Gemini classifies; corrected in STEP 4.
     letter_id = None
     diary_number = None
     try:
@@ -546,16 +567,17 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
                     status, source, sender_phone, created_at,
                     citizen_name, issue_summary, urgency_level
                 ) VALUES (
-                    :tid, 'inbox', :img, :mime,
+                    :tid, :dir, :img, :mime,
                     'processing', 'whatsapp', :phone, :now,
                     '[NOT FOUND]', '[Processing...]', 'Normal'
                 ) RETURNING id
             """), {
-                "tid": current_tenant,
-                "img": image_bytes,
-                "mime": resolved_mime,
+                "tid":   current_tenant,
+                "dir":   direction_hint or "inbox",   # placeholder; corrected after OCR
+                "img":   image_bytes,
+                "mime":  resolved_mime,
                 "phone": sender,
-                "now": datetime.utcnow(),
+                "now":   datetime.utcnow(),
             })
             letter_id = result.fetchone()[0]
             diary_number = generate_diary_number(letter_id)
@@ -563,7 +585,7 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
                 text("UPDATE letterbox SET diary_number = :dn WHERE id = :lid"),
                 {"dn": diary_number, "lid": letter_id}
             )
-        logger.info(f"Letter saved: id={letter_id}, diary={diary_number}")
+        logger.info(f"Letter saved (raw): id={letter_id}, diary={diary_number}")
     except Exception as exc:
         logger.error(f"CRITICAL: Failed to save PA letter to DB: {exc}")
         try:
@@ -572,16 +594,17 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
             pass
         return
 
-    # ── STEP 3: Gemini Vision extraction ──
-    extracted = extract_letter_fields(image_bytes, resolved_mime, current_tenant)
+    # ── STEP 3: Gemini Vision — extract fields + classify direction (if no hint) ──
+    extracted = extract_letter_fields(image_bytes, resolved_mime, current_tenant, direction_hint)
 
-    # ── STEP 4: Update row with extracted fields, or flag needs_review ──
+    # ── STEP 4: Update row with extracted fields and confirmed direction ──
     try:
         if extracted:
-            date_of_letter = extracted.get("date_of_letter") or None
+            final_direction = extracted.get("direction", direction_hint or "inbox")
             with engine.begin() as conn:
                 conn.execute(text("""
                     UPDATE letterbox SET
+                        direction      = :dir,
                         citizen_name   = :name,
                         village        = :village,
                         phone_number   = :phone,
@@ -593,6 +616,7 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
                         status         = 'new'
                     WHERE id = :lid
                 """), {
+                    "dir":      final_direction,
                     "name":     extracted.get("sender_name", "[NOT FOUND]"),
                     "village":  extracted.get("village", "[NOT FOUND]"),
                     "phone":    extracted.get("phone_number", "[NOT FOUND]"),
@@ -600,10 +624,11 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
                     "category": extracted.get("category", "General / Other"),
                     "priority": extracted.get("priority", "Normal"),
                     "ocr":      extracted.get("ocr_text", ""),
-                    "dol":      date_of_letter,
+                    "dol":      extracted.get("date_of_letter") or None,
                     "lid":      letter_id,
                 })
         else:
+            final_direction = direction_hint or "inbox"
             with engine.begin() as conn:
                 conn.execute(
                     text("""UPDATE letterbox SET status = 'needs_review',
@@ -613,26 +638,93 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
                 )
     except Exception as exc:
         logger.error(f"Failed to update letter {letter_id} after extraction: {exc}")
+        final_direction = direction_hint or "inbox"
 
     # ── STEP 5: WhatsApp confirmation to PA ──
+    direction_label = "INBOX" if final_direction == "inbox" else "OUTBOX"
     if extracted:
         confirm_msg = (
-            f"Letter saved — Ref: {diary_number}\n"
-            f"Sender: {extracted.get('sender_name', '[Unknown]')}\n"
+            f"Saved to {direction_label} — Ref: {diary_number}\n"
+            f"{'Sender' if final_direction == 'inbox' else 'Recipient'}: "
+            f"{extracted.get('sender_name', '[Unknown]')}\n"
             f"Category: {extracted.get('category', 'General / Other')}\n"
             f"Summary: {extracted.get('subject', '')[:120]}\n\n"
-            f"Open Letterbox in the dashboard to review."
+            f"If the direction is wrong, reply: MOVE {diary_number} {'OUT' if final_direction == 'inbox' else 'IN'}"
         )
     else:
         confirm_msg = (
             f"Letter image received and saved — Ref: {diary_number}\n"
             f"OCR could not read the image clearly. "
-            f"Please open the Letterbox dashboard to review and fill in details manually."
+            f"Open the Letterbox dashboard to fill in details manually.\n\n"
+            f"To correct the direction, reply: MOVE {diary_number} OUT  (or IN)"
         )
     try:
         send_whatsapp_message(sender, confirm_msg)
     except Exception as exc:
         logger.warning(f"WhatsApp confirmation to PA failed: {exc}")
+
+
+_MOVE_PATTERN = re.compile(
+    r'^\s*move\s+([\w/]+)\s+(in|out|inbox|outbox)\s*$',
+    re.IGNORECASE
+)
+
+
+def _handle_pa_move_command(sender: str, diary_ref: str, direction_str: str, receiver_number: str = ""):
+    """
+    Background task: PA sent a text command to correct a letter's direction.
+    Format: MOVE MP/2026/0042 OUT  or  MOVE 0042 IN
+
+    Only works for registered PA senders. Silently ignored for non-PAs.
+    """
+    if not receiver_number:
+        receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
+
+    current_tenant = _resolve_tenant(receiver_number)
+
+    # PA whitelist check
+    try:
+        with engine.connect() as conn:
+            pa_row = conn.execute(
+                text("SELECT id FROM users WHERE phone = :phone AND tenant_id = :tid AND is_active = true LIMIT 1"),
+                {"phone": sender, "tid": current_tenant}
+            ).fetchone()
+    except Exception as exc:
+        logger.error(f"PA check failed in MOVE handler: {exc}")
+        return
+
+    if not pa_row:
+        logger.info(f"MOVE command from non-PA {sender} — ignored")
+        return
+
+    new_direction = "outbox" if direction_str.lower() in ("out", "outbox") else "inbox"
+
+    # Normalise diary ref — accept "0042" or "MP/2026/0042"
+    ref_upper = diary_ref.upper()
+    if "/" not in ref_upper:
+        year = datetime.utcnow().year
+        ref_upper = f"MP/{year}/{ref_upper.zfill(4)}"
+
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(
+                text("""UPDATE letterbox SET direction = :dir
+                        WHERE diary_number = :ref AND tenant_id = :tid
+                        AND (is_deleted IS NULL OR is_deleted = false)"""),
+                {"dir": new_direction, "ref": ref_upper, "tid": current_tenant}
+            )
+            if result.rowcount == 0:
+                send_whatsapp_message(sender, f"Could not find letter with ref {ref_upper}. Please check the diary number.")
+                return
+        label = "OUTBOX" if new_direction == "outbox" else "INBOX"
+        send_whatsapp_message(sender, f"Done — {ref_upper} moved to {label}.")
+        logger.info(f"MOVE: {ref_upper} → {new_direction} by PA {sender}, tenant {current_tenant}")
+    except Exception as exc:
+        logger.error(f"MOVE command DB update failed: {exc}")
+        try:
+            send_whatsapp_message(sender, "Sorry, could not update the letter. Please try again.")
+        except Exception:
+            pass
 
 
 def _process_incoming_message(sender: str, message_body: str, receiver_number: str = ""):
@@ -846,16 +938,24 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         message_body = msg["text"]["body"].strip()
         if not message_body:
             return {"status": "ignored"}
-        # Return 200 to Meta immediately — process AI + send reply in background
-        background_tasks.add_task(_process_incoming_message, sender, message_body, display_number)
+        # Check for PA MOVE correction command before routing to citizen flow
+        move_match = _MOVE_PATTERN.match(message_body)
+        if move_match:
+            background_tasks.add_task(
+                _handle_pa_move_command,
+                sender, move_match.group(1), move_match.group(2), display_number
+            )
+        else:
+            background_tasks.add_task(_process_incoming_message, sender, message_body, display_number)
         return {"status": "received"}
 
     elif msg_type == "image":
         # PA letter intake — staff photographs a physical letter and sends via WhatsApp
         media_id = msg.get("image", {}).get("id")
         resolved_mime = msg.get("image", {}).get("mime_type", "image/jpeg")
+        caption = msg.get("image", {}).get("caption", "") or ""
         if media_id:
-            background_tasks.add_task(_process_pa_letter, sender, media_id, resolved_mime, display_number)
+            background_tasks.add_task(_process_pa_letter, sender, media_id, resolved_mime, display_number, caption)
         return {"status": "received"}
 
     else:
