@@ -165,33 +165,37 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
-    const [imageUrl, setImageUrl] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageCount, setPageCount] = useState(1);
     const [showOcr, setShowOcr] = useState(false);
     const token = typeof window !== 'undefined' ? localStorage.getItem('needle_token') : null;
+
+    const imageUrl = item
+        ? (() => {
+            const base = process.env.NEXT_PUBLIC_API_URL || '';
+            if (currentPage === 1 && item.thumbnail) return item.thumbnail;
+            if (item.image_mime || item.page_count > 1)
+                return `${base}/api/letterbox/${item.id}/image?page=${currentPage}`;
+            return null;
+          })()
+        : null;
 
     useEffect(() => {
         if (!item) return;
         setFields({
-            citizen_name:  item.citizen_name || '',
-            village:       item.village || '',
-            phone_number:  item.phone_number || '',
-            issue_summary: item.issue_summary || '',
-            category:      item.category || '',
-            urgency_level: item.urgency_level || 'Normal',
+            citizen_name:   item.citizen_name || '',
+            village:        item.village || '',
+            phone_number:   item.phone_number || '',
+            issue_summary:  item.issue_summary || '',
+            category:       item.category || '',
+            urgency_level:  item.urgency_level || 'Normal',
             date_of_letter: item.date_of_letter || '',
-            assigned_to:   item.assigned_to || '',
-            notes:         item.notes || '',
-            status:        item.status || 'new',
+            assigned_to:    item.assigned_to || '',
+            notes:          item.notes || '',
+            status:         item.status || 'new',
         });
-        // Build image URL — prefer thumbnail already loaded, else fetch
-        if (item.thumbnail) {
-            setImageUrl(item.thumbnail);
-        } else if (item.image_mime) {
-            const base = process.env.NEXT_PUBLIC_API_URL || '';
-            setImageUrl(`${base}/api/letterbox/${item.id}/image`);
-        } else {
-            setImageUrl(null);
-        }
+        setCurrentPage(1);
+        setPageCount(item.page_count || 1);
         setConfirmDelete(false);
         setShowOcr(false);
     }, [item]);
@@ -300,7 +304,30 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
                                 </div>
                             )}
 
-                            {/* OCR text toggle */}
+                            {/* Page navigator */}
+                            {pageCount > 1 && (
+                                <div className="flex items-center justify-between mt-2 px-1">
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        className="p-1 rounded hover:bg-muted disabled:opacity-30"
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </button>
+                                    <span className="text-xs text-muted-foreground font-medium">
+                                        Page {currentPage} of {pageCount}
+                                    </span>
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.min(pageCount, p + 1))}
+                                        disabled={currentPage === pageCount}
+                                        className="p-1 rounded hover:bg-muted disabled:opacity-30"
+                                    >
+                                        <ChevronRight className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            )}
+
+                        {/* OCR text toggle */}
                             {ocr && (
                                 <div className="mt-3">
                                     <button
@@ -657,7 +684,14 @@ export default function LetterboxPage() {
                                         {items.map((item) => (
                                             <TableRow key={item.id} onClick={() => setSelected(item)} className="cursor-pointer">
                                                 <TableCell className="pl-6">
-                                                    <Thumbnail item={item} />
+                                                    <div className="relative inline-block">
+                                                        <Thumbnail item={item} />
+                                                        {(item.page_count || 1) > 1 && (
+                                                            <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                                                                {item.page_count}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="font-mono text-xs text-muted-foreground">
                                                     {item.diary_number || `#${item.id}`}

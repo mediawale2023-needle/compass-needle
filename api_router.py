@@ -3416,6 +3416,7 @@ def get_letterbox_items(
                    issue_summary, urgency_level, ocr_text, ocr_raw_text,
                    status, created_at, category, diary_number, source,
                    sender_phone, assigned_to, date_of_letter, notes,
+                   COALESCE(page_count, 1) as page_count,
                    {image_col}
             FROM letterbox
             WHERE {where}
@@ -3511,22 +3512,66 @@ def delete_letterbox_item(item_id: int, user=Depends(get_current_user)):
 
 
 @router.get("/letterbox/{item_id}/image")
-def get_letterbox_image(item_id: int, user=Depends(get_current_user)):
+def get_letterbox_image(
+    item_id: int,
+    page: int = Query(1, ge=1),
+    user=Depends(get_current_user)
+):
+    """
+    Serve the image for a letterbox entry.
+    page=1 (default) → main image_data column (always present).
+    page=2,3,...     → letterbox_pages table (multi-page letters).
+    """
     tid = get_tenant_or_fail(user)
     try:
-        row = _q_one(
-            "SELECT image_data, image_mime FROM letterbox WHERE id = :id AND tenant_id = :tid AND (is_deleted IS NULL OR is_deleted = false)",
-            {"id": item_id, "tid": tid}
-        )
-        if not row or not row.get("image_data"):
-            raise HTTPException(404, "Image not found for this letter")
-        mime = row.get("image_mime") or "image/jpeg"
-        return Response(content=bytes(row["image_data"]), media_type=mime)
+        if page == 1:
+            row = _q_one(
+                "SELECT image_data, image_mime FROM letterbox WHERE id = :id AND tenant_id = :tid AND (is_deleted IS NULL OR is_deleted = false)",
+                {"id": item_id, "tid": tid}
+            )
+            if not row or not row.get("image_data"):
+                raise HTTPException(404, "Image not found for this letter")
+            mime = row.get("image_mime") or "image/jpeg"
+            return Response(content=bytes(row["image_data"]), media_type=mime)
+        else:
+            parent = _q_one(
+                "SELECT id FROM letterbox WHERE id = :id AND tenant_id = :tid AND (is_deleted IS NULL OR is_deleted = false)",
+                {"id": item_id, "tid": tid}
+            )
+            if not parent:
+                raise HTTPException(404, "Letter not found")
+            row = _q_one(
+                "SELECT image_data, image_mime FROM letterbox_pages WHERE letterbox_id = :lid AND page_number = :pnum",
+                {"lid": item_id, "pnum": page}
+            )
+            if not row or not row.get("image_data"):
+                raise HTTPException(404, f"Page {page} not found")
+            mime = row.get("image_mime") or "image/jpeg"
+            return Response(content=bytes(row["image_data"]), media_type=mime)
     except HTTPException:
         raise
     except Exception:
-        logger.exception(f"Failed to serve image for letterbox item {item_id}")
+        logger.exception(f"Failed to serve image for letterbox item {item_id} page {page}")
         raise HTTPException(500, "Failed to load image")
+
+
+@router.get("/letterbox/{item_id}/pages")
+def get_letterbox_page_count(item_id: int, user=Depends(get_current_user)):
+    """Return the page count so the frontend knows how many pages to show."""
+    tid = get_tenant_or_fail(user)
+    try:
+        row = _q_one(
+            "SELECT page_count FROM letterbox WHERE id = :id AND tenant_id = :tid AND (is_deleted IS NULL OR is_deleted = false)",
+            {"id": item_id, "tid": tid}
+        )
+        if not row:
+            raise HTTPException(404, "Letter not found")
+        return {"page_count": row.get("page_count") or 1}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(f"Failed to get page count for letterbox item {item_id}")
+        raise HTTPException(500, "Failed to get page count")
 
 
 @router.post("/letterbox/upload")
