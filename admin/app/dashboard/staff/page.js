@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { apiGet, apiPatch } from '@/lib/api';
+import ConfirmModal from '@/components/ConfirmModal';
 
 export default function StaffManagementPage() {
     const [staff, setStaff] = useState([]);
@@ -12,6 +13,7 @@ export default function StaffManagementPage() {
     const [reassigning, setReassigning] = useState(null);
     const [saving, setSaving] = useState(false);
     const [actionMsg, setActionMsg] = useState('');
+    const [suspendTarget, setSuspendTarget] = useState(null);
 
     useEffect(() => {
         Promise.all([apiGet('/api/admin/staff'), apiGet('/api/admin/mps')])
@@ -31,7 +33,13 @@ export default function StaffManagementPage() {
     const showMsg = (msg) => { setActionMsg(msg); setTimeout(() => setActionMsg(''), 3500); };
 
     const handleSuspend = async (member) => {
-        if (!confirm(`${member.is_active ? 'Suspend' : 'Reactivate'} @${member.username}?`)) return;
+        setSuspendTarget(member);
+    };
+
+    const confirmSuspend = async () => {
+        if (!suspendTarget) return;
+        const member = suspendTarget;
+        setSuspendTarget(null);
         setSaving(true);
         try {
             await apiPatch(`/api/admin/staff/${member.id}/suspend`, {});
@@ -68,6 +76,21 @@ export default function StaffManagementPage() {
     return (
         <>
             {actionMsg && <div className="toast toast-success">{actionMsg}</div>}
+
+            {/* Suspend/Reactivate Modal */}
+            {suspendTarget && (
+                <ConfirmModal
+                    title={`${suspendTarget.is_active ? 'Suspend' : 'Reactivate'} @${suspendTarget.username}?`}
+                    description={suspendTarget.is_active
+                        ? `This will revoke @${suspendTarget.username}'s access to the MP dashboard. They will not be able to log in until reactivated.`
+                        : `This will restore @${suspendTarget.username}'s access to the MP dashboard.`
+                    }
+                    confirmLabel={suspendTarget.is_active ? 'Suspend' : 'Reactivate'}
+                    variant={suspendTarget.is_active ? 'danger' : 'warning'}
+                    onConfirm={confirmSuspend}
+                    onCancel={() => setSuspendTarget(null)}
+                />
+            )}
             {error && <div className="toast toast-error">{error}</div>}
 
             <div className="search-wrapper" style={{ marginBottom: '1rem', maxWidth: 400 }}>

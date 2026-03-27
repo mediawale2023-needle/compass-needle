@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { apiGet, apiPut } from '@/lib/api';
+import ConfirmModal from '@/components/ConfirmModal';
 
 export default function GeographyRulesPage() {
     const [mps, setMps] = useState([]);
@@ -10,6 +11,7 @@ export default function GeographyRulesPage() {
     const [newLoc, setNewLoc] = useState('');
     const [newAC, setNewAC] = useState('');
     const [msg, setMsg] = useState({ type: '', text: '' });
+    const [deleteRuleTarget, setDeleteRuleTarget] = useState(null);
 
     useEffect(() => {
         apiGet('/api/admin/mps').then(r => setMps((r.mps || []).filter(m => m.role === 'mp'))).catch(() => { });
@@ -44,7 +46,13 @@ export default function GeographyRulesPage() {
     };
 
     const deleteRule = async (loc) => {
-        if (!confirm(`Remove rule for "${loc}"?`)) return;
+        setDeleteRuleTarget(loc);
+    };
+
+    const confirmDeleteRule = async () => {
+        if (!deleteRuleTarget) return;
+        const loc = deleteRuleTarget;
+        setDeleteRuleTarget(null);
         const updated = { ...overrides };
         if (updated.geo_overrides?.[selectedTid]) {
             delete updated.geo_overrides[selectedTid][loc];
@@ -62,6 +70,18 @@ export default function GeographyRulesPage() {
     return (
         <>
             {msg.text && <div className={`toast ${msg.type === 'success' ? 'toast-success' : 'toast-error'}`}>{msg.text}</div>}
+
+            {/* Delete Rule Modal */}
+            {deleteRuleTarget && (
+                <ConfirmModal
+                    title={`Remove rule for "${deleteRuleTarget}"?`}
+                    description="This location-to-assembly mapping will be deleted. Citizens mentioning this location will fall back to AI matching."
+                    confirmLabel="Remove Rule"
+                    variant="danger"
+                    onConfirm={confirmDeleteRule}
+                    onCancel={() => setDeleteRuleTarget(null)}
+                />
+            )}
 
             {mpList.length === 0 ? (
                 <div className="glass-panel">

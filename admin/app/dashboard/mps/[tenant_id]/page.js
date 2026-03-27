@@ -1,0 +1,241 @@
+'use client';
+import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import { apiGet, apiPost } from '@/lib/api';
+
+function timeAgo(isoStr) {
+    if (!isoStr || isoStr === 'Never') return isoStr || '—';
+    const diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
+    return `${Math.floor(diff / 86400)} days ago`;
+}
+
+function formatDate(isoStr) {
+    if (!isoStr || isoStr === 'Never') return isoStr || '—';
+    try {
+        return new Date(isoStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch { return isoStr; }
+}
+
+export default function MpDetailPage() {
+    const params = useParams();
+    const tenantId = params.tenant_id;
+    const [data, setData] = useState(null);
+    const [notes, setNotes] = useState([]);
+    const [newNote, setNewNote] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [toast, setToast] = useState('');
+
+    useEffect(() => {
+        apiGet(`/api/admin/mps/${tenantId}/detail`).then(setData).catch(() => {});
+        apiGet(`/api/admin/mps/${tenantId}/notes`).then(r => setNotes(r.notes || [])).catch(() => {});
+    }, [tenantId]);
+
+    const addNote = async () => {
+        if (!newNote.trim()) return;
+        setSaving(true);
+        try {
+            await apiPost(`/api/admin/mps/${tenantId}/notes`, { body: newNote.trim() });
+            setNewNote('');
+            const r = await apiGet(`/api/admin/mps/${tenantId}/notes`);
+            setNotes(r.notes || []);
+            setToast('Note added');
+            setTimeout(() => setToast(''), 3000);
+        } catch (e) {
+            setToast('Failed to add note');
+            setTimeout(() => setToast(''), 3000);
+        }
+        setSaving(false);
+    };
+
+    if (!data) {
+        return (
+            <div style={{ display: 'grid', gap: 16 }}>
+                {[...Array(3)].map((_, i) => (
+                    <div key={i} className="glass-panel skeleton" style={{ height: 120 }} />
+                ))}
+            </div>
+        );
+    }
+
+    const p = data.profile || {};
+    const isLS = p.house === 'Lok Sabha';
+
+    return (
+        <>
+            {toast && <div className={`toast ${toast.includes('Failed') ? 'toast-error' : 'toast-success'}`}>{toast}</div>}
+
+            {/* Breadcrumb */}
+            <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#6b7f76' }}>
+                <Link href="/dashboard" style={{ color: '#006a4d', textDecoration: 'none' }}>Overview</Link>
+                <span>›</span>
+                <span>{p.mp_name || 'MP Detail'}</span>
+            </div>
+
+            {/* Profile Summary */}
+            <div className="glass-panel" style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                    <div style={{
+                        width: 56, height: 56, borderRadius: 14,
+                        background: isLS ? 'linear-gradient(135deg, #006a4d, #00875f)' : 'linear-gradient(135deg, #8d153a, #b91c50)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: 'white', fontWeight: 700, fontSize: '1.2rem', flexShrink: 0,
+                    }}>
+                        {(p.mp_name || '?').split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                            <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1a2e28' }}>
+                                {p.mp_name || '—'}
+                            </h2>
+                            <span className={`badge ${isLS ? 'badge-green' : 'badge-red'}`}>{p.house || 'Lok Sabha'}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 20, fontSize: '0.78rem', color: '#6b7f76', flexWrap: 'wrap' }}>
+                            <span><strong>Constituency:</strong> {p.constituency || '—'}</span>
+                            <span><strong>State:</strong> {p.state || '—'}</span>
+                            <span><strong>Party:</strong> {p.party || '—'}</span>
+                            {p.whatsapp_number && <span><strong>WhatsApp:</strong> {p.whatsapp_number}</span>}
+                        </div>
+                        {p.key_facts && p.key_facts.length > 0 && (
+                            <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {p.key_facts.slice(0, 5).map((f, i) => (
+                                    <span key={i} className="badge badge-slate" style={{ fontSize: '0.68rem' }}>{f}</span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <Link href={`/dashboard/mps/${tenantId}/setup`}
+                        className="btn-secondary"
+                        style={{ textDecoration: 'none', fontSize: '0.78rem', padding: '6px 14px', flexShrink: 0 }}>
+                        Setup Checklist
+                    </Link>
+                </div>
+            </div>
+
+            {/* Quick Stats Row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
+                <QuickStat label="Last Login" value={timeAgo(data.last_login)} />
+                <QuickStat label="Total Cases" value={data.cases?.total || 0} />
+                <QuickStat label="Open Cases" value={data.cases?.open || 0} accent={data.cases?.open > 0 ? '#d97706' : null} />
+                <QuickStat label="Resolved" value={data.cases?.resolved || 0} accent="#059669" />
+                <QuickStat label="Last WhatsApp" value={timeAgo(data.last_whatsapp)} />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                {/* Left: Activity Timeline */}
+                <div className="glass-panel">
+                    <h3 className="section-title">Recent Activity</h3>
+                    {(!data.activity || data.activity.length === 0) ? (
+                        <div className="empty-state" style={{ padding: '1.5rem' }}>
+                            <div className="empty-state-desc">No activity recorded yet</div>
+                        </div>
+                    ) : (
+                        <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+                            {data.activity.map((a, i) => (
+                                <div key={i} style={{
+                                    display: 'flex', gap: 10, padding: '8px 0',
+                                    borderBottom: i < data.activity.length - 1 ? '1px solid #f0f4f1' : 'none',
+                                }}>
+                                    <div style={{
+                                        width: 8, height: 8, borderRadius: '50%',
+                                        background: '#006a4d', flexShrink: 0, marginTop: 5,
+                                    }} />
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontSize: '0.78rem', fontWeight: 500, color: '#1a2e28' }}>
+                                            {a.title || a.activity_type}
+                                        </div>
+                                        <div style={{ fontSize: '0.68rem', color: '#94a3a0' }}>
+                                            {timeAgo(a.created_at)} · {a.activity_type?.replace(/_/g, ' ')}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Right: Staff & Notes */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {/* Staff Roster */}
+                    <div className="glass-panel">
+                        <h3 className="section-title">Staff Roster</h3>
+                        {(!data.staff || data.staff.length === 0) ? (
+                            <div style={{ fontSize: '0.78rem', color: '#6b7f76' }}>No staff assigned</div>
+                        ) : (
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th><th>Role</th><th>Status</th><th>Last Login</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {data.staff.map(s => (
+                                        <tr key={s.id}>
+                                            <td style={{ fontWeight: 500 }}>{s.display_name || s.username}</td>
+                                            <td><span className="badge badge-slate">{s.role}</span></td>
+                                            <td><span className={`badge badge-dot ${s.is_active ? 'badge-green' : 'badge-red'}`}>{s.is_active ? 'Active' : 'Suspended'}</span></td>
+                                            <td style={{ fontSize: '0.72rem', color: '#94a3a0' }}>{timeAgo(s.last_login)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+
+                    {/* Admin Notes */}
+                    <div className="glass-panel" style={{ flex: 1 }}>
+                        <h3 className="section-title">Admin Notes</h3>
+                        {/* Add note */}
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                            <textarea
+                                className="form-input"
+                                rows={2}
+                                placeholder="Add a note about this account..."
+                                value={newNote}
+                                onChange={e => setNewNote(e.target.value)}
+                                style={{ flex: 1, minHeight: 50 }}
+                            />
+                            <button className="btn-primary" disabled={saving || !newNote.trim()} onClick={addNote}
+                                style={{ alignSelf: 'flex-end', padding: '7px 16px', fontSize: '0.78rem' }}>
+                                {saving ? '...' : 'Add'}
+                            </button>
+                        </div>
+                        {/* Notes list */}
+                        <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                            {notes.length === 0 && (
+                                <div style={{ fontSize: '0.78rem', color: '#94a3a0' }}>No notes yet</div>
+                            )}
+                            {notes.map(n => (
+                                <div key={n.id} style={{
+                                    padding: '8px 0',
+                                    borderBottom: '1px solid #f0f4f1',
+                                }}>
+                                    <div style={{ fontSize: '0.78rem', color: '#1a2e28', lineHeight: 1.5 }}>{n.body}</div>
+                                    <div style={{ fontSize: '0.65rem', color: '#94a3a0', marginTop: 3 }}>
+                                        {n.admin_username} · {formatDate(n.created_at)}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </>
+    );
+}
+
+function QuickStat({ label, value, accent }) {
+    return (
+        <div className="stat-card" style={{ padding: '0.9rem 1rem' }}>
+            <div style={{ fontSize: '0.65rem', color: '#94a3a0', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 4 }}>
+                {label}
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: accent || '#1a2e28' }}>
+                {value ?? '—'}
+            </div>
+        </div>
+    );
+}

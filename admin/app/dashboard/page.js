@@ -3,6 +3,70 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { apiGet } from '@/lib/api';
 
+/* ── System Health Widget ── */
+function SystemHealthWidget() {
+    const [health, setHealth] = useState(null);
+
+    useEffect(() => {
+        apiGet('/api/admin/system-health').then(setHealth).catch(() => {});
+    }, []);
+
+    if (!health) return null;
+
+    const services = [
+        { key: 'whatsapp', label: 'WhatsApp API', detail: health.whatsapp?.last_webhook ? `Last webhook: ${timeAgo(health.whatsapp.last_webhook)}` : 'No data' },
+        { key: 'openai', label: 'OpenAI API', detail: health.openai?.configured ? 'Key configured' : 'Not configured' },
+        { key: 'gemini', label: 'Gemini API', detail: health.gemini?.configured ? 'Key configured' : 'Not configured' },
+    ];
+
+    const dotColor = { green: '#22c55e', amber: '#f59e0b', red: '#ef4444' };
+
+    return (
+        <div className="glass-panel" style={{ marginBottom: '1.25rem', padding: '1rem 1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#006a4d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1a2e28', letterSpacing: '-0.2px' }}>System Health</span>
+                </div>
+                <span style={{ fontSize: '0.65rem', color: '#94a3a0' }}>
+                    Last checked: {health.last_checked ? timeAgo(health.last_checked) : '—'}
+                </span>
+            </div>
+            <div style={{ display: 'flex', gap: 16 }}>
+                {services.map(s => {
+                    const status = health[s.key]?.status || 'red';
+                    return (
+                        <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+                            <div style={{
+                                width: 10, height: 10, borderRadius: '50%',
+                                background: dotColor[status] || dotColor.red,
+                                boxShadow: `0 0 6px ${dotColor[status] || dotColor.red}40`,
+                                flexShrink: 0,
+                            }} />
+                            <div>
+                                <div style={{ fontSize: '0.76rem', fontWeight: 600, color: '#1a2e28' }}>{s.label}</div>
+                                <div style={{ fontSize: '0.66rem', color: '#6b7f76' }}>{s.detail}</div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function timeAgo(isoStr) {
+    if (!isoStr) return '—';
+    const diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
+    return `${Math.floor(diff / 86400)} days ago`;
+}
+
+/* ── Stat Icons ── */
 const StatIcons = {
     mps: () => (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -72,6 +136,9 @@ export default function DashboardOverview() {
 
     return (
         <>
+            {/* System Health — First thing visible */}
+            <SystemHealthWidget />
+
             {/* Stat Cards */}
             {stats && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: '1.5rem' }}>
@@ -184,35 +251,37 @@ function MpCard({ mp }) {
     }
 
     return (
-        <div className="mp-card">
-            <div style={{
-                width: 40, height: 40, borderRadius: 10,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 700, fontSize: '0.9rem', color: 'white', flexShrink: 0,
-                background: avatarBg,
-                letterSpacing: '0.5px',
-            }}>
-                {initials}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
-                    <span style={{ color: '#1a2e28', fontWeight: 600, fontSize: '0.875rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {mp.display_name}
-                    </span>
-                    <span className={badgeClass} style={{ flexShrink: 0, fontSize: '0.62rem', padding: '2px 7px' }}>{badgeLabel}</span>
+        <Link href={`/dashboard/mps/${mp.tenant_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+            <div className="mp-card" style={{ cursor: 'pointer' }}>
+                <div style={{
+                    width: 40, height: 40, borderRadius: 10,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 700, fontSize: '0.9rem', color: 'white', flexShrink: 0,
+                    background: avatarBg,
+                    letterSpacing: '0.5px',
+                }}>
+                    {initials}
                 </div>
-                <div style={{ color: '#6b7f76', fontSize: '0.73rem', marginBottom: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    @{mp.username} · {mp.parliamentary_constituency}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div className="completeness-bar" style={{ flex: 1 }}>
-                        <div className={`completeness-fill ${fillClass}`} style={{ width: `${completeness}%` }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
+                        <span style={{ color: '#1a2e28', fontWeight: 600, fontSize: '0.875rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {mp.display_name}
+                        </span>
+                        <span className={badgeClass} style={{ flexShrink: 0, fontSize: '0.62rem', padding: '2px 7px' }}>{badgeLabel}</span>
                     </div>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 600, color: completeness >= 70 ? '#059669' : completeness >= 40 ? '#d97706' : '#dc2626', flexShrink: 0 }}>
-                        {completeness}%
-                    </span>
+                    <div style={{ color: '#6b7f76', fontSize: '0.73rem', marginBottom: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        @{mp.username} · {mp.parliamentary_constituency}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div className="completeness-bar" style={{ flex: 1 }}>
+                            <div className={`completeness-fill ${fillClass}`} style={{ width: `${completeness}%` }} />
+                        </div>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 600, color: completeness >= 70 ? '#059669' : completeness >= 40 ? '#d97706' : '#dc2626', flexShrink: 0 }}>
+                            {completeness}%
+                        </span>
+                    </div>
                 </div>
             </div>
-        </div>
+        </Link>
     );
 }

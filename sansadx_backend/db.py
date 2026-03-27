@@ -519,6 +519,28 @@ class CSRDocument(Base):
     company = relationship("CSRCompany", backref="documents")
 
 
+class AdminAuditLog(Base):
+    """Append-only audit trail for all admin/editor actions."""
+    __tablename__ = "admin_audit_log"
+    id = Column(Integer, primary_key=True, index=True)
+    admin_username = Column(String, nullable=False, index=True)
+    action = Column(String, nullable=False, index=True)       # created, updated, deleted, suspended, etc.
+    target_type = Column(String, nullable=False, index=True)   # mp, staff, geography, announcement, editor, etc.
+    target_name = Column(String, nullable=True)                # human-readable target identifier
+    change_summary = Column(Text, nullable=True)               # e.g. "constituency: 'Belagavi' → 'Belgaum'"
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AdminNote(Base):
+    """Append-only admin notes per tenant (MP/PR)."""
+    __tablename__ = "admin_notes"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
+    admin_username = Column(String, nullable=False)
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # ─────────────────────────────────────────
 # INIT — Create all tables
 # ─────────────────────────────────────────

@@ -65,6 +65,11 @@ const Icons = {
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
         </svg>
     ),
+    Audit: () => (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+        </svg>
+    ),
     Logout: () => (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -74,17 +79,38 @@ const Icons = {
     ),
 };
 
-const NAV_ITEMS = [
-    { href: '/dashboard', label: 'Overview', Icon: Icons.Overview },
-    { href: '/dashboard/profiles', label: 'Profile Editor', Icon: Icons.Profiles },
-    { href: '/dashboard/geography', label: 'Geography Upload', Icon: Icons.Geography },
-    { href: '/dashboard/rules', label: 'Geography Rules', Icon: Icons.Rules },
-    { href: '/dashboard/intelligence', label: 'Case Intelligence', Icon: Icons.Intelligence },
-    { href: '/dashboard/health', label: 'Tenant Health', Icon: Icons.Health },
-    { href: '/dashboard/analytics', label: 'Usage Analytics', Icon: Icons.Analytics },
-    { href: '/dashboard/staff', label: 'Staff Management', Icon: Icons.Staff },
-    { href: '/dashboard/announcements', label: 'Announcements', Icon: Icons.Announcements },
-    { href: '/dashboard/settings', label: 'Settings', Icon: Icons.Settings },
+const NAV_GROUPS = [
+    {
+        label: 'MONITOR',
+        items: [
+            { href: '/dashboard', label: 'Overview', Icon: Icons.Overview },
+            { href: '/dashboard/health', label: 'Tenant Health', Icon: Icons.Health },
+            { href: '/dashboard/intelligence', label: 'Case Intelligence', Icon: Icons.Intelligence },
+        ],
+    },
+    {
+        label: 'CONFIGURE',
+        items: [
+            { href: '/dashboard/profiles', label: 'Profile Editor', Icon: Icons.Profiles },
+            { href: '/dashboard/geography', label: 'Geography Upload', Icon: Icons.Geography },
+            { href: '/dashboard/rules', label: 'Geography Rules', Icon: Icons.Rules },
+            { href: '/dashboard/staff', label: 'Staff Management', Icon: Icons.Staff },
+        ],
+    },
+    {
+        label: 'COMMUNICATE',
+        items: [
+            { href: '/dashboard/announcements', label: 'Announcements', Icon: Icons.Announcements },
+        ],
+    },
+    {
+        label: 'ADMIN',
+        items: [
+            { href: '/dashboard/analytics', label: 'Usage Analytics', Icon: Icons.Analytics },
+            { href: '/dashboard/audit', label: 'Audit Log', Icon: Icons.Audit },
+            { href: '/dashboard/settings', label: 'Settings', Icon: Icons.Settings },
+        ],
+    },
 ];
 
 export default function Sidebar() {
@@ -129,50 +155,64 @@ export default function Sidebar() {
                 </div>
             </div>
 
-            {/* Nav */}
-            <nav style={{ flex: 1, padding: '0.75rem 0.75rem' }}>
-                {NAV_ITEMS.map((item) => {
-                    const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
-                    return (
-                        <Link
-                            key={item.href}
-                            href={item.href}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 9,
-                                padding: '8px 12px',
-                                borderRadius: 8,
-                                marginBottom: 2,
-                                fontSize: '0.83rem',
-                                fontWeight: isActive ? 600 : 450,
-                                color: isActive ? '#006a4d' : '#6b7f76',
-                                background: isActive ? 'rgba(0, 106, 77, 0.08)' : 'transparent',
-                                textDecoration: 'none',
-                                transition: 'all 0.12s ease',
-                                borderLeft: isActive ? '2.5px solid #006a4d' : '2.5px solid transparent',
-                                position: 'relative',
-                            }}
-                            onMouseEnter={e => {
-                                if (!isActive) {
-                                    e.currentTarget.style.background = '#f4f7f5';
-                                    e.currentTarget.style.color = '#1a2e28';
-                                }
-                            }}
-                            onMouseLeave={e => {
-                                if (!isActive) {
-                                    e.currentTarget.style.background = 'transparent';
-                                    e.currentTarget.style.color = '#6b7f76';
-                                }
-                            }}
-                        >
-                            <span style={{ flexShrink: 0, opacity: isActive ? 1 : 0.7 }}>
-                                <item.Icon />
-                            </span>
-                            {item.label}
-                        </Link>
-                    );
-                })}
+            {/* Grouped Nav */}
+            <nav style={{ flex: 1, padding: '0.5rem 0.75rem', overflowY: 'auto' }}>
+                {NAV_GROUPS.map((group, gi) => (
+                    <div key={group.label} style={{ marginBottom: gi < NAV_GROUPS.length - 1 ? 6 : 0 }}>
+                        <div style={{
+                            fontSize: '0.58rem',
+                            fontWeight: 700,
+                            color: '#94a3a0',
+                            letterSpacing: '1.6px',
+                            textTransform: 'uppercase',
+                            padding: '10px 12px 4px',
+                        }}>
+                            {group.label}
+                        </div>
+                        {group.items.map((item) => {
+                            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                            return (
+                                <Link
+                                    key={item.href}
+                                    href={item.href}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 9,
+                                        padding: '7px 12px',
+                                        borderRadius: 8,
+                                        marginBottom: 1,
+                                        fontSize: '0.83rem',
+                                        fontWeight: isActive ? 600 : 450,
+                                        color: isActive ? '#006a4d' : '#6b7f76',
+                                        background: isActive ? 'rgba(0, 106, 77, 0.08)' : 'transparent',
+                                        textDecoration: 'none',
+                                        transition: 'all 0.12s ease',
+                                        borderLeft: isActive ? '2.5px solid #006a4d' : '2.5px solid transparent',
+                                        position: 'relative',
+                                    }}
+                                    onMouseEnter={e => {
+                                        if (!isActive) {
+                                            e.currentTarget.style.background = '#f4f7f5';
+                                            e.currentTarget.style.color = '#1a2e28';
+                                        }
+                                    }}
+                                    onMouseLeave={e => {
+                                        if (!isActive) {
+                                            e.currentTarget.style.background = 'transparent';
+                                            e.currentTarget.style.color = '#6b7f76';
+                                        }
+                                    }}
+                                >
+                                    <span style={{ flexShrink: 0, opacity: isActive ? 1 : 0.7 }}>
+                                        <item.Icon />
+                                    </span>
+                                    {item.label}
+                                </Link>
+                            );
+                        })}
+                    </div>
+                ))}
             </nav>
 
             {/* Footer */}

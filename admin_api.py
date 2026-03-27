@@ -18,7 +18,7 @@ import jwt
 from jwt.exceptions import PyJWTError as JWTError
 from sqlalchemy import text, func
 
-from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, validate_password, get_all_overrides, save_overrides_to_db
+from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, validate_password, get_all_overrides, save_overrides_to_db, AdminAuditLog, AdminNote
 from core.db_helpers import _q, _q_one, _parse_meta
 from modules.constituencies import ALL_CONSTITUENCIES
 from modules.auth import get_tenant_or_fail
@@ -130,6 +130,21 @@ def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(security)
         return user
     except JWTError:
         raise HTTPException(401, "Invalid or expired token")
+
+# ─────────────────────────────────────────
+# AUDIT LOGGING HELPER
+# ─────────────────────────────────────────
+def _audit(admin_user, action: str, target_type: str, target_name: str = "", change_summary: str = ""):
+    """Append an entry to the admin audit log."""
+    try:
+        username = admin_user.get("username", "unknown") if isinstance(admin_user, dict) else str(admin_user)
+        with engine.begin() as conn:
+            conn.execute(
+                text("INSERT INTO admin_audit_log (admin_username, action, target_type, target_name, change_summary, created_at) VALUES (:u, :a, :tt, :tn, :cs, :now)"),
+                {"u": username, "a": action, "tt": target_type, "tn": target_name, "cs": change_summary, "now": datetime.utcnow()}
+            )
+    except Exception as e:
+        logger.warning(f"Audit log write failed: {e}")
 
 
 # ─────────────────────────────────────────
@@ -503,11 +518,14 @@ def delete_mp(tenant_id: int, _=Depends(get_admin_user)):
     """Delete MP + tenant + profile cascade."""
     db = SessionLocal()
     try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        mp_name = tenant.name if tenant else f"tenant_{tenant_id}"
         db.query(TenantProfile).filter(TenantProfile.tenant_id == tenant_id).delete()
         db.query(Case).filter(Case.tenant_id == tenant_id).delete()
         db.query(User).filter(User.tenant_id == tenant_id).delete()
         db.query(Tenant).filter(Tenant.id == tenant_id).delete()
         db.commit()
+        _audit(_, "deleted", "mp", mp_name, f"tenant_id={tenant_id}")
         return {"success": True}
     except Exception as e:
         db.rollback()
@@ -581,6 +599,7 @@ def update_mp_profile(tenant_id: int, req: UpdateProfileRequest, _=Depends(get_a
             db.add(profile)
 
         db.commit()
+        _audit(_, "updated", "mp_profile", req.mp_name or "", f"tenant_id={tenant_id}")
         return {"success": True}
     except Exception as e:
         db.rollback()
@@ -1666,4 +1685,316 @@ def delete_announcement(ann_id: int, _=Depends(get_admin_user)):
         result = conn.execute(text("DELETE FROM announcements WHERE id = :id"), {"id": ann_id})
     if result.rowcount == 0:
         raise HTTPException(404, "Announcement not found.")
+    _audit(_, "deleted", "announcement", f"id={ann_id}")
     return {"success": True}
+
+
+# ═══════════════════════════════════════════
+# SYSTEM HEALTH
+# ═══════════════════════════════════════════
+
+@router.get("/system-health")
+def system_health(_=Depends(get_admin_user)):
+    """System health widget — API status checks."""
+    now = datetime.utcnow()
+
+    # WhatsApp: last webhook = last case created
+    last_case = _q_one("SELECT MAX(created_at) AS ts FROM cases")
+    wa_ts = None
+    wa_status = "red"
+    if last_case and last_case.get("ts"):
+        wa_ts = last_case["ts"]
+        if hasattr(wa_ts, "isoformat"):
+            delta = (now - wa_ts).total_seconds()
+            wa_status = "green" if delta < 3600 else ("amber" if delta < 86400 else "red")
+            wa_ts = wa_ts.isoformat()
+
+    # OpenAI: check if API key is configured
+    openai_key = os.getenv("OPENAI_API_KEY", "")
+    openai_status = "green" if openai_key and len(openai_key) > 10 else "red"
+
+    # Gemini: check if API key is configured
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
+    gemini_status = "green" if gemini_key and len(gemini_key) > 10 else "red"
+
+    return {
+        "whatsapp": {"status": wa_status, "last_webhook": wa_ts},
+        "openai": {"status": openai_status, "configured": bool(openai_key)},
+        "gemini": {"status": gemini_status, "configured": bool(gemini_key)},
+        "last_checked": now.isoformat(),
+    }
+
+
+# ═══════════════════════════════════════════
+# MP DETAIL (CRM CORE)
+# ═══════════════════════════════════════════
+
+@router.get("/mps/{tenant_id}/detail")
+def mp_detail(tenant_id: int, _=Depends(get_admin_user)):
+    """Rich MP detail page — profile, activity, staff, health."""
+    # Profile
+    profile = _q_one("SELECT * FROM tenant_profiles WHERE tenant_id = :t", {"t": tenant_id})
+    tenant = _q_one("SELECT * FROM tenants WHERE id = :t", {"t": tenant_id})
+    if not tenant:
+        raise HTTPException(404, "Tenant not found")
+
+    user = _q_one("SELECT * FROM users WHERE tenant_id = :t AND role IN ('mp','pr') LIMIT 1", {"t": tenant_id})
+
+    # Profile summary
+    extra = {}
+    if profile:
+        pd = profile.get("profile_data")
+        if isinstance(pd, str):
+            try: pd = json.loads(pd)
+            except: pd = {}
+        elif not isinstance(pd, dict):
+            pd = {}
+        extra = pd
+
+    profile_summary = {
+        "mp_name": profile.get("mp_name", "") if profile else tenant.get("name", ""),
+        "constituency": profile.get("constituency", "") if profile else tenant.get("constituency", ""),
+        "state": profile.get("state", "") if profile else "",
+        "house": profile.get("house", "Lok Sabha") if profile else (user.get("house", "Lok Sabha") if user else "Lok Sabha"),
+        "party": profile.get("party", "Independent") if profile else "Independent",
+        "key_facts": extra.get("key_facts", []),
+        "languages": extra.get("languages", []),
+        "whatsapp_number": tenant.get("whatsapp_number", ""),
+        "created_at": tenant["created_at"].isoformat() if tenant.get("created_at") and hasattr(tenant["created_at"], "isoformat") else str(tenant.get("created_at", "")),
+    }
+
+    # Login history
+    last_login = user.get("last_login") if user else None
+    login_str = last_login.isoformat() if last_login and hasattr(last_login, "isoformat") else (str(last_login) if last_login else "Never")
+
+    # Case volumes
+    case_stats = _q_one("SELECT COUNT(*) AS total, SUM(CASE WHEN status='new' THEN 1 ELSE 0 END) AS open_cases, SUM(CASE WHEN status='resolved' THEN 1 ELSE 0 END) AS resolved, MAX(created_at) AS last_case FROM cases WHERE tenant_id = :t", {"t": tenant_id}) or {}
+
+    last_case_ts = case_stats.get("last_case")
+    last_case_str = last_case_ts.isoformat() if last_case_ts and hasattr(last_case_ts, "isoformat") else None
+
+    # Last WhatsApp message (approximated by last case)
+    last_wa = _q_one("SELECT MAX(created_at) AS ts FROM cases WHERE tenant_id = :t", {"t": tenant_id})
+    last_wa_ts = last_wa.get("ts") if last_wa else None
+    last_wa_str = last_wa_ts.isoformat() if last_wa_ts and hasattr(last_wa_ts, "isoformat") else None
+
+    # Staff roster
+    staff = _q("SELECT id, username, display_name, role, is_active, last_login FROM users WHERE tenant_id = :t AND role NOT IN ('admin','super_admin','sysadmin','mp','pr')", {"t": tenant_id})
+    for s in staff:
+        if s.get("last_login") and hasattr(s["last_login"], "isoformat"):
+            s["last_login"] = s["last_login"].isoformat()
+        s["is_active"] = bool(s.get("is_active", True))
+
+    # Health status
+    onboarding = tenant.get("onboarding_state") or {}
+    if isinstance(onboarding, str):
+        try: onboarding = json.loads(onboarding)
+        except: onboarding = {}
+
+    # Recent activity (from activity_history)
+    activity = _q("SELECT activity_type, title, created_at FROM activity_history WHERE tenant_id = :t ORDER BY created_at DESC LIMIT 20", {"t": tenant_id})
+    for a in activity:
+        if a.get("created_at") and hasattr(a["created_at"], "isoformat"):
+            a["created_at"] = a["created_at"].isoformat()
+
+    return {
+        "profile": profile_summary,
+        "last_login": login_str,
+        "cases": {
+            "total": case_stats.get("total", 0),
+            "open": case_stats.get("open_cases", 0),
+            "resolved": case_stats.get("resolved", 0),
+            "last_case": last_case_str,
+        },
+        "last_whatsapp": last_wa_str,
+        "staff": staff,
+        "onboarding_state": onboarding,
+        "activity": activity,
+    }
+
+
+# ═══════════════════════════════════════════
+# ADMIN NOTES
+# ═══════════════════════════════════════════
+
+class AdminNoteRequest(BaseModel):
+    body: str
+
+
+@router.get("/mps/{tenant_id}/notes")
+def get_admin_notes(tenant_id: int, _=Depends(get_admin_user)):
+    rows = _q("SELECT id, admin_username, body, created_at FROM admin_notes WHERE tenant_id = :t ORDER BY created_at DESC", {"t": tenant_id})
+    for r in rows:
+        if r.get("created_at") and hasattr(r["created_at"], "isoformat"):
+            r["created_at"] = r["created_at"].isoformat()
+    return {"notes": rows}
+
+
+@router.post("/mps/{tenant_id}/notes")
+def add_admin_note(tenant_id: int, req: AdminNoteRequest, user=Depends(get_admin_user)):
+    if not req.body.strip():
+        raise HTTPException(400, "Note body is required")
+    username = user.get("username", "admin")
+    with engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO admin_notes (tenant_id, admin_username, body, created_at) VALUES (:t, :u, :b, :now)"),
+            {"t": tenant_id, "u": username, "b": req.body.strip(), "now": datetime.utcnow()}
+        )
+    _audit(user, "created", "admin_note", f"tenant_id={tenant_id}", req.body[:80])
+    return {"success": True}
+
+
+# ═══════════════════════════════════════════
+# AUDIT LOG
+# ═══════════════════════════════════════════
+
+@router.get("/audit")
+def get_audit_log(
+    actor: Optional[str] = None,
+    action: Optional[str] = None,
+    target_type: Optional[str] = None,
+    days: Optional[int] = 30,
+    _=Depends(get_admin_user),
+):
+    conditions = ["1=1"]
+    params = {}
+    if actor:
+        conditions.append("admin_username = :actor")
+        params["actor"] = actor
+    if action:
+        conditions.append("action = :action")
+        params["action"] = action
+    if target_type:
+        conditions.append("target_type = :tt")
+        params["tt"] = target_type
+    if days:
+        conditions.append("created_at >= :since")
+        params["since"] = datetime.utcnow() - timedelta(days=days)
+
+    where = " AND ".join(conditions)
+    rows = _q(f"SELECT * FROM admin_audit_log WHERE {where} ORDER BY created_at DESC LIMIT 500", params)  # nosec B608
+    for r in rows:
+        if r.get("created_at") and hasattr(r["created_at"], "isoformat"):
+            r["created_at"] = r["created_at"].isoformat()
+
+    # Get filter options
+    actors = _q("SELECT DISTINCT admin_username FROM admin_audit_log ORDER BY admin_username")
+    actions = _q("SELECT DISTINCT action FROM admin_audit_log ORDER BY action")
+    target_types = _q("SELECT DISTINCT target_type FROM admin_audit_log ORDER BY target_type")
+
+    return {
+        "entries": rows,
+        "filter_options": {
+            "actors": [a["admin_username"] for a in actors],
+            "actions": [a["action"] for a in actions],
+            "target_types": [t["target_type"] for t in target_types],
+        },
+    }
+
+
+# ═══════════════════════════════════════════
+# OPERATIONAL ALERTS (NOTIFICATION TRAY)
+# ═══════════════════════════════════════════
+
+@router.get("/alerts")
+def get_alerts(_=Depends(get_admin_user)):
+    """Compute current operational alerts — designed for 5-min polling."""
+    now = datetime.utcnow()
+    alerts = []
+
+    # 1. Tenants that went inactive (no cases in 7+ days but had activity before)
+    try:
+        stale_tenants = _q("""
+            SELECT t.id, t.name, t.constituency, MAX(c.created_at) AS last_case
+            FROM tenants t LEFT JOIN cases c ON c.tenant_id = t.id
+            WHERE t.name != 'System Admin' AND t.is_active = true
+            GROUP BY t.id, t.name, t.constituency
+            HAVING MAX(c.created_at) IS NOT NULL
+               AND MAX(c.created_at) < :threshold
+        """, {"threshold": now - timedelta(days=7)})
+        for t in stale_tenants:
+            last = t.get("last_case")
+            days_ago = (now - last).days if last and hasattr(last, "days") is False else 0
+            if last:
+                days_ago = (now - last).days
+            alerts.append({
+                "type": "tenant_inactive",
+                "severity": "warning",
+                "title": f"{t['name']} has gone stale",
+                "description": f"No new cases in {days_ago} days. Last: {t.get('constituency', '')}",
+                "tenant_id": t["id"],
+            })
+    except Exception as e:
+        logger.warning(f"Alerts - stale tenant check failed: {e}")
+
+    # 2. New MPs with incomplete setup (created in last 7 days)
+    try:
+        new_tenants = _q("""
+            SELECT t.id, t.name, t.onboarding_state, t.created_at
+            FROM tenants t
+            WHERE t.name != 'System Admin' AND t.created_at >= :since
+        """, {"since": now - timedelta(days=7)})
+        for t in new_tenants:
+            ob = t.get("onboarding_state") or {}
+            if isinstance(ob, str):
+                try: ob = json.loads(ob)
+                except: ob = {}
+            if not ob.get("live"):
+                alerts.append({
+                    "type": "setup_incomplete",
+                    "severity": "info",
+                    "title": f"{t['name']} — setup incomplete",
+                    "description": "New account not yet fully configured.",
+                    "tenant_id": t["id"],
+                })
+    except Exception as e:
+        logger.warning(f"Alerts - setup check failed: {e}")
+
+    # 3. Low profile completeness
+    try:
+        profiles = _q("""
+            SELECT tp.tenant_id, tp.mp_name, tp.constituency, tp.state, tp.party, tp.profile_data, t.name
+            FROM tenant_profiles tp JOIN tenants t ON t.id = tp.tenant_id
+            WHERE t.name != 'System Admin'
+        """, {})
+        for p in profiles:
+            score = 0
+            if p.get("mp_name"): score += 1
+            if p.get("constituency"): score += 1
+            if p.get("state"): score += 1
+            if p.get("party"): score += 1
+            pd = p.get("profile_data") or {}
+            if isinstance(pd, str):
+                try: pd = json.loads(pd)
+                except: pd = {}
+            if pd.get("key_facts"): score += 1
+            if pd.get("languages") and len(pd["languages"]) > 1: score += 1
+            completeness = int((score / 6) * 100)
+            if completeness < 50:
+                alerts.append({
+                    "type": "low_completeness",
+                    "severity": "warning",
+                    "title": f"{p.get('name', p.get('mp_name', 'Unknown'))} — profile {completeness}%",
+                    "description": "Profile completeness is below 50%. AI drafts may be unreliable.",
+                    "tenant_id": p["tenant_id"],
+                })
+    except Exception as e:
+        logger.warning(f"Alerts - profile completeness check failed: {e}")
+
+    # 4. Old announcements still active
+    try:
+        old_announcements = _q("""
+            SELECT id, title, created_at FROM announcements
+            WHERE is_active = true AND created_at < :threshold
+        """, {"threshold": now - timedelta(days=30)})
+        for a in old_announcements:
+            alerts.append({
+                "type": "expiring_announcement",
+                "severity": "info",
+                "title": f"Announcement still active: {(a.get('title') or '')[:40]}",
+                "description": "This announcement has been active for over 30 days.",
+            })
+    except Exception as e:
+        logger.warning(f"Alerts - announcement check failed: {e}")
+
+    return {"alerts": alerts, "count": len(alerts)}

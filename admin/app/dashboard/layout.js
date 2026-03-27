@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import Sidebar from '@/components/Sidebar';
+import NotificationTray from '@/components/NotificationTray';
 
 const PAGE_TITLES = {
     '/dashboard': { title: 'Overview', desc: 'Manage MPs, Ambassadors, and platform configuration' },
@@ -17,6 +18,7 @@ const PAGE_TITLES = {
     '/dashboard/settings': { title: 'Settings', desc: 'Admin account and editor access management' },
     '/dashboard/mps/new': { title: 'Add New MP', desc: 'Create a new Member of Parliament account and profile' },
     '/dashboard/prs/new': { title: 'Add New Ambassador', desc: 'Create a new Public Representative (Ambassador) account' },
+    '/dashboard/audit': { title: 'Audit Log', desc: 'Track all administrative actions across the platform' },
 };
 
 export default function DashboardLayout({ children }) {
@@ -81,18 +83,19 @@ export default function DashboardLayout({ children }) {
                             </p>
                         )}
                     </div>
-                    <div style={{
-                        background: 'rgba(0, 106, 77, 0.08)',
-                        color: '#006a4d',
-                        padding: '5px 12px',
-                        borderRadius: 20,
-                        fontSize: '0.7rem',
-                        fontWeight: 700,
-                        letterSpacing: '0.8px',
-                        flexShrink: 0,
-                        marginTop: 2,
-                    }}>
-                        ADMIN
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginTop: 2 }}>
+                        <NotificationTray />
+                        <div style={{
+                            background: 'rgba(0, 106, 77, 0.08)',
+                            color: '#006a4d',
+                            padding: '5px 12px',
+                            borderRadius: 20,
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            letterSpacing: '0.8px',
+                        }}>
+                            ADMIN
+                        </div>
                     </div>
                 </div>
 

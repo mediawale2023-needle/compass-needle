@@ -29,7 +29,7 @@ export default function CreateMPPage() {
         setLoading(true);
         setError('');
         try {
-            await apiPost('/api/admin/mps', {
+            const result = await apiPost('/api/admin/mps', {
                 name: form.name,
                 username: form.username,
                 password: form.password,
@@ -43,8 +43,9 @@ export default function CreateMPPage() {
                 key_facts: form.key_facts ? form.key_facts.split('\n').map(s => s.trim()).filter(Boolean) : [],
                 alt_names: form.alt_names ? form.alt_names.split(',').map(s => s.trim()).filter(Boolean) : [],
             });
-            setSuccess(`Created ${form.name} — redirecting…`);
-            setTimeout(() => router.push('/dashboard'), 1500);
+            setSuccess(`Created ${form.name} — redirecting to setup checklist…`);
+            const tid = result?.tenant_id;
+            setTimeout(() => router.push(tid ? `/dashboard/mps/${tid}/setup` : '/dashboard'), 1500);
         } catch (err) {
             setError(err.message);
         } finally {

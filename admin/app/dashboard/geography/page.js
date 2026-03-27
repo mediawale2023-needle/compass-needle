@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { apiGet, apiPut, apiDelete, apiUpload } from '@/lib/api';
+import ConfirmModal from '@/components/ConfirmModal';
 
 export default function GeographyUploadPage() {
     const [constituencies, setConstituencies] = useState([]);
@@ -14,6 +15,8 @@ export default function GeographyUploadPage() {
     const [savedData, setSavedData] = useState({});
     const [msg, setMsg] = useState({ type: '', text: '' });
     const [parsing, setParsing] = useState(false);
+    const [showRawJson, setShowRawJson] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState(null); // {pc, ac}
     const fileRef = useRef();
 
     useEffect(() => {
@@ -78,7 +81,13 @@ export default function GeographyUploadPage() {
     };
 
     const handleDeleteGeo = async (pc, ac) => {
-        if (!confirm(`Delete assembly "${ac}" from ${pc}?`)) return;
+        setDeleteTarget({ pc, ac });
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteTarget) return;
+        const { pc, ac } = deleteTarget;
+        setDeleteTarget(null);
         try {
             await apiDelete(`/api/admin/geography/${encodeURIComponent(pc)}/${encodeURIComponent(ac)}`);
             loadSavedFiles();
@@ -88,6 +97,18 @@ export default function GeographyUploadPage() {
     return (
         <>
             {msg.text && <div className={`toast ${msg.type === 'success' ? 'toast-success' : 'toast-error'}`}>{msg.text}</div>}
+
+            {/* Confirm Delete Modal */}
+            {deleteTarget && (
+                <ConfirmModal
+                    title={`Delete assembly "${deleteTarget.ac}"?`}
+                    description={`This will remove all polling station data for "${deleteTarget.ac}" from ${deleteTarget.pc}. This action cannot be undone.`}
+                    confirmLabel="Delete"
+                    variant="danger"
+                    onConfirm={confirmDelete}
+                    onCancel={() => setDeleteTarget(null)}
+                />
+            )}
 
             {/* Upload form */}
             <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>

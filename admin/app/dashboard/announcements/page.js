@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
+import ConfirmModal from '@/components/ConfirmModal';
 
 export default function AnnouncementsPage() {
     const [announcements, setAnnouncements] = useState([]);
@@ -9,6 +10,7 @@ export default function AnnouncementsPage() {
     const [actionMsg, setActionMsg] = useState('');
     const [form, setForm] = useState({ title: '', body: '' });
     const [submitting, setSubmitting] = useState(false);
+    const [deleteAnnouncementId, setDeleteAnnouncementId] = useState(null);
 
     useEffect(() => {
         loadAnnouncements();
@@ -54,7 +56,13 @@ export default function AnnouncementsPage() {
     };
 
     const handleDelete = async (id) => {
-        if (!confirm('Delete this announcement? This cannot be undone.')) return;
+        setDeleteAnnouncementId(id);
+    };
+
+    const confirmDeleteAnnouncement = async () => {
+        if (!deleteAnnouncementId) return;
+        const id = deleteAnnouncementId;
+        setDeleteAnnouncementId(null);
         try {
             await apiDelete(`/api/admin/announcements/${id}`);
             setAnnouncements(prev => prev.filter(a => a.id !== id));
@@ -72,6 +80,18 @@ export default function AnnouncementsPage() {
         <>
             {actionMsg && <div className="toast toast-success">{actionMsg}</div>}
             {error && <div className="toast toast-error">{error}</div>}
+
+            {/* Delete Announcement Modal */}
+            {deleteAnnouncementId && (
+                <ConfirmModal
+                    title="Delete this announcement?"
+                    description="This announcement will be permanently removed from all MP dashboards. This action cannot be undone."
+                    confirmLabel="Delete"
+                    variant="danger"
+                    onConfirm={confirmDeleteAnnouncement}
+                    onCancel={() => setDeleteAnnouncementId(null)}
+                />
+            )}
 
             {/* Composer */}
             <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
