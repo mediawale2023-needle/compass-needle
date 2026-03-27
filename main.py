@@ -129,7 +129,6 @@ app.include_router(admin_router, prefix="/api/admin")
 # ─────────────────────────────────────────
 init_db()
 logger.info("Database initialised.")
-_sweep_stale_batches()
 
 # ─── Migration: add tenant_id to archives table (idempotent) ───
 try:
@@ -1254,3 +1253,7 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
 @app.get("/")
 def health_check():
     return {"status": "active", "system": "Needle Backend V8.1"}
+
+
+# Recover any batches that were interrupted by a previous restart
+_sweep_stale_batches()
