@@ -134,11 +134,18 @@ function CaseExplorer() {
     const [filters, setFilters] = useState({ mp_id: '', period: '', category: '', status: '' });
     const [caseId, setCaseId] = useState('');
     const [detail, setDetail] = useState(null);
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(true);
 
     const fetchCases = () => {
+        setLoading(true);
+        setError('');
         const params = new URLSearchParams();
         Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v); });
-        apiGet(`/api/admin/cases/explorer?${params}`).then(setData).catch(() => { });
+        const qs = params.toString();
+        apiGet(`/api/admin/cases/explorer${qs ? '?' + qs : ''}`)
+            .then(d => { setData(d); setLoading(false); })
+            .catch(e => { setError(e.message || 'Failed to load cases'); setLoading(false); });
     };
 
     useEffect(() => { fetchCases(); }, [filters]);
@@ -166,6 +173,19 @@ function CaseExplorer() {
                     </div>
                 ))}
             </div>
+
+            {/* Error banner */}
+            {error && (
+                <div className="toast toast-error" style={{ position: 'relative', marginBottom: 12 }}>
+                    API Error: {error}
+                    <button onClick={fetchCases} style={{ marginLeft: 12, background: 'white', border: '1px solid #fca5a5', borderRadius: 6, padding: '2px 10px', fontSize: '0.74rem', cursor: 'pointer', color: '#be123c', fontWeight: 600 }}>
+                        Retry
+                    </button>
+                </div>
+            )}
+
+            {/* Loading */}
+            {loading && !data && <LoadingGrid count={1} />}
 
             {data && (
                 <div style={{ color: '#6b7f76', fontSize: '0.76rem', marginBottom: 10 }}>
