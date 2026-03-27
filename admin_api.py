@@ -969,13 +969,15 @@ Return ONLY the raw JSON array. No markdown, no backticks, no explanation."""
                         ),
                         config=gtypes.GenerateContentConfig(
                             temperature=0.1,
-                            response_mime_type="application/json",
                         ),
                     )
                     raw = response.text.strip() if response.text else ""
-                    if raw.startswith("```"):
-                        raw = re.sub(r"^```[a-z]*\n?", "", raw)
-                        raw = re.sub(r"\n?```$", "", raw)
+                    # Strip markdown code fences if present
+                    raw = re.sub(r"^```[a-z]*\n?", "", raw)
+                    raw = re.sub(r"\n?```$", "", raw).strip()
+                    # Extract JSON array from anywhere in the response
+                    match = re.search(r'\[.*\]', raw, re.DOTALL)
+                    raw = match.group(0) if match else raw
                     page_stations = json.loads(raw)
                     if isinstance(page_stations, list):
                         stations.extend(page_stations)
