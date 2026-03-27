@@ -881,7 +881,7 @@ async def upload_pdf(file: UploadFile = File(...), _=Depends(get_admin_user)):
         for s in stations[:20]
         if not any('\u0900' <= c <= '\u097F' for c in s.get("locality", ""))
     ):
-        logger.info("Font-encoded or empty PDF detected — falling back to Gemini Vision OCR")
+        logger.info("Font-encoded or empty PDF detected — falling back to OpenAI GPT-4o Vision OCR")
         ocr_stations, ocr_error = _ocr_pdf_with_openai(content)
         debug_info["openai_ocr_used"] = True
         if ocr_error:
