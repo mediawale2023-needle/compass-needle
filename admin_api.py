@@ -946,7 +946,7 @@ Return ONLY the raw JSON array. No markdown, no backticks, no explanation."""
         logger.info(f"Gemini Files API: uploaded PDF ({len(content)//1024}KB), uri={uploaded_file.uri}, state={getattr(uploaded_file, 'state', 'unknown')}")
 
         response = client.models.generate_content(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash",
             contents=[uploaded_file, prompt],
             config=gtypes.GenerateContentConfig(temperature=0.1),
         )
