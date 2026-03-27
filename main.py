@@ -261,6 +261,46 @@ try:
 except Exception as e:
     logger.warning(f"officers backfill skipped: {e}")
 
+# ─── Migration: add phone column to users table for PA WhatsApp identification ───
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_users_phone ON users (phone)"))
+        logger.info("Migration: added phone column to users table")
+except Exception:  # nosec B110 — idempotent migration
+    pass
+
+# ─── Migration: add new letterbox columns for digital dispatch intake system ───
+for _col_sql in [
+    "ALTER TABLE letterbox ADD COLUMN image_data BYTEA",
+    "ALTER TABLE letterbox ADD COLUMN image_mime VARCHAR",
+    "ALTER TABLE letterbox ADD COLUMN category VARCHAR",
+    "ALTER TABLE letterbox ADD COLUMN ocr_text TEXT",
+    "ALTER TABLE letterbox ADD COLUMN diary_number VARCHAR",
+    "ALTER TABLE letterbox ADD COLUMN source VARCHAR DEFAULT 'upload'",
+    "ALTER TABLE letterbox ADD COLUMN sender_phone VARCHAR",
+    "ALTER TABLE letterbox ADD COLUMN assigned_to VARCHAR",
+    "ALTER TABLE letterbox ADD COLUMN date_of_letter DATE",
+    "ALTER TABLE letterbox ADD COLUMN notes TEXT",
+    "ALTER TABLE letterbox ADD COLUMN is_deleted BOOLEAN DEFAULT false",
+]:
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(_col_sql))
+            logger.info(f"Migration: {_col_sql}")
+    except Exception:  # nosec B110 — idempotent migration
+        pass
+
+try:
+    with engine.begin() as conn:
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_letterbox_diary_number ON letterbox (diary_number) WHERE diary_number IS NOT NULL"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_letterbox_category ON letterbox (category)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_letterbox_source ON letterbox (source)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_letterbox_is_deleted ON letterbox (is_deleted)"))
+        logger.info("Migration: letterbox indexes ready")
+except Exception as e:
+    logger.warning(f"Letterbox index migration skipped: {e}")
+
 # Seed CSR company profiles from static JSON files on startup
 try:
     from modules.csr_data_loader import seed_csr_companies
@@ -427,30 +467,179 @@ async def verify_webhook(request: Request):
     raise HTTPException(status_code=403, detail="Verification failed")
 
 
+def _resolve_tenant(receiver_number: str) -> int:
+    """Resolve WhatsApp receiver number → tenant_id. Shared by text and image handlers."""
+    current_tenant = 1
+    try:
+        phone_map = get_phone_tenant_mapping()
+        if receiver_number in phone_map:
+            return phone_map[receiver_number]
+    except Exception:
+        logger.warning("Tenant phone mapping lookup failed for %s", receiver_number)
+
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT id FROM tenants WHERE whatsapp_number = :num LIMIT 1"),
+                {"num": receiver_number}
+            ).fetchone()
+            if row:
+                current_tenant = row[0]
+    except Exception as exc:
+        logger.warning(f"Tenant DB lookup failed: {exc}")
+    return current_tenant
+
+
+def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_number: str = ""):
+    """
+    Background task: PA sends a photo of a physical letter via WhatsApp.
+    Pipeline: download image → save raw (source of truth) → Gemini OCR → update → confirm.
+    No letter is lost even if OCR fails.
+    """
+    import base64
+    from modules.letterbox import download_meta_image, generate_diary_number, extract_letter_fields
+
+    if not receiver_number:
+        receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
+
+    current_tenant = _resolve_tenant(receiver_number)
+
+    # PA whitelist check — sender must be a registered active user for this tenant
+    try:
+        with engine.connect() as conn:
+            pa_row = conn.execute(
+                text("""SELECT id, display_name FROM users
+                        WHERE phone = :phone AND tenant_id = :tid AND is_active = true
+                        LIMIT 1"""),
+                {"phone": sender, "tid": current_tenant}
+            ).fetchone()
+    except Exception as exc:
+        logger.error(f"PA check DB query failed: {exc}")
+        return
+
+    if not pa_row:
+        logger.info(f"Image from {sender} — not a registered PA for tenant {current_tenant}, ignoring")
+        return
+
+    pa_name = pa_row[1] or "Staff"
+    logger.info(f"PA letter intake: sender={sender} ({pa_name}), tenant={current_tenant}, media_id={media_id}")
+
+    # ── STEP 1: Download image immediately — Meta URLs expire in ~5 min ──
+    try:
+        image_bytes, resolved_mime = download_meta_image(media_id)
+    except Exception as exc:
+        logger.error(f"Failed to download Meta image: {exc}")
+        try:
+            send_whatsapp_message(sender, "Sorry, could not retrieve the image. Please resend.")
+        except Exception:
+            pass
+        return
+
+    # ── STEP 2: Save raw entry to DB immediately — source of truth ──
+    letter_id = None
+    diary_number = None
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("""
+                INSERT INTO letterbox (
+                    tenant_id, direction, image_data, image_mime,
+                    status, source, sender_phone, created_at,
+                    citizen_name, issue_summary, urgency_level
+                ) VALUES (
+                    :tid, 'inbox', :img, :mime,
+                    'processing', 'whatsapp', :phone, :now,
+                    '[NOT FOUND]', '[Processing...]', 'Normal'
+                ) RETURNING id
+            """), {
+                "tid": current_tenant,
+                "img": image_bytes,
+                "mime": resolved_mime,
+                "phone": sender,
+                "now": datetime.utcnow(),
+            })
+            letter_id = result.fetchone()[0]
+            diary_number = generate_diary_number(letter_id)
+            conn.execute(
+                text("UPDATE letterbox SET diary_number = :dn WHERE id = :lid"),
+                {"dn": diary_number, "lid": letter_id}
+            )
+        logger.info(f"Letter saved: id={letter_id}, diary={diary_number}")
+    except Exception as exc:
+        logger.error(f"CRITICAL: Failed to save PA letter to DB: {exc}")
+        try:
+            send_whatsapp_message(sender, "Sorry, there was an error saving the letter. Please try again.")
+        except Exception:
+            pass
+        return
+
+    # ── STEP 3: Gemini Vision extraction ──
+    extracted = extract_letter_fields(image_bytes, resolved_mime, current_tenant)
+
+    # ── STEP 4: Update row with extracted fields, or flag needs_review ──
+    try:
+        if extracted:
+            date_of_letter = extracted.get("date_of_letter") or None
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    UPDATE letterbox SET
+                        citizen_name   = :name,
+                        village        = :village,
+                        phone_number   = :phone,
+                        issue_summary  = :subject,
+                        category       = :category,
+                        urgency_level  = :priority,
+                        ocr_text       = :ocr,
+                        date_of_letter = :dol,
+                        status         = 'new'
+                    WHERE id = :lid
+                """), {
+                    "name":     extracted.get("sender_name", "[NOT FOUND]"),
+                    "village":  extracted.get("village", "[NOT FOUND]"),
+                    "phone":    extracted.get("phone_number", "[NOT FOUND]"),
+                    "subject":  extracted.get("subject", "[NOT FOUND]"),
+                    "category": extracted.get("category", "General / Other"),
+                    "priority": extracted.get("priority", "Normal"),
+                    "ocr":      extracted.get("ocr_text", ""),
+                    "dol":      date_of_letter,
+                    "lid":      letter_id,
+                })
+        else:
+            with engine.begin() as conn:
+                conn.execute(
+                    text("""UPDATE letterbox SET status = 'needs_review',
+                                issue_summary = '[OCR failed — please review manually]'
+                            WHERE id = :lid"""),
+                    {"lid": letter_id}
+                )
+    except Exception as exc:
+        logger.error(f"Failed to update letter {letter_id} after extraction: {exc}")
+
+    # ── STEP 5: WhatsApp confirmation to PA ──
+    if extracted:
+        confirm_msg = (
+            f"Letter saved — Ref: {diary_number}\n"
+            f"Sender: {extracted.get('sender_name', '[Unknown]')}\n"
+            f"Category: {extracted.get('category', 'General / Other')}\n"
+            f"Summary: {extracted.get('subject', '')[:120]}\n\n"
+            f"Open Letterbox in the dashboard to review."
+        )
+    else:
+        confirm_msg = (
+            f"Letter image received and saved — Ref: {diary_number}\n"
+            f"OCR could not read the image clearly. "
+            f"Please open the Letterbox dashboard to review and fill in details manually."
+        )
+    try:
+        send_whatsapp_message(sender, confirm_msg)
+    except Exception as exc:
+        logger.warning(f"WhatsApp confirmation to PA failed: {exc}")
+
+
 def _process_incoming_message(sender: str, message_body: str, receiver_number: str = ""):
     """Background task: AI processing + DB save + reply. Runs after 200 is returned to Meta."""
     if not receiver_number:
         receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
-    current_tenant = 1
-
-    # Tenant lookup — DB overrides first, then users table
-    try:
-        phone_map = get_phone_tenant_mapping()
-        if receiver_number in phone_map:
-            current_tenant = phone_map[receiver_number]
-            logger.info(f"DB override match: {receiver_number} → Tenant {current_tenant}")
-    except Exception:
-        logger.warning("Tenant phone mapping lookup failed for %s — using default tenant", receiver_number)
-
-    if current_tenant == 1:
-        try:
-            with engine.connect() as conn:
-                lookup = text("SELECT id AS tenant_id FROM tenants WHERE whatsapp_number = :num LIMIT 1")
-                tenant_record = conn.execute(lookup, {"num": receiver_number}).fetchone()
-                if tenant_record:
-                    current_tenant = tenant_record[0]
-        except Exception as e:
-            logger.warning(f"Tenant DB lookup failed: {e}")
+    current_tenant = _resolve_tenant(receiver_number)
 
     logger.info(f"Incoming from {sender} → Tenant {current_tenant}")
 
@@ -645,24 +834,32 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         return {"status": "ignored"}  # delivery receipt / status update
 
     msg = messages[0]
-    if msg.get("type") != "text":
-        return {"status": "ignored"}  # ignore images/audio for now
+    msg_type = msg.get("type")
+    sender = msg["from"]  # bare number e.g. "919876543210"
 
-    sender = msg["from"]          # bare number e.g. "919876543210"
-    message_body = msg["text"]["body"].strip()
-
-    if not message_body:
-        return {"status": "ignored"}
-
-    # Extract the real business phone number from Meta metadata for tenant routing
-    # Meta sends it as bare digits (e.g. "15551636821"), we normalise to "+15551636821"
+    # Extract business phone number for tenant routing
     display_number = entry.get("metadata", {}).get("display_phone_number", "")
     if display_number and not display_number.startswith("+"):
         display_number = f"+{display_number}"
 
-    # Return 200 to Meta immediately — process AI + send reply in background
-    background_tasks.add_task(_process_incoming_message, sender, message_body, display_number)
-    return {"status": "received"}
+    if msg_type == "text":
+        message_body = msg["text"]["body"].strip()
+        if not message_body:
+            return {"status": "ignored"}
+        # Return 200 to Meta immediately — process AI + send reply in background
+        background_tasks.add_task(_process_incoming_message, sender, message_body, display_number)
+        return {"status": "received"}
+
+    elif msg_type == "image":
+        # PA letter intake — staff photographs a physical letter and sends via WhatsApp
+        media_id = msg.get("image", {}).get("id")
+        resolved_mime = msg.get("image", {}).get("mime_type", "image/jpeg")
+        if media_id:
+            background_tasks.add_task(_process_pa_letter, sender, media_id, resolved_mime, display_number)
+        return {"status": "received"}
+
+    else:
+        return {"status": "ignored"}  # audio, video, documents, etc.
 
 
 # ─────────────────────────────────────────
