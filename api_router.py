@@ -1321,32 +1321,6 @@ Generate a professional parliamentary document. Do NOT invent statistics.
         
         generated_text = response.text
         
-        # --- Auto-save to Letterbox Outbox ---
-        try:
-            outbox_subject = req.subject or req.topic or "Generated Document"
-            outbox_recipient = getattr(req, "recipient_name", None) or getattr(req, "ministry", None) or "Unknown Recipient"
-            
-            with engine.begin() as conn:
-                conn.execute(text("""
-                    INSERT INTO letterbox (
-                        tenant_id, direction, citizen_name, phone_number, village,
-                        issue_summary, urgency_level, ocr_raw_text, status, created_at
-                    ) VALUES (
-                        :tid, 'outbox', :name, '[NOT FOUND]', '[NOT FOUND]',
-                        :summary, 'Normal', :raw_text, 'Drafted', :now
-                    )
-                """), {
-                    "tid": tid,
-                    "name": outbox_recipient,
-                    "summary": f"Drafter Generated ({req.mode.title()}): {outbox_subject}",
-                    "raw_text": generated_text,
-                    "now": datetime.utcnow()
-                })
-        except Exception as db_e:
-            logger.exception("Failed to auto-save drafter output to Letterbox Outbox")
-            # We don't fail the request if auto-save fails, just log it.
-            pass
-            
         return {"content": generated_text}
     except Exception as e:
         logger.exception("Drafter generate failed")
