@@ -130,6 +130,15 @@ app.include_router(admin_router, prefix="/api/admin")
 init_db()
 logger.info("Database initialised.")
 
+# Sync geography JSON files → DB geo_overrides on every startup
+# This ensures the DB is populated even after ephemeral filesystem resets (Railway)
+try:
+    from modules.geography_resolver import auto_generate_overrides
+    result = auto_generate_overrides()
+    logger.info(f"Geography overrides synced to DB: {result}")
+except Exception as e:
+    logger.warning(f"Geography override sync failed (non-critical): {e}")
+
 # ─── Migration: add tenant_id to archives table (idempotent) ───
 try:
     with engine.begin() as conn:
