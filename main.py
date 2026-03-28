@@ -1134,6 +1134,10 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         if not final_constituency:
             final_constituency = "Unknown"
 
+        # If location couldn't be verified against geography list, hold the case
+        if final_constituency == "Unknown" and location_name:
+            status = "awaiting_location"
+
         meta_data = {
             "user_intent": status,
             "location_resolved": bool(location_name and final_constituency != "Unknown"),
