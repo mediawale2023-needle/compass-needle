@@ -136,6 +136,36 @@ def detect_input_language(message: str) -> str:
 # ==========================================
 # 4. AI EXECUTION (v3.0 ENGINE)
 # ==========================================
+def _get_tenant_profile(tenant_id: int) -> dict:
+    """Load MP profile from DB for the given tenant. Returns dict with mp_name, constituency, state."""
+    try:
+        from sansadx_backend.db import SessionLocal, TenantProfile, Tenant
+        db = SessionLocal()
+        try:
+            profile = db.query(TenantProfile).filter(TenantProfile.tenant_id == tenant_id).first()
+            if profile:
+                return {
+                    "mp_name": profile.mp_name or "",
+                    "constituency": profile.constituency or "",
+                    "state": profile.state or "",
+                    "house": profile.house or "Lok Sabha",
+                }
+            # Fallback to tenant table if no profile exists
+            tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+            if tenant:
+                return {
+                    "mp_name": tenant.name or "",
+                    "constituency": tenant.constituency or "",
+                    "state": "",
+                    "house": "Lok Sabha",
+                }
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"Failed to load tenant profile for tenant {tenant_id}: {e}")
+    return {"mp_name": "", "constituency": "", "state": "", "house": "Lok Sabha"}
+
+
 def ask_chatgpt_agent(user_message, tenant_id=1):
     """
     Refactored Engine v3.0: 
@@ -151,10 +181,28 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     # Fetch dynamic jurisdiction context (scoped to this tenant)
     real_jurisdiction_context = get_jurisdiction_context(tenant_id=tenant_id)
 
+    # Load MP identity for this tenant
+    mp_profile = _get_tenant_profile(tenant_id)
+    mp_name = mp_profile["mp_name"]
+    mp_constituency = mp_profile["constituency"]
+    mp_state = mp_profile["state"]
+
     # --- Deterministic language detection ---
     detected_lang = detect_input_language(user_message)
 
-    # --- TAD NECESSARY: Inject MP Persona & Professional Constraints ---
+    # --- Inject MP Persona & Professional Constraints ---
+    mp_identity = ""
+    if mp_name and mp_constituency:
+        mp_identity = f"""
+    CRITICAL — MP IDENTITY:
+    You are responding on behalf of **{mp_name}**, MP from **{mp_constituency}**{f', {mp_state}' if mp_state else ''}.
+    Your jurisdiction is ONLY the **{mp_constituency}** constituency and its areas.
+    If a citizen complains about a location that is clearly OUTSIDE {mp_constituency} constituency,
+    politely inform them that their area falls under a different MP's jurisdiction and suggest
+    they contact the appropriate representative. Do NOT record it as a valid grievance.
+    Set status to "IRRELEVANT" for out-of-jurisdiction complaints.
+        """
+
     persona_instructions = f"""
     STRICT RULES:
     1. You are a Member of Parliament (MP) communicating with a citizen.
@@ -164,6 +212,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     5. LANGUAGE: The citizen's message is in **{detected_lang}**. You MUST write your political_response in **{detected_lang}** only. Do NOT switch to Hindi or any other language. Set detected_language to "{detected_lang}".
     6. Only If info is missing (location/area), ask for it directly in {detected_lang}.
     7. Be concise (max 2 sentences).
+    {mp_identity}
     """
 
     # Format the v3.0 system instructions from prompts.py
