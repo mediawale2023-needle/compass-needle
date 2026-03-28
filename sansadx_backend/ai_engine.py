@@ -283,7 +283,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
 
             # [START OF MULTI-TENANT FIX (WITH AUTO-CORRECT)] ----------------
             try:
-                # 1. Load the Rulebook from DB
+                # 1. Load the Rulebook from DB (geo_overrides)
                 try:
                     from sansadx_backend.db import get_geo_overrides
                     tenant_rules = get_geo_overrides(tenant_id)
@@ -296,35 +296,90 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         all_overrides = json.load(f)
                     tenant_rules = all_overrides.get("geo_overrides", {}).get(str(tenant_id), {})
                 
-                # 3. Get AI's extracted location
+                # 2. Also build location→assembly mapping from geography JSON files
+                geo_file_rules = {}
+                try:
+                    # Resolve this tenant's constituency folder
+                    _tenant_const = mp_constituency if mp_name else None
+                    if not _tenant_const:
+                        try:
+                            from sansadx_backend.db import SessionLocal as _SL, Tenant as _T
+                            _db = _SL()
+                            try:
+                                _ten = _db.query(_T).filter(_T.id == tenant_id).first()
+                                if _ten:
+                                    _tenant_const = _ten.constituency
+                            finally:
+                                _db.close()
+                        except Exception:
+                            pass
+                    
+                    if _tenant_const:
+                        for base in ["data/geography", "/app/data/geography"]:
+                            const_dir = os.path.join(base, _tenant_const)
+                            if not os.path.isdir(const_dir):
+                                # Case-insensitive fallback
+                                if os.path.isdir(base):
+                                    for d in os.listdir(base):
+                                        if d.lower() == _tenant_const.lower() and os.path.isdir(os.path.join(base, d)):
+                                            const_dir = os.path.join(base, d)
+                                            break
+                                    else:
+                                        continue
+                                else:
+                                    continue
+                            
+                            for fpath in glob.glob(os.path.join(const_dir, "*.json")):
+                                assembly_name = os.path.splitext(os.path.basename(fpath))[0]
+                                try:
+                                    with open(fpath, "r") as gf:
+                                        stations = json.load(gf)
+                                    if isinstance(stations, list):
+                                        for station in stations:
+                                            if isinstance(station, dict):
+                                                loc = station.get("locality", "").strip()
+                                                if loc and loc not in geo_file_rules:
+                                                    geo_file_rules[loc] = assembly_name
+                                except Exception:
+                                    pass
+                            break  # found the folder, stop searching
+                except Exception as e:
+                    logger.warning(f"Geography file scan failed: {e}")
+                
+                # 3. Merge: DB overrides take priority, then geography files
+                combined_rules = {}
+                combined_rules.update(geo_file_rules)
+                combined_rules.update(tenant_rules)  # DB overrides win
+                
+                # 4. Get AI's extracted location
                 ai_loc = data.get("grievance_data", {}).get("location", "")
                 if ai_loc:
                     ai_loc_clean = ai_loc.lower().strip()
                     
-                    # 4. SMART MATCHING (Exact or Fuzzy)
+                    # 5. SMART MATCHING (Exact or Fuzzy)
                     match_found = False
                     final_loc_name = ai_loc_clean
                     
-                    # Match against lower-case keys in tenant_rules
-                    tenant_keys_lower = {k.lower(): k for k in tenant_rules.keys()}
+                    # Match against lower-case keys in combined_rules
+                    rules_keys_lower = {k.lower(): k for k in combined_rules.keys()}
                     
-                    if ai_loc_clean in tenant_keys_lower:
-                        final_loc_name = tenant_keys_lower[ai_loc_clean]
+                    if ai_loc_clean in rules_keys_lower:
+                        final_loc_name = rules_keys_lower[ai_loc_clean]
                         match_found = True
                     else:
-                        matches = difflib.get_close_matches(ai_loc_clean, tenant_keys_lower.keys(), n=1, cutoff=0.75)
+                        matches = difflib.get_close_matches(ai_loc_clean, rules_keys_lower.keys(), n=1, cutoff=0.75)
                         if matches:
-                            final_loc_name = tenant_keys_lower[matches[0]]
+                            final_loc_name = rules_keys_lower[matches[0]]
                             logger.info(f"Auto-Corrected: '{ai_loc_clean}' -> '{final_loc_name}'")
                             match_found = True
                     
-                    # 5. Apply the Fix
+                    # 6. Apply the Fix
                     if match_found:
-                        correct_constituency = tenant_rules[final_loc_name]
+                        correct_constituency = combined_rules[final_loc_name]
                         data["assembly_constituency"] = correct_constituency
                         data["constituency"] = correct_constituency
                         
-                        # --- FIXED: Keep status as "new" so staff must manually triage ---
+                        # --- Keep status as "new" so staff must manually triage ---
                         original_status = data.get("status", "").lower()
                         if original_status not in ("emergency", "offensive"):
                             data["status"] = "new"
@@ -335,7 +390,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         
                         if "grievance_data" in data:
                             data["grievance_data"]["assembly_constituency"] = correct_constituency
-                            data["grievance_data"]["location"] = final_loc_name # Set to official spelling
+                            data["grievance_data"]["location"] = final_loc_name  # Set to official spelling
                             
                         logger.info(f"Location Mapped: {final_loc_name} -> {correct_constituency}")
                     else:
