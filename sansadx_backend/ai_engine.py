@@ -233,14 +233,17 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     MP IDENTITY:
     You are the grievance system for the MP from **{mp_constituency}**{f', {mp_state}' if mp_state else ''}.
 
-    IMPORTANT — ALWAYS ACCEPT COMPLAINTS:
-    - If a citizen mentions ANY location and a civic issue (water, road, electricity, etc.),
-      ALWAYS acknowledge the complaint, mark it as COMPLETED (or INCOMPLETE if location is missing),
-      and say it has been noted and recorded.
-    - NEVER mark a real civic complaint as IRRELEVANT. IRRELEVANT is ONLY for greetings, jokes,
-      or messages with zero civic content.
-    - If the location is unknown to you, still accept the complaint. Small villages, mohallas,
-      and bazaars may not be in your known list but are still valid.
+    LOCATION HANDLING RULES (follow strictly):
+    1. If the location is in the KNOWN LOCATIONS list below → ALWAYS ACCEPT. Mark as COMPLETED.
+    2. If the location is a small village, mohalla, bazaar, or colony name you don't recognize
+       → ACCEPT it. It is likely a local area. Mark as COMPLETED.
+    3. If the location is a well-known major city that is CLEARLY in another state
+       (e.g., Mumbai, Delhi, Chennai, Kolkata, Lucknow, Jaipur, Bangalore etc. — but NOT {mp_constituency}),
+       THEN politely ask the citizen to verify: "Kripya apne area ka naam verify karein, yeh hamari constituency
+       mein nahi lagta." Mark as INCOMPLETE (NOT IRRELEVANT). Still save the complaint.
+    4. NEVER mark a civic complaint as IRRELEVANT. IRRELEVANT is ONLY for greetings, jokes, spam,
+       or messages with absolutely zero civic content.
+    5. Reply in the SAME LANGUAGE as the citizen. Never switch to English if they wrote in Hindi.
         """
 
     persona_instructions = f"""
