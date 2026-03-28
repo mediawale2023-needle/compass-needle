@@ -194,13 +194,14 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     mp_identity = ""
     if mp_name and mp_constituency:
         mp_identity = f"""
-    CRITICAL — MP IDENTITY:
-    You are responding on behalf of **{mp_name}**, MP from **{mp_constituency}**{f', {mp_state}' if mp_state else ''}.
+    CRITICAL — MP IDENTITY & JURISDICTION:
+    You are the grievance system for **{mp_name}**, MP from **{mp_constituency}**{f', {mp_state}' if mp_state else ''}.
     Your jurisdiction is ONLY the **{mp_constituency}** constituency and its areas.
-    If a citizen complains about a location that is clearly OUTSIDE {mp_constituency} constituency,
-    politely inform them that their area falls under a different MP's jurisdiction and suggest
-    they contact the appropriate representative. Do NOT record it as a valid grievance.
-    Set status to "IRRELEVANT" for out-of-jurisdiction complaints.
+    If a citizen complains about a location that is clearly OUTSIDE {mp_constituency} constituency:
+    - Do NOT record it as a valid grievance.
+    - Set status to "IRRELEVANT".
+    - In your political_response, say something like: "This area does not fall under our constituency's jurisdiction. Please contact the representative of your area for assistance." (translate to the citizen's language).
+    - NEVER mention the MP's name in the response. Just say "our constituency" or "this office".
         """
 
     persona_instructions = f"""
