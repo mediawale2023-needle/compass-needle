@@ -31,27 +31,63 @@ STATIC_RESPONSES = {
 # 2. GEOGRAPHY RESOLVER (MASTER CONTEXT)
 # ==========================================
 def get_jurisdiction_context(tenant_id=1):
-    """Build a list of known areas from geography data and tenant overrides."""
+    """Build a list of known areas from geography data and tenant overrides, scoped to this tenant."""
     known_areas = set()
 
-    # 1. Load from geography JSON files
-    paths = ["data/geography", "../data/geography", "/app/data/geography"]
-    for folder in paths:
-        if os.path.exists(folder):
-            # Check for all JSON files (both flat and nested)
-            for file_path in glob.glob(os.path.join(folder, "**", "*.json"), recursive=True):
-                try:
-                    with open(file_path, "r") as f:
-                        data = json.load(f)
-                        if isinstance(data, dict): known_areas.update(data.keys())
-                        elif isinstance(data, list):
-                            for item in data:
-                                if isinstance(item, str): known_areas.add(item)
-                                elif isinstance(item, dict):
-                                    if "locality" in item: known_areas.add(item["locality"])
-                                    elif "name" in item: known_areas.add(item["name"])
-                except Exception:
-                    pass  # nosec B110 — malformed geo JSON file, skip and continue
+    # Resolve this tenant's constituency name for folder matching
+    tenant_constituency = None
+    try:
+        from sansadx_backend.db import SessionLocal, TenantProfile, Tenant
+        db = SessionLocal()
+        try:
+            profile = db.query(TenantProfile).filter(TenantProfile.tenant_id == tenant_id).first()
+            if profile and profile.constituency:
+                tenant_constituency = profile.constituency
+            else:
+                tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+                if tenant and tenant.constituency:
+                    tenant_constituency = tenant.constituency
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+    # 1. Load from geography JSON files — ONLY this tenant's constituency folder
+    base_paths = ["data/geography", "../data/geography", "/app/data/geography"]
+    for folder in base_paths:
+        if not os.path.exists(folder):
+            continue
+
+        if tenant_constituency:
+            # Try exact match first, then case-insensitive match
+            constituency_folder = os.path.join(folder, tenant_constituency)
+            if not os.path.exists(constituency_folder):
+                # Case-insensitive fallback
+                for d in os.listdir(folder):
+                    if d.lower() == tenant_constituency.lower() and os.path.isdir(os.path.join(folder, d)):
+                        constituency_folder = os.path.join(folder, d)
+                        break
+                else:
+                    constituency_folder = None
+
+            if constituency_folder and os.path.exists(constituency_folder):
+                for file_path in glob.glob(os.path.join(constituency_folder, "*.json")):
+                    try:
+                        with open(file_path, "r") as f:
+                            data = json.load(f)
+                            if isinstance(data, dict): known_areas.update(data.keys())
+                            elif isinstance(data, list):
+                                for item in data:
+                                    if isinstance(item, str): known_areas.add(item)
+                                    elif isinstance(item, dict):
+                                        if "locality" in item: known_areas.add(item["locality"])
+                                        elif "name" in item: known_areas.add(item["name"])
+                    except Exception:
+                        pass  # nosec B110
+            # If no constituency folder found, don't load ANY geography (avoid cross-contamination)
+        else:
+            # No tenant constituency known — skip file-based geography to avoid loading wrong data
+            logger.warning(f"No constituency found for tenant {tenant_id}, skipping file geography")
 
     # 2. Load from tenant_overrides DB (tenant-specific locations)
     try:
@@ -69,7 +105,7 @@ def get_jurisdiction_context(tenant_id=1):
                     tenant_geo = overrides.get("geo_overrides", {}).get(str(tenant_id), {})
                     known_areas.update(tenant_geo.keys())
                 except Exception:
-                    pass  # nosec B110 — fallback JSON read failure, continue without overrides
+                    pass  # nosec B110
                 break
 
     if not known_areas: return ""
