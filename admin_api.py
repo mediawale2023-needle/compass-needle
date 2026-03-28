@@ -810,11 +810,43 @@ def save_geography(pc: str, ac: str, req: SaveGeographyRequest, _=Depends(get_ad
     pc = _sanitize_path_param(pc)
     ac = _sanitize_path_param(ac)
     try:
+        # Save to filesystem
         path = GEOGRAPHY_BASE_PATH / pc
         path.mkdir(parents=True, exist_ok=True)
         with open(path / f"{ac}.json", "w", encoding="utf-8") as f:
             json.dump(req.data, f, indent=2, ensure_ascii=False)
-        # Auto-generate overrides
+
+        # Persist to DB so it survives Railway ephemeral filesystem resets
+        try:
+            from sansadx_backend.db import SessionLocal, TenantOverride, Tenant
+            from sqlalchemy import text as sa_text
+            db = SessionLocal()
+            try:
+                # Look up tenant_id by constituency name
+                tenant = db.query(Tenant).filter(Tenant.constituency == pc).first()
+                tid = tenant.id if tenant else None
+                if tid:
+                    db_key = f"{pc}/{ac}"
+                    # Upsert: delete old, insert new
+                    db.execute(
+                        sa_text("DELETE FROM tenant_overrides WHERE tenant_id = :tid AND override_type = 'geography_data' AND key = :k"),
+                        {"tid": tid, "k": db_key}
+                    )
+                    override = TenantOverride(
+                        tenant_id=tid,
+                        override_type="geography_data",
+                        key=db_key,
+                        value=json.dumps(req.data, ensure_ascii=False),
+                    )
+                    db.add(override)
+                    db.commit()
+                    logger.info(f"Geography {db_key} persisted to DB for tenant {tid}")
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"Geography DB persist failed (non-critical): {e}")
+
+        # Auto-generate overrides (now writes to DB too)
         try:
             from modules.geography_resolver import auto_generate_overrides
             auto_generate_overrides()
@@ -833,6 +865,23 @@ def delete_geography(pc: str, ac: str, _=Depends(get_admin_user)):
     filepath = GEOGRAPHY_BASE_PATH / pc / f"{ac}.json"
     if filepath.exists():
         filepath.unlink()
+        # Also remove from DB
+        try:
+            from sansadx_backend.db import SessionLocal, TenantOverride, Tenant
+            from sqlalchemy import text as sa_text
+            db = SessionLocal()
+            try:
+                tenant = db.query(Tenant).filter(Tenant.constituency == pc).first()
+                if tenant:
+                    db.execute(
+                        sa_text("DELETE FROM tenant_overrides WHERE tenant_id = :tid AND override_type = 'geography_data' AND key = :k"),
+                        {"tid": tenant.id, "k": f"{pc}/{ac}"}
+                    )
+                    db.commit()
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"Geography DB delete failed: {e}")
         return {"success": True}
     raise HTTPException(404, "File not found")
 

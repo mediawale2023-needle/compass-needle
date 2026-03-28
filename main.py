@@ -130,14 +130,45 @@ app.include_router(admin_router, prefix="/api/admin")
 init_db()
 logger.info("Database initialised.")
 
-# Sync geography JSON files → DB geo_overrides on every startup
-# This ensures the DB is populated even after ephemeral filesystem resets (Railway)
+# On startup: reconstruct geography files from DB, then sync geo_overrides
+# This ensures geography data survives Railway ephemeral filesystem resets
 try:
+    from sansadx_backend.db import SessionLocal as _startup_SL, TenantOverride as _startup_TO
+    _sdb = _startup_SL()
+    try:
+        # Reconstruct geography JSON files from DB
+        geo_rows = _sdb.query(_startup_TO).filter(
+            _startup_TO.override_type == "geography_data"
+        ).all()
+        if geo_rows:
+            import pathlib as _pl
+            _geo_base = _pl.Path(__file__).parent / "data" / "geography"
+            files_written = 0
+            for row in geo_rows:
+                # key = "Aligarh/Koil", value = JSON string of station data
+                parts = row.key.split("/", 1)
+                if len(parts) != 2:
+                    continue
+                pc, ac = parts
+                dest = _geo_base / pc
+                dest.mkdir(parents=True, exist_ok=True)
+                try:
+                    data = json.loads(row.value) if isinstance(row.value, str) else row.value
+                    with open(dest / f"{ac}.json", "w", encoding="utf-8") as f:
+                        json.dump(data, f, indent=2, ensure_ascii=False)
+                    files_written += 1
+                except Exception:
+                    pass
+            logger.info(f"Reconstructed {files_written} geography files from DB")
+    finally:
+        _sdb.close()
+
+    # Now sync geography files → DB geo_overrides
     from modules.geography_resolver import auto_generate_overrides
     result = auto_generate_overrides()
     logger.info(f"Geography overrides synced to DB: {result}")
 except Exception as e:
-    logger.warning(f"Geography override sync failed (non-critical): {e}")
+    logger.warning(f"Geography startup sync failed (non-critical): {e}")
 
 # ─── Migration: add tenant_id to archives table (idempotent) ───
 try:
