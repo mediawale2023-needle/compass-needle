@@ -12,7 +12,9 @@ import re
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Request
+import uuid
+import threading
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Request, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 import jwt
@@ -25,6 +27,10 @@ from modules.constituencies import ALL_CONSTITUENCIES
 from modules.auth import get_tenant_or_fail
 
 logger = logging.getLogger("needle.admin_api")
+
+# ─── OCR job store (in-memory, keyed by job_id) ───
+# Entries: {"status": "processing"|"done"|"error", "stations": [...], "error": str|None}
+_ocr_jobs: dict = {}
 
 # ─── Rate limiting (optional) ───
 try:
@@ -876,18 +882,30 @@ async def upload_pdf(file: UploadFile = File(...), _=Depends(get_admin_user)):
     # extracts the raw ASCII bytes which look like "?kjcjk", "tV~Vkjh".
     # Telltale patterns: <+, >M+, ~, ]+, etc. in locality strings.
     _krutidev_pat = re.compile(r'[<>~\]\^\\]{1}|\+[a-z]|[a-z]\+')
-    if not stations or any(
+    needs_ocr = not stations or any(
         _krutidev_pat.search(s.get("locality", ""))
         for s in stations[:20]
         if not any('\u0900' <= c <= '\u097F' for c in s.get("locality", ""))
-    ):
-        logger.info("Font-encoded or empty PDF detected — falling back to OpenAI GPT-4o Vision OCR")
-        ocr_stations, ocr_error = _ocr_pdf_with_openai(content)
-        debug_info["openai_ocr_used"] = True
-        if ocr_error:
-            debug_info["openai_ocr_error"] = ocr_error
-        if ocr_stations:
-            stations = ocr_stations
+    )
+
+    if needs_ocr:
+        # Start OCR in background thread and return job_id immediately
+        # so the proxy/browser timeout doesn't kill the long-running request.
+        job_id = uuid.uuid4().hex[:12]
+        _ocr_jobs[job_id] = {"status": "processing", "stations": [], "error": None}
+        logger.info(f"Font-encoded PDF — starting background OCR job {job_id}")
+
+        def _run():
+            ocr_stations, ocr_error = _ocr_pdf_with_openai(content)
+            _ocr_jobs[job_id] = {
+                "status": "done" if not ocr_error else "error",
+                "stations": ocr_stations,
+                "error": ocr_error,
+            }
+            logger.info(f"OCR job {job_id} finished: {len(ocr_stations)} stations, error={ocr_error}")
+
+        threading.Thread(target=_run, daemon=True).start()
+        return {"job_id": job_id, "stations": [], "debug": debug_info}
 
     # Dedup
     result = []
@@ -903,6 +921,15 @@ async def upload_pdf(file: UploadFile = File(...), _=Depends(get_admin_user)):
             result.append(s)
 
     return {"stations": result, "debug": debug_info}
+
+
+@router.get("/geography/ocr-job/{job_id}")
+async def get_ocr_job(job_id: str, _=Depends(get_admin_user)):
+    """Poll for background OCR job status."""
+    job = _ocr_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found or expired")
+    return job
 
 
 def _ocr_pdf_with_openai(content: bytes) -> tuple:

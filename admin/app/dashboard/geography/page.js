@@ -57,15 +57,38 @@ export default function GeographyUploadPage() {
         setMsg({});
         try {
             const r = await apiUpload('/api/admin/geography/upload-pdf', file);
-            const stations = r.stations || [];
-            setParsedStations(stations);
-            setJsonText(JSON.stringify(stations, null, 2));
-            showMsg('success', `Extracted ${stations.length} stations`);
+
+            // Hindi/Krutidev PDFs are processed async — poll until done
+            if (r.job_id) {
+                showMsg('success', 'Hindi PDF detected — processing with AI OCR…');
+                const stations = await pollOcrJob(r.job_id);
+                setParsedStations(stations);
+                setJsonText(JSON.stringify(stations, null, 2));
+                showMsg('success', `Extracted ${stations.length} stations`);
+            } else {
+                const stations = r.stations || [];
+                setParsedStations(stations);
+                setJsonText(JSON.stringify(stations, null, 2));
+                showMsg('success', `Extracted ${stations.length} stations`);
+            }
         } catch (err) {
             showMsg('error', err.message);
         } finally {
             setParsing(false);
         }
+    };
+
+    const pollOcrJob = async (jobId) => {
+        const INTERVAL = 4000;
+        const MAX_WAIT = 5 * 60 * 1000; // 5 minutes
+        const start = Date.now();
+        while (Date.now() - start < MAX_WAIT) {
+            await new Promise(res => setTimeout(res, INTERVAL));
+            const job = await apiGet(`/api/admin/geography/ocr-job/${jobId}`);
+            if (job.status === 'done') return job.stations || [];
+            if (job.status === 'error') throw new Error(job.error || 'OCR failed');
+        }
+        throw new Error('OCR timed out after 5 minutes');
     };
 
     const handleSave = async () => {
