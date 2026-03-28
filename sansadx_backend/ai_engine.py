@@ -366,11 +366,20 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         final_loc_name = rules_keys_lower[ai_loc_clean]
                         match_found = True
                     else:
-                        matches = difflib.get_close_matches(ai_loc_clean, rules_keys_lower.keys(), n=1, cutoff=0.75)
-                        if matches:
-                            final_loc_name = rules_keys_lower[matches[0]]
-                            logger.info(f"Auto-Corrected: '{ai_loc_clean}' -> '{final_loc_name}'")
-                            match_found = True
+                        # Substring match — "quarsi bypass" contains "quarsi"
+                        for rk_lower, rk_original in rules_keys_lower.items():
+                            if rk_lower in ai_loc_clean or ai_loc_clean in rk_lower:
+                                final_loc_name = rk_original
+                                logger.info(f"Substring match: '{ai_loc_clean}' ↔ '{rk_original}'")
+                                match_found = True
+                                break
+                        # Fuzzy match fallback
+                        if not match_found:
+                            matches = difflib.get_close_matches(ai_loc_clean, rules_keys_lower.keys(), n=1, cutoff=0.6)
+                            if matches:
+                                final_loc_name = rules_keys_lower[matches[0]]
+                                logger.info(f"Auto-Corrected: '{ai_loc_clean}' -> '{final_loc_name}'")
+                                match_found = True
                     
                     # 6. Apply the Fix
                     if match_found:

@@ -1113,7 +1113,22 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             try:
                 geo_map = get_geo_overrides(current_tenant)
                 geo_map_lower = {k.lower(): v for k, v in geo_map.items()}
+                # 1. Exact match
                 final_constituency = geo_map_lower.get(lookup_key)
+                # 2. Substring match — "Quarsi bypass" contains "Quarsi"
+                if not final_constituency:
+                    for geo_key, geo_val in geo_map_lower.items():
+                        if geo_key in lookup_key or lookup_key in geo_key:
+                            final_constituency = geo_val
+                            logger.info(f"Geo substring match: '{lookup_key}' contains '{geo_key}' → {geo_val}")
+                            break
+                # 3. Fuzzy match
+                if not final_constituency:
+                    import difflib
+                    matches = difflib.get_close_matches(lookup_key, geo_map_lower.keys(), n=1, cutoff=0.6)
+                    if matches:
+                        final_constituency = geo_map_lower[matches[0]]
+                        logger.info(f"Geo fuzzy match: '{lookup_key}' ≈ '{matches[0]}' → {final_constituency}")
                 if final_constituency:
                     logger.info(f"Geo match: {lookup_key} → {final_constituency}")
             except Exception:
