@@ -1107,32 +1107,85 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         location_name = grievance.get("location")
         final_constituency = None
 
-        # Geo mapping — case-insensitive DB override first
+        # Geo mapping — DB overrides + geography JSON files
         if location_name:
             lookup_key = str(location_name).lower().strip()
+            # Build combined rules: geo_overrides + geography JSON files
+            combined_geo = {}
             try:
                 geo_map = get_geo_overrides(current_tenant)
-                geo_map_lower = {k.lower(): v for k, v in geo_map.items()}
-                # 1. Exact match
-                final_constituency = geo_map_lower.get(lookup_key)
-                # 2. Substring match — "Quarsi bypass" contains "Quarsi"
-                if not final_constituency:
-                    for geo_key, geo_val in geo_map_lower.items():
-                        if geo_key in lookup_key or lookup_key in geo_key:
-                            final_constituency = geo_val
-                            logger.info(f"Geo substring match: '{lookup_key}' contains '{geo_key}' → {geo_val}")
-                            break
-                # 3. Fuzzy match
-                if not final_constituency:
-                    import difflib
-                    matches = difflib.get_close_matches(lookup_key, geo_map_lower.keys(), n=1, cutoff=0.6)
-                    if matches:
-                        final_constituency = geo_map_lower[matches[0]]
-                        logger.info(f"Geo fuzzy match: '{lookup_key}' ≈ '{matches[0]}' → {final_constituency}")
-                if final_constituency:
-                    logger.info(f"Geo match: {lookup_key} → {final_constituency}")
+                combined_geo.update(geo_map)
             except Exception:
                 logger.warning("Geo override lookup failed for tenant %s", current_tenant)
+
+            # Also scan geography JSON files for locality→assembly mapping
+            try:
+                import glob as _glob
+                tenant_const = None
+                try:
+                    from sansadx_backend.db import SessionLocal as _SL2, Tenant as _T2
+                    _db2 = _SL2()
+                    try:
+                        _t2 = _db2.query(_T2).filter(_T2.id == current_tenant).first()
+                        if _t2:
+                            tenant_const = _t2.constituency
+                    finally:
+                        _db2.close()
+                except Exception:
+                    pass
+
+                if tenant_const:
+                    for base in ["data/geography", "/app/data/geography"]:
+                        const_dir = os.path.join(base, tenant_const)
+                        if not os.path.isdir(const_dir):
+                            # Case-insensitive fallback
+                            if os.path.isdir(base):
+                                for d in os.listdir(base):
+                                    if d.lower() == tenant_const.lower() and os.path.isdir(os.path.join(base, d)):
+                                        const_dir = os.path.join(base, d)
+                                        break
+                                else:
+                                    continue
+                            else:
+                                continue
+
+                        for fpath in _glob.glob(os.path.join(const_dir, "*.json")):
+                            assembly_name = os.path.splitext(os.path.basename(fpath))[0]
+                            try:
+                                with open(fpath, "r") as gf:
+                                    stations = json.load(gf)
+                                if isinstance(stations, list):
+                                    for station in stations:
+                                        if isinstance(station, dict):
+                                            loc = station.get("locality", "").strip()
+                                            if loc and loc not in combined_geo:
+                                                combined_geo[loc] = assembly_name
+                            except Exception:
+                                pass
+                        break
+            except Exception as e:
+                logger.warning(f"Geography file scan failed in main.py: {e}")
+
+            # Now do 3-tier matching against combined_geo
+            combined_lower = {k.lower(): v for k, v in combined_geo.items()}
+            # 1. Exact match
+            final_constituency = combined_lower.get(lookup_key)
+            # 2. Substring match — "Quarsi bypass" contains "Quarsi"
+            if not final_constituency:
+                for geo_key, geo_val in combined_lower.items():
+                    if geo_key in lookup_key or lookup_key in geo_key:
+                        final_constituency = geo_val
+                        logger.info(f"Geo substring match: '{lookup_key}' contains '{geo_key}' → {geo_val}")
+                        break
+            # 3. Fuzzy match
+            if not final_constituency:
+                import difflib
+                matches = difflib.get_close_matches(lookup_key, combined_lower.keys(), n=1, cutoff=0.6)
+                if matches:
+                    final_constituency = combined_lower[matches[0]]
+                    logger.info(f"Geo fuzzy match: '{lookup_key}' ≈ '{matches[0]}' → {final_constituency}")
+            if final_constituency:
+                logger.info(f"Geo match: {lookup_key} → {final_constituency}")
 
         # Fallback geo resolution
         if not final_constituency:
