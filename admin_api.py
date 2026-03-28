@@ -892,15 +892,16 @@ async def upload_pdf(file: UploadFile = File(...), _=Depends(get_admin_user)):
         # Start OCR in background thread and return job_id immediately
         # so the proxy/browser timeout doesn't kill the long-running request.
         job_id = uuid.uuid4().hex[:12]
-        _ocr_jobs[job_id] = {"status": "processing", "stations": [], "error": None}
+        _ocr_jobs[job_id] = {"status": "processing", "stations": [], "error": None, "progress": {"pages_done": 0, "total_pages": 0}}
         logger.info(f"Font-encoded PDF — starting background OCR job {job_id}")
 
         def _run():
-            ocr_stations, ocr_error = _ocr_pdf_with_openai(content)
+            ocr_stations, ocr_error = _ocr_pdf_with_openai(content, job_id=job_id)
             _ocr_jobs[job_id] = {
                 "status": "done" if not ocr_error else "error",
                 "stations": ocr_stations,
                 "error": ocr_error,
+                "progress": _ocr_jobs.get(job_id, {}).get("progress", {}),
             }
             logger.info(f"OCR job {job_id} finished: {len(ocr_stations)} stations, error={ocr_error}")
 
@@ -932,7 +933,7 @@ async def get_ocr_job(job_id: str, _=Depends(get_admin_user)):
     return job
 
 
-def _ocr_pdf_with_openai(content: bytes) -> tuple:
+def _ocr_pdf_with_openai(content: bytes, job_id: str = None) -> tuple:
     """
     Fallback: render PDF pages as images with PyMuPDF and send to GPT-4o vision
     in batches. Handles Krutidev/font-encoded Hindi PDFs that pdfplumber can't read.
@@ -971,6 +972,10 @@ Return ONLY the raw JSON array. No markdown, no backticks, no explanation."""
         total_pages = len(doc)
         BATCH = 6  # pages per API call
 
+        # Report total pages for progress tracking
+        if job_id and job_id in _ocr_jobs:
+            _ocr_jobs[job_id]["progress"] = {"pages_done": 0, "total_pages": total_pages}
+
         for batch_start in range(0, total_pages, BATCH):
             image_parts = []
             for page_num in range(batch_start, min(batch_start + BATCH, total_pages)):
@@ -997,7 +1002,11 @@ Return ONLY the raw JSON array. No markdown, no backticks, no explanation."""
             batch_stations = json.loads(raw)
             if isinstance(batch_stations, list):
                 all_stations.extend(batch_stations)
-            logger.info(f"OpenAI OCR: pages {batch_start+1}-{min(batch_start+BATCH, total_pages)}/{total_pages} → {len(batch_stations)} stations")
+            pages_done = min(batch_start + BATCH, total_pages)
+            logger.info(f"OpenAI OCR: pages {batch_start+1}-{pages_done}/{total_pages} → {len(batch_stations)} stations")
+            # Update progress for polling
+            if job_id and job_id in _ocr_jobs:
+                _ocr_jobs[job_id]["progress"] = {"pages_done": pages_done, "total_pages": total_pages}
 
         doc.close()
         logger.info(f"OpenAI OCR total: {len(all_stations)} stations from {total_pages} pages")

@@ -50,10 +50,13 @@ export default function GeographyUploadPage() {
 
     const aConst = aSelection === '__new__' ? newAssembly : aSelection;
 
+    const [ocrProgress, setOcrProgress] = useState(null); // {pages_done, total_pages}
+
     const handleParsePDF = async () => {
         const file = fileRef.current?.files?.[0];
         if (!file || !pConst || !aConst) return;
         setParsing(true);
+        setOcrProgress(null);
         setMsg({});
         try {
             const r = await apiUpload('/api/admin/geography/upload-pdf', file);
@@ -75,20 +78,28 @@ export default function GeographyUploadPage() {
             showMsg('error', err.message);
         } finally {
             setParsing(false);
+            setOcrProgress(null);
         }
     };
 
     const pollOcrJob = async (jobId) => {
-        const INTERVAL = 4000;
-        const MAX_WAIT = 5 * 60 * 1000; // 5 minutes
+        const INTERVAL = 5000;
+        const MAX_WAIT = 15 * 60 * 1000; // 15 minutes
         const start = Date.now();
         while (Date.now() - start < MAX_WAIT) {
             await new Promise(res => setTimeout(res, INTERVAL));
-            const job = await apiGet(`/api/admin/geography/ocr-job/${jobId}`);
-            if (job.status === 'done') return job.stations || [];
-            if (job.status === 'error') throw new Error(job.error || 'OCR failed');
+            try {
+                const job = await apiGet(`/api/admin/geography/ocr-job/${jobId}`);
+                if (job.progress) setOcrProgress(job.progress);
+                if (job.status === 'done') return job.stations || [];
+                if (job.status === 'error') throw new Error(job.error || 'OCR failed');
+            } catch (err) {
+                // Network errors during polling shouldn't immediately fail — keep retrying
+                if (err.message?.includes('OCR failed')) throw err;
+                console.warn('Poll error, retrying…', err);
+            }
         }
-        throw new Error('OCR timed out after 5 minutes');
+        throw new Error('OCR timed out after 15 minutes');
     };
 
     const handleSave = async () => {
@@ -183,7 +194,11 @@ export default function GeographyUploadPage() {
                     disabled={!pConst || !aConst || parsing}
                     style={{ width: '100%' }}
                 >
-                    {parsing ? 'Parsing PDF…' : 'Parse PDF'}
+                    {parsing
+                        ? (ocrProgress && ocrProgress.total_pages > 0
+                            ? `AI OCR: ${ocrProgress.pages_done}/${ocrProgress.total_pages} pages…`
+                            : 'Parsing PDF…')
+                        : 'Parse PDF'}
                 </button>
             </div>
 
