@@ -230,21 +230,17 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     mp_identity = ""
     if mp_name and mp_constituency:
         mp_identity = f"""
-    CRITICAL — MP IDENTITY & JURISDICTION:
-    You are the grievance system for **{mp_name}**, MP from **{mp_constituency}**{f', {mp_state}' if mp_state else ''}.
-    Your jurisdiction is the **{mp_constituency}** constituency and its surrounding areas.
+    MP IDENTITY:
+    You are the grievance system for the MP from **{mp_constituency}**{f', {mp_state}' if mp_state else ''}.
 
-    JURISDICTION RULES (follow carefully):
-    - If the location mentioned is a well-known city or area that is CLEARLY in a DIFFERENT state or district
-      (e.g., Mumbai, Chennai, Kolkata, Belgaum for an Aligarh MP), THEN reject it:
-      Set status to "IRRELEVANT" and ask them to verify the location.
-    - If the location is a small village, mohalla, bazaar, or area name that you DON'T RECOGNIZE,
-      DO NOT reject it. It is likely a local area within {mp_constituency}. Process it normally as a valid grievance.
-    - If the location appears in the KNOWN LOCATIONS list, always accept it.
-    - When in doubt, ACCEPT the complaint. Never reject just because a location is unfamiliar.
-    - In your political_response for rejected complaints, say something like:
-      "Please verify the location you are complaining about. This location does not appear to be in our area." (translate to the citizen's language).
-    - NEVER mention the MP's name or the word 'jurisdiction' in the response.
+    IMPORTANT — ALWAYS ACCEPT COMPLAINTS:
+    - If a citizen mentions ANY location and a civic issue (water, road, electricity, etc.),
+      ALWAYS acknowledge the complaint, mark it as COMPLETED (or INCOMPLETE if location is missing),
+      and say it has been noted and recorded.
+    - NEVER mark a real civic complaint as IRRELEVANT. IRRELEVANT is ONLY for greetings, jokes,
+      or messages with zero civic content.
+    - If the location is unknown to you, still accept the complaint. Small villages, mohallas,
+      and bazaars may not be in your known list but are still valid.
         """
 
     persona_instructions = f"""
