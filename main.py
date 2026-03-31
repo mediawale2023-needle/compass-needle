@@ -1206,26 +1206,57 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             except Exception as e:
                 logger.warning(f"Geography file scan failed in main.py: {e}")
 
-            # Now do 3-tier matching against combined_geo
+            # Now do STRICT 4-tier matching against combined_geo
+            # Priority: Exact > Word Boundary > Substring (key in input only) > Strict Fuzzy (85%)
             combined_lower = {k.lower(): v for k, v in combined_geo.items()}
-            # 1. Exact match
+            
+            # 1. Exact match (highest priority)
             final_constituency = combined_lower.get(lookup_key)
-            # 2. Substring match — "Quarsi bypass" contains "Quarsi"
-            if not final_constituency:
-                for geo_key, geo_val in combined_lower.items():
-                    if geo_key in lookup_key or lookup_key in geo_key:
-                        final_constituency = geo_val
-                        logger.info(f"Geo substring match: '{lookup_key}' contains '{geo_key}' → {geo_val}")
-                        break
-            # 3. Fuzzy match
-            if not final_constituency:
-                import difflib
-                matches = difflib.get_close_matches(lookup_key, combined_lower.keys(), n=1, cutoff=0.6)
-                if matches:
-                    final_constituency = combined_lower[matches[0]]
-                    logger.info(f"Geo fuzzy match: '{lookup_key}' ≈ '{matches[0]}' → {final_constituency}")
             if final_constituency:
-                logger.info(f"Geo match: {lookup_key} → {final_constituency}")
+                logger.info(f"Geo exact match: '{lookup_key}' → {final_constituency}")
+            
+            # 2. Word boundary match — key appears as complete word in user input
+            # Prevents "hosur" matching "gilihosur" or "chandanhosur"
+            if not final_constituency:
+                import re as _re
+                for geo_key, geo_val in combined_lower.items():
+                    if len(geo_key) >= 4:
+                        word_pattern = r'\b' + _re.escape(geo_key) + r'\b'
+                        if _re.search(word_pattern, lookup_key):
+                            final_constituency = geo_val
+                            logger.info(f"Geo word boundary match: '{geo_key}' in '{lookup_key}' → {geo_val}")
+                            break
+            
+            # 3. Substring match — ONLY if geo_key is contained in lookup_key (not reverse)
+            # This prevents "hosur" from matching "chandanhosur" when user just says "hosur"
+            # Prefer longer matches (more specific)
+            if not final_constituency:
+                best_match = None
+                best_match_len = 0
+                for geo_key, geo_val in combined_lower.items():
+                    # Only match if key is at least 5 chars and fully contained in user input
+                    if len(geo_key) >= 5 and geo_key in lookup_key:
+                        if len(geo_key) > best_match_len:
+                            best_match = geo_val
+                            best_match_len = len(geo_key)
+                            best_match_key = geo_key
+                if best_match:
+                    final_constituency = best_match
+                    logger.info(f"Geo substring match: '{best_match_key}' ({best_match_len} chars) in '{lookup_key}' → {final_constituency}")
+            
+            # 4. Strict fuzzy match (85% cutoff, min 5 chars, similar lengths)
+            if not final_constituency and len(lookup_key) >= 5:
+                import difflib
+                # Only consider keys of similar length (±30%) to prevent wild mismatches
+                candidate_keys = [
+                    k for k in combined_lower.keys()
+                    if len(k) >= 5 and 0.7 <= len(k)/len(lookup_key) <= 1.3
+                ]
+                if candidate_keys:
+                    matches = difflib.get_close_matches(lookup_key, candidate_keys, n=1, cutoff=0.85)
+                    if matches:
+                        final_constituency = combined_lower[matches[0]]
+                        logger.info(f"Geo fuzzy match (85%): '{lookup_key}' ≈ '{matches[0]}' → {final_constituency}")
 
         # Fallback geo resolution
         if not final_constituency:

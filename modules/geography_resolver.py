@@ -247,42 +247,67 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
 
             tl = entry.get("transliterated", "")
             tl_spaceless = entry.get("spaceless_transliterated", "")
+            entry_name = entry["norm_name"]
 
-            # A. EXACT SUBSTRING — original script (Highest Quality)
-            if entry["norm_name"] and entry["norm_name"] in clean_text:
-                score = 100 - len(entry["norm_name"]) + 50
-                match_type = "exact"
+            # A. EXACT MATCH — highest priority (full string match)
+            if entry_name and entry_name == clean_text:
+                score = 150  # Exact match gets highest score
+                match_type = "exact_full"
 
-            # B. EXACT SUBSTRING — transliterated (Roman citizen text vs Hindi index)
-            elif tl and len(tl) > 3 and tl in clean_text:
-                score = 95
+            # B. WORD BOUNDARY MATCH — entry name appears as complete word(s) in user text
+            # Prevents "hosur" matching "gilihosur" or "chandanhosur"
+            elif entry_name and len(entry_name) >= 4:
+                # Check if entry name appears as a word boundary match
+                word_pattern = r'\b' + re.escape(entry_name) + r'\b'
+                if re.search(word_pattern, clean_text):
+                    score = 120 + len(entry_name)  # Longer matches score higher
+                    match_type = "word_boundary"
+
+            # C. EXACT SUBSTRING — entry name contained in user text (min 5 chars)
+            # Score based on length to prefer longer/more specific matches
+            if score == 0 and entry_name and len(entry_name) >= 5 and entry_name in clean_text:
+                score = 100 + len(entry_name)
+                match_type = "exact_substring"
+
+            # D. EXACT SUBSTRING — transliterated (Roman citizen text vs Hindi index)
+            if score == 0 and tl and len(tl) >= 5 and tl in clean_text:
+                score = 95 + len(tl)
                 match_type = "exact_transliterated"
 
-            # C. SPACELESS MATCH — original (Fixes "Shahunagar")
-            elif entry["spaceless_name"] and len(entry["spaceless_name"]) > 4 and entry["spaceless_name"] in spaceless_text:
-                score = 90
-                match_type = "spaceless"
+            # E. SPACELESS MATCH — original (Fixes "Shahunagar" vs "Shahu Nagar")
+            # Only if the spaceless version is significantly long (avoid false positives)
+            if score == 0 and entry["spaceless_name"] and len(entry["spaceless_name"]) >= 6:
+                if entry["spaceless_name"] in spaceless_text:
+                    score = 90 + len(entry["spaceless_name"])
+                    match_type = "spaceless"
 
-            # D. SPACELESS MATCH — transliterated
-            elif tl_spaceless and len(tl_spaceless) > 4 and tl_spaceless in spaceless_text:
-                score = 88
+            # F. SPACELESS MATCH — transliterated
+            if score == 0 and tl_spaceless and len(tl_spaceless) >= 6 and tl_spaceless in spaceless_text:
+                score = 88 + len(tl_spaceless)
                 match_type = "spaceless_transliterated"
 
-            # E. FUZZY KEYWORD MATCH — also checks transliterated keywords
-            else:
+            # G. FUZZY KEYWORD MATCH — STRICT (95% similarity, min 6 char keywords)
+            # Only used as last resort to catch typos like "Tilkwadi" vs "Tilakwadi"
+            if score == 0:
                 tl_keywords = set(tl.split()) if tl else set()
                 all_dk = entry["keywords"] | tl_keywords
                 for uk in user_keywords:
-                    if len(uk) < 5: continue
+                    if len(uk) < 6: continue  # Increased from 5 to 6
                     for dk in all_dk:
-                        if len(dk) < 5: continue
+                        if len(dk) < 6: continue  # Increased from 5 to 6
+                        # Only consider if lengths are similar (±25%)
+                        if not (0.75 <= len(uk)/len(dk) <= 1.25):
+                            continue
                         sim = similarity_score(uk, dk)
-                        if sim > 92:
+                        if sim > 95:  # Increased from 92 to 95
                             score = sim
-                            match_type = f"fuzzy ({uk}~{dk})"
+                            match_type = f"fuzzy_strict ({uk}~{dk})"
                             break
+                    if score > 0:
+                        break
 
-            if score > 60:
+            # Only accept matches with score > 70 (raised threshold)
+            if score > 70:
                 candidates.append({
                     "assembly": assembly,
                     "parl": data["parl"],

@@ -355,37 +355,89 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 if ai_loc:
                     ai_loc_clean = ai_loc.lower().strip()
                     
-                    # 5. SMART MATCHING (Exact or Fuzzy)
+                    # 5. SMART MATCHING — STRICT PRIORITY ORDER
+                    # Priority 1: Exact match (highest confidence)
+                    # Priority 2: Exact word boundary match (e.g., "hosur" matches "hosur" but not "gilihosur")
+                    # Priority 3: Substring match only if input CONTAINS the key (not reverse)
+                    # Priority 4: High-confidence fuzzy (85%+ cutoff, minimum 5 chars)
+                    # Priority 5: Mark as "Unknown" for manual review
+                    
                     match_found = False
                     final_loc_name = ai_loc_clean
+                    match_confidence = "none"
                     
-                    # Match against lower-case keys in combined_rules
+                    # Build lookup dict with lower-case keys
                     rules_keys_lower = {k.lower(): k for k in combined_rules.keys()}
                     
+                    # PRIORITY 1: Exact match
                     if ai_loc_clean in rules_keys_lower:
                         final_loc_name = rules_keys_lower[ai_loc_clean]
                         match_found = True
-                    else:
-                        # Substring match — "quarsi bypass" contains "quarsi"
+                        match_confidence = "exact"
+                    
+                    # PRIORITY 2: Word boundary match (prevents "hosur" matching "gilihosur")
+                    if not match_found:
+                        import re
                         for rk_lower, rk_original in rules_keys_lower.items():
-                            if rk_lower in ai_loc_clean or ai_loc_clean in rk_lower:
+                            # Check if input is a complete word within the key or vice versa
+                            # "hosur belagavi" should match "hosur" but "gilihosur" should NOT match "hosur"
+                            pattern_key_in_input = r'\b' + re.escape(rk_lower) + r'\b'
+                            
+                            if re.search(pattern_key_in_input, ai_loc_clean):
+                                # The key appears as a complete word in user input
+                                # e.g., user said "hosur village" and key is "hosur"
                                 final_loc_name = rk_original
-                                logger.info(f"Substring match: '{ai_loc_clean}' ↔ '{rk_original}'")
                                 match_found = True
+                                match_confidence = "word_boundary"
+                                logger.info(f"Word boundary match: '{rk_lower}' found in '{ai_loc_clean}'")
                                 break
-                        # Fuzzy match fallback
-                        if not match_found:
-                            matches = difflib.get_close_matches(ai_loc_clean, rules_keys_lower.keys(), n=1, cutoff=0.6)
+                    
+                    # PRIORITY 3: Substring match ONLY if user input contains the entire key
+                    # (NOT the reverse — prevents "hosur" matching "chandanhosur")
+                    if not match_found:
+                        best_substring_match = None
+                        best_substring_len = 0
+                        for rk_lower, rk_original in rules_keys_lower.items():
+                            # Only match if the KEY is fully contained in user input
+                            # AND the key is at least 5 chars (avoid matching "k" or "pg")
+                            if len(rk_lower) >= 5 and rk_lower in ai_loc_clean:
+                                # Prefer longer matches (more specific)
+                                if len(rk_lower) > best_substring_len:
+                                    best_substring_match = rk_original
+                                    best_substring_len = len(rk_lower)
+                        
+                        if best_substring_match:
+                            final_loc_name = best_substring_match
+                            match_found = True
+                            match_confidence = "substring"
+                            logger.info(f"Substring match: '{best_substring_match}' ({best_substring_len} chars) in '{ai_loc_clean}'")
+                    
+                    # PRIORITY 4: High-confidence fuzzy match (STRICT: 85% cutoff, min 5 chars)
+                    if not match_found and len(ai_loc_clean) >= 5:
+                        # Only consider keys of similar length (±30%) to prevent wild mismatches
+                        candidate_keys = [
+                            k for k in rules_keys_lower.keys() 
+                            if len(k) >= 5 and 0.7 <= len(k)/len(ai_loc_clean) <= 1.3
+                        ]
+                        if candidate_keys:
+                            matches = difflib.get_close_matches(
+                                ai_loc_clean, 
+                                candidate_keys, 
+                                n=1, 
+                                cutoff=0.85  # Increased from 0.6 to 0.85 for safety
+                            )
                             if matches:
                                 final_loc_name = rules_keys_lower[matches[0]]
-                                logger.info(f"Auto-Corrected: '{ai_loc_clean}' -> '{final_loc_name}'")
                                 match_found = True
+                                match_confidence = "fuzzy_85"
+                                logger.info(f"Fuzzy match (85%): '{ai_loc_clean}' -> '{final_loc_name}'")
                     
-                    # 6. Apply the Fix
+                    # 6. Apply the mapping OR mark for manual review
                     if match_found:
                         correct_constituency = combined_rules[final_loc_name]
                         data["assembly_constituency"] = correct_constituency
                         data["constituency"] = correct_constituency
+                        data["_match_confidence"] = match_confidence  # For debugging/audit
                         
                         # --- Keep status as "new" so staff must manually triage ---
                         original_status = data.get("status", "").lower()
@@ -399,10 +451,14 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         if "grievance_data" in data:
                             data["grievance_data"]["assembly_constituency"] = correct_constituency
                             data["grievance_data"]["location"] = final_loc_name  # Set to official spelling
+                            data["grievance_data"]["_match_confidence"] = match_confidence
                             
-                        logger.info(f"Location Mapped: {final_loc_name} -> {correct_constituency}")
+                        logger.info(f"Location Mapped [{match_confidence}]: {final_loc_name} -> {correct_constituency}")
                     else:
+                        # No confident match — mark for manual review
                         data["assembly_constituency"] = "Unknown"
+                        data["_match_confidence"] = "unmatched"
+                        logger.info(f"Location UNMATCHED (needs manual review): '{ai_loc_clean}'")
                         
             except Exception as e:
                 logger.warning(f"Override Logic Warning: {e}") 
