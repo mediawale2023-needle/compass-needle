@@ -522,24 +522,48 @@ def create_pr(req: CreatePRRequest, _=Depends(get_admin_user)):
 
 @router.delete("/mps/{tenant_id}")
 def delete_mp(tenant_id: int, _=Depends(get_admin_user)):
-    """Delete MP + tenant + profile cascade."""
-    db = SessionLocal()
+    """Delete MP + tenant and all associated data (full cascade)."""
+    # Fetch name before deletion for audit log
+    row = _q_one("SELECT name FROM tenants WHERE id = :t", {"t": tenant_id})
+    if not row:
+        raise HTTPException(404, "Tenant not found")
+    mp_name = row.get("name", f"tenant_{tenant_id}")
+
+    # Delete in FK-safe order: child tables first, tenant last.
+    # Using raw SQL in one transaction to avoid ORM cascade surprises.
+    _TENANT_TABLES_ORDERED = [
+        # Tables that reference both tenants AND other child tables — delete first
+        "opportunity_company_matches",
+        "csr_pipeline_entries",
+        "case_activity_logs",
+        "escalations",
+        # Tables that reference tenants directly
+        "csr_opportunities",
+        "spam_flags",
+        "tenant_overrides",
+        "contacts",
+        "letterbox_items",
+        "activity_history",
+        "archives",
+        "officers",
+        "admin_notes",
+        "cases",
+        "users",
+        "tenant_profiles",
+    ]
     try:
-        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-        mp_name = tenant.name if tenant else f"tenant_{tenant_id}"
-        db.query(TenantProfile).filter(TenantProfile.tenant_id == tenant_id).delete()
-        db.query(Case).filter(Case.tenant_id == tenant_id).delete()
-        db.query(User).filter(User.tenant_id == tenant_id).delete()
-        db.query(Tenant).filter(Tenant.id == tenant_id).delete()
-        db.commit()
+        with engine.begin() as conn:
+            for table in _TENANT_TABLES_ORDERED:
+                conn.execute(
+                    text(f"DELETE FROM {table} WHERE tenant_id = :tid"),  # nosec B608 — table names are hardcoded, not user input
+                    {"tid": tenant_id},
+                )
+            conn.execute(text("DELETE FROM tenants WHERE id = :tid"), {"tid": tenant_id})
         _audit(_, "deleted", "mp", mp_name, f"tenant_id={tenant_id}")
         return {"success": True}
-    except Exception as e:
-        db.rollback()
-        logger.exception("Admin operation failed")
+    except Exception:
+        logger.exception("delete_mp failed for tenant_id=%s", tenant_id)
         raise HTTPException(500, "Internal server error")
-    finally:
-        db.close()
 
 
 # ═══════════════════════════════════════════
