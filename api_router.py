@@ -16,7 +16,7 @@ from jwt.exceptions import PyJWTError as JWTError
 from sqlalchemy import text
 
 # ─── Single DB engine from db.py (fixes dual-engine bug) ───
-from sansadx_backend.db import engine, SessionLocal
+from sansadx_backend.db import engine, SessionLocal, get_tenant_phone_number_id
 from core.db_helpers import _q, _q_one, _parse_meta
 from modules.auth import get_tenant_or_fail, sanitize_prompt_input
 from core.gemini_client import get_gemini_client
@@ -506,7 +506,7 @@ def notify_citizen(case_id: int, user=Depends(get_current_user)):
     # Try to send via Meta WhatsApp Cloud API
     try:
         from modules.whatsapp import send_whatsapp_message
-        send_whatsapp_message(phone, message)
+        send_whatsapp_message(phone, message, get_tenant_phone_number_id(tid))
         try:
             _log_case_activity(tid, case_id, user.get("username", ""), "citizen_notified", new_value=status)
         except Exception:
@@ -664,7 +664,8 @@ def request_notify_otp(case_id: int, user=Depends(get_current_user)):
         case_ref = case.get("case_ref") or f"#{case_id}"
         send_whatsapp_message(
             wa_number,
-            f"[Needle] Your confirmation OTP for sending a citizen update on case {case_ref} is: *{otp}*\n\nThis code expires in 5 minutes. Do not share it."
+            f"[Needle] Your confirmation OTP for sending a citizen update on case {case_ref} is: *{otp}*\n\nThis code expires in 5 minutes. Do not share it.",
+            get_tenant_phone_number_id(tid),
         )
     except Exception as e:
         _notify_otps.pop((tid, case_id), None)
@@ -723,7 +724,7 @@ def confirm_notify(case_id: int, body: NotifyConfirmBody, user=Depends(get_curre
 
     try:
         from modules.whatsapp import send_whatsapp_message
-        send_whatsapp_message(phone, message)
+        send_whatsapp_message(phone, message, get_tenant_phone_number_id(tid))
         try:
             _log_case_activity(tid, case_id, user.get("username", ""), "citizen_notified", new_value=status)
         except Exception:

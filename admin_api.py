@@ -522,24 +522,48 @@ def create_pr(req: CreatePRRequest, _=Depends(get_admin_user)):
 
 @router.delete("/mps/{tenant_id}")
 def delete_mp(tenant_id: int, _=Depends(get_admin_user)):
-    """Delete MP + tenant + profile cascade."""
-    db = SessionLocal()
+    """Delete MP + tenant and all associated data (full cascade)."""
+    # Fetch name before deletion for audit log
+    row = _q_one("SELECT name FROM tenants WHERE id = :t", {"t": tenant_id})
+    if not row:
+        raise HTTPException(404, "Tenant not found")
+    mp_name = row.get("name", f"tenant_{tenant_id}")
+
+    # Delete in FK-safe order: child tables first, tenant last.
+    # Using raw SQL in one transaction to avoid ORM cascade surprises.
+    _TENANT_TABLES_ORDERED = [
+        # Tables that reference both tenants AND other child tables — delete first
+        "opportunity_company_matches",
+        "csr_pipeline_entries",
+        "case_activity_logs",
+        "escalations",
+        # Tables that reference tenants directly
+        "csr_opportunities",
+        "spam_flags",
+        "tenant_overrides",
+        "contacts",
+        "letterbox_items",
+        "activity_history",
+        "archives",
+        "officers",
+        "admin_notes",
+        "cases",
+        "users",
+        "tenant_profiles",
+    ]
     try:
-        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-        mp_name = tenant.name if tenant else f"tenant_{tenant_id}"
-        db.query(TenantProfile).filter(TenantProfile.tenant_id == tenant_id).delete()
-        db.query(Case).filter(Case.tenant_id == tenant_id).delete()
-        db.query(User).filter(User.tenant_id == tenant_id).delete()
-        db.query(Tenant).filter(Tenant.id == tenant_id).delete()
-        db.commit()
+        with engine.begin() as conn:
+            for table in _TENANT_TABLES_ORDERED:
+                conn.execute(
+                    text(f"DELETE FROM {table} WHERE tenant_id = :tid"),  # nosec B608 — table names are hardcoded, not user input
+                    {"tid": tenant_id},
+                )
+            conn.execute(text("DELETE FROM tenants WHERE id = :tid"), {"tid": tenant_id})
         _audit(_, "deleted", "mp", mp_name, f"tenant_id={tenant_id}")
         return {"success": True}
-    except Exception as e:
-        db.rollback()
-        logger.exception("Admin operation failed")
+    except Exception:
+        logger.exception("delete_mp failed for tenant_id=%s", tenant_id)
         raise HTTPException(500, "Internal server error")
-    finally:
-        db.close()
 
 
 # ═══════════════════════════════════════════
@@ -654,6 +678,68 @@ def reset_mp_password(tenant_id: int, req: ResetPasswordRequest, _=Depends(get_a
     except HTTPException:
         raise
     except Exception as e:
+        db.rollback()
+        logger.exception("Admin operation failed")
+        raise HTTPException(500, "Internal server error")
+    finally:
+        db.close()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WhatsApp number update
+# ─────────────────────────────────────────────────────────────────────────────
+
+class UpdateWhatsappRequest(BaseModel):
+    whatsapp_number: str          # e.g. "+919289372849"
+    phone_number_id: str = ""     # Meta Phone Number ID e.g. "089911394213487"
+
+
+@router.patch("/mps/{tenant_id}/whatsapp")
+def update_mp_whatsapp(tenant_id: int, req: UpdateWhatsappRequest, _=Depends(get_admin_user)):
+    """Update the WhatsApp display number (used for inbound routing) for an MP tenant.
+
+    Also stores the Meta Phone Number ID in tenant config so it can be
+    referenced if the system ever supports per-tenant outbound routing.
+
+    The whatsapp_number must include the country code with + prefix,
+    e.g. '+919289372849'. It must be unique across all tenants.
+    """
+    if not req.whatsapp_number.startswith("+"):
+        raise HTTPException(400, "whatsapp_number must start with '+' and include country code, e.g. '+919289372849'")
+
+    db = SessionLocal()
+    try:
+        # Uniqueness check — prevent two tenants mapping to the same number
+        clash = db.query(Tenant).filter(
+            Tenant.whatsapp_number == req.whatsapp_number,
+            Tenant.id != tenant_id,
+        ).first()
+        if clash:
+            raise HTTPException(409, f"Number {req.whatsapp_number} is already assigned to another tenant (id={clash.id})")
+
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(404, "Tenant not found")
+
+        tenant.whatsapp_number = req.whatsapp_number
+
+        # Optionally persist the Meta Phone Number ID in the tenant config JSONB
+        if req.phone_number_id:
+            config = tenant.config or {}
+            config["meta_phone_number_id"] = req.phone_number_id
+            tenant.config = config
+
+        db.commit()
+        _audit(_, "updated", "tenant_whatsapp", str(tenant_id), f"number={req.whatsapp_number}")
+        return {
+            "success": True,
+            "tenant_id": tenant_id,
+            "whatsapp_number": req.whatsapp_number,
+            "phone_number_id": req.phone_number_id or None,
+        }
+    except HTTPException:
+        raise
+    except Exception:
         db.rollback()
         logger.exception("Admin operation failed")
         raise HTTPException(500, "Internal server error")

@@ -54,7 +54,7 @@ if not META_APP_SECRET:
         "App Settings → Basic → App Secret."
     )
 
-from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_geo_overrides
+from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_geo_overrides, get_tenant_phone_number_id
 
 # ─────────────────────────────────────────
 # GEOGRAPHY RESOLVER
@@ -722,6 +722,7 @@ def _flush_letter_batch(sender: str, tenant_id: int, receiver_number: str):
     Called either by the inactivity timer or immediately on 'DONE' command.
     """
     from modules.letterbox import download_meta_image, generate_diary_number, extract_letter_fields
+    _wa_phone_id = get_tenant_phone_number_id(tenant_id)
 
     # Cancel any pending timer
     key = (sender, tenant_id)
@@ -765,7 +766,7 @@ def _flush_letter_batch(sender: str, tenant_id: int, receiver_number: str):
     if not page_bytes:
         logger.error(f"All image downloads failed for batch {batch_id}")
         try:
-            send_whatsapp_message(sender, "Sorry, could not retrieve the images. Please resend.")
+            send_whatsapp_message(sender, "Sorry, could not retrieve the images. Please resend.", _wa_phone_id)
         except Exception:
             pass
         try:
@@ -811,7 +812,7 @@ def _flush_letter_batch(sender: str, tenant_id: int, receiver_number: str):
     except Exception as exc:
         logger.error(f"CRITICAL: Failed to save batch letter to DB: {exc}")
         try:
-            send_whatsapp_message(sender, "Sorry, there was a database error. Please contact support.")
+            send_whatsapp_message(sender, "Sorry, there was a database error. Please contact support.", _wa_phone_id)
         except Exception:
             pass
         return
@@ -903,7 +904,7 @@ def _flush_letter_batch(sender: str, tenant_id: int, receiver_number: str):
             f"OCR could not read clearly. Open Letterbox dashboard to fill in details."
         )
     try:
-        send_whatsapp_message(sender, confirm_msg)
+        send_whatsapp_message(sender, confirm_msg, _wa_phone_id)
     except Exception as exc:
         logger.warning(f"WhatsApp batch confirmation failed: {exc}")
 
@@ -966,6 +967,7 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
             receiver_number, sender
         )
         return
+    _wa_phone_id = get_tenant_phone_number_id(current_tenant)
 
     # PA whitelist check — sender must be a registered active user for this tenant
     try:
@@ -996,7 +998,7 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
     except Exception as exc:
         logger.error(f"Failed to add image to batch: {exc}")
         try:
-            send_whatsapp_message(sender, "Sorry, could not queue the image. Please resend.")
+            send_whatsapp_message(sender, "Sorry, could not queue the image. Please resend.", _wa_phone_id)
         except Exception:
             pass
         return
@@ -1027,6 +1029,7 @@ def _handle_pa_move_command(sender: str, diary_ref: str, direction_str: str, rec
             receiver_number
         )
         return
+    _wa_phone_id = get_tenant_phone_number_id(current_tenant)
 
     # PA whitelist check
     try:
@@ -1064,15 +1067,15 @@ def _handle_pa_move_command(sender: str, diary_ref: str, direction_str: str, rec
                 {"dir": new_direction, "ref": ref_upper, "tid": current_tenant}
             )
             if result.rowcount == 0:
-                send_whatsapp_message(sender, f"Could not find letter with ref {ref_upper}. Please check the diary number.")
+                send_whatsapp_message(sender, f"Could not find letter with ref {ref_upper}. Please check the diary number.", _wa_phone_id)
                 return
         label = "OUTBOX" if new_direction == "outbox" else "INBOX"
-        send_whatsapp_message(sender, f"Done — {ref_upper} moved to {label}.")
+        send_whatsapp_message(sender, f"Done — {ref_upper} moved to {label}.", _wa_phone_id)
         logger.info(f"MOVE: {ref_upper} → {new_direction} by PA {sender}, tenant {current_tenant}")
     except Exception as exc:
         logger.error(f"MOVE command DB update failed: {exc}")
         try:
-            send_whatsapp_message(sender, "Sorry, could not update the letter. Please try again.")
+            send_whatsapp_message(sender, "Sorry, could not update the letter. Please try again.", _wa_phone_id)
         except Exception:
             pass
 
@@ -1092,6 +1095,7 @@ def _handle_pa_done_command(sender: str, receiver_number: str = ""):
             receiver_number
         )
         return
+    _wa_phone_id = get_tenant_phone_number_id(current_tenant)
 
     # PA whitelist check
     try:
@@ -1121,7 +1125,7 @@ def _handle_pa_done_command(sender: str, receiver_number: str = ""):
 
     if not batch:
         try:
-            send_whatsapp_message(sender, "No pending letter batch found. Send images first.")
+            send_whatsapp_message(sender, "No pending letter batch found. Send images first.", _wa_phone_id)
         except Exception:
             pass
         return
@@ -1141,6 +1145,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             receiver_number, sender
         )
         return
+    _wa_phone_id = get_tenant_phone_number_id(current_tenant)
 
     logger.info(f"Incoming from {sender} → Tenant {current_tenant}")
 
@@ -1181,6 +1186,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         send_whatsapp_message(
             sender,
             "Thank you for contacting us. Your message has been received and will be reviewed by our team.",
+            _wa_phone_id,
         )
         return
 
@@ -1210,7 +1216,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
     except Exception as e:
         logger.error(f"CRITICAL: DB save failed for raw grievance: {e}")
         # Even if DB fails, still try to acknowledge the citizen
-        send_whatsapp_message(sender, "Thank you for contacting us. Your message has been received.")
+        send_whatsapp_message(sender, "Thank you for contacting us. Your message has been received.", _wa_phone_id)
         return
 
     # ── STEP 2: AI classification (if this fails, the grievance is still saved) ──
@@ -1395,14 +1401,15 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         except Exception as e:
             logger.error(f"DB update failed for case {case_id}: {e}")
 
-        send_whatsapp_message(sender, political_reply)
+        send_whatsapp_message(sender, political_reply, _wa_phone_id)
 
     except Exception as e:
         # AI failed — grievance is still saved as pending/Uncategorised
         logger.error(f"AI processing failed for case {case_id}: {e}")
         send_whatsapp_message(
             sender,
-            "Thank you for contacting us. Your message has been received and will be reviewed by our team."
+            "Thank you for contacting us. Your message has been received and will be reviewed by our team.",
+            _wa_phone_id,
         )
 
 
