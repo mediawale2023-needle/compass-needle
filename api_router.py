@@ -515,7 +515,8 @@ def notify_citizen(case_id: int, user=Depends(get_current_user)):
     except ImportError:
         raise HTTPException(500, "WhatsApp module not available")
     except Exception as e:
-        raise HTTPException(500, f"Notification failed: {str(e)}")
+        logger.error("Citizen notification failed for case %s: %s", case_id, e)
+        raise HTTPException(500, "Notification failed. Please try again or contact support.")
 
 
 @router.delete("/cases/{case_id}")
@@ -667,7 +668,8 @@ def request_notify_otp(case_id: int, user=Depends(get_current_user)):
         )
     except Exception as e:
         _notify_otps.pop((tid, case_id), None)
-        raise HTTPException(500, f"Failed to send OTP: {str(e)}")
+        logger.error("OTP WhatsApp send failed for case %s: %s", case_id, e)
+        raise HTTPException(500, "Failed to send OTP. Check WhatsApp configuration.")
 
     return {"success": True, "message": f"OTP sent to registered WhatsApp number ending in {wa_number[-4:]}"}
 
@@ -730,7 +732,8 @@ def confirm_notify(case_id: int, body: NotifyConfirmBody, user=Depends(get_curre
     except ImportError:
         raise HTTPException(500, "WhatsApp module not available")
     except Exception as e:
-        raise HTTPException(500, f"Notification failed: {str(e)}")
+        logger.error("Citizen notification (confirm) failed for case %s: %s", case_id, e)
+        raise HTTPException(500, "Notification failed. Please try again or contact support.")
 
 
 @router.post("/cases/backfill-refs")
@@ -3732,8 +3735,8 @@ def get_clusters(user=Depends(get_current_user)):
         clusters = run_clustering(tenant_id=tid)
         return {"clusters": clusters}
     except Exception as e:
-        logger.exception("Clustering failed")
-        return {"clusters": [], "error": str(e)}
+        logger.exception("Clustering failed for tenant %s: %s", tid, e)
+        return {"clusters": [], "error": "Clustering temporarily unavailable"}
 
 
 # ─────────────────────────────────────────
