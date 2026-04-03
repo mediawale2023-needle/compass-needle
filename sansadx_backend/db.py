@@ -4,7 +4,7 @@ All other files import engine, SessionLocal, and models from here.
 """
 import os
 import bcrypt
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Float, text as sa_text
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Float, text as sa_text, UniqueConstraint
 try:
     from sqlalchemy.orm import declarative_base
 except ImportError:
@@ -267,6 +267,11 @@ class ActivityHistory(Base):
 class Contact(Base):
     """Constituent profile — one record per (tenant, phone) pair."""
     __tablename__ = "contacts"
+    __table_args__ = (
+        # Composite unique: each phone number can only have one contact record per tenant.
+        # Two different MPs can both have the same constituent phone without collision.
+        UniqueConstraint("tenant_id", "phone", name="uq_contacts_tenant_phone"),
+    )
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
     phone = Column(String, index=True)

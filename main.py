@@ -593,44 +593,52 @@ async def verify_webhook(request: Request):
     raise HTTPException(status_code=403, detail="Verification failed")
 
 
-def _resolve_tenant(receiver_number: str) -> int:
-    """Resolve WhatsApp receiver number → tenant_id. Shared by text and image handlers.
+def _resolve_tenant(receiver_number: str) -> int | None:
+    """Resolve WhatsApp receiver number → tenant_id.
 
-    Returns the resolved tenant_id. Defaults to 1 only when resolution fails AND
-    no receiver_number is provided (single-tenant fallback). For multi-tenant
-    deployments, logs a critical warning when falling back.
+    FAIL-SAFE: returns None when the number cannot be matched to any tenant.
+    Callers MUST check for None and drop the message rather than defaulting.
+    Only falls back to tenant_id=1 when receiver_number is empty/None
+    (single-tenant deployments that never set WHATSAPP_PHONE_NUMBER_ID).
+
+    Resolution order:
+      1. In-memory phone_mapping from DB (TenantOverride)
+      2. Direct tenant.whatsapp_number match in DB
+      3. None (fail-safe — caller drops message)
     """
-    current_tenant = 1
-    resolved = False
+    # Empty receiver_number = single-tenant deployment without phone routing
+    if not receiver_number:
+        logger.debug("_resolve_tenant: no receiver_number — falling back to tenant_id=1 (single-tenant mode)")
+        return 1
 
+    # 1. DB phone mapping (overrides table)
     try:
         phone_map = get_phone_tenant_mapping()
-        if receiver_number and receiver_number in phone_map:
+        if receiver_number in phone_map:
             return phone_map[receiver_number]
-    except Exception:
-        logger.warning("Tenant phone mapping lookup failed for %s", receiver_number)
+    except Exception as exc:
+        logger.warning("Tenant phone mapping lookup failed for %s: %s", receiver_number, exc)
 
+    # 2. Direct whatsapp_number match on tenants table
     try:
         with engine.connect() as conn:
             row = conn.execute(
-                text("SELECT id FROM tenants WHERE whatsapp_number = :num LIMIT 1"),
+                text("SELECT id FROM tenants WHERE whatsapp_number = :num AND is_active = true LIMIT 1"),
                 {"num": receiver_number}
             ).fetchone()
             if row:
-                current_tenant = row[0]
-                resolved = True
+                return row[0]
     except Exception as exc:
-        logger.warning(f"Tenant DB lookup failed: {exc}")
+        logger.warning("Tenant DB lookup failed for %s: %s", receiver_number, exc)
 
-    if not resolved and receiver_number:
-        logger.critical(
-            "TENANT_RESOLUTION_FAILED: No tenant matched receiver_number='%s'. "
-            "Defaulting to tenant_id=1. Verify WHATSAPP_PHONE_NUMBER_ID and "
-            "tenant_overrides configuration. Under multi-tenant deployment this "
-            "may route messages to the wrong MP.",
-            receiver_number,
-        )
-    return current_tenant
+    # 3. No match — fail-safe: drop the message
+    logger.critical(
+        "TENANT_RESOLUTION_FAILED: receiver_number='%s' matched no tenant. "
+        "Message will be DROPPED. Verify WHATSAPP_PHONE_NUMBER_ID env var and "
+        "tenant_overrides configuration match this number exactly (include country code).",
+        receiver_number,
+    )
+    return None
 
 
 # ─────────────────────────────────────────
@@ -952,6 +960,12 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
         receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
 
     current_tenant = _resolve_tenant(receiver_number)
+    if current_tenant is None:
+        logger.error(
+            "_process_pa_letter: tenant resolution returned None for receiver=%s sender=%s — dropping image",
+            receiver_number, sender
+        )
+        return
 
     # PA whitelist check — sender must be a registered active user for this tenant
     try:
@@ -1007,6 +1021,12 @@ def _handle_pa_move_command(sender: str, diary_ref: str, direction_str: str, rec
         receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
 
     current_tenant = _resolve_tenant(receiver_number)
+    if current_tenant is None:
+        logger.error(
+            "_handle_pa_move_command: tenant resolution returned None for receiver=%s — dropping MOVE command",
+            receiver_number
+        )
+        return
 
     # PA whitelist check
     try:
@@ -1066,6 +1086,12 @@ def _handle_pa_done_command(sender: str, receiver_number: str = ""):
         receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
 
     current_tenant = _resolve_tenant(receiver_number)
+    if current_tenant is None:
+        logger.error(
+            "_handle_pa_done_command: tenant resolution returned None for receiver=%s — dropping DONE command",
+            receiver_number
+        )
+        return
 
     # PA whitelist check
     try:
@@ -1109,6 +1135,12 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
     if not receiver_number:
         receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
     current_tenant = _resolve_tenant(receiver_number)
+    if current_tenant is None:
+        logger.error(
+            "_process_incoming_message: tenant resolution returned None for receiver=%s sender=%s — dropping message",
+            receiver_number, sender
+        )
+        return
 
     logger.info(f"Incoming from {sender} → Tenant {current_tenant}")
 
@@ -1478,6 +1510,19 @@ def health_ai():
         content={"status": "ok" if all_ok else "degraded", "providers": checks}
     )
 
+
+# ─── Migration: add composite unique constraint to contacts (idempotent) ───
+# Prevents race-condition duplicate contacts (tenant_id, phone) pairs.
+# The UNIQUE INDEX approach is idempotent — safe to run on every startup.
+try:
+    with engine.begin() as conn:
+        conn.execute(sa_text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_contacts_tenant_phone
+            ON contacts (tenant_id, phone)
+        """))
+        logger.info("Migration: contacts(tenant_id, phone) unique index verified")
+except Exception as _contact_exc:
+    logger.warning("contacts unique index migration skipped: %s", _contact_exc)
 
 # ─── Startup: prune token_blocklist entries older than 8h (JWT max age) ───
 # Prevents unbounded table growth. Safe to run on every startup — only
