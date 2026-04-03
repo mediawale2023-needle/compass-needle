@@ -11,8 +11,15 @@ import requests as http_requests
 logger = logging.getLogger("needle.whatsapp")
 
 
-def send_whatsapp_message(to_number: str, body_text: str) -> bool:
+def send_whatsapp_message(to_number: str, body_text: str, phone_number_id: str | None = None) -> bool:
     """Send a WhatsApp text message via Meta Cloud API.
+
+    Args:
+        to_number: Recipient phone number (bare digits, no +).
+        body_text: Message body.
+        phone_number_id: Meta Phone Number ID for this tenant. Falls back to
+            the WHATSAPP_PHONE_NUMBER_ID env var when not provided (single-tenant
+            or legacy callers).
 
     Raises:
         ValueError: if API credentials are not configured.
@@ -20,8 +27,8 @@ def send_whatsapp_message(to_number: str, body_text: str) -> bool:
 
     Returns True on success.
     """
-    # Support both env var names
-    phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID")
+    # Per-tenant ID takes priority; fall back to global env var
+    phone_number_id = phone_number_id or os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID")
     access_token = os.getenv("META_ACCESS_TOKEN")
 
     if not phone_number_id or not access_token:

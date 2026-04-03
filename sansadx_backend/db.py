@@ -402,6 +402,24 @@ def get_phone_tenant_mapping() -> dict:
         db.close()
 
 
+def get_tenant_phone_number_id(tenant_id: int) -> str | None:
+    """Return the Meta Phone Number ID for a tenant, or None if not set.
+
+    The ID is stored in tenants.config->>'meta_phone_number_id' and is set
+    via the PATCH /admin/mps/{id}/whatsapp endpoint.  Falls back to None so
+    callers can degrade to the global WHATSAPP_PHONE_NUMBER_ID env var.
+    """
+    db = SessionLocal()
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            return None
+        config = tenant.config or {}
+        return config.get("meta_phone_number_id") or None
+    finally:
+        db.close()
+
+
 def get_geo_overrides(tenant_id: int) -> dict:
     """Return {location_name: constituency} for a tenant."""
     db = SessionLocal()
