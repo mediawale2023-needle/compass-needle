@@ -515,7 +515,8 @@ def notify_citizen(case_id: int, user=Depends(get_current_user)):
     except ImportError:
         raise HTTPException(500, "WhatsApp module not available")
     except Exception as e:
-        raise HTTPException(500, f"Notification failed: {str(e)}")
+        logger.error("Citizen notification failed for case %s: %s", case_id, e)
+        raise HTTPException(500, "Notification failed. Please try again or contact support.")
 
 
 @router.delete("/cases/{case_id}")
@@ -667,7 +668,8 @@ def request_notify_otp(case_id: int, user=Depends(get_current_user)):
         )
     except Exception as e:
         _notify_otps.pop((tid, case_id), None)
-        raise HTTPException(500, f"Failed to send OTP: {str(e)}")
+        logger.error("OTP WhatsApp send failed for case %s: %s", case_id, e)
+        raise HTTPException(500, "Failed to send OTP. Check WhatsApp configuration.")
 
     return {"success": True, "message": f"OTP sent to registered WhatsApp number ending in {wa_number[-4:]}"}
 
@@ -730,7 +732,8 @@ def confirm_notify(case_id: int, body: NotifyConfirmBody, user=Depends(get_curre
     except ImportError:
         raise HTTPException(500, "WhatsApp module not available")
     except Exception as e:
-        raise HTTPException(500, f"Notification failed: {str(e)}")
+        logger.error("Citizen notification (confirm) failed for case %s: %s", case_id, e)
+        raise HTTPException(500, "Notification failed. Please try again or contact support.")
 
 
 @router.post("/cases/backfill-refs")
@@ -918,8 +921,8 @@ def send_escalation_email_endpoint(escalation_id: int, user=Depends(get_current_
     mp_name = profile.get("mp_name", "Member of Parliament") if profile else "Member of Parliament"
     constituency = profile.get("constituency", "") if profile else ""
 
-    # Get case ref
-    case = _q_one("SELECT case_ref FROM cases WHERE id = :cid", {"cid": esc["case_id"]})
+    # Get case ref — tenant_id included as defence-in-depth even though esc is already tenant-scoped
+    case = _q_one("SELECT case_ref FROM cases WHERE id = :cid AND tenant_id = :tid", {"cid": esc["case_id"], "tid": tid})
     case_ref = case.get("case_ref", "") if case else ""
 
     from modules.email_dispatch import send_escalation_email
@@ -937,11 +940,12 @@ def send_escalation_email_endpoint(escalation_id: int, user=Depends(get_current_
         with engine.begin() as conn:
             conn.execute(text(
                 "UPDATE escalations SET email_sent = true, email_sent_at = :now, email_message_id = :mid, updated_at = :now "
-                "WHERE id = :eid"
-            ), {"now": datetime.utcnow(), "mid": message_id, "eid": escalation_id})
+                "WHERE id = :eid AND tenant_id = :tid"  # tenant guard: prevents cross-tenant update
+            ), {"now": datetime.utcnow(), "mid": message_id, "eid": escalation_id, "tid": tid})
         return {"success": True, "message_id": message_id}
     else:
-        raise HTTPException(500, f"Email failed: {error}")
+        logger.error("Escalation email failed for eid=%s tid=%s: %s", escalation_id, tid, error)
+        raise HTTPException(500, "Failed to send email. Check officer email address and email configuration.")
 
 
 class EscalationDraftRequest(BaseModel):
@@ -2932,7 +2936,7 @@ def get_csr_heatmap(user=Depends(get_current_user)):
                    SUM(complaint_count) as total_complaints,
                    MAX(opportunity_score) as max_score,
                    AVG(opportunity_score) as avg_score,
-                   GROUP_CONCAT(category) as categories
+                   STRING_AGG(DISTINCT category, ', ') as categories
             FROM csr_opportunities WHERE tenant_id = :tid
             GROUP BY location ORDER BY total_complaints DESC
         """, {"tid": tid})
@@ -3732,8 +3736,8 @@ def get_clusters(user=Depends(get_current_user)):
         clusters = run_clustering(tenant_id=tid)
         return {"clusters": clusters}
     except Exception as e:
-        logger.exception("Clustering failed")
-        return {"clusters": [], "error": str(e)}
+        logger.exception("Clustering failed for tenant %s: %s", tid, e)
+        return {"clusters": [], "error": "Clustering temporarily unavailable"}
 
 
 # ─────────────────────────────────────────

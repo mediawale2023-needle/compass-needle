@@ -96,11 +96,14 @@ if _rate_limiting_enabled:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS — fully open (we use Bearer tokens, not cookies, so CORS adds no security)
-# This matches the proven working config from commit 34c7ff8a
+# CORS — use configured origins from security_config.
+# For multi-tenant pilot we include known Railway frontends via ALLOWED_ORIGINS.
+# Falls back to ["*"] only when ALLOWED_ORIGINS is not explicitly configured,
+# which preserves backward-compatibility with existing single-MP deployments.
+# Bearer token auth means CORS is defence-in-depth, not primary auth control.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -247,6 +250,25 @@ try:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_cases_case_ref ON cases (case_ref)"))
 except Exception:  # nosec B110 — idempotent migration
     pass
+
+# ─── Migration: add critical performance indexes (idempotent) ───
+for _idx_sql in [
+    "CREATE INDEX IF NOT EXISTS idx_cases_tenant_id ON cases (tenant_id)",
+    "CREATE INDEX IF NOT EXISTS idx_cases_status ON cases (status)",
+    "CREATE INDEX IF NOT EXISTS idx_cases_created_at ON cases (created_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_cases_tenant_status ON cases (tenant_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_cases_tenant_created ON cases (tenant_id, created_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_cases_user_phone ON cases (user_phone)",
+    "CREATE INDEX IF NOT EXISTS idx_cases_is_deleted ON cases (is_deleted)",
+    "CREATE INDEX IF NOT EXISTS idx_spam_flags_tenant_phone ON spam_flags (tenant_id, phone)",
+    "CREATE INDEX IF NOT EXISTS idx_token_blocklist_revoked_at ON token_blocklist (revoked_at)",
+]:
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(_idx_sql))
+    except Exception:  # nosec B110 — idempotent
+        pass
+logger.info("Performance indexes verified.")
 
 # ─── Migration: create officers table (idempotent) ───
 try:
@@ -518,18 +540,31 @@ from modules.whatsapp import send_whatsapp_message  # noqa: E402
 def get_user_context(phone_number: str) -> str:
     try:
         with engine.connect() as conn:
-            query = text("""
-                SELECT case_metadata FROM cases
-                WHERE user_phone = :phone
-                AND CAST(case_metadata AS TEXT) LIKE '%location_resolved": true%'
-                ORDER BY created_at DESC LIMIT 1
-            """)
-            result = conn.execute(query, {"phone": phone_number}).fetchone()
+            # Use JSONB operator instead of CAST+LIKE for correctness and performance.
+            # Falls back to text search for SQLite (dev/test environments).
+            try:
+                query = text("""
+                    SELECT case_metadata FROM cases
+                    WHERE user_phone = :phone
+                      AND (case_metadata->>'location_resolved')::boolean = true
+                    ORDER BY created_at DESC LIMIT 1
+                """)
+                result = conn.execute(query, {"phone": phone_number}).fetchone()
+            except Exception:
+                # SQLite fallback (development only)
+                query = text("""
+                    SELECT case_metadata FROM cases
+                    WHERE user_phone = :phone
+                    ORDER BY created_at DESC LIMIT 1
+                """)
+                result = conn.execute(query, {"phone": phone_number}).fetchone()
 
             if result and result[0]:
                 meta = result[0]
                 if isinstance(meta, str):
                     meta = json.loads(meta)
+                if not meta.get("location_resolved"):
+                    return ""
                 loc = meta.get("matched_value", "")
                 const = meta.get("assembly_constituency", "")
                 if loc or const:
@@ -558,27 +593,52 @@ async def verify_webhook(request: Request):
     raise HTTPException(status_code=403, detail="Verification failed")
 
 
-def _resolve_tenant(receiver_number: str) -> int:
-    """Resolve WhatsApp receiver number → tenant_id. Shared by text and image handlers."""
-    current_tenant = 1
+def _resolve_tenant(receiver_number: str) -> int | None:
+    """Resolve WhatsApp receiver number → tenant_id.
+
+    FAIL-SAFE: returns None when the number cannot be matched to any tenant.
+    Callers MUST check for None and drop the message rather than defaulting.
+    Only falls back to tenant_id=1 when receiver_number is empty/None
+    (single-tenant deployments that never set WHATSAPP_PHONE_NUMBER_ID).
+
+    Resolution order:
+      1. In-memory phone_mapping from DB (TenantOverride)
+      2. Direct tenant.whatsapp_number match in DB
+      3. None (fail-safe — caller drops message)
+    """
+    # Empty receiver_number = single-tenant deployment without phone routing
+    if not receiver_number:
+        logger.debug("_resolve_tenant: no receiver_number — falling back to tenant_id=1 (single-tenant mode)")
+        return 1
+
+    # 1. DB phone mapping (overrides table)
     try:
         phone_map = get_phone_tenant_mapping()
         if receiver_number in phone_map:
             return phone_map[receiver_number]
-    except Exception:
-        logger.warning("Tenant phone mapping lookup failed for %s", receiver_number)
+    except Exception as exc:
+        logger.warning("Tenant phone mapping lookup failed for %s: %s", receiver_number, exc)
 
+    # 2. Direct whatsapp_number match on tenants table
     try:
         with engine.connect() as conn:
             row = conn.execute(
-                text("SELECT id FROM tenants WHERE whatsapp_number = :num LIMIT 1"),
+                text("SELECT id FROM tenants WHERE whatsapp_number = :num AND is_active = true LIMIT 1"),
                 {"num": receiver_number}
             ).fetchone()
             if row:
-                current_tenant = row[0]
+                return row[0]
     except Exception as exc:
-        logger.warning(f"Tenant DB lookup failed: {exc}")
-    return current_tenant
+        logger.warning("Tenant DB lookup failed for %s: %s", receiver_number, exc)
+
+    # 3. No match — fail-safe: drop the message
+    logger.critical(
+        "TENANT_RESOLUTION_FAILED: receiver_number='%s' matched no tenant. "
+        "Message will be DROPPED. Verify WHATSAPP_PHONE_NUMBER_ID env var and "
+        "tenant_overrides configuration match this number exactly (include country code).",
+        receiver_number,
+    )
+    return None
 
 
 # ─────────────────────────────────────────
@@ -900,6 +960,12 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
         receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
 
     current_tenant = _resolve_tenant(receiver_number)
+    if current_tenant is None:
+        logger.error(
+            "_process_pa_letter: tenant resolution returned None for receiver=%s sender=%s — dropping image",
+            receiver_number, sender
+        )
+        return
 
     # PA whitelist check — sender must be a registered active user for this tenant
     try:
@@ -955,6 +1021,12 @@ def _handle_pa_move_command(sender: str, diary_ref: str, direction_str: str, rec
         receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
 
     current_tenant = _resolve_tenant(receiver_number)
+    if current_tenant is None:
+        logger.error(
+            "_handle_pa_move_command: tenant resolution returned None for receiver=%s — dropping MOVE command",
+            receiver_number
+        )
+        return
 
     # PA whitelist check
     try:
@@ -968,7 +1040,11 @@ def _handle_pa_move_command(sender: str, diary_ref: str, direction_str: str, rec
         return
 
     if not pa_row:
-        logger.info(f"MOVE command from non-PA {sender} — ignored")
+        # Not a PA — treat the full original message as a citizen grievance instead of silently dropping it.
+        # Re-build the original message text (best-effort) so it enters the grievance flow.
+        logger.info(f"MOVE command from non-PA {sender} — routing as citizen grievance instead")
+        original_message = f"MOVE {diary_ref} {direction_str}"
+        _process_incoming_message(sender, original_message, receiver_number)
         return
 
     new_direction = "outbox" if direction_str.lower() in ("out", "outbox") else "inbox"
@@ -1010,6 +1086,12 @@ def _handle_pa_done_command(sender: str, receiver_number: str = ""):
         receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
 
     current_tenant = _resolve_tenant(receiver_number)
+    if current_tenant is None:
+        logger.error(
+            "_handle_pa_done_command: tenant resolution returned None for receiver=%s — dropping DONE command",
+            receiver_number
+        )
+        return
 
     # PA whitelist check
     try:
@@ -1048,11 +1130,17 @@ def _handle_pa_done_command(sender: str, receiver_number: str = ""):
     _flush_letter_batch(sender, current_tenant, receiver_number)
 
 
-def _process_incoming_message(sender: str, message_body: str, receiver_number: str = ""):
+def _process_incoming_message(sender: str, message_body: str, receiver_number: str = "", msg_id: str = ""):
     """Background task: AI processing + DB save + reply. Runs after 200 is returned to Meta."""
     if not receiver_number:
         receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
     current_tenant = _resolve_tenant(receiver_number)
+    if current_tenant is None:
+        logger.error(
+            "_process_incoming_message: tenant resolution returned None for receiver=%s sender=%s — dropping message",
+            receiver_number, sender
+        )
+        return
 
     logger.info(f"Incoming from {sender} → Tenant {current_tenant}")
 
@@ -1112,7 +1200,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
                     "tid": current_tenant,
                     "phone": sender,
                     "msg": message_body,
-                    "meta": json.dumps({"summary": message_body[:200]}),
+                    "meta": json.dumps({"summary": message_body[:200], "wa_msg_id": msg_id}),
                     "now": datetime.utcnow(),
                 }
             )
@@ -1350,6 +1438,22 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         return {"status": "ignored"}  # delivery receipt / status update
 
     msg = messages[0]
+    msg_id = msg.get("id", "")  # Meta message ID — unique per message
+
+    # ── Deduplication: ignore messages already processed (Meta retries) ──
+    if msg_id:
+        try:
+            with engine.connect() as conn:
+                existing = conn.execute(
+                    text("SELECT 1 FROM cases WHERE case_metadata::text LIKE :mid LIMIT 1"),
+                    {"mid": f"%{msg_id}%"},
+                ).fetchone()
+            if existing:
+                logger.info("Webhook dedup: message_id=%s already processed — ignoring retry", msg_id)
+                return {"status": "ignored"}
+        except Exception as dedup_exc:
+            logger.warning("Dedup check failed (non-blocking): %s", dedup_exc)
+
     msg_type = msg.get("type")
     sender = msg["from"]  # bare number e.g. "919876543210"
 
@@ -1374,7 +1478,7 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
                 sender, move_match.group(1), move_match.group(2), display_number
             )
         else:
-            background_tasks.add_task(_process_incoming_message, sender, message_body, display_number)
+            background_tasks.add_task(_process_incoming_message, sender, message_body, display_number, msg_id)
         return {"status": "received"}
 
     elif msg_type == "image":
@@ -1391,12 +1495,80 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
 
 
 # ─────────────────────────────────────────
-# HEALTH CHECK
+# HEALTH CHECKS
 # ─────────────────────────────────────────
 @app.get("/")
-def health_check():
+def root():
     return {"status": "active", "system": "Needle Backend V8.1"}
 
+
+@app.get("/health")
+def health():
+    """Basic liveness check — returns 200 if the process is running."""
+    return {"status": "ok", "system": "Needle Backend V8.1", "timestamp": datetime.utcnow().isoformat()}
+
+
+@app.get("/health/db")
+def health_db():
+    """Database connectivity check. Returns 200 if DB is reachable, 503 otherwise."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"status": "ok", "database": "connected"}
+    except Exception as exc:
+        logger.error("Health/DB check failed: %s", exc)
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "database": "unreachable"}
+        )
+
+
+@app.get("/health/ai")
+def health_ai():
+    """AI provider availability check. Returns 200 if both OpenAI and Gemini keys are configured."""
+    checks = {}
+    openai_key = os.getenv("OPENAI_API_KEY")
+    gemini_key  = os.getenv("GEMINI_API_KEY")
+
+    checks["openai"] = "configured" if openai_key else "missing_key"
+    checks["gemini"] = "configured" if gemini_key else "missing_key"
+
+    all_ok = all(v == "configured" for v in checks.values())
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=200 if all_ok else 503,
+        content={"status": "ok" if all_ok else "degraded", "providers": checks}
+    )
+
+
+# ─── Migration: add composite unique constraint to contacts (idempotent) ───
+# Prevents race-condition duplicate contacts (tenant_id, phone) pairs.
+# The UNIQUE INDEX approach is idempotent — safe to run on every startup.
+try:
+    with engine.begin() as conn:
+        conn.execute(sa_text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_contacts_tenant_phone
+            ON contacts (tenant_id, phone)
+        """))
+        logger.info("Migration: contacts(tenant_id, phone) unique index verified")
+except Exception as _contact_exc:
+    logger.warning("contacts unique index migration skipped: %s", _contact_exc)
+
+# ─── Startup: prune token_blocklist entries older than 8h (JWT max age) ───
+# Prevents unbounded table growth. Safe to run on every startup — only
+# deletes rows that are guaranteed to have expired JWTs by now.
+try:
+    with engine.begin() as conn:
+        cutoff = datetime.utcnow() - timedelta(hours=9)  # 1h buffer beyond JWT_EXPIRE_HOURS=8
+        result = conn.execute(
+            text("DELETE FROM token_blocklist WHERE revoked_at < :cutoff"),
+            {"cutoff": cutoff},
+        )
+        if result.rowcount:
+            logger.info("Pruned %d expired token_blocklist entries", result.rowcount)
+except Exception as _prune_exc:
+    logger.warning("token_blocklist prune failed (non-critical): %s", _prune_exc)
 
 # Recover any batches that were interrupted by a previous restart
 _sweep_stale_batches()
