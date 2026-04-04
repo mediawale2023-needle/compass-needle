@@ -9,6 +9,7 @@ export default function ProfileEditorPage() {
     const [constituencies, setConstituencies] = useState([]);
     const [identityForm, setIdentityForm] = useState({});
     const [profileForm, setProfileForm] = useState({});
+    const [waForm, setWaForm] = useState({ whatsapp_number: '', phone_number_id: '' });
     const [newPassword, setNewPassword] = useState('');
     const [deleteConfirm, setDeleteConfirm] = useState('');
     const [msg, setMsg] = useState({ type: '', text: '' });

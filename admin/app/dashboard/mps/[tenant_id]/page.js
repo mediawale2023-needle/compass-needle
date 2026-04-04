@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { apiGet, apiPost, apiPatch } from '@/lib/api';
+import { apiGet, apiPost, apiPatch, apiPut } from '@/lib/api';
 
 function timeAgo(isoStr) {
     if (!isoStr || isoStr === 'Never') return isoStr || '—';
@@ -35,6 +35,11 @@ export default function MpDetailPage() {
     const [waPhoneId, setWaPhoneId] = useState('');
     const [waSaving, setWaSaving] = useState(false);
 
+    // Add staff state
+    const [addingStaff, setAddingStaff] = useState(false);
+    const [staffForm, setStaffForm] = useState({ username: '', password: '', display_name: '', role: 'staff', phone: '' });
+    const [staffSaving, setStaffSaving] = useState(false);
+
     useEffect(() => {
         apiGet(`/api/admin/mps/${tenantId}/detail`).then(d => {
             setData(d);
@@ -66,6 +71,33 @@ export default function MpDetailPage() {
             setTimeout(() => setToast(''), 4000);
         }
         setWaSaving(false);
+    };
+
+    const addStaff = async () => {
+        if (!staffForm.username.trim()) { setToast('Username is required'); setTimeout(() => setToast(''), 3000); return; }
+        if (!staffForm.password) { setToast('Password is required'); setTimeout(() => setToast(''), 3000); return; }
+        setStaffSaving(true);
+        try {
+            await apiPost('/api/admin/staff', {
+                tenant_id: parseInt(tenantId),
+                username: staffForm.username.trim(),
+                password: staffForm.password,
+                display_name: staffForm.display_name.trim(),
+                role: staffForm.role,
+                phone: staffForm.phone.trim(),
+            });
+            // Refresh detail to update staff roster
+            const fresh = await apiGet(`/api/admin/mps/${tenantId}/detail`);
+            setData(fresh);
+            setAddingStaff(false);
+            setStaffForm({ username: '', password: '', display_name: '', role: 'staff', phone: '' });
+            setToast(`@${staffForm.username} added to team`);
+            setTimeout(() => setToast(''), 3000);
+        } catch (e) {
+            setToast(e.message || 'Failed to create staff');
+            setTimeout(() => setToast(''), 4000);
+        }
+        setStaffSaving(false);
     };
 
     const addNote = async () => {
@@ -299,21 +331,90 @@ export default function MpDetailPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {/* Staff Roster */}
                     <div className="glass-panel">
-                        <h3 className="section-title">Staff Roster</h3>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                            <h3 className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>
+                                Staff Roster
+                                {data.staff && data.staff.length > 0 && (
+                                    <span style={{ marginLeft: 8, fontSize: '0.72rem', fontWeight: 600, color: '#006a4d', background: '#f0fdf4', borderRadius: 20, padding: '2px 8px' }}>
+                                        {data.staff.length}
+                                    </span>
+                                )}
+                            </h3>
+                            <button className="btn-secondary" style={{ fontSize: '0.72rem', padding: '4px 12px' }}
+                                onClick={() => setAddingStaff(v => !v)}>
+                                {addingStaff ? 'Cancel' : '+ Add'}
+                            </button>
+                        </div>
+
+                        {addingStaff && (
+                            <div style={{ marginBottom: 14, padding: '12px', background: '#f8fdf9', borderRadius: 8, border: '1px solid #d1e8df' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 600, color: '#4a5f58', marginBottom: 3, textTransform: 'uppercase' }}>Username *</label>
+                                        <input className="form-input" placeholder="pa_ravi" value={staffForm.username}
+                                            onChange={e => setStaffForm(f => ({ ...f, username: e.target.value }))}
+                                            style={{ fontSize: '0.8rem', padding: '5px 8px' }} />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 600, color: '#4a5f58', marginBottom: 3, textTransform: 'uppercase' }}>Display Name</label>
+                                        <input className="form-input" placeholder="Full name" value={staffForm.display_name}
+                                            onChange={e => setStaffForm(f => ({ ...f, display_name: e.target.value }))}
+                                            style={{ fontSize: '0.8rem', padding: '5px 8px' }} />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 600, color: '#4a5f58', marginBottom: 3, textTransform: 'uppercase' }}>Password *</label>
+                                        <input className="form-input" type="password" placeholder="Min 8 chars" value={staffForm.password}
+                                            onChange={e => setStaffForm(f => ({ ...f, password: e.target.value }))}
+                                            style={{ fontSize: '0.8rem', padding: '5px 8px' }} />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 600, color: '#4a5f58', marginBottom: 3, textTransform: 'uppercase' }}>Role</label>
+                                        <select className="form-input" value={staffForm.role}
+                                            onChange={e => setStaffForm(f => ({ ...f, role: e.target.value }))}
+                                            style={{ fontSize: '0.8rem', padding: '5px 8px' }}>
+                                            <option value="staff">staff</option>
+                                            <option value="manager">manager</option>
+                                            <option value="user">user</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style={{ marginBottom: 8 }}>
+                                    <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 600, color: '#4a5f58', marginBottom: 3, textTransform: 'uppercase' }}>
+                                        WhatsApp Number <span style={{ fontWeight: 400, color: '#94a3a0', textTransform: 'none' }}>(optional — enables PA case queries)</span>
+                                    </label>
+                                    <input className="form-input" type="tel" placeholder="+919876543210" value={staffForm.phone}
+                                        onChange={e => setStaffForm(f => ({ ...f, phone: e.target.value }))}
+                                        style={{ fontSize: '0.8rem', padding: '5px 8px', fontFamily: 'monospace' }} />
+                                </div>
+                                <button className="btn-primary" style={{ fontSize: '0.78rem', padding: '5px 16px' }}
+                                    disabled={staffSaving} onClick={addStaff}>
+                                    {staffSaving ? 'Creating…' : 'Create Staff Account'}
+                                </button>
+                            </div>
+                        )}
+
                         {(!data.staff || data.staff.length === 0) ? (
-                            <div style={{ fontSize: '0.78rem', color: '#6b7f76' }}>No staff assigned</div>
+                            <div style={{ fontSize: '0.78rem', color: '#6b7f76' }}>
+                                No staff assigned. Click "+ Add" to create one.
+                            </div>
                         ) : (
                             <table className="data-table">
                                 <thead>
                                     <tr>
-                                        <th>Name</th><th>Role</th><th>Status</th><th>Last Login</th>
+                                        <th>Name</th><th>Role</th><th>WhatsApp</th><th>Status</th><th>Last Login</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {data.staff.map(s => (
                                         <tr key={s.id}>
-                                            <td style={{ fontWeight: 500 }}>{s.display_name || s.username}</td>
+                                            <td>
+                                                <div style={{ fontWeight: 500 }}>{s.display_name || s.username}</div>
+                                                <div style={{ fontSize: '0.7rem', color: '#94a3a0' }}>@{s.username}</div>
+                                            </td>
                                             <td><span className="badge badge-slate">{s.role}</span></td>
+                                            <td style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: s.phone ? '#1a2e28' : '#94a3a0' }}>
+                                                {s.phone || '—'}
+                                            </td>
                                             <td><span className={`badge badge-dot ${s.is_active ? 'badge-green' : 'badge-red'}`}>{s.is_active ? 'Active' : 'Suspended'}</span></td>
                                             <td style={{ fontSize: '0.72rem', color: '#94a3a0' }}>{timeAgo(s.last_login)}</td>
                                         </tr>
