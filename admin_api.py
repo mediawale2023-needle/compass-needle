@@ -20,6 +20,7 @@ from pydantic import BaseModel
 import jwt
 from jwt.exceptions import PyJWTError as JWTError
 from sqlalchemy import text, func
+from sqlalchemy.orm.attributes import flag_modified
 
 from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, validate_password, get_all_overrides, save_overrides_to_db, AdminAuditLog, AdminNote
 from core.db_helpers import _q, _q_one, _parse_meta
@@ -723,11 +724,14 @@ def update_mp_whatsapp(tenant_id: int, req: UpdateWhatsappRequest, _=Depends(get
 
         tenant.whatsapp_number = req.whatsapp_number
 
-        # Optionally persist the Meta Phone Number ID in the tenant config JSONB
+        # Always write a fresh dict so SQLAlchemy detects the JSON mutation
+        new_config = dict(tenant.config or {})
         if req.phone_number_id:
-            config = tenant.config or {}
-            config["meta_phone_number_id"] = req.phone_number_id
-            tenant.config = config
+            new_config["meta_phone_number_id"] = req.phone_number_id
+        else:
+            new_config.pop("meta_phone_number_id", None)
+        tenant.config = new_config
+        flag_modified(tenant, "config")
 
         db.commit()
         _audit(_, "updated", "tenant_whatsapp", str(tenant_id), f"number={req.whatsapp_number}")
@@ -1653,9 +1657,19 @@ def usage_analytics(_=Depends(get_admin_user)):
 # ═══════════════════════════════════════════
 # STAFF ACCOUNT MANAGEMENT
 # ═══════════════════════════════════════════
+class StaffCreateRequest(BaseModel):
+    tenant_id: int
+    username: str
+    password: str
+    display_name: str = ""
+    role: str = "staff"        # staff | manager | user
+    phone: str = ""            # WhatsApp number for PA letter intake
+
+
 class StaffEditRequest(BaseModel):
     display_name: Optional[str] = None
     role: Optional[str] = None
+    phone: Optional[str] = None
 
 
 class StaffReassignRequest(BaseModel):
@@ -1667,7 +1681,8 @@ def list_all_staff(_=Depends(get_admin_user)):
     """List all non-admin users across all tenants."""
     rows = _q("""
         SELECT u.id, u.username, u.display_name, u.role, u.is_active,
-               u.last_login, u.tenant_id, t.name AS tenant_name, t.constituency
+               u.last_login, u.tenant_id, u.phone,
+               t.name AS tenant_name, t.constituency
         FROM users u
         JOIN tenants t ON t.id = u.tenant_id
         WHERE u.role NOT IN ('admin', 'super_admin', 'sysadmin')
@@ -1678,6 +1693,56 @@ def list_all_staff(_=Depends(get_admin_user)):
             r["last_login"] = r["last_login"].isoformat()
         r["is_active"] = bool(r.get("is_active", True))
     return {"staff": rows}
+
+
+@router.post("/staff")
+def create_staff(req: StaffCreateRequest, admin=Depends(get_admin_user)):
+    """Create a new staff account under a specific MP tenant."""
+    if req.role in {"admin", "super_admin", "sysadmin", "mp", "pr"}:
+        raise HTTPException(400, "Cannot assign admin or MP roles via this endpoint.")
+
+    # Validate tenant exists
+    tenant = _q_one("SELECT id, constituency FROM tenants WHERE id = :t", {"t": req.tenant_id})
+    if not tenant:
+        raise HTTPException(404, "Tenant not found.")
+
+    # Username uniqueness check
+    clash = _q_one("SELECT id FROM users WHERE username = :u", {"u": req.username.strip()})
+    if clash:
+        raise HTTPException(409, f"Username '{req.username}' is already taken.")
+
+    # Password policy (same as MP creation — 8+ chars)
+    if len(req.password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters.")
+
+    pw_hash = bcrypt.hashpw(req.password.encode(), bcrypt.gensalt()).decode()
+
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("""
+                INSERT INTO users
+                    (tenant_id, username, password_hash, display_name, role,
+                     constituency, phone, is_active, created_at)
+                VALUES
+                    (:tid, :username, :pw, :dn, :role,
+                     :constituency, :phone, true, :now)
+                RETURNING id
+            """),
+            {
+                "tid":          req.tenant_id,
+                "username":     req.username.strip(),
+                "pw":           pw_hash,
+                "dn":           req.display_name.strip() or req.username.strip(),
+                "role":         req.role,
+                "constituency": tenant["constituency"] or "",
+                "phone":        req.phone.strip() or None,
+                "now":          datetime.utcnow(),
+            },
+        )
+        new_id = result.fetchone()[0]
+
+    _audit(admin, "created", "staff", req.username, f"tenant={req.tenant_id} role={req.role}")
+    return {"success": True, "user_id": new_id}
 
 
 @router.patch("/staff/{staff_id}")
@@ -1691,6 +1756,9 @@ def edit_staff(staff_id: int, req: StaffEditRequest, _=Depends(get_admin_user)):
             raise HTTPException(400, "Cannot grant admin roles via this endpoint.")
         updates.append("role = :role")
         params["role"] = req.role
+    if req.phone is not None:
+        updates.append("phone = :phone")
+        params["phone"] = req.phone.strip() or None
     if not updates:
         raise HTTPException(400, "Nothing to update.")
     with engine.begin() as conn:
@@ -1952,7 +2020,7 @@ def mp_detail(tenant_id: int, _=Depends(get_admin_user)):
     last_wa_str = last_wa_ts.isoformat() if last_wa_ts and hasattr(last_wa_ts, "isoformat") else None
 
     # Staff roster
-    staff = _q("SELECT id, username, display_name, role, is_active, last_login FROM users WHERE tenant_id = :t AND role NOT IN ('admin','super_admin','sysadmin','mp','pr')", {"t": tenant_id})
+    staff = _q("SELECT id, username, display_name, role, is_active, last_login, phone FROM users WHERE tenant_id = :t AND role NOT IN ('admin','super_admin','sysadmin','mp','pr')", {"t": tenant_id})
     for s in staff:
         if s.get("last_login") and hasattr(s["last_login"], "isoformat"):
             s["last_login"] = s["last_login"].isoformat()
