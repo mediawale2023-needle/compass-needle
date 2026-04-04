@@ -532,6 +532,9 @@ def _save_spam_flag(tenant_id: int, phone: str, flag_type: str, reason: str, mes
 # META CLOUD API HELPER (shared module)
 # ─────────────────────────────────────────
 from modules.whatsapp import send_whatsapp_message  # noqa: E402
+from modules.case_query_parser import parse_query
+from modules.case_query_engine import query_cases
+from modules.case_query_formatter import format_cases_for_whatsapp, format_clarification_request
 
 
 # ─────────────────────────────────────────
@@ -1148,6 +1151,43 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
     _wa_phone_id = get_tenant_phone_number_id(current_tenant)
 
     logger.info(f"Incoming from {sender} → Tenant {current_tenant}")
+
+    # ── Staff query routing (check BEFORE spam / citizen flow) ───────────────
+    # If the sender's phone is a registered staff user for this tenant,
+    # treat their message as a case query, not a citizen grievance.
+    # Uses the same users.phone lookup as the PA letter intake system.
+    try:
+        with engine.connect() as conn:
+            staff_row = conn.execute(
+                text("""
+                    SELECT id, display_name FROM users
+                    WHERE phone = :phone AND tenant_id = :tid AND is_active = true
+                    LIMIT 1
+                """),
+                {"phone": sender, "tid": current_tenant},
+            ).fetchone()
+    except Exception as _staff_exc:
+        logger.warning("Staff lookup failed: %s", _staff_exc)
+        staff_row = None
+
+    if staff_row:
+        logger.info(
+            "Staff query from %s (user_id=%s, tenant=%s): %r",
+            sender, staff_row[0], current_tenant, message_body[:80],
+        )
+        try:
+            filters  = parse_query(message_body, tenant_id=current_tenant)
+            # If neither location nor constituency given, ask for clarification
+            if not filters.get("location") and not filters.get("constituency"):
+                reply = format_clarification_request()
+            else:
+                result = query_cases(filters, tenant_id=current_tenant)
+                reply  = format_cases_for_whatsapp(result)
+        except Exception as _qe:
+            logger.error("Case query pipeline error: %s", _qe)
+            reply = "⚠️ Something went wrong processing your query. Please try again."
+        send_whatsapp_message(sender, reply, _wa_phone_id)
+        return  # Do NOT fall through to citizen grievance flow
 
     # ── Spam / abuse detection (pre-AI, no token cost) ───────────
     is_abuse, abuse_reason = _is_abusive(message_body)
