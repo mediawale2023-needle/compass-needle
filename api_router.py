@@ -356,6 +356,84 @@ def get_cases(
     return {"cases": cases, "total": total, "page": page, "limit": limit, "pages": pages}
 
 
+@router.get("/summary")
+def get_summary(
+    user=Depends(get_current_user),
+    days: int = Query(30, ge=1, le=365),
+):
+    """
+    Constituency summary: top issues, top locations, case volume, status breakdown.
+    Useful for dashboard widgets and the WhatsApp query engine bonus endpoint.
+    """
+    tid = get_tenant_or_fail(user)
+    since = datetime.utcnow() - timedelta(days=days)
+    base_where = """
+        c.tenant_id = :tid
+        AND (c.is_deleted = false OR c.is_deleted IS NULL)
+        AND c.status NOT IN ('awaiting_location', 'Spam', 'Spam (Offensive)')
+        AND c.created_at >= :since
+    """
+    base_params = {"tid": tid, "since": since}
+
+    # Total + status breakdown
+    status_rows = _q(
+        f"""
+        SELECT c.status, COUNT(*) AS cnt
+        FROM cases c
+        WHERE {base_where}
+        GROUP BY c.status
+        ORDER BY cnt DESC
+        """,
+        base_params,
+    )
+    total = sum(r["cnt"] for r in status_rows)
+    status_breakdown = {r["status"]: r["cnt"] for r in status_rows}
+
+    # Top 5 issue categories
+    top_issues = _q(
+        f"""
+        SELECT c.category, COUNT(*) AS cnt
+        FROM cases c
+        WHERE {base_where}
+        GROUP BY c.category
+        ORDER BY cnt DESC
+        LIMIT 5
+        """,
+        base_params,
+    )
+
+    # Top 5 locations (from location column + metadata fallback)
+    top_locations = _q(
+        f"""
+        SELECT
+            COALESCE(c.location, c.case_metadata->>'matched_value') AS loc,
+            COUNT(*) AS cnt
+        FROM cases c
+        WHERE {base_where}
+          AND (c.location IS NOT NULL OR c.case_metadata->>'matched_value' IS NOT NULL)
+        GROUP BY loc
+        ORDER BY cnt DESC
+        LIMIT 5
+        """,
+        base_params,
+    )
+
+    # High priority count
+    hp_row = _q_one(
+        f"SELECT COUNT(*) AS cnt FROM cases c WHERE {base_where} AND c.is_critical = true",
+        base_params,
+    )
+
+    return {
+        "period_days":       days,
+        "total_cases":       total,
+        "high_priority":     hp_row["cnt"] if hp_row else 0,
+        "status_breakdown":  status_breakdown,
+        "top_issues":        [{"category": r["category"], "count": r["cnt"]} for r in top_issues],
+        "top_locations":     [{"location": r["loc"], "count": r["cnt"]} for r in top_locations if r.get("loc")],
+    }
+
+
 @router.get("/cases/{case_id}")
 def get_case(case_id: int, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
