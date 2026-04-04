@@ -269,8 +269,18 @@ function MpCard({ mp }) {
                         </span>
                         <span className={badgeClass} style={{ flexShrink: 0, fontSize: '0.62rem', padding: '2px 7px' }}>{badgeLabel}</span>
                     </div>
-                    <div style={{ color: '#6b7f76', fontSize: '0.73rem', marginBottom: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        @{mp.username} · {mp.parliamentary_constituency}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7, flexWrap: 'nowrap', overflow: 'hidden' }}>
+                        <span style={{ color: '#6b7f76', fontSize: '0.73rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            @{mp.username} · {mp.parliamentary_constituency}
+                        </span>
+                        <span style={{
+                            flexShrink: 0, fontSize: '0.63rem', fontWeight: 700,
+                            background: '#f0f4f1', color: '#006a4d',
+                            borderRadius: 5, padding: '1px 6px', fontFamily: 'monospace',
+                            border: '1px solid #d1e8df',
+                        }}>
+                            #{mp.tenant_id}
+                        </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div className="completeness-bar" style={{ flex: 1 }}>

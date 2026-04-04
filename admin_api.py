@@ -1932,6 +1932,7 @@ def mp_detail(tenant_id: int, _=Depends(get_admin_user)):
         "key_facts": extra.get("key_facts", []),
         "languages": extra.get("languages", []),
         "whatsapp_number": tenant.get("whatsapp_number", ""),
+        "phone_number_id": (tenant.get("config") or {}).get("meta_phone_number_id", "") if isinstance(tenant.get("config"), dict) else "",
         "created_at": tenant["created_at"].isoformat() if tenant.get("created_at") and hasattr(tenant["created_at"], "isoformat") else str(tenant.get("created_at", "")),
     }
 
@@ -1970,6 +1971,7 @@ def mp_detail(tenant_id: int, _=Depends(get_admin_user)):
             a["created_at"] = a["created_at"].isoformat()
 
     return {
+        "tenant_id": tenant_id,
         "profile": profile_summary,
         "last_login": login_str,
         "cases": {

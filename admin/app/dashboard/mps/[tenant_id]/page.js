@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, apiPatch } from '@/lib/api';
 
 function timeAgo(isoStr) {
     if (!isoStr || isoStr === 'Never') return isoStr || '—';
@@ -29,10 +29,44 @@ export default function MpDetailPage() {
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState('');
 
+    // WhatsApp config edit state
+    const [waEditing, setWaEditing] = useState(false);
+    const [waNumber, setWaNumber] = useState('');
+    const [waPhoneId, setWaPhoneId] = useState('');
+    const [waSaving, setWaSaving] = useState(false);
+
     useEffect(() => {
-        apiGet(`/api/admin/mps/${tenantId}/detail`).then(setData).catch(() => {});
+        apiGet(`/api/admin/mps/${tenantId}/detail`).then(d => {
+            setData(d);
+            setWaNumber(d?.profile?.whatsapp_number || '');
+            setWaPhoneId(d?.profile?.phone_number_id || '');
+        }).catch(() => {});
         apiGet(`/api/admin/mps/${tenantId}/notes`).then(r => setNotes(r.notes || [])).catch(() => {});
     }, [tenantId]);
+
+    const saveWhatsApp = async () => {
+        if (!waNumber.trim()) { setToast('WhatsApp number is required'); setTimeout(() => setToast(''), 3000); return; }
+        if (!waNumber.startsWith('+')) { setToast('Number must start with + (e.g. +919876543210)'); setTimeout(() => setToast(''), 3000); return; }
+        setWaSaving(true);
+        try {
+            await apiPatch(`/api/admin/mps/${tenantId}/whatsapp`, {
+                whatsapp_number: waNumber.trim(),
+                phone_number_id: waPhoneId.trim(),
+            });
+            // Refresh data to confirm saved values
+            const fresh = await apiGet(`/api/admin/mps/${tenantId}/detail`);
+            setData(fresh);
+            setWaNumber(fresh?.profile?.whatsapp_number || '');
+            setWaPhoneId(fresh?.profile?.phone_number_id || '');
+            setWaEditing(false);
+            setToast('WhatsApp settings saved');
+            setTimeout(() => setToast(''), 3000);
+        } catch (e) {
+            setToast(e.message || 'Failed to save WhatsApp settings');
+            setTimeout(() => setToast(''), 4000);
+        }
+        setWaSaving(false);
+    };
 
     const addNote = async () => {
         if (!newNote.trim()) return;
@@ -93,11 +127,17 @@ export default function MpDetailPage() {
                             </h2>
                             <span className={`badge ${isLS ? 'badge-green' : 'badge-red'}`}>{p.house || 'Lok Sabha'}</span>
                         </div>
-                        <div style={{ display: 'flex', gap: 20, fontSize: '0.78rem', color: '#6b7f76', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: 20, fontSize: '0.78rem', color: '#6b7f76', flexWrap: 'wrap', alignItems: 'center' }}>
                             <span><strong>Constituency:</strong> {p.constituency || '—'}</span>
                             <span><strong>State:</strong> {p.state || '—'}</span>
                             <span><strong>Party:</strong> {p.party || '—'}</span>
-                            {p.whatsapp_number && <span><strong>WhatsApp:</strong> {p.whatsapp_number}</span>}
+                            <span style={{
+                                fontFamily: 'monospace', fontSize: '0.72rem', fontWeight: 700,
+                                background: '#f0f4f1', color: '#006a4d',
+                                borderRadius: 5, padding: '2px 8px', border: '1px solid #d1e8df',
+                            }}>
+                                Tenant #{data?.tenant_id ?? tenantId}
+                            </span>
                         </div>
                         {p.key_facts && p.key_facts.length > 0 && (
                             <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -122,6 +162,104 @@ export default function MpDetailPage() {
                 <QuickStat label="Open Cases" value={data.cases?.open || 0} accent={data.cases?.open > 0 ? '#d97706' : null} />
                 <QuickStat label="Resolved" value={data.cases?.resolved || 0} accent="#059669" />
                 <QuickStat label="Last WhatsApp" value={timeAgo(data.last_whatsapp)} />
+            </div>
+
+            {/* WhatsApp Configuration Panel */}
+            <div className="glass-panel" style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: waEditing ? 14 : 0 }}>
+                    <h3 className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>
+                        WhatsApp Configuration
+                    </h3>
+                    {!waEditing && (
+                        <button
+                            className="btn-secondary"
+                            style={{ fontSize: '0.78rem', padding: '5px 14px' }}
+                            onClick={() => setWaEditing(true)}
+                        >
+                            Edit
+                        </button>
+                    )}
+                </div>
+
+                {!waEditing ? (
+                    <div style={{ display: 'flex', gap: 32, marginTop: 12, fontSize: '0.82rem', color: '#1a2e28', flexWrap: 'wrap' }}>
+                        <div>
+                            <div style={{ fontSize: '0.65rem', color: '#94a3a0', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 4 }}>
+                                WhatsApp Number
+                            </div>
+                            <div style={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                                {p.whatsapp_number || <span style={{ color: '#94a3a0', fontStyle: 'italic', fontFamily: 'inherit' }}>Not set</span>}
+                            </div>
+                        </div>
+                        <div>
+                            <div style={{ fontSize: '0.65rem', color: '#94a3a0', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 4 }}>
+                                Meta Phone Number ID
+                            </div>
+                            <div style={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                                {p.phone_number_id || <span style={{ color: '#94a3a0', fontStyle: 'italic', fontFamily: 'inherit' }}>Not set</span>}
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#4a5f58', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    WhatsApp Number *
+                                </label>
+                                <input
+                                    className="form-input"
+                                    type="tel"
+                                    placeholder="+919876543210"
+                                    value={waNumber}
+                                    onChange={e => setWaNumber(e.target.value)}
+                                    style={{ fontFamily: 'monospace' }}
+                                />
+                                <div style={{ fontSize: '0.67rem', color: '#94a3a0', marginTop: 4 }}>
+                                    Must start with + country code. Unique across all MPs.
+                                </div>
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: '#4a5f58', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Meta Phone Number ID
+                                </label>
+                                <input
+                                    className="form-input"
+                                    type="text"
+                                    placeholder="e.g. 089911394213487"
+                                    value={waPhoneId}
+                                    onChange={e => setWaPhoneId(e.target.value)}
+                                    style={{ fontFamily: 'monospace' }}
+                                />
+                                <div style={{ fontSize: '0.67rem', color: '#94a3a0', marginTop: 4 }}>
+                                    From Meta Business Suite → WhatsApp → Phone Numbers.
+                                </div>
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                                className="btn-primary"
+                                style={{ fontSize: '0.78rem', padding: '6px 18px' }}
+                                disabled={waSaving}
+                                onClick={saveWhatsApp}
+                            >
+                                {waSaving ? 'Saving…' : 'Save'}
+                            </button>
+                            <button
+                                className="btn-secondary"
+                                style={{ fontSize: '0.78rem', padding: '6px 14px' }}
+                                disabled={waSaving}
+                                onClick={() => {
+                                    setWaNumber(p.whatsapp_number || '');
+                                    setWaPhoneId(p.phone_number_id || '');
+                                    setWaEditing(false);
+                                }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
