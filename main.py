@@ -1441,16 +1441,31 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         except Exception as e:
             logger.error(f"DB update failed for case {case_id}: {e}")
 
-        send_whatsapp_message(sender, political_reply, _wa_phone_id)
+        try:
+            send_whatsapp_message(sender, political_reply, _wa_phone_id)
+        except Exception as send_exc:
+            logger.error(
+                "WHATSAPP_SEND_FAILED: could not reply to %s (case=%s) — %s. "
+                "Check META_ACCESS_TOKEN and per-tenant Phone Number ID configuration.",
+                sender, case_id, send_exc,
+            )
 
     except Exception as e:
         # AI failed — grievance is still saved as pending/Uncategorised
         logger.error(f"AI processing failed for case {case_id}: {e}")
-        send_whatsapp_message(
-            sender,
-            "Thank you for contacting us. Your message has been received and will be reviewed by our team.",
-            _wa_phone_id,
-        )
+        try:
+            send_whatsapp_message(
+                sender,
+                "Thank you for contacting us. Your message has been received and will be reviewed by our team.",
+                _wa_phone_id,
+            )
+        except Exception as send_exc:
+            logger.error(
+                "WHATSAPP_SEND_FAILED: could not send fallback reply to %s — %s. "
+                "Check META_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID env vars, "
+                "or set the Meta Phone Number ID via Admin → MP → WhatsApp Configuration.",
+                sender, send_exc,
+            )
 
 
 @app.post("/whatsapp/webhook")
