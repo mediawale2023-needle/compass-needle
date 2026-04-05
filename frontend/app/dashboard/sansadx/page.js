@@ -23,6 +23,7 @@ const TABS = [
     { key: 'All', label: 'All Cases' },
     { key: 'my_cases', label: 'My Cases' },
     { key: 'new', label: 'New' },
+    { key: 'awaiting_location', label: 'Needs Location' },
     { key: 'in_progress', label: 'In Progress' },
     { key: 'resolved', label: 'Resolved' },
     { key: 'escalated', label: 'Escalated' },
@@ -34,6 +35,7 @@ const TABS = [
 
 const STATUS_OPTIONS = [
     { value: 'new', label: 'New', className: 'bg-blue-100 text-blue-700' },
+    { value: 'awaiting_location', label: 'Needs Location', className: 'bg-orange-100 text-orange-700' },
     { value: 'in_progress', label: 'In Progress', className: 'bg-amber-100 text-amber-700' },
     { value: 'resolved', label: 'Resolved', className: 'bg-green-100 text-green-700' },
     { value: 'escalated', label: 'Escalated', className: 'bg-red-100 text-red-700' },
