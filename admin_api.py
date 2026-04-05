@@ -753,6 +753,214 @@ def update_mp_whatsapp(tenant_id: int, req: UpdateWhatsappRequest, _=Depends(get
 
 
 # ═══════════════════════════════════════════
+# GEOGRAPHY MANAGEMENT
+# ═══════════════════════════════════════════
+
+class GeoLocalityEntry(BaseModel):
+    assembly_constituency: str          # e.g. "Koil"
+    locality: str                       # e.g. "GT Road"
+
+
+class GeoAssemblyBulk(BaseModel):
+    parliamentary_constituency: str     # must match tenant.constituency
+    assembly_constituency: str          # e.g. "Koil"
+    localities: List[str]               # list of locality names
+
+
+@router.get("/mps/{tenant_id}/geography")
+def get_mp_geography(tenant_id: int, _=Depends(get_admin_user)):
+    """Return all geography data stored in DB for this tenant (assembly → [localities])."""
+    from sansadx_backend.db import TenantOverride
+    db = SessionLocal()
+    try:
+        rows = db.query(TenantOverride).filter(
+            TenantOverride.tenant_id == tenant_id,
+            TenantOverride.override_type == "geography_data",
+        ).all()
+        # key = "Constituency/Assembly", value = JSON list of stations
+        assemblies = {}
+        for row in rows:
+            parts = row.key.split("/", 1)
+            if len(parts) != 2:
+                continue
+            _parl, assembly = parts
+            try:
+                stations = json.loads(row.value) if isinstance(row.value, str) else row.value
+            except Exception:
+                stations = []
+            localities = sorted(set(
+                s.get("locality", "").strip()
+                for s in stations
+                if s.get("locality", "").strip()
+            ))
+            assemblies[assembly] = localities
+        return {"tenant_id": tenant_id, "assemblies": assemblies}
+    finally:
+        db.close()
+
+
+@router.post("/mps/{tenant_id}/geography")
+def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(get_admin_user)):
+    """Add a single locality → assembly mapping for this MP's constituency.
+
+    If the assembly JSON already exists in the DB, the locality is appended.
+    If not, a new entry is created. Changes take effect immediately via the
+    geo_override lookup; geography files are rebuilt on next startup.
+    """
+    from sansadx_backend.db import TenantOverride, Tenant
+    db = SessionLocal()
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(404, "Tenant not found")
+        parl = tenant.constituency or "Unknown"
+        db_key = f"{parl}/{req.assembly_constituency}"
+
+        existing = db.query(TenantOverride).filter(
+            TenantOverride.override_type == "geography_data",
+            TenantOverride.key == db_key,
+        ).first()
+
+        locality_clean = req.locality.strip()
+        if existing:
+            try:
+                stations = json.loads(existing.value) if isinstance(existing.value, str) else existing.value
+            except Exception:
+                stations = []
+            # Don't duplicate
+            existing_locs = {s.get("locality", "").lower() for s in stations}
+            if locality_clean.lower() not in existing_locs:
+                stations.append({"station_number": str(len(stations) + 1), "locality": locality_clean, "building_name": locality_clean})
+            existing.value = json.dumps(stations, ensure_ascii=False)
+            flag_modified(existing, "value")
+        else:
+            stations = [{"station_number": "1", "locality": locality_clean, "building_name": locality_clean}]
+            db.add(TenantOverride(
+                tenant_id=tenant_id,
+                override_type="geography_data",
+                key=db_key,
+                value=json.dumps(stations, ensure_ascii=False),
+            ))
+        db.commit()
+
+        # Also update the live geo_override row so it takes effect without restart
+        geo_key = locality_clean.lower()
+        geo_existing = db.query(TenantOverride).filter(
+            TenantOverride.tenant_id == tenant_id,
+            TenantOverride.override_type == "geo_override",
+            TenantOverride.key == geo_key,
+        ).first()
+        if not geo_existing:
+            db.add(TenantOverride(
+                tenant_id=tenant_id,
+                override_type="geo_override",
+                key=geo_key,
+                value=req.assembly_constituency,
+            ))
+            db.commit()
+
+        return {"success": True, "locality": locality_clean, "assembly": req.assembly_constituency}
+    except HTTPException:
+        raise
+    except Exception:
+        db.rollback()
+        logger.exception("Geography add failed")
+        raise HTTPException(500, "Internal server error")
+    finally:
+        db.close()
+
+
+@router.post("/mps/{tenant_id}/geography/bulk")
+def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, _=Depends(get_admin_user)):
+    """Bulk-upsert an entire assembly constituency's localities.
+
+    Replaces the existing assembly entry in the DB. Use this to import
+    a full list at once (e.g. paste from election commission data).
+    """
+    from sansadx_backend.db import TenantOverride
+    db = SessionLocal()
+    try:
+        db_key = f"{req.parliamentary_constituency}/{req.assembly_constituency}"
+        stations = [
+            {"station_number": str(i + 1), "locality": loc.strip(), "building_name": loc.strip()}
+            for i, loc in enumerate(req.localities)
+            if loc.strip()
+        ]
+        existing = db.query(TenantOverride).filter(
+            TenantOverride.override_type == "geography_data",
+            TenantOverride.key == db_key,
+        ).first()
+        if existing:
+            existing.value = json.dumps(stations, ensure_ascii=False)
+            existing.tenant_id = tenant_id
+            flag_modified(existing, "value")
+        else:
+            db.add(TenantOverride(
+                tenant_id=tenant_id,
+                override_type="geography_data",
+                key=db_key,
+                value=json.dumps(stations, ensure_ascii=False),
+            ))
+        db.commit()
+
+        # Upsert live geo_override rows for each locality
+        for loc in req.localities:
+            geo_key = loc.strip().lower()
+            if not geo_key:
+                continue
+            geo_row = db.query(TenantOverride).filter(
+                TenantOverride.tenant_id == tenant_id,
+                TenantOverride.override_type == "geo_override",
+                TenantOverride.key == geo_key,
+            ).first()
+            if geo_row:
+                geo_row.value = req.assembly_constituency
+            else:
+                db.add(TenantOverride(
+                    tenant_id=tenant_id,
+                    override_type="geo_override",
+                    key=geo_key,
+                    value=req.assembly_constituency,
+                ))
+        db.commit()
+
+        return {
+            "success": True,
+            "assembly": req.assembly_constituency,
+            "localities_saved": len(stations),
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        db.rollback()
+        logger.exception("Geography bulk add failed")
+        raise HTTPException(500, "Internal server error")
+    finally:
+        db.close()
+
+
+@router.delete("/mps/{tenant_id}/geography/{assembly}")
+def delete_mp_geography_assembly(tenant_id: int, assembly: str, _=Depends(get_admin_user)):
+    """Delete all geography data for one assembly constituency of this MP."""
+    from sansadx_backend.db import TenantOverride, Tenant
+    db = SessionLocal()
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(404, "Tenant not found")
+        parl = tenant.constituency or "Unknown"
+        db_key = f"{parl}/{assembly}"
+        deleted = db.query(TenantOverride).filter(
+            TenantOverride.override_type == "geography_data",
+            TenantOverride.key == db_key,
+        ).delete()
+        db.commit()
+        return {"success": True, "deleted": deleted}
+    finally:
+        db.close()
+
+
+# ═══════════════════════════════════════════
 # EDITORS
 # ═══════════════════════════════════════════
 
