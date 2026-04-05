@@ -1523,6 +1523,30 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     msg_type = msg.get("type")
     sender = msg["from"]  # bare number e.g. "919876543210"
 
+    # ── Content-based dedup: same sender + same text within 10 min = duplicate ──
+    # Catches re-sends by the user and any rare duplicate Meta deliveries with
+    # different message IDs (e.g. after a webhook retry with a regenerated ID).
+    if msg_type == "text":
+        _raw_body = (msg.get("text") or {}).get("body", "").strip()
+        if _raw_body:
+            try:
+                with engine.connect() as conn:
+                    _dup = conn.execute(
+                        text("""
+                            SELECT 1 FROM cases
+                            WHERE user_phone = :phone
+                              AND raw_message = :body
+                              AND created_at >= NOW() - INTERVAL '10 minutes'
+                            LIMIT 1
+                        """),
+                        {"phone": sender, "body": _raw_body},
+                    ).fetchone()
+                if _dup:
+                    logger.info("Content dedup: identical message from %s within 10 min — ignored", sender)
+                    return {"status": "ignored"}
+            except Exception as _ce:
+                logger.warning("Content dedup check failed (non-blocking): %s", _ce)
+
     # Extract business phone number for tenant routing
     display_number = entry.get("metadata", {}).get("display_phone_number", "")
     if display_number and not display_number.startswith("+"):
