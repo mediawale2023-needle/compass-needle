@@ -133,43 +133,88 @@ app.include_router(admin_router, prefix="/api/admin")
 init_db()
 logger.info("Database initialised.")
 
-# On startup: reconstruct geography files from DB, then sync geo_overrides
-# This ensures geography data survives Railway ephemeral filesystem resets
+# On startup: seed DB from JSON files, reconstruct files from DB, sync geo_overrides.
+# This two-way sync ensures geography data is ALWAYS durable:
+#   - JSON files committed to git → seeded into DB on first deploy (permanent)
+#   - DB rows → reconstructed as JSON files on every future deploy (no git needed)
+#   - Admin-entered data via API → stored in DB → reconstructed on next deploy
 try:
-    from sansadx_backend.db import SessionLocal as _startup_SL, TenantOverride as _startup_TO
+    import pathlib as _pl
+    from sansadx_backend.db import SessionLocal as _startup_SL, TenantOverride as _startup_TO, Tenant as _startup_T
+
     _sdb = _startup_SL()
     try:
-        # Reconstruct geography JSON files from DB
-        geo_rows = _sdb.query(_startup_TO).filter(
+        # ── Step 1: Seed DB from any JSON files present (idempotent) ─────────
+        # Reads data/geography/<Constituency>/<Assembly>.json and upserts into DB.
+        # On the very first deploy the files are in git; after that the DB is the
+        # source of truth and the files are ephemeral.
+        _geo_base = _pl.Path(__file__).parent / "data" / "geography"
+        if _geo_base.exists():
+            # Build constituency → tenant_id map
+            _c2t = {}
+            for _t in _sdb.query(_startup_T).all():
+                if _t.constituency and _t.constituency != "System":
+                    _c2t[_t.constituency.lower()] = _t.id
+
+            _seeded = 0
+            for _parl_dir in sorted(_geo_base.iterdir()):
+                if not _parl_dir.is_dir():
+                    continue
+                for _jf in sorted(_parl_dir.glob("*.json")):
+                    _db_key = f"{_parl_dir.name}/{_jf.stem}"
+                    # Only insert if not already in DB (don't overwrite admin edits)
+                    _exists = _sdb.query(_startup_TO).filter(
+                        _startup_TO.override_type == "geography_data",
+                        _startup_TO.key == _db_key,
+                    ).first()
+                    if not _exists:
+                        try:
+                            _payload = _jf.read_text(encoding="utf-8")
+                            _tid = _c2t.get(_parl_dir.name.lower())
+                            _sdb.add(_startup_TO(
+                                tenant_id=_tid,
+                                override_type="geography_data",
+                                key=_db_key,
+                                value=_payload,
+                            ))
+                            _seeded += 1
+                        except Exception:
+                            pass
+            if _seeded:
+                _sdb.commit()
+                logger.info(f"Geography startup: seeded {_seeded} new assembly files into DB")
+
+        # ── Step 2: Reconstruct JSON files from DB ────────────────────────────
+        # On clean deploys the git files may not be present; DB rows rebuild them.
+        _geo_rows = _sdb.query(_startup_TO).filter(
             _startup_TO.override_type == "geography_data"
         ).all()
-        if geo_rows:
-            import pathlib as _pl
-            _geo_base = _pl.Path(__file__).parent / "data" / "geography"
-            files_written = 0
-            for row in geo_rows:
-                # key = "Aligarh/Koil", value = JSON string of station data
-                parts = row.key.split("/", 1)
-                if len(parts) != 2:
-                    continue
-                pc, ac = parts
-                dest = _geo_base / pc
-                dest.mkdir(parents=True, exist_ok=True)
-                try:
-                    data = json.loads(row.value) if isinstance(row.value, str) else row.value
-                    with open(dest / f"{ac}.json", "w", encoding="utf-8") as f:
-                        json.dump(data, f, indent=2, ensure_ascii=False)
-                    files_written += 1
-                except Exception:
-                    pass
-            logger.info(f"Reconstructed {files_written} geography files from DB")
+        _files_written = 0
+        for _row in _geo_rows:
+            _parts = _row.key.split("/", 1)
+            if len(_parts) != 2:
+                continue
+            _pc, _ac = _parts
+            _dest = _geo_base / _pc
+            _dest.mkdir(parents=True, exist_ok=True)
+            try:
+                _data = json.loads(_row.value) if isinstance(_row.value, str) else _row.value
+                with open(_dest / f"{_ac}.json", "w", encoding="utf-8") as _f:
+                    json.dump(_data, _f, indent=2, ensure_ascii=False)
+                _files_written += 1
+            except Exception:
+                pass
+        if _files_written:
+            logger.info(f"Geography startup: reconstructed {_files_written} assembly files from DB")
+
     finally:
         _sdb.close()
 
-    # Now sync geography files → DB geo_overrides
+    # ── Step 3: Sync JSON files → DB geo_override lookup entries ─────────────
     from modules.geography_resolver import auto_generate_overrides
-    result = auto_generate_overrides()
-    logger.info(f"Geography overrides synced to DB: {result}")
+    _sync_result = auto_generate_overrides()
+    logger.info(f"Geography overrides synced to DB: {_sync_result}")
+
 except Exception as e:
     logger.warning(f"Geography startup sync failed (non-critical): {e}")
 
@@ -1522,6 +1567,30 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
 
     msg_type = msg.get("type")
     sender = msg["from"]  # bare number e.g. "919876543210"
+
+    # ── Content-based dedup: same sender + same text within 10 min = duplicate ──
+    # Catches re-sends by the user and any rare duplicate Meta deliveries with
+    # different message IDs (e.g. after a webhook retry with a regenerated ID).
+    if msg_type == "text":
+        _raw_body = (msg.get("text") or {}).get("body", "").strip()
+        if _raw_body:
+            try:
+                with engine.connect() as conn:
+                    _dup = conn.execute(
+                        text("""
+                            SELECT 1 FROM cases
+                            WHERE user_phone = :phone
+                              AND raw_message = :body
+                              AND created_at >= NOW() - INTERVAL '10 minutes'
+                            LIMIT 1
+                        """),
+                        {"phone": sender, "body": _raw_body},
+                    ).fetchone()
+                if _dup:
+                    logger.info("Content dedup: identical message from %s within 10 min — ignored", sender)
+                    return {"status": "ignored"}
+            except Exception as _ce:
+                logger.warning("Content dedup check failed (non-blocking): %s", _ce)
 
     # Extract business phone number for tenant routing
     display_number = entry.get("metadata", {}).get("display_phone_number", "")

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { apiGet, apiPatch, apiDelete } from '@/lib/api';
+import { apiGet, apiPatch, apiDelete, apiPost } from '@/lib/api';
 
 export default function ProfileEditorPage() {
     const [mps, setMps] = useState([]);
@@ -13,6 +13,12 @@ export default function ProfileEditorPage() {
     const [newPassword, setNewPassword] = useState('');
     const [deleteConfirm, setDeleteConfirm] = useState('');
     const [msg, setMsg] = useState({ type: '', text: '' });
+
+    // Geography
+    const [geoData, setGeoData] = useState({});        // { assembly: [localities] }
+    const [geoAssembly, setGeoAssembly] = useState('');
+    const [geoLocalities, setGeoLocalities] = useState(''); // textarea, one per line
+    const [geoLoading, setGeoLoading] = useState(false);
 
     useEffect(() => {
         apiGet('/api/admin/mps').then(r => setMps(r.mps || [])).catch(() => { });
@@ -41,6 +47,10 @@ export default function ProfileEditorPage() {
                 phone_number_id: p.phone_number_id || '',
             });
         }).catch(() => { });
+        // Load geography data
+        apiGet(`/api/admin/mps/${selected.tenant_id}/geography`)
+            .then(g => setGeoData(g.assemblies || {}))
+            .catch(() => setGeoData({}));
     }, [selected]);
 
     const completeness = (() => {
@@ -97,6 +107,36 @@ export default function ProfileEditorPage() {
                 vocabulary_guide: profile?.vocabulary_guide || {},
             });
             showMsg('success', 'Profile data saved successfully');
+        } catch (err) { showMsg('error', err.message); }
+    };
+
+    const saveGeo = async () => {
+        if (!geoAssembly.trim()) { showMsg('error', 'Assembly constituency name is required'); return; }
+        const locs = geoLocalities.split('\n').map(l => l.trim()).filter(Boolean);
+        if (!locs.length) { showMsg('error', 'Enter at least one locality'); return; }
+        setGeoLoading(true);
+        try {
+            await apiPost(`/api/admin/mps/${selected.tenant_id}/geography/bulk`, {
+                parliamentary_constituency: selected.parliamentary_constituency || identityForm.constituency,
+                assembly_constituency: geoAssembly.trim(),
+                localities: locs,
+            });
+            showMsg('success', `Saved ${locs.length} localities for ${geoAssembly}`);
+            setGeoAssembly('');
+            setGeoLocalities('');
+            const g = await apiGet(`/api/admin/mps/${selected.tenant_id}/geography`);
+            setGeoData(g.assemblies || {});
+        } catch (err) { showMsg('error', err.message); }
+        finally { setGeoLoading(false); }
+    };
+
+    const deleteGeoAssembly = async (assembly) => {
+        if (!confirm(`Delete all localities for "${assembly}"?`)) return;
+        try {
+            await apiDelete(`/api/admin/mps/${selected.tenant_id}/geography/${encodeURIComponent(assembly)}`);
+            showMsg('success', `Deleted ${assembly}`);
+            const g = await apiGet(`/api/admin/mps/${selected.tenant_id}/geography`);
+            setGeoData(g.assemblies || {});
         } catch (err) { showMsg('error', err.message); }
     };
 
@@ -281,6 +321,67 @@ export default function ProfileEditorPage() {
                                         </span>
                                     )}
                                 </div>
+                            </div>
+
+                            {/* Constituency Geography */}
+                            <div className="glass-panel" style={{ marginBottom: '1.25rem' }}>
+                                <div className="section-title">Constituency Geography</div>
+                                <p style={{ fontSize: '0.82rem', color: '#6b7f76', marginBottom: 14, marginTop: 0 }}>
+                                    Location → Assembly Constituency mappings. Stored in the database — survives all redeployments.
+                                    Add each assembly segment's localities so WhatsApp complaints are routed correctly.
+                                </p>
+
+                                {/* Existing assemblies */}
+                                {Object.keys(geoData).length > 0 && (
+                                    <div style={{ marginBottom: 16 }}>
+                                        {Object.entries(geoData).map(([assembly, locs]) => (
+                                            <div key={assembly} style={{ background: '#f0f7f4', borderRadius: 8, padding: '10px 14px', marginBottom: 8, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1a2e28', marginBottom: 4 }}>{assembly}</div>
+                                                    <div style={{ fontSize: '0.78rem', color: '#6b7f76', lineHeight: 1.6 }}>
+                                                        {locs.slice(0, 8).join(' · ')}{locs.length > 8 ? ` +${locs.length - 8} more` : ''}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => { setGeoAssembly(assembly); setGeoLocalities(locs.join('\n')); }}
+                                                    style={{ fontSize: '0.75rem', color: '#059669', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 4, whiteSpace: 'nowrap' }}>
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => deleteGeoAssembly(assembly)}
+                                                    style={{ fontSize: '0.75rem', color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 4 }}>
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Add / Edit form */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginBottom: 12 }}>
+                                    <div>
+                                        <label className="form-label">Assembly Constituency Name</label>
+                                        <input
+                                            className="form-input"
+                                            value={geoAssembly}
+                                            onChange={e => setGeoAssembly(e.target.value)}
+                                            placeholder="e.g. Koil"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="form-label">Localities <span style={{ fontWeight: 400, color: '#94a3b8' }}>(one per line — village, mohalla, road, landmark)</span></label>
+                                        <textarea
+                                            className="form-input"
+                                            rows={5}
+                                            value={geoLocalities}
+                                            onChange={e => setGeoLocalities(e.target.value)}
+                                            placeholder={"GT Road\nCivil Lines\nSasni Gate\nQuarsi\nDelhi Gate"}
+                                        />
+                                    </div>
+                                </div>
+                                <button type="button" className="btn-primary" onClick={saveGeo} disabled={geoLoading}>
+                                    {geoLoading ? 'Saving…' : `Save ${geoAssembly ? `"${geoAssembly}"` : 'Assembly'} Localities`}
+                                </button>
                             </div>
 
                             {/* Danger Zone */}

@@ -1,0 +1,22 @@
+[
+  {"station_number": "1", "locality": "Chharra", "building_name": "Chharra Town"},
+  {"station_number": "2", "locality": "Chahr", "building_name": "Chahr Village"},
+  {"station_number": "3", "locality": "Chahar", "building_name": "Chahar"},
+  {"station_number": "4", "locality": "Chhara", "building_name": "Chhara"},
+  {"station_number": "5", "locality": "Chhar", "building_name": "Chhar"},
+  {"station_number": "6", "locality": "Garauli", "building_name": "Garauli"},
+  {"station_number": "7", "locality": "Sathna", "building_name": "Sathna"},
+  {"station_number": "8", "locality": "Nagla Bhikhna", "building_name": "Nagla Bhikhna"},
+  {"station_number": "9", "locality": "Iltifatganj", "building_name": "Iltifatganj"},
+  {"station_number": "10", "locality": "Harnathpur", "building_name": "Harnathpur"},
+  {"station_number": "11", "locality": "Bichpuri", "building_name": "Bichpuri"},
+  {"station_number": "12", "locality": "Chandpur", "building_name": "Chandpur"},
+  {"station_number": "13", "locality": "Pisawa", "building_name": "Pisawa"},
+  {"station_number": "14", "locality": "Kheragarh", "building_name": "Kheragarh"},
+  {"station_number": "15", "locality": "Mathura Road", "building_name": "Mathura Road (Chharra side)"},
+  {"station_number": "16", "locality": "Bijaigarh", "building_name": "Bijaigarh"},
+  {"station_number": "17", "locality": "Nagla Kalan", "building_name": "Nagla Kalan"},
+  {"station_number": "18", "locality": "Girdharipur", "building_name": "Girdharipur"},
+  {"station_number": "19", "locality": "Umara", "building_name": "Umara"},
+  {"station_number": "20", "locality": "Dadon", "building_name": "Dadon"}
+]

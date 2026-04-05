@@ -776,6 +776,36 @@
       "vitthalwadi ulhasnagar": "Ulhasnagar",
       "shanti nagar ulhasnagar": "Ulhasnagar",
       "khemani ulhasnagar": "Ulhasnagar"
+    },
+    "7": {
+      "gt road": "Koil",
+      "g.t. road": "Koil",
+      "g.t road": "Koil",
+      "grand trunk road": "Koil",
+      "nh 19": "Koil",
+      "nh-19": "Koil",
+      "city center": "Koil",
+      "city centre": "Koil",
+      "aligarh city": "Koil",
+      "quarsi": "Koil",
+      "quarsi bypass": "Koil",
+      "sasni gate": "Koil",
+      "ramghat road": "Koil",
+      "civil lines": "Koil",
+      "marris road": "Koil",
+      "delhi gate": "Koil",
+      "chahr": "Chharra",
+      "chahar": "Chharra",
+      "chhara": "Chharra",
+      "chhar": "Chharra",
+      "khair": "Khair",
+      "khair bypass": "Khair",
+      "khair bypass road": "Khair",
+      "tappal": "Khair",
+      "jattari": "Khair",
+      "atrauli": "Atrauli",
+      "iglas": "Iglas",
+      "mant": "Iglas"
     }
   }
 }

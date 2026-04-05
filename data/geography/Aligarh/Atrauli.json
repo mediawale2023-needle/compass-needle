@@ -1,0 +1,17 @@
+[
+  {"station_number": "1", "locality": "Atrauli", "building_name": "Atrauli Town"},
+  {"station_number": "2", "locality": "Bijauli", "building_name": "Bijauli"},
+  {"station_number": "3", "locality": "Akrabad", "building_name": "Akrabad"},
+  {"station_number": "4", "locality": "Gangiri", "building_name": "Gangiri"},
+  {"station_number": "5", "locality": "Khandauli", "building_name": "Khandauli"},
+  {"station_number": "6", "locality": "Jawanpur", "building_name": "Jawanpur"},
+  {"station_number": "7", "locality": "Gonda", "building_name": "Gonda (Atrauli)"},
+  {"station_number": "8", "locality": "Unchagaon", "building_name": "Unchagaon"},
+  {"station_number": "9", "locality": "Nagla Padu", "building_name": "Nagla Padu"},
+  {"station_number": "10", "locality": "Murshadpur", "building_name": "Murshadpur"},
+  {"station_number": "11", "locality": "Nagla Bhur", "building_name": "Nagla Bhur"},
+  {"station_number": "12", "locality": "Anupshahar Road", "building_name": "Anupshahar Road (Atrauli side)"},
+  {"station_number": "13", "locality": "Nidhauli Kalan", "building_name": "Nidhauli Kalan"},
+  {"station_number": "14", "locality": "Dibai Road", "building_name": "Dibai Road"},
+  {"station_number": "15", "locality": "Gabhana Road", "building_name": "Gabhana Road"}
+]

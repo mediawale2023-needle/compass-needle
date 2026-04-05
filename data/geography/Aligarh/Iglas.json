@@ -1,0 +1,15 @@
+[
+  {"station_number": "1", "locality": "Iglas", "building_name": "Iglas Town"},
+  {"station_number": "2", "locality": "Mant", "building_name": "Mant"},
+  {"station_number": "3", "locality": "Akola", "building_name": "Akola"},
+  {"station_number": "4", "locality": "Manpur", "building_name": "Manpur"},
+  {"station_number": "5", "locality": "Baldev", "building_name": "Baldev"},
+  {"station_number": "6", "locality": "Barsana Road", "building_name": "Barsana Road"},
+  {"station_number": "7", "locality": "Govardhan Road", "building_name": "Govardhan Road"},
+  {"station_number": "8", "locality": "Jalesar Road", "building_name": "Jalesar Road"},
+  {"station_number": "9", "locality": "Ghatmpur", "building_name": "Ghatmpur"},
+  {"station_number": "10", "locality": "Pachgaon", "building_name": "Pachgaon"},
+  {"station_number": "11", "locality": "Shamsabad", "building_name": "Shamsabad"},
+  {"station_number": "12", "locality": "Kharkhara", "building_name": "Kharkhara"},
+  {"station_number": "13", "locality": "Agra Road", "building_name": "Agra Road (Iglas side)"}
+]
