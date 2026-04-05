@@ -534,6 +534,7 @@ def _save_spam_flag(tenant_id: int, phone: str, flag_type: str, reason: str, mes
 from modules.whatsapp import send_whatsapp_message  # noqa: E402
 from modules.case_query_parser import parse_query
 from modules.case_query_engine import query_cases
+from modules.localized_replies import get_awaiting_location_reply
 from modules.case_query_formatter import format_cases_for_whatsapp, format_clarification_request
 
 
@@ -1274,6 +1275,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         # Parse AI result
         grievance = ai_result.get("grievance_data", {}) or {}
         status = str(ai_result.get("status", "new")).lower()
+        detected_language = ai_result.get("detected_language", "")
         categories = grievance.get("categories", ["General"])
         category = categories[0] if isinstance(categories, list) and categories else "General"
         political_reply = ai_result.get("political_response", "Thank you for contacting us. Your message has been received.")
@@ -1408,8 +1410,10 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             final_constituency = "Unknown"
 
         # If location couldn't be verified against geography list, hold the case
+        # and replace the AI's "noted" reply with a localized clarification request
         if final_constituency == "Unknown" and location_name:
             status = "awaiting_location"
+            political_reply = get_awaiting_location_reply(location_name, detected_language)
 
         meta_data = {
             "user_intent": status,
@@ -1441,16 +1445,31 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         except Exception as e:
             logger.error(f"DB update failed for case {case_id}: {e}")
 
-        send_whatsapp_message(sender, political_reply, _wa_phone_id)
+        try:
+            send_whatsapp_message(sender, political_reply, _wa_phone_id)
+        except Exception as send_exc:
+            logger.error(
+                "WHATSAPP_SEND_FAILED: could not reply to %s (case=%s) — %s. "
+                "Check META_ACCESS_TOKEN and per-tenant Phone Number ID configuration.",
+                sender, case_id, send_exc,
+            )
 
     except Exception as e:
         # AI failed — grievance is still saved as pending/Uncategorised
         logger.error(f"AI processing failed for case {case_id}: {e}")
-        send_whatsapp_message(
-            sender,
-            "Thank you for contacting us. Your message has been received and will be reviewed by our team.",
-            _wa_phone_id,
-        )
+        try:
+            send_whatsapp_message(
+                sender,
+                "Thank you for contacting us. Your message has been received and will be reviewed by our team.",
+                _wa_phone_id,
+            )
+        except Exception as send_exc:
+            logger.error(
+                "WHATSAPP_SEND_FAILED: could not send fallback reply to %s — %s. "
+                "Check META_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID env vars, "
+                "or set the Meta Phone Number ID via Admin → MP → WhatsApp Configuration.",
+                sender, send_exc,
+            )
 
 
 @app.post("/whatsapp/webhook")

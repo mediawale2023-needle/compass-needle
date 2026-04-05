@@ -289,7 +289,7 @@ def get_cases(
     limit: int = Query(50, ge=1, le=200),
 ):
     tid = get_tenant_or_fail(user)
-    conditions = ["c.tenant_id = :tid", "(c.is_deleted = false OR c.is_deleted IS NULL)", "c.status != 'awaiting_location'"]
+    conditions = ["c.tenant_id = :tid", "(c.is_deleted = false OR c.is_deleted IS NULL)"]
     params = {"tid": tid}
 
     if status:

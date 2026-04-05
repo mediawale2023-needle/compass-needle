@@ -9,6 +9,7 @@ import base64
 import bcrypt
 import logging
 import re
+import requests as http_requests
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, List
@@ -2240,3 +2241,147 @@ def get_alerts(_=Depends(get_admin_user)):
         logger.warning(f"Alerts - announcement check failed: {e}")
 
     return {"alerts": alerts, "count": len(alerts)}
+
+
+
+# ═══════════════════════════════════════════
+# WHATSAPP DIAGNOSTIC ENDPOINT
+# ═══════════════════════════════════════════
+
+@router.get("/debug/whatsapp")
+def whatsapp_diagnostics(_=Depends(get_admin_user)):
+    """
+    Diagnostic endpoint — check every layer of the WhatsApp send/receive stack.
+    Returns a structured report showing exactly what is misconfigured.
+    Hit this when messages are not being sent or received.
+    """
+    report = {"checks": [], "tenants": [], "recent_webhooks": []}
+
+    def check(name, ok, detail, fix=None):
+        report["checks"].append({
+            "name": name,
+            "status": "ok" if ok else "fail",
+            "detail": detail,
+            **({"fix": fix} if fix else {}),
+        })
+
+    # ── 1. Env vars ─────────────────────────────────────────────────────────
+    access_token = os.getenv("META_ACCESS_TOKEN", "")
+    global_phone_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
+    meta_app_secret = os.getenv("META_APP_SECRET", "")
+    meta_verify_token = os.getenv("META_VERIFY_TOKEN", "")
+
+    check(
+        "META_ACCESS_TOKEN set",
+        bool(access_token),
+        f"Token starts with: {access_token[:12]}…" if access_token else "NOT SET",
+        fix="Set META_ACCESS_TOKEN in Railway env vars. Use a permanent System User token — temporary tokens expire.",
+    )
+    check(
+        "WHATSAPP_PHONE_NUMBER_ID (global fallback) set",
+        bool(global_phone_id),
+        f"Value: {global_phone_id}" if global_phone_id else "NOT SET — outbound send will fail if no per-tenant ID is configured",
+        fix="Set WHATSAPP_PHONE_NUMBER_ID in env vars, or configure per-tenant Phone Number ID via Admin → MP → WhatsApp Configuration.",
+    )
+    check(
+        "META_APP_SECRET set",
+        bool(meta_app_secret),
+        "Configured" if meta_app_secret else "NOT SET — all inbound webhooks will be rejected (403)",
+        fix="Set META_APP_SECRET in Railway env vars. Find it in Meta Business → App Settings → App Secret.",
+    )
+    check(
+        "META_VERIFY_TOKEN set",
+        bool(meta_verify_token),
+        "Configured" if meta_verify_token else "NOT SET — webhook verification will fail",
+        fix="Set META_VERIFY_TOKEN in Railway env vars and match it in Meta Business webhook config.",
+    )
+
+    # ── 2. Live token validation via Meta Graph API ─────────────────────────
+    if access_token:
+        try:
+            r = http_requests.get(
+                "https://graph.facebook.com/v21.0/me",
+                params={"access_token": access_token},
+                timeout=8,
+            )
+            if r.ok:
+                me = r.json()
+                check("META_ACCESS_TOKEN valid (live check)", True,
+                      f"Authenticated as: {me.get('name', me.get('id', 'unknown'))}")
+            else:
+                err = r.json().get("error", {})
+                check("META_ACCESS_TOKEN valid (live check)", False,
+                      f"Meta returned {r.status_code}: {err.get('message', r.text[:200])}",
+                      fix="Token is expired or invalid. Regenerate a permanent System User token in Meta Business Suite.")
+        except Exception as e:
+            check("META_ACCESS_TOKEN valid (live check)", False,
+                  f"Could not reach Meta API: {e}",
+                  fix="Check Railway network/firewall settings.")
+
+    # ── 3. Tenant routing config ─────────────────────────────────────────────
+    try:
+        tenants = _q("""
+            SELECT id, name, whatsapp_number, config, is_active
+            FROM tenants ORDER BY id
+        """, {})
+        for t in tenants:
+            cfg = t.get("config") or {}
+            if isinstance(cfg, str):
+                try: cfg = json.loads(cfg)
+                except: cfg = {}
+            phone_id = cfg.get("meta_phone_number_id", "")
+            report["tenants"].append({
+                "tenant_id":       t["id"],
+                "name":            t.get("name", ""),
+                "is_active":       bool(t.get("is_active")),
+                "whatsapp_number": t.get("whatsapp_number", "") or "NOT SET",
+                "phone_number_id": phone_id or "NOT SET — will use global fallback",
+                "routing_ok":      bool(t.get("whatsapp_number")) and bool(phone_id or global_phone_id),
+            })
+
+        any_wa_set = any(t["whatsapp_number"] != "NOT SET" for t in report["tenants"])
+        check(
+            "At least one tenant has whatsapp_number configured",
+            any_wa_set,
+            f"{sum(1 for t in report['tenants'] if t['whatsapp_number'] != 'NOT SET')} of {len(report['tenants'])} tenants configured",
+            fix="Go to Admin → MP detail page → WhatsApp Configuration → Edit. Set the number exactly as it appears in Meta Business Suite (with +country code).",
+        )
+    except Exception as e:
+        check("Tenant routing config", False, f"DB query failed: {e}")
+
+    # ── 4. Recent cases (confirms webhook is reaching DB) ────────────────────
+    try:
+        recent = _q("""
+            SELECT c.id, c.tenant_id, c.user_phone, c.category, c.status,
+                   c.created_at, t.whatsapp_number
+            FROM cases c
+            JOIN tenants t ON t.id = c.tenant_id
+            ORDER BY c.created_at DESC
+            LIMIT 5
+        """, {})
+        for r in recent:
+            if r.get("created_at") and hasattr(r["created_at"], "isoformat"):
+                r["created_at"] = r["created_at"].isoformat()
+        report["recent_webhooks"] = recent
+
+        has_recent = len(recent) > 0
+        check(
+            "Recent cases exist in DB",
+            has_recent,
+            f"Last message received: {recent[0]['created_at'] if recent else 'never'}" ,
+            fix="If no cases exist, the webhook URL is not reaching the server. Verify the webhook URL in Meta Business → WhatsApp → Configuration matches your Railway backend URL.",
+        )
+    except Exception as e:
+        check("Recent cases in DB", False, f"Query failed: {e}")
+
+    # ── Summary ──────────────────────────────────────────────────────────────
+    failures = [c for c in report["checks"] if c["status"] == "fail"]
+    report["summary"] = {
+        "total_checks": len(report["checks"]),
+        "passed": len(report["checks"]) - len(failures),
+        "failed": len(failures),
+        "overall": "ok" if not failures else "action_required",
+        "first_failure": failures[0]["name"] if failures else None,
+    }
+
+    return report
