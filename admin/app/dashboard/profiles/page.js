@@ -36,6 +36,10 @@ export default function ProfileEditorPage() {
                 alt_names: (p.alt_names || []).join(', '),
                 sovereignty_rules: p.sovereignty_rules || '',
             });
+            setWaForm({
+                whatsapp_number: p.whatsapp_number || '',
+                phone_number_id: p.phone_number_id || '',
+            });
         }).catch(() => { });
     }, [selected]);
 
@@ -93,6 +97,20 @@ export default function ProfileEditorPage() {
                 vocabulary_guide: profile?.vocabulary_guide || {},
             });
             showMsg('success', 'Profile data saved successfully');
+        } catch (err) { showMsg('error', err.message); }
+    };
+
+    const saveWhatsApp = async () => {
+        if (!waForm.whatsapp_number.startsWith('+')) {
+            showMsg('error', "WhatsApp number must start with + and include country code (e.g. +919289372849)");
+            return;
+        }
+        try {
+            await apiPatch(`/api/admin/mps/${selected.tenant_id}/whatsapp`, {
+                whatsapp_number: waForm.whatsapp_number,
+                phone_number_id: waForm.phone_number_id || '',
+            });
+            showMsg('success', 'WhatsApp configuration saved');
         } catch (err) { showMsg('error', err.message); }
     };
 
@@ -227,6 +245,41 @@ export default function ProfileEditorPage() {
                                     <button type="button" className="btn-primary" onClick={saveProfileData} style={{ width: '100%' }}>
                                         Save Profile Data
                                     </button>
+                                </div>
+                            </div>
+
+                            {/* WhatsApp Configuration */}
+                            <div className="glass-panel" style={{ marginBottom: '1.25rem' }}>
+                                <div className="section-title">WhatsApp Configuration</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                                    <div>
+                                        <label className="form-label">WhatsApp Number <span style={{ fontWeight: 400, color: '#94a3b8' }}>(+country code)</span></label>
+                                        <input
+                                            className="form-input"
+                                            value={waForm.whatsapp_number}
+                                            onChange={e => setWaForm({ ...waForm, whatsapp_number: e.target.value })}
+                                            placeholder="+919289372849"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="form-label">Meta Phone Number ID</label>
+                                        <input
+                                            className="form-input"
+                                            value={waForm.phone_number_id}
+                                            onChange={e => setWaForm({ ...waForm, phone_number_id: e.target.value })}
+                                            placeholder="e.g. 1089911394213487"
+                                        />
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <button type="button" className="btn-primary" onClick={saveWhatsApp}>
+                                        Save WhatsApp Config
+                                    </button>
+                                    {waForm.whatsapp_number && (
+                                        <span style={{ fontSize: '0.8rem', color: waForm.phone_number_id ? '#059669' : '#d97706' }}>
+                                            {waForm.phone_number_id ? '✓ Phone Number ID set' : '⚠ Phone Number ID not set (will use global fallback)'}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
 
