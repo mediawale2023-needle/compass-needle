@@ -1408,8 +1408,18 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             final_constituency = "Unknown"
 
         # If location couldn't be verified against geography list, hold the case
+        # and replace the AI's "noted" reply with a clarification request
         if final_constituency == "Unknown" and location_name:
             status = "awaiting_location"
+            political_reply = (
+                f"Thank you for reaching out. We received your message about an issue near *{location_name}*, "
+                "but we couldn't identify the exact area.\n\n"
+                "Could you please share a more specific location? For example:\n"
+                "• Village/Mohalla name\n"
+                "• Ward number\n"
+                "• Nearest landmark\n\n"
+                "This will help us route your complaint to the right team."
+            )
 
         meta_data = {
             "user_intent": status,
