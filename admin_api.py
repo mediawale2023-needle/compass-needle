@@ -924,6 +924,13 @@ def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, _=Depends(get_ad
                 ))
         db.commit()
 
+        # Reload live index so changes take effect immediately
+        try:
+            from modules.geography_resolver import reload_index
+            reload_index()
+        except Exception as _re:
+            logger.warning("Geography index reload failed: %s", _re)
+
         return {
             "success": True,
             "assembly": req.assembly_constituency,
@@ -1145,12 +1152,15 @@ def save_geography(pc: str, ac: str, req: SaveGeographyRequest, _=Depends(get_ad
         except Exception as e:
             logger.warning(f"Geography DB persist failed (non-critical): {e}")
 
-        # Auto-generate overrides (now writes to DB too)
+        # Regenerate overrides and reload the live in-memory index
+        # so new PDF data takes effect immediately without a server restart
         try:
-            from modules.geography_resolver import auto_generate_overrides
+            from modules.geography_resolver import auto_generate_overrides, reload_index
             auto_generate_overrides()
+            reload_index()
+            logger.info(f"Geography index reloaded after save: {pc}/{ac}")
         except Exception as e:
-            logger.warning(f"Override auto-gen: {e}")
+            logger.warning(f"Override auto-gen / index reload: {e}")
         return {"success": True}
     except Exception as e:
         logger.exception("Admin operation failed")

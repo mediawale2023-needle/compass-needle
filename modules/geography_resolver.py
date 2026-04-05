@@ -90,19 +90,38 @@ logger = logging.getLogger(__name__)
 # ==========================================
 
 def _load_tenant_overrides(tenant_id):
-    """Load geo_overrides for a specific tenant from tenant_overrides.json."""
-    override_paths = [
+    """Load geo_overrides for a tenant.
+
+    Reads from the DB (primary — survives Railway redeploys) and falls back
+    to tenant_overrides.json if the DB query fails.
+    """
+    # Primary: read geo_override rows from DB
+    try:
+        from sansadx_backend.db import SessionLocal, TenantOverride
+        _db = SessionLocal()
+        try:
+            rows = _db.query(TenantOverride).filter(
+                TenantOverride.override_type == "geo_override",
+                TenantOverride.tenant_id == tenant_id,
+            ).all()
+            if rows:
+                return {r.key: r.value for r in rows}
+        finally:
+            _db.close()
+    except Exception:
+        pass
+
+    # Fallback: tenant_overrides.json (for local dev without DB)
+    for op in [
         PROJECT_ROOT / "tenant_overrides.json",
         Path("tenant_overrides.json").resolve(),
         Path("/app/tenant_overrides.json"),
-    ]
-    for op in override_paths:
+    ]:
         if op.exists():
             try:
                 with open(op, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                geo_overrides = data.get("geo_overrides", {}).get(str(tenant_id), {})
-                return geo_overrides
+                return data.get("geo_overrides", {}).get(str(tenant_id), {})
             except Exception:
                 pass
     return {}
