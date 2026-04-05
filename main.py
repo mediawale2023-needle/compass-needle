@@ -1412,13 +1412,14 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         if final_constituency == "Unknown" and location_name:
             status = "awaiting_location"
             political_reply = (
-                f"Thank you for reaching out. We received your message about an issue near *{location_name}*, "
-                "but we couldn't identify the exact area.\n\n"
-                "Could you please share a more specific location? For example:\n"
-                "• Village/Mohalla name\n"
-                "• Ward number\n"
-                "• Nearest landmark\n\n"
-                "This will help us route your complaint to the right team."
+                f"Aapka sandesh mila, shukriya 🙏\n\n"
+                f"Aapne *{location_name}* ka zikr kiya — lekin hum ise poori tarah pehchan nahi paaye. "
+                f"Kya aap thoda aur bata sakte hain?\n\n"
+                f"Jaise ki:\n"
+                f"• Gaon ya mohalle ka naam\n"
+                f"• Nagar panchayat / ward number\n"
+                f"• Koi paas ka landmark\n\n"
+                f"Jaise hi location clear hogi, hum turant aapki baat aage badhayenge. 🙏"
             )
 
         meta_data = {
