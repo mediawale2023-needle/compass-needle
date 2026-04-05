@@ -534,6 +534,7 @@ def _save_spam_flag(tenant_id: int, phone: str, flag_type: str, reason: str, mes
 from modules.whatsapp import send_whatsapp_message  # noqa: E402
 from modules.case_query_parser import parse_query
 from modules.case_query_engine import query_cases
+from modules.localized_replies import get_awaiting_location_reply
 from modules.case_query_formatter import format_cases_for_whatsapp, format_clarification_request
 
 
@@ -1274,6 +1275,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         # Parse AI result
         grievance = ai_result.get("grievance_data", {}) or {}
         status = str(ai_result.get("status", "new")).lower()
+        detected_language = ai_result.get("detected_language", "")
         categories = grievance.get("categories", ["General"])
         category = categories[0] if isinstance(categories, list) and categories else "General"
         political_reply = ai_result.get("political_response", "Thank you for contacting us. Your message has been received.")
@@ -1408,19 +1410,10 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             final_constituency = "Unknown"
 
         # If location couldn't be verified against geography list, hold the case
-        # and replace the AI's "noted" reply with a clarification request
+        # and replace the AI's "noted" reply with a localized clarification request
         if final_constituency == "Unknown" and location_name:
             status = "awaiting_location"
-            political_reply = (
-                f"Aapka sandesh mila, shukriya 🙏\n\n"
-                f"Aapne *{location_name}* ka zikr kiya — lekin hum ise poori tarah pehchan nahi paaye. "
-                f"Kya aap thoda aur bata sakte hain?\n\n"
-                f"Jaise ki:\n"
-                f"• Gaon ya mohalle ka naam\n"
-                f"• Nagar panchayat / ward number\n"
-                f"• Koi paas ka landmark\n\n"
-                f"Jaise hi location clear hogi, hum turant aapki baat aage badhayenge. 🙏"
-            )
+            political_reply = get_awaiting_location_reply(location_name, detected_language)
 
         meta_data = {
             "user_intent": status,
