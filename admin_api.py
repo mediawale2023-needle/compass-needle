@@ -1195,8 +1195,10 @@ def delete_geography(pc: str, ac: str, _=Depends(get_admin_user)):
     raise HTTPException(404, "File not found")
 
 
+from fastapi import BackgroundTasks
+
 @router.post("/geography/upload-pdf")
-async def upload_pdf(file: UploadFile = File(...), _=Depends(get_admin_user)):
+async def upload_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(...), _=Depends(get_admin_user)):
     """Parse an Election Commission polling station PDF."""
     try:
         import pdfplumber
@@ -1263,7 +1265,7 @@ async def upload_pdf(file: UploadFile = File(...), _=Depends(get_admin_user)):
             }
             logger.info(f"OCR job {job_id} finished: {len(ocr_stations)} stations, error={ocr_error}")
 
-        threading.Thread(target=_run, daemon=True).start()
+        background_tasks.add_task(_run)
         return {"job_id": job_id, "stations": [], "debug": debug_info}
 
     # Dedup

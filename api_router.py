@@ -859,6 +859,130 @@ def get_staff(user=Depends(get_current_user)):
 
 
 # ─────────────────────────────────────────
+# TEAM MANAGEMENT  (MP-only: create / list / delete dashboard users)
+# ─────────────────────────────────────────
+
+class TeamMemberCreate(BaseModel):
+    display_name: str
+    username: str
+    password: str
+    role: str = "user"   # "user" = PA / Staff; "mp" reserved for primary account
+    phone: str = ""      # WhatsApp number for PA letter intake identification
+
+
+@router.get("/team")
+def get_team(user=Depends(get_current_user)):
+    """List all active team members for this tenant."""
+    tid = get_tenant_or_fail(user)
+    members = _q(
+        """SELECT id, username, display_name, role, phone,
+                  last_login, created_at, is_active
+           FROM users
+           WHERE tenant_id = :tid AND is_active = true
+           ORDER BY
+               CASE WHEN role = 'mp' THEN 0 ELSE 1 END,
+               display_name NULLS LAST""",
+        {"tid": tid}
+    )
+    # Serialise datetimes
+    for m in members:
+        for col in ("last_login", "created_at"):
+            if m.get(col) and hasattr(m[col], "isoformat"):
+                m[col] = m[col].isoformat()
+    return {"members": members}
+
+
+@router.post("/team")
+def create_team_member(body: TeamMemberCreate, user=Depends(get_current_user)):
+    """Create a new dashboard user (PA / Staff) under this tenant. MP-only."""
+    tid = get_tenant_or_fail(user)
+    if user.get("role") not in ("mp", "admin"):
+        raise HTTPException(403, "Only the MP account can add team members")
+
+    # Validate role — PAs/staff created here should never be 'admin'
+    if body.role not in ("user", "mp"):
+        raise HTTPException(400, "role must be 'user' (PA/Staff) or 'mp'")
+
+    # Username must be globally unique (users.username has a UNIQUE constraint)
+    existing = _q_one("SELECT id FROM users WHERE username = :u", {"u": body.username.strip().lower()})
+    if existing:
+        raise HTTPException(409, "Username already taken. Please choose another.")
+
+    if len(body.password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+
+    hashed = bcrypt.hashpw(body.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(
+                text("""
+                    INSERT INTO users
+                        (tenant_id, username, password_hash, role, display_name, phone, is_active, created_at)
+                    VALUES
+                        (:tid, :uname, :pw, :role, :name, :phone, true, :now)
+                    RETURNING id
+                """),
+                {
+                    "tid":   tid,
+                    "uname": body.username.strip().lower(),
+                    "pw":    hashed,
+                    "role":  body.role,
+                    "name":  body.display_name.strip(),
+                    "phone": body.phone.strip() or None,
+                    "now":   datetime.utcnow(),
+                },
+            )
+            new_id = result.fetchone()[0]
+    except Exception as exc:
+        logger.error("Failed to create team member: %s", exc)
+        raise HTTPException(500, "Could not create team member")
+
+    logger.info("Team member created: id=%s username=%s tenant=%s by=%s",
+                new_id, body.username, tid, user.get("username"))
+    return {"success": True, "id": new_id}
+
+
+@router.delete("/team/{member_id}")
+def delete_team_member(member_id: int, user=Depends(get_current_user)):
+    """Deactivate (soft-delete) a team member. MP-only. Cannot delete yourself."""
+    tid = get_tenant_or_fail(user)
+    if user.get("role") not in ("mp", "admin"):
+        raise HTTPException(403, "Only the MP account can remove team members")
+
+    # Prevent self-deletion
+    if user.get("id") == member_id:
+        raise HTTPException(400, "You cannot remove your own account")
+
+    # Verify the target user belongs to this tenant
+    target = _q_one(
+        "SELECT id, role FROM users WHERE id = :mid AND tenant_id = :tid",
+        {"mid": member_id, "tid": tid}
+    )
+    if not target:
+        raise HTTPException(404, "Team member not found")
+
+    # Prevent deleting the primary MP account if the requester is also mp
+    # (only admin can do that — handled via admin dashboard)
+    if target.get("role") == "mp" and user.get("role") == "mp":
+        raise HTTPException(400, "Cannot remove the primary MP account via this interface")
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE users SET is_active = false WHERE id = :mid AND tenant_id = :tid"),
+            {"mid": member_id, "tid": tid},
+        )
+
+    # Revoke all active tokens for the removed user so they're logged out immediately
+    revoke_user_tokens(
+        _q_one("SELECT username FROM users WHERE id = :mid", {"mid": member_id}).get("username", "")
+    )
+
+    logger.info("Team member deactivated: id=%s tenant=%s by=%s", member_id, tid, user.get("username"))
+    return {"success": True}
+
+
+# ─────────────────────────────────────────
 # OFFICERS
 # ─────────────────────────────────────────
 class OfficerCreate(BaseModel):
