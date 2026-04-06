@@ -411,10 +411,9 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
     const [showEscalation, setShowEscalation] = useState(false);
     const [draftSaved, setDraftSaved] = useState(false);
     const [similarCases, setSimilarCases] = useState([]);
-    const [otpOpen, setOtpOpen] = useState(false);
-    const [otpValue, setOtpValue] = useState('');
-    const [otpRequesting, setOtpRequesting] = useState(false);
-    const [otpConfirming, setOtpConfirming] = useState(false);
+    const [notifyOpen, setNotifyOpen] = useState(false);
+    const [notifyInput, setNotifyInput] = useState('');
+    const [notifySending, setNotifySending] = useState(false);
 
     // Load from localStorage or server values when case opens
     useEffect(() => {
@@ -485,30 +484,20 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
         }
     };
 
-    const requestOtp = async () => {
-        setOtpRequesting(true);
-        try {
-            await apiPost(`/api/cases/${c.id}/notify/request-otp`);
-            setOtpOpen(true);
-            setOtpValue('');
-        } catch (err) {
-            toast.error(err.message || 'Failed to send OTP');
-        } finally {
-            setOtpRequesting(false);
-        }
-    };
+    const isMp = user?.role === 'mp';
+    const caseRef = c.case_ref || `#${c.id}`;
 
-    const confirmOtp = async () => {
-        setOtpConfirming(true);
+    const sendNotification = async () => {
+        setNotifySending(true);
         try {
-            await apiPost(`/api/cases/${c.id}/notify/confirm`, { otp: otpValue });
-            setOtpOpen(false);
-            setOtpValue('');
+            await apiPost(`/api/cases/${c.id}/notify/send`, {});
+            setNotifyOpen(false);
+            setNotifyInput('');
             toast.success('WhatsApp update sent to citizen');
         } catch (err) {
-            toast.error(err.message || 'Incorrect OTP');
+            toast.error(err.message || 'Failed to send notification');
         } finally {
-            setOtpConfirming(false);
+            setNotifySending(false);
         }
     };
 
@@ -641,11 +630,13 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
                             <Button
                                 variant="outline"
                                 className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                                disabled={otpRequesting || !c.user_phone}
-                                onClick={requestOtp}
+                                disabled={!c.user_phone || !isMp}
+                                title={!isMp ? 'Only the MP can send citizen notifications' : !c.user_phone ? 'No phone number on file' : ''}
+                                onClick={() => { setNotifyInput(''); setNotifyOpen(true); }}
                             >
-                                {otpRequesting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                                <Send className="h-4 w-4 mr-1" />
                                 Send Update via WhatsApp
+                                {!isMp && <span className="ml-1 text-xs opacity-60">(MP only)</span>}
                             </Button>
                         </div>
                     </div>
@@ -755,30 +746,44 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
                 />
             )}
 
-            {/* OTP confirmation dialog */}
-            <Dialog open={otpOpen} onOpenChange={open => { setOtpOpen(open); if (!open) setOtpValue(''); }}>
+            {/* Notify confirmation dialog */}
+            <Dialog open={notifyOpen} onOpenChange={open => { setNotifyOpen(open); if (!open) setNotifyInput(''); }}>
                 <DialogContent className="max-w-sm">
                     <DialogHeader>
-                        <DialogTitle>Confirm WhatsApp Notification</DialogTitle>
+                        <DialogTitle>Send WhatsApp Update</DialogTitle>
                         <DialogDescription>
-                            An OTP has been sent to your registered WhatsApp number. Enter it below to send the status update to the citizen.
+                            This will message the citizen about the current status of their case. Type the case reference <strong>{caseRef}</strong> to confirm.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="py-2">
+                    <div className="py-2 space-y-3">
+                        <div className="rounded-lg bg-muted/50 border p-3 text-sm text-muted-foreground">
+                            {(() => {
+                                const statusMessages = {
+                                    new: `Your grievance (${caseRef}) has been received and is being reviewed.`,
+                                    in_progress: `Update on your grievance (${caseRef}): We are actively working on this.`,
+                                    escalated: `Update on your grievance (${caseRef}): This has been escalated to the relevant authority.`,
+                                    resolved: `Good news! Your grievance (${caseRef}) has been resolved. If unsatisfied, reply 'NO' to reopen.`,
+                                    closed: `Your grievance (${caseRef}) has been closed. Thank you for reaching out.`,
+                                };
+                                return statusMessages[c.status] || `Update on your grievance (${caseRef}): Status is now '${c.status}'.`;
+                            })()}
+                        </div>
                         <Input
-                            placeholder="6-digit OTP"
-                            value={otpValue}
-                            onChange={e => setOtpValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            maxLength={6}
-                            className="text-center text-2xl tracking-widest font-mono"
-                            onKeyDown={e => e.key === 'Enter' && otpValue.length === 6 && confirmOtp()}
+                            placeholder={`Type ${caseRef} to confirm`}
+                            value={notifyInput}
+                            onChange={e => setNotifyInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && notifyInput === caseRef && sendNotification()}
                             autoFocus
                         />
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => { setOtpOpen(false); setOtpValue(''); }}>Cancel</Button>
-                        <Button onClick={confirmOtp} disabled={otpValue.length !== 6 || otpConfirming}>
-                            {otpConfirming ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                        <Button variant="outline" onClick={() => { setNotifyOpen(false); setNotifyInput(''); }}>Cancel</Button>
+                        <Button
+                            onClick={sendNotification}
+                            disabled={notifyInput !== caseRef || notifySending}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                            {notifySending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
                             Confirm & Send
                         </Button>
                     </DialogFooter>

@@ -708,93 +708,39 @@ def get_similar_cases(case_id: int, user=Depends(get_current_user)):
     return {"cases": similar, "source_phone": phone, "source_category": category}
 
 
-# --- OTP store for WhatsApp notify confirmation (in-memory, 5-min expiry) ---
-import secrets as _secrets
-_notify_otps: dict = {}
+# ─────────────────────────────────────────
+# CITIZEN NOTIFY — MP-only, typed case-ref confirmation (no OTP / no WhatsApp dependency)
+# ─────────────────────────────────────────
 
-
-@router.post("/cases/{case_id}/notify/request-otp")
-def request_notify_otp(case_id: int, user=Depends(get_current_user)):
-    """Generate and send a 6-digit OTP to the MP's registered WhatsApp number."""
+@router.post("/cases/{case_id}/notify/send")
+def notify_citizen(case_id: int, user=Depends(get_current_user)):
+    """Send a WhatsApp status update to the citizen. MP role only — PAs cannot trigger this."""
     tid = get_tenant_or_fail(user)
+
+    if user.get("role") not in ("mp", "admin"):
+        raise HTTPException(403, "Only the MP can send citizen notifications")
+
     case = _q_one(
-        "SELECT c.id, c.case_ref, t.whatsapp_number FROM cases c "
-        "JOIN tenants t ON c.tenant_id = t.id "
+        "SELECT c.* FROM cases c "
         "WHERE c.id = :cid AND c.tenant_id = :tid AND (c.is_deleted = false OR c.is_deleted IS NULL)",
         {"cid": case_id, "tid": tid}
     )
     if not case:
         raise HTTPException(404, "Case not found")
 
-    wa_number = case.get("whatsapp_number")
-    if not wa_number:
-        raise HTTPException(400, "No WhatsApp number registered for this account")
-
-    otp = str(_secrets.randbelow(900000) + 100000)
-    _notify_otps[(tid, case_id)] = {
-        "otp": otp,
-        "expires_at": datetime.utcnow() + timedelta(minutes=5),
-        "username": user.get("username", ""),
-    }
-
-    try:
-        from modules.whatsapp import send_whatsapp_message
-        case_ref = case.get("case_ref") or f"#{case_id}"
-        phone_number_id = get_tenant_phone_number_id(tid)
-        logger.info("OTP send → wa_number=%r phone_number_id=%r tid=%s", wa_number, phone_number_id, tid)
-        send_whatsapp_message(wa_number, f"[Needle] Your confirmation OTP for sending a citizen update on case {case_ref} is: *{otp}*\n\nThis code expires in 5 minutes. Do not share it.", phone_number_id)
-    except Exception as e:
-        _notify_otps.pop((tid, case_id), None)
-        logger.error("OTP WhatsApp send failed for case %s: %s", case_id, e)
-        raise HTTPException(500, "Failed to send OTP. Check WhatsApp configuration.")
-
-    return {"success": True, "message": f"OTP sent to registered WhatsApp number ending in {wa_number[-4:]}"}
-
-
-class NotifyConfirmBody(BaseModel):
-    otp: str
-
-
-@router.post("/cases/{case_id}/notify/confirm")
-def confirm_notify(case_id: int, body: NotifyConfirmBody, user=Depends(get_current_user)):
-    """Verify OTP and send the WhatsApp status update to the citizen."""
-    tid = get_tenant_or_fail(user)
-    key = (tid, case_id)
-    entry = _notify_otps.get(key)
-
-    if not entry:
-        raise HTTPException(400, "No OTP requested for this case. Please request a new OTP.")
-    if datetime.utcnow() > entry["expires_at"]:
-        _notify_otps.pop(key, None)
-        raise HTTPException(400, "OTP has expired. Please request a new one.")
-    if body.otp.strip() != entry["otp"]:
-        raise HTTPException(400, "Incorrect OTP. Please check and try again.")
-
-    _notify_otps.pop(key, None)
-
-    # Now send the actual citizen notification (reuse notify logic)
-    case = _q_one(
-        "SELECT c.*, t.whatsapp_number as wa_number FROM cases c "
-        "JOIN tenants t ON c.tenant_id = t.id "
-        "WHERE c.id = :cid AND c.tenant_id = :tid",
-        {"cid": case_id, "tid": tid}
-    )
-    if not case:
-        raise HTTPException(404, "Case not found")
-
     phone = case.get("user_phone")
-    status = case.get("status", "")
-    case_ref = case.get("case_ref", f"#{case_id}")
-
     if not phone:
         raise HTTPException(400, "Cannot notify: citizen phone number missing")
 
+    status = case.get("status", "new")
+    case_ref = case.get("case_ref") or f"#{case_id}"
+
     status_messages = {
-        "new": f"Your grievance ({case_ref}) has been received and is being reviewed.",
+        "new":         f"Your grievance ({case_ref}) has been received and is being reviewed.",
         "in_progress": f"Update on your grievance ({case_ref}): We are actively working on this.",
-        "escalated": f"Update on your grievance ({case_ref}): This has been escalated to the relevant authority.",
-        "resolved": f"Good news! Your grievance ({case_ref}) has been resolved. If unsatisfied, reply 'NO' to reopen.",
-        "closed": f"Your grievance ({case_ref}) has been closed. Thank you for reaching out.",
+        "escalated":   f"Update on your grievance ({case_ref}): This has been escalated to the relevant authority.",
+        "resolved":    f"Good news! Your grievance ({case_ref}) has been resolved. If unsatisfied, reply 'NO' to reopen.",
+        "closed":      f"Your grievance ({case_ref}) has been closed. Thank you for reaching out.",
     }
     message = status_messages.get(status, f"Update on your grievance ({case_ref}): Status is now '{status}'.")
 
@@ -805,11 +751,12 @@ def confirm_notify(case_id: int, body: NotifyConfirmBody, user=Depends(get_curre
             _log_case_activity(tid, case_id, user.get("username", ""), "citizen_notified", new_value=status)
         except Exception:
             pass  # nosec B110
+        logger.info("Citizen notified: case=%s status=%s by=%s tid=%s", case_id, status, user.get("username"), tid)
         return {"success": True, "message": "Notification sent to citizen via WhatsApp"}
     except ImportError:
         raise HTTPException(500, "WhatsApp module not available")
     except Exception as e:
-        logger.error("Citizen notification (confirm) failed for case %s: %s", case_id, e)
+        logger.error("Citizen notification failed for case %s: %s", case_id, e)
         raise HTTPException(500, "Notification failed. Please try again or contact support.")
 
 
