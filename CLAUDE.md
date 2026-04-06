@@ -35,7 +35,7 @@
 ## Key Files
 
 ```
-main.py                     # FastAPI app entry, WhatsApp webhook handler
+main.py                     # FastAPI app entry, WhatsApp webhook handler. Note: All startup migrations are protected by pg_advisory_lock(77772024). Background workers run via run_in_threadpool.
 api_router.py               # MP-facing REST API (~1400 lines)
 admin_api.py                # Admin REST API (~1100 lines)
 sansadx_backend/
@@ -204,6 +204,7 @@ Defined in `sansadx_backend/db.py`:
 | `Officer`, `Escalation` | `officers`, `escalations` | CRM for case assignment and escalation |
 | `Contact` | `contacts` | Constituent profile (from WhatsApp) |
 | `TenantOverride` | `tenant_overrides` | Database-backed geo/phone configuration |
+| `WAMessageDedup` | `wa_message_dedup` | Indexed webhook dedup — PRIMARY KEY on `message_id`, pruned 30-day TTL |
 ---
 
 ## API Structure
@@ -247,9 +248,9 @@ Static JSON loaded at startup (not in DB):
 
 ## AI Integration Notes
 
-- **GPT-4o-mini** (`sansadx_backend/ai_engine.py`): Grievance classification, multi-language support
+- **GPT-4o-mini** (`sansadx_backend/ai_engine.py`): Grievance classification, multi-language support (includes exponential backoff retry logic)
 - **GPT-4o-mini** (`modules/case_query_parser.py`): NLP parsing of MP/PA WhatsApp queries into structured filters; falls back to regex if OpenAI is unavailable
-- **Gemini** (`core/gemini_client.py`): Singleton client. Used for letter drafting, letterbox OCR, copilot research
+- **Gemini** (`core/gemini_client.py`): Singleton client wrapped with a Circuit Breaker (halts requests for 60s upon 3 consecutive failures). Used for letter drafting, letterbox OCR, copilot research
 - AI prompts are in `sansadx_backend/prompts.py` and `modules/drafter.py`
 - Grievance taxonomy is defined in `sansadx_backend/taxonomy.json`
 
