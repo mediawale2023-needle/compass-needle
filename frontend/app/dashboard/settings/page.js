@@ -68,7 +68,7 @@ function AddMemberForm({ color, onSuccess, onCancel }) {
         if (form.password.length < 8) { setError('Password must be at least 8 characters'); return; }
         setSaving(true);
         try {
-            await api('/team', {
+            await api('/api/team', {
                 method: 'POST',
                 body: JSON.stringify({
                     display_name: form.display_name.trim(),
@@ -210,7 +210,7 @@ function MemberRow({ member, currentUserId, color, onDelete }) {
     const handleDelete = async () => {
         setDeleting(true);
         try {
-            await api(`/team/${member.id}`, { method: 'DELETE' });
+            await api(`/api/team/${member.id}`, { method: 'DELETE' });
             onDelete(member.id);
         } catch (err) {
             alert(err.message || 'Could not remove member');
@@ -312,7 +312,7 @@ function TeamCard({ user, color }) {
     const loadTeam = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await api('/team');
+            const data = await api('/api/team');
             setMembers(data.members || []);
         } catch {
             // silent — non-critical
@@ -438,7 +438,7 @@ export default function SettingsPage() {
         }
         setPwSaving(true);
         try {
-            await api('/auth/change-password', {
+            await api('/api/auth/change-password', {
                 method: 'POST',
                 body: JSON.stringify({ current_password: currentPw, new_password: newPw }),
             });
