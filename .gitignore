@@ -42,3 +42,10 @@ SECURITY_AUDIT_REPORT.md
 
 # Archived legacy scripts
 _archive/
+
+# Code review graph
+.code-review-graph/
+
+# Claude Code local config (contains API tokens)
+.claude/settings.local.json
+.claude/settings.json

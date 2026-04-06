@@ -5,12 +5,14 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from db import SessionLocal, Tenant, User, init_db
+from db import hash_password
 
 def seed():
     print("🔄 Initializing 'needle.db' tables...")
     init_db()  # Creates tables in needle.db
     
     db = SessionLocal()
+    bootstrap_password = os.getenv("NEEDLE_BOOTSTRAP_MP_PASSWORD")
 
     # The Jurisdiction List (The Brain's Memory)
     real_jurisdiction_list = """
@@ -53,10 +55,13 @@ def seed():
     # Check/Create Admin User
     user = db.query(User).filter(User.username == "admin").first()
     if not user:
+        if not bootstrap_password:
+            db.close()
+            raise RuntimeError("NEEDLE_BOOTSTRAP_MP_PASSWORD must be set to create the bootstrap admin user")
         print("👤 Creating Admin User...")
         user = User(
             username="admin",
-            password_hash="password", 
+            password_hash=hash_password(bootstrap_password),
             role="mp",
             tenant_id=1
         )

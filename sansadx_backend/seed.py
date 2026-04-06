@@ -1,4 +1,6 @@
-from db import SessionLocal, init_db, Tenant, User
+import os
+
+from db import SessionLocal, init_db, Tenant, User, hash_password
 
 # --- 1. LOK SABHA CONFIG (Belagavi) ---
 LS_CONFIG = {
@@ -30,6 +32,7 @@ def boot_system():
     print("🚀 Initializing Needle SaaS...")
     init_db()
     db = SessionLocal()
+    bootstrap_password = os.getenv("NEEDLE_BOOTSTRAP_ADMIN_PASSWORD")
 
     # 1. Create Super Admin (Needle HQ)
     if not db.query(Tenant).filter_by(name="Needle HQ").first():
@@ -42,12 +45,21 @@ def boot_system():
         )
         db.add(hq)
         db.commit()
-        
-        # Create 'admin' user
-        admin = User(tenant_id=hq.id, username="admin", password_hash="admin", role="super_admin")
+
+        if not bootstrap_password:
+            db.close()
+            raise RuntimeError("NEEDLE_BOOTSTRAP_ADMIN_PASSWORD must be set to create the bootstrap super admin")
+
+        # Create 'admin' user with a hashed password provided at runtime.
+        admin = User(
+            tenant_id=hq.id,
+            username="admin",
+            password_hash=hash_password(bootstrap_password),
+            role="super_admin",
+        )
         db.add(admin)
         db.commit()
-        print("✅ Created Super Admin: admin / admin")
+        print("✅ Created bootstrap super admin: admin")
 
     # 2. Create Lok Sabha Client (Shettar)
     if not db.query(Tenant).filter_by(name="Hon. Jagdish Shettar").first():
