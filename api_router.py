@@ -740,11 +740,9 @@ def request_notify_otp(case_id: int, user=Depends(get_current_user)):
     try:
         from modules.whatsapp import send_whatsapp_message
         case_ref = case.get("case_ref") or f"#{case_id}"
-        send_whatsapp_message(
-            wa_number,
-            f"[Needle] Your confirmation OTP for sending a citizen update on case {case_ref} is: *{otp}*\n\nThis code expires in 5 minutes. Do not share it.",
-            get_tenant_phone_number_id(tid),
-        )
+        phone_number_id = get_tenant_phone_number_id(tid)
+        logger.info("OTP send → wa_number=%r phone_number_id=%r tid=%s", wa_number, phone_number_id, tid)
+        send_whatsapp_message(wa_number, f"[Needle] Your confirmation OTP for sending a citizen update on case {case_ref} is: *{otp}*\n\nThis code expires in 5 minutes. Do not share it.", phone_number_id)
     except Exception as e:
         _notify_otps.pop((tid, case_id), None)
         logger.error("OTP WhatsApp send failed for case %s: %s", case_id, e)

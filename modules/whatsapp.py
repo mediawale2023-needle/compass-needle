@@ -35,10 +35,13 @@ def send_whatsapp_message(to_number: str, body_text: str, phone_number_id: str |
         logger.error("WHATSAPP_PHONE_NUMBER_ID or META_ACCESS_TOKEN not set.")
         raise ValueError("WhatsApp API credentials not configured")
 
-    # Strip any whatsapp: prefix — Meta uses bare numbers
-    to_number = to_number.replace("whatsapp:", "")
+    # Strip any whatsapp: prefix and leading + — Meta uses bare E.164 digits only
+    to_number = to_number.replace("whatsapp:", "").strip()
+    if to_number.startswith("+"):
+        to_number = to_number[1:]
 
     url = f"https://graph.facebook.com/v21.0/{phone_number_id}/messages"
+    logger.info(f"WhatsApp send → to={to_number} phone_number_id={phone_number_id}")
     payload = {
         "messaging_product": "whatsapp",
         "to": to_number,
