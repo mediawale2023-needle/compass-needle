@@ -564,6 +564,21 @@ class AdminNote(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class WAMessageDedup(Base):
+    """
+    Indexed deduplication table for Meta WhatsApp webhook message IDs.
+
+    Replaces the `case_metadata::text LIKE '%msg_id%'` full-table-scan dedup
+    with a primary-key lookup (sub-millisecond at any scale).
+
+    Pruned on startup: entries older than 30 days are deleted (Meta never
+    retries messages older than a few hours, so 30 days is very conservative).
+    """
+    __tablename__ = "wa_message_dedup"
+    message_id = Column(String, primary_key=True, nullable=False)
+    processed_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
 # ─────────────────────────────────────────
 # INIT — Create all tables
 # ─────────────────────────────────────────

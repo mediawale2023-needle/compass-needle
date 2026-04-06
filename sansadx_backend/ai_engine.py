@@ -3,8 +3,10 @@ import requests
 import json
 import glob
 import logging
+import time
 import difflib  # Logic for Fuzzy Matching (Typos)
-from openai import OpenAI # Switch to OpenAI
+from openai import OpenAI
+from openai import RateLimitError, APIError, APIConnectionError
 from .prompts import SYSTEM_PROMPT, TAXONOMY_CATEGORIES
 
 # ==========================================
@@ -260,16 +262,60 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     # Prefix user message with detected language so GPT cannot miss it
     tagged_message = f"[LANGUAGE: {detected_lang}]\n<user_input>\n{user_message}\n</user_input>"
 
+    # ── Retry with exponential backoff (3 attempts: 1s → 2s → 4s) ──────────
+    _MAX_RETRIES = 3
+    _response_obj = None
+    for _attempt in range(_MAX_RETRIES):
+        try:
+            _response_obj = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_instructions},
+                    {"role": "user", "content": tagged_message}
+                ],
+                response_format={"type": "json_object"}
+            )
+            break  # success — exit retry loop
+        except (RateLimitError, APIError, APIConnectionError) as _retry_exc:
+            if _attempt < _MAX_RETRIES - 1:
+                _wait = 2 ** _attempt  # 1s, 2s, 4s
+                logger.warning(
+                    "OpenAI call failed (attempt %d/%d): %s. Retrying in %ds…",
+                    _attempt + 1, _MAX_RETRIES, _retry_exc, _wait
+                )
+                time.sleep(_wait)
+            else:
+                logger.error(
+                    "OpenAI call failed after %d attempts: %s. Saving case as pending.",
+                    _MAX_RETRIES, _retry_exc
+                )
+                return {
+                    "status": "pending",
+                    "detected_language": detected_lang,
+                    "political_response": (
+                        "Thank you for contacting us. Your message has been received "
+                        "and will be reviewed by our team. 🙏"
+                    ),
+                    "grievance_data": {},
+                    "is_critical": False,
+                    "_ai_retry_exhausted": True,
+                }
+        except Exception as _unexpected_exc:
+            logger.error("Unexpected OpenAI error (no retry): %s", _unexpected_exc)
+            return {
+                "status": "pending",
+                "detected_language": detected_lang,
+                "political_response": (
+                    "Thank you for contacting us. Your message has been received "
+                    "and will be reviewed by our team. 🙏"
+                ),
+                "grievance_data": {},
+                "is_critical": False,
+                "_ai_retry_exhausted": True,
+            }
+
     try:
-        # OpenAI Chat Completion Call with Strict JSON Mode
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_instructions},
-                {"role": "user", "content": tagged_message}
-            ],
-            response_format={"type": "json_object"}
-        )
+        response = _response_obj
         
         try:
             # Parse OpenAI response
@@ -478,9 +524,27 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             return data
             
         except Exception as e:
-            logger.error(f"JSON Parse Error: {e}")
-            return {"status": "error", "political_response": "AI Error."}
-            
+            logger.error("JSON Parse Error: %s", e)
+            return {
+                "status": "pending",
+                "detected_language": detected_lang,
+                "political_response": (
+                    "Thank you for contacting us. Your message has been received "
+                    "and will be reviewed by our team. 🙏"
+                ),
+                "grievance_data": {},
+                "is_critical": False,
+            }
+
     except Exception as e:
-        logger.error(f"OpenAI Connection Error: {e}")
-        return {"status": "error", "political_response": "Connection Error."}
+        logger.error("Unexpected outer error in ask_chatgpt_agent: %s", e)
+        return {
+            "status": "pending",
+            "detected_language": "",
+            "political_response": (
+                "Thank you for contacting us. Your message has been received "
+                "and will be reviewed by our team. 🙏"
+            ),
+            "grievance_data": {},
+            "is_critical": False,
+        }

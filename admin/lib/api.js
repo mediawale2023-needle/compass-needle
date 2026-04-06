@@ -9,6 +9,29 @@ const LOGIN_RETRY_DELAY = 2000;
 const MAX_RETRIES = 1;         // 1 retry only (2 total attempts)
 const RETRY_DELAY = 500;       // 500ms base delay
 
+function getAuthToken() {
+    if (typeof window === 'undefined') return null;
+    const token = sessionStorage.getItem('admin_token') || localStorage.getItem('admin_token');
+    if (token) {
+        sessionStorage.setItem('admin_token', token);
+        localStorage.removeItem('admin_token');
+    }
+    const user = sessionStorage.getItem('admin_user') || localStorage.getItem('admin_user');
+    if (user) {
+        sessionStorage.setItem('admin_user', user);
+        localStorage.removeItem('admin_user');
+    }
+    return token;
+}
+
+function clearAuthToken() {
+    if (typeof window === 'undefined') return;
+    sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('admin_user');
+    localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_user');
+}
+
 async function fetchWithTimeout(url, options, timeout) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
@@ -20,7 +43,7 @@ async function fetchWithTimeout(url, options, timeout) {
 }
 
 export async function api(path, options = {}) {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+    const token = getAuthToken();
 
     // Fail fast if no token on protected routes
     if (!token && !path.includes('/auth/') && !path.includes('/health')) {
@@ -54,8 +77,7 @@ export async function api(path, options = {}) {
 
             if (res.status === 401 || res.status === 403) {
                 if (typeof window !== 'undefined') {
-                    localStorage.removeItem('admin_token');
-                    localStorage.removeItem('admin_user');
+                    clearAuthToken();
                     window.location.href = '/';
                 }
                 throw new Error('Unauthorized');

@@ -33,6 +33,10 @@ def check_database_url():
     db_url = os.getenv("DATABASE_URL")
     
     if not db_url:
+        env = os.getenv("ENV", "development")
+        if env == "production":
+            logger.error("❌ DATABASE_URL not set in production")
+            return False
         logger.warning("⚠️  DATABASE_URL not set, using SQLite")
         return True
     
@@ -49,12 +53,20 @@ def check_cors_origins():
     origins = os.getenv("ALLOWED_ORIGINS", "")
     
     if not origins:
+        env = os.getenv("ENV", "development")
+        if env == "production":
+            logger.error("❌ ALLOWED_ORIGINS not set in production")
+            return False
         logger.warning("⚠️  ALLOWED_ORIGINS not set, using defaults")
         return True
     
     origin_list = [o.strip() for o in origins.split(",") if o.strip()]
     
     if not origin_list:
+        env = os.getenv("ENV", "development")
+        if env == "production":
+            logger.error("❌ ALLOWED_ORIGINS empty in production")
+            return False
         logger.warning("⚠️  ALLOWED_ORIGINS empty, using defaults")
         return True
     
@@ -75,8 +87,12 @@ def check_api_keys():
             missing.append(name)
     
     if missing:
+        env = os.getenv("ENV", "development")
+        if env == "production":
+            logger.error(f"❌ Missing API keys in production: {', '.join(missing)}")
+            return False
         logger.warning(f"⚠️  Missing API keys: {', '.join(missing)}")
-        return True  # Not critical, some features may be disabled
+        return True  # Not critical outside production
     
     logger.info("✅ All API keys configured")
     return True
@@ -90,6 +106,19 @@ def check_environment():
     else:
         logger.warning(f"⚠️  Running in {env.upper()} mode")
     
+    return True
+
+def check_meta_webhook_secret():
+    """Verify Meta webhook secret is configured."""
+    secret = os.getenv("META_APP_SECRET")
+    if not secret:
+        env = os.getenv("ENV", "development")
+        if env == "production":
+            logger.error("❌ META_APP_SECRET not set in production")
+            return False
+        logger.warning("⚠️  META_APP_SECRET not set")
+        return True
+    logger.info("✅ META_APP_SECRET configured")
     return True
 
 def check_logging():
@@ -109,6 +138,7 @@ def run_all_checks():
         ("Database URL", check_database_url),
         ("CORS Origins", check_cors_origins),
         ("API Keys", check_api_keys),
+        ("Meta Secret", check_meta_webhook_secret),
         ("Environment", check_environment),
         ("Logging", check_logging),
     ]

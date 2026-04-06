@@ -16,6 +16,29 @@ const LOGIN_RETRY_DELAY = 2000; // 2s between login retries
 const MAX_RETRIES = 1;         // 1 retry only (2 total attempts) for other calls
 const RETRY_DELAY = 500;       // 500ms base delay
 
+function getAuthToken() {
+    if (typeof window === 'undefined') return null;
+    const token = sessionStorage.getItem('needle_token') || localStorage.getItem('needle_token');
+    if (token) {
+        sessionStorage.setItem('needle_token', token);
+        localStorage.removeItem('needle_token');
+    }
+    const user = sessionStorage.getItem('needle_user') || localStorage.getItem('needle_user');
+    if (user) {
+        sessionStorage.setItem('needle_user', user);
+        localStorage.removeItem('needle_user');
+    }
+    return token;
+}
+
+function clearAuthToken() {
+    if (typeof window === 'undefined') return;
+    sessionStorage.removeItem('needle_token');
+    sessionStorage.removeItem('needle_user');
+    localStorage.removeItem('needle_token');
+    localStorage.removeItem('needle_user');
+}
+
 async function fetchWithTimeout(url, options, timeout) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
@@ -27,7 +50,7 @@ async function fetchWithTimeout(url, options, timeout) {
 }
 
 export async function api(path, options = {}) {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('needle_token') : null;
+    const token = getAuthToken();
 
     // If no token and path requires auth, fail fast instead of making a doomed request
     if (!token && !path.includes('/auth/') && !path.includes('/health')) {
@@ -55,8 +78,7 @@ export async function api(path, options = {}) {
 
             if (res.status === 401) {
                 if (typeof window !== 'undefined') {
-                    localStorage.removeItem('needle_token');
-                    localStorage.removeItem('needle_user');
+                    clearAuthToken();
                     window.location.href = '/';
                 }
                 throw new Error('Unauthorized');
@@ -121,7 +143,7 @@ export async function apiDelete(path) {
  * Uses a 30s timeout to allow server-side PDF generation.
  */
 export async function apiBlob(path) {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('needle_token') : null;
+    const token = getAuthToken();
     if (!token) throw new Error('No auth token');
 
     const controller = new AbortController();
@@ -133,8 +155,7 @@ export async function apiBlob(path) {
             signal: controller.signal,
         });
         if (res.status === 401) {
-            localStorage.removeItem('needle_token');
-            localStorage.removeItem('needle_user');
+            clearAuthToken();
             window.location.href = '/';
             throw new Error('Unauthorized');
         }

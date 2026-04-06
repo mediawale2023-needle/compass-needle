@@ -5,20 +5,38 @@ import { apiPost, apiGet } from './api';
 
 const AuthContext = createContext(null);
 
+function getStoredValue(key) {
+    if (typeof window === 'undefined') return null;
+    return sessionStorage.getItem(key) || localStorage.getItem(key);
+}
+
+function setStoredValue(key, value) {
+    if (typeof window === 'undefined') return;
+    sessionStorage.setItem(key, value);
+    localStorage.removeItem(key);
+}
+
+function clearStoredValue(key) {
+    if (typeof window === 'undefined') return;
+    sessionStorage.removeItem(key);
+    localStorage.removeItem(key);
+}
+
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Check for existing token
-        const token = localStorage.getItem('needle_token');
-        const userStr = localStorage.getItem('needle_user');
+        const token = getStoredValue('needle_token');
+        const userStr = getStoredValue('needle_user');
         if (token && userStr) {
             try {
                 setUser(JSON.parse(userStr));
+                setStoredValue('needle_token', token);
+                setStoredValue('needle_user', userStr);
             } catch {
-                localStorage.removeItem('needle_token');
-                localStorage.removeItem('needle_user');
+                clearStoredValue('needle_token');
+                clearStoredValue('needle_user');
             }
         }
         setLoading(false);
@@ -26,15 +44,15 @@ export function AuthProvider({ children }) {
 
     const login = async (username, password) => {
         const data = await apiPost('/api/auth/login', { username, password });
-        localStorage.setItem('needle_token', data.token);
-        localStorage.setItem('needle_user', JSON.stringify(data.user));
+        setStoredValue('needle_token', data.token);
+        setStoredValue('needle_user', JSON.stringify(data.user));
         setUser(data.user);
         return data.user;
     };
 
     const logout = () => {
-        localStorage.removeItem('needle_token');
-        localStorage.removeItem('needle_user');
+        clearStoredValue('needle_token');
+        clearStoredValue('needle_user');
         setUser(null);
     };
 

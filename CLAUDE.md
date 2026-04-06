@@ -5,9 +5,10 @@
 **Compass Needle** is a parliamentary intelligence platform for Indian Members of Parliament (MPs) and Public Representatives (PRs/aspirants). It provides:
 - WhatsApp-based citizen grievance intake and AI classification
 - MP dashboard for case management, letter drafting, scheme discovery
-- PR dashboard (Ambassador) for lightweight grievance management
-- Admin dashboard for tenant/MP management and analytics
+- PR dashboard (Ambassador) for full-featured grievance management, case assignment, and escalation
+- Admin dashboard for tenant/MP management, Case Explorer, and analytics
 - AI-powered research, CSR matching, and constituency intelligence
+- Mobile-responsive UI with AstroNex dark theme styling across all dashboards
 
 **Monorepo structure:** Four Railway-deployed services sharing one PostgreSQL database.
 
@@ -41,9 +42,15 @@ sansadx_backend/
   db.py                     # SQLAlchemy models (Tenant, User, Case, LetterboxItem, ...)
   ai_engine.py              # GPT-4o-mini grievance classification
   prompts.py                # System prompts + grievance taxonomy
-modules/                    # 40+ feature modules
+modules/                    # Feature modules
   auth.py                   # JWT auth, tenant extraction, input sanitization
   geography_resolver.py     # Location string → assembly constituency
+  constituencies.py         # Geography data persistence and management
+  case_intelligence.py      # AI-driven grievance intelligence
+  case_query_parser.py      # NLP parser: natural language → structured filters (GPT + regex fallback)
+  case_query_engine.py      # Query executor: filters → DB results + summary stats
+  case_query_formatter.py   # Formatter: DB results → WhatsApp-ready reply text
+  localized_replies.py      # Localized system reply templates (13+ Indian languages)
   drafter.py                # AI letter/speech/PMB generation
   letterbox.py              # Physical letter management + OCR
   schemes_api.py            # 1500+ government schemes search
@@ -52,7 +59,7 @@ modules/                    # 40+ feature modules
   csr_pipeline.py           # CSR opportunity matching
   news_intel.py             # Constituency news aggregation
 core/
-  db_helpers.py             # Shared query helpers: _q(), _q_one()
+  db_helpers.py             # Shared query helpers: _q(), _q_one(), _parse_meta()
   gemini_client.py          # Gemini singleton
   rate_limiter.py           # SlowAPI configuration
   security_config.py        # CORS, JWT, security headers
@@ -69,8 +76,10 @@ needle-ai/                  # Ambassador PR Dashboard (separate Next.js app)
     reports/page.js         # Analytics + PDF export
     settings/page.js        # Profile, WhatsApp config, subscription
 scripts/
-  security_startup_check.py # Validates env vars before startup
+  security_startup_check.py       # Validates env vars before startup
   migrate_passwords_to_bcrypt.py
+  add_query_indexes.sql            # DB indexes for case query engine (run once)
+  register_whatsapp_number.py     # Helper to register/verify Meta phone numbers
 ```
 
 ---
@@ -190,8 +199,11 @@ Defined in `sansadx_backend/db.py`:
 | `Case` | `cases` | Citizen grievances, AI-classified |
 | `LetterboxItem` | `letterbox_items` | Physical letters, OCR extracted |
 | `CSROpportunity` | `csr_opportunities` | CSR matching results |
-| `NewsItem` | `news_items` | Constituency news cache |
-
+| `CSRCompany`, `...` | `csr_companies`, `...` | Comprehensive CSR matching & pipeline tracking |
+| `CaseActivityLog` | `case_activity_log` | Detailed log of case updates/actions |
+| `Officer`, `Escalation` | `officers`, `escalations` | CRM for case assignment and escalation |
+| `Contact` | `contacts` | Constituent profile (from WhatsApp) |
+| `TenantOverride` | `tenant_overrides` | Database-backed geo/phone configuration |
 ---
 
 ## API Structure
@@ -227,17 +239,51 @@ Static JSON loaded at startup (not in DB):
 - `modules/data/csr_db.json` — CSR opportunities database
 - `modules/data/schemes_db.json` — Government schemes (1500+)
 - `modules/data/fund_intel.json` — Fund intelligence
-- `tenant_overrides.json` — WhatsApp number → tenant ID overrides
+- `tenant_overrides.json` — WhatsApp number → tenant ID overrides (per-number phone/language config)
 - `modules/constituency_library/` — Regional constituency data
+- `data/geography/<District>/` — Per-constituency JSON geography files (e.g. Aligarh/Koil.json)
 
 ---
 
 ## AI Integration Notes
 
 - **GPT-4o-mini** (`sansadx_backend/ai_engine.py`): Grievance classification, multi-language support
+- **GPT-4o-mini** (`modules/case_query_parser.py`): NLP parsing of MP/PA WhatsApp queries into structured filters; falls back to regex if OpenAI is unavailable
 - **Gemini** (`core/gemini_client.py`): Singleton client. Used for letter drafting, letterbox OCR, copilot research
 - AI prompts are in `sansadx_backend/prompts.py` and `modules/drafter.py`
 - Grievance taxonomy is defined in `sansadx_backend/taxonomy.json`
+
+---
+
+## WhatsApp Case Query Engine
+
+Allows MPs/PAs to query their live case data directly from WhatsApp in natural language (English, Hindi, Hinglish, etc.).
+
+**Pipeline:**
+```
+Incoming WA message → case_query_parser.py (NLP → filters)
+                     → case_query_engine.py (DB query, tenant-scoped)
+                     → case_query_formatter.py (WhatsApp reply text)
+                     → whatsapp.py (send reply)
+```
+
+**Supported query patterns:**
+- `"Pending water cases in Tilakwadi last 1 month"`
+- `"Show resolved road issues in Vikhroli assembly this week"`
+- `"Cases from Ward 5 aaj"` (Hindi/Hinglish time expressions)
+
+**Filter fields:** `location`, `constituency`, `days` (1–365), `issue_type`, `status`
+
+**DB performance:** Run `scripts/add_query_indexes.sql` once on production to add partial indexes on `assembly`, `location`, `status`, `created_at`, `category`, and a composite index.
+
+---
+
+## Localized System Replies (`modules/localized_replies.py`)
+
+WhatsApp-ready reply templates for system flow states (not AI-generated). Currently covers:
+- **`get_awaiting_location_reply(location, detected_language)`** — sent when citizen's location can't be matched to a constituency
+
+Supported languages: Hindi, Hinglish, Marathi, Tamil, Telugu, Kannada, Malayalam, Bengali, Gujarati, Punjabi, Odia, Assamese, Urdu, English. Falls back to Hindi for unknown languages.
 
 ---
 
@@ -253,7 +299,7 @@ Static JSON loaded at startup (not in DB):
 
 | Feature | MP (`/frontend`) | PR (`/needle-ai`) |
 |---|---|---|
-| Briefcase (grievances) | ✅ Full: bulk ops, assign, notes, activity log | ✅ Lite: messages + status change |
+| Briefcase (grievances) | ✅ Full: bulk ops, assign, notes, activity log | ✅ Full: Workspace, case assignment, escalation |
 | Drafter (letters/speeches) | ✅ | ❌ Not relevant for PRs |
 | Letterbox (physical mail OCR) | ✅ | ❌ |
 | PQ Calendar | ✅ | ❌ |
