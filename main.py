@@ -223,15 +223,62 @@ try:
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE archives ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)"))
         logger.info("Migration: added tenant_id column to archives table")
-        # Backfill: set tenant_id from the users table
+        # Backfill: set tenant_id from the users table.
+        # ORDER BY created_at DESC ensures the most recent tenant association wins
+        # if a user was ever re-assigned across tenants (prevents cross-tenant leak).
         conn.execute(text("""
             UPDATE archives SET tenant_id = (
-                SELECT u.tenant_id FROM users u WHERE u.username = archives.user LIMIT 1
+                SELECT u.tenant_id FROM users u
+                WHERE u.username = archives.user
+                ORDER BY u.created_at DESC
+                LIMIT 1
             ) WHERE tenant_id IS NULL
         """))
         logger.info("Migration: backfilled archives.tenant_id from users table")
 except Exception:  # nosec B110 — idempotent migration; "column already exists" is expected
     pass
+
+# ─── Migration: wa_message_dedup table (indexed webhook deduplication) ───
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS wa_message_dedup (
+                message_id   VARCHAR PRIMARY KEY,
+                processed_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_wa_dedup_processed_at
+            ON wa_message_dedup (processed_at)
+        """))
+        logger.info("Migration: wa_message_dedup table ready")
+except Exception as e:
+    logger.warning("wa_message_dedup migration skipped: %s", e)
+
+# ─── Startup: prune wa_message_dedup entries older than 30 days ───
+# Meta never retries messages older than a few hours; 30 days is very conservative.
+try:
+    with engine.begin() as conn:
+        _dedup_cutoff = datetime.utcnow() - timedelta(days=30)
+        _dedup_del = conn.execute(
+            text("DELETE FROM wa_message_dedup WHERE processed_at < :cutoff"),
+            {"cutoff": _dedup_cutoff},
+        )
+        if _dedup_del.rowcount:
+            logger.info("Pruned %d stale wa_message_dedup entries", _dedup_del.rowcount)
+except Exception as _dedup_prune_exc:
+    logger.warning("wa_message_dedup prune failed (non-critical): %s", _dedup_prune_exc)
+
+# ─── Migration: backfill is_deleted NULL → false on cases table ───
+# Cases created before the is_deleted column existed have NULL, which causes
+# is_deleted = false filters to miss them.  This one-time backfill is idempotent.
+try:
+    with engine.begin() as conn:
+        _backfill = conn.execute(text("UPDATE cases SET is_deleted = false WHERE is_deleted IS NULL"))
+        if _backfill.rowcount:
+            logger.info("Migration: backfilled is_deleted NULL→false on %d cases", _backfill.rowcount)
+except Exception as _bf_exc:
+    logger.warning("is_deleted backfill failed (non-critical): %s", _bf_exc)
 
 # ─── Migration: create token_blocklist table (idempotent) ───
 try:
@@ -960,11 +1007,41 @@ def _flush_letter_batch(sender: str, tenant_id: int, receiver_number: str):
 
 def _sweep_stale_batches():
     """
-    On startup: flush any batches left pending from a previous server instance.
-    Any batch whose last_image_at is > BATCH_FLUSH_DELAY seconds ago is processed.
+    On startup: recover letterbox batches interrupted by a previous server crash or deploy.
+
+    Two recovery paths:
+    1. 'pending' batches older than BATCH_FLUSH_DELAY — timer never fired (normal restart).
+    2. 'processing' batches older than 10 minutes — thread was killed mid-OCR (crash/OOM).
+       These are reset to 'pending' first so _flush_letter_batch can claim them cleanly.
     """
     try:
         stale_cutoff = datetime.utcnow() - timedelta(seconds=BATCH_FLUSH_DELAY)
+        processing_stuck_cutoff = datetime.utcnow() - timedelta(minutes=10)
+
+        # ── Path 2: reset stuck 'processing' batches so they can be reclaimed ──
+        try:
+            with engine.begin() as _rst_conn:
+                _stuck = _rst_conn.execute(
+                    text("""
+                        UPDATE letterbox_batches
+                        SET status = 'pending'
+                        WHERE status = 'processing'
+                          AND last_image_at < :cutoff
+                        RETURNING sender_phone, tenant_id
+                    """),
+                    {"cutoff": processing_stuck_cutoff},
+                )
+                stuck_rows = _stuck.fetchall()
+                if stuck_rows:
+                    logger.warning(
+                        "Startup sweep: reset %d stuck 'processing' batches to 'pending': %s",
+                        len(stuck_rows),
+                        [(r[0], r[1]) for r in stuck_rows],
+                    )
+        except Exception as _rst_exc:
+            logger.warning("Stuck-processing batch reset failed: %s", _rst_exc)
+
+        # ── Path 1 + 2 combined: flush all pending batches older than threshold ──
         with engine.connect() as conn:
             rows = conn.execute(text("""
                 SELECT sender_phone, tenant_id, receiver_number FROM letterbox_batches
@@ -979,6 +1056,64 @@ def _sweep_stale_batches():
             ).start()
     except Exception as exc:
         logger.warning(f"Stale batch sweep failed: {exc}")
+
+
+def _sweep_pending_citizen_acks():
+    """
+    On startup: retry WhatsApp ACK sends that failed during a previous run.
+
+    When send_whatsapp_message() throws during the human-review gate, the case is
+    flagged with citizen_ack_pending=true in its metadata.  This sweep finds those
+    cases (created within the last 24 hours, to avoid spamming old cases), retries
+    the send, and clears the flag on success.
+
+    Runs once at startup; a separate periodic call can be added via a cron job if
+    needed.  Failures are logged but never raise — startup must not be blocked.
+    """
+    try:
+        cutoff = datetime.utcnow() - timedelta(hours=24)
+        with engine.connect() as _ack_scan_conn:
+            pending_acks = _ack_scan_conn.execute(
+                text("""
+                    SELECT id, tenant_id, case_metadata
+                    FROM cases
+                    WHERE case_metadata::jsonb ->> 'citizen_ack_pending' = 'true'
+                      AND created_at >= :cutoff
+                    LIMIT 50
+                """),
+                {"cutoff": cutoff},
+            ).fetchall()
+    except Exception as _scan_exc:
+        logger.warning("Pending ACK sweep query failed: %s", _scan_exc)
+        return
+
+    if not pending_acks:
+        return
+
+    logger.info("ACK sweep: found %d cases with pending citizen acknowledgment", len(pending_acks))
+    for _row in pending_acks:
+        _case_id, _tenant_id, _meta_raw = _row
+        try:
+            _meta = _meta_raw if isinstance(_meta_raw, dict) else json.loads(_meta_raw or "{}")
+            _phone = _meta.get("citizen_phone", "")
+            if not _phone:
+                logger.warning("ACK sweep: case %s has citizen_ack_pending but no citizen_phone — skipping", _case_id)
+                continue
+            _wa_pid = get_tenant_phone_number_id(_tenant_id)
+            send_whatsapp_message(_phone, _REVIEW_GENERIC_ACK, _wa_pid)
+            # Clear the flag on success
+            with engine.begin() as _clr_conn:
+                _clr_conn.execute(
+                    text("""
+                        UPDATE cases
+                        SET case_metadata = case_metadata - 'citizen_ack_pending'
+                        WHERE id = :cid
+                    """),
+                    {"cid": _case_id},
+                )
+            logger.info("ACK sweep: retried and cleared citizen_ack_pending for case %s", _case_id)
+        except Exception as _ack_retry_exc:
+            logger.warning("ACK sweep: retry failed for case %s: %s", _case_id, _ack_retry_exc)
 
 
 _CAPTION_INBOX_KEYWORDS  = {"in", "inbox", "received", "incoming"}
@@ -1129,6 +1264,43 @@ def _handle_pa_move_command(sender: str, diary_ref: str, direction_str: str, rec
             pass
 
 
+def _handle_unsupported_message_type(sender: str, msg_type: str, receiver_number: str = ""):
+    """
+    Citizen sent a non-text/image message (audio, video, sticker, document, etc.).
+    Previously these were silently dropped. Now we send a polite prompt so the
+    citizen knows we received something and how to re-send.
+    """
+    if not receiver_number:
+        receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
+    current_tenant = _resolve_tenant(receiver_number)
+    if current_tenant is None:
+        return
+    _wa_phone_id = get_tenant_phone_number_id(current_tenant)
+    reply = (
+        "Thank you for reaching out 🙏\n\n"
+        "We received your message but couldn’t read it as text. "
+        "Please type your complaint or request and send it as a text message so we can help you faster."
+    )
+    try:
+        send_whatsapp_message(sender, reply, _wa_phone_id)
+        logger.info("Unsupported message type '%s' from %s — sent re-send prompt", msg_type, sender)
+    except Exception as exc:
+        logger.warning("Could not send unsupported-type reply to %s: %s", sender, exc)
+
+
+# Categories that require human PA review before the AI reply is sent to citizen.
+# Cases in these categories are saved with status='pending_review'; the AI-generated
+# reply is stored in case_metadata but NOT sent automatically.
+# Stored lowercase — compared with category.lower().strip() so GPT variants like
+# "Law and Order", "EMERGENCY", or "law and order" all match correctly.
+_REVIEW_REQUIRED_CATEGORIES = {"law & order", "law and order", "emergency", "political", "legal"}
+_REVIEW_GENERIC_ACK = (
+    "Thank you for reaching out 🙏\n\n"
+    "Your complaint has been received and is being reviewed by our team. "
+    "We will follow up with you shortly."
+)
+
+
 def _handle_pa_done_command(sender: str, receiver_number: str = ""):
     """
     PA typed DONE — immediately flush their pending batch without waiting for the timer.
@@ -1181,6 +1353,39 @@ def _handle_pa_done_command(sender: str, receiver_number: str = ""):
 
     logger.info(f"DONE command from PA {sender} — flushing batch immediately")
     _flush_letter_batch(sender, current_tenant, receiver_number)
+
+
+# ── Tenant config TTL cache ───────────────────────────────────────────────────
+# Avoids a DB round-trip on every incoming message just to read daily_case_limit.
+# Cache is per-process, keyed by tenant_id, expires after 5 minutes.
+_tenant_config_cache: dict = {}  # {tenant_id: (daily_limit, cached_at)}
+_TENANT_CONFIG_TTL = 300  # seconds
+
+
+def _get_tenant_daily_limit(tenant_id: int) -> int:
+    """Return the configured daily case limit for this tenant, using a 5-min TTL cache."""
+    _DAILY_LIMIT_DEFAULT = 20
+    cached = _tenant_config_cache.get(tenant_id)
+    if cached:
+        limit_val, cached_at = cached
+        if (datetime.utcnow() - cached_at).total_seconds() < _TENANT_CONFIG_TTL:
+            return limit_val
+    # Cache miss or expired — fetch from DB
+    try:
+        with engine.connect() as _cfg_conn:
+            row = _cfg_conn.execute(
+                text("SELECT config FROM tenants WHERE id = :tid LIMIT 1"),
+                {"tid": tenant_id},
+            ).fetchone()
+        limit = _DAILY_LIMIT_DEFAULT
+        if row and row[0]:
+            cfg = row[0] if isinstance(row[0], dict) else json.loads(row[0] or "{}")
+            limit = int(cfg.get("daily_case_limit", _DAILY_LIMIT_DEFAULT))
+    except Exception as _cfg_exc:
+        logger.warning("Tenant config fetch failed for tenant %s: %s", tenant_id, _cfg_exc)
+        limit = _DAILY_LIMIT_DEFAULT
+    _tenant_config_cache[tenant_id] = (limit, datetime.utcnow())
+    return limit
 
 
 def _process_incoming_message(sender: str, message_body: str, receiver_number: str = "", msg_id: str = ""):
@@ -1275,6 +1480,59 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             _wa_phone_id,
         )
         return
+
+    # ── Per-phone daily case creation rate limit ─────────────────────────────
+    # Prevents fake-complaint floods: default 20 cases/phone/day, configurable
+    # via tenant.config["daily_case_limit"].
+    #
+    # Tenant config is fetched once and cached per-process for 5 minutes.
+    # This eliminates one DB round-trip on every single incoming message without
+    # sacrificing responsiveness to admin config changes (max 5 min stale).
+    _DAILY_LIMIT_DEFAULT = 20
+    try:
+        _daily_limit = _get_tenant_daily_limit(current_tenant)
+
+        with engine.connect() as _cnt_conn:
+            _count_row = _cnt_conn.execute(
+                text("""
+                    SELECT COUNT(*) FROM cases
+                    WHERE user_phone = :phone
+                      AND tenant_id = :tid
+                      AND created_at >= NOW() - INTERVAL '24 hours'
+                      AND category NOT IN ('Spam', 'Spam (Offensive)')
+                """),
+                {"phone": sender, "tid": current_tenant}
+            ).fetchone()
+        _today_count = _count_row[0] if _count_row else 0
+
+        if _today_count >= _daily_limit:
+            logger.warning(
+                "Per-phone rate limit hit: phone=%s tenant=%s count=%d limit=%d",
+                sender, current_tenant, _today_count, _daily_limit
+            )
+            with engine.begin() as _spam_r_conn:
+                _spam_r_conn.execute(
+                    text("""
+                        INSERT INTO cases
+                            (tenant_id, user_phone, category, raw_message,
+                             status, case_metadata, is_critical, is_deleted, created_at)
+                        VALUES (:tid, :phone, 'Spam', :msg,
+                                'new', :meta, false, false, :now)
+                    """),
+                    {
+                        "tid": current_tenant, "phone": sender, "msg": message_body,
+                        "meta": json.dumps({"spam_flagged": True, "flag_reason": f"Daily limit {_daily_limit} exceeded ({_today_count} today)", "wa_msg_id": msg_id}),
+                        "now": datetime.utcnow(),
+                    }
+                )
+            send_whatsapp_message(
+                sender,
+                "We've received multiple messages from your number today. Our team will review and follow up. 🙏",
+                _wa_phone_id,
+            )
+            return
+    except Exception as _rate_exc:
+        logger.warning("Per-phone rate limit check failed (non-blocking): %s", _rate_exc)
 
     # ── STEP 1: Save raw grievance to DB immediately ────────────
     # This ensures the message is never lost, even if AI fails.
@@ -1490,6 +1748,54 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         except Exception as e:
             logger.error(f"DB update failed for case {case_id}: {e}")
 
+        # ── Human review gate ─────────────────────────────────────────────
+        # Sensitive cases (Law & Order, Emergency, Political, is_critical) are
+        # held for PA review before the AI reply is sent to the citizen.
+        # The citizen gets only a generic acknowledgment.
+        # The AI-generated reply is stored in case_metadata for PA to see.
+        _is_review_category = category.lower().strip() in _REVIEW_REQUIRED_CATEGORIES
+        _is_critical_case = bool(ai_result.get("is_critical", False) or status == "emergency")
+
+        if (_is_review_category or _is_critical_case) and status not in ("awaiting_location",):
+            # Store the AI reply so PA can view and approve it from the dashboard
+            try:
+                with engine.begin() as _rv_conn:
+                    _rv_meta = {**meta_data, "ai_reply_pending_review": political_reply}
+                    _rv_conn.execute(
+                        text("""
+                            UPDATE cases
+                            SET status = 'pending_review', case_metadata = :meta
+                            WHERE id = :cid
+                        """),
+                        {"meta": json.dumps(_rv_meta), "cid": case_id}
+                    )
+                logger.info(
+                    "REVIEW_REQUIRED: case_id=%s tenant=%s category=%s is_critical=%s — held for PA review",
+                    case_id, current_tenant, category, _is_critical_case
+                )
+            except Exception as _rv_exc:
+                logger.error("Failed to set pending_review status for case %s: %s", case_id, _rv_exc)
+
+            # Send only generic ack — NOT the AI-generated political reply.
+            # On failure, flag the case so the startup sweep can retry the ACK.
+            try:
+                send_whatsapp_message(sender, _REVIEW_GENERIC_ACK, _wa_phone_id)
+            except Exception as _rv_send_exc:
+                logger.error("Failed to send review ack to %s (case=%s): %s", sender, case_id, _rv_send_exc)
+                try:
+                    with engine.begin() as _ack_conn:
+                        _ack_conn.execute(
+                            text("""
+                                UPDATE cases
+                                SET case_metadata = case_metadata || :patch::jsonb
+                                WHERE id = :cid
+                            """),
+                            {"patch": json.dumps({"citizen_ack_pending": True, "citizen_phone": sender}), "cid": case_id},
+                        )
+                except Exception as _ack_flag_exc:
+                    logger.error("Failed to set citizen_ack_pending flag on case %s: %s", case_id, _ack_flag_exc)
+            return  # Done — do not fall through to the regular send below
+
         try:
             send_whatsapp_message(sender, political_reply, _wa_phone_id)
         except Exception as send_exc:
@@ -1551,19 +1857,29 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     msg = messages[0]
     msg_id = msg.get("id", "")  # Meta message ID — unique per message
 
-    # ── Deduplication: ignore messages already processed (Meta retries) ──
+    # ── Deduplication: atomic INSERT gate on wa_message_dedup ───────────────
+    # Uses INSERT ON CONFLICT DO NOTHING + rowcount check instead of a
+    # SELECT-then-INSERT pattern, which has a race window during the 5-7s
+    # background task execution.  Two simultaneous webhook calls for the same
+    # msg_id will both attempt the INSERT; exactly one will get rowcount=1
+    # (the winner) and the other will get rowcount=0 (duplicate — rejected here,
+    # before a background task is ever dispatched).
     if msg_id:
         try:
-            with engine.connect() as conn:
-                existing = conn.execute(
-                    text("SELECT 1 FROM cases WHERE case_metadata::text LIKE :mid LIMIT 1"),
-                    {"mid": f"%{msg_id}%"},
-                ).fetchone()
-            if existing:
-                logger.info("Webhook dedup: message_id=%s already processed — ignoring retry", msg_id)
+            with engine.begin() as _dg_conn:
+                _dg_ins = _dg_conn.execute(
+                    text("""
+                        INSERT INTO wa_message_dedup (message_id, processed_at)
+                        VALUES (:mid, :now)
+                        ON CONFLICT (message_id) DO NOTHING
+                    """),
+                    {"mid": msg_id, "now": datetime.utcnow()},
+                )
+            if _dg_ins.rowcount == 0:
+                logger.info("Webhook dedup: message_id=%s already claimed — ignoring retry", msg_id)
                 return {"status": "ignored"}
         except Exception as dedup_exc:
-            logger.warning("Dedup check failed (non-blocking): %s", dedup_exc)
+            logger.warning("Dedup gate insert failed (non-blocking): %s", dedup_exc)
 
     msg_type = msg.get("type")
     sender = msg["from"]  # bare number e.g. "919876543210"
@@ -1626,7 +1942,11 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         return {"status": "received"}
 
     else:
-        return {"status": "ignored"}  # audio, video, documents, etc.
+        # ── Non-text/image message (audio, video, sticker, document, etc.) ──
+        # Previously these were silently ignored — citizens got no response.
+        # Now we send a polite prompt to re-send as text so they're not lost.
+        background_tasks.add_task(_handle_unsupported_message_type, sender, msg_type, display_number)
+        return {"status": "received"}
 
 
 # ─────────────────────────────────────────
@@ -1705,5 +2025,8 @@ try:
 except Exception as _prune_exc:
     logger.warning("token_blocklist prune failed (non-critical): %s", _prune_exc)
 
-# Recover any batches that were interrupted by a previous restart
+# Recover any batches interrupted by a previous restart (also resets stuck 'processing' batches)
 _sweep_stale_batches()
+
+# Retry any citizen ACK sends that failed in a previous run (Meta token expiry, etc.)
+_sweep_pending_citizen_acks()
