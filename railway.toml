@@ -1,0 +1,10 @@
+[deploy]
+# Give the backend 120 seconds to pass its health check before Railway marks
+# the deployment as failed.  The startup sequence (DB migrations, geography
+# sync, index creation) runs synchronously at import time and can take 15-40s
+# on a cold container — well within this window.
+healthcheckTimeout = 120
+
+# Restart policy: retry up to 10 times on crash before giving up.
+restartPolicyType   = "ON_FAILURE"
+restartPolicyMaxRetries = 10

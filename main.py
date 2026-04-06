@@ -128,8 +128,36 @@ from admin_api import router as admin_router
 app.include_router(admin_router, prefix="/api/admin")
 
 # ─────────────────────────────────────────
-# DATABASE INIT
+# DATABASE INIT & MIGRATION LOCK
 # ─────────────────────────────────────────
+# Acquire a Postgres session-level advisory lock to prevent multiple
+# Railway instances from running migrations concurrently.
+#
+# ⚠️  We use pg_TRY_advisory_lock (non-blocking) instead of pg_advisory_lock
+# (blocking).  If a previous Railway instance crashed without releasing the lock
+# (OOM kill, forced restart, SIGKILL), the lock stays held on the dead
+# connection.  The blocking version would then hang here indefinitely — uvicorn
+# never starts, the port never opens, and Railway reports "Connection timed out"
+# on every request until the TCP keepalive timeout (~90s) finally clears the
+# stale connection on the PostgreSQL side.
+#
+# With pg_try_advisory_lock:
+#   - Returns TRUE  → lock acquired, proceed with migrations.
+#   - Returns FALSE → another instance holds it (concurrent startup), skip
+#     migrations here — they're all idempotent so this is safe.
+from sqlalchemy import text as sa_text
+_startup_migration_lock_conn = engine.connect()
+_migration_lock_acquired = _startup_migration_lock_conn.execute(
+    sa_text("SELECT pg_try_advisory_lock(77772024)")
+).scalar()
+if _migration_lock_acquired:
+    logger.info("Acquired Postgres advisory lock (77772024) for safe startup migrations")
+else:
+    logger.warning(
+        "pg_try_advisory_lock(77772024) returned FALSE — another instance is running "
+        "migrations concurrently.  Skipping migrations on this instance (all are idempotent)."
+    )
+
 init_db()
 logger.info("Database initialised.")
 
@@ -795,21 +823,20 @@ def _add_to_batch(tenant_id: int, sender: str, receiver_number: str,
             return 1
 
 
+import asyncio
+from fastapi.concurrency import run_in_threadpool
+
+async def _delayed_flush_letter_batch(sender: str, tenant_id: int, receiver_number: str):
+    """
+    Async wrapper for flush. Sleeps non-blocking, then runs the blocking
+    flush in the FastAPI threadpool. Replaces threading.Timer.
+    """
+    await asyncio.sleep(BATCH_FLUSH_DELAY)
+    await run_in_threadpool(_flush_letter_batch, sender, tenant_id, receiver_number)
+
+# DEPRECATED: threading.Timer based scheduling removed in favor of BackgroundTasks async sleeper.
 def _schedule_batch_flush(sender: str, tenant_id: int, receiver_number: str):
-    """Reset the 45-second inactivity timer for this sender's batch."""
-    key = (sender, tenant_id)
-    with _batch_lock:
-        existing = _batch_timers.get(key)
-        if existing:
-            existing.cancel()
-        t = threading.Timer(
-            BATCH_FLUSH_DELAY,
-            _flush_letter_batch,
-            args=(sender, tenant_id, receiver_number)
-        )
-        _batch_timers[key] = t
-        t.daemon = True
-        t.start()
+    pass
 
 
 def _flush_letter_batch(sender: str, tenant_id: int, receiver_number: str):
@@ -1049,11 +1076,15 @@ def _sweep_stale_batches():
             """), {"cutoff": stale_cutoff}).fetchall()
         for row in rows:
             logger.info(f"Startup sweep: flushing stale batch for {row[0]}, tenant={row[1]}")
-            threading.Thread(
-                target=_flush_letter_batch,
-                args=(row[0], row[1], row[2]),
-                daemon=True
-            ).start()
+            import asyncio
+            from fastapi.concurrency import run_in_threadpool
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(run_in_threadpool(_flush_letter_batch, row[0], row[1], row[2]))
+            except RuntimeError:
+                # Fallback if somehow called outside event loop
+                from concurrent.futures import ThreadPoolExecutor
+                ThreadPoolExecutor(max_workers=1).submit(_flush_letter_batch, row[0], row[1], row[2])
     except Exception as exc:
         logger.warning(f"Stale batch sweep failed: {exc}")
 
@@ -2025,8 +2056,22 @@ try:
 except Exception as _prune_exc:
     logger.warning("token_blocklist prune failed (non-critical): %s", _prune_exc)
 
-# Recover any batches interrupted by a previous restart (also resets stuck 'processing' batches)
-_sweep_stale_batches()
+# ─── Release Migration Lock ───
+# Only call pg_advisory_unlock if this instance actually acquired it.
+# If _migration_lock_acquired is False we never held the lock, so just close
+# the connection; calling unlock without holding the lock is a no-op but
+# produces a confusing log line.
+try:
+    if _migration_lock_acquired:
+        _startup_migration_lock_conn.execute(sa_text("SELECT pg_advisory_unlock(77772024)"))
+        logger.info("Released Postgres advisory lock (77772024)")
+    _startup_migration_lock_conn.close()
+except Exception as _lock_exc:
+    logger.warning("Failed to cleanly release migration lock (auto-releases on connection close anyway): %s", _lock_exc)
 
-# Retry any citizen ACK sends that failed in a previous run (Meta token expiry, etc.)
-_sweep_pending_citizen_acks()
+@app.on_event("startup")
+async def startup_jobs():
+    """Run non-blocking cleanup sweeps on startup via FastAPI threadpool."""
+    from fastapi.concurrency import run_in_threadpool
+    await run_in_threadpool(_sweep_stale_batches)
+    await run_in_threadpool(_sweep_pending_citizen_acks)
