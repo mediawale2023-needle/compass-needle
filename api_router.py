@@ -735,14 +735,20 @@ def notify_citizen(case_id: int, user=Depends(get_current_user)):
     status = case.get("status", "new")
     case_ref = case.get("case_ref") or f"#{case_id}"
 
-    status_messages = {
-        "new":         f"Your grievance ({case_ref}) has been received and is being reviewed.",
-        "in_progress": f"Update on your grievance ({case_ref}): We are actively working on this.",
-        "escalated":   f"Update on your grievance ({case_ref}): This has been escalated to the relevant authority.",
-        "resolved":    f"Good news! Your grievance ({case_ref}) has been resolved. If unsatisfied, reply 'NO' to reopen.",
-        "closed":      f"Your grievance ({case_ref}) has been closed. Thank you for reaching out.",
-    }
-    message = status_messages.get(status, f"Update on your grievance ({case_ref}): Status is now '{status}'.")
+    # Prefer the MP's custom response if they saved one; fall back to status-based template
+    custom_response = (case.get("response_to_citizen") or "").strip()
+    if custom_response:
+        message = custom_response
+    else:
+        status_messages = {
+            "new":         f"Your grievance ({case_ref}) has been received and is being reviewed.",
+            "in_progress": f"Update on your grievance ({case_ref}): We are actively working on this.",
+            "escalated":   f"Update on your grievance ({case_ref}): This has been escalated to the relevant authority.",
+            "resolved":    f"Good news! Your grievance ({case_ref}) has been resolved. If unsatisfied, reply 'NO' to reopen.",
+            "completed":   f"Good news! Your grievance ({case_ref}) has been resolved. If unsatisfied, reply 'NO' to reopen.",
+            "closed":      f"Your grievance ({case_ref}) has been closed. Thank you for reaching out.",
+        }
+        message = status_messages.get(status, f"Update on your grievance ({case_ref}): Status is now '{status}'.")
 
     try:
         from modules.whatsapp import send_whatsapp_message

@@ -758,16 +758,21 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
                     <div className="py-2 space-y-3">
                         <div className="rounded-lg bg-muted/50 border p-3 text-sm text-muted-foreground">
                             {(() => {
+                                if (response && response.trim()) return response.trim();
                                 const statusMessages = {
                                     new: `Your grievance (${caseRef}) has been received and is being reviewed.`,
                                     in_progress: `Update on your grievance (${caseRef}): We are actively working on this.`,
                                     escalated: `Update on your grievance (${caseRef}): This has been escalated to the relevant authority.`,
                                     resolved: `Good news! Your grievance (${caseRef}) has been resolved. If unsatisfied, reply 'NO' to reopen.`,
+                                    completed: `Good news! Your grievance (${caseRef}) has been resolved. If unsatisfied, reply 'NO' to reopen.`,
                                     closed: `Your grievance (${caseRef}) has been closed. Thank you for reaching out.`,
                                 };
                                 return statusMessages[c.status] || `Update on your grievance (${caseRef}): Status is now '${c.status}'.`;
                             })()}
                         </div>
+                        {response && response.trim() && (
+                            <p className="text-xs text-emerald-600 font-medium">✓ Using your custom response message</p>
+                        )}
                         <Input
                             placeholder={`Type ${caseRef} to confirm`}
                             value={notifyInput}
