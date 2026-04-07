@@ -1187,11 +1187,12 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
     # PA whitelist check — sender must be a registered active user for this tenant
     try:
         with engine.connect() as conn:
+            _bare = sender.lstrip("91") if sender.startswith("91") and len(sender) == 12 else sender
             pa_row = conn.execute(
                 text("""SELECT id, display_name FROM users
-                        WHERE phone = :phone AND tenant_id = :tid AND is_active = true
+                        WHERE (phone = :phone OR phone = :bare) AND tenant_id = :tid AND is_active = true
                         LIMIT 1"""),
-                {"phone": sender, "tid": current_tenant}
+                {"phone": sender, "bare": _bare, "tid": current_tenant}
             ).fetchone()
     except Exception as exc:
         logger.error(f"PA check DB query failed: {exc}")
@@ -1249,9 +1250,10 @@ def _handle_pa_move_command(sender: str, diary_ref: str, direction_str: str, rec
     # PA whitelist check
     try:
         with engine.connect() as conn:
+            _bare = sender.lstrip("91") if sender.startswith("91") and len(sender) == 12 else sender
             pa_row = conn.execute(
-                text("SELECT id FROM users WHERE phone = :phone AND tenant_id = :tid AND is_active = true LIMIT 1"),
-                {"phone": sender, "tid": current_tenant}
+                text("SELECT id FROM users WHERE (phone = :phone OR phone = :bare) AND tenant_id = :tid AND is_active = true LIMIT 1"),
+                {"phone": sender, "bare": _bare, "tid": current_tenant}
             ).fetchone()
     except Exception as exc:
         logger.error(f"PA check failed in MOVE handler: {exc}")
@@ -1352,9 +1354,10 @@ def _handle_pa_done_command(sender: str, receiver_number: str = ""):
     # PA whitelist check
     try:
         with engine.connect() as conn:
+            _bare = sender.lstrip("91") if sender.startswith("91") and len(sender) == 12 else sender
             pa_row = conn.execute(
-                text("SELECT id FROM users WHERE phone = :phone AND tenant_id = :tid AND is_active = true LIMIT 1"),
-                {"phone": sender, "tid": current_tenant}
+                text("SELECT id FROM users WHERE (phone = :phone OR phone = :bare) AND tenant_id = :tid AND is_active = true LIMIT 1"),
+                {"phone": sender, "bare": _bare, "tid": current_tenant}
             ).fetchone()
     except Exception as exc:
         logger.error(f"PA check failed in DONE handler: {exc}")
@@ -1440,13 +1443,15 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
     # Uses the same users.phone lookup as the PA letter intake system.
     try:
         with engine.connect() as conn:
+            # Match on both bare number and with country-code prefix (91XXXXXXXXXX vs XXXXXXXXXX)
+            sender_bare = sender.lstrip("91") if sender.startswith("91") and len(sender) == 12 else sender
             staff_row = conn.execute(
                 text("""
                     SELECT id, display_name FROM users
-                    WHERE phone = :phone AND tenant_id = :tid AND is_active = true
+                    WHERE (phone = :phone OR phone = :bare) AND tenant_id = :tid AND is_active = true
                     LIMIT 1
                 """),
-                {"phone": sender, "tid": current_tenant},
+                {"phone": sender, "bare": sender_bare, "tid": current_tenant},
             ).fetchone()
     except Exception as _staff_exc:
         logger.warning("Staff lookup failed: %s", _staff_exc)
