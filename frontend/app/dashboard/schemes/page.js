@@ -3,12 +3,33 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useAuth } from '@/lib/auth';
 import { apiGet, apiPost } from '@/lib/api';
+import { Lock } from 'lucide-react';
 
 const CITIZEN_GROUPS = ['Women', 'Farmers', 'SC/ST', 'BPL Families', 'Youth / Students',
     'Senior Citizens', 'Entrepreneurs / MSME', 'Disabled / PwD', 'Rural Residents', 'Urban Residents'];
 
+function LockedModule({ name }) {
+    return (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-6">
+            <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+                <Lock className="h-7 w-7 text-muted-foreground" />
+            </div>
+            <div>
+                <h2 className="text-lg font-semibold text-foreground">{name} is restricted</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                    This module is available to the MP only. Contact your MP for access.
+                </p>
+            </div>
+        </div>
+    );
+}
+
 export default function SchemesPage() {
     const { user } = useAuth();
+
+    if (user && user.role !== 'mp' && user.role !== 'admin') {
+        return <LockedModule name="Schemes" />;
+    }
     const [tab, setTab] = useState('overview');
     const [intelFilter, setIntelFilter] = useState('all'); // 'all' | 'scrutinized' | 'unspent' | 'utilization'
     const [schemes, setSchemes] = useState([]);

@@ -18,6 +18,7 @@ import {
     Loader2,
     Search,
     AlertTriangle,
+    Lock,
     Download,
     RefreshCw,
     Activity,
@@ -262,9 +263,29 @@ function ErrorCard({ message, onRetry }) {
     );
 }
 
+function LockedModule({ name }) {
+    return (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-6">
+            <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+                <Lock className="h-7 w-7 text-muted-foreground" />
+            </div>
+            <div>
+                <h2 className="text-lg font-semibold text-foreground">{name} is restricted</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                    This module is available to the MP only. Contact your MP for access.
+                </p>
+            </div>
+        </div>
+    );
+}
+
 export default function CSRPage() {
     const { user } = useAuth();
     const router = useRouter();
+
+    if (user && user.role !== 'mp' && user.role !== 'admin') {
+        return <LockedModule name="CSR Intelligence" />;
+    }
 
     // ─── Live Data State ───
     const [opportunities, setOpportunities] = useState([]);
