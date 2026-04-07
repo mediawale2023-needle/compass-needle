@@ -1187,7 +1187,7 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
     # PA whitelist check — sender must be a registered active user for this tenant
     try:
         with engine.connect() as conn:
-            _bare = sender.lstrip("91") if sender.startswith("91") and len(sender) == 12 else sender
+            _bare = sender[2:] if sender.startswith("91") and len(sender) == 12 else sender
             pa_row = conn.execute(
                 text("""SELECT id, display_name FROM users
                         WHERE (phone = :phone OR phone = :bare) AND tenant_id = :tid AND is_active = true
@@ -1250,7 +1250,7 @@ def _handle_pa_move_command(sender: str, diary_ref: str, direction_str: str, rec
     # PA whitelist check
     try:
         with engine.connect() as conn:
-            _bare = sender.lstrip("91") if sender.startswith("91") and len(sender) == 12 else sender
+            _bare = sender[2:] if sender.startswith("91") and len(sender) == 12 else sender
             pa_row = conn.execute(
                 text("SELECT id FROM users WHERE (phone = :phone OR phone = :bare) AND tenant_id = :tid AND is_active = true LIMIT 1"),
                 {"phone": sender, "bare": _bare, "tid": current_tenant}
@@ -1354,7 +1354,7 @@ def _handle_pa_done_command(sender: str, receiver_number: str = ""):
     # PA whitelist check
     try:
         with engine.connect() as conn:
-            _bare = sender.lstrip("91") if sender.startswith("91") and len(sender) == 12 else sender
+            _bare = sender[2:] if sender.startswith("91") and len(sender) == 12 else sender
             pa_row = conn.execute(
                 text("SELECT id FROM users WHERE (phone = :phone OR phone = :bare) AND tenant_id = :tid AND is_active = true LIMIT 1"),
                 {"phone": sender, "bare": _bare, "tid": current_tenant}
@@ -1444,7 +1444,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
     try:
         with engine.connect() as conn:
             # Match on both bare number and with country-code prefix (91XXXXXXXXXX vs XXXXXXXXXX)
-            sender_bare = sender.lstrip("91") if sender.startswith("91") and len(sender) == 12 else sender
+            sender_bare = sender[2:] if sender.startswith("91") and len(sender) == 12 else sender
             staff_row = conn.execute(
                 text("""
                     SELECT id, display_name FROM users
@@ -1944,7 +1944,7 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
                     os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
                 )
                 if _resolved_tenant:
-                    _bare_sender = sender.lstrip("91") if sender.startswith("91") and len(sender) == 12 else sender
+                    _bare_sender = sender[2:] if sender.startswith("91") and len(sender) == 12 else sender
                     with engine.connect() as _sc:
                         _is_staff_sender = bool(_sc.execute(
                             text("SELECT 1 FROM users WHERE (phone = :p OR phone = :b) AND tenant_id = :tid AND is_active = true LIMIT 1"),
