@@ -77,6 +77,12 @@ const Icons = {
             <line x1="21" y1="12" x2="9" y2="12"/>
         </svg>
     ),
+    Constituency: () => (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="10" r="3"/>
+            <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 13 8 13s8-7.75 8-13a8 8 0 0 0-8-8z"/>
+        </svg>
+    ),
 };
 
 const NAV_GROUPS = [
@@ -86,6 +92,7 @@ const NAV_GROUPS = [
             { href: '/dashboard', label: 'Overview', Icon: Icons.Overview },
             { href: '/dashboard/health', label: 'Tenant Health', Icon: Icons.Health },
             { href: '/dashboard/intelligence', label: 'Case Intelligence', Icon: Icons.Intelligence },
+            { href: '/dashboard/constituency', label: 'Constituency Intel', Icon: Icons.Constituency },
         ],
     },
     {

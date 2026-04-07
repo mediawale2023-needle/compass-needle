@@ -19,6 +19,7 @@ const PAGE_TITLES = {
     '/dashboard/mps/new': { title: 'Add New MP', desc: 'Create a new Member of Parliament account and profile' },
     '/dashboard/prs/new': { title: 'Add New Ambassador', desc: 'Create a new Public Representative (Ambassador) account' },
     '/dashboard/audit': { title: 'Audit Log', desc: 'Track all administrative actions across the platform' },
+    '/dashboard/constituency': { title: 'Constituency Intelligence', desc: 'Deep political, demographic, economic and cultural profiles for each constituency' },
 };
 
 export default function DashboardLayout({ children }) {

@@ -1,0 +1,487 @@
+{
+  "meta": {
+    "name": "Belagavi",
+    "also_known_as": ["Belgaum"],
+    "state": "Karnataka",
+    "type": "Lok Sabha",
+    "reservation": "General",
+    "constituency_number": 2,
+    "total_electors_2024": 1807250,
+    "region": "Northwestern Karnataka",
+    "coordinates": "15.9°N, 74.5°E",
+    "established": 1951,
+    "last_updated": "2025"
+  },
+  "geography": {
+    "area_sq_km": 13415,
+    "note": "Largest district by area in Karnataka",
+    "terrain": "Mixed — Western Ghats in the west/southwest (Khanapur, Bhimgad), transitioning to flat Deccan Plateau in the east. Black cotton soil plains ideal for sugarcane and cotton. Malnad-type forested tracts near Goa border.",
+    "rivers": [
+      { "name": "Ghataprabha", "origin": "Western Ghats near Khanapur (~884 m)", "length_km": 283, "note": "Hidkal Dam (51 TMC) built across it" },
+      { "name": "Malaprabha", "origin": "Western Ghats at Kanakumbi-Khanapur (~792 m)", "length_km": 304, "note": "Feeds Malaprabha reservoir; drinking water for 4 districts" },
+      { "name": "Krishna", "note": "Flows through eastern fringe of district" },
+      { "name": "Mahadayi (Mhadei)", "note": "Flows through Khanapur taluka towards Goa; subject of interstate water dispute" },
+      { "name": "Hiranyakeshi", "note": "Tributary through southern parts of district" }
+    ],
+    "dams": [
+      { "name": "Hidkal Dam", "river": "Ghataprabha", "capacity_tmc": 51 },
+      { "name": "Malaprabha Reservoir", "river": "Malaprabha", "note": "Drinking water supply for Belagavi, Dharwad, Gadag, Bagalkot" }
+    ],
+    "climate": {
+      "type": "Semi-arid to tropical",
+      "avg_annual_rainfall_mm": 900,
+      "summer_temp_celsius": "28–38°C",
+      "winter_temp_celsius": "12–24°C",
+      "monsoon": "June–September (South-West monsoon)"
+    },
+    "bordering_states": ["Maharashtra (Kolhapur, Sangli, Sindhudurg)", "Goa (southwest — Khanapur taluka)"],
+    "bordering_districts": ["Vijayapura (east)", "Bagalkot (southeast)", "Gadag (south)", "Dharwad (south)", "Uttara Kannada (southwest)"],
+    "talukas": ["Belagavi", "Bailhongal", "Chikkodi", "Gokak", "Hukkeri", "Raybag", "Ramdurg", "Athani", "Saundatti", "Khanapur", "Kittur", "Nippani", "Kagawad", "Mudalagi", "Yaragatti"],
+    "notable_geographic_features": [
+      "Gokak Falls — 52-metre waterfall on Ghataprabha; site of India's first hydroelectric generation (1887)",
+      "Bhimgad Wildlife Sanctuary — Western Ghats biodiversity, home to Wroughton's Free-tailed Bat",
+      "Ghataprabha Bird Sanctuary",
+      "Western Ghats escarpment in Khanapur forming tri-junction of Karnataka, Maharashtra, Goa"
+    ]
+  },
+  "demographics": {
+    "source": "Census of India 2011",
+    "total_population": 4779661,
+    "male_population": 2423063,
+    "female_population": 2356598,
+    "population_growth_rate_percent": 13.41,
+    "population_density_per_sq_km": 356,
+    "sex_ratio_per_1000_males": 973,
+    "child_sex_ratio_0_to_6": 934,
+    "literacy": {
+      "overall_percent": 73.48,
+      "male_percent": 82.20,
+      "female_percent": 64.58,
+      "urban_overall": 85.56,
+      "rural_overall": 69.28
+    },
+    "urban_rural_split": {
+      "urban_percent": 25.34,
+      "urban_population": 1211195,
+      "rural_percent": 74.66,
+      "rural_population": 3568466
+    },
+    "religion": {
+      "hindu_percent": 84.49,
+      "muslim_percent": 11.06,
+      "jain_percent": 3.73,
+      "christian_percent": 0.39,
+      "sikh_percent": 0.04,
+      "buddhist_percent": 0.02,
+      "note": "Belagavi City has higher Muslim share (~20.6%) vs district average"
+    },
+    "castes": {
+      "scheduled_caste_percent": 12.10,
+      "scheduled_tribe_percent": 6.20,
+      "dominant_communities": ["Lingayat (dominant political force)", "Kuruba", "Holaya (SC)", "Madiga (SC)", "Gond (ST)", "Lambani/Banjara (ST)"],
+      "note": "Jain community (3.73%) is economically significant, controlling key trade networks"
+    },
+    "languages": {
+      "kannada_percent": 68.4,
+      "marathi_percent": 18.7,
+      "urdu_percent": 9.79,
+      "other": ["Konkani", "Hindi", "Telugu"],
+      "language_politics": "Marathi-speaking population backs Maharashtra's claim to Belagavi city. MES (Maharashtra Ekikaran Samiti) active in border areas."
+    }
+  },
+  "assembly_segments": [
+    {
+      "name": "Arabhavi",
+      "reservation": "General",
+      "district": "Belagavi",
+      "mla": "Balachandra Jarkiholi",
+      "party": "BJP",
+      "elected_year": 2023,
+      "winning_margin": 28342,
+      "note": "Jarkiholi family stronghold"
+    },
+    {
+      "name": "Gokak",
+      "reservation": "General",
+      "district": "Belagavi",
+      "mla": "Ramesh Jarkiholi",
+      "party": "BJP",
+      "elected_year": 2023,
+      "winning_margin": 25412,
+      "note": "7-term MLA; former Karnataka Cabinet Minister; Gokak Falls in this segment"
+    },
+    {
+      "name": "Belgaum Uttar (Belagavi North)",
+      "reservation": "General",
+      "district": "Belagavi",
+      "mla": "Asif Sait",
+      "party": "INC",
+      "elected_year": 2023,
+      "winning_margin": 4231,
+      "note": "Urban; significant Muslim voter base"
+    },
+    {
+      "name": "Belgaum Dakshin (Belagavi South)",
+      "reservation": "General",
+      "district": "Belagavi",
+      "mla": "Abhay Patil",
+      "party": "BJP",
+      "elected_year": 2023,
+      "winning_margin": 12308,
+      "note": "Urban; Cantonment area"
+    },
+    {
+      "name": "Belgaum Rural (Belagavi Rural)",
+      "reservation": "General",
+      "district": "Belagavi",
+      "mla": "Laxmi Ravindra Hebbalkar",
+      "party": "INC",
+      "elected_year": 2023,
+      "winning_margin": 56016,
+      "note": "Cabinet Minister in Siddaramaiah govt (PWD & Sugar); largest margin in district"
+    },
+    {
+      "name": "Bailhongal",
+      "reservation": "General",
+      "district": "Belagavi",
+      "mla": "Mahantesh Koujalagi",
+      "party": "INC",
+      "elected_year": 2023,
+      "winning_margin": 2778,
+      "note": "Narrowest INC win in district"
+    },
+    {
+      "name": "Saundatti Yellamma",
+      "reservation": "General",
+      "district": "Belagavi",
+      "mla": "Vasant Vaidya",
+      "party": "INC",
+      "elected_year": 2023,
+      "note": "Named after Yellamma Devi temple — major pilgrimage site"
+    },
+    {
+      "name": "Ramdurg",
+      "reservation": "General",
+      "district": "Belagavi",
+      "mla": "Ashok Mahadevappa",
+      "party": "INC",
+      "elected_year": 2023,
+      "winning_margin": 11730
+    }
+  ],
+  "assembly_summary_2023": {
+    "INC": 5,
+    "BJP": 3,
+    "note": "INC swept 5 of 8 segments in 2023 Karnataka assembly elections"
+  },
+  "political_history": {
+    "current_mp": {
+      "name": "Jagadish Shivappa Shettar",
+      "party": "BJP",
+      "elected_year": 2024,
+      "vote_count": 762029,
+      "vote_share_percent": 55.06,
+      "winning_margin": 178437,
+      "runner_up": "Mrinal Ravindra Hebbalkar (INC)",
+      "runner_up_votes": 583592,
+      "voter_turnout_percent": 71.79,
+      "bio": "Former Chief Minister of Karnataka (2012–13). Lingayat leader. Defected to Congress in 2023, returned to BJP January 2024. Won Belagavi Lok Sabha seat on first LS attempt."
+    },
+    "past_mps": [
+      { "year": "2021 bypoll", "name": "Mangala Angadi", "party": "BJP", "margin": 5240, "note": "Wife of Suresh Angadi; won after his death from COVID-19" },
+      { "year": "2019", "name": "Suresh Angadi", "party": "BJP", "margin": 391304, "note": "MoS Railways; died Sept 2020 of COVID-19" },
+      { "year": "2014", "name": "Suresh Angadi", "party": "BJP", "margin": 75860 },
+      { "year": "2009", "name": "Suresh Angadi", "party": "BJP", "margin": 118687 },
+      { "year": "2004", "name": "Suresh Angadi", "party": "BJP" },
+      { "year": "1999", "name": "Amarsinh Patil", "party": "INC" },
+      { "year": "1998", "name": "Babagouda Patil", "party": "BJP" },
+      { "year": "1996", "name": "Shivanand Koujalagi", "party": "Janata Dal" },
+      { "year": "1984", "name": "Shanmukhappa Sidnal", "party": "INC" },
+      { "year": "1980", "name": "Shanmukhappa Sidnal", "party": "INC(I)" },
+      { "year": "1971", "name": "Appayappa Kotrashetti", "party": "INC" },
+      { "year": "1967", "name": "N. M. Nabisab", "party": "INC" },
+      { "year": "1962", "name": "Hemanand Koujalagi", "party": "INC" },
+      { "year": "1957", "name": "Balvantrao Datar", "party": "INC" }
+    ],
+    "party_dominance": {
+      "INC": "Held seat from 1957 to ~1996 with brief interruptions",
+      "BJP": "Dominant from 1998; held seat continuously 1998–2024 except 1999",
+      "Janata Dal": "Won 1996"
+    },
+    "political_character": "Lingayat community vote is decisive. BJP stronghold since 1998. INC competitive in urban segments. Border dispute inflames communal identity politics periodically.",
+    "key_political_issues": [
+      "Maharashtra–Karnataka border dispute (MES agitation)",
+      "Mahadayi/Kalasa Banduri water diversion",
+      "Sugarcane fair and remunerative price",
+      "Infrastructure — NH, railway, airport upgrades",
+      "Jarkiholi family influence across multiple seats"
+    ],
+    "border_dispute": {
+      "parties": "Maharashtra vs Karnataka",
+      "origin": "States Reorganisation Act 1956 — Belagavi included in Mysore State despite significant Marathi population",
+      "maharashtra_claim": "865 villages including Belagavi city, Nipani, Carvar",
+      "mahajan_commission": {
+        "established": 1966,
+        "chair": "Chief Justice Mehr Chand Mahajan",
+        "submitted": 1967,
+        "recommendation": "264 villages to Maharashtra; Belgaum city and 247 villages stay with Karnataka",
+        "outcome": "Maharashtra rejected it; Karnataka accepted; Centre never implemented"
+      },
+      "current_status": "Sub-judice in Supreme Court (Maharashtra petition filed 2004). Karnataka holds Winter Legislative Session at Suvarna Vidhana Soudha as sovereign assertion.",
+      "key_incidents": [
+        "1986 — Violence and arson, 9 deaths",
+        "2004 — Maharashtra filed Supreme Court petition",
+        "2006 — Suvarna Vidhana Soudha inaugurated in Belagavi by Karnataka"
+      ]
+    }
+  },
+  "economy": {
+    "overview": "One of Karnataka's fastest-growing industrial districts. Located on Bengaluru–Mumbai economic corridor. Known as the 'Sugar Bowl of Karnataka'.",
+    "industries": [
+      {
+        "sector": "Sugar",
+        "details": "24 sugar factories; 102.31 lakh tonnes of sugarcane crushed annually; produces 10.77 lakh tonnes of sugar. 150,000 hectares under sugarcane cultivation. Karnataka's leading sugarcane district."
+      },
+      {
+        "sector": "Textiles & Powerloom",
+        "details": "~50,000 powerlooms. Gokak Mills (est. 1885) — produces cotton yarn, cord, canvas. Historic backbone of district economy."
+      },
+      {
+        "sector": "Foundry & Hydraulics",
+        "details": "~200 foundries; 70,000+ tonnes of ferrous castings/year. Machine tools, hydraulic equipment, valves — pan-India supply."
+      },
+      {
+        "sector": "Aerospace & Defence",
+        "details": "India's FIRST notified Aerospace Precision Engineering and Manufacturing SEZ. Strategic Bengaluru–Mumbai location."
+      },
+      {
+        "sector": "Aluminium",
+        "details": "Hindalco (Aditya Birla Group) aluminium plant; rich bauxite deposits in district."
+      },
+      {
+        "sector": "IT & Technology (emerging)",
+        "details": "Suvarna Karnataka Development Corridor proposes IT-BT zone; potential for 30,000+ jobs."
+      }
+    ],
+    "large_medium_industries": 54,
+    "ssi_units": 44142,
+    "agriculture": {
+      "primary_crops": ["Sugarcane (150,000 ha)", "Cotton (~37,000 ha)", "Jowar", "Maize", "Wheat", "Groundnut", "Sunflower", "Tobacco", "Paddy", "Gram/Pulses"],
+      "irrigation_sources": ["Hidkal Dam (Ghataprabha)", "Malaprabha Reservoir"],
+      "livestock": "Significant dairy farming; ~68 lakh tonnes/year fodder production"
+    },
+    "industrial_zones": [
+      "KIADB Industrial Area, Belagavi",
+      "Aerospace Precision Engineering and Manufacturing SEZ",
+      "Gokak Mills Industrial Complex",
+      "SIDCO/KSSIDC clusters in Nippani, Chikkodi"
+    ],
+    "major_employers": [
+      "Hindalco (aluminium)",
+      "Gokak Patel Volkart Ltd (textiles)",
+      "24 sugar cooperatives and factories",
+      "Indian Army — Belagavi Cantonment (one of India's oldest)",
+      "Indian Air Force — Belagavi Air Force Station (Sambra)",
+      "Karnataka Power Corporation (Hidkal, Gokak hydro plants)"
+    ]
+  },
+  "infrastructure": {
+    "roads": {
+      "national_highways": [
+        { "name": "NH-48 (formerly NH-4)", "route": "Bengaluru–Pune–Mumbai corridor through Belagavi; six-laning ongoing" },
+        { "name": "NH-748 (formerly NH-4A)", "route": "Belagavi to Panaji (Goa)" },
+        { "name": "NH-218", "route": "Belagavi to Dharwad" }
+      ]
+    },
+    "railways": {
+      "main_station": "Belagavi Railway Station (Central Railway, Pune–Bengaluru line)",
+      "other_stations": ["Gokak Road", "Londa Junction (gateway to Goa)", "Nipani"],
+      "pending": "Belagavi–Dharwad direct rail link — pending 40+ years"
+    },
+    "airports": [
+      {
+        "name": "Belagavi Airport (Sambra Airport)",
+        "iata": "IXG",
+        "type": "Domestic + IAF base",
+        "history": "Built 1942 by Royal Air Force; third oldest airport in Karnataka",
+        "connectivity": "Bengaluru, Mumbai, Hyderabad, Delhi"
+      }
+    ],
+    "education": {
+      "total_colleges": 213,
+      "universities": 4,
+      "key_institutions": [
+        "KLE University (KLE Academy of Higher Education and Research)",
+        "Rani Channamma University, Belagavi",
+        "Belgaum Institute of Medical Sciences (BIMS) — Government Medical College",
+        "KLE Society's Dr. Prabhakar Kore Hospital and Research Centre",
+        "Government Engineering College, Belagavi",
+        "J.N. Medical College (JNMC)"
+      ]
+    },
+    "healthcare": {
+      "government_hospitals": 10,
+      "primary_health_centres": 139,
+      "community_health_centres": 14,
+      "private_nursing_homes": 344,
+      "major_hospitals": [
+        "Belagavi Institute of Medical Sciences (BIMS)",
+        "KLE Dr. Prabhakar Kore Hospital",
+        "District Hospital Belagavi"
+      ]
+    },
+    "military": {
+      "cantonment": "Belagavi Cantonment — one of India's oldest and largest; established British era",
+      "air_force": "Air Force Station Sambra (shares civilian airport)",
+      "school": "Karnataka Military School"
+    },
+    "power": {
+      "plants": ["Gokak Falls Hydroelectric Plant (India's first, 1887)", "Hidkal Dam hydro generation"],
+      "grid": "Karnataka state power grid"
+    }
+  },
+  "social_indicators": {
+    "literacy_vs_national": "73.48% vs national 74.04% (2011)",
+    "female_literacy_gap": "Male 82.20% vs Female 64.58% — 17.6 point gap",
+    "child_sex_ratio": "934 (below national concern threshold of 950)",
+    "sc_st_combined_percent": 18.3,
+    "odf_status": "Declared ODF under Swachh Bharat Mission",
+    "key_central_schemes": [
+      "PM Kisan Samman Nidhi",
+      "Pradhan Mantri Awas Yojana (Gramin + Urban)",
+      "PM Gram Sadak Yojana",
+      "Jal Jeevan Mission (critical — drought-prone talukas)",
+      "PM Fasal Bima Yojana (sugarcane/cotton farmers)",
+      "Kalasa Banduri Nala Project (pending — Mahadayi water)"
+    ],
+    "key_state_schemes": [
+      "Ganga Kalyana (irrigation for SC/ST farmers)",
+      "Krishi Bhagya (rainwater harvesting)",
+      "Anna Bhagya (food grain)",
+      "Gruha Jyothi (free electricity)"
+    ]
+  },
+  "cultural_profile": {
+    "heritage_sites": [
+      {
+        "name": "Kittur Fort and Palace",
+        "location": "Kittur village",
+        "built": "1650–1681 by Allappa Gowda Sardesai",
+        "significance": "Stronghold of Rani Chennamma — led 1824 rebellion against British (33 years before 1857 Uprising)",
+        "museum": "Kittur Rani Channamma Memorial Government Museum — 626 artefacts"
+      },
+      {
+        "name": "Yellamma Temple, Saundatti",
+        "significance": "Ancient temple of Goddess Renuka; major pilgrimage site; Kadamba period"
+      },
+      {
+        "name": "Belagavi Fort (Belgaum Fort)",
+        "significance": "Originally Rattas; expanded by Bijapur Sultanate; Jain temples inside fort complex"
+      },
+      {
+        "name": "Gokak Falls",
+        "height_metres": 52,
+        "significance": "India's first hydroelectric generation site (1887); scenic waterfall on Ghataprabha"
+      },
+      {
+        "name": "Suvarna Vidhana Soudha",
+        "significance": "Karnataka's second legislature complex (2006); venue for Karnataka Winter Session — symbolic sovereignty assertion"
+      },
+      {
+        "name": "Bhimgad Wildlife Sanctuary",
+        "significance": "Western Ghats biodiversity; one of Asia's largest bat colonies (Wroughton's Free-tailed Bat)"
+      }
+    ],
+    "festivals": [
+      { "name": "Kittur Utsav", "date": "December 3–5", "significance": "State-level festival commemorating Rani Chennamma's 1824 rebellion" },
+      { "name": "Yellamma Jatre", "location": "Saundatti", "note": "Lakhs of pilgrims; one of Karnataka's largest fairs" },
+      { "name": "Ganesh Chaturthi", "note": "10-day celebrations reflecting Maharashtra border cultural influence" },
+      { "name": "Kannada Rajyotsava (Nov 1)", "note": "State Formation Day — politically charged given border dispute context" },
+      { "name": "Navaratri / Dasara", "note": "Major celebrations across district" }
+    ],
+    "arts_and_crafts": {
+      "folk_arts": ["Yakshagana", "Janapada Geetha (folk songs)", "Dollu Kunitha (drum dance)", "Karadi Majalu (bear dance)"],
+      "textiles": "Powerloom cotton textiles; Gokak Mills cotton canvas (since 1885)",
+      "crafts": "Leather goods, brassware, traditional wood carving",
+      "cuisine": "Cultural blend of Karnataka, Maharashtra, and Goa — jowar bhakri, spicy curries, Maharashtrian-influenced snacks"
+    },
+    "tourist_attractions": [
+      "Kittur Fort and Museum",
+      "Gokak Falls",
+      "Yellamma Temple, Saundatti",
+      "Belagavi Fort",
+      "Bhimgad Wildlife Sanctuary (Khanapur)",
+      "Vajrapoha Falls (near Khanapur)",
+      "Ghataprabha Bird Sanctuary",
+      "Malaprabha Dam",
+      "Suvarna Vidhana Soudha",
+      "Belgaum Golf Course (historic British-era course)",
+      "Kapileshwara Temple, Belagavi city"
+    ],
+    "famous_personalities": [
+      { "name": "Kittur Rani Chennamma (1778–1829)", "field": "Freedom Fighter / Queen", "note": "Led India's first armed revolt against British colonialism (1824)" },
+      { "name": "Chandrashekhar Kambara", "field": "Poet, Playwright, Folklorist", "note": "Jnanpith Award winner; born in Belagavi district" },
+      { "name": "Kaka Kalelkar (1885–1981)", "field": "Freedom Fighter, Gandhian", "note": "Born in Belgaum; follower of Gandhi; chaired first OBC Commission" },
+      { "name": "Atul Kulkarni", "field": "Bollywood Actor", "note": "Born in Belgaum; known for Rang De Basanti, Gandhi My Father" },
+      { "name": "Jagadish Shettar", "field": "Politician (BJP)", "note": "Current MP (2024); former Chief Minister of Karnataka (2012–13)" },
+      { "name": "Suresh Angadi (1960–2020)", "field": "Politician (BJP)", "note": "5-time MP from Belagavi; Union MoS Railways; died of COVID-19 Sept 2020" },
+      { "name": "Laxmi Hebbalkar", "field": "Politician (INC)", "note": "3-time MLA, Cabinet Minister in Siddaramaiah government (2023)" },
+      { "name": "Ramesh Jarkiholi", "field": "Politician (BJP)", "note": "7-term MLA from Gokak; former Karnataka Cabinet Minister" }
+    ]
+  },
+  "key_challenges": [
+    {
+      "title": "Mahadayi / Kalasa Banduri Water Dispute",
+      "detail": "Karnataka wants to divert Mahadayi river water for drinking needs of Belagavi, Dharwad, Gadag, Bagalkot districts (~40 lakh people). Goa opposes diversion. Tribunal award given (2018) but implementation pending."
+    },
+    {
+      "title": "Maharashtra–Karnataka Border Dispute",
+      "detail": "Ongoing Supreme Court case. MES periodically disrupts civic life with shutdowns and protests. Affects investment climate; creates communal tension; consumes political bandwidth."
+    },
+    {
+      "title": "Agricultural Distress",
+      "detail": "Sugarcane farmers face irregular factory payments and price disputes. Cotton farmers vulnerable to market volatility. Drought-prone talukas (Ramdurg, Raybag) dependent on erratic rainfall."
+    },
+    {
+      "title": "Infrastructure Deficits",
+      "detail": "NH-48 six-laning delayed. Belagavi–Dharwad rail link pending 40+ years. Airport limited to domestic routes. Urban congestion in Belagavi city."
+    },
+    {
+      "title": "Female Literacy and Gender Inequality",
+      "detail": "Female literacy (64.58%) lags male (82.20%) by nearly 18 points. Child sex ratio (934) indicates gender-biased sex selection. Rural women have limited access to higher education."
+    },
+    {
+      "title": "SC/ST Development",
+      "detail": "Combined 18.3% of population. Entrenched disadvantages in landholding, higher education, and formal employment."
+    },
+    {
+      "title": "Industrial Diversification",
+      "detail": "Heavy dependence on sugar and textiles creates cyclical risk. Need to leverage Aerospace SEZ, IT corridor, and Bengaluru–Mumbai Economic Corridor for higher-value industries."
+    }
+  ],
+  "development_priorities": [
+    "Kalasa Banduri Nala Project — secure Mahadayi water allocation and begin construction",
+    "Complete NH-48 six-laning and elevated road corridor within Belagavi city",
+    "Belagavi–Dharwad railway project — 40-year pending connectivity",
+    "Upgrade Belagavi Airport — more routes, eventual international status",
+    "Develop Aerospace SEZ and IT-BT corridor under Suvarna Karnataka Development Corridor",
+    "Expand Malaprabha and Hidkal irrigation command areas",
+    "Improve rural female literacy through residential schools and mobile education",
+    "Sugar sector reform — enforce fair and remunerative cane price and timely payments",
+    "Bhimgad and Ghataprabha eco-tourism infrastructure",
+    "Smart City implementation for Belagavi Urban Agglomeration"
+  ],
+  "notable_facts": [
+    "Belagavi is the LARGEST district by area in Karnataka (13,415 sq km)",
+    "India's FIRST hydroelectric generation occurred at Gokak Falls in 1887",
+    "India's FIRST Aerospace Precision Engineering and Manufacturing SEZ is in Belagavi",
+    "Karnataka holds its Winter Legislative Session at Suvarna Vidhana Soudha in Belagavi — symbolic sovereignty assertion",
+    "Belagavi is the 'Sugar Bowl of Karnataka' — leads the state in sugarcane production",
+    "Rani Chennamma of Kittur led India's first significant armed rebellion against the British (1824) — 33 years before 1857",
+    "Belagavi Cantonment is one of India's oldest and largest army cantonments",
+    "Belagavi Airport (IXG) was built by the Royal Air Force in 1942 — third oldest airport in Karnataka",
+    "Jain community (3.73%) is economically significant, controlling key trade and financial networks",
+    "Belagavi is a trilingual zone — Kannada (68%), Marathi (19%), Urdu (10%) all actively spoken",
+    "Suresh Angadi, MP for 20 years, died in September 2020 of COVID-19 — one of India's most prominent COVID casualties"
+  ]
+}

@@ -2605,3 +2605,53 @@ def whatsapp_diagnostics(_=Depends(get_admin_user)):
     }
 
     return report
+
+
+# ── Constituency Intelligence ────────────────────────────────────────────────
+
+_PROFILES_DIR = Path(__file__).parent / "data" / "constituency_profiles"
+
+@router.get("/constituency-profiles")
+def list_constituency_profiles(user=Depends(get_admin_user)):
+    """List all available constituency profile slugs."""
+    profiles = []
+    if _PROFILES_DIR.exists():
+        for f in sorted(_PROFILES_DIR.glob("*.json")):
+            try:
+                data = json.loads(f.read_text())
+                profiles.append({
+                    "slug": f.stem,
+                    "name": data.get("meta", {}).get("name", f.stem),
+                    "state": data.get("meta", {}).get("state", ""),
+                    "type": data.get("meta", {}).get("type", ""),
+                    "last_updated": data.get("meta", {}).get("last_updated", ""),
+                })
+            except Exception:
+                pass
+    return {"profiles": profiles}
+
+
+@router.get("/constituency-profiles/{slug}")
+def get_constituency_profile(slug: str, user=Depends(get_admin_user)):
+    """Return the full constituency profile JSON for a given slug."""
+    safe_slug = re.sub(r"[^a-z0-9_\-]", "", slug.lower())
+    path = _PROFILES_DIR / f"{safe_slug}.json"
+    if not path.exists():
+        raise HTTPException(404, f"No profile found for '{slug}'")
+    try:
+        return json.loads(path.read_text())
+    except Exception as e:
+        raise HTTPException(500, f"Failed to read profile: {e}")
+
+
+@router.put("/constituency-profiles/{slug}")
+def upsert_constituency_profile(slug: str, body: dict, user=Depends(get_admin_user)):
+    """Create or overwrite a constituency profile JSON."""
+    safe_slug = re.sub(r"[^a-z0-9_\-]", "", slug.lower())
+    if not safe_slug:
+        raise HTTPException(400, "Invalid slug")
+    _PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+    path = _PROFILES_DIR / f"{safe_slug}.json"
+    path.write_text(json.dumps(body, indent=2, ensure_ascii=False))
+    return {"ok": True, "slug": safe_slug}
+
