@@ -7,7 +7,7 @@ cases table. Returns cases + summary statistics for the formatter.
 All queries are tenant-scoped and use parameterized SQL (no injection risk).
 """
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from core.db_helpers import _q, _q_one, _parse_meta
 
 logger = logging.getLogger("needle.case_query_engine")
@@ -44,7 +44,7 @@ def query_cases(filters: dict, tenant_id: int) -> dict:
     ]
     params: dict = {
         "tid":   tenant_id,
-        "since": datetime.now(timezone.utc) - timedelta(days=int(filters.get("days", 7))),
+        "since": datetime.utcnow() - timedelta(days=int(filters.get("days", 7))),
         "lim":   _RESULT_LIMIT,
     }
 
