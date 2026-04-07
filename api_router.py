@@ -329,9 +329,9 @@ def get_cases(
 
     cases = _q(  # nosec B608
         f"""
-        SELECT c.id, c.user_phone, c.category, c.status, c.raw_message,
+        SELECT c.id, c.case_ref, c.user_phone, c.category, c.status, c.raw_message,
                c.case_metadata, c.is_critical, c.created_at, c.updated_at,
-               c.response_to_citizen, c.notes_for_staff
+               c.response_to_citizen, c.notes_for_staff, c.assigned_to
         FROM cases c WHERE {where}
         ORDER BY c.created_at DESC
         LIMIT :lim OFFSET :off

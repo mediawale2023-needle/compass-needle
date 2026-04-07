@@ -529,6 +529,85 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
         }
     };
 
+    // ── Resolved: stripped-down read-only view ──────────────────────────────
+    if (currentStatus === 'resolved') {
+        const notifyActivity = [...activities].reverse().find(a => a.action === 'citizen_notified');
+        const notifiedAt = notifyActivity ? new Date(notifyActivity.created_at) : null;
+        return (
+            <Dialog open={!!caseItem} onOpenChange={onClose}>
+                <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                    <DialogHeader className="p-0 -m-6 mb-0">
+                        <div className="p-6 text-white rounded-t-xl" style={{ background: color }}>
+                            <DialogDescription className="text-white/80 text-xs uppercase tracking-widest font-semibold mb-1">
+                                Resolved · {caseRef}
+                            </DialogDescription>
+                            <DialogTitle className="text-lg font-bold text-white">{c.category || 'General'}</DialogTitle>
+                        </div>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-6">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {[
+                                ['Case Number', caseRef],
+                                ['Contact', c.user_phone || '-'],
+                                ['Category', c.category || 'General'],
+                                ['Location', meta.matched_value || c.location || '-'],
+                                ['Assembly', meta.assembly_constituency || c.assembly || '-'],
+                                ['Date Filed', createdAt ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'],
+                                ['Time Filed', createdAt ? createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'],
+                                ['Date Resolved', notifiedAt ? notifiedAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'],
+                                ['Time Resolved', notifiedAt ? notifiedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'],
+                            ].map(([label, value]) => (
+                                <div key={label} className="border rounded-lg p-3">
+                                    <div className="text-xs text-muted-foreground uppercase font-medium">{label}</div>
+                                    <div className="text-sm font-medium text-foreground mt-0.5">{value}</div>
+                                </div>
+                            ))}
+                        </div>
+                        <div>
+                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Complaint Message</div>
+                            <div className="bg-muted/50 border rounded-lg p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed min-h-[60px]">
+                                {c.raw_message || 'No content available.'}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Resolution Message Sent to Citizen</div>
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed min-h-[60px]">
+                                {c.response_to_citizen || <span className="text-muted-foreground italic">Standard status message was sent</span>}
+                            </div>
+                        </div>
+                        <Separator />
+                        <div>
+                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Activity Log</div>
+                            {loadingActivity ? (
+                                <div className="flex items-center justify-center py-4"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
+                            ) : (
+                                <div className="space-y-2 max-h-48 overflow-y-auto">
+                                    {activities.length === 0 ? (
+                                        <p className="text-xs text-muted-foreground">No activity yet</p>
+                                    ) : (
+                                        activities.map(a => (
+                                            <div key={a.id} className="flex items-start gap-2 text-xs">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                                                <div>
+                                                    <span className="font-medium">{a.username}</span> {a.action.replace(/_/g, ' ')}
+                                                    {a.new_value && <span className="text-muted-foreground"> → {a.new_value}</span>}
+                                                    <div className="text-muted-foreground">{a.created_at ? new Date(a.created_at).toLocaleString('en-IN') : ''}</div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={onClose}>Close</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        );
+    }
+
     return (
         <Dialog open={!!caseItem} onOpenChange={onClose}>
             <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
