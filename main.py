@@ -1486,6 +1486,26 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         send_whatsapp_message(sender, reply, _wa_phone_id)
         return  # Do NOT fall through to citizen grievance flow
 
+    # ── Content-based dedup (citizens only — staff already returned above) ───
+    # Same sender + same text within 10 min = duplicate re-send, ignore it.
+    try:
+        with engine.connect() as _dd_conn:
+            _dup = _dd_conn.execute(
+                text("""
+                    SELECT 1 FROM cases
+                    WHERE user_phone = :phone
+                      AND raw_message = :body
+                      AND created_at >= NOW() - INTERVAL '10 minutes'
+                    LIMIT 1
+                """),
+                {"phone": sender, "body": message_body},
+            ).fetchone()
+        if _dup:
+            logger.info("Content dedup: identical message from %s within 10 min — ignored", sender)
+            return
+    except Exception as _ce:
+        logger.warning("Content dedup check failed (non-blocking): %s", _ce)
+
     # ── Spam / abuse detection (pre-AI, no token cost) ───────────
     is_abuse, abuse_reason = _is_abusive(message_body)
     is_flood, flood_reason = _is_coordinated_flood(message_body, current_tenant)
@@ -1930,47 +1950,8 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     msg_type = msg.get("type")
     sender = msg["from"]  # bare number e.g. "919876543210"
 
-    # ── Content-based dedup: same sender + same text within 10 min = duplicate ──
-    # Catches re-sends by the user and any rare duplicate Meta deliveries with
-    # different message IDs (e.g. after a webhook retry with a regenerated ID).
-    # Skipped for registered staff/PA numbers — they query repeatedly on purpose.
-    if msg_type == "text":
-        _raw_body = (msg.get("text") or {}).get("body", "").strip()
-        if _raw_body:
-            try:
-                _is_staff_sender = False
-                _resolved_tenant = _resolve_tenant(
-                    entry.get("metadata", {}).get("display_phone_number", "") or
-                    os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
-                )
-                if _resolved_tenant:
-                    _bare_sender = sender[2:] if sender.startswith("91") and len(sender) == 12 else sender
-                    with engine.connect() as _sc:
-                        _is_staff_sender = bool(_sc.execute(
-                            text("SELECT 1 FROM users WHERE (phone = :p OR phone = :b) AND tenant_id = :tid AND is_active = true LIMIT 1"),
-                            {"p": sender, "b": _bare_sender, "tid": _resolved_tenant},
-                        ).fetchone())
-            except Exception:
-                _is_staff_sender = False
-
-            if not _is_staff_sender:
-                try:
-                    with engine.connect() as conn:
-                        _dup = conn.execute(
-                            text("""
-                                SELECT 1 FROM cases
-                                WHERE user_phone = :phone
-                                  AND raw_message = :body
-                                  AND created_at >= NOW() - INTERVAL '10 minutes'
-                                LIMIT 1
-                            """),
-                            {"phone": sender, "body": _raw_body},
-                        ).fetchone()
-                    if _dup:
-                        logger.info("Content dedup: identical message from %s within 10 min — ignored", sender)
-                        return {"status": "ignored"}
-                except Exception as _ce:
-                    logger.warning("Content dedup check failed (non-blocking): %s", _ce)
+    # Content-based dedup is handled inside _process_incoming_message,
+    # after staff identification — so staff/PA senders are never blocked.
 
     # Extract business phone number for tenant routing
     display_number = entry.get("metadata", {}).get("display_phone_number", "")
