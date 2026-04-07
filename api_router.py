@@ -1387,18 +1387,17 @@ class DraftRequest(BaseModel):
 
 _CONSTITUENCY_PROFILES_DIR = os.path.join(os.path.dirname(__file__), "data", "constituency_profiles")
 
-def _build_constituency_context(constituency_name: str) -> str:
+def _build_constituency_context(tenant_id: int) -> str:
     """
-    Load the constituency profile JSON and build a compact, high-signal context
-    block for injection into drafting prompts.
+    Load the constituency profile JSON for this tenant and build a compact,
+    high-signal context block for injection into drafting prompts.
 
-    Tries to match by constituency name (case-insensitive, also checks also_known_as).
+    Matches by meta.tenant_id — exact, no fuzzy string matching.
     Returns an empty string if no profile found — drafter still works without it.
     """
-    if not constituency_name or not os.path.isdir(_CONSTITUENCY_PROFILES_DIR):
+    if not tenant_id or not os.path.isdir(_CONSTITUENCY_PROFILES_DIR):
         return ""
     try:
-        name_lower = constituency_name.lower().strip()
         profile = None
         for fname in os.listdir(_CONSTITUENCY_PROFILES_DIR):
             if not fname.endswith(".json"):
@@ -1406,9 +1405,7 @@ def _build_constituency_context(constituency_name: str) -> str:
             try:
                 with open(os.path.join(_CONSTITUENCY_PROFILES_DIR, fname)) as f:
                     data = json.load(f)
-                meta = data.get("meta", {})
-                names = [meta.get("name", "").lower()] + [a.lower() for a in meta.get("also_known_as", [])]
-                if any(name_lower in n or n in name_lower for n in names):
+                if data.get("meta", {}).get("tenant_id") == tenant_id:
                     profile = data
                     break
             except Exception:
@@ -1531,7 +1528,7 @@ def generate_draft(req: DraftRequest, request: Request, user=Depends(get_current
         house = user.get("house") or "Lok Sabha"
         tone_config = TONE_PRESETS.get(req.tone, TONE_PRESETS["Formal (Neutral)"])
         lang_note = "Write in Hindi (Devanagari script). Use formal Rajbhasha." if req.language == "Hindi" else ""
-        constituency_context = _build_constituency_context(constituency)
+        constituency_context = _build_constituency_context(tid)
 
         if req.mode == "letter":
             s_subject = sanitize_prompt_input(req.subject or req.topic)
