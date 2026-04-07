@@ -1,48 +1,29 @@
 """
 case_query_formatter.py — WhatsApp-optimised response formatter for case queries.
 
-Converts query engine results into human-readable, emoji-formatted messages
+Converts query engine results into human-readable, bold-formatted messages
 suitable for WhatsApp delivery. No raw JSON, no dashboards — pure chat.
 """
-from datetime import datetime, timezone
+from datetime import datetime
 
 # Max cases to list in the message body (summary always included regardless)
 _MAX_LISTED = 10
 
-# Emoji map for common issue categories
-_CATEGORY_EMOJI = {
-    "water":         "💧",
-    "road":          "🚧",
-    "electricity":   "⚡",
-    "health":        "🏥",
-    "sanitation":    "🚽",
-    "drainage":      "🚽",
-    "housing":       "🏠",
-    "land":          "🌾",
-    "education":     "📚",
-    "school":        "📚",
-    "tree":          "🌳",
-    "noise":         "📢",
-    "general":       "📋",
-    "spam":          "🚫",
-    "emergency":     "🚨",
-}
+# Truncate raw message at this many characters
+_MSG_PREVIEW_LEN = 90
 
 _STATUS_EMOJI = {
-    "pending":     "🔁",
-    "new":         "🆕",
-    "in_progress": "⏳",
-    "completed":   "✅",
-    "resolved":    "✅",
-    "emergency":   "🚨",
+    "pending":      "🔁",
+    "new":          "🆕",
+    "in_progress":  "⏳",
+    "completed":    "✅",
+    "resolved":     "✅",
+    "closed":       "🔒",
+    "irrelevant":   "❌",
+    "spam":         "🚫",
+    "emergency":    "🚨",
 }
-
-_DEFAULT_CATEGORY_EMOJI = "📋"
-_DEFAULT_STATUS_EMOJI   = "🔁"
-
-
-def _cat_emoji(category: str) -> str:
-    return _CATEGORY_EMOJI.get((category or "").lower().split()[0], _DEFAULT_CATEGORY_EMOJI)
+_DEFAULT_STATUS_EMOJI = "🔁"
 
 
 def _status_emoji(status: str) -> str:
@@ -64,10 +45,31 @@ def _fmt_date(dt) -> str:
         return str(dt)[:10]
 
 
-def _header(filters: dict, total: int) -> str:
+def _fmt_phone(phone: str) -> str:
+    """Strip 91 country code prefix for cleaner display."""
+    if not phone:
+        return "—"
+    p = phone.strip()
+    if p.startswith("91") and len(p) == 12:
+        return p[2:]
+    if p.startswith("+91") and len(p) == 13:
+        return p[3:]
+    return p
+
+
+def _fmt_message(msg: str) -> str:
+    """Trim message to preview length."""
+    if not msg:
+        return "—"
+    msg = msg.strip().replace("\n", " ")
+    if len(msg) > _MSG_PREVIEW_LEN:
+        return msg[:_MSG_PREVIEW_LEN].rstrip() + "..."
+    return msg
+
+
+def _header(filters: dict) -> str:
     """Build the header line summarising what was queried."""
     parts = []
-
     constituency = (filters.get("constituency") or "").strip()
     location     = (filters.get("location") or "").strip()
     issue_type   = (filters.get("issue_type") or "").strip()
@@ -93,8 +95,7 @@ def _header(filters: dict, total: int) -> str:
         time_str = f"Last {days} Days"
 
     status_str = f" · {status.replace('_', ' ').title()}" if status else ""
-
-    return f"📍 {location_str} – {time_str}{status_str}"
+    return f"📍 *{location_str} – {time_str}{status_str}*"
 
 
 def format_cases_for_whatsapp(result: dict) -> str:
@@ -112,9 +113,9 @@ def format_cases_for_whatsapp(result: dict) -> str:
             "Please try again in a moment."
         )
 
-    filters  = result.get("filters_applied", {})
-    cases    = result.get("cases", [])
-    total    = result.get("total", 0)
+    filters = result.get("filters_applied", {})
+    cases   = result.get("cases", [])
+    total   = result.get("total", 0)
 
     # ── No results ────────────────────────────────────────────────────────────
     if total == 0:
@@ -128,82 +129,101 @@ def format_cases_for_whatsapp(result: dict) -> str:
             "• Expanding the time range (e.g. \"last 30 days\")"
         )
 
-    # ── No filters given (ambiguous query) ──────────────────────────────────
-    location     = (filters.get("location") or "").strip()
-    constituency = (filters.get("constituency") or "").strip()
-    if not location and not constituency:
-        # Still show results but prepend a note
-        pass  # proceed to normal output
-
     lines = []
 
-    # Header
-    lines.append(_header(filters, total))
-    lines.append(f"\n*Total Cases: {total}*")
-
+    # ── Header ────────────────────────────────────────────────────────────────
+    lines.append(_header(filters))
+    count_line = f"*Total: {total} complaint{'s' if total != 1 else ''}*"
     if total > _MAX_LISTED:
-        lines.append(f"_(Showing top {_MAX_LISTED} of {total})_")
+        count_line += f"  _({_MAX_LISTED} shown)_"
+    lines.append(count_line)
 
-    lines.append("")
-
-    # Case list
+    # ── Case list ─────────────────────────────────────────────────────────────
     listed = cases[:_MAX_LISTED]
     for i, case in enumerate(listed, start=1):
-        cat      = case.get("category", "General")
-        status   = case.get("status", "")
-        loc      = case.get("location") or case.get("assembly") or case.get("ward") or "—"
+        cat      = case.get("category") or "General"
+        status   = case.get("status") or ""
+        loc      = case.get("location") or "—"
+        assembly = case.get("assembly") or "—"
+        phone    = _fmt_phone(case.get("phone", ""))
+        message  = _fmt_message(case.get("message", ""))
         date_str = _fmt_date(case.get("created_at"))
-        ref      = case.get("case_ref", "")
-        priority_flag = " 🚨" if case.get("is_critical") else ""
+        ref      = case.get("case_ref") or ""
+        priority = "  🚨 *URGENT*" if case.get("is_critical") else ""
 
-        line = (
-            f"{i}. {_cat_emoji(cat)} {cat} – {loc}{priority_flag}\n"
-            f"   📅 {date_str}  {_status_emoji(status)} {status.replace('_', ' ').title()}"
-        )
+        status_label = status.replace("_", " ").title() if status else "—"
+        status_icon  = _status_emoji(status)
+
+        # Blank line before each item (after header block)
+        lines.append("")
+
+        # Title line: bold category + location
+        title = f"*{i}. {cat} — {loc}*{priority}"
+        lines.append(title)
+
+        # Sender phone
+        lines.append(f"📞 {phone}")
+
+        # Raw message
+        lines.append(f'💬 "{message}"')
+
+        # Location + Assembly
+        if loc != "—" or assembly != "—":
+            if loc != "—" and assembly != "—" and loc.lower() != assembly.lower():
+                lines.append(f"📍 {loc}  →  {assembly} Assembly")
+            elif assembly != "—":
+                lines.append(f"📍 {assembly} Assembly")
+            else:
+                lines.append(f"📍 {loc}")
+
+        # Date + Status + Ref
+        status_line = f"📅 {date_str}   {status_icon} {status_label}"
         if ref:
-            line += f"  #{ref}"
-        lines.append(line)
+            status_line += f"   #{ref}"
+        lines.append(status_line)
 
-    # Summary stats block
+    # ── Summary stats ─────────────────────────────────────────────────────────
     lines.append("")
-    lines.append("─────────────────")
+    lines.append("─────────────────────")
 
     high_priority = result.get("high_priority", 0)
     if high_priority:
-        lines.append(f"🚨 High Priority: {high_priority}")
+        lines.append(f"🚨 *Urgent / High Priority: {high_priority}*")
 
     top_issue = result.get("top_issue", "")
     if top_issue:
-        # Count how many cases have this category
         top_count = sum(1 for c in cases if (c.get("category") or "") == top_issue)
-        lines.append(f"📊 Top Issue: {top_issue} ({top_count} cases)")
+        lines.append(f"📊 Top Issue: *{top_issue}* ({top_count} cases)")
 
     top_loc = result.get("top_location", "")
     if top_loc:
-        lines.append(f"📍 Most Affected: {top_loc}")
+        lines.append(f"📍 Most Affected: *{top_loc}*")
 
     # Status breakdown (only if no status filter was applied)
     if not filters.get("status"):
         pending_count  = sum(1 for c in cases if c.get("status") in ("pending", "new"))
+        active_count   = sum(1 for c in cases if c.get("status") == "in_progress")
         resolved_count = sum(1 for c in cases if c.get("status") in ("completed", "resolved"))
-        if pending_count or resolved_count:
-            breakdown_parts = []
-            if pending_count:
-                breakdown_parts.append(f"🔁 Pending: {pending_count}")
-            if resolved_count:
-                breakdown_parts.append(f"✅ Resolved: {resolved_count}")
-            lines.append("  ".join(breakdown_parts))
+        parts = []
+        if pending_count:
+            parts.append(f"🔁 Pending: {pending_count}")
+        if active_count:
+            parts.append(f"⏳ Active: {active_count}")
+        if resolved_count:
+            parts.append(f"✅ Resolved: {resolved_count}")
+        if parts:
+            lines.append("  ".join(parts))
 
     return "\n".join(lines)
 
 
 def format_clarification_request() -> str:
-    """Message to send when query has neither location nor constituency."""
+    """Message to send when query is too vague to be useful."""
     return (
-        "🔍 Please specify a location or constituency.\n\n"
+        "🔍 *What would you like to know?*\n\n"
         "Examples:\n"
-        "• *Cases in Tilakwadi*\n"
-        "• *Water complaints last 30 days*\n"
-        "• *Pending cases in Vikhroli assembly*\n"
-        "• *Road issues in Ward 5 this week*"
+        "• Cases in Kazimabad\n"
+        "• Water complaints last 30 days\n"
+        "• Pending cases in Koil assembly\n"
+        "• Road issues this week"
     )
