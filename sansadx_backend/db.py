@@ -598,6 +598,9 @@ def init_db():
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS deleted_by VARCHAR",
         # Added for case reference numbers
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_ref VARCHAR",
+        # Added for geography fields (assembly constituency and ward)
+        "ALTER TABLE cases ADD COLUMN IF NOT EXISTS assembly VARCHAR",
+        "ALTER TABLE cases ADD COLUMN IF NOT EXISTS ward VARCHAR",
         # Added for case assignment and staff notes
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS assigned_to VARCHAR",
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS notes_for_staff TEXT",
