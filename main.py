@@ -834,9 +834,26 @@ async def _delayed_flush_letter_batch(sender: str, tenant_id: int, receiver_numb
     await asyncio.sleep(BATCH_FLUSH_DELAY)
     await run_in_threadpool(_flush_letter_batch, sender, tenant_id, receiver_number)
 
-# DEPRECATED: threading.Timer based scheduling removed in favor of BackgroundTasks async sleeper.
 def _schedule_batch_flush(sender: str, tenant_id: int, receiver_number: str):
-    pass
+    """
+    Schedule a delayed flush of this sender's letter batch.
+    Called from a sync background thread — posts the coroutine onto the
+    running FastAPI event loop so it executes after BATCH_FLUSH_DELAY seconds.
+    """
+    try:
+        loop = asyncio.get_event_loop()
+        asyncio.run_coroutine_threadsafe(
+            _delayed_flush_letter_batch(sender, tenant_id, receiver_number),
+            loop,
+        )
+        logger.info(
+            "Batch flush scheduled for %s (tenant=%s) in %ds",
+            sender, tenant_id, BATCH_FLUSH_DELAY,
+        )
+    except Exception as exc:
+        logger.warning("Could not schedule batch flush for %s: %s — falling back to immediate flush", sender, exc)
+        # Fallback: flush synchronously right now rather than lose the letter
+        _flush_letter_batch(sender, tenant_id, receiver_number)
 
 
 def _flush_letter_batch(sender: str, tenant_id: int, receiver_number: str):
