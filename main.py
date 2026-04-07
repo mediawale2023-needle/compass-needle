@@ -1459,8 +1459,18 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         )
         try:
             filters  = parse_query(message_body, tenant_id=current_tenant)
-            # If neither location nor constituency given, ask for clarification
-            if not filters.get("location") and not filters.get("constituency"):
+            # Only ask for clarification if query has NO filters at all
+            # (no location, no constituency, no status, no issue_type, and default 7-day window
+            #  with a message that looks too short/generic to be intentional)
+            has_any_filter = (
+                filters.get("location") or
+                filters.get("constituency") or
+                filters.get("status") or
+                filters.get("issue_type") or
+                filters.get("days", 7) != 7 or
+                len(message_body.strip()) > 10
+            )
+            if not has_any_filter:
                 reply = format_clarification_request()
             else:
                 result = query_cases(filters, tenant_id=current_tenant)
