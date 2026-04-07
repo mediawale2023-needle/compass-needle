@@ -281,6 +281,7 @@ def _generate_case_ref(tenant_id):
 def get_cases(
     user=Depends(get_current_user),
     status: Optional[str] = None,
+    exclude_status: Optional[str] = None,
     category: Optional[str] = None,
     categories: Optional[str] = None,
     search: Optional[str] = None,
@@ -295,6 +296,13 @@ def get_cases(
     if status:
         conditions.append("c.status = :st")
         params["st"] = status
+    if exclude_status:
+        excl_list = [s.strip() for s in exclude_status.split(",") if s.strip()]
+        if excl_list:
+            placeholders = ", ".join(f":excl_{i}" for i in range(len(excl_list)))
+            conditions.append(f"c.status NOT IN ({placeholders})")
+            for i, s in enumerate(excl_list):
+                params[f"excl_{i}"] = s
     if category:
         conditions.append("c.category = :cat")
         params["cat"] = category
@@ -753,17 +761,24 @@ def notify_citizen(case_id: int, user=Depends(get_current_user)):
     try:
         from modules.whatsapp import send_whatsapp_message
         send_whatsapp_message(phone, message, get_tenant_phone_number_id(tid))
-        try:
-            _log_case_activity(tid, case_id, user.get("username", ""), "citizen_notified", new_value=status)
-        except Exception:
-            pass  # nosec B110
-        logger.info("Citizen notified: case=%s status=%s by=%s tid=%s", case_id, status, user.get("username"), tid)
-        return {"success": True, "message": "Notification sent to citizen via WhatsApp"}
     except ImportError:
         raise HTTPException(500, "WhatsApp module not available")
     except Exception as e:
         logger.error("Citizen notification failed for case %s: %s", case_id, e)
         raise HTTPException(500, "Notification failed. Please try again or contact support.")
+
+    # Auto-resolve: move case to 'resolved' once citizen has been notified
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE cases SET status = 'resolved', updated_at = :now WHERE id = :cid AND tenant_id = :tid"),
+            {"now": datetime.utcnow(), "cid": case_id, "tid": tid},
+        )
+    try:
+        _log_case_activity(tid, case_id, user.get("username", ""), "citizen_notified", new_value="resolved")
+    except Exception:
+        pass  # nosec B110
+    logger.info("Citizen notified + auto-resolved: case=%s by=%s tid=%s", case_id, user.get("username"), tid)
+    return {"success": True, "message": "Notification sent to citizen via WhatsApp"}
 
 
 @router.post("/cases/backfill-refs")

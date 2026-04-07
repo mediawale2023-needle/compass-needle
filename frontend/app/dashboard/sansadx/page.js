@@ -493,7 +493,9 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
             await apiPost(`/api/cases/${c.id}/notify/send`, {});
             setNotifyOpen(false);
             setNotifyInput('');
-            toast.success('WhatsApp update sent to citizen');
+            toast.success('WhatsApp update sent — case moved to Resolved');
+            onStatusChange(c.id, 'resolved');
+            onClose();
         } catch (err) {
             toast.error(err.message || 'Failed to send notification');
         } finally {
@@ -909,9 +911,12 @@ function BriefcaseInner() {
 
                 if (statusFilter === 'my_cases') {
                     if (user?.username) params.set('assigned_to', user.username);
+                    params.set('exclude_status', 'resolved,closed');
+                } else if (statusFilter === 'All') {
+                    params.set('exclude_status', 'resolved,closed');
                 } else if (statusFilter === 'other') {
                     params.set('categories', OTHER_CATEGORIES.join(','));
-                } else if (statusFilter !== 'All') {
+                } else {
                     params.set('status', statusFilter);
                 }
 
@@ -947,9 +952,10 @@ function BriefcaseInner() {
             if (document.visibilityState !== 'visible') return;
             try {
                 const params = new URLSearchParams({ page: '1', limit: '1' });
-                if (statusFilter === 'my_cases' && user?.username) params.set('assigned_to', user.username);
+                if (statusFilter === 'my_cases') { if (user?.username) params.set('assigned_to', user.username); params.set('exclude_status', 'resolved,closed'); }
+                else if (statusFilter === 'All') params.set('exclude_status', 'resolved,closed');
                 else if (statusFilter === 'other') params.set('categories', OTHER_CATEGORIES.join(','));
-                else if (statusFilter !== 'All') params.set('status', statusFilter);
+                else params.set('status', statusFilter);
                 if (search) params.set('search', search);
                 const data = await apiGet(`/api/cases?${params}`);
                 if ((data.total || 0) > totalCases) setHasNewCases(true);
