@@ -2642,9 +2642,7 @@ class GenerateProfileRequest(BaseModel):
     constituency_type: str = "Lok Sabha"
 
 
-# NOTE: /generate and /generate/{job_id} must be registered BEFORE /{slug}
-# so FastAPI doesn't treat "generate" as a slug value.
-@router.post("/constituency-profiles/generate")
+@router.post("/profile-generate")
 def start_profile_generation(
     req: GenerateProfileRequest,
     background_tasks: BackgroundTasks,
@@ -2662,7 +2660,7 @@ def start_profile_generation(
     return {"job_id": job_id}
 
 
-@router.get("/constituency-profiles/generate/{job_id}")
+@router.get("/profile-generate/{job_id}")
 def poll_generation_job(job_id: str, user=Depends(get_admin_user)):
     """Poll the status of a profile generation job."""
     job = _generate_jobs.get(job_id)

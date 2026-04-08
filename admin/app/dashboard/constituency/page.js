@@ -100,7 +100,7 @@ function GenerateModal({ onClose, onGenerated }) {
         if (!jobId) return;
         pollRef.current = setInterval(async () => {
             try {
-                const d = await apiGet(`/api/admin/constituency-profiles/generate/${jobId}`);
+                const d = await apiGet(`/api/admin/profile-generate/${jobId}`);
                 setProgress(d.progress || '');
                 if (d.status === 'done') {
                     clearInterval(pollRef.current);
@@ -134,7 +134,7 @@ function GenerateModal({ onClose, onGenerated }) {
         setStatus('running');
         setStepIdx(0);
         try {
-            const d = await apiPost('/api/admin/constituency-profiles/generate', {
+            const d = await apiPost('/api/admin/profile-generate', {
                 constituency_name: form.constituency_name.trim(),
                 state: form.state.trim(),
                 tenant_id: tid,
