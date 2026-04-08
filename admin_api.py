@@ -2631,6 +2631,17 @@ def list_constituency_profiles(user=Depends(get_admin_user)):
     return {"profiles": profiles}
 
 
+# ── Constituency Profile AI Generator ───────────────────────────────────────
+
+_generate_jobs: dict = {}
+
+class GenerateProfileRequest(BaseModel):
+    constituency_name: str
+    state: str
+    tenant_id: int
+    constituency_type: str = "Lok Sabha"
+
+
 # NOTE: /generate and /generate/{job_id} must be registered BEFORE /{slug}
 # so FastAPI doesn't treat "generate" as a slug value.
 @router.post("/constituency-profiles/generate")
@@ -2683,17 +2694,6 @@ def upsert_constituency_profile(slug: str, body: dict, user=Depends(get_admin_us
     path = _PROFILES_DIR / f"{safe_slug}.json"
     path.write_text(json.dumps(body, indent=2, ensure_ascii=False))
     return {"ok": True, "slug": safe_slug}
-
-
-# ── Constituency Profile AI Generator ───────────────────────────────────────
-
-_generate_jobs: dict = {}
-
-class GenerateProfileRequest(BaseModel):
-    constituency_name: str
-    state: str
-    tenant_id: int
-    constituency_type: str = "Lok Sabha"
 
 
 def _run_profile_generation(job_id: str, req: GenerateProfileRequest):
