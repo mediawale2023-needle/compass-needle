@@ -2631,6 +2631,35 @@ def list_constituency_profiles(user=Depends(get_admin_user)):
     return {"profiles": profiles}
 
 
+# NOTE: /generate and /generate/{job_id} must be registered BEFORE /{slug}
+# so FastAPI doesn't treat "generate" as a slug value.
+@router.post("/constituency-profiles/generate")
+def start_profile_generation(
+    req: GenerateProfileRequest,
+    background_tasks: BackgroundTasks,
+    user=Depends(get_admin_user),
+):
+    """Start an AI-powered constituency profile generation job."""
+    job_id = uuid.uuid4().hex[:12]
+    _generate_jobs[job_id] = {
+        "status": "running",
+        "progress": "Starting Claude agent…",
+        "error": None,
+        "slug": None,
+    }
+    background_tasks.add_task(_run_profile_generation, job_id, req)
+    return {"job_id": job_id}
+
+
+@router.get("/constituency-profiles/generate/{job_id}")
+def poll_generation_job(job_id: str, user=Depends(get_admin_user)):
+    """Poll the status of a profile generation job."""
+    job = _generate_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    return job
+
+
 @router.get("/constituency-profiles/{slug}")
 def get_constituency_profile(slug: str, user=Depends(get_admin_user)):
     """Return the full constituency profile JSON for a given slug."""
@@ -2823,31 +2852,4 @@ Critical rules:
             "error": "Profile generation failed. Please check the API key and try again.",
             "slug": None,
         }
-
-
-@router.post("/constituency-profiles/generate")
-def start_profile_generation(
-    req: GenerateProfileRequest,
-    background_tasks: BackgroundTasks,
-    user=Depends(get_admin_user),
-):
-    """Start an AI-powered constituency profile generation job."""
-    job_id = uuid.uuid4().hex[:12]
-    _generate_jobs[job_id] = {
-        "status": "running",
-        "progress": "Starting Claude agent…",
-        "error": None,
-        "slug": None,
-    }
-    background_tasks.add_task(_run_profile_generation, job_id, req)
-    return {"job_id": job_id}
-
-
-@router.get("/constituency-profiles/generate/{job_id}")
-def poll_generation_job(job_id: str, user=Depends(get_admin_user)):
-    """Poll the status of a profile generation job."""
-    job = _generate_jobs.get(job_id)
-    if not job:
-        raise HTTPException(404, "Job not found")
-    return job
 
