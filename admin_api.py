@@ -2655,3 +2655,199 @@ def upsert_constituency_profile(slug: str, body: dict, user=Depends(get_admin_us
     path.write_text(json.dumps(body, indent=2, ensure_ascii=False))
     return {"ok": True, "slug": safe_slug}
 
+
+# ── Constituency Profile AI Generator ───────────────────────────────────────
+
+_generate_jobs: dict = {}
+
+class GenerateProfileRequest(BaseModel):
+    constituency_name: str
+    state: str
+    tenant_id: int
+    constituency_type: str = "Lok Sabha"
+
+
+def _run_profile_generation(job_id: str, req: GenerateProfileRequest):
+    """Background task: use Claude with web search to research and generate a constituency profile JSON."""
+    try:
+        import anthropic as _anthropic
+
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            _generate_jobs[job_id] = {
+                "status": "error", "progress": "",
+                "error": "ANTHROPIC_API_KEY environment variable is not configured.",
+                "slug": None,
+            }
+            return
+
+        client = _anthropic.Anthropic(api_key=api_key)
+        _generate_jobs[job_id]["progress"] = f"Claude is researching {req.constituency_name} using web search…"
+
+        schema_hint = """{
+  "meta": {"tenant_id": <int>, "name": "...", "also_known_as": [], "state": "...", "type": "Lok Sabha",
+    "reservation": "General", "constituency_number": <int>, "total_electors_2024": <int>,
+    "region": "...", "coordinates": "lat°N, lon°E", "established": 1951, "last_updated": "2025"},
+  "geography": {"area_sq_km": <int>, "terrain": "...", "rivers": [{"name": "...", "length_km": <int>, "note": "..."}],
+    "climate": {"type": "...", "avg_annual_rainfall_mm": <int>, "summer_temp_celsius": "...", "winter_temp_celsius": "...", "monsoon": "..."},
+    "bordering_states": [], "bordering_districts": [], "talukas": [], "notable_geographic_features": []},
+  "demographics": {"source": "Census of India 2011", "total_population": <int>, "male_population": <int>,
+    "female_population": <int>, "population_density_per_sq_km": <int>, "sex_ratio_per_1000_males": <int>,
+    "literacy": {"overall_percent": <float>, "male_percent": <float>, "female_percent": <float>},
+    "urban_rural_split": {"urban_percent": <float>, "rural_percent": <float>},
+    "religion": {"hindu_percent": <float>, "muslim_percent": <float>},
+    "castes": {"scheduled_caste_percent": <float>, "scheduled_tribe_percent": <float>},
+    "languages": {"primary": "...", "other": []}},
+  "assembly_segments": [{"number": <int>, "name": "...", "reservation": "General", "district": "...", "urban_rural": "Rural"}],
+  "political_history": {
+    "current_mp": {"name": "...", "party": "...", "elected_year": 2024, "vote_share_percent": <float>,
+      "winning_margin": <int>, "voter_turnout_percent": <float>, "bio": "..."},
+    "election_results": [{"year": 2024, "winner": "...", "party": "...", "votes": <int>, "vote_share_percent": <float>, "margin": <int>}],
+    "political_trend": "..."},
+  "economy": {"overview": "...", "gdp_contribution": "...",
+    "agriculture": {"main_crops": [], "irrigated_area_percent": <float>},
+    "industries": [{"sector": "...", "details": "..."}],
+    "employment": {"agriculture_percent": <float>, "industry_percent": <float>, "services_percent": <float>}},
+  "infrastructure": {"roads": "...", "railways": "...", "airports": "...", "hospitals": "...", "schools": "..."},
+  "social_indicators": {"below_poverty_line_percent": <float>, "infant_mortality_rate": <float>,
+    "maternal_mortality_rate": <float>, "open_defecation_free": true},
+  "cultural_profile": {"major_festivals": [], "heritage_sites": [], "famous_personalities": [],
+    "cuisine": [], "art_forms": []},
+  "key_challenges": ["...", "..."],
+  "development_priorities": ["...", "..."],
+  "notable_facts": ["...", "..."]
+}"""
+
+        prompt = f"""You are an expert researcher on Indian parliamentary constituencies.
+
+Research the following and generate a comprehensive JSON constituency profile:
+- Constituency: {req.constituency_name}
+- Type: {req.constituency_type}
+- State: {req.state}
+- Tenant ID to embed: {req.tenant_id}
+
+Use web search to find accurate, current data on:
+1. Geography — area, terrain, rivers, talukas, bordering districts/states, climate
+2. Demographics — Census 2011 population, literacy, sex ratio, religion, caste data, languages
+3. Assembly segments — all {('8' if req.constituency_type == 'Lok Sabha' else '1')} assembly constituencies within this {req.constituency_type} seat
+4. Political history — all Lok Sabha/Vidhan Sabha election results, current MP/MLA (name, party, 2024 vote share %, winning margin, turnout %)
+5. Economy — major crops, key industries, employment breakdown
+6. Infrastructure — roads, railways, hospitals, schools
+7. Social indicators — poverty rate, infant mortality, health data
+8. Cultural profile — festivals, heritage sites, famous personalities
+9. Key challenges and development priorities (at least 5 each)
+10. Notable facts
+
+Return ONLY a valid JSON object following this schema exactly:
+{schema_hint}
+
+Critical rules:
+- Set meta.tenant_id to exactly {req.tenant_id} (integer, not string)
+- Include real data from web search — no placeholders
+- Assembly segments must be a list of objects with number, name, reservation, district, urban_rural
+- Political history must include current_mp with vote_share_percent, winning_margin, voter_turnout_percent
+- Return ONLY the JSON — no markdown, no explanatory text before or after"""
+
+        messages = [{"role": "user", "content": prompt}]
+        tools = [{"type": "web_search_20260209", "name": "web_search"}]
+
+        # Run with pause_turn handling (server-side web search loop can hit limits)
+        max_continuations = 4
+        response = None
+        for attempt in range(max_continuations + 1):
+            response = client.messages.create(
+                model="claude-opus-4-6",
+                max_tokens=16000,
+                tools=tools,
+                messages=messages,
+            )
+            if response.stop_reason == "pause_turn":
+                messages.append({"role": "assistant", "content": response.content})
+                _generate_jobs[job_id]["progress"] = f"Claude is continuing research (pass {attempt + 2})…"
+                continue
+            break
+
+        if response is None:
+            raise ValueError("No response from Claude")
+
+        # Extract text block
+        text = next((b.text for b in response.content if b.type == "text"), None)
+        if not text:
+            raise ValueError("Claude returned no text. The web search may have exhausted its results.")
+
+        # Extract JSON from response (strip any surrounding prose)
+        text = text.strip()
+        start = text.find('{')
+        end = text.rfind('}') + 1
+        if start == -1 or end == 0:
+            raise ValueError("No JSON object found in Claude's response.")
+
+        profile = json.loads(text[start:end])
+
+        # Enforce tenant_id
+        if "meta" not in profile:
+            profile["meta"] = {}
+        profile["meta"]["tenant_id"] = req.tenant_id
+
+        # Generate slug from constituency name
+        safe_slug = re.sub(r"[^a-z0-9\-]", "", req.constituency_name.lower().replace(" ", "-"))
+        if not safe_slug:
+            safe_slug = f"constituency-{req.tenant_id}"
+
+        _PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+        path = _PROFILES_DIR / f"{safe_slug}.json"
+        path.write_text(json.dumps(profile, indent=2, ensure_ascii=False))
+
+        _generate_jobs[job_id] = {
+            "status": "done",
+            "progress": "Profile generated and saved successfully.",
+            "error": None,
+            "slug": safe_slug,
+            "name": profile.get("meta", {}).get("name", req.constituency_name),
+        }
+        logger.info(f"Constituency profile generated: {safe_slug} (tenant_id={req.tenant_id})")
+
+    except json.JSONDecodeError as e:
+        logger.exception(f"JSON parse error for generate job {job_id}")
+        _generate_jobs[job_id] = {
+            "status": "error",
+            "progress": "",
+            "error": f"Claude returned invalid JSON: {str(e)[:200]}",
+            "slug": None,
+        }
+    except Exception as e:
+        logger.exception(f"Profile generation job {job_id} failed")
+        _generate_jobs[job_id] = {
+            "status": "error",
+            "progress": "",
+            "error": "Profile generation failed. Please check the API key and try again.",
+            "slug": None,
+        }
+
+
+@router.post("/constituency-profiles/generate")
+def start_profile_generation(
+    req: GenerateProfileRequest,
+    background_tasks: BackgroundTasks,
+    user=Depends(get_admin_user),
+):
+    """Start an AI-powered constituency profile generation job."""
+    job_id = uuid.uuid4().hex[:12]
+    _generate_jobs[job_id] = {
+        "status": "running",
+        "progress": "Starting Claude agent…",
+        "error": None,
+        "slug": None,
+    }
+    background_tasks.add_task(_run_profile_generation, job_id, req)
+    return {"job_id": job_id}
+
+
+@router.get("/constituency-profiles/generate/{job_id}")
+def poll_generation_job(job_id: str, user=Depends(get_admin_user)):
+    """Poll the status of a profile generation job."""
+    job = _generate_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    return job
+

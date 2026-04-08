@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { apiGet } from '@/lib/api';
+import { useState, useEffect, useRef } from 'react';
+import { apiGet, apiPost } from '@/lib/api';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const PARTY_COLORS = {
@@ -68,22 +68,268 @@ function ProgressBar({ value, max = 100, color = 'bg-emerald-500' }) {
     );
 }
 
+// ── AI Generate Modal ─────────────────────────────────────────────────────────
+const PROGRESS_STEPS = [
+    'Starting Claude agent…',
+    'Searching for constituency geography and demographics…',
+    'Researching political history and election results…',
+    'Gathering economic and infrastructure data…',
+    'Compiling cultural profile and key challenges…',
+    'Generating structured JSON profile…',
+    'Saving constituency profile…',
+];
+
+function GenerateModal({ onClose, onGenerated }) {
+    const [form, setForm]           = useState({ constituency_name: '', state: '', tenant_id: '', constituency_type: 'Lok Sabha' });
+    const [jobId, setJobId]         = useState(null);
+    const [status, setStatus]       = useState(null); // null | 'running' | 'done' | 'error'
+    const [progress, setProgress]   = useState('');
+    const [error, setError]         = useState('');
+    const [stepIdx, setStepIdx]     = useState(0);
+    const pollRef                   = useRef(null);
+
+    // Animate progress steps while running
+    useEffect(() => {
+        if (status !== 'running') return;
+        const t = setInterval(() => setStepIdx(i => Math.min(i + 1, PROGRESS_STEPS.length - 1)), 7000);
+        return () => clearInterval(t);
+    }, [status]);
+
+    // Poll job status
+    useEffect(() => {
+        if (!jobId) return;
+        pollRef.current = setInterval(async () => {
+            try {
+                const d = await apiGet(`/api/admin/constituency-profiles/generate/${jobId}`);
+                setProgress(d.progress || '');
+                if (d.status === 'done') {
+                    clearInterval(pollRef.current);
+                    setStatus('done');
+                    onGenerated(d.slug);
+                } else if (d.status === 'error') {
+                    clearInterval(pollRef.current);
+                    setStatus('error');
+                    setError(d.error || 'Unknown error');
+                }
+            } catch {
+                clearInterval(pollRef.current);
+                setStatus('error');
+                setError('Lost connection while polling. Please check the backend.');
+            }
+        }, 3000);
+        return () => clearInterval(pollRef.current);
+    }, [jobId]);
+
+    async function handleGenerate() {
+        if (!form.constituency_name.trim() || !form.state.trim() || !form.tenant_id) {
+            setError('Please fill in all fields.');
+            return;
+        }
+        const tid = parseInt(form.tenant_id, 10);
+        if (isNaN(tid) || tid < 1) {
+            setError('Tenant ID must be a positive integer.');
+            return;
+        }
+        setError('');
+        setStatus('running');
+        setStepIdx(0);
+        try {
+            const d = await apiPost('/api/admin/constituency-profiles/generate', {
+                constituency_name: form.constituency_name.trim(),
+                state: form.state.trim(),
+                tenant_id: tid,
+                constituency_type: form.constituency_type,
+            });
+            setJobId(d.job_id);
+        } catch (e) {
+            setStatus('error');
+            setError(e?.message || 'Failed to start generation job.');
+        }
+    }
+
+    const displayStep = PROGRESS_STEPS[stepIdx];
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white">
+                    <div className="flex items-center gap-2">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        <h2 className="text-base font-semibold">Generate Constituency Profile with AI</h2>
+                    </div>
+                    {status !== 'running' && (
+                        <button onClick={onClose} className="text-white/70 hover:text-white transition-colors">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    )}
+                </div>
+
+                <div className="px-6 py-5">
+                    {/* Success state */}
+                    {status === 'done' && (
+                        <div className="text-center py-4">
+                            <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <svg className="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <p className="text-base font-semibold text-gray-900 mb-1">Profile Generated!</p>
+                            <p className="text-sm text-gray-500 mb-5">The constituency profile has been saved and is now available in the viewer.</p>
+                            <button
+                                onClick={onClose}
+                                className="px-6 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+                            >
+                                View Profile
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Running state */}
+                    {status === 'running' && (
+                        <div className="py-2">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-8 h-8 border-3 border-violet-600 border-t-transparent rounded-full animate-spin shrink-0" style={{borderWidth: '3px'}} />
+                                <div>
+                                    <p className="text-sm font-medium text-gray-900">Claude is researching…</p>
+                                    <p className="text-xs text-gray-500">This takes 1–3 minutes. Please wait.</p>
+                                </div>
+                            </div>
+
+                            {/* Progress bar */}
+                            <div className="w-full bg-gray-100 rounded-full h-1.5 mb-3">
+                                <div
+                                    className="h-1.5 rounded-full bg-violet-500 transition-all duration-1000"
+                                    style={{ width: `${Math.round(((stepIdx + 1) / PROGRESS_STEPS.length) * 100)}%` }}
+                                />
+                            </div>
+
+                            <p className="text-xs text-violet-700 font-medium">{progress || displayStep}</p>
+
+                            <div className="mt-4 space-y-1.5">
+                                {PROGRESS_STEPS.slice(0, stepIdx + 1).map((s, i) => (
+                                    <div key={i} className="flex items-center gap-2 text-xs">
+                                        {i < stepIdx
+                                            ? <svg className="w-3.5 h-3.5 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                                            : <div className="w-3.5 h-3.5 border-2 border-violet-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                                        }
+                                        <span className={i < stepIdx ? 'text-gray-400 line-through' : 'text-violet-700 font-medium'}>{s}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Input form (idle or error) */}
+                    {(status === null || status === 'error') && (
+                        <>
+                            <p className="text-sm text-gray-500 mb-4">
+                                Claude will use web search to research the constituency and generate a comprehensive intelligence profile automatically.
+                            </p>
+
+                            {error && (
+                                <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{error}</div>
+                            )}
+
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Constituency Name</label>
+                                    <input
+                                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400"
+                                        placeholder="e.g. Aligarh, Varanasi, Pune"
+                                        value={form.constituency_name}
+                                        onChange={e => setForm(f => ({ ...f, constituency_name: e.target.value }))}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">State</label>
+                                    <input
+                                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400"
+                                        placeholder="e.g. Uttar Pradesh, Maharashtra"
+                                        value={form.state}
+                                        onChange={e => setForm(f => ({ ...f, state: e.target.value }))}
+                                    />
+                                </div>
+                                <div className="flex gap-3">
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Tenant ID</label>
+                                        <input
+                                            type="number"
+                                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400"
+                                            placeholder="e.g. 3"
+                                            value={form.tenant_id}
+                                            onChange={e => setForm(f => ({ ...f, tenant_id: e.target.value }))}
+                                        />
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+                                        <select
+                                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white"
+                                            value={form.constituency_type}
+                                            onChange={e => setForm(f => ({ ...f, constituency_type: e.target.value }))}
+                                        >
+                                            <option>Lok Sabha</option>
+                                            <option>Vidhan Sabha</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 mt-5">
+                                <button
+                                    onClick={onClose}
+                                    className="flex-1 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleGenerate}
+                                    className="flex-1 px-4 py-2 text-sm bg-violet-600 text-white rounded-lg font-medium hover:bg-violet-700 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                            d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                    Generate with Claude
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
 // ── main component ────────────────────────────────────────────────────────────
 export default function ConstituencyIntelligencePage() {
-    const [profiles, setProfiles]   = useState([]);
-    const [selected, setSelected]   = useState(null);
-    const [profile, setProfile]     = useState(null);
-    const [loading, setLoading]     = useState(false);
-    const [tab, setTab]             = useState('overview');
+    const [profiles, setProfiles]       = useState([]);
+    const [selected, setSelected]       = useState(null);
+    const [profile, setProfile]         = useState(null);
+    const [loading, setLoading]         = useState(false);
+    const [tab, setTab]                 = useState('overview');
+    const [showGenerate, setShowGenerate] = useState(false);
 
-    useEffect(() => {
-        apiGet('/api/admin/constituency-profiles')
+    function loadProfiles(selectSlug) {
+        return apiGet('/api/admin/constituency-profiles')
             .then(d => {
                 setProfiles(d.profiles || []);
-                if (d.profiles?.length) setSelected(d.profiles[0].slug);
+                if (selectSlug) {
+                    setSelected(selectSlug);
+                } else if (d.profiles?.length) {
+                    setSelected(d.profiles[0].slug);
+                }
             })
             .catch(() => {});
-    }, []);
+    }
+
+    useEffect(() => { loadProfiles(null); }, []);
 
     useEffect(() => {
         if (!selected) return;
@@ -107,23 +353,45 @@ export default function ConstituencyIntelligencePage() {
 
     return (
         <div className="min-h-screen bg-gray-50">
+            {showGenerate && (
+                <GenerateModal
+                    onClose={() => setShowGenerate(false)}
+                    onGenerated={(slug) => {
+                        setShowGenerate(false);
+                        loadProfiles(slug);
+                    }}
+                />
+            )}
+
             {/* Header row */}
             <div className="flex items-center justify-between mb-6">
                 <div>
                     <h1 className="text-xl font-bold text-gray-900">Constituency Intelligence</h1>
                     <p className="text-sm text-gray-500 mt-0.5">Deep political, demographic, economic and cultural profiles</p>
                 </div>
-                {profiles.length > 1 && (
-                    <select
-                        value={selected || ''}
-                        onChange={e => setSelected(e.target.value)}
-                        className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setShowGenerate(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors shadow-sm"
                     >
-                        {profiles.map(p => (
-                            <option key={p.slug} value={p.slug}>{p.name} ({p.state})</option>
-                        ))}
-                    </select>
-                )}
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        Generate with AI
+                    </button>
+                    {profiles.length > 1 && (
+                        <select
+                            value={selected || ''}
+                            onChange={e => setSelected(e.target.value)}
+                            className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        >
+                            {profiles.map(p => (
+                                <option key={p.slug} value={p.slug}>{p.name} ({p.state})</option>
+                            ))}
+                        </select>
+                    )}
+                </div>
             </div>
 
             {loading && (
