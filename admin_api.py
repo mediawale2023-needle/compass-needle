@@ -1374,7 +1374,7 @@ Return ONLY the raw JSON array. No markdown, no backticks, no explanation."""
 
     except Exception as e:
         logger.error(f"OpenAI OCR error: {e}")
-        return [], str(e)
+        return [], "OCR processing failed. Check server logs for details."
 
 
 def _extract_station_from_row(row):
@@ -2709,7 +2709,7 @@ def _run_profile_generation(job_id: str, req: GenerateProfileRequest):
             return
 
         client = _anthropic.Anthropic(api_key=api_key)
-        _generate_jobs[job_id]["progress"] = f"Claude is researching {req.constituency_name} using web search…"
+        _generate_jobs[job_id]["progress"] = f"Claude is researching {req.constituency_name}…"
 
         schema_hint = """{
   "meta": {"tenant_id": <int>, "name": "...", "also_known_as": [], "state": "...", "type": "Lok Sabha",
@@ -2745,65 +2745,60 @@ def _run_profile_generation(job_id: str, req: GenerateProfileRequest):
   "notable_facts": ["...", "..."]
 }"""
 
-        prompt = f"""You are an expert researcher on Indian parliamentary constituencies.
+        system_prompt = (
+            "You are an expert researcher on Indian parliamentary and state assembly constituencies. "
+            "You have access to live web search. Research thoroughly before responding. "
+            "Return ONLY valid JSON — no markdown fences, no commentary, no text outside the JSON object."
+        )
 
-Research the following and generate a comprehensive JSON constituency profile:
-- Constituency: {req.constituency_name}
-- Type: {req.constituency_type}
-- State: {req.state}
-- Tenant ID to embed: {req.tenant_id}
+        user_prompt = f"""Research {req.constituency_name} {req.constituency_type} constituency in {req.state}, India.
 
-Use web search to find accurate, current data on:
-1. Geography — area, terrain, rivers, talukas, bordering districts/states, climate
-2. Demographics — Census 2011 population, literacy, sex ratio, religion, caste data, languages
-3. Assembly segments — all {('8' if req.constituency_type == 'Lok Sabha' else '1')} assembly constituencies within this {req.constituency_type} seat
-4. Political history — all Lok Sabha/Vidhan Sabha election results, current MP/MLA (name, party, 2024 vote share %, winning margin, turnout %)
-5. Economy — major crops, key industries, employment breakdown
-6. Infrastructure — roads, railways, hospitals, schools
-7. Social indicators — poverty rate, infant mortality, health data
-8. Cultural profile — festivals, heritage sites, famous personalities
-9. Key challenges and development priorities (at least 5 each)
-10. Notable facts
+Search for and compile:
+1. Geography — area (sq km), terrain, major rivers, talukas/blocks, bordering districts/states, climate data
+2. Demographics — Census 2011: total population, literacy rate, sex ratio, religion breakdown (%), caste data (SC/ST %), primary languages
+3. Assembly segments — list all assembly constituencies within this {req.constituency_type} seat (name, number, reservation status, district)
+4. Political history — election results from 1957 to 2024 (winner, party, votes, vote share %, margin), current MP name/party/2024 vote share/winning margin/turnout, political trends
+5. Economy — main crops, major industries and employers, GDP contribution, employment breakdown
+6. Infrastructure — roads (NH/SH), railways, nearest airports, major hospitals, schools/colleges
+7. Social indicators — BPL %, infant mortality, maternal mortality, ODF status
+8. Cultural profile — major festivals, heritage/tourist sites, famous personalities, local cuisine, art forms
+9. Key challenges — at least 5 specific issues (water, employment, connectivity, health, etc.)
+10. Development priorities — at least 5 specific priorities
+11. Notable facts — at least 5 interesting facts
 
-Return ONLY a valid JSON object following this schema exactly:
+Return ONLY this JSON (no other text):
 {schema_hint}
 
-Critical rules:
-- Set meta.tenant_id to exactly {req.tenant_id} (integer, not string)
-- Include real data from web search — no placeholders
-- Assembly segments must be a list of objects with number, name, reservation, district, urban_rural
-- Political history must include current_mp with vote_share_percent, winning_margin, voter_turnout_percent
-- Return ONLY the JSON — no markdown, no explanatory text before or after"""
+Rules:
+- meta.tenant_id must be exactly {req.tenant_id} (integer)
+- Use real researched numbers, not placeholders
+- assembly_segments must be a complete list of all segments
+- political_history.current_mp must include vote_share_percent, winning_margin, voter_turnout_percent from 2024 election"""
 
-        messages = [{"role": "user", "content": prompt}]
-        tools = [{"type": "web_search_20260209", "name": "web_search"}]
+        _generate_jobs[job_id]["progress"] = "Claude is searching the web…"
 
-        # Run with pause_turn handling (server-side web search loop can hit limits)
-        max_continuations = 4
-        response = None
-        for attempt in range(max_continuations + 1):
-            response = client.messages.create(
-                model="claude-opus-4-6",
-                max_tokens=16000,
-                tools=tools,
-                messages=messages,
-            )
-            if response.stop_reason == "pause_turn":
-                messages.append({"role": "assistant", "content": response.content})
-                _generate_jobs[job_id]["progress"] = f"Claude is continuing research (pass {attempt + 2})…"
-                continue
-            break
+        response = client.messages.create(
+            model="claude-opus-4-6",
+            max_tokens=4000,
+            tools=[{"type": "web_search_20250305", "name": "web_search"}],
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
 
-        if response is None:
-            raise ValueError("No response from Claude")
-
-        # Extract text block
-        text = next((b.text for b in response.content if b.type == "text"), None)
+        # Extract the final text block from the response
+        text = ""
+        for block in response.content:
+            if hasattr(block, "text"):
+                text = block.text
+                break
         if not text:
-            raise ValueError("Claude returned no text. The web search may have exhausted its results.")
+            raise ValueError("Claude returned an empty response.")
 
-        # Extract JSON from response (strip any surrounding prose)
+        # Extract JSON from response (strip any surrounding prose or markdown fences)
         text = text.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```[a-z]*\n?", "", text)
+            text = re.sub(r"\n?```$", "", text)
         start = text.find('{')
         end = text.rfind('}') + 1
         if start == -1 or end == 0:
@@ -2839,7 +2834,7 @@ Critical rules:
         _generate_jobs[job_id] = {
             "status": "error",
             "progress": "",
-            "error": f"Claude returned invalid JSON: {str(e)[:200]}",
+            "error": "Profile generation failed: AI returned unexpected output. Check server logs.",
             "slug": None,
         }
     except Exception as e:

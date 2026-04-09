@@ -74,7 +74,8 @@ def is_token_revoked(username: str, token_issued_at: float) -> bool:
             if hasattr(revoked_at, 'timestamp'):
                 return token_issued_at < revoked_at.timestamp()
     except Exception:
-        logger.warning("Token revocation check failed — defaulting to not revoked")
+        logger.error("Token revocation check failed — rejecting token for safety")
+        return True
     return False
 
 
@@ -1491,7 +1492,7 @@ def _build_constituency_context(tenant_id: int) -> str:
 
         return "\n".join(lines)
     except Exception as e:
-        logger.warning("Could not load constituency context for '%s': %s", constituency_name, e)
+        logger.warning("Could not load constituency context for tenant_id=%s: %s", tenant_id, e)
         return ""
 
 
