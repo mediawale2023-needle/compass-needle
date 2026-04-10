@@ -1242,11 +1242,17 @@ async def upload_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(
     # extracts the raw ASCII bytes which look like "?kjcjk", "tV~Vkjh".
     # Telltale patterns: <+, >M+, ~, ]+, etc. in locality strings.
     _krutidev_pat = re.compile(r'[<>~\]\^\\]{1}|\+[a-z]|[a-z]\+')
-    needs_ocr = not stations or any(
+    _has_krutidev = any(
         _krutidev_pat.search(s.get("locality", ""))
         for s in stations[:20]
         if not any('\u0900' <= c <= '\u097F' for c in s.get("locality", ""))
     )
+    # Route to AI when:
+    #   • pdfplumber extracted nothing
+    #   • font-encoded Hindi (Krutidev/DevLys) garbage detected
+    #   • quality gate fails — localities still look like full station names,
+    #     meaning the PDF column structure was not recognised correctly
+    needs_ocr = not stations or _has_krutidev or not _extraction_quality_ok(stations)
 
     if needs_ocr:
         # Start OCR in background thread and return job_id immediately
@@ -1431,27 +1437,81 @@ def _extract_locality_from_station_name(name: str) -> str:
 
 
 def _extract_station_from_row(row):
+    """
+    Extract (station_number, locality, building_name) from a pdfplumber table row.
+
+    Handles three real-world Indian EC PDF column structures:
+      1. 2-col [Part No | Full Station Name]          — single text cell
+      2. 3-col [Part No | Building Name | Locality]   — first cell has institution keyword
+      3. 3-col [Part No | Locality | Address]         — first cell is already the area
+    """
     if not row:
         return None
     cleaned = [str(cell).strip().replace("\n", " ").strip() if cell else "" for cell in row]
-    skip_words = {"station", "number", "part", "polling", "booth", "name", "address", "building", "sl.no", "sl no", "serial", "location", "constituency", "total", "page", "sr.no"}
+    skip_words = {"station", "number", "part", "polling", "booth", "name", "address",
+                  "building", "sl.no", "sl no", "serial", "location", "constituency",
+                  "total", "page", "sr.no"}
     row_text = " ".join(cleaned).lower()
-    if any(w in row_text for w in skip_words) and not any(c.isdigit() and len(c) <= 4 for c in cleaned[:3]):
+    if any(w in row_text for w in skip_words) and not any(
+        c.isdigit() and len(c) <= 4 for c in cleaned[:3]
+    ):
         return None
-    num, loc, bldg = "", "", ""
+
+    num = ""
+    text_cells = []
     for cell in cleaned:
         if not cell:
             continue
         if not num and re.match(r"^\d{1,4}\.?$", cell.strip(".")):
             num = cell.strip(".")
         elif len(cell) > 2 and not cell.replace(".", "").replace(",", "").isdigit():
-            if not loc:
-                loc = cell
-            elif not bldg:
-                bldg = cell
-    if loc:
-        return {"station_number": num, "locality": _extract_locality_from_station_name(loc), "building_name": bldg}
+            text_cells.append(cell)
+
+    if not text_cells:
+        return None
+
+    if len(text_cells) == 1:
+        # 2-column PDF: single cell contains the full station name.
+        # Extract locality by stripping institution prefix + Room No suffix.
+        locality = _extract_locality_from_station_name(text_cells[0])
+        building = ""
+    elif _INST_KW_PAT.search(text_cells[0]):
+        # First cell is an institution/building name (School, College, Vidyalaya…).
+        # Second cell is the locality (village, ward, colony, area).
+        building = text_cells[0]
+        locality = text_cells[1]
+    else:
+        # First cell is already the locality (no institution keyword found).
+        # Remaining cells are address or auxiliary info.
+        locality = text_cells[0]
+        building = text_cells[1] if len(text_cells) > 1 else ""
+
+    if locality:
+        return {"station_number": num, "locality": locality, "building_name": building}
     return None
+
+
+def _extraction_quality_ok(stations: list) -> bool:
+    """
+    Return True if pdfplumber produced usable locality names.
+
+    Triggers AI fallback when localities still look like full station names —
+    which happens for PDF formats whose column structure was not recognised,
+    or where the building name and locality were not separated correctly.
+    """
+    if not stations:
+        return False
+    sample = stations[:min(30, len(stations))]
+    # A locality is "bad" if it still contains "Room No X" (extraction missed it)
+    # or if it contains two distinct institution keywords (whole station name leaked through).
+    _bad_pat = re.compile(
+        r'Ro?o?m\s*(?:No\.?\s*)?\d'                          # "Room No 3" still present
+        r'|\b(?:School|College|Vidyalaya|Vidhyalaya|Academy)\b'  # institution word in locality
+        r'.*\b(?:School|College|Vidyalaya|Vidhyalaya|Academy)\b',  # …appearing twice
+        re.IGNORECASE,
+    )
+    bad_count = sum(1 for s in sample if _bad_pat.search(s.get("locality", "")))
+    return bad_count <= len(sample) * 0.25  # >25% bad → quality not ok
 
 
 def _extract_stations_from_text(text):
