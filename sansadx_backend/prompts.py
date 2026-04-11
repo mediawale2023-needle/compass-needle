@@ -25,12 +25,9 @@ Usage:
 # If taxonomy.json changes, update this list.
 # ──────────────────────────────────────────────
 TAXONOMY_CATEGORIES = (
-    "External Affairs | Railways | Infrastructure | Telecom | "
-    "Postal Services | Education (Central) | Banking & Finance | "
-    "Labor & Employment | Law & Order | Energy | "
-    "Infrastructure (State) | Food Supply | Transport | "
-    "Revenue & Land | Sanitation | Water | Civic Amenities | "
-    "Public Health | Civic Admin | Private/Legal"
+    "Infrastructure & Utilities | Housing & Land | Health | Education | "
+    "Government Schemes & Welfare | Agriculture | Social Issues | "
+    "Law & Order | Bureaucratic / Administrative"
 )
 
 # ──────────────────────────────────────────────
@@ -101,7 +98,7 @@ STEP 4 — LANGUAGE DETECTION (CRITICAL)
 STEP 5 — MULTI-LABEL CLASSIFICATION
   Read the message carefully and identify ALL civic issues mentioned.
   A single message can cover multiple categories.
-  Example: "Sadak tuti hai aur paani bhi nahi aata" → ["Infrastructure (State)", "Water"]
+  Example: "Sadak tuti hai aur paani bhi nahi aata" → ["Infrastructure & Utilities"]
   Map each issue to the closest matching category from the VALID CATEGORIES list.
 
 STEP 6 — ENTITY EXTRACTION (NER)
@@ -156,7 +153,7 @@ Output:
   "detected_language": "Marathi",
   "political_response": "जी, अट्टीवाड मधील रस्ता आणि पाणी पुरवठ्याची तक्रार नोंदवली आहे. लवकरच आपल्याला अपडेट दिली जाईल.",
   "grievance_data": {{
-    "categories": ["Infrastructure (State)", "Water"],
+    "categories": ["Infrastructure & Utilities"],
     "location": "Attiwad",
     "person": null,
     "department": "State PWD / Municipal Water Dept",
@@ -172,7 +169,7 @@ Output:
   "detected_language": "Hindi",
   "political_response": "जी, बिजली की समस्या गंभीर है। कृपया अपने गाँव या क्षेत्र का नाम बताएं ताकि हम संबंधित विभाग को सूचित कर सकें।",
   "grievance_data": {{
-    "categories": ["Energy"],
+    "categories": ["Infrastructure & Utilities"],
     "location": null,
     "person": null,
     "department": "State Electricity Board",

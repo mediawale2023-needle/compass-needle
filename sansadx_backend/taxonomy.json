@@ -1,7 +1,7 @@
 [
   {
     "keywords": ["passport", "visa", "embassy", "immigration", "mea"],
-    "category": "External Affairs",
+    "category": "Bureaucratic / Administrative",
     "authority": "Ministry of External Affairs",
     "level": "Central",
     "mp_role": "Direct Intervention",
@@ -9,7 +9,7 @@
   },
   {
     "keywords": ["railway", "train", "station", "platform", "irctc", "ticket", "stoppage", "rail over bridge"],
-    "category": "Railways",
+    "category": "Infrastructure & Utilities",
     "authority": "Ministry of Railways",
     "level": "Central",
     "mp_role": "Direct Intervention",
@@ -17,15 +17,15 @@
   },
   {
     "keywords": ["national highway", "nhai", "toll", "expressway", "flyover on nh"],
-    "category": "Infrastructure",
+    "category": "Infrastructure & Utilities",
     "authority": "NHAI / MoRTH",
     "level": "Central",
     "mp_role": "Direct Intervention",
     "political_response": "National Highways are a priority. I will contact the NHAI Project Director regarding this."
   },
   {
-    "keywords": ["bsnl", "mobile tower", "network", "sim card", "broadband", "landline"],
-    "category": "Telecom",
+    "keywords": ["bsnl", "mobile tower", "network", "sim card", "broadband", "landline", "internet", "telecom"],
+    "category": "Infrastructure & Utilities",
     "authority": "BSNL / Telecom Ministry",
     "level": "Central",
     "mp_role": "Direct Intervention",
@@ -33,7 +33,7 @@
   },
   {
     "keywords": ["post office", "speed post", "postal", "sukanya samriddhi", "dak"],
-    "category": "Postal Services",
+    "category": "Bureaucratic / Administrative",
     "authority": "India Post",
     "level": "Central",
     "mp_role": "Direct Intervention",
@@ -41,30 +41,30 @@
   },
   {
     "keywords": ["kv", "kendriya vidyalaya", "navodaya", "cbse", "iit", "central university", "admission mp quota"],
-    "category": "Education (Central)",
+    "category": "Education",
     "authority": "Ministry of Education",
     "level": "Central",
     "mp_role": "Direct Intervention",
     "political_response": "I monitor Central Educational Institutes closely. I will check the status of this request."
   },
   {
-    "keywords": ["bank", "sbi", "loan", "mudra", "kisan credit card", "kcc", "atm", "fraud"],
-    "category": "Banking & Finance",
+    "keywords": ["bank", "sbi", "loan", "mudra", "kisan credit card", "kcc", "atm", "fraud", "banking"],
+    "category": "Government Schemes & Welfare",
     "authority": "Lead Bank Manager / Finance Ministry",
     "level": "Central",
     "mp_role": "Coordinate",
     "political_response": "Banking policies are Central. I will direct your grievance to the Lead Bank Manager of the district."
   },
   {
-    "keywords": ["epfo", "pf", "provident fund", "pension central", "esic"],
-    "category": "Labor & Employment",
+    "keywords": ["epfo", "pf", "provident fund", "esic", "labour", "labor", "employment", "job card", "rozgar"],
+    "category": "Government Schemes & Welfare",
     "authority": "EPFO / Ministry of Labor",
     "level": "Central",
     "mp_role": "Coordinate",
     "political_response": "PF issues can be resolved via the Regional Commissioner. We will flag this."
   },
   {
-    "keywords": ["police", "fir", "theft", "crime", "robbery", "harassment", "cyber crime", "police station"],
+    "keywords": ["police", "fir", "crime", "robbery", "theft", "harassment", "cyber crime", "police station", "constable", "beat", "patrolling"],
     "category": "Law & Order",
     "authority": "State Police / SP Office",
     "level": "State",
@@ -72,96 +72,224 @@
     "political_response": "Law & Order is a State subject. However, I will forward your complaint to the SP for immediate action."
   },
   {
-    "keywords": ["electricity", "power cut", "voltage", "transformer", "bill", "meter", "pole"],
-    "category": "Energy",
+    "keywords": ["goonda", "extortion", "rowdy", "antisocial", "illegal weapons", "arms", "gambling den", "liquor mafia"],
+    "category": "Law & Order",
+    "authority": "State Police / SP Office",
+    "level": "State",
+    "mp_role": "Forward & Monitor",
+    "political_response": "I am taking this up with the SP office directly. Anti-social elements will not be tolerated."
+  },
+  {
+    "keywords": ["electricity", "power cut", "voltage", "transformer", "bijli", "bill", "meter", "pole", "feeder", "substation", "load shedding"],
+    "category": "Infrastructure & Utilities",
     "authority": "State Electricity Board (DISCOM)",
     "level": "State",
     "mp_role": "Forward & Monitor",
     "political_response": "Electricity is managed by the State Board. I will ask the local JE to inspect the fault."
   },
   {
-    "keywords": ["state highway", "sh", "pwd road", "district road", "mdr"],
-    "category": "Infrastructure (State)",
+    "keywords": ["state highway", "sh", "pwd road", "district road", "mdr", "sadak", "pothole", "road repair", "broken road", "kaccha rasta"],
+    "category": "Infrastructure & Utilities",
     "authority": "State PWD",
     "level": "State",
     "mp_role": "Coordinate",
     "political_response": "This road is under State PWD. I will request the local MLA and officials to repair it."
   },
   {
-    "keywords": ["ration", "pds", "ration card", "wheat", "rice", "shop", "dealer"],
-    "category": "Food Supply",
+    "keywords": ["ration", "pds", "ration card", "wheat", "rice", "ration shop", "dealer", "annapoorna", "food security"],
+    "category": "Government Schemes & Welfare",
     "authority": "District Supply Officer",
     "level": "State",
     "mp_role": "Coordinate",
     "political_response": "Ration distribution is a State matter. We are forwarding this to the Supply Officer."
   },
   {
-    "keywords": ["state bus", "msrtc", "ksrtc", "upsrtc", "bus depot", "conductor"],
-    "category": "Transport",
+    "keywords": ["pension", "old age pension", "widow pension", "vridha pension", "divyang", "disability pension", "social security"],
+    "category": "Government Schemes & Welfare",
+    "authority": "District Social Welfare Officer",
+    "level": "State",
+    "mp_role": "Coordinate",
+    "political_response": "Pension issues will be taken up with the District Social Welfare Officer for immediate resolution."
+  },
+  {
+    "keywords": ["pm awas", "pmay", "housing scheme", "gramin awas", "pucca house", "indira awas", "awas yojana"],
+    "category": "Housing & Land",
+    "authority": "District Collector / PMAY Office",
+    "level": "State",
+    "mp_role": "Coordinate",
+    "political_response": "PM Awas Yojana allocations are reviewed at the district level. I will take up your case with the Collector."
+  },
+  {
+    "keywords": ["mgnrega", "nrega", "job card", "hundred days work", "rozgar guarantee", "mazdoor", "wages not paid"],
+    "category": "Government Schemes & Welfare",
+    "authority": "Block Development Office",
+    "level": "State",
+    "mp_role": "Coordinate",
+    "political_response": "MGNREGA wages must be paid on time. I will escalate this to the BDO and Programme Officer."
+  },
+  {
+    "keywords": ["pm kisan", "kisan samman nidhi", "farmer scheme", "krishi", "agriculture scheme", "fasal bima", "pmfby", "crop insurance"],
+    "category": "Agriculture",
+    "authority": "District Agriculture Officer",
+    "level": "State",
+    "mp_role": "Coordinate",
+    "political_response": "Farmer scheme issues will be taken up with the District Agriculture Officer immediately."
+  },
+  {
+    "keywords": ["irrigation", "canal", "nahar", "pump set", "tubewell", "borewell", "water for crops", "kisan paani"],
+    "category": "Agriculture",
+    "authority": "Irrigation Department",
+    "level": "State",
+    "mp_role": "Coordinate",
+    "political_response": "Irrigation is vital for our farmers. I will request the Irrigation Department to look into this."
+  },
+  {
+    "keywords": ["fertiliser", "urea", "dap", "seed", "beej", "pesticide", "mandi", "market rate", "crop damage", "banjh zameen"],
+    "category": "Agriculture",
+    "authority": "District Agriculture Officer / Mandi Board",
+    "level": "State",
+    "mp_role": "Coordinate",
+    "political_response": "This agricultural issue will be raised with the Agriculture Department and Mandi Board."
+  },
+  {
+    "keywords": ["stray cattle", "awara pashu", "neelgai", "crop destroyed by animals", "animal attack", "pashu", "gaushala"],
+    "category": "Agriculture",
+    "authority": "District Cattle Pound / Animal Husbandry Dept",
+    "level": "State",
+    "mp_role": "Coordinate",
+    "political_response": "Stray animal damage to crops is a serious concern. I will request the animal husbandry department to act."
+  },
+  {
+    "keywords": ["state bus", "msrtc", "ksrtc", "upsrtc", "bus depot", "bus route", "conductor", "bus service"],
+    "category": "Infrastructure & Utilities",
     "authority": "State Transport Corp",
     "level": "State",
     "mp_role": "Coordinate",
     "political_response": "State Transport issues are handled by the Depot Manager. We will forward your request."
   },
   {
-    "keywords": ["tehsildar", "caste certificate", "income certificate", "land record", "7/12", "patwari", "registry"],
-    "category": "Revenue & Land",
+    "keywords": ["tehsildar", "caste certificate", "income certificate", "domicile", "patwari", "registry", "mutation", "dakhil kharij", "nakal"],
+    "category": "Bureaucratic / Administrative",
     "authority": "Tehsildar / Collectorate",
     "level": "State",
     "mp_role": "Coordinate",
     "political_response": "Revenue records are a State subject. We will ask the Tehsildar to expedite this."
   },
   {
-    "keywords": ["garbage", "trash", "dustbin", "waste", "cleaning", "sweeper", "dump"],
-    "category": "Sanitation",
+    "keywords": ["land record", "7/12", "khasra", "khatauni", "plot dispute", "zameen vivad", "boundary dispute", "land encroachment"],
+    "category": "Housing & Land",
+    "authority": "Tehsildar / Revenue Court",
+    "level": "State",
+    "mp_role": "Coordinate",
+    "political_response": "Land record disputes are handled by the Revenue Department. We will ask the Tehsildar to address this."
+  },
+  {
+    "keywords": ["illegal construction", "encroachment", "slum", "jhuggi", "unauthorised building", "demolition notice", "eviction"],
+    "category": "Housing & Land",
+    "authority": "Municipal Corporation / District Collector",
+    "level": "Local",
+    "mp_role": "Lodge Ticket with Corp",
+    "political_response": "Encroachment and illegal construction complaints will be forwarded to the civic authorities for action."
+  },
+  {
+    "keywords": ["garbage", "trash", "dustbin", "waste", "cleaning", "sweeper", "dump", "kachara", "safai"],
+    "category": "Infrastructure & Utilities",
     "authority": "Municipal Corporation",
     "level": "Local",
     "mp_role": "Lodge Ticket with Corp",
     "political_response": "Sanitation is a local municipal duty. We have lodged a ticket with the Sanitary Inspector."
   },
   {
-    "keywords": ["drain", "gutter", "sewage", "water logging", "overflow", "manhole"],
-    "category": "Sanitation",
+    "keywords": ["drain", "gutter", "sewage", "water logging", "naali", "overflow", "manhole", "nali choki"],
+    "category": "Infrastructure & Utilities",
     "authority": "Municipal Corporation",
     "level": "Local",
     "mp_role": "Lodge Ticket with Corp",
     "political_response": "Drainage issues belong to the Municipality. We are notifying the Ward Officer."
   },
   {
-    "keywords": ["water supply", "drinking water", "tap", "pipeline", "leakage", "dirty water", "tanker"],
-    "category": "Water",
+    "keywords": ["water supply", "drinking water", "tap", "pipeline", "leakage", "dirty water", "tanker", "paani", "nal", "jal jeevan"],
+    "category": "Infrastructure & Utilities",
     "authority": "Municipal Water Dept / Jal Board",
     "level": "Local",
     "mp_role": "Lodge Ticket with Corp",
     "political_response": "Water supply is a local body function. We are alerting the Water Engineer."
   },
   {
-    "keywords": ["street light", "lamp", "dark", "led", "pole light"],
-    "category": "Civic Amenities",
+    "keywords": ["street light", "lamp", "dark road", "led light", "pole light", "batti nahi", "andhera"],
+    "category": "Infrastructure & Utilities",
     "authority": "Municipal Corporation",
     "level": "Local",
     "mp_role": "Lodge Ticket with Corp",
     "political_response": "Street lights are maintained by the Municipality. We will request repairs."
   },
   {
-    "keywords": ["stray dog", "mosquito", "fogging", "dengue", "malaria", "cow", "cattle"],
-    "category": "Public Health",
-    "authority": "Municipal Health Dept",
-    "level": "Local",
-    "mp_role": "Lodge Ticket with Corp",
-    "political_response": "Vector control and animal nuisance are municipal duties. We will request action."
+    "keywords": ["hospital", "phc", "chc", "dispensary", "doctor", "nurse", "medicine", "dawai", "ambulance", "ayushman", "janani suraksha", "asha worker"],
+    "category": "Health",
+    "authority": "Chief Medical Officer / District Hospital",
+    "level": "State",
+    "mp_role": "Forward & Monitor",
+    "political_response": "Healthcare access is a priority. I will raise this with the Chief Medical Officer of the district."
   },
   {
-    "keywords": ["birth certificate", "death certificate", "property tax", "house tax", "khata"],
-    "category": "Civic Admin",
+    "keywords": ["dengue", "malaria", "epidemic", "fever", "disease outbreak", "covid", "vaccination", "fogging", "mosquito", "vector"],
+    "category": "Health",
+    "authority": "Municipal Health Dept / CMO",
+    "level": "Local",
+    "mp_role": "Lodge Ticket with Corp",
+    "political_response": "Public health emergencies require immediate action. We are notifying the health authorities."
+  },
+  {
+    "keywords": ["government school", "shiksha", "teacher absent", "mid day meal", "anganwadi", "balwadi", "scholarship", "uniform", "book"],
+    "category": "Education",
+    "authority": "District Education Officer / BEO",
+    "level": "State",
+    "mp_role": "Forward & Monitor",
+    "political_response": "Education issues will be taken up with the District Education Officer for immediate resolution."
+  },
+  {
+    "keywords": ["caste discrimination", "untouchability", "sc st atrocity", "dalit", "minority", "communal", "religious tension", "mob", "lynching"],
+    "category": "Social Issues",
+    "authority": "District Magistrate / SC-ST Commission",
+    "level": "State",
+    "mp_role": "Forward & Monitor",
+    "political_response": "Caste-based discrimination is a serious matter. I will immediately take this up with the DM and relevant commission."
+  },
+  {
+    "keywords": ["domestic violence", "women safety", "dowry", "child marriage", "trafficking", "mahila", "balika", "beti"],
+    "category": "Social Issues",
+    "authority": "District Women & Child Development Officer",
+    "level": "State",
+    "mp_role": "Forward & Monitor",
+    "political_response": "Women and child safety is non-negotiable. We are referring this to the Women's Protection Officer immediately."
+  },
+  {
+    "keywords": ["noise pollution", "loudspeaker", "encroachment on temple", "religious gathering", "nuisance neighbour", "open defecation"],
+    "category": "Social Issues",
+    "authority": "Local Administration / Police",
+    "level": "Local",
+    "mp_role": "Coordinate",
+    "political_response": "This social nuisance complaint will be forwarded to the local administration for resolution."
+  },
+  {
+    "keywords": ["birth certificate", "death certificate", "property tax", "house tax", "khata", "nagar nigam", "ward office"],
+    "category": "Bureaucratic / Administrative",
     "authority": "Municipal Corporation",
     "level": "Local",
     "mp_role": "Lodge Ticket with Corp",
     "political_response": "These certificates are issued by the local civic body. Please apply at the Ward Office."
   },
   {
-    "keywords": ["court case", "divorce", "neighbor fight", "private dispute", "loan shark", "property dispute"],
-    "category": "Private/Legal",
+    "keywords": ["corruption", "bribery", "ghoos", "officer not working", "application pending", "sarkari kaam", "sarkar se kaam nahi"],
+    "category": "Bureaucratic / Administrative",
+    "authority": "District Magistrate / Vigilance Dept",
+    "level": "State",
+    "mp_role": "Forward & Monitor",
+    "political_response": "Corruption in government offices is unacceptable. I am forwarding this to the DM and vigilance department."
+  },
+  {
+    "keywords": ["court case", "divorce", "neighbor fight", "private dispute", "loan shark", "property dispute between individuals"],
+    "category": "Social Issues",
     "authority": "Judiciary / Police",
     "level": "Private",
     "mp_role": "Not In Scope",
