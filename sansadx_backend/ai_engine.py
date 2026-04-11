@@ -22,6 +22,153 @@ def get_client():
         return None
     return OpenAI(api_key=api_key)
 
+# ── Category validation ───────────────────────────────────────────────────────
+_VALID_CATEGORIES = {
+    "Infrastructure & Utilities",
+    "Housing & Land",
+    "Health",
+    "Education",
+    "Government Schemes & Welfare",
+    "Agriculture",
+    "Social Issues",
+    "Law & Order",
+    "Bureaucratic / Administrative",
+}
+
+# Known hallucinations / old names / partial names → canonical category
+_CATEGORY_ALIASES = {
+    "infrastructure": "Infrastructure & Utilities",
+    "infrastructure & utility": "Infrastructure & Utilities",
+    "infrastructure (state)": "Infrastructure & Utilities",
+    "infrastructure(state)": "Infrastructure & Utilities",
+    "energy": "Infrastructure & Utilities",
+    "water": "Infrastructure & Utilities",
+    "sanitation": "Infrastructure & Utilities",
+    "civic amenities": "Infrastructure & Utilities",
+    "transport": "Infrastructure & Utilities",
+    "telecom": "Infrastructure & Utilities",
+    "railways": "Infrastructure & Utilities",
+    "road": "Infrastructure & Utilities",
+    "roads": "Infrastructure & Utilities",
+    "electricity": "Infrastructure & Utilities",
+    "revenue & land": "Housing & Land",
+    "land": "Housing & Land",
+    "housing": "Housing & Land",
+    "land records": "Housing & Land",
+    "public health": "Health",
+    "health & sanitation": "Health",
+    "medical": "Health",
+    "healthcare": "Health",
+    "education (central)": "Education",
+    "education (state)": "Education",
+    "school": "Education",
+    "food supply": "Government Schemes & Welfare",
+    "banking & finance": "Government Schemes & Welfare",
+    "labor & employment": "Government Schemes & Welfare",
+    "labour & employment": "Government Schemes & Welfare",
+    "welfare": "Government Schemes & Welfare",
+    "government schemes": "Government Schemes & Welfare",
+    "schemes": "Government Schemes & Welfare",
+    "pension": "Government Schemes & Welfare",
+    "ration": "Government Schemes & Welfare",
+    "farming": "Agriculture",
+    "farmer": "Agriculture",
+    "crop": "Agriculture",
+    "law and order": "Law & Order",
+    "police": "Law & Order",
+    "crime": "Law & Order",
+    "security": "Law & Order",
+    "bureaucratic": "Bureaucratic / Administrative",
+    "administrative": "Bureaucratic / Administrative",
+    "bureaucratic/administrative": "Bureaucratic / Administrative",
+    "bureaucratic/ administrative": "Bureaucratic / Administrative",
+    "civic admin": "Bureaucratic / Administrative",
+    "external affairs": "Bureaucratic / Administrative",
+    "postal services": "Bureaucratic / Administrative",
+    "corruption": "Bureaucratic / Administrative",
+    "social issue": "Social Issues",
+    "caste": "Social Issues",
+    "women": "Social Issues",
+    "general grievance": "Infrastructure & Utilities",
+    "general": "Infrastructure & Utilities",
+}
+
+
+def _normalize_categories(cats: list, raw_message: str) -> list:
+    """
+    Validate and correct AI-returned categories against the 9 valid ones.
+    Steps: exact → alias → fuzzy → taxonomy keyword fallback → default.
+    Always returns a non-empty list.
+    """
+    if not isinstance(cats, list):
+        cats = [cats] if cats else []
+
+    valid_lower = {c.lower(): c for c in _VALID_CATEGORIES}
+    result = []
+
+    for cat in cats:
+        if not isinstance(cat, str) or not cat.strip():
+            continue
+        cat_lower = cat.strip().lower()
+
+        # 1. Exact match (case-insensitive)
+        if cat_lower in valid_lower:
+            result.append(valid_lower[cat_lower])
+            continue
+
+        # 2. Alias lookup
+        if cat_lower in _CATEGORY_ALIASES:
+            result.append(_CATEGORY_ALIASES[cat_lower])
+            continue
+
+        # 3. Fuzzy match against valid category names
+        fm = difflib.get_close_matches(cat_lower, valid_lower.keys(), n=1, cutoff=0.70)
+        if fm:
+            result.append(valid_lower[fm[0]])
+            logger.info("Category fuzzy-corrected: '%s' → '%s'", cat.strip(), valid_lower[fm[0]])
+            continue
+
+        # 4. Fuzzy match against alias keys
+        fm2 = difflib.get_close_matches(cat_lower, _CATEGORY_ALIASES.keys(), n=1, cutoff=0.70)
+        if fm2:
+            result.append(_CATEGORY_ALIASES[fm2[0]])
+            logger.info("Category alias-fuzzy: '%s' → '%s'", cat.strip(), _CATEGORY_ALIASES[fm2[0]])
+            continue
+
+        logger.warning("Unrecognised category dropped: '%s'", cat.strip())
+
+    # 5. Keyword fallback — scan taxonomy if nothing survived
+    if not result and raw_message:
+        msg_lower = raw_message.lower()
+        try:
+            from sansadx_backend.jurisdiction import TAXONOMY_DB
+            for rule in TAXONOMY_DB:
+                for kw in rule.get("keywords", []):
+                    if kw.lower() in msg_lower:
+                        raw_cat = rule.get("category", "")
+                        mapped = (
+                            raw_cat if raw_cat in _VALID_CATEGORIES
+                            else _CATEGORY_ALIASES.get(raw_cat.lower())
+                        )
+                        if mapped:
+                            result.append(mapped)
+                            logger.info("Category recovered via taxonomy kw '%s' → '%s'", kw, mapped)
+                            break
+                if result:
+                    break
+        except Exception:
+            pass
+
+    # 6. Final default — never return empty
+    if not result:
+        logger.warning("Category recovery failed for message; defaulting to Infrastructure & Utilities")
+        result = ["Infrastructure & Utilities"]
+
+    # Deduplicate preserving order
+    seen: set = set()
+    return [c for c in result if not (c in seen or seen.add(c))]  # type: ignore[func-returns-value]
+
+
 STATIC_RESPONSES = {
     "__WARN_HINDI__": "मर्यादा रखें। अभद्र भाषा का प्रयोग करने पर आप पर कानूनी कार्यवाही हो सकती है।",
     "__WARN_MARATHI__": "मर्यादा राखा. अभद्र भाषेचा वापर केल्यास कायदेशीर कारवाई होऊ शकते.",
@@ -515,12 +662,14 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             if raw_resp in STATIC_RESPONSES:
                 data["political_response"] = STATIC_RESPONSES[raw_resp]
 
-            # 🛠️ MULTI-LABEL SYNC
+            # 🛠️ MULTI-LABEL SYNC + CATEGORY VALIDATION
             if "grievance_data" in data:
                 cats = data["grievance_data"].get("categories", [])
                 if isinstance(cats, str):
-                    data["grievance_data"]["categories"] = [cats]
-            
+                    cats = [cats]
+                validated = _normalize_categories(cats, user_message)
+                data["grievance_data"]["categories"] = validated
+
             return data
             
         except Exception as e:
