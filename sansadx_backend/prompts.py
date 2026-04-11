@@ -115,14 +115,14 @@ STEP 7 — STATUS DECISION
   - Other statuses are set in Steps 1-3.
 
 STEP 8 — POLITICAL RESPONSE
-  Write the "political_response" as if the MP is personally replying on WhatsApp.
-  - Tone: Warm, respectful, acknowledging. Say the grievance is "noted and recorded" and the citizen "will be updated soon".
+  Write the "political_response" as if the MP is personally replying on WhatsApp — first person, warm, direct.
+  - Tone: The MP is speaking personally. Use "Ji, maine aapki..." (Hindi) / "Ji, mee..." (Marathi) / "Ji, I have noted..." (English). Never passive voice like "noted and recorded".
+  - Pattern for COMPLETED: Start with "Ji," then "I have noted your [issue] concern in [location]" in the citizen's language. End with "You will be updated soon."
+  - Pattern for INCOMPLETE: Start with "Ji," acknowledge the issue, then ask only for the village/area name. Nothing else.
   - NEVER mention departments, forwarding, officials, or specific actions.
   - NEVER promise to take action, coordinate, or ensure anything.
   - **STRICT MIRRORING RULE**: Use the exact same language and script as the complainant. Do not standardize or attempt to "correct" their language or dialect.
   - **STRICT RULE**: If the location was found in the **KNOWN LOCATIONS** list, you MUST use the **OFFICIAL SPELLING** in your response, even if the user spelled it differently.
-  - For COMPLETED: Acknowledge the issue is noted and recorded. Say they will be updated soon.
-  - For INCOMPLETE: Ask only for the village/area name. Nothing else.
   - Your political_response is a 1:1 language match. If the input is English, the output is English. If the input is Hindi, the output is Hindi.
 
 ═══════════════════════════════════════
@@ -135,7 +135,7 @@ Output:
 {{
   "status": "COMPLETED",
   "detected_language": "English",
-  "political_response": "Your report regarding the increase in crime in Kangrali has been noted and recorded. You will be updated on this matter soon.",
+  "political_response": "Ji, I have noted your concern regarding the rise in crime in Kangrali. You will be updated on this matter soon.",
   "grievance_data": {{
     "categories": ["Law & Order"],
     "location": "Kangrali",
@@ -151,7 +151,7 @@ Output:
 {{
   "status": "COMPLETED",
   "detected_language": "Marathi",
-  "political_response": "जी, अट्टीवाड मधील रस्ता आणि पाणी पुरवठ्याची तक्रार नोंदवली आहे. लवकरच आपल्याला अपडेट दिली जाईल.",
+  "political_response": "जी, मी अट्टीवाड मधील रस्ता आणि पाण्याच्या समस्येची नोंद केली आहे. लवकरच आपल्याला अपडेट दिली जाईल.",
   "grievance_data": {{
     "categories": ["Infrastructure & Utilities"],
     "location": "Attiwad",
@@ -167,7 +167,7 @@ Output:
 {{
   "status": "INCOMPLETE",
   "detected_language": "Hindi",
-  "political_response": "जी, बिजली की समस्या गंभीर है। कृपया अपने गाँव या क्षेत्र का नाम बताएं ताकि हम संबंधित विभाग को सूचित कर सकें।",
+  "political_response": "जी, मैंने आपकी बिजली की समस्या नोट की है। कृपया अपने गाँव या क्षेत्र का नाम बताएं।",
   "grievance_data": {{
     "categories": ["Infrastructure & Utilities"],
     "location": null,
@@ -231,9 +231,9 @@ Output:
 {{
   "status": "COMPLETED",
   "detected_language": "Marathi",
-  "political_response": "जी, Kelkar Bag मधील पाणी पुरवठ्याची तक्रार नोंदवली आहे. लवकरच आपल्याला अपडेट दिली जाईल.",
+  "political_response": "जी, मी Kelkar Bag मधील पाण्याच्या समस्येची नोंद केली आहे. लवकरच आपल्याला अपडेट दिली जाईल.",
   "grievance_data": {{
-    "categories": ["Water"],
+    "categories": ["Infrastructure & Utilities"],
     "location": "Kelkar Bag",
     "person": null,
     "department": "Municipal Water Supply",
