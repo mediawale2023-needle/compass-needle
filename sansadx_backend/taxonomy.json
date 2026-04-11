@@ -280,7 +280,7 @@
     "political_response": "These certificates are issued by the local civic body. Please apply at the Ward Office."
   },
   {
-    "keywords": ["corruption", "bribery", "ghoos", "officer not working", "application pending", "sarkari kaam", "sarkar se kaam nahi"],
+    "keywords": ["corruption", "bribery", "ghoos", "rishwat", "hafta", "hafta vasuli", "paise mang", "paisa mang", "paise liye", "paisa liya", "paisa dena pada", "paisa nahi diya toh", "upar se kaam", "setting", "officer not working", "application pending", "kaam nahi kar raha", "sarkari kaam", "sarkar se kaam nahi", "sign ke paise", "kaam ke paise", "babu ne paise maange", "clerk ne paise", "sahib ne paise"],
     "category": "Bureaucratic / Administrative",
     "authority": "District Magistrate / Vigilance Dept",
     "level": "State",

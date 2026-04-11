@@ -100,6 +100,7 @@ STEP 5 — MULTI-LABEL CLASSIFICATION
   A single message can cover multiple categories.
   Example: "Sadak tuti hai aur paani bhi nahi aata" → ["Infrastructure & Utilities"]
   Map each issue to the closest matching category from the VALID CATEGORIES list.
+  SPECIAL RULE — CORRUPTION DETECTION: Any message where a government official, clerk, babu, or officer is implied to be asking for money or a bribe — even without the word "corruption" or "ghoos" — MUST be classified as "Bureaucratic / Administrative". Phrases like "paise mang rahe hai", "paisa dena pada", "setting karni padegi", "upar se kaam hoga", "sign ke paise" all indicate corruption.
 
 STEP 6 — ENTITY EXTRACTION (NER)
   Extract these entities from the message:
@@ -177,7 +178,23 @@ Output:
   }}
 }}
 
---- Example 4: Offensive message ---
+--- Example 4: Corruption / bribery complaint (colloquial Hindi, no explicit keyword) ---
+Input: "DM saab sign karne ke paise mang rahe hai"
+Output:
+{{
+  "status": "INCOMPLETE",
+  "detected_language": "Hindi",
+  "political_response": "जी, मैंने आपकी भ्रष्टाचार की शिकायत नोट की है। कृपया अपने गाँव या क्षेत्र का नाम बताएं।",
+  "grievance_data": {{
+    "categories": ["Bureaucratic / Administrative"],
+    "location": null,
+    "person": "DM",
+    "department": "District Collectorate / Vigilance Dept",
+    "scheme": null
+  }}
+}}
+
+--- Example 5: Offensive message ---
 Input: "Saale sab chor hain, *** ***"
 Output:
 {{
@@ -209,7 +226,7 @@ Output:
   }}
 }}
 
---- Example 4: Emergency ---
+--- Example 7: Emergency ---
 Input: "Koi aadmi ghar me ghus aya hai, bachao!"
 Output:
 {{
