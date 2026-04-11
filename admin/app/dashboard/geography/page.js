@@ -15,8 +15,35 @@ const DEL_BTN = {
     borderRadius: 4, transition: 'color 0.15s',
 };
 
+// Institution-type keywords — mirrors Python _INST_KW_PAT in admin_api.py
+const INST_KW_RE = /\b(?:Inter\s+College|Degree\s+College|Junior\s+High\s+School|Senior\s+Secondary\s+School|Higher\s+Secondary\s+School|High\s+School|Public\s+School|Bal\s+Mandir|Vidya\s+Mandir|Shiksha\s+Sadan|Shiksha\s+Niketan|Composite\s+Vidyalaya|Composite\s+Vidhyalaya|Prathmik\s+Vidyalaya|Primary\s+School|Vidyalaya|Vidhyalaya|School|College|Academy|Sadan|Niketan|Kendra|Banquet\s+Hall|Club\s+House|Club|Sthal|Hall|Office|Karyalay|Foundation|Center|Centre|Mandir|Bhavan|Bhawan|Panchayat\s+Ghar|Panchayat|Gram\s+Sabha)\b/gi;
+
+// Strip "Room No X", Wing, and institution prefixes from a full polling station name
+function cleanLocality(name) {
+    if (!name) return name;
+    let s = name;
+    // Strip Room/Wing suffixes
+    s = s.replace(/\s*,?\s*(?:(?:North|South|East|West)\s+)?Wing\s+Roo?m\s*(?:No\.?\s*)?\d+\S*/gi, '').trim();
+    s = s.replace(/\s*,?\s*Roo?m\s*(?:No\.?\s*)?\d+\S*/gi, '').trim();
+    s = s.replace(/\s+(?:North|South|East|West)\s+Wing/gi, '').trim();
+    // Find the LAST institution keyword; everything after it is the locality
+    let lastIdx = -1, lastLen = 0;
+    const re = new RegExp(INST_KW_RE.source, 'gi');
+    let m;
+    while ((m = re.exec(s)) !== null) { lastIdx = m.index; lastLen = m[0].length; }
+    if (lastIdx >= 0) {
+        const after = s.slice(lastIdx + lastLen).replace(/^[\s,(\-]+/, '').trim();
+        if (after.length > 2) return after;
+    }
+    return s;
+}
+
+function applyClean(stations) {
+    return stations.map(s => ({ ...s, locality: cleanLocality(s.locality || '') || s.locality }));
+}
+
 // Locality may still contain a building/institution name — flag it for review
-const FLAG_PAT = /\b(?:School|College|Vidyalaya|Vidhyalaya|Academy|Sadan|Niketan|Kendra|Hall|Office|Karyalay|Mandir|Bhavan|Bhawan|Panchayat)\b/i;
+const FLAG_PAT = /\b(?:School|College|Vidyalaya|Vidhyalaya|Academy|Sadan|Niketan|Kendra|Hall|Office|Karyalay|Mandir|Bhavan|Bhawan|Panchayat|Room\s*No)\b/i;
 
 // ─── ReviewTable ───────────────────────────────────────────────────────────────
 function ReviewTable({ stations, onChange }) {
@@ -154,6 +181,14 @@ function ReviewTable({ stations, onChange }) {
                         ⚠ Flagged only
                     </button>
                 )}
+                <button
+                    onClick={() => onChange(applyClean(stations))}
+                    className="btn-secondary"
+                    style={{ fontSize: '0.77rem', padding: '7px 12px', whiteSpace: 'nowrap' }}
+                    title="Strip Room No, school/college/vidyalaya prefixes from all localities"
+                >
+                    ✦ Auto-clean
+                </button>
                 <button
                     onClick={addRow}
                     className="btn-secondary"
@@ -341,11 +376,11 @@ export default function GeographyUploadPage() {
             const r = await apiUpload('/api/admin/geography/upload-pdf', file);
             if (r.job_id) {
                 showMsg('success', 'Hindi PDF detected — processing with AI OCR…');
-                const extracted = await pollOcrJob(r.job_id);
+                const extracted = applyClean(await pollOcrJob(r.job_id));
                 setStations(extracted);
                 showMsg('success', `Extracted ${extracted.length} stations`);
             } else {
-                const extracted = r.stations || [];
+                const extracted = applyClean(r.stations || []);
                 setStations(extracted);
                 showMsg('success', `Extracted ${extracted.length} stations`);
             }
@@ -576,7 +611,7 @@ export default function GeographyUploadPage() {
                                                     onClick={async () => {
                                                         try {
                                                             const r = await apiGet(`/api/admin/geography/${encodeURIComponent(pc)}/${encodeURIComponent(ac)}`);
-                                                            setStations(r.data || []);
+                                                            setStations(applyClean(r.data || []));
                                                             setPConst(pc);
                                                             setASelection(ac);
                                                             window.scrollTo({ top: 0, behavior: 'smooth' });
