@@ -29,7 +29,7 @@
       "नेटवर्क नहीं", "सिग्नल नहीं", "इंटरनेट स्लो", "मोबाइल टावर",
       "ट्रेन", "रेलवे स्टेशन", "बस नहीं चलती",
       "रस्ता", "वीज नाही", "पाणी नाही", "नाली तुंबली", "कचरा उचलत नाही",
-      "রাস্তা", "বিদ্যুৎ নেই", "জল নেই", "ড্রেন", "আবর্জনা",
+      "রাস্তা", "সড়ক", "বিদ্যুৎ নেই", "জল নেই", "ড্রেন", "আবর্জনা",
       "சாலை", "மின்சாரம் இல்லை", "தண்ணீர் இல்லை", "கழிவுநீர்", "குப்பை",
       "రోడ్డు", "కరెంట్ లేదు", "నీళ్ళు లేవు", "డ్రైన్", "చెత్త",
       "ರಸ್ತೆ", "ವಿದ್ಯುತ್ ಇಲ್ಲ", "ನೀರು ಇಲ್ಲ", "ಚರಂಡಿ", "ಕಸ",
@@ -111,6 +111,7 @@
   },
   {
     "keywords": [
+      "teacher", "master ji", "shikshak", "शिक्षक", "अध्यापक",
       "master ji nahi aate", "teacher absent", "school mein padhaye nahi",
       "school band hai", "school ki building toot gayi", "school mein shauchalay nahi",
       "toilet nahi", "mid-day meal nahi milta", "khana ganda hai", "mdm",
@@ -266,6 +267,7 @@
       "chori ho gayi", "mobile chori", "ghar mein ghus ke maara",
       "loot", "robbery", "dacoity", "dakaiti",
       "gali mein ladai", "maar peet", "assault", "attack",
+      "FIR", "एफआईआर", "थाने", "thana", "thane",
       "FIR nahi likh rahe", "police ne mana kar diya",
       "thane wale nahi sun rahe", "daroga ne dhamki di",
       "police baat nahi karte", "complaint pe koi action nahi",

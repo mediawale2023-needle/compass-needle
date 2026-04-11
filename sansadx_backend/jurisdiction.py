@@ -27,35 +27,46 @@ def load_taxonomy():
 # Load once on startup
 TAXONOMY_DB = load_taxonomy()
 
+# --- KEYWORD MATCHING ---
+def _keyword_matches(keyword: str, text_lower: str) -> bool:
+    """
+    Order-independent keyword matching.
+    - Single word  → must appear anywhere in the text.
+    - Multi-word   → every word in the keyword must appear somewhere in the
+                     text (any order). This handles "डॉक्टर अस्पताल में नहीं"
+                     matching "अस्पताल में डॉक्टर नहीं है".
+    """
+    parts = keyword.lower().split()
+    if len(parts) == 1:
+        return parts[0] in text_lower
+    return all(p in text_lower for p in parts)
+
+
 # --- CLASSIFICATION LOGIC ---
 def get_classification(text: str):
     """
     Scans the text against the JSON taxonomy rules.
-    Returns the best match or a default 'Unknown'.
+    Returns the best match or a default fallback.
     """
     text_lower = text.lower()
-    
-    # 1. Exact Keyword Match
-    # We iterate through the JSON list
+
     for rule in TAXONOMY_DB:
         for keyword in rule["keywords"]:
-            if keyword in text_lower:
-                # Found a match! Return the full rule object
+            if _keyword_matches(keyword, text_lower):
                 return {
                     "category": rule["category"],
                     "authority": rule["authority"],
                     "level": rule["level"],
                     "mp_role": rule["mp_role"],
                     "political_response": rule.get("political_response", "We will look into this."),
-                    "match_type": "Deterministic"
+                    "match_type": "Deterministic",
                 }
-    
-    # 2. Default Fallback (If no keywords match)
+
     return {
         "category": "General Grievance",
         "authority": "District Collector's Office",
         "level": "Admin",
         "mp_role": "Coordinate",
         "political_response": "Your issue has been noted and will be forwarded to the relevant department.",
-        "match_type": "Fallback"
+        "match_type": "Fallback",
     }
