@@ -1,298 +1,235 @@
 [
   {
-    "keywords": ["passport", "visa", "embassy", "immigration", "mea"],
-    "category": "Bureaucratic / Administrative",
-    "authority": "Ministry of External Affairs",
-    "level": "Central",
-    "mp_role": "Direct Intervention",
-    "political_response": "Passport issues are a Central subject. I will escalate this to the Regional Passport Office immediately."
-  },
-  {
-    "keywords": ["railway", "train", "station", "platform", "irctc", "ticket", "stoppage", "rail over bridge"],
+    "keywords": [
+      "sadak", "rasta", "road", "pothole", "ghadda", "toot gayi sadak", "kacchi sadak", "gravel road",
+      "pwd road", "state highway", "district road", "mdr", "pul", "bridge", "culvert", "nala",
+      "baarish mein sadak doob", "sadak kharab", "rasta band", "raste mein paani", "keechar",
+      "national highway", "nhai", "toll", "expressway", "flyover", "overbridge", "rob",
+      "railway", "train", "station", "platform", "irctc", "train stoppage", "rail",
+      "state bus", "upsrtc", "ksrtc", "msrtc", "bus nahi chalti", "bus route", "bus depot",
+      "bijli", "electricity", "current nahi", "light chali gayi", "power cut", "load shedding",
+      "transformer", "meter", "bijli ka bill", "voltage", "wire latki", "khamba toot", "pole",
+      "feeder", "substation", "bijli nahi aati", "andhera", "current zyada aata",
+      "street light", "batti nahi jalti", "lamp post", "led light", "raat ko andhera",
+      "paani nahi aata", "nal sukha", "pani ganda", "pipeline toot", "tanker nahi",
+      "jal jeevan", "nal se jal", "drinking water", "water supply", "tap", "paani ka pressure",
+      "paani mein keeda", "dirty water", "nala ka paani", "hand pump", "boring",
+      "nali choki", "naali bhar gayi", "drain overflow", "gutter", "sewage", "manhole",
+      "baarish mein paani bharta", "waterlogging", "jal jamav",
+      "kachara nahi uthta", "safai nahi hoti", "dustbin bhar gaya", "sweeper nahi",
+      "garbage", "kachre ka dhair", "dump", "safai karmchari nahi aata",
+      "mobile tower", "network nahi", "signal nahi", "internet slow", "broadband", "bsnl",
+      "jio tower", "airtel signal", "tower"
+    ],
     "category": "Infrastructure & Utilities",
-    "authority": "Ministry of Railways",
-    "level": "Central",
-    "mp_role": "Direct Intervention",
-    "political_response": "Railways are under my direct oversight. I will take this up with the DRM/Ministry."
-  },
-  {
-    "keywords": ["national highway", "nhai", "toll", "expressway", "flyover on nh"],
-    "category": "Infrastructure & Utilities",
-    "authority": "NHAI / MoRTH",
-    "level": "Central",
-    "mp_role": "Direct Intervention",
-    "political_response": "National Highways are a priority. I will contact the NHAI Project Director regarding this."
-  },
-  {
-    "keywords": ["bsnl", "mobile tower", "network", "sim card", "broadband", "landline", "internet", "telecom"],
-    "category": "Infrastructure & Utilities",
-    "authority": "BSNL / Telecom Ministry",
-    "level": "Central",
-    "mp_role": "Direct Intervention",
-    "political_response": "Connectivity is crucial. I will write to the BSNL GM to improve coverage in your area."
-  },
-  {
-    "keywords": ["post office", "speed post", "postal", "sukanya samriddhi", "dak"],
-    "category": "Bureaucratic / Administrative",
-    "authority": "India Post",
-    "level": "Central",
-    "mp_role": "Direct Intervention",
-    "political_response": "Postal services are a central mandate. I will look into this delay."
-  },
-  {
-    "keywords": ["kv", "kendriya vidyalaya", "navodaya", "cbse", "iit", "central university", "admission mp quota"],
-    "category": "Education",
-    "authority": "Ministry of Education",
-    "level": "Central",
-    "mp_role": "Direct Intervention",
-    "political_response": "I monitor Central Educational Institutes closely. I will check the status of this request."
-  },
-  {
-    "keywords": ["bank", "sbi", "loan", "mudra", "kisan credit card", "kcc", "atm", "fraud", "banking"],
-    "category": "Government Schemes & Welfare",
-    "authority": "Lead Bank Manager / Finance Ministry",
-    "level": "Central",
-    "mp_role": "Coordinate",
-    "political_response": "Banking policies are Central. I will direct your grievance to the Lead Bank Manager of the district."
-  },
-  {
-    "keywords": ["epfo", "pf", "provident fund", "esic", "labour", "labor", "employment", "job card", "rozgar"],
-    "category": "Government Schemes & Welfare",
-    "authority": "EPFO / Ministry of Labor",
-    "level": "Central",
-    "mp_role": "Coordinate",
-    "political_response": "PF issues can be resolved via the Regional Commissioner. We will flag this."
-  },
-  {
-    "keywords": ["police", "fir", "crime", "robbery", "theft", "harassment", "cyber crime", "police station", "constable", "beat", "patrolling"],
-    "category": "Law & Order",
-    "authority": "State Police / SP Office",
-    "level": "State",
+    "authority": "PWD / DISCOM / Municipal Corporation / Railways",
+    "level": "State/Local",
     "mp_role": "Forward & Monitor",
-    "political_response": "Law & Order is a State subject. However, I will forward your complaint to the SP for immediate action."
+    "political_response": "Ji, maine aapki infrastructure samasya note ki hai. Aapko jald update diya jayega."
   },
   {
-    "keywords": ["goonda", "extortion", "rowdy", "antisocial", "illegal weapons", "arms", "gambling den", "liquor mafia"],
-    "category": "Law & Order",
-    "authority": "State Police / SP Office",
-    "level": "State",
-    "mp_role": "Forward & Monitor",
-    "political_response": "I am taking this up with the SP office directly. Anti-social elements will not be tolerated."
-  },
-  {
-    "keywords": ["electricity", "power cut", "voltage", "transformer", "bijli", "bill", "meter", "pole", "feeder", "substation", "load shedding"],
-    "category": "Infrastructure & Utilities",
-    "authority": "State Electricity Board (DISCOM)",
-    "level": "State",
-    "mp_role": "Forward & Monitor",
-    "political_response": "Electricity is managed by the State Board. I will ask the local JE to inspect the fault."
-  },
-  {
-    "keywords": ["state highway", "sh", "pwd road", "district road", "mdr", "sadak", "pothole", "road repair", "broken road", "kaccha rasta"],
-    "category": "Infrastructure & Utilities",
-    "authority": "State PWD",
-    "level": "State",
-    "mp_role": "Coordinate",
-    "political_response": "This road is under State PWD. I will request the local MLA and officials to repair it."
-  },
-  {
-    "keywords": ["ration", "pds", "ration card", "wheat", "rice", "ration shop", "dealer", "annapoorna", "food security"],
-    "category": "Government Schemes & Welfare",
-    "authority": "District Supply Officer",
-    "level": "State",
-    "mp_role": "Coordinate",
-    "political_response": "Ration distribution is a State matter. We are forwarding this to the Supply Officer."
-  },
-  {
-    "keywords": ["pension", "old age pension", "widow pension", "vridha pension", "divyang", "disability pension", "social security"],
-    "category": "Government Schemes & Welfare",
-    "authority": "District Social Welfare Officer",
-    "level": "State",
-    "mp_role": "Coordinate",
-    "political_response": "Pension issues will be taken up with the District Social Welfare Officer for immediate resolution."
-  },
-  {
-    "keywords": ["pm awas", "pmay", "housing scheme", "gramin awas", "pucca house", "indira awas", "awas yojana"],
+    "keywords": [
+      "ghar nahi mila", "awas nahi mila", "pm awas", "pmay", "pradhan mantri awas",
+      "indira awas", "gramin awas", "pucca house", "pakka ghar nahi bana",
+      "ghar ka paisa nahi aaya", "awas yojana mein naam nahi",
+      "zameen ka record galat", "khasra", "khatauni", "nakal", "7/12",
+      "patwari ne galat darz kiya", "land record", "registry nahi ho rahi",
+      "dakhil kharij", "mutation pending", "zameen ka naksha",
+      "koi meri zameen pe kabza", "gaon ki zameen par kabza", "sarkari zameen par dukaan",
+      "kabza", "encroachment", "zameen vivad", "plot dispute", "boundary dispute",
+      "jhuggi hatayi", "buldozer", "eviction notice", "slum", "makan tod diya",
+      "lease nahi mili", "pattaland", "forest land", "patta",
+      "illegal construction", "unauthorised building", "naksha pass nahi"
+    ],
     "category": "Housing & Land",
-    "authority": "District Collector / PMAY Office",
+    "authority": "District Collector / PMAY Office / Tehsildar",
     "level": "State",
     "mp_role": "Coordinate",
-    "political_response": "PM Awas Yojana allocations are reviewed at the district level. I will take up your case with the Collector."
+    "political_response": "Ji, maine aapki ghar aur zameen se judi samasya note ki hai. Aapko jald update diya jayega."
   },
   {
-    "keywords": ["mgnrega", "nrega", "job card", "hundred days work", "rozgar guarantee", "mazdoor", "wages not paid"],
-    "category": "Government Schemes & Welfare",
-    "authority": "Block Development Office",
-    "level": "State",
-    "mp_role": "Coordinate",
-    "political_response": "MGNREGA wages must be paid on time. I will escalate this to the BDO and Programme Officer."
-  },
-  {
-    "keywords": ["pm kisan", "kisan samman nidhi", "farmer scheme", "krishi", "agriculture scheme", "fasal bima", "pmfby", "crop insurance"],
-    "category": "Agriculture",
-    "authority": "District Agriculture Officer",
-    "level": "State",
-    "mp_role": "Coordinate",
-    "political_response": "Farmer scheme issues will be taken up with the District Agriculture Officer immediately."
-  },
-  {
-    "keywords": ["irrigation", "canal", "nahar", "pump set", "tubewell", "borewell", "water for crops", "kisan paani"],
-    "category": "Agriculture",
-    "authority": "Irrigation Department",
-    "level": "State",
-    "mp_role": "Coordinate",
-    "political_response": "Irrigation is vital for our farmers. I will request the Irrigation Department to look into this."
-  },
-  {
-    "keywords": ["fertiliser", "urea", "dap", "seed", "beej", "pesticide", "mandi", "market rate", "crop damage", "banjh zameen"],
-    "category": "Agriculture",
-    "authority": "District Agriculture Officer / Mandi Board",
-    "level": "State",
-    "mp_role": "Coordinate",
-    "political_response": "This agricultural issue will be raised with the Agriculture Department and Mandi Board."
-  },
-  {
-    "keywords": ["stray cattle", "awara pashu", "neelgai", "crop destroyed by animals", "animal attack", "pashu", "gaushala"],
-    "category": "Agriculture",
-    "authority": "District Cattle Pound / Animal Husbandry Dept",
-    "level": "State",
-    "mp_role": "Coordinate",
-    "political_response": "Stray animal damage to crops is a serious concern. I will request the animal husbandry department to act."
-  },
-  {
-    "keywords": ["state bus", "msrtc", "ksrtc", "upsrtc", "bus depot", "bus route", "conductor", "bus service"],
-    "category": "Infrastructure & Utilities",
-    "authority": "State Transport Corp",
-    "level": "State",
-    "mp_role": "Coordinate",
-    "political_response": "State Transport issues are handled by the Depot Manager. We will forward your request."
-  },
-  {
-    "keywords": ["tehsildar", "caste certificate", "income certificate", "domicile", "patwari", "registry", "mutation", "dakhil kharij", "nakal"],
-    "category": "Bureaucratic / Administrative",
-    "authority": "Tehsildar / Collectorate",
-    "level": "State",
-    "mp_role": "Coordinate",
-    "political_response": "Revenue records are a State subject. We will ask the Tehsildar to expedite this."
-  },
-  {
-    "keywords": ["land record", "7/12", "khasra", "khatauni", "plot dispute", "zameen vivad", "boundary dispute", "land encroachment"],
-    "category": "Housing & Land",
-    "authority": "Tehsildar / Revenue Court",
-    "level": "State",
-    "mp_role": "Coordinate",
-    "political_response": "Land record disputes are handled by the Revenue Department. We will ask the Tehsildar to address this."
-  },
-  {
-    "keywords": ["illegal construction", "encroachment", "slum", "jhuggi", "unauthorised building", "demolition notice", "eviction"],
-    "category": "Housing & Land",
-    "authority": "Municipal Corporation / District Collector",
-    "level": "Local",
-    "mp_role": "Lodge Ticket with Corp",
-    "political_response": "Encroachment and illegal construction complaints will be forwarded to the civic authorities for action."
-  },
-  {
-    "keywords": ["garbage", "trash", "dustbin", "waste", "cleaning", "sweeper", "dump", "kachara", "safai"],
-    "category": "Infrastructure & Utilities",
-    "authority": "Municipal Corporation",
-    "level": "Local",
-    "mp_role": "Lodge Ticket with Corp",
-    "political_response": "Sanitation is a local municipal duty. We have lodged a ticket with the Sanitary Inspector."
-  },
-  {
-    "keywords": ["drain", "gutter", "sewage", "water logging", "naali", "overflow", "manhole", "nali choki"],
-    "category": "Infrastructure & Utilities",
-    "authority": "Municipal Corporation",
-    "level": "Local",
-    "mp_role": "Lodge Ticket with Corp",
-    "political_response": "Drainage issues belong to the Municipality. We are notifying the Ward Officer."
-  },
-  {
-    "keywords": ["water supply", "drinking water", "tap", "pipeline", "leakage", "dirty water", "tanker", "paani", "nal", "jal jeevan"],
-    "category": "Infrastructure & Utilities",
-    "authority": "Municipal Water Dept / Jal Board",
-    "level": "Local",
-    "mp_role": "Lodge Ticket with Corp",
-    "political_response": "Water supply is a local body function. We are alerting the Water Engineer."
-  },
-  {
-    "keywords": ["street light", "lamp", "dark road", "led light", "pole light", "batti nahi", "andhera"],
-    "category": "Infrastructure & Utilities",
-    "authority": "Municipal Corporation",
-    "level": "Local",
-    "mp_role": "Lodge Ticket with Corp",
-    "political_response": "Street lights are maintained by the Municipality. We will request repairs."
-  },
-  {
-    "keywords": ["hospital", "phc", "chc", "dispensary", "doctor", "nurse", "medicine", "dawai", "ambulance", "ayushman", "janani suraksha", "asha worker"],
+    "keywords": [
+      "aspatal mein doctor nahi", "dawai nahi milti", "phc band", "chc band", "dispensary",
+      "asha worker nahi aati", "doctor absent", "nurse nahi hai", "hospital ki building",
+      "operation ke liye paisa mang raha", "free treatment nahi mila",
+      "ambulance nahi aayi", "108 nahi aaya", "ambulance late",
+      "ayushman card nahi bana", "golden card", "pmjay", "ayushman bharat",
+      "hospital ne card nahi maana", "free ilaj nahi mila",
+      "dengue", "malaria", "bukhaar", "bimari", "epidemic", "infection",
+      "vaccine nahi laga", "tika nahi", "polio", "covid", "fogging nahi aayi",
+      "mosquito", "machar", "vector", "kala azar", "jaundice phelayi",
+      "nasha mukti", "rehabilitation center", "alcohol de-addiction",
+      "blood nahi mila", "blood bank", "oxygen nahi tha", "icu nahi",
+      "janani suraksha", "delivery", "prasav", "midwife", "ANM nahi aayi",
+      "bacche ka tika", "immunization", "maternity", "matrituva"
+    ],
     "category": "Health",
     "authority": "Chief Medical Officer / District Hospital",
     "level": "State",
     "mp_role": "Forward & Monitor",
-    "political_response": "Healthcare access is a priority. I will raise this with the Chief Medical Officer of the district."
+    "political_response": "Ji, maine aapki swasthya samasya note ki hai. Aapko jald update diya jayega."
   },
   {
-    "keywords": ["dengue", "malaria", "epidemic", "fever", "disease outbreak", "covid", "vaccination", "fogging", "mosquito", "vector"],
-    "category": "Health",
-    "authority": "Municipal Health Dept / CMO",
-    "level": "Local",
-    "mp_role": "Lodge Ticket with Corp",
-    "political_response": "Public health emergencies require immediate action. We are notifying the health authorities."
-  },
-  {
-    "keywords": ["government school", "shiksha", "teacher absent", "mid day meal", "anganwadi", "balwadi", "scholarship", "uniform", "book"],
+    "keywords": [
+      "master ji nahi aate", "teacher absent", "school mein padhaye nahi",
+      "school band hai", "school ki building toot gayi", "school mein shauchalay nahi",
+      "toilet nahi", "mid-day meal nahi milta", "khana ganda hai", "mdm",
+      "scholarship nahi aayi", "chhaatravritt nahi mili", "sc st scholarship",
+      "obc scholarship", "minority scholarship", "post matric scholarship",
+      "kitabein nahi mili", "uniform nahi mili", "bag nahi mila",
+      "anganwadi band", "aangan badi nahi khulti", "seva kendra band",
+      "poshan nahi milta", "anganwadi worker absent", "bal vikas",
+      "kv", "kendriya vidyalaya", "navodaya", "cbse", "iit", "admission mp quota",
+      "college nahi khula", "university", "degree nahi mili",
+      "fees nahi bhari ja sakti", "poor student", "garib bachcha",
+      "board exam", "pariksha kendra", "exam center door hai"
+    ],
     "category": "Education",
-    "authority": "District Education Officer / BEO",
-    "level": "State",
+    "authority": "District Education Officer / BEO / Ministry of Education",
+    "level": "State/Central",
     "mp_role": "Forward & Monitor",
-    "political_response": "Education issues will be taken up with the District Education Officer for immediate resolution."
+    "political_response": "Ji, maine aapki shiksha se judi samasya note ki hai. Aapko jald update diya jayega."
   },
   {
-    "keywords": ["caste discrimination", "untouchability", "sc st atrocity", "dalit", "minority", "communal", "religious tension", "mob", "lynching"],
-    "category": "Social Issues",
-    "authority": "District Magistrate / SC-ST Commission",
-    "level": "State",
-    "mp_role": "Forward & Monitor",
-    "political_response": "Caste-based discrimination is a serious matter. I will immediately take this up with the DM and relevant commission."
-  },
-  {
-    "keywords": ["domestic violence", "women safety", "dowry", "child marriage", "trafficking", "mahila", "balika", "beti"],
-    "category": "Social Issues",
-    "authority": "District Women & Child Development Officer",
-    "level": "State",
-    "mp_role": "Forward & Monitor",
-    "political_response": "Women and child safety is non-negotiable. We are referring this to the Women's Protection Officer immediately."
-  },
-  {
-    "keywords": ["noise pollution", "loudspeaker", "encroachment on temple", "religious gathering", "nuisance neighbour", "open defecation"],
-    "category": "Social Issues",
-    "authority": "Local Administration / Police",
-    "level": "Local",
+    "keywords": [
+      "rashan nahi mila", "dealer ne card block kiya", "ration card mein naam galat",
+      "rashan ki dukaan band", "ration kam deta hai", "e-kyc nahi ho rahi",
+      "pds", "ration card", "wheat", "rice", "annapoorna", "food security",
+      "pension band ho gayi", "pension nahi aati", "widow pension", "vridha pension",
+      "budhapa pension", "divyang pension", "disability pension", "social security",
+      "pension account mein nahi aati", "vidhwa pension",
+      "mgnrega", "nrega", "job card nahi mila", "kaam nahi mila",
+      "haazri nahi lagi", "paisa nahi aaya mgnrega", "100 din ka kaam",
+      "pm kisan", "kisan samman nidhi", "kist nahi aayi", "pm kisan paisa",
+      "bank mein paisa nahi aaya", "kisan nidhi",
+      "ujjwala", "gas connection nahi mila", "cylinder nahi aata",
+      "lpg subsidy", "gas cylinder", "ujjwala yojana",
+      "mudra loan", "bank loan nahi mila", "msme", "startup loan",
+      "labour card", "shramik card", "majdoor card", "e-shram",
+      "epfo", "pf", "provident fund", "esic", "employee pension",
+      "bank", "sbi", "uco bank", "atm band", "atm mein paisa nahi",
+      "jan dhan", "zero balance account", "pradhan mantri jan dhan",
+      "pm vishwakarma", "silai machine", "toolkit", "vishwakarma yojana",
+      "bima", "pradhan mantri jeevan jyoti", "pmjjby", "pmsby"
+    ],
+    "category": "Government Schemes & Welfare",
+    "authority": "District Social Welfare / Block Office / Lead Bank",
+    "level": "State/Central",
     "mp_role": "Coordinate",
-    "political_response": "This social nuisance complaint will be forwarded to the local administration for resolution."
+    "political_response": "Ji, maine aapki yojana se judi samasya note ki hai. Aapko jald update diya jayega."
   },
   {
-    "keywords": ["birth certificate", "death certificate", "property tax", "house tax", "khata", "nagar nigam", "ward office"],
-    "category": "Bureaucratic / Administrative",
-    "authority": "Municipal Corporation",
-    "level": "Local",
-    "mp_role": "Lodge Ticket with Corp",
-    "political_response": "These certificates are issued by the local civic body. Please apply at the Ward Office."
+    "keywords": [
+      "fasal barbaad", "fasal kharab ho gayi", "baarish se fasal barbad",
+      "aawaara janwar ne fasal kha li", "neelgai", "bandra pashu",
+      "compensation nahi mila", "girdawari nahi aayi", "patwari ne survey nahi kiya",
+      "pmfby", "fasal bima nahi mila", "crop insurance", "bima claim",
+      "nahar mein paani nahi", "irrigation nahi", "canal dry",
+      "pump set kharab", "boring nahi ho rahi", "sichai nahi",
+      "msp nahi mila", "samarthan mulya", "gehu kharidi", "dhan kharidi",
+      "mandi mein bhaav nahi", "fasal nahi biki", "aadhat",
+      "urea nahi mili", "dap nahi", "khad black mein", "fertiliser",
+      "beej nahi mila", "naqli beej", "pesticide",
+      "kcc nahi bana", "kisan credit card nahi", "farm loan",
+      "kisan registration", "pm kisan registration",
+      "pashu", "pashupalan", "murga palan", "machli palan",
+      "veterinary", "pashu doctor nahi aata", "janwar bimar",
+      "gaushala nahi hai", "stray cattle", "awara gadha"
+    ],
+    "category": "Agriculture",
+    "authority": "District Agriculture Officer / Mandi Board / Irrigation Dept",
+    "level": "State",
+    "mp_role": "Coordinate",
+    "political_response": "Ji, maine aapki kheti se judi samasya note ki hai. Aapko jald update diya jayega."
   },
   {
-    "keywords": ["corruption", "bribery", "ghoos", "rishwat", "hafta", "hafta vasuli", "paise mang", "paisa mang", "paise liye", "paisa liya", "paisa dena pada", "paisa nahi diya toh", "upar se kaam", "setting", "officer not working", "application pending", "kaam nahi kar raha", "sarkari kaam", "sarkar se kaam nahi", "sign ke paise", "kaam ke paise", "babu ne paise maange", "clerk ne paise", "sahib ne paise"],
-    "category": "Bureaucratic / Administrative",
-    "authority": "District Magistrate / Vigilance Dept",
+    "keywords": [
+      "dalit ke saath bhedbhav", "upper caste tang kar rahe", "sc st atrocity",
+      "jati se tang", "caste discrimination", "untouchability",
+      "mandir mein jaane nahi diya", "dalit ko pani nahi diya",
+      "communal tension", "hindu muslim", "religious tension", "danga",
+      "pati maarta hai", "ghar mein maar peet", "domestic violence",
+      "mahila ko tang kar rahe", "ladki ko chhed rahe", "eve teasing",
+      "beti ko tang karte hai", "mahila suraksha",
+      "dowry", "dahej", "bahu ko tang kar rahe", "sasural wale",
+      "child marriage", "naabalig ki shaadi", "bacchi ki shaadi",
+      "bal vivah", "bal majdoori", "bachche se kaam karwa rahe",
+      "trafficking", "aadmi pakad ke le gaye",
+      "nasha bik raha hai", "sharab ki dukaan", "nasha kendra",
+      "drug addict", "sheesh pee raha", "ganja", "nasha",
+      "open defecation", "juggi mein shauchalay nahi",
+      "noise pollution", "loudspeaker se pareshan",
+      "neighbor fight", "jharanjha", "pados wale tang karte hain",
+      "private dispute", "rishtedar ne zameen dabai",
+      "court case", "sub judice"
+    ],
+    "category": "Social Issues",
+    "authority": "District Magistrate / SC-ST Commission / WCD Dept",
     "level": "State",
     "mp_role": "Forward & Monitor",
-    "political_response": "Corruption in government offices is unacceptable. I am forwarding this to the DM and vigilance department."
+    "political_response": "Ji, maine aapki samasya note ki hai. Aapko jald update diya jayega."
   },
   {
-    "keywords": ["court case", "divorce", "neighbor fight", "private dispute", "loan shark", "property dispute between individuals"],
-    "category": "Social Issues",
-    "authority": "Judiciary / Police",
-    "level": "Private",
-    "mp_role": "Not In Scope",
-    "political_response": "This is a private legal matter or civil dispute. As an MP, I cannot intervene in sub-judice or private conflicts."
+    "keywords": [
+      "chori ho gayi", "mobile chori", "ghar mein ghus ke maara",
+      "loot", "robbery", "dacoity", "dakaiti",
+      "gali mein ladai", "maar peet", "assault", "attack",
+      "FIR nahi likh rahe", "police ne mana kar diya",
+      "thane wale nahi sun rahe", "daroga ne dhamki di",
+      "police baat nahi karte", "complaint pe koi action nahi",
+      "police ne case band kar diya",
+      "goonda tang kar raha hai", "bahubali", "local neta ka aadmi",
+      "extortion", "hafta vasuli", "dhamki de rahe hain",
+      "jaan ka khatra hai", "maar denge", "rape", "balatkaar",
+      "kidnapping", "apaharan", "bachcha gum",
+      "hit and run", "accident mein police nahi aayi",
+      "murder", "hatya", "khoon", "body mili",
+      "suicide", "khatm kar lunga", "maar lunga khud ko",
+      "arms", "illegal hathiyar", "gun", "pistol",
+      "gambling", "satta", "matka",
+      "cybercrime", "online fraud", "online thagi", "upi fraud",
+      "fake call", "otp fraud", "bank se paise gaye",
+      "eve teasing police", "molestation", "chhedo mat"
+    ],
+    "category": "Law & Order",
+    "authority": "State Police / SP Office",
+    "level": "State",
+    "mp_role": "Forward & Monitor",
+    "political_response": "Ji, maine aapki shikayat note ki hai. Aapko jald update diya jayega."
+  },
+  {
+    "keywords": [
+      "jaati praman patra nahi bana", "caste certificate nahi",
+      "aay praman patra", "income certificate nahi",
+      "niwas praman patra", "domicile certificate",
+      "janm praman patra", "birth certificate",
+      "mrityu praman patra", "death certificate",
+      "voter card mein galti", "voter list mein naam nahi",
+      "matdata suchi", "voter id problem",
+      "aadhaar mein address galat", "aadhaar correction",
+      "pan card nahi bana", "driving licence",
+      "ghoos", "rishwat", "setting", "paisa mang raha",
+      "paise mang rahe hai", "paisa dena pada", "paisa liye bina kaam nahi",
+      "bina ghoos ke kaam nahi hota", "sign ke paise",
+      "upar se kaam hoga", "babu ne paise maange",
+      "officer ne paisa manga", "clerk ne paise liye",
+      "sahib ne paisa manga", "DM ne paisa manga",
+      "kaam nahi ho raha", "6 mahine se application", "file atki hai",
+      "officer nahi milta", "babu nahi sunata", "darwaza band",
+      "sarkaari daftar", "karyalay",
+      "passport", "visa", "embassy",
+      "post office", "speed post", "emi", "postal",
+      "tehsildar", "patwari", "lekhpal", "naib tehsildar",
+      "collectorate", "SDM office", "block office",
+      "property tax", "house tax", "nagar palika tax",
+      "registration", "stamp duty", "baiyana",
+      "ration card nahi bana", "bpl card", "apl card",
+      "6 mahine se laga hai", "1 saal se laga hai", "chakkar laga raha hun"
+    ],
+    "category": "Bureaucratic / Administrative",
+    "authority": "Tehsildar / DM Office / Municipal Corporation",
+    "level": "State/Local",
+    "mp_role": "Coordinate",
+    "political_response": "Ji, maine aapki samasya note ki hai. Aapko jald update diya jayega."
   }
 ]
