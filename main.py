@@ -726,6 +726,33 @@ def get_prior_awaiting_language(phone: str, tenant_id: int) -> str:
     return ""
 
 
+def get_pending_awaiting_case(phone: str, tenant_id: int) -> tuple | None:
+    """Return (case_id, original_raw_message) for the most recent awaiting_location case.
+
+    Only looks within the last 48 hours — older cases are treated as abandoned
+    so a new complaint from the same number starts a fresh case.
+    Returns None if no pending case exists.
+    """
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(
+                text("""
+                    SELECT id, raw_message FROM cases
+                    WHERE user_phone = :phone
+                      AND tenant_id = :tid
+                      AND status = 'awaiting_location'
+                      AND created_at >= NOW() - INTERVAL '48 hours'
+                    ORDER BY created_at DESC LIMIT 1
+                """),
+                {"phone": phone, "tid": tenant_id},
+            ).fetchone()
+            if result:
+                return result[0], result[1]
+    except Exception as e:
+        logger.warning(f"Pending awaiting case lookup error: {e}")
+    return None
+
+
 # ─────────────────────────────────────────
 # WHATSAPP WEBHOOK (Meta Cloud API)
 # ─────────────────────────────────────────
@@ -1645,39 +1672,76 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
     except Exception as _rate_exc:
         logger.warning("Per-phone rate limit check failed (non-blocking): %s", _rate_exc)
 
+    # ── Check for a pending awaiting_location case from this sender ────────────
+    # If the citizen previously sent a complaint whose location couldn't be resolved,
+    # their follow-up (e.g. "Ghaziabad") should resolve that same case rather than
+    # creating a disconnected new one.
+    pending_awaiting = get_pending_awaiting_case(sender, current_tenant)
+
     # ── STEP 1: Save raw grievance to DB immediately ────────────
     # This ensures the message is never lost, even if AI fails.
+    # If a pending awaiting_location case exists, reuse it instead of inserting.
     case_id = None
-    try:
-        with engine.begin() as conn:
-            result = conn.execute(
-                text("""
-                    INSERT INTO cases
-                    (tenant_id, user_phone, category, raw_message, status, case_metadata, is_critical, created_at)
-                    VALUES (:tid, :phone, 'Uncategorised', :msg, 'pending', :meta, false, :now)
-                    RETURNING id
-                """),
-                {
-                    "tid": current_tenant,
-                    "phone": sender,
-                    "msg": message_body,
-                    "meta": json.dumps({"summary": message_body[:200], "wa_msg_id": msg_id}),
-                    "now": datetime.utcnow(),
-                }
-            )
-            row = result.fetchone()
-            case_id = row[0] if row else None
-            logger.info(f"Saved raw grievance: case_id={case_id} tenant={current_tenant}")
-    except Exception as e:
-        logger.error(f"CRITICAL: DB save failed for raw grievance: {e}")
-        # Even if DB fails, still try to acknowledge the citizen
-        send_whatsapp_message(sender, "Thank you for contacting us. Your message has been received.", _wa_phone_id)
-        return
+    ai_message = message_body  # text fed to the AI — may include original grievance context
+
+    if pending_awaiting:
+        existing_case_id, original_raw = pending_awaiting
+        case_id = existing_case_id
+        # Combine original grievance + location follow-up so the AI has full context
+        ai_message = original_raw + "\n\nLocation (follow-up from citizen): " + message_body
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    text("""
+                        UPDATE cases
+                        SET raw_message = :msg,
+                            case_metadata = case_metadata || :patch::jsonb
+                        WHERE id = :cid
+                    """),
+                    {
+                        "msg": ai_message,
+                        "patch": json.dumps({"location_followup": message_body, "wa_followup_msg_id": msg_id}),
+                        "cid": case_id,
+                    },
+                )
+            logger.info(f"Reusing awaiting_location case {case_id} for location follow-up from {sender}")
+        except Exception as e:
+            logger.error(f"Failed to reuse awaiting_location case {case_id}: {e} — falling back to new case")
+            pending_awaiting = None
+            case_id = None
+            ai_message = message_body
+
+    if not pending_awaiting:
+        try:
+            with engine.begin() as conn:
+                result = conn.execute(
+                    text("""
+                        INSERT INTO cases
+                        (tenant_id, user_phone, category, raw_message, status, case_metadata, is_critical, created_at)
+                        VALUES (:tid, :phone, 'Uncategorised', :msg, 'pending', :meta, false, :now)
+                        RETURNING id
+                    """),
+                    {
+                        "tid": current_tenant,
+                        "phone": sender,
+                        "msg": message_body,
+                        "meta": json.dumps({"summary": message_body[:200], "wa_msg_id": msg_id}),
+                        "now": datetime.utcnow(),
+                    }
+                )
+                row = result.fetchone()
+                case_id = row[0] if row else None
+                logger.info(f"Saved raw grievance: case_id={case_id} tenant={current_tenant}")
+        except Exception as e:
+            logger.error(f"CRITICAL: DB save failed for raw grievance: {e}")
+            # Even if DB fails, still try to acknowledge the citizen
+            send_whatsapp_message(sender, "Thank you for contacting us. Your message has been received.", _wa_phone_id)
+            return
 
     # ── STEP 2: AI classification (if this fails, the grievance is still saved) ──
     try:
         user_context = get_user_context(sender)
-        full_prompt = f"{user_context}\n\nUSER MESSAGE: {message_body}"
+        full_prompt = f"{user_context}\n\nUSER MESSAGE: {ai_message}"
         ai_result = ask_chatgpt_agent(full_prompt, tenant_id=current_tenant)
 
         if isinstance(ai_result, str):
