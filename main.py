@@ -698,6 +698,34 @@ def get_user_context(phone_number: str) -> str:
     return ""
 
 
+def get_prior_awaiting_language(phone: str, tenant_id: int) -> str:
+    """Return the detected_language from the most recent awaiting_location case for this user.
+
+    Used to preserve language continuity when a citizen replies with just a location
+    name (e.g. 'Ghaziabad'), which the AI may mis-detect as English.
+    """
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(
+                text("""
+                    SELECT case_metadata FROM cases
+                    WHERE user_phone = :phone
+                      AND tenant_id = :tid
+                      AND status = 'awaiting_location'
+                    ORDER BY created_at DESC LIMIT 1
+                """),
+                {"phone": phone, "tid": tenant_id},
+            ).fetchone()
+            if result and result[0]:
+                meta = result[0]
+                if isinstance(meta, str):
+                    meta = json.loads(meta)
+                return meta.get("detected_language", "")
+    except Exception as e:
+        logger.warning(f"Prior awaiting language fetch error: {e}")
+    return ""
+
+
 # ─────────────────────────────────────────
 # WHATSAPP WEBHOOK (Meta Cloud API)
 # ─────────────────────────────────────────
@@ -1799,14 +1827,22 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         # and replace the AI's "noted" reply with a localized clarification request
         if final_constituency == "Unknown" and location_name:
             status = "awaiting_location"
-            political_reply = get_awaiting_location_reply(location_name, detected_language)
+            # A short reply like "Ghaziabad" (location-only follow-up) is often
+            # mis-detected as English by the AI. If the current detection is English
+            # or empty, fall back to the language stored in the prior awaiting_location
+            # case for this user to maintain reply language continuity.
+            lang_for_reply = detected_language
+            if not lang_for_reply or lang_for_reply.lower() == "english":
+                lang_for_reply = get_prior_awaiting_language(sender, current_tenant) or detected_language
+            political_reply = get_awaiting_location_reply(location_name, lang_for_reply)
 
         meta_data = {
             "user_intent": status,
             "location_resolved": bool(location_name and final_constituency != "Unknown"),
             "matched_value": location_name or "",
             "assembly_constituency": final_constituency,
-            "summary": grievance.get("summary", message_body[:100])
+            "summary": grievance.get("summary", message_body[:100]),
+            "detected_language": detected_language,
         }
 
         # ── STEP 3: Update the saved case with AI results ──
