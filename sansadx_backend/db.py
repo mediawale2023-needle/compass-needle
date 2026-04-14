@@ -117,11 +117,11 @@ class Case(Base):
     __tablename__ = "cases"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"))
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
     user_phone = Column(String, index=True)
     raw_message = Column(Text)
-    category = Column(String, default="General")
-    status = Column(String, default="new")
+    category = Column(String, default="General", index=True)
+    status = Column(String, default="new", index=True)
     location = Column(String, nullable=True)
     ward = Column(String, nullable=True)
     assembly = Column(String, nullable=True)
@@ -144,8 +144,8 @@ class Case(Base):
 class CaseActivityLog(Base):
     __tablename__ = "case_activity_log"
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"))
-    case_id = Column(Integer, ForeignKey("cases.id"))
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
+    case_id = Column(Integer, ForeignKey("cases.id"), index=True)
     username = Column(String)
     action = Column(String)
     old_value = Column(String, nullable=True)
@@ -255,7 +255,7 @@ class ActivityHistory(Base):
     __tablename__ = "activity_history"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, nullable=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     username = Column(String(255), nullable=False)
     activity_type = Column(String(50), nullable=False)
     title = Column(String(500))

@@ -38,7 +38,8 @@ _ocr_jobs: dict = {}
 try:
     from core.rate_limiter import limiter, RATE_LOGIN
     _limit_login = limiter.limit(RATE_LOGIN)
-except Exception:
+except Exception as _rl_err:
+    logger.warning("Rate limiter unavailable — login rate limiting DISABLED: %s", _rl_err)
     def _limit_login(f): return f
 
 # ─────────────────────────────────────────
@@ -93,7 +94,11 @@ def create_admin_token(data: dict) -> str:
 
 
 def _is_token_revoked(username: str, token_issued_at: float) -> bool:
-    """Check if a user's tokens were revoked after this token was issued."""
+    """Check if a user's tokens were revoked after this token was issued.
+
+    Fails CLOSED (returns True) on DB error — reject the token if we cannot
+    verify it, rather than silently allowing access.
+    """
     try:
         row = _q_one(
             "SELECT revoked_at FROM token_blocklist WHERE username = :u ORDER BY revoked_at DESC LIMIT 1",
@@ -103,9 +108,10 @@ def _is_token_revoked(username: str, token_issued_at: float) -> bool:
             revoked_at = row["revoked_at"]
             if hasattr(revoked_at, 'timestamp'):
                 return token_issued_at < revoked_at.timestamp()
+        return False
     except Exception:
-        logger.warning("Token revocation check failed — defaulting to not revoked")
-    return False
+        logger.warning("Token revocation check failed for %s — rejecting token (fail-closed)", username)
+        return True
 
 
 def _revoke_user_tokens(username: str):
@@ -116,9 +122,9 @@ def _revoke_user_tokens(username: str):
                 text("INSERT INTO token_blocklist (username, revoked_at) VALUES (:u, :now)"),
                 {"u": username, "now": datetime.utcnow()}
             )
-        logger.info(f"Revoked all tokens for user: {username}")
-    except Exception as e:
-        logger.error(f"Token revocation failed for {username}: {e}")
+        logger.info("Revoked all tokens for user: %s", username)
+    except Exception:
+        logger.error("Token revocation failed for user: %s", username)
 
 
 def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -1234,7 +1240,8 @@ async def upload_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(
                         debug_info["text_pages"] += 1
                         stations.extend(_extract_stations_from_text(page_text))
     except Exception as e:
-        raise HTTPException(500, f"PDF parse error: {e}")
+        logger.error("PDF parse error: %s", e)
+        raise HTTPException(500, "Failed to parse PDF")
 
     # Fallback: use Gemini Vision OCR if pdfplumber found nothing OR
     # if the extracted text is font-encoded (Krutidev/DevLys) garbage.
@@ -2792,7 +2799,8 @@ def get_constituency_profile(slug: str, user=Depends(get_admin_user)):
     try:
         return json.loads(path.read_text())
     except Exception as e:
-        raise HTTPException(500, f"Failed to read profile: {e}")
+        logger.error("Failed to read constituency profile '%s': %s", slug, e)
+        raise HTTPException(500, "Failed to read constituency profile")
 
 
 @router.put("/constituency-profiles/{slug}")

@@ -48,31 +48,38 @@ def query_cases(filters: dict, tenant_id: int) -> dict:
         "lim":   _RESULT_LIMIT,
     }
 
+    def _ilike_escape(s: str) -> str:
+        """Escape ILIKE wildcard characters so user input matches literally."""
+        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
     # ── Location filter ──────────────────────────────────────────────────────
     # Search both the raw `location` column and `case_metadata->matched_value`
     # using ILIKE for fuzzy spelling tolerance.
     location = (filters.get("location") or "").strip()
     if location:
+        loc_escaped = _ilike_escape(location)
         where_clauses.append(
-            "(c.location ILIKE :loc OR c.case_metadata::text ILIKE :loc_meta)"
+            "(c.location ILIKE :loc ESCAPE '\\' OR c.case_metadata::text ILIKE :loc_meta ESCAPE '\\')"
         )
-        params["loc"]      = f"%{location}%"
-        params["loc_meta"] = f"%{location}%"
+        params["loc"]      = f"%{loc_escaped}%"
+        params["loc_meta"] = f"%{loc_escaped}%"
 
     # ── Constituency / assembly filter ───────────────────────────────────────
     constituency = (filters.get("constituency") or "").strip()
     if constituency:
+        cons_escaped = _ilike_escape(constituency)
         where_clauses.append(
-            "(c.assembly ILIKE :assembly OR c.case_metadata::text ILIKE :assembly_meta)"
+            "(c.assembly ILIKE :assembly ESCAPE '\\' OR c.case_metadata::text ILIKE :assembly_meta ESCAPE '\\')"
         )
-        params["assembly"]      = f"%{constituency}%"
-        params["assembly_meta"] = f"%{constituency}%"
+        params["assembly"]      = f"%{cons_escaped}%"
+        params["assembly_meta"] = f"%{cons_escaped}%"
 
     # ── Issue type / category filter ─────────────────────────────────────────
     issue_type = (filters.get("issue_type") or "").strip()
     if issue_type:
-        where_clauses.append("c.category ILIKE :cat")
-        params["cat"] = f"%{issue_type}%"
+        issue_escaped = _ilike_escape(issue_type)
+        where_clauses.append("c.category ILIKE :cat ESCAPE '\\'")
+        params["cat"] = f"%{issue_escaped}%"
 
     # ── Status filter ────────────────────────────────────────────────────────
     status = (filters.get("status") or "").strip().lower()

@@ -35,7 +35,8 @@ try:
     from core.rate_limiter import limiter, RATE_AI, RATE_LOGIN
     _limit_login = limiter.limit(RATE_LOGIN)
     _limit_ai = limiter.limit(RATE_AI)
-except Exception:
+except Exception as _rl_err:
+    logger.warning("Rate limiter unavailable — login/AI rate limiting DISABLED: %s", _rl_err)
     def _noop(f): return f
     _limit_login = _noop
     _limit_ai = _noop
@@ -87,9 +88,9 @@ def revoke_user_tokens(username: str):
                 text("INSERT INTO token_blocklist (username, revoked_at) VALUES (:u, :now)"),
                 {"u": username, "now": datetime.utcnow()}
             )
-        logger.info(f"Revoked all tokens for user: {username}")
-    except Exception as e:
-        logger.error(f"Token revocation failed for {username}: {e}")
+        logger.info("Revoked all tokens for user: %s", username)
+    except Exception:
+        logger.error("Token revocation failed for user: %s", username)
 
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):

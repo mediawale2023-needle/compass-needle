@@ -218,7 +218,7 @@ def run(csv_path: str | None = None, dry_run: bool = False):
                 }
                 with engine.begin() as conn:
                     conn.execute(text("""
-                        INSERT OR IGNORE INTO csr_companies
+                        INSERT INTO csr_companies
                             (name, slug, state, district, company_type, sector,
                              sector_priorities, unspent_obligation_lakhs, has_unspent_obligation,
                              status, last_enriched_at, created_at)
@@ -226,6 +226,7 @@ def run(csv_path: str | None = None, dry_run: bool = False):
                             (:name, :slug, :state, :district, :company_type, :sector,
                              :sector_priorities, :unspent_obligation_lakhs, :has_unspent_obligation,
                              :status, :last_enriched_at, :created_at)
+                        ON CONFLICT (slug) DO NOTHING
                     """), params)
                 inserted += 1
                 # Register in lookup for subsequent iterations

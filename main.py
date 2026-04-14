@@ -25,9 +25,17 @@ try:
     from core.security_config import (
         ALLOWED_ORIGINS, SECURITY_HEADERS,
     )
-except Exception:
-    ALLOWED_ORIGINS = ["*"]
-    SECURITY_HEADERS = {}
+except Exception as _sec_err:
+    import logging as _logging
+    _logging.critical(
+        "FATAL: core.security_config failed to import (%s). "
+        "Refusing to start with wildcard CORS — set ALLOWED_ORIGINS properly.",
+        _sec_err,
+    )
+    raise RuntimeError(
+        f"security_config import failed: {_sec_err!r}. "
+        "Cannot start with wildcard CORS in production."
+    ) from _sec_err
 
 # ─────────────────────────────────────────
 # RATE LIMITING (optional — soft import)

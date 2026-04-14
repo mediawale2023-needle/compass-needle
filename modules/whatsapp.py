@@ -41,7 +41,9 @@ def send_whatsapp_message(to_number: str, body_text: str, phone_number_id: str |
         to_number = to_number[1:]
 
     url = f"https://graph.facebook.com/v21.0/{phone_number_id}/messages"
-    logger.info(f"WhatsApp send → to={to_number} phone_number_id={phone_number_id}")
+    # Redact phone number in logs — keep only last 4 digits
+    _redacted = ("*" * (len(to_number) - 4) + to_number[-4:]) if len(to_number) > 4 else "****"
+    logger.info("WhatsApp send → to=%s", _redacted)
     payload = {
         "messaging_product": "whatsapp",
         "to": to_number,
@@ -57,12 +59,12 @@ def send_whatsapp_message(to_number: str, body_text: str, phone_number_id: str |
         resp = http_requests.post(url, json=payload, headers=headers, timeout=10)
         if resp.ok:
             msg_id = resp.json().get("messages", [{}])[0].get("id", "unknown")
-            logger.info(f"WhatsApp reply sent to {to_number} (id={msg_id})")
+            logger.info("WhatsApp reply sent (id=%s)", msg_id)
             return True
         else:
-            error_detail = resp.text[:500]
-            logger.error(f"Meta send failed: {resp.status_code} {error_detail}")
-            raise RuntimeError(f"Meta API error {resp.status_code}: {error_detail}")
+            # Log status code only — response body may contain sensitive Meta internals
+            logger.error("Meta API rejected message: HTTP %s", resp.status_code)
+            raise RuntimeError(f"WhatsApp send failed: Meta API returned HTTP {resp.status_code}")
     except http_requests.exceptions.RequestException as e:
-        logger.error(f"Meta send error: {e}")
-        raise RuntimeError(f"WhatsApp send failed: {e}")
+        logger.error("Meta API request error: %s", type(e).__name__)
+        raise RuntimeError("WhatsApp send failed: network error")

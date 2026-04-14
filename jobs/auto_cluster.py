@@ -18,6 +18,14 @@ def run_clustering(tenant_id=None):
     Cluster cases from the last 30 days by (category, location).
     Returns a list of clusters with case IDs.
     """
+    try:
+        return _run_clustering(tenant_id)
+    except Exception as e:
+        logger.error("Clustering failed for tenant %s: %s", tenant_id, e, exc_info=True)
+        return []
+
+
+def _run_clustering(tenant_id=None):
     from sansadx_backend.db import engine
     from sqlalchemy import text
 
@@ -55,8 +63,8 @@ def run_clustering(tenant_id=None):
                 try:
                     m = json.loads(meta)
                     location = m.get("matched_value", "")
-                except Exception:
-                    pass
+                except (json.JSONDecodeError, AttributeError) as json_err:
+                    logger.debug("Could not parse case_metadata JSON for case %s: %s", row.get("id"), json_err)
 
         key = (row["tenant_id"], row["category"] or "General", location or "Unknown")
         clusters[key].append({

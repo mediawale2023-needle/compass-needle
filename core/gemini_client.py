@@ -60,8 +60,9 @@ class GeminiCircuitBreaker:
     def _is_open(self):
         if self._failures >= self._threshold:
             if time.time() - self._last_failure_time > self._cooldown:
-                # Half-open: allow a test request
-                self._failures = self._threshold - 1 
+                # Half-open: reset fully so one success closes the breaker cleanly
+                self._failures = 0
+                logger.info("Gemini circuit breaker entered HALF-OPEN state")
                 return False
             return True
         return False
