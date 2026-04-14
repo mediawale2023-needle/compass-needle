@@ -179,20 +179,6 @@ class CreateMPRequest(BaseModel):
     alt_names: List[str] = []
 
 
-class CreatePRRequest(BaseModel):
-    name: str
-    username: str
-    password: str
-    constituency: str = ""
-    whatsapp_number: str = ""
-    display_name: str = ""
-    state: str = ""
-    party: str = ""
-    key_facts: List[str] = []
-    languages: List[str] = ["English", "Hindi"]
-    alt_names: List[str] = []
-
-
 class UpdateProfileRequest(BaseModel):
     mp_name: str = ""
     constituency: str = ""
@@ -305,7 +291,6 @@ def admin_stats(_=Depends(get_admin_user)):
         total_mps = db.query(User).filter(User.role == "mp").count()
         ls_count = db.query(User).filter(User.role == "mp", User.house == "Lok Sabha").count()
         rs_count = db.query(User).filter(User.role == "mp", User.house == "Rajya Sabha").count()
-        total_prs = db.query(User).filter(User.role == "pr").count()
         total_profiles = db.query(TenantProfile).count()
         try:
             total_cases = db.query(Case).count()
@@ -315,7 +300,6 @@ def admin_stats(_=Depends(get_admin_user)):
             "total_mps": total_mps,
             "lok_sabha": ls_count,
             "rajya_sabha": rs_count,
-            "total_prs": total_prs,
             "total_profiles": total_profiles,
             "total_cases": total_cases,
         }
@@ -337,7 +321,7 @@ def list_mps(_=Depends(get_admin_user)):
         result = []
         for t in tenants:
             for u in t.users:
-                if u.role in ADMIN_ROLES:
+                if u.role != "mp":
                     continue
                 # Get profile
                 profile = db.query(TenantProfile).filter(TenantProfile.tenant_id == t.id).first()
@@ -436,76 +420,6 @@ def create_mp(req: CreateMPRequest, _=Depends(get_admin_user)):
             state=req.state,
             house=req.house,
             party=req.party,
-            profile_data=profile_data,
-        )
-        db.add(new_profile)
-        db.commit()
-
-        return {"success": True, "tenant_id": new_tenant.id, "user_id": new_user.id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.exception("Admin operation failed")
-        raise HTTPException(500, "Internal server error")
-    finally:
-        db.close()
-
-
-@router.post("/prs")
-def create_pr(req: CreatePRRequest, _=Depends(get_admin_user)):
-    """Create a new PR (Ambassador login) — tenant + user + profile."""
-    pw_err = validate_password(req.password)
-    if pw_err:
-        raise HTTPException(400, pw_err)
-    db = SessionLocal()
-    try:
-        if db.query(User).filter(User.username == req.username).first():
-            raise HTTPException(400, "Username already exists")
-
-        import uuid
-        wa_number = req.whatsapp_number or f"pr_{uuid.uuid4().hex[:12]}"
-        if req.whatsapp_number:
-            existing = db.query(Tenant).filter(Tenant.whatsapp_number == req.whatsapp_number).first()
-            if existing:
-                raise HTTPException(400, f"WhatsApp number already registered to tenant '{existing.name}'")
-
-        new_tenant = Tenant(
-            name=req.name,
-            constituency=req.constituency or "General",
-            whatsapp_number=wa_number,
-            subscription_plan="Pro",
-            tenant_type="aspirant",
-            config={"language": "English", "type": "PR", "map_enabled": True},
-        )
-        db.add(new_tenant)
-        db.flush()
-
-        new_user = User(
-            tenant_id=new_tenant.id,
-            username=req.username,
-            password_hash=hash_password(req.password),
-            role="pr",
-            constituency=req.constituency or "General",
-            house="None",
-            display_name=req.display_name or req.name,
-        )
-        db.add(new_user)
-
-        profile_data = {
-            "key_facts": req.key_facts or [],
-            "languages": req.languages or ["English", "Hindi"],
-            "vocabulary_guide": {},
-            "sovereignty_rules": "",
-            "alt_names": req.alt_names or [],
-        }
-        new_profile = TenantProfile(
-            tenant_id=new_tenant.id,
-            mp_name=req.display_name or req.name,
-            constituency=req.constituency or "General",
-            state=req.state,
-            house="None",
-            party=req.party or "Independent",
             profile_data=profile_data,
         )
         db.add(new_profile)

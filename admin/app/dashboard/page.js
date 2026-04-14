@@ -88,11 +88,6 @@ const StatIcons = {
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
         </svg>
     ),
-    ambassador: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-        </svg>
-    ),
     profiles: () => (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -129,7 +124,6 @@ export default function DashboardOverview() {
         { Icon: StatIcons.mps, value: stats.total_mps, label: 'Total MPs', accent: '#006a4d', bg: '#f0fdf4' },
         { Icon: StatIcons.lok, value: stats.lok_sabha, label: 'Lok Sabha', accent: '#059669', bg: '#f0fdf4' },
         { Icon: StatIcons.rajya, value: stats.rajya_sabha, label: 'Rajya Sabha', accent: '#8d153a', bg: '#fff1f2' },
-        { Icon: StatIcons.ambassador, value: stats.total_prs || 0, label: 'Ambassadors', accent: '#2563eb', bg: '#eff6ff' },
         { Icon: StatIcons.profiles, value: stats.total_profiles, label: 'Profiles', accent: '#d97706', bg: '#fffbeb' },
         { Icon: StatIcons.cases, value: stats.total_cases, label: 'Total Cases', accent: '#0891b2', bg: '#f0f9ff' },
     ] : [];
@@ -141,15 +135,15 @@ export default function DashboardOverview() {
 
             {/* Stat Cards */}
             {stats && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: '1.5rem' }}>
                     {STAT_DEFS.map((s) => (
                         <StatCard key={s.label} {...s} />
                     ))}
                 </div>
             )}
             {!stats && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: '1.5rem' }}>
-                    {[...Array(6)].map((_, i) => (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: '1.5rem' }}>
+                    {[...Array(5)].map((_, i) => (
                         <div key={i} className="stat-card skeleton" style={{ height: 88 }} />
                     ))}
                 </div>
@@ -158,14 +152,9 @@ export default function DashboardOverview() {
             {/* MP Management Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>Members of Parliament</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <Link href="/dashboard/prs/new" className="btn-secondary" style={{ textDecoration: 'none', fontSize: '0.8rem', padding: '7px 14px' }}>
-                        + Add Ambassador
-                    </Link>
-                    <Link href="/dashboard/mps/new" className="btn-primary" style={{ textDecoration: 'none', fontSize: '0.8rem', padding: '7px 14px' }}>
-                        + Add MP
-                    </Link>
-                </div>
+                <Link href="/dashboard/mps/new" className="btn-primary" style={{ textDecoration: 'none', fontSize: '0.8rem', padding: '7px 14px' }}>
+                    + Add MP
+                </Link>
             </div>
 
             {/* Search */}
@@ -232,23 +221,16 @@ function StatCard({ Icon, value, label, accent, bg }) {
 }
 
 function MpCard({ mp }) {
-    const isPR = mp.role === 'pr';
     const initials = mp.display_name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
     const isLS = mp.house === 'Lok Sabha';
     const completeness = mp.completeness || 0;
     const fillClass = completeness >= 70 ? 'fill-good' : completeness >= 40 ? 'fill-mid' : 'fill-low';
 
-    let avatarBg = 'linear-gradient(135deg, #374151, #1f2937)';
-    let badgeClass = 'badge badge-blue';
-    let badgeLabel = 'PR';
-
-    if (!isPR) {
-        avatarBg = isLS
-            ? 'linear-gradient(135deg, #006a4d, #00875f)'
-            : 'linear-gradient(135deg, #8d153a, #b91c50)';
-        badgeClass = isLS ? 'badge badge-green' : 'badge badge-red';
-        badgeLabel = isLS ? 'Lok Sabha' : 'Rajya Sabha';
-    }
+    const avatarBg = isLS
+        ? 'linear-gradient(135deg, #006a4d, #00875f)'
+        : 'linear-gradient(135deg, #8d153a, #b91c50)';
+    const badgeClass = isLS ? 'badge badge-green' : 'badge badge-red';
+    const badgeLabel = isLS ? 'Lok Sabha' : 'Rajya Sabha';
 
     return (
         <Link href={`/dashboard/mps/${mp.tenant_id}`} style={{ textDecoration: 'none', color: 'inherit' }}>

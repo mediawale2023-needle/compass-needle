@@ -6,7 +6,7 @@ import Sidebar from '@/components/Sidebar';
 import NotificationTray from '@/components/NotificationTray';
 
 const PAGE_TITLES = {
-    '/dashboard': { title: 'Overview', desc: 'Manage MPs, Ambassadors, and platform configuration' },
+    '/dashboard': { title: 'Overview', desc: 'Manage MPs and platform configuration' },
     '/dashboard/profiles': { title: 'Profile Editor', desc: 'Edit MP identity, credentials, and AI profile data' },
     '/dashboard/geography': { title: 'Geography Upload', desc: 'Upload and manage polling station data from Election Commission PDFs' },
     '/dashboard/rules': { title: 'Geography Rules', desc: 'Define location-to-assembly-constituency override rules per MP' },
@@ -17,7 +17,6 @@ const PAGE_TITLES = {
     '/dashboard/announcements': { title: 'Announcements', desc: 'Compose banners shown on all MP dashboards' },
     '/dashboard/settings': { title: 'Settings', desc: 'Admin account and editor access management' },
     '/dashboard/mps/new': { title: 'Add New MP', desc: 'Create a new Member of Parliament account and profile' },
-    '/dashboard/prs/new': { title: 'Add New Ambassador', desc: 'Create a new Public Representative (Ambassador) account' },
     '/dashboard/audit': { title: 'Audit Log', desc: 'Track all administrative actions across the platform' },
     '/dashboard/constituency': { title: 'Constituency Intelligence', desc: 'Deep political, demographic, economic and cultural profiles for each constituency' },
 };

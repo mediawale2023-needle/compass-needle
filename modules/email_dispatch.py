@@ -53,7 +53,7 @@ def _build_email_content(officer_name, officer_designation, mp_name,
         </div>
 
         <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #eee; font-size: 11px; color: #999;">
-            This is an official communication sent via Ambassador Grievance Intelligence Platform.
+            This is an official communication sent via Compass Needle.
             Please respond at your earliest convenience.
         </div>
     </div>
@@ -73,7 +73,7 @@ Regards,
 {mp_name}
 
 ---
-Sent via Ambassador Grievance Intelligence Platform.
+Sent via Compass Needle.
 """
     return html_body, text_body
 

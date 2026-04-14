@@ -2,10 +2,9 @@
 
 ## Project Overview
 
-**Compass Needle** is a parliamentary intelligence platform for Indian Members of Parliament (MPs) and Public Representatives (PRs/aspirants). It provides:
+**Compass Needle** is a parliamentary intelligence platform for Indian Members of Parliament (MPs). It provides:
 - WhatsApp-based citizen grievance intake and AI classification
 - MP dashboard for case management, letter drafting, scheme discovery
-- PR dashboard (Ambassador) for full-featured grievance management, case assignment, and escalation
 - Admin dashboard for tenant/MP management, Case Explorer, and analytics
 - AI-powered research, CSR matching, and constituency intelligence
 - Mobile-responsive UI with AstroNex dark theme styling across all dashboards
@@ -20,7 +19,6 @@
 |---|---|---|
 | Backend API | Python 3.11 + FastAPI | `/` (root) |
 | MP Dashboard | Next.js 15 + React 19 + Tailwind | `/frontend` |
-| PR Dashboard (Ambassador) | Next.js + React + Tailwind | `/needle-ai` |
 | Admin Dashboard | Next.js 15 + React 19 + Tailwind | `/admin` |
 | Database | PostgreSQL 15 | Railway managed |
 | AI (classification) | OpenAI GPT-4o-mini | `sansadx_backend/ai_engine.py` |
@@ -68,13 +66,6 @@ jobs/                       # Background/cron tasks
   auto_cluster.py           # Auto-cluster similar grievances
   weekly_report.py          # Scheduled weekly reports
   mca_csr_sync.py           # CSR data sync from MCA
-needle-ai/                  # Ambassador PR Dashboard (separate Next.js app)
-  app/dashboard/
-    page.js                 # Today — stats + recent messages
-    messages/page.js        # Split-view case list + detail
-    contacts/page.js        # Contact CRM (built from cases)
-    reports/page.js         # Analytics + PDF export
-    settings/page.js        # Profile, WhatsApp config, subscription
 scripts/
   security_startup_check.py       # Validates env vars before startup
   migrate_passwords_to_bcrypt.py
@@ -223,7 +214,6 @@ Deployed on **Railway** — four services auto-deploy on push to `main`:
 |---|---|---|---|
 | Backend API | `/` | Dockerfile | `needle-backend.up.railway.app` |
 | MP Frontend | `/frontend` | Railpack (Next.js) | `compass-needle-production.up.railway.app` |
-| PR Dashboard | `/needle-ai` | Railpack (Next.js) | `needle-ai-production.up.railway.app` |
 | Admin Frontend | `/admin` | Railpack (Next.js) | `admin-production.up.railway.app` |
 
 **Before deploying to production**, run through `DEPLOYMENT_GUIDE.md`:
@@ -296,17 +286,6 @@ Supported languages: Hindi, Hinglish, Marathi, Tamil, Telugu, Kannada, Malayalam
 
 ---
 
-## MP Dashboard vs PR Dashboard
+## MP Dashboard
 
-| Feature | MP (`/frontend`) | PR (`/needle-ai`) |
-|---|---|---|
-| Briefcase (grievances) | ✅ Full: bulk ops, assign, notes, activity log | ✅ Full: Workspace, case assignment, escalation |
-| Drafter (letters/speeches) | ✅ | ❌ Not relevant for PRs |
-| Letterbox (physical mail OCR) | ✅ | ❌ |
-| PQ Calendar | ✅ | ❌ |
-| Schemes | ✅ | ❌ |
-| CSR Matching | ✅ | ❌ |
-| Copilot (AI Research) | ✅ | ❌ |
-| Contacts CRM | ❌ | ✅ |
-| Reports / PDF Export | ❌ | ✅ |
-| Send Update via WhatsApp | ✅ (Meta Cloud API) | ❌ (planned) |
+The MP dashboard in `/frontend` remains the primary user-facing web app for grievance workflows, research, drafting, and constituency operations.
