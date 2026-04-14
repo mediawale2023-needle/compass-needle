@@ -1,4 +1,5 @@
 'use client';
+
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -6,7 +7,43 @@ import { apiPost } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 const PROBE_INTERVAL_MS = 4000;
-const PROBE_TIMEOUT_MS  = 5000;
+const PROBE_TIMEOUT_MS = 5000;
+
+function CompassIcon({ className = 'h-7 w-7' }) {
+    return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="2" x2="12" y2="22" />
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+        </svg>
+    );
+}
+
+function SpinnerIcon({ className = 'h-4 w-4' }) {
+    return (
+        <svg className={`${className} animate-spin`} viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.2" strokeWidth="3" />
+            <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+        </svg>
+    );
+}
+
+function CheckIcon({ className = 'h-4 w-4' }) {
+    return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 6 9 17l-5-5" />
+        </svg>
+    );
+}
+
+function AlertIcon({ className = 'h-4 w-4' }) {
+    return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.72 3h16.92a2 2 0 0 0 1.72-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+        </svg>
+    );
+}
 
 async function probeBackend() {
     try {
@@ -26,14 +63,13 @@ async function probeBackend() {
 export default function AdminLoginPage() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const [error, setError]       = useState('');
-    const [loading, setLoading]   = useState(false);
-    const { user, login }         = useAuth();
-    const router                  = useRouter();
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const { user, login } = useAuth();
+    const router = useRouter();
 
-    // 'checking' | 'connecting' | 'ready'
     const [serverStatus, setServerStatus] = useState('checking');
-    const [retryCount, setRetryCount]     = useState(0);
+    const [retryCount, setRetryCount] = useState(0);
     const probeTimerRef = useRef(null);
 
     useEffect(() => {
@@ -50,7 +86,7 @@ export default function AdminLoginPage() {
                 setServerStatus('ready');
             } else {
                 setServerStatus('connecting');
-                setRetryCount(n => n + 1);
+                setRetryCount((n) => n + 1);
                 probeTimerRef.current = setTimeout(runProbe, PROBE_INTERVAL_MS);
             }
         }
@@ -85,149 +121,118 @@ export default function AdminLoginPage() {
         }
     };
 
-    const isReady    = serverStatus === 'ready';
+    const isReady = serverStatus === 'ready';
     const isChecking = serverStatus === 'checking';
 
-    /* ── status banner text & colour ── */
-    const bannerStyle = {
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 10,
-        padding: '10px 14px',
-        borderRadius: 10,
-        fontSize: '0.82rem',
-        marginBottom: 16,
-        border: '1px solid',
-        ...(isChecking
-            ? { background: 'rgba(0,0,0,0.04)', borderColor: '#d1d5db', color: '#6b7280' }
-            : { background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.25)', color: '#92400e' }
-        ),
-    };
-
     return (
-        <div style={{
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'linear-gradient(135deg, #f8faf9 0%, #e8efe9 100%)',
-        }}>
-            <div style={{ width: 400 }}>
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f4f6f5] via-white to-[#e8efe9] p-4">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(0,106,77,0.08),_transparent_42%),radial-gradient(circle_at_bottom_right,_rgba(0,106,77,0.06),_transparent_34%)]" />
 
-                {/* ── Server status banner (hidden once ready) ── */}
+            <div className="relative w-full max-w-md animate-fade-in">
                 {!isReady && (
-                    <div style={bannerStyle}>
-                        <span style={{ fontSize: '1rem', lineHeight: 1 }}>
-                            {isChecking ? '⏳' : '🔄'}
-                        </span>
+                    <div
+                        className={`mb-3 flex items-start gap-3 rounded-xl border px-4 py-3 text-sm font-medium ${
+                            isChecking
+                                ? 'border-[#e2ebe5] bg-white/80 text-[#6b7f76]'
+                                : 'border-amber-500/20 bg-amber-500/10 text-amber-700'
+                        }`}
+                    >
+                        <SpinnerIcon className="mt-0.5 h-4 w-4 shrink-0" />
                         <div>
-                            <div style={{ fontWeight: 600 }}>
-                                {isChecking ? 'Connecting to server…' : 'Server is starting up — please wait.'}
-                            </div>
+                            <p>{isChecking ? 'Connecting to server…' : 'Server is starting up — please wait.'}</p>
                             {!isChecking && (
-                                <div style={{ marginTop: 2, opacity: 0.75 }}>
-                                    This takes about 30 seconds on first load. Retrying automatically…
-                                </div>
+                                <p className="mt-0.5 text-xs font-normal opacity-80">
+                                    This can take up to 1 minute on first load. Retrying automatically…
+                                </p>
                             )}
                         </div>
                     </div>
                 )}
 
                 {isReady && retryCount > 0 && (
-                    <div style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '8px 14px', borderRadius: 10, fontSize: '0.82rem',
-                        marginBottom: 12,
-                        background: 'rgba(22,163,74,0.08)',
-                        border: '1px solid rgba(22,163,74,0.2)',
-                        color: '#166534',
-                    }}>
-                        <span>✅</span>
-                        <span style={{ fontWeight: 600 }}>Server is ready.</span>
+                    <div className="mb-3 flex items-center gap-2 rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-2.5 text-sm font-medium text-green-700">
+                        <CheckIcon className="h-4 w-4 shrink-0" />
+                        <span>Server is ready.</span>
                     </div>
                 )}
 
-                {/* ── Login card ── */}
-                <div style={{
-                    background: '#ffffff',
-                    border: '1px solid #e2ebe5',
-                    borderRadius: 20,
-                    padding: '2.5rem',
-                    boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
-                    opacity: isReady ? 1 : 0.7,
-                    transition: 'opacity 0.3s ease',
-                }}>
-                    <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#006a4d', marginBottom: 4 }}>
-                            Needle Command Center
+                <div className="rounded-3xl border border-[#e2ebe5] bg-white/95 p-8 shadow-xl backdrop-blur-sm">
+                    <div className="mb-6 text-center">
+                        <div className="mb-4 flex items-center justify-center">
+                            <div className={`flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg transition-colors duration-500 ${isReady ? 'bg-[#006a4d] text-white shadow-[0_12px_32px_rgba(0,106,77,0.18)]' : 'bg-[#e8efe9] text-[#6b7f76]'}`}>
+                                {isReady ? <CompassIcon /> : <SpinnerIcon className="h-7 w-7" />}
+                            </div>
                         </div>
-                        <div style={{ fontSize: '0.82rem', color: '#6b7f76' }}>
-                            Administrative Control Panel
-                        </div>
+                        <h1 className="text-2xl font-bold tracking-tight text-[#1a2e28]">Needle Command Center</h1>
+                        <p className="mt-1 text-sm text-[#6b7f76]">Administrative Control Panel</p>
                     </div>
 
-                    <form onSubmit={handleSubmit}>
-                        <div style={{ marginBottom: '1rem' }}>
-                            <label className="form-label">Username</label>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="space-y-2">
+                            <label htmlFor="username" className="block text-sm font-medium text-[#1a2e28]">
+                                Username
+                            </label>
                             <input
+                                id="username"
                                 type="text"
-                                className="form-input"
-                                placeholder={isReady ? 'admin username' : 'Waiting for server…'}
+                                className="w-full rounded-xl border border-[#d4e0d9] bg-[#f8faf9] px-4 py-3 text-sm text-[#1a2e28] outline-none transition focus:border-[#006a4d] focus:bg-white focus:ring-4 focus:ring-[#006a4d]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                                placeholder={isReady ? 'Enter your username' : 'Waiting for server…'}
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 disabled={!isReady}
                                 required
+                                autoFocus
+                                autoComplete="username"
                             />
                         </div>
 
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <label className="form-label">Password</label>
+                        <div className="space-y-2">
+                            <label htmlFor="password" className="block text-sm font-medium text-[#1a2e28]">
+                                Password
+                            </label>
                             <input
+                                id="password"
                                 type="password"
-                                className="form-input"
-                                placeholder={isReady ? 'password' : 'Waiting for server…'}
+                                className="w-full rounded-xl border border-[#d4e0d9] bg-[#f8faf9] px-4 py-3 text-sm text-[#1a2e28] outline-none transition focus:border-[#006a4d] focus:bg-white focus:ring-4 focus:ring-[#006a4d]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                                placeholder={isReady ? 'Enter your password' : 'Waiting for server…'}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 disabled={!isReady}
                                 required
+                                autoComplete="current-password"
                             />
                         </div>
 
                         {error && (
-                            <div style={{
-                                background: 'rgba(220,38,38,0.06)',
-                                border: '1px solid rgba(220,38,38,0.15)',
-                                color: '#dc2626',
-                                padding: '10px 14px',
-                                borderRadius: 10,
-                                fontSize: '0.82rem',
-                                marginBottom: '1rem',
-                            }}>
-                                {error}
+                            <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-700">
+                                <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                                <span>{error}</span>
                             </div>
                         )}
 
                         <button
                             type="submit"
-                            className="btn-primary"
                             disabled={loading || !isReady}
-                            style={{
-                                width: '100%',
-                                padding: '12px',
-                                fontSize: '0.9rem',
-                                opacity: (loading || !isReady) ? 0.6 : 1,
-                                cursor: (loading || !isReady) ? 'not-allowed' : 'pointer',
-                            }}
+                            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#006a4d] to-[#00875f] px-4 text-base font-semibold text-white shadow-[0_10px_24px_rgba(0,106,77,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(0,106,77,0.22)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                         >
-                            {loading
-                                ? 'Signing in…'
-                                : !isReady
-                                    ? (isChecking ? 'Connecting…' : 'Starting server…')
-                                    : 'Sign In'
-                            }
+                            {loading ? (
+                                <>
+                                    <SpinnerIcon className="h-4 w-4" />
+                                    Signing in…
+                                </>
+                            ) : !isReady ? (
+                                <>
+                                    <SpinnerIcon className="h-4 w-4" />
+                                    {isChecking ? 'Connecting…' : 'Starting server…'}
+                                </>
+                            ) : (
+                                'Sign in'
+                            )}
                         </button>
                     </form>
                 </div>
+
+                <p className="mt-6 text-center text-xs text-[#6b7f76]">Compass Needle · Admin Console</p>
             </div>
         </div>
     );
