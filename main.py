@@ -1359,7 +1359,7 @@ def _handle_unsupported_message_type(sender: str, msg_type: str, receiver_number
     reply = (
         "Thank you for reaching out 🙏\n\n"
         "We received your message but couldn’t read it as text. "
-        "Please type your complaint or request and send it as a text message so we can help you faster."
+        "Please type your issue or request and send it as a text message so we can help you faster."
     )
     try:
         send_whatsapp_message(sender, reply, _wa_phone_id)
@@ -1376,7 +1376,7 @@ def _handle_unsupported_message_type(sender: str, msg_type: str, receiver_number
 _REVIEW_REQUIRED_CATEGORIES = {"law & order", "law and order", "emergency", "political", "legal"}
 _REVIEW_GENERIC_ACK = (
     "Thank you for reaching out 🙏\n\n"
-    "Your complaint has been received and is being reviewed by our team. "
+    "Your issue has been received and is being reviewed by our team. "
     "We will follow up with you shortly."
 )
 

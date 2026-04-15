@@ -31,7 +31,7 @@ _AWAITING_LOCATION: dict[str, str] = {
         "• Village / Mohalla name\n"
         "• Ward number\n"
         "• Nearest landmark\n\n"
-        "Location confirm hote hi hum aapka complaint forward kar denge. 🙏"
+        "Location confirm hote hi hum aapka issue sahi team tak pahucha denge. 🙏"
     ),
     "Marathi": (
         "तुमचा संदेश मिळाला, धन्यवाद 🙏\n\n"
@@ -151,7 +151,7 @@ _AWAITING_LOCATION: dict[str, str] = {
         "• Village or neighbourhood name\n"
         "• Ward number\n"
         "• Nearest landmark\n\n"
-        "Once we have the location, we'll make sure your complaint reaches the right team right away."
+        "Once we have the location, we'll make sure your issue reaches the right team right away."
     ),
 }
 
@@ -173,12 +173,12 @@ _DETAILS_REQUEST: dict[str, str] = {
         "Yeh details dene se hum aapki samasya zyada jaldi aur sahi tarike se hal kar payenge. 🙏"
     ),
     "Hinglish": (
-        "Aapki complaint register ho gayi hai 🙏\n\n"
+        "Aapka issue register ho gaya hai 🙏\n\n"
         "Faster resolution ke liye, please yeh details share karein:\n\n"
         "• *Your name*\n"
         "• *Address* (ghar ka pata ya village/ward)\n"
         "• *Koi specific detail* jo problem explain karne mein help kare\n\n"
-        "In details se hum aapki complaint aur jaldi resolve kar payenge. 🙏"
+        "In details se hum aapka issue aur jaldi resolve kar payenge. 🙏"
     ),
     "Marathi": (
         "तुमची तक्रार नोंदवली गेली आहे 🙏\n\n"
@@ -269,7 +269,7 @@ _DETAILS_REQUEST: dict[str, str] = {
         "ان تفصیلات سے ہم آپ کی شکایت زیادہ جلدی حل کر سکیں گے۔ 🙏"
     ),
     "English": (
-        "Your complaint has been registered 🙏\n\n"
+        "Your issue has been registered 🙏\n\n"
         "To help us resolve it quickly, could you please share:\n\n"
         "• *Your name*\n"
         "• *Address* (home address or village/ward)\n"

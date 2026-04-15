@@ -108,6 +108,10 @@ STEP 4 — LANGUAGE DETECTION (CRITICAL)
 STEP 5 — CLASSIFICATION (MOST IMPORTANT STEP)
   Read the full message and identify every civic/government issue mentioned.
   Use the citizen's intent, not their exact words. Indian citizens rarely use formal terms.
+  ISSUE vs COMPLAINT RULE:
+  - Treat as ISSUE when citizen reports a problem or asks for help.
+  - Treat as COMPLAINT only when citizen explicitly accuses/faults an office/person/service.
+  - In political_response, prefer neutral words like "issue/problem/samasya" unless it is clearly a complaint.
 
   MAPPING GUIDE — common phrases to categories:
   ┌─────────────────────────────────────────────────────────────────────────────┐

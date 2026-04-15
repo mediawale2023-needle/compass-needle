@@ -6,6 +6,7 @@ import logging
 import time
 import difflib  # Logic for Fuzzy Matching (Typos)
 import unicodedata  # FIX P1: Used for emoji/symbol detection in detect_input_language()
+import re
 from openai import OpenAI
 from openai import RateLimitError, APIError, APIConnectionError
 from .prompts import SYSTEM_PROMPT, TAXONOMY_CATEGORIES
@@ -308,6 +309,8 @@ _MARATHI_MARKERS = {
     "nighto", "nighale",          # निघतो — "leaves/left"
     "dya", "dyayla",              # द्या — "give (imperative)"
     "aaplyakade", "aamchya",      # आपल्याकडे / आमच्या
+    # Common citizen transliteration patterns (agri/weather complaints)
+    "majhi", "majha", "mala", "kahi", "zhali", "mule", "pavsa", "sheti", "kara",
 }
 
 _KANNADA_MARKERS = {
@@ -330,9 +333,47 @@ _TELUGU_MARKERS = {
 
 _BENGALI_MARKERS = {
     "hoyeche", "nei", "ache", "korchi", "dite",
-    "paachi na", "hobe", "kothay", "jaচ্ছে", "bolun",
+    "paachi na", "hobe", "kothay", "jacche", "jachhe", "bolun",
     "hoye", "jacche", "achhe", "debe", "niye",
 }
+
+_LANGUAGE_SAFE_FALLBACKS = {
+    "Hindi": "Ji, maine aapki samasya note kar li hai. Kripya gaon ya kshetra ka naam bhi batayen.",
+    "Hinglish": "Ji, maine aapka issue note kar liya hai. Please village/area ka naam bhi share karein.",
+    "Marathi": "Tumchi samasya nodavli aahe. Krupaya gaav kiwa ward che naav pan sanga.",
+    "Kannada": "Nimma samasya namoodiside. Dayavittu grama athava ward hesaru koodi tilisi.",
+    "Tamil": "Ungal pirachanai pathivu seyyappattadhu. Dayavu seidhu gramam alladhu ward peyaraiyum sollunga.",
+    "Telugu": "Mee samasya namodayyindi. Dayachesi gramam leka ward peru kooda cheppandi.",
+    "Bengali": "Apnar shomoshya nôthibhukto hoyeche. Doya kore gram ba ward er naam-o janan.",
+    "English": "Your issue has been noted. Please also share your village or ward name.",
+}
+
+
+def _split_context_and_message(raw_input: str) -> tuple[str, str]:
+    """
+    If main.py passes a combined blob like:
+      "<context>\\n\\nUSER MESSAGE: <citizen text>"
+    split it so language detection/classification uses only the citizen text.
+    """
+    text = (raw_input or "").strip()
+    if not text:
+        return "", ""
+    parts = re.split(r"\bUSER MESSAGE\s*:\s*", text, maxsplit=1, flags=re.IGNORECASE)
+    if len(parts) == 2:
+        return parts[0].strip(), parts[1].strip()
+    return "", text
+
+
+def _mostly_ascii(text: str) -> bool:
+    stripped = [c for c in (text or "") if not c.isspace()]
+    if not stripped:
+        return True
+    ascii_count = sum(1 for c in stripped if ord(c) < 128)
+    return (ascii_count / len(stripped)) >= 0.90
+
+
+def _safe_language_fallback(lang: str) -> str:
+    return _LANGUAGE_SAFE_FALLBACKS.get(lang, _LANGUAGE_SAFE_FALLBACKS["English"])
 
 
 def detect_input_language(message: str) -> str:
@@ -447,8 +488,10 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     mp_constituency = mp_profile["constituency"]
     mp_state = mp_profile["state"]
 
-    # --- Deterministic language detection ---
-    detected_lang = detect_input_language(user_message)
+    # --- Deterministic language detection (on citizen message only) ---
+    extra_context, primary_message = _split_context_and_message(user_message)
+    effective_user_message = primary_message or (user_message or "")
+    detected_lang = detect_input_language(effective_user_message)
 
     # --- Inject MP Persona & Professional Constraints ---
     mp_identity = ""
@@ -459,10 +502,10 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
 
     RULES:
     1. If a citizen reports a civic issue (water, road, electricity, etc.) with or without a location,
-       ALWAYS acknowledge it. Say the complaint is "noted and recorded" and they will be updated soon.
+       ALWAYS acknowledge it. Say the issue is "noted and recorded" and they will be updated soon.
        Extract the location name as-is from the message (do not modify or validate it).
     2. If no location is mentioned → Ask for the village/area name. Mark as INCOMPLETE.
-    3. NEVER mark a civic complaint as IRRELEVANT. IRRELEVANT is ONLY for greetings, jokes, or spam.
+    3. NEVER mark a civic issue as IRRELEVANT. IRRELEVANT is ONLY for greetings, jokes, or spam.
     4. ALWAYS reply in the SAME LANGUAGE as the citizen. Never switch to English.
         """
 
@@ -471,10 +514,11 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     1. You are a Member of Parliament (MP) communicating with a citizen.
     2. NEVER mention 'departments', 'forwarding', or 'officials'.
     3. Maintain professional authority. DO NOT say 'it feels good' or 'I understand'.
-    4. NO PROMISES: Do not promise a specific action. State the grievance is 'noted and recorded'.
+    4. NO PROMISES: Do not promise a specific action. State the issue is 'noted and recorded'.
     5. LANGUAGE: The citizen's message is in **{detected_lang}**. You MUST write your political_response in **{detected_lang}** only. Do NOT switch to Hindi or any other language. Set detected_language to "{detected_lang}".
     6. Only If info is missing (location/area), ask for it directly in {detected_lang}.
     7. Be concise (max 2 sentences).
+    8. Use neutral wording: prefer "issue/problem/samasya". Use "complaint" only if the citizen explicitly makes a complaint.
     {mp_identity}
     """
 
@@ -482,7 +526,14 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     system_instructions = f"{persona_instructions}\n\n{SYSTEM_PROMPT.format(user_message='{{MESSAGE_BELOW}}', jurisdiction_context=real_jurisdiction_context, taxonomy_categories=TAXONOMY_CATEGORIES)}"
 
     # Prefix user message with detected language so GPT cannot miss it
-    tagged_message = f"[LANGUAGE: {detected_lang}]\n<user_input>\n{user_message}\n</user_input>"
+    if extra_context:
+        tagged_message = (
+            f"[LANGUAGE: {detected_lang}]\n"
+            f"<user_input>\n{effective_user_message}\n</user_input>\n"
+            f"<context>\n{extra_context}\n</context>"
+        )
+    else:
+        tagged_message = f"[LANGUAGE: {detected_lang}]\n<user_input>\n{effective_user_message}\n</user_input>"
 
     # ── Retry with exponential backoff (3 attempts: 1s → 2s → 4s) ──────────
     _MAX_RETRIES = 3
@@ -518,7 +569,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         "Thank you for contacting us. Your message has been received "
                         "and will be reviewed by our team. 🙏"
                     ),
-                    "grievance_data": _default_grievance_data(user_message),
+                    "grievance_data": _default_grievance_data(effective_user_message),
                     "is_critical": False,
                     "_ai_retry_exhausted": True,
                 }
@@ -531,7 +582,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                     "Thank you for contacting us. Your message has been received "
                     "and will be reviewed by our team. 🙏"
                 ),
-                "grievance_data": _default_grievance_data(user_message),
+                "grievance_data": _default_grievance_data(effective_user_message),
                 "is_critical": False,
                 "_ai_retry_exhausted": True,
             }
@@ -552,6 +603,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             if "status" in data:
                 _raw_status = str(data["status"]).lower().strip()
                 data["status"] = _raw_status if _raw_status in _VALID_STATUSES else "pending"
+            data["detected_language"] = detected_lang
 
             # [START OF MULTI-TENANT FIX (WITH AUTO-CORRECT)] ----------------
             try:
@@ -753,7 +805,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 if _current_status in ("offensive", "irrelevant"):
                     data["grievance_data"]["categories"] = []
                 else:
-                    validated = _normalize_categories(cats, user_message)
+                    validated = _normalize_categories(cats, effective_user_message)
                     # C2 guard: completed/incomplete/pending cases must always have ≥1 category
                     if not validated:
                         validated = ["Infrastructure & Utilities"]
@@ -762,6 +814,16 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                             data.get("status", "unknown"),
                         )
                     data["grievance_data"]["categories"] = validated
+
+            # Language guardrail: if citizen input was transliterated (mostly ASCII),
+            # reject non-ASCII AI replies to avoid Hindi-script swaps for Marathi/Hinglish.
+            _reply = str(data.get("political_response", "") or "").strip()
+            if _mostly_ascii(effective_user_message) and _reply and not _mostly_ascii(_reply):
+                logger.warning(
+                    "Language guardrail triggered: forcing safe fallback. lang=%s input='%s' reply='%s'",
+                    detected_lang, effective_user_message[:120], _reply[:120]
+                )
+                data["political_response"] = _safe_language_fallback(detected_lang)
 
             return data
             
@@ -774,7 +836,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                     "Thank you for contacting us. Your message has been received "
                     "and will be reviewed by our team. 🙏"
                 ),
-                "grievance_data": _default_grievance_data(user_message),
+                "grievance_data": _default_grievance_data(effective_user_message),
                 "is_critical": False,
             }
 
@@ -787,6 +849,6 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 "Thank you for contacting us. Your message has been received "
                 "and will be reviewed by our team. 🙏"
             ),
-            "grievance_data": _default_grievance_data(user_message),
+            "grievance_data": _default_grievance_data(effective_user_message),
             "is_critical": False,
         }
