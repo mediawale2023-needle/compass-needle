@@ -164,52 +164,56 @@ export default function DashboardPage() {
     const [pqCalendar, setPqCalendar] = useState(null);
     const [staleCases, setStaleCases] = useState([]);
     const [allCases, setAllCases] = useState([]);
-    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        async function load() {
-            try {
-                const [sum, rc, nat, loc, parl, cases, pqCal] = await Promise.all([
-                    apiGet('/api/dashboard/summary').catch(() => ({
-                        category_breakdown: {}, status_breakdown: {}, red_zones: [], critical_count: 0,
-                    })),
-                    apiGet('/api/activity/report-card').catch(() => null),
-                    apiGet('/api/news?news_type=national').catch(() => ({ articles: [] })),
-                    apiGet('/api/news?news_type=local').catch(() => ({ articles: [] })),
-                    apiGet('/api/parliament/status').catch(() => null),
-                    apiGet('/api/cases?page=1&limit=50').catch(() => ({ cases: [] })),
-                    apiGet('/api/parliament/pq-calendar').catch(() => null),
-                ]);
+        let cancelled = false;
+        const safeSet = (fn) => { if (!cancelled) fn(); };
 
-                setSummary(sum);
-                setReportCard(rc);
-                setNews({ national: nat.articles || [], local: loc.articles || [] });
-                setParliament(parl);
-                setPqCalendar(pqCal);
+        (async () => {
+            const sum = await apiGet('/api/dashboard/summary').catch(() => ({
+                category_breakdown: {}, status_breakdown: {}, red_zones: [], critical_count: 0,
+            }));
+            safeSet(() => setSummary(sum));
+        })();
 
-                const fetchedCases = cases.cases || cases.items || [];
+        (async () => {
+            const rc = await apiGet('/api/activity/report-card').catch(() => null);
+            safeSet(() => setReportCard(rc));
+        })();
+
+        (async () => {
+            const [nat, loc] = await Promise.all([
+                apiGet('/api/news?news_type=national').catch(() => ({ articles: [] })),
+                apiGet('/api/news?news_type=local').catch(() => ({ articles: [] })),
+            ]);
+            safeSet(() => setNews({ national: nat.articles || [], local: loc.articles || [] }));
+        })();
+
+        (async () => {
+            const parl = await apiGet('/api/parliament/status').catch(() => null);
+            safeSet(() => setParliament(parl));
+        })();
+
+        (async () => {
+            const pqCal = await apiGet('/api/parliament/pq-calendar').catch(() => null);
+            safeSet(() => setPqCalendar(pqCal));
+        })();
+
+        (async () => {
+            const cases = await apiGet('/api/cases?page=1&limit=50').catch(() => ({ cases: [] }));
+            const fetchedCases = cases.cases || cases.items || [];
+            const pending = fetchedCases
+                .filter(c => (c.status || '').toLowerCase() === 'new')
+                .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+                .slice(0, 6);
+            safeSet(() => {
                 setAllCases(fetchedCases);
-                const pending = fetchedCases
-                    .filter(c => (c.status || '').toLowerCase() === 'new')
-                    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-                    .slice(0, 6);
                 setStaleCases(pending);
-            } catch (err) {
-                console.error(err);
-                setSummary({ category_breakdown: {}, status_breakdown: {}, red_zones: [], critical_count: 0 });
-            } finally {
-                setLoading(false);
-            }
-        }
-        load();
-    }, []);
+            });
+        })();
 
-    if (loading) return (
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <span className="text-sm text-muted-foreground">Loading dashboard...</span>
-        </div>
-    );
+        return () => { cancelled = true; };
+    }, []);
 
     const cats = summary?.category_breakdown || {};
     const statuses = summary?.status_breakdown || {};
@@ -359,7 +363,7 @@ export default function DashboardPage() {
             ) : (
                 <>
                     {/* Quick Actions */}
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         {QUICK_ACTIONS.map(({ label, href, desc, icon: Icon }) => (
                             <Link key={href} href={href}>
                                 <Card className="h-full card-hover cursor-pointer">

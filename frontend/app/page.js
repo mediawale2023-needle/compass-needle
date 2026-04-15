@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Compass, AlertCircle, Wifi, WifiOff, CheckCircle2 } from 'lucide-react';
+import { Loader2, Compass, AlertCircle, Wifi, WifiOff, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 const PROBE_INTERVAL_MS = 4000;   // re-ping every 4s while server is unreachable
@@ -37,6 +37,7 @@ export default function LoginPage() {
     const router = useRouter();
     const [username, setUsername]   = useState('');
     const [password, setPassword]   = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError]         = useState('');
     const [loading, setLoading]     = useState(false);
 
@@ -189,17 +190,33 @@ export default function LoginPage() {
                                 <Label htmlFor="password" className="text-sm font-medium text-foreground">
                                     Password
                                 </Label>
-                                <Input
-                                    id="password"
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder={isServerReady ? 'Enter your password' : 'Waiting for server…'}
-                                    className="h-11 bg-secondary/50 border-input focus-visible:ring-primary"
-                                    required
-                                    autoComplete="current-password"
-                                    disabled={!isServerReady}
-                                />
+                                <div className="relative">
+                                    <Input
+                                        id="password"
+                                        type={showPassword ? 'text' : 'password'}
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        placeholder={isServerReady ? 'Enter your password' : 'Waiting for server…'}
+                                        className="h-11 bg-secondary/50 border-input focus-visible:ring-primary pr-12"
+                                        required
+                                        autoComplete="current-password"
+                                        disabled={!isServerReady}
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 text-muted-foreground hover:text-foreground"
+                                        onClick={() => setShowPassword(v => !v)}
+                                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                        disabled={!isServerReady}
+                                    >
+                                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </Button>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Forgot password? Contact your administrator.
+                                </p>
                             </div>
 
                             {error && (

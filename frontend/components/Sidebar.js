@@ -91,6 +91,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                             size="icon"
                             className={cn("hidden md:flex h-8 w-8 shrink-0", collapsed && "md:hidden")}
                             onClick={() => setCollapsed(!collapsed)}
+                            aria-label="Collapse sidebar"
                         >
                             <ChevronLeft className="h-4 w-4" />
                         </Button>
@@ -183,6 +184,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                             size="icon"
                             className="hidden md:flex w-full h-10 mb-2"
                             onClick={() => setCollapsed(false)}
+                            aria-label="Expand sidebar"
                         >
                             <ChevronRight className="h-4 w-4" />
                         </Button>

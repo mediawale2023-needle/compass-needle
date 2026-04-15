@@ -64,8 +64,11 @@ export default function DashboardLayout({ children }) {
             .then(data => {
                 const statuses = data?.status_breakdown || {};
                 const newCount = statuses['new'] || 0;
-                setBadges({ letterbox: newCount, briefcase: newCount });
+                setBadges(b => ({ ...b, briefcase: newCount }));
             })
+            .catch(() => {});
+        apiGet('/api/letterbox?direction=inbox&status=new&limit=1&offset=0')
+            .then(r => setBadges(b => ({ ...b, letterbox: r?.total || 0 })))
             .catch(() => {});
         // Load dismissed announcement IDs from localStorage
         try {
@@ -84,6 +87,27 @@ export default function DashboardLayout({ children }) {
     };
 
     const visibleAnnouncements = announcements.filter(a => !dismissedIds.includes(a.id));
+
+    const historyItemHref = (item) => {
+        const meta = item?.metadata || {};
+        if (typeof meta === 'string') return '/dashboard/archives';
+        const direct = meta.href || meta.url || meta.path;
+        if (typeof direct === 'string' && direct.startsWith('/')) return direct;
+
+        if (item?.activity_type === 'draft_letter') {
+            const draftId = meta.draft_id || meta.letter_id || meta.id;
+            return draftId ? `/dashboard/drafter?mode=letter&draft_id=${encodeURIComponent(draftId)}` : '/dashboard/drafter?mode=letter';
+        }
+        if (item?.activity_type === 'draft_question') {
+            const draftId = meta.draft_id || meta.question_id || meta.id;
+            return draftId ? `/dashboard/drafter?mode=question&draft_id=${encodeURIComponent(draftId)}` : '/dashboard/drafter?mode=question';
+        }
+        if (item?.activity_type === 'analysis' || item?.activity_type === 'copilot_chat') {
+            const sessionId = meta.session_id || meta.chat_id || meta.id;
+            return sessionId ? `/dashboard/copilot?session=${encodeURIComponent(sessionId)}` : '/dashboard/copilot';
+        }
+        return `/dashboard/archives?activity_id=${encodeURIComponent(item?.id || '')}`;
+    };
 
     const openHistory = async () => {
         setShowHistory(true);
@@ -116,6 +140,7 @@ export default function DashboardLayout({ children }) {
                         size="icon"
                         className="h-9 w-9"
                         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                        aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
                     >
                         {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                     </Button>
@@ -126,6 +151,7 @@ export default function DashboardLayout({ children }) {
                     size="icon"
                     className="h-9 w-9"
                     onClick={openHistory}
+                    aria-label="Open activity history"
                 >
                     <Clock className="h-5 w-5 text-muted-foreground" />
                 </Button>
@@ -246,7 +272,7 @@ export default function DashboardLayout({ children }) {
                                             className="w-full px-6 py-4 hover:bg-accent/50 transition-colors text-left"
                                             onClick={() => { 
                                                 setShowHistory(false); 
-                                                router.push('/dashboard/archives'); 
+                                                router.push(historyItemHref(item)); 
                                             }}
                                         >
                                             <div className="flex items-start gap-3">

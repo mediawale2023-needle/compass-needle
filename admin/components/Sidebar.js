@@ -198,6 +198,7 @@ export default function Sidebar() {
 
                 <button
                     onClick={logout}
+                    aria-label="Sign out"
                     className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#e2ebe5] px-3 py-2.5 text-sm font-medium text-[#6b7f76] transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
                 >
                     <Icons.Logout />
