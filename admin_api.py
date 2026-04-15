@@ -2852,16 +2852,20 @@ Rules:
         return json.loads(text_payload[start:end])
 
     errors = []
+    # Note: response_mime_type="application/json" is incompatible with google_search
+    # grounding tools — Gemini rejects it with INVALID_ARGUMENT. Use JSON mode only
+    # when grounding is disabled; rely on _parse_json_payload to extract JSON otherwise.
     attempts = [
-        ("gemini-2.0-flash", True),
         ("gemini-2.5-flash", True),
-        ("gemini-2.0-flash", False),
+        ("gemini-2.5-pro", True),
+        ("gemini-2.5-flash", False),
     ]
     for model_name, use_grounding in attempts:
         try:
             cfg = genai_types.GenerateContentConfig(
                 temperature=0.2,
-                response_mime_type="application/json",
+                # JSON mime type only valid without grounding tools
+                response_mime_type=None if use_grounding else "application/json",
                 tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())] if use_grounding else None,
             )
             response = client.models.generate_content(
@@ -2932,13 +2936,25 @@ Rules:
 - assembly_segments must be complete
 - political_history.current_mp must include vote_share_percent, winning_margin, voter_turnout_percent"""
 
-    response = client.messages.create(
-        model="claude-opus-4-6",
-        max_tokens=4000,
-        tools=[{"type": "web_search_20250305", "name": "web_search"}],
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
+    # web_search_20250305 requires the "web_search_2025_03_05" beta flag.
+    # Use beta client if available, else fall back to knowledge-only generation.
+    try:
+        response = client.beta.messages.create(
+            model="claude-opus-4-6",
+            max_tokens=4000,
+            betas=["web_search_2025_03_05"],
+            tools=[{"type": "web_search_20250305", "name": "web_search"}],
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+    except Exception:
+        # Beta not available / web search not enabled — fall back to knowledge-only
+        response = client.messages.create(
+            model="claude-opus-4-6",
+            max_tokens=4000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
 
     text = ""
     for block in response.content:
