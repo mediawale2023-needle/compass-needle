@@ -443,6 +443,26 @@ def get_summary(
     }
 
 
+@router.get("/cases/deleted")
+def get_deleted_cases_mp(user=Depends(get_current_user)):
+    """Return soft-deleted cases from the last 7 days. Must be defined BEFORE /cases/{case_id} to avoid int-cast 422."""
+    tid = get_tenant_or_fail(user)
+    role = user.get("role", "user")
+    if role not in ("mp", "pr", "admin"):
+        raise HTTPException(403, "Only MP/PR accounts can view deleted cases")
+    seven_days_ago = datetime.utcnow() - timedelta(days=7)
+    cases = _q(
+        "SELECT * FROM cases WHERE tenant_id = :tid AND is_deleted = true AND deleted_at >= :since ORDER BY deleted_at DESC",
+        {"tid": tid, "since": seven_days_ago}
+    )
+    for c in cases:
+        for field in ["created_at", "updated_at", "deleted_at"]:
+            val = c.get(field)
+            if val and hasattr(val, "isoformat"):
+                c[field] = val.isoformat()
+    return {"cases": cases}
+
+
 @router.get("/cases/{case_id}")
 def get_case(case_id: int, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
@@ -628,26 +648,6 @@ def delete_case(case_id: int, user=Depends(get_current_user)):
         pass  # nosec B110
 
     return {"success": True}
-
-
-@router.get("/cases/deleted")
-def get_deleted_cases(user=Depends(get_current_user)):
-    tid = get_tenant_or_fail(user)
-    role = user.get("role", "user")
-    if role not in ("mp", "pr", "admin"):
-        raise HTTPException(403, "Only MP/PR accounts can view deleted cases")
-
-    seven_days_ago = datetime.utcnow() - timedelta(days=7)
-    cases = _q(
-        "SELECT * FROM cases WHERE tenant_id = :tid AND is_deleted = true AND deleted_at >= :since ORDER BY deleted_at DESC",
-        {"tid": tid, "since": seven_days_ago}
-    )
-    for c in cases:
-        for field in ["created_at", "updated_at", "deleted_at"]:
-            val = c.get(field)
-            if val and hasattr(val, "isoformat"):
-                c[field] = val.isoformat()
-    return {"cases": cases}
 
 
 @router.patch("/cases/{case_id}/restore")
