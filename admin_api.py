@@ -2941,7 +2941,7 @@ Rules:
     try:
         response = client.beta.messages.create(
             model="claude-opus-4-6",
-            max_tokens=4000,
+            max_tokens=8000,
             betas=["web_search_2025_03_05"],
             tools=[{"type": "web_search_20250305", "name": "web_search"}],
             system=system_prompt,
@@ -2951,7 +2951,7 @@ Rules:
         # Beta not available / web search not enabled — fall back to knowledge-only
         response = client.messages.create(
             model="claude-opus-4-6",
-            max_tokens=4000,
+            max_tokens=8000,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
         )
@@ -2969,7 +2969,10 @@ Rules:
     end = text.rfind("}") + 1
     if start == -1 or end == 0:
         raise ValueError("No JSON object found in Claude response")
-    return json.loads(text[start:end])
+    raw = text[start:end]
+    # Repair common Claude JSON issues: trailing commas before } or ]
+    raw = re.sub(r",\s*([}\]])", r"\1", raw)
+    return json.loads(raw)
 
 
 def _run_profile_generation(job_id: str, req: GenerateProfileRequest):
