@@ -2730,7 +2730,7 @@ def start_profile_generation(
     job_id = uuid.uuid4().hex[:12]
     _generate_jobs[job_id] = {
         "status": "running",
-        "progress": "Starting Claude agent…",
+        "progress": "Starting AI research agent…",
         "error": None,
         "slug": None,
     }
@@ -2822,16 +2822,58 @@ Rules:
 - Do not include markdown fences or any text outside JSON
 - If a field is unavailable, use empty string, 0, empty array, or empty object as appropriate"""
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=genai_types.GenerateContentConfig(
-            temperature=0.2,
-            response_mime_type="application/json",
-            tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())],
-        ),
-    )
-    return json.loads((response.text or "").strip())
+    def _extract_text(resp) -> str:
+        txt = (getattr(resp, "text", "") or "").strip()
+        if txt:
+            return txt
+        try:
+            candidates = getattr(resp, "candidates", []) or []
+            if candidates:
+                parts = (
+                    getattr(candidates[0], "content", None)
+                    and getattr(candidates[0].content, "parts", None)
+                ) or []
+                joined = "".join((getattr(p, "text", "") or "") for p in parts).strip()
+                if joined:
+                    return joined
+        except Exception:
+            pass
+        return ""
+
+    def _parse_json_payload(raw_text: str) -> dict:
+        text_payload = (raw_text or "").strip()
+        if text_payload.startswith("```"):
+            text_payload = re.sub(r"^```[a-z]*\n?", "", text_payload)
+            text_payload = re.sub(r"\n?```$", "", text_payload)
+        start = text_payload.find("{")
+        end = text_payload.rfind("}") + 1
+        if start == -1 or end <= start:
+            raise ValueError("No JSON object found in Gemini response")
+        return json.loads(text_payload[start:end])
+
+    errors = []
+    attempts = [
+        ("gemini-2.0-flash", True),
+        ("gemini-2.5-flash", True),
+        ("gemini-2.0-flash", False),
+    ]
+    for model_name, use_grounding in attempts:
+        try:
+            cfg = genai_types.GenerateContentConfig(
+                temperature=0.2,
+                response_mime_type="application/json",
+                tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())] if use_grounding else None,
+            )
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=cfg,
+            )
+            return _parse_json_payload(_extract_text(response))
+        except Exception as exc:
+            errors.append(f"{model_name} (grounding={use_grounding}): {exc}")
+
+    raise RuntimeError("Gemini profile generation failed across all attempts: " + " | ".join(errors))
 
 
 def _generate_profile_with_claude(req: GenerateProfileRequest) -> dict:
@@ -2917,13 +2959,19 @@ Rules:
 def _run_profile_generation(job_id: str, req: GenerateProfileRequest):
     """Background task: generate a constituency profile JSON with Gemini search grounding."""
     try:
-        _generate_jobs[job_id]["progress"] = f"Gemini is researching {req.constituency_name}…"
+        _generate_jobs[job_id]["progress"] = f"Gemini is researching {req.constituency_name} with Google Search…"
         try:
             profile = _generate_profile_with_gemini(req)
-        except Exception:
-            logger.exception("Gemini constituency generation failed, falling back to Claude")
-            _generate_jobs[job_id]["progress"] = "Gemini fallback triggered. Claude is searching the web…"
-            profile = _generate_profile_with_claude(req)
+        except Exception as gemini_exc:
+            logger.exception("Gemini constituency generation failed")
+            if os.environ.get("ANTHROPIC_API_KEY"):
+                _generate_jobs[job_id]["progress"] = "Gemini failed. Trying Claude web research fallback…"
+                profile = _generate_profile_with_claude(req)
+            else:
+                raise RuntimeError(
+                    "Gemini generation failed and Anthropic fallback is unavailable. "
+                    "Configure GEMINI_API_KEY correctly or enable ANTHROPIC_API_KEY."
+                ) from gemini_exc
 
         profile = _stamp_profile_metadata(req.constituency_name, profile)
         profile.setdefault("meta", {})
