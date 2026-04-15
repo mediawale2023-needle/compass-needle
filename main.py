@@ -2116,7 +2116,7 @@ def root():
 @app.get("/health")
 def health():
     """Basic liveness check — returns 200 if the process is running."""
-    return {"status": "ok", "system": "Needle Backend V8.1", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "ok", "system": "Needle Backend V8.2", "timestamp": datetime.utcnow().isoformat(), "routes": ["profile-generate"]}
 
 
 @app.get("/health/db")
