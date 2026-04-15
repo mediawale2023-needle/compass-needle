@@ -97,6 +97,7 @@ _DAY_PATTERNS = [
     (r"\blast\s+(\d+)\s+months?\b",      lambda m: int(m.group(1)) * 30),
     (r"\blast\s+week\b",                 lambda m: 7),
     (r"\blast\s+month\b",                lambda m: 30),
+    (r"\bthis\s+month\b",                lambda m: 30),   # FIX P2: "this month" → 30 days (was missing)
     (r"\bthis\s+week\b",                 lambda m: 7),
     (r"\btoday\b|\baaj\b",               lambda m: 1),
     (r"\bek\s+hapta\b",                  lambda m: 7),
@@ -133,6 +134,8 @@ def _regex_fallback(message: str) -> dict:
             except (ValueError, AttributeError):
                 days = 7
             break
+    # FIX P0: Clamp days to a safe range (mirrors the GPT path clamp — prevents DB full-table scans)
+    days = max(1, min(days, 365))
 
     # Location: strip known keywords, take remaining capitalised token
     # This is a best-effort extraction — GPT path is preferred

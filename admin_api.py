@@ -25,6 +25,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, validate_password, get_all_overrides, save_overrides_to_db, AdminAuditLog, AdminNote
 from core.db_helpers import _q, _q_one, _parse_meta
+from core.gemini_client import get_gemini_client
 from modules.constituencies import ALL_CONSTITUENCIES
 from modules.auth import get_tenant_or_fail
 
@@ -2638,23 +2639,73 @@ def whatsapp_diagnostics(_=Depends(get_admin_user)):
 
 _PROFILES_DIR = Path(__file__).parent / "data" / "constituency_profiles"
 
+
+def _safe_profile_slug(slug: str) -> str:
+    return re.sub(r"[^a-z0-9_\-]", "", (slug or "").lower())
+
+
+def _profile_path(slug: str) -> Path:
+    safe_slug = _safe_profile_slug(slug)
+    if not safe_slug:
+        raise HTTPException(400, "Invalid slug")
+    return _PROFILES_DIR / f"{safe_slug}.json"
+
+
+def _read_profile_file(path: Path) -> dict:
+    try:
+        return json.loads(path.read_text())
+    except json.JSONDecodeError:
+        logger.exception("Invalid constituency profile JSON: %s", path)
+        raise HTTPException(500, "Profile file is invalid JSON")
+    except Exception:
+        logger.exception("Failed to read constituency profile: %s", path)
+        raise HTTPException(500, "Failed to read profile")
+
+
+def _stamp_profile_metadata(slug: str, body: dict) -> dict:
+    payload = body if isinstance(body, dict) else {}
+    meta = payload.setdefault("meta", {})
+    if not isinstance(meta, dict):
+        meta = {}
+        payload["meta"] = meta
+    meta.setdefault("name", slug.replace("-", " ").title())
+    meta["last_updated"] = datetime.utcnow().strftime("%Y-%m-%d")
+    return payload
+
 @router.get("/constituency-profiles")
 def list_constituency_profiles(user=Depends(get_admin_user)):
-    """List all available constituency profile slugs."""
+    """List all available constituency profiles with lightweight metadata."""
     profiles = []
+    tenant_map = {}
+    db = SessionLocal()
+    try:
+        tenant_map = {
+            t.id: {"name": t.name, "constituency": t.constituency}
+            for t in db.query(Tenant).all()
+        }
+    finally:
+        db.close()
     if _PROFILES_DIR.exists():
         for f in sorted(_PROFILES_DIR.glob("*.json")):
             try:
-                data = json.loads(f.read_text())
+                data = _read_profile_file(f)
+                meta = data.get("meta", {}) or {}
+                tenant_id = meta.get("tenant_id")
+                assembly_segments = data.get("assembly_segments", []) or []
+                linked_tenant = tenant_map.get(tenant_id) if isinstance(tenant_id, int) else None
                 profiles.append({
                     "slug": f.stem,
-                    "name": data.get("meta", {}).get("name", f.stem),
-                    "state": data.get("meta", {}).get("state", ""),
-                    "type": data.get("meta", {}).get("type", ""),
-                    "last_updated": data.get("meta", {}).get("last_updated", ""),
+                    "name": meta.get("name", f.stem),
+                    "state": meta.get("state", ""),
+                    "type": meta.get("type", ""),
+                    "last_updated": meta.get("last_updated", ""),
+                    "tenant_id": tenant_id,
+                    "tenant_name": (linked_tenant or {}).get("name", ""),
+                    "tenant_constituency": (linked_tenant or {}).get("constituency", ""),
+                    "assembly_segments_count": len(assembly_segments),
                 })
             except Exception:
-                pass
+                logger.exception("Skipping unreadable constituency profile: %s", f)
     return {"profiles": profiles}
 
 
@@ -2699,46 +2750,99 @@ def poll_generation_job(job_id: str, user=Depends(get_admin_user)):
 @router.get("/constituency-profiles/{slug}")
 def get_constituency_profile(slug: str, user=Depends(get_admin_user)):
     """Return the full constituency profile JSON for a given slug."""
-    safe_slug = re.sub(r"[^a-z0-9_\-]", "", slug.lower())
-    path = _PROFILES_DIR / f"{safe_slug}.json"
+    path = _profile_path(slug)
     if not path.exists():
         raise HTTPException(404, f"No profile found for '{slug}'")
-    try:
-        return json.loads(path.read_text())
-    except Exception as e:
-        raise HTTPException(500, f"Failed to read profile: {e}")
+    return _read_profile_file(path)
 
 
 @router.put("/constituency-profiles/{slug}")
 def upsert_constituency_profile(slug: str, body: dict, user=Depends(get_admin_user)):
     """Create or overwrite a constituency profile JSON."""
-    safe_slug = re.sub(r"[^a-z0-9_\-]", "", slug.lower())
-    if not safe_slug:
-        raise HTTPException(400, "Invalid slug")
+    safe_slug = _safe_profile_slug(slug)
     _PROFILES_DIR.mkdir(parents=True, exist_ok=True)
-    path = _PROFILES_DIR / f"{safe_slug}.json"
-    path.write_text(json.dumps(body, indent=2, ensure_ascii=False))
+    path = _profile_path(safe_slug)
+    payload = _stamp_profile_metadata(safe_slug, body)
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
     return {"ok": True, "slug": safe_slug}
 
 
-def _run_profile_generation(job_id: str, req: GenerateProfileRequest):
-    """Background task: use Claude with web search to research and generate a constituency profile JSON."""
+@router.delete("/constituency-profiles/{slug}")
+def delete_constituency_profile(slug: str, user=Depends(get_admin_user)):
+    """Delete a constituency profile JSON file."""
+    path = _profile_path(slug)
+    if not path.exists():
+        raise HTTPException(404, "Profile not found")
     try:
-        import anthropic as _anthropic
+        path.unlink()
+    except Exception:
+        logger.exception("Failed to delete constituency profile: %s", path)
+        raise HTTPException(500, "Failed to delete profile")
+    return {"ok": True, "slug": path.stem}
 
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            _generate_jobs[job_id] = {
-                "status": "error", "progress": "",
-                "error": "ANTHROPIC_API_KEY environment variable is not configured.",
-                "slug": None,
-            }
-            return
 
-        client = _anthropic.Anthropic(api_key=api_key)
-        _generate_jobs[job_id]["progress"] = f"Claude is researching {req.constituency_name}…"
+def _generate_profile_with_gemini(req: GenerateProfileRequest) -> dict:
+    client = get_gemini_client()
+    if not client:
+        raise RuntimeError("GEMINI_API_KEY is not configured")
 
-        schema_hint = """{
+    from google.genai import types as genai_types
+
+    schema_hint = """{
+  "meta": {"tenant_id": 0, "name": "", "also_known_as": [], "state": "", "type": "Lok Sabha", "reservation": "General", "constituency_number": 0, "total_electors_2024": 0, "region": "", "coordinates": "", "established": 1951, "last_updated": ""},
+  "geography": {"area_sq_km": 0, "note": "", "terrain": "", "rivers": [{"name": "", "length_km": 0, "note": ""}], "dams": [{"name": "", "river": "", "capacity_tmc": 0, "note": ""}], "climate": {"type": "", "avg_annual_rainfall_mm": 0, "summer_temp_celsius": "", "winter_temp_celsius": "", "monsoon": ""}, "bordering_states": [], "bordering_districts": [], "talukas": [], "notable_geographic_features": []},
+  "demographics": {"source": "Census of India 2011", "total_population": 0, "male_population": 0, "female_population": 0, "population_growth_rate_percent": 0, "population_density_per_sq_km": 0, "sex_ratio_per_1000_males": 0, "child_sex_ratio_0_to_6": 0, "literacy": {"overall_percent": 0, "male_percent": 0, "female_percent": 0}, "urban_rural_split": {"urban_percent": 0, "rural_percent": 0}, "religion": {}, "castes": {"scheduled_caste_percent": 0, "scheduled_tribe_percent": 0, "dominant_communities": [], "note": ""}, "languages": {"primary": "", "other": []}},
+  "assembly_segments": [{"number": 0, "name": "", "reservation": "General", "district": "", "mla": "", "party": "", "elected_year": 2023, "winning_margin": 0, "note": ""}],
+  "assembly_summary_2023": {"INC": 0, "BJP": 0, "note": ""},
+  "political_history": {"current_mp": {"name": "", "party": "", "elected_year": 2024, "vote_count": 0, "vote_share_percent": 0, "winning_margin": 0, "runner_up": "", "runner_up_votes": 0, "voter_turnout_percent": 0, "bio": ""}, "past_mps": [{"year": "", "name": "", "party": "", "margin": 0, "note": ""}], "party_dominance": {}, "political_character": "", "key_political_issues": []},
+  "economy": {"overview": "", "industries": [{"sector": "", "details": ""}], "large_medium_industries": 0, "ssi_units": 0, "agriculture": {"primary_crops": [], "irrigation_sources": []}, "industrial_zones": [], "major_employers": []},
+  "infrastructure": {"roads": {"national_highways": [{"name": "", "route": ""}]}, "railways": {"main_station": "", "pending": ""}, "airports": [{"name": "", "iata": "", "history": "", "connectivity": ""}], "education": {"total_colleges": 0, "universities": 0, "key_institutions": []}, "healthcare": {"government_hospitals": 0, "primary_health_centres": 0}},
+  "social_indicators": {"literacy_vs_national": "", "female_literacy_gap": "", "child_sex_ratio": "", "sc_st_combined_percent": 0, "odf_status": "", "key_central_schemes": [], "key_state_schemes": []},
+  "cultural_profile": {"heritage_sites": [{"name": "", "built": "", "significance": "", "museum": ""}], "festivals": [{"name": "", "date": "", "significance": ""}], "arts_and_crafts": {"folk_arts": [], "textiles": "", "cuisine": ""}, "tourist_attractions": [], "famous_personalities": [{"name": "", "field": "", "note": ""}]},
+  "key_challenges": [{"title": "", "detail": ""}],
+  "development_priorities": [],
+  "notable_facts": []
+}"""
+
+    prompt = f"""Research {req.constituency_name} {req.constituency_type} constituency in {req.state}, India.
+
+Use Google Search grounding to verify facts from credible Indian and public sources such as ECI, Lok Sabha, Census, state government, district administration, PRS, official tourism portals, and reputable encyclopedic sources.
+
+Return only valid JSON matching this schema and fill it with real data:
+{schema_hint}
+
+Rules:
+- meta.tenant_id must be exactly {req.tenant_id}
+- meta.name must be {req.constituency_name}
+- meta.state must be {req.state}
+- meta.type must be {req.constituency_type}
+- Include complete assembly_segments for the constituency
+- Include current 2024 MP result details where applicable
+- Include at least 5 key_challenges, 5 development_priorities, and 5 notable_facts
+- Do not include markdown fences or any text outside JSON
+- If a field is unavailable, use empty string, 0, empty array, or empty object as appropriate"""
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config=genai_types.GenerateContentConfig(
+            temperature=0.2,
+            response_mime_type="application/json",
+            tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())],
+        ),
+    )
+    return json.loads((response.text or "").strip())
+
+
+def _generate_profile_with_claude(req: GenerateProfileRequest) -> dict:
+    import anthropic as _anthropic
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY is not configured")
+
+    client = _anthropic.Anthropic(api_key=api_key)
+    schema_hint = """{
   "meta": {"tenant_id": <int>, "name": "...", "also_known_as": [], "state": "...", "type": "Lok Sabha",
     "reservation": "General", "constituency_number": <int>, "total_electors_2024": <int>,
     "region": "...", "coordinates": "lat°N, lon°E", "established": 1951, "last_updated": "2025"},
@@ -2772,74 +2876,64 @@ def _run_profile_generation(job_id: str, req: GenerateProfileRequest):
   "notable_facts": ["...", "..."]
 }"""
 
-        system_prompt = (
-            "You are an expert researcher on Indian parliamentary and state assembly constituencies. "
-            "You have access to live web search. Research thoroughly before responding. "
-            "Return ONLY valid JSON — no markdown fences, no commentary, no text outside the JSON object."
-        )
-
-        user_prompt = f"""Research {req.constituency_name} {req.constituency_type} constituency in {req.state}, India.
-
-Search for and compile:
-1. Geography — area (sq km), terrain, major rivers, talukas/blocks, bordering districts/states, climate data
-2. Demographics — Census 2011: total population, literacy rate, sex ratio, religion breakdown (%), caste data (SC/ST %), primary languages
-3. Assembly segments — list all assembly constituencies within this {req.constituency_type} seat (name, number, reservation status, district)
-4. Political history — election results from 1957 to 2024 (winner, party, votes, vote share %, margin), current MP name/party/2024 vote share/winning margin/turnout, political trends
-5. Economy — main crops, major industries and employers, GDP contribution, employment breakdown
-6. Infrastructure — roads (NH/SH), railways, nearest airports, major hospitals, schools/colleges
-7. Social indicators — BPL %, infant mortality, maternal mortality, ODF status
-8. Cultural profile — major festivals, heritage/tourist sites, famous personalities, local cuisine, art forms
-9. Key challenges — at least 5 specific issues (water, employment, connectivity, health, etc.)
-10. Development priorities — at least 5 specific priorities
-11. Notable facts — at least 5 interesting facts
-
-Return ONLY this JSON (no other text):
+    system_prompt = (
+        "You are an expert researcher on Indian parliamentary and state assembly constituencies. "
+        "You have access to live web search. Research thoroughly before responding. "
+        "Return ONLY valid JSON."
+    )
+    user_prompt = f"""Research {req.constituency_name} {req.constituency_type} constituency in {req.state}, India.
+Return ONLY this JSON:
 {schema_hint}
-
 Rules:
-- meta.tenant_id must be exactly {req.tenant_id} (integer)
+- meta.tenant_id must be exactly {req.tenant_id}
 - Use real researched numbers, not placeholders
-- assembly_segments must be a complete list of all segments
-- political_history.current_mp must include vote_share_percent, winning_margin, voter_turnout_percent from 2024 election"""
+- assembly_segments must be complete
+- political_history.current_mp must include vote_share_percent, winning_margin, voter_turnout_percent"""
 
-        _generate_jobs[job_id]["progress"] = "Claude is searching the web…"
+    response = client.messages.create(
+        model="claude-opus-4-6",
+        max_tokens=4000,
+        tools=[{"type": "web_search_20250305", "name": "web_search"}],
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
 
-        response = client.messages.create(
-            model="claude-opus-4-6",
-            max_tokens=4000,
-            tools=[{"type": "web_search_20250305", "name": "web_search"}],
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
-        )
+    text = ""
+    for block in response.content:
+        if hasattr(block, "text"):
+            text = block.text
+            break
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-z]*\n?", "", text)
+        text = re.sub(r"\n?```$", "", text)
+    start = text.find("{")
+    end = text.rfind("}") + 1
+    if start == -1 or end == 0:
+        raise ValueError("No JSON object found in Claude response")
+    return json.loads(text[start:end])
 
-        # Extract the final text block from the response
-        text = ""
-        for block in response.content:
-            if hasattr(block, "text"):
-                text = block.text
-                break
-        if not text:
-            raise ValueError("Claude returned an empty response.")
 
-        # Extract JSON from response (strip any surrounding prose or markdown fences)
-        text = text.strip()
-        if text.startswith("```"):
-            text = re.sub(r"^```[a-z]*\n?", "", text)
-            text = re.sub(r"\n?```$", "", text)
-        start = text.find('{')
-        end = text.rfind('}') + 1
-        if start == -1 or end == 0:
-            raise ValueError("No JSON object found in Claude's response.")
+def _run_profile_generation(job_id: str, req: GenerateProfileRequest):
+    """Background task: generate a constituency profile JSON with Gemini search grounding."""
+    try:
+        _generate_jobs[job_id]["progress"] = f"Gemini is researching {req.constituency_name}…"
+        try:
+            profile = _generate_profile_with_gemini(req)
+        except Exception:
+            logger.exception("Gemini constituency generation failed, falling back to Claude")
+            _generate_jobs[job_id]["progress"] = "Gemini fallback triggered. Claude is searching the web…"
+            profile = _generate_profile_with_claude(req)
 
-        profile = json.loads(text[start:end])
-
-        # Enforce tenant_id
-        if "meta" not in profile:
-            profile["meta"] = {}
+        profile = _stamp_profile_metadata(req.constituency_name, profile)
+        profile.setdefault("meta", {})
         profile["meta"]["tenant_id"] = req.tenant_id
+        profile["meta"]["name"] = profile["meta"].get("name") or req.constituency_name
+        profile["meta"]["state"] = profile["meta"].get("state") or req.state
+        profile["meta"]["type"] = profile["meta"].get("type") or req.constituency_type
 
         # Generate slug from constituency name
-        safe_slug = re.sub(r"[^a-z0-9\-]", "", req.constituency_name.lower().replace(" ", "-"))
+        safe_slug = _safe_profile_slug(req.constituency_name.replace(" ", "-"))
         if not safe_slug:
             safe_slug = f"constituency-{req.tenant_id}"
 
@@ -2869,7 +2963,6 @@ Rules:
         _generate_jobs[job_id] = {
             "status": "error",
             "progress": "",
-            "error": "Profile generation failed. Please check the API key and try again.",
+            "error": "Profile generation failed. Please check Gemini or Claude configuration and try again.",
             "slug": None,
         }
-

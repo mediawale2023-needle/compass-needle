@@ -1,5 +1,6 @@
 import json
 import os
+import re
 
 # --- PATH SETUP ---
 # This ensures we find the file even if running from a different folder
@@ -30,16 +31,22 @@ TAXONOMY_DB = load_taxonomy()
 # --- KEYWORD MATCHING ---
 def _keyword_matches(keyword: str, text_lower: str) -> bool:
     """
-    Order-independent keyword matching.
-    - Single word  → must appear anywhere in the text.
-    - Multi-word   → every word in the keyword must appear somewhere in the
-                     text (any order). This handles "डॉक्टर अस्पताल में नहीं"
-                     matching "अस्पताल में डॉक्टर नहीं है".
+    Order-independent keyword matching with word-boundary protection.
+    - Single word  → whole-word match (prevents "kv" matching "backup", "nali"
+                     matching "channel"). Uses regex \b which is Unicode-aware
+                     in Python 3, so Devanagari/Tamil/etc. words work correctly.
+    - Multi-word   → every word in the keyword must appear as a whole word
+                     somewhere in the text (any order). This handles
+                     "डॉक्टर अस्पताल में नहीं" matching
+                     "अस्पताल में डॉक्टर नहीं है".
     """
     parts = keyword.lower().split()
     if len(parts) == 1:
-        return parts[0] in text_lower
-    return all(p in text_lower for p in parts)
+        return bool(re.search(r'\b' + re.escape(parts[0]) + r'\b', text_lower))
+    return all(
+        bool(re.search(r'\b' + re.escape(p) + r'\b', text_lower))
+        for p in parts
+    )
 
 
 # --- CLASSIFICATION LOGIC ---

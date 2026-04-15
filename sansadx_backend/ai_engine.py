@@ -5,6 +5,7 @@ import glob
 import logging
 import time
 import difflib  # Logic for Fuzzy Matching (Typos)
+import unicodedata  # FIX P1: Used for emoji/symbol detection in detect_input_language()
 from openai import OpenAI
 from openai import RateLimitError, APIError, APIConnectionError
 from .prompts import SYSTEM_PROMPT, TAXONOMY_CATEGORIES
@@ -137,25 +138,26 @@ def _normalize_categories(cats: list, raw_message: str) -> list:
 
         logger.warning("Unrecognised category dropped: '%s'", cat.strip())
 
-    # 5. Keyword fallback — scan taxonomy if nothing survived
+    # 5. Keyword fallback — scan ALL taxonomy rules so multi-category messages
+    #    recover every matching category (not just the first hit).
     if not result and raw_message:
         msg_lower = raw_message.lower()
+        _seen_fallback: set = set()
         try:
-            from sansadx_backend.jurisdiction import TAXONOMY_DB
+            from sansadx_backend.jurisdiction import TAXONOMY_DB, _keyword_matches
             for rule in TAXONOMY_DB:
                 for kw in rule.get("keywords", []):
-                    if kw.lower() in msg_lower:
+                    if _keyword_matches(kw, msg_lower):
                         raw_cat = rule.get("category", "")
                         mapped = (
                             raw_cat if raw_cat in _VALID_CATEGORIES
                             else _CATEGORY_ALIASES.get(raw_cat.lower())
                         )
-                        if mapped:
+                        if mapped and mapped not in _seen_fallback:
                             result.append(mapped)
+                            _seen_fallback.add(mapped)
                             logger.info("Category recovered via taxonomy kw '%s' → '%s'", kw, mapped)
-                            break
-                if result:
-                    break
+                        break  # one keyword match per rule is enough; move to next rule
         except Exception:
             pass
 
@@ -167,6 +169,23 @@ def _normalize_categories(cats: list, raw_message: str) -> list:
     # Deduplicate preserving order
     seen: set = set()
     return [c for c in result if not (c in seen or seen.add(c))]  # type: ignore[func-returns-value]
+
+
+def _default_grievance_data(raw_message: str = "") -> dict:
+    """
+    Returns a minimal but valid grievance_data dict for error-path returns.
+    Runs keyword fallback so cases are never saved with zero categories.
+    """
+    cats = _normalize_categories([], raw_message)
+    return {
+        "categories": cats,
+        "location": None,
+        "person": None,
+        "department": None,
+        "scheme": None,
+        "summary": raw_message[:200] if raw_message else "",
+        "_ai_fallback": True,
+    }
 
 
 STATIC_RESPONSES = {
@@ -279,6 +298,16 @@ _MARATHI_MARKERS = {
     "khup", "mhanje", "mhanun",
     "aaplyala", "tumhala", "amhala",
     "pudhe", "shivar", "gaav",
+    # Additional transliteration variants (fix: language swap bug)
+    "amahala", "amhala",          # आम्हाला — "us" (Marathi 1st-person plural)
+    "yojane", "yojana che",       # योजनेचे — "of the scheme"
+    "bethle", "bethla", "bethli", # बेटले/मिळाले — "received/got" (dialectal)
+    "milena", "milale", "milali", # मिळाले — "received"
+    "sangto", "sangta", "sangti", # सांगतो — "I/she/he says"
+    "karto", "karte", "kartoy",   # करतो — "does/doing"
+    "nighto", "nighale",          # निघतो — "leaves/left"
+    "dya", "dyayla",              # द्या — "give (imperative)"
+    "aaplyakade", "aamchya",      # आपल्याकडे / आमच्या
 }
 
 _KANNADA_MARKERS = {
@@ -286,22 +315,68 @@ _KANNADA_MARKERS = {
     "helri", "hogidhe", "bandilla", "kelsa",
 }
 
+# FIX P2: Tamil, Telugu, Bengali transliteration markers
+_TAMIL_MARKERS = {
+    "illa", "irukku", "pannunga", "sollunga", "varudu",
+    "illai", "varala", "seyya", "enna", "theriyala",
+    "kodunga", "mudiyala", "paarunga", "sollungo",
+}
+
+_TELUGU_MARKERS = {
+    "ledu", "undi", "cheyyi", "cheppandi", "ivaali",
+    "chala", "naaku", "meeru", "vastundi", "leru",
+    "ippudu", "kaadu", "chesthunnaru", "ivvadam",
+}
+
+_BENGALI_MARKERS = {
+    "hoyeche", "nei", "ache", "korchi", "dite",
+    "paachi na", "hobe", "kothay", "jaচ্ছে", "bolun",
+    "hoye", "jacche", "achhe", "debe", "niye",
+}
+
+
 def detect_input_language(message: str) -> str:
     """Detect language from transliterated text using word markers.
-    Returns: 'Marathi', 'Kannada', 'English', 'Hindi', or 'Hinglish'.
+    Returns: 'Marathi', 'Kannada', 'Tamil', 'Telugu', 'Bengali',
+             'English', 'Hindi', or 'Hinglish'.
     """
     words = set(message.lower().split())
     text_lower = message.lower()
+
+    # FIX P1: Detect pure-emoji or symbol-only input → English
+    # Emoji are non-ASCII but are NOT Hindi/Devanagari.
+    # Unicode general categories: So=Symbol-Other, Cs=Surrogate, Cn=Unassigned
+    stripped_non_ws = message.replace(" ", "").replace("\t", "").replace("\n", "")
+    if stripped_non_ws and all(
+        ord(c) > 127 and unicodedata.category(c) in ("So", "Cs", "Cn", "Sk", "Sm")
+        for c in stripped_non_ws
+    ):
+        return "English"
 
     # Check Marathi markers (most specific first)
     marathi_hits = sum(1 for m in _MARATHI_MARKERS if m in text_lower)
     if marathi_hits >= 2:
         return "Marathi"
-    
+
     # Check Kannada markers
     kannada_hits = sum(1 for m in _KANNADA_MARKERS if m in text_lower)
     if kannada_hits >= 2:
         return "Kannada"
+
+    # FIX P2: Check Tamil markers
+    tamil_hits = sum(1 for m in _TAMIL_MARKERS if m in text_lower)
+    if tamil_hits >= 2:
+        return "Tamil"
+
+    # FIX P2: Check Telugu markers
+    telugu_hits = sum(1 for m in _TELUGU_MARKERS if m in text_lower)
+    if telugu_hits >= 2:
+        return "Telugu"
+
+    # FIX P2: Check Bengali markers
+    bengali_hits = sum(1 for m in _BENGALI_MARKERS if m in text_lower)
+    if bengali_hits >= 2:
+        return "Bengali"
 
     # If mostly ASCII with no Indic markers, likely English
     if all(ord(c) < 128 or c in ' \t\n' for c in message):
@@ -313,7 +388,7 @@ def detect_input_language(message: str) -> str:
         if marathi_hits >= 1:
             return "Marathi"
         return "English"
-    
+
     # Devanagari / non-ASCII → let GPT handle
     return "Hindi"
 
@@ -443,7 +518,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         "Thank you for contacting us. Your message has been received "
                         "and will be reviewed by our team. 🙏"
                     ),
-                    "grievance_data": {},
+                    "grievance_data": _default_grievance_data(user_message),
                     "is_critical": False,
                     "_ai_retry_exhausted": True,
                 }
@@ -456,7 +531,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                     "Thank you for contacting us. Your message has been received "
                     "and will be reviewed by our team. 🙏"
                 ),
-                "grievance_data": {},
+                "grievance_data": _default_grievance_data(user_message),
                 "is_critical": False,
                 "_ai_retry_exhausted": True,
             }
@@ -469,9 +544,14 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             content = response.choices[0].message.content
             data = json.loads(content)
             
-            # 🛡️ NORMALIZATION: Ensure status is lowercase to match main.py logic
+            # 🛡️ NORMALIZATION: Ensure status is a known canonical value
+            _VALID_STATUSES = {
+                "new", "pending", "completed", "incomplete",
+                "emergency", "offensive", "awaiting_location",
+            }
             if "status" in data:
-                data["status"] = data["status"].lower()
+                _raw_status = str(data["status"]).lower().strip()
+                data["status"] = _raw_status if _raw_status in _VALID_STATUSES else "pending"
 
             # [START OF MULTI-TENANT FIX (WITH AUTO-CORRECT)] ----------------
             try:
@@ -667,8 +747,21 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 cats = data["grievance_data"].get("categories", [])
                 if isinstance(cats, str):
                     cats = [cats]
-                validated = _normalize_categories(cats, user_message)
-                data["grievance_data"]["categories"] = validated
+                # FIX P0: OFFENSIVE and IRRELEVANT statuses intentionally have no categories per schema.
+                # Do NOT apply the default fallback — it would pollute analytics dashboards.
+                _current_status = str(data.get("status", "")).lower()
+                if _current_status in ("offensive", "irrelevant"):
+                    data["grievance_data"]["categories"] = []
+                else:
+                    validated = _normalize_categories(cats, user_message)
+                    # C2 guard: completed/incomplete/pending cases must always have ≥1 category
+                    if not validated:
+                        validated = ["Infrastructure & Utilities"]
+                        logger.warning(
+                            "Empty categories on status='%s'; defaulting to Infrastructure & Utilities",
+                            data.get("status", "unknown"),
+                        )
+                    data["grievance_data"]["categories"] = validated
 
             return data
             
@@ -681,7 +774,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                     "Thank you for contacting us. Your message has been received "
                     "and will be reviewed by our team. 🙏"
                 ),
-                "grievance_data": {},
+                "grievance_data": _default_grievance_data(user_message),
                 "is_critical": False,
             }
 
@@ -694,6 +787,6 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 "Thank you for contacting us. Your message has been received "
                 "and will be reviewed by our team. 🙏"
             ),
-            "grievance_data": {},
+            "grievance_data": _default_grievance_data(user_message),
             "is_critical": False,
         }

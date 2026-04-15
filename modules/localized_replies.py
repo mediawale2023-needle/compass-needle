@@ -158,6 +158,147 @@ _AWAITING_LOCATION: dict[str, str] = {
 # Default fallback — covers any language not explicitly listed
 _DEFAULT_AWAITING_LOCATION = _AWAITING_LOCATION["Hindi"]
 
+
+# ── Details Request ───────────────────────────────────────────────────────────
+# Sent as a SECOND message immediately after the grievance acknowledgment,
+# politely asking the citizen for their personal details to help resolve faster.
+
+_DETAILS_REQUEST: dict[str, str] = {
+    "Hindi": (
+        "Aapki shikayat darz ho gayi hai 🙏\n\n"
+        "Aapki madad aur jaldi karne ke liye, kya aap yeh jaankari de sakte hain?\n\n"
+        "• *Aapka naam*\n"
+        "• *Pata* (ghar ka pata ya gaon/ward)\n"
+        "• *Koi khaas jaankari* jo problem samajhne mein madad kare\n\n"
+        "Yeh details dene se hum aapki samasya zyada jaldi aur sahi tarike se hal kar payenge. 🙏"
+    ),
+    "Hinglish": (
+        "Aapki complaint register ho gayi hai 🙏\n\n"
+        "Faster resolution ke liye, please yeh details share karein:\n\n"
+        "• *Your name*\n"
+        "• *Address* (ghar ka pata ya village/ward)\n"
+        "• *Koi specific detail* jo problem explain karne mein help kare\n\n"
+        "In details se hum aapki complaint aur jaldi resolve kar payenge. 🙏"
+    ),
+    "Marathi": (
+        "तुमची तक्रार नोंदवली गेली आहे 🙏\n\n"
+        "तुमची समस्या लवकर सोडवण्यासाठी, कृपया खालील माहिती द्या:\n\n"
+        "• *तुमचे नाव*\n"
+        "• *पत्ता* (घराचा पत्ता किंवा गाव/वार्ड)\n"
+        "• *कोणतीही विशेष माहिती* जी समस्या समजण्यास मदत करेल\n\n"
+        "ही माहिती मिळाल्यावर आम्ही तुमची तक्रार अधिक जलद आणि अचूकपणे सोडवू. 🙏"
+    ),
+    "Kannada": (
+        "ನಿಮ್ಮ ದೂರನ್ನು ನೋಂದಾಯಿಸಲಾಗಿದೆ 🙏\n\n"
+        "ತ್ವರಿತ ಪರಿಹಾರಕ್ಕಾಗಿ, ದಯವಿಟ್ಟು ಈ ಮಾಹಿತಿ ನೀಡಿ:\n\n"
+        "• *ನಿಮ್ಮ ಹೆಸರು*\n"
+        "• *ವಿಳಾಸ* (ಮನೆ ವಿಳಾಸ ಅಥವಾ ಗ್ರಾಮ/ವಾರ್ಡ್)\n"
+        "• *ಯಾವುದಾದರೂ ನಿರ್ದಿಷ್ಟ ವಿವರ* ಸಮಸ್ಯೆ ಅರ್ಥಮಾಡಿಕೊಳ್ಳಲು ಸಹಾಯ ಮಾಡಲು\n\n"
+        "ಈ ವಿವರಗಳಿಂದ ನಾವು ನಿಮ್ಮ ದೂರನ್ನು ಶೀಘ್ರವಾಗಿ ಪರಿಹರಿಸಬಹುದು. 🙏"
+    ),
+    "Tamil": (
+        "உங்கள் புகார் பதிவாகியது 🙏\n\n"
+        "விரைவான தீர்வுக்கு, தயவுசெய்து இந்த விவரங்களை தெரிவிக்கவும்:\n\n"
+        "• *உங்கள் பெயர்*\n"
+        "• *முகவரி* (வீட்டு முகவரி அல்லது கிராமம்/வார்டு)\n"
+        "• *எந்த குறிப்பிட்ட விவரமும்* சிக்கலை புரிந்துகொள்ள உதவும்\n\n"
+        "இந்த தகவல்கள் மூலம் உங்கள் பிரச்சினையை இன்னும் விரைவாக தீர்க்க முடியும். 🙏"
+    ),
+    "Telugu": (
+        "మీ ఫిర్యాదు నమోదైంది 🙏\n\n"
+        "త్వరగా పరిష్కరించడానికి, దయచేసి ఈ వివరాలు అందించండి:\n\n"
+        "• *మీ పేరు*\n"
+        "• *చిరునామా* (ఇంటి చిరునామా లేదా గ్రామం/వార్డు)\n"
+        "• *సమస్యను అర్థం చేసుకోవడానికి ఏదైనా నిర్దిష్ట వివరాలు*\n\n"
+        "ఈ సమాచారంతో మేము మీ ఫిర్యాదును మరింత వేగంగా పరిష్కరిస్తాం. 🙏"
+    ),
+    "Malayalam": (
+        "നിങ്ങളുടെ പരാതി രേഖപ്പെടുത്തി 🙏\n\n"
+        "വേഗത്തിൽ പരിഹരിക്കാൻ, ദയവായി ഈ വിവരങ്ങൾ നൽകൂ:\n\n"
+        "• *നിങ്ങളുടെ പേര്*\n"
+        "• *വിലാസം* (വീട്ടു വിലാസം അല്ലെങ്കിൽ ഗ്രാമം/വാർഡ്)\n"
+        "• *പ്രശ്‌നം മനസ്സിലാക്കാൻ സഹായിക്കുന്ന ഏതെങ്കിലും നിർദ്ദിഷ്ട വിവരം*\n\n"
+        "ഈ വിവരങ്ങൾ ലഭിച്ചാൽ ഞങ്ങൾ നിങ്ങളുടെ പ്രശ്‌നം കൂടുതൽ വേഗം പരിഹരിക്കും. 🙏"
+    ),
+    "Bengali": (
+        "আপনার অভিযোগ নথিভুক্ত হয়েছে 🙏\n\n"
+        "দ্রুত সমাধানের জন্য, অনুগ্রহ করে এই তথ্যগুলি জানান:\n\n"
+        "• *আপনার নাম*\n"
+        "• *ঠিকানা* (বাড়ির ঠিকানা বা গ্রাম/ওয়ার্ড)\n"
+        "• *সমস্যা বুঝতে সাহায্য করবে এমন যেকোনো নির্দিষ্ট তথ্য*\n\n"
+        "এই তথ্যগুলি পেলে আমরা আপনার সমস্যাটি আরও দ্রুত সমাধান করতে পারব। 🙏"
+    ),
+    "Gujarati": (
+        "તમારી ફરિયાદ નોંધાઈ ગઈ છે 🙏\n\n"
+        "ઝડપી સમાધાન માટે, કૃપા કરીને આ માહિતી આપો:\n\n"
+        "• *તમારું નામ*\n"
+        "• *સરનામું* (ઘરનું સરનામું અથવા ગામ/વોર્ડ)\n"
+        "• *સમસ્યા સમજવામાં મદદ કરે તેવી કોઈ ખાસ માહિતી*\n\n"
+        "આ વિગતોથી અમે તમારી ફરિયાદ વધુ ઝડપથી ઉકેલી શકીશું. 🙏"
+    ),
+    "Punjabi": (
+        "ਤੁਹਾਡੀ ਸ਼ਿਕਾਇਤ ਦਰਜ ਹੋ ਗਈ ਹੈ 🙏\n\n"
+        "ਜਲਦੀ ਹੱਲ ਕੱਢਣ ਲਈ, ਕਿਰਪਾ ਕਰਕੇ ਇਹ ਜਾਣਕਾਰੀ ਦਿਓ:\n\n"
+        "• *ਤੁਹਾਡਾ ਨਾਮ*\n"
+        "• *ਪਤਾ* (ਘਰ ਦਾ ਪਤਾ ਜਾਂ ਪਿੰਡ/ਵਾਰਡ)\n"
+        "• *ਕੋਈ ਖਾਸ ਜਾਣਕਾਰੀ* ਜੋ ਸਮੱਸਿਆ ਸਮਝਣ ਵਿੱਚ ਮਦਦ ਕਰੇ\n\n"
+        "ਇਹ ਵੇਰਵੇ ਮਿਲਣ ਨਾਲ ਅਸੀਂ ਤੁਹਾਡੀ ਸਮੱਸਿਆ ਹੋਰ ਜਲਦੀ ਹੱਲ ਕਰ ਸਕਾਂਗੇ। 🙏"
+    ),
+    "Odia": (
+        "ଆପଣଙ୍କ ଅଭିଯୋଗ ଦାଖଲ ହୋଇଛି 🙏\n\n"
+        "ଶୀଘ୍ର ସମାଧାନ ପାଇଁ, ଦୟାକରି ଏই ତଥ୍ୟ ଦିଅନ୍ତୁ:\n\n"
+        "• *ଆପଣଙ୍କ ନାମ*\n"
+        "• *ଠିକଣା* (ଘର ଠିକଣା ବା ଗ୍ରାମ/ୱାର୍ଡ)\n"
+        "• *ସମସ୍ୟା ବୁଝିବା ପାଇଁ ଯେ କୌଣସି ନିର୍ଦ୍ଦିଷ୍ଟ ତଥ୍ୟ*\n\n"
+        "ଏହି ତଥ୍ୟ ଦ୍ୱାରା ଆମେ ଆପଣଙ୍କ ଅଭିଯୋଗ ଶୀଘ୍ର ସମାଧାନ କରିପାରିବୁ। 🙏"
+    ),
+    "Assamese": (
+        "আপোনাৰ অভিযোগ নথিভুক্ত হৈছে 🙏\n\n"
+        "সোনকালে সমাধানৰ বাবে, অনুগ্ৰহ কৰি এই তথ্যসমূহ জনাওক:\n\n"
+        "• *আপোনাৰ নাম*\n"
+        "• *ঠিকনা* (ঘৰৰ ঠিকনা বা গাঁও/ৱাৰ্ড)\n"
+        "• *সমস্যা বুজিবলৈ সহায়ক যিকোনো নিৰ্দিষ্ট তথ্য*\n\n"
+        "এই তথ্যসমূহ পালে আমি আপোনাৰ সমস্যাটো অধিক সোনকালে সমাধান কৰিব পাৰিম। 🙏"
+    ),
+    "Urdu": (
+        "آپ کی شکایت درج ہو گئی ہے 🙏\n\n"
+        "جلد حل کے لیے، براہ کرم یہ معلومات فراہم کریں:\n\n"
+        "• *آپ کا نام*\n"
+        "• *پتہ* (گھر کا پتہ یا گاؤں/وارڈ)\n"
+        "• *کوئی خاص معلومات* جو مسئلہ سمجھنے میں مدد کرے\n\n"
+        "ان تفصیلات سے ہم آپ کی شکایت زیادہ جلدی حل کر سکیں گے۔ 🙏"
+    ),
+    "English": (
+        "Your complaint has been registered 🙏\n\n"
+        "To help us resolve it quickly, could you please share:\n\n"
+        "• *Your name*\n"
+        "• *Address* (home address or village/ward)\n"
+        "• *Any specific details* that will help us understand the problem better\n\n"
+        "Providing these details will help us resolve your issue faster and more accurately. 🙏"
+    ),
+}
+
+_DEFAULT_DETAILS_REQUEST = _DETAILS_REQUEST["Hindi"]
+
+# Statuses that should receive the follow-up details request
+DETAILS_REQUEST_STATUSES = {"new", "pending", "incomplete"}
+
+
+def get_details_request_reply(detected_language: str = "") -> str:
+    """Return a localized follow-up message asking the citizen for their personal details.
+
+    Sent as a second message after the grievance acknowledgment for valid cases
+    (status: new / pending / incomplete).
+
+    Args:
+        detected_language: The language tag returned by the AI (e.g. "Marathi").
+
+    Returns:
+        A formatted WhatsApp-ready string in the citizen's language.
+    """
+    normalized = _LANG_ALIASES.get((detected_language or "").lower().strip())
+    return _DETAILS_REQUEST.get(normalized, _DEFAULT_DETAILS_REQUEST)
+
 # Normalize incoming detected_language values to our keys
 _LANG_ALIASES: dict[str, str] = {
     "hinglish": "Hinglish",
@@ -191,4 +332,8 @@ def get_awaiting_location_reply(location: str, detected_language: str = "") -> s
     """
     normalized = _LANG_ALIASES.get((detected_language or "").lower().strip())
     template = _AWAITING_LOCATION.get(normalized, _DEFAULT_AWAITING_LOCATION)
-    return template.format(location=location)
+    # FIX P1: Use str.replace() instead of .format() to prevent Python format-string
+    # injection attacks via crafted location strings (e.g. "{0.__class__.__mro__[1]}").
+    # .replace() treats the substitution value as a literal string — no format parsing occurs.
+    safe_location = str(location) if location else ""
+    return template.replace("{location}", safe_location)

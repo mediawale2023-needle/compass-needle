@@ -654,7 +654,7 @@ def _save_spam_flag(tenant_id: int, phone: str, flag_type: str, reason: str, mes
 from modules.whatsapp import send_whatsapp_message  # noqa: E402
 from modules.case_query_parser import parse_query
 from modules.case_query_engine import query_cases
-from modules.localized_replies import get_awaiting_location_reply
+from modules.localized_replies import get_awaiting_location_reply, get_details_request_reply, DETAILS_REQUEST_STATUSES
 from modules.case_query_formatter import format_cases_for_whatsapp, format_clarification_request
 
 
@@ -696,6 +696,36 @@ def get_user_context(phone_number: str) -> str:
     except Exception as e:
         logger.warning(f"Context fetch error: {e}")
     return ""
+
+
+def get_pending_incomplete_case(phone: str, tenant_id: int):
+    """
+    Returns the most recent awaiting_location case for this phone/tenant
+    created within the last 30 minutes, or None if no such case exists.
+    """
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("""
+                    SELECT id, case_metadata, category, raw_message
+                    FROM cases
+                    WHERE user_phone = :phone
+                      AND tenant_id = :tid
+                      AND status = 'awaiting_location'
+                      AND created_at >= NOW() - INTERVAL '30 minutes'
+                      AND (is_deleted = false OR is_deleted IS NULL)
+                    ORDER BY created_at DESC LIMIT 1
+                """),
+                {"phone": phone, "tid": tenant_id}
+            ).fetchone()
+            if row:
+                meta = row[1]
+                if isinstance(meta, str):
+                    meta = json.loads(meta)
+                return {"id": row[0], "meta": meta, "category": row[2], "raw_message": row[3]}
+    except Exception as e:
+        logger.warning("Pending incomplete case lookup failed: %s", e)
+    return None
 
 
 # ─────────────────────────────────────────
@@ -1617,6 +1647,58 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
     except Exception as _rate_exc:
         logger.warning("Per-phone rate limit check failed (non-blocking): %s", _rate_exc)
 
+    # ── INTERCEPT: Location follow-up for awaiting_location cases ──────────────
+    # If this sender has a recent case in status='awaiting_location' (AI asked
+    # for their location but couldn't resolve it), treat the incoming message as
+    # the location reply — update the existing case instead of creating a new one.
+    _pending = get_pending_incomplete_case(sender, current_tenant)
+    if _pending:
+        _loc_text = message_body.strip()
+        _resolved_const = None
+        try:
+            _, _resolved_const = resolve_constituency(_loc_text, current_tenant)
+            if _resolved_const == "Unknown":
+                _resolved_const = None
+        except Exception:
+            pass
+
+        _upd_meta = dict(_pending["meta"])
+        _upd_meta["matched_value"] = _loc_text
+        _upd_meta["location_resolved"] = bool(_resolved_const)
+        _upd_meta["assembly_constituency"] = _resolved_const or "Unknown"
+        _upd_meta["location_follow_up"] = True
+
+        try:
+            with engine.begin() as _loc_conn:
+                _loc_conn.execute(
+                    text("""
+                        UPDATE cases
+                        SET status = 'new', case_metadata = :meta
+                        WHERE id = :cid
+                    """),
+                    {"meta": json.dumps(_upd_meta), "cid": _pending["id"]},
+                )
+            logger.info(
+                "Location follow-up: updated case %s with location '%s' → '%s'",
+                _pending["id"], _loc_text, _resolved_const,
+            )
+        except Exception as _loc_exc:
+            logger.error("Failed to update pending case with location: %s", _loc_exc)
+
+        _cat = _pending.get("category") or "shikayat"
+        if _resolved_const:
+            _loc_ack = (
+                f"Ji, aapki {_cat} ki {_loc_text} ki samasya note kar li gayi hai. "
+                f"Aapko jald jankari di jayegi. 🙏"
+            )
+        else:
+            _loc_ack = (
+                f"Ji, aapki shikayat {_loc_text} ke liye note kar li gayi hai. "
+                f"Hamare team aapko jald sampark karegi. 🙏"
+            )
+        send_whatsapp_message(sender, _loc_ack, _wa_phone_id)
+        return
+
     # ── STEP 1: Save raw grievance to DB immediately ────────────
     # This ensures the message is never lost, even if AI fails.
     case_id = None
@@ -1887,6 +1969,18 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
                 "Check META_ACCESS_TOKEN and per-tenant Phone Number ID configuration.",
                 sender, case_id, send_exc,
             )
+
+        # ── Second message: politely ask citizen for their details ────────────
+        # Only sent for valid grievance cases (new/pending/incomplete).
+        # Skipped for: awaiting_location, offensive, irrelevant, emergency,
+        # pending_review (those have separate flows).
+        if status in DETAILS_REQUEST_STATUSES:
+            try:
+                details_msg = get_details_request_reply(detected_language)
+                send_whatsapp_message(sender, details_msg, _wa_phone_id)
+                logger.info("Details request sent to %s (case=%s lang=%s)", sender, case_id, detected_language)
+            except Exception as _det_exc:
+                logger.warning("Failed to send details request to %s (case=%s): %s", sender, case_id, _det_exc)
 
     except Exception as e:
         # AI failed — grievance is still saved as pending/Uncategorised
