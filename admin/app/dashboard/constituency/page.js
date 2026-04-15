@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { apiDelete, apiGet, apiPost, apiPut } from '@/lib/api';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { apiDelete, apiGet, apiPost, apiPut, apiUpload } from '@/lib/api';
 
 const TABS = [
     { key: 'overview', label: 'Overview' },
@@ -98,6 +98,10 @@ export default function ConstituencyIntelPage() {
         constituency_type: 'Lok Sabha',
     });
     const [job, setJob] = useState({ id: '', status: '', progress: '', error: '' });
+    const [uploading, setUploading] = useState(false);
+    const uploadRef = useRef(null);
+
+    const genFormReady = !!(genForm.constituency_name.trim() && genForm.state.trim() && genForm.tenant_id);
 
     const selectedProfileMeta = useMemo(
         () => profiles.find((p) => p.slug === selectedSlug) || null,
@@ -178,6 +182,46 @@ export default function ConstituencyIntelPage() {
         }, 2500);
         return () => clearInterval(poll);
     }, [job.id, job.status]);
+
+    async function handlePdfUpload(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!genFormReady) {
+            show('error', 'Fill constituency name, state, and linked MP tenant before uploading.');
+            return;
+        }
+        setUploading(true);
+        try {
+            const params = new URLSearchParams({
+                constituency_name: genForm.constituency_name.trim(),
+                state: genForm.state.trim(),
+                tenant_id: genForm.tenant_id,
+                constituency_type: genForm.constituency_type || 'Lok Sabha',
+            });
+            const formData = new FormData();
+            formData.append('file', file);
+            // apiUpload only sets file — append query params to URL manually
+            const { api } = await import('@/lib/api');
+            const result = await api(`/api/admin/profile-upload?${params}`, {
+                method: 'POST',
+                body: formData,
+                timeout: 120_000,
+                maxRetries: 0,
+            });
+            if (result.profile) {
+                setProfile(result.profile);
+                await loadProfiles();
+                if (result.slug) setSelectedSlug(result.slug);
+                show('success', `PDF parsed and profile saved as "${result.slug}". Review and edit tabs below.`);
+            }
+        } catch (err) {
+            show('error', err.message || 'PDF upload failed.');
+        } finally {
+            setUploading(false);
+            // Reset file input so same file can be re-uploaded
+            if (uploadRef.current) uploadRef.current.value = '';
+        }
+    }
 
     async function startGeneration() {
         const tid = Number(genForm.tenant_id);
@@ -287,9 +331,25 @@ export default function ConstituencyIntelPage() {
                         <option value="Lok Sabha">Lok Sabha</option>
                         <option value="Assembly">Assembly</option>
                     </select>
-                    <button className="btn-primary" onClick={startGeneration} disabled={busy}>
+                    <button className="btn-primary" onClick={startGeneration} disabled={busy || uploading}>
                         Generate
                     </button>
+                    <button
+                        className="btn-secondary"
+                        onClick={() => uploadRef.current?.click()}
+                        disabled={!genFormReady || busy || uploading}
+                        title={genFormReady ? 'Upload a PDF to auto-parse into profile' : 'Fill constituency details first'}
+                        style={{ whiteSpace: 'nowrap' }}
+                    >
+                        {uploading ? 'Parsing PDF…' : '📄 Upload PDF'}
+                    </button>
+                    <input
+                        ref={uploadRef}
+                        type="file"
+                        accept=".pdf"
+                        style={{ display: 'none' }}
+                        onChange={handlePdfUpload}
+                    />
                 </div>
                 {job.id && (
                     <div style={{ marginTop: 10, fontSize: '0.82rem', color: '#6b7f76' }}>

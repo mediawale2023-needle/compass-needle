@@ -2747,6 +2747,157 @@ def poll_generation_job(job_id: str, user=Depends(get_admin_user)):
     return job
 
 
+@router.post("/profile-upload")
+async def upload_profile_pdf(
+    file: UploadFile = File(...),
+    constituency_name: str = Query(...),
+    state: str = Query(...),
+    tenant_id: int = Query(...),
+    constituency_type: str = Query("Lok Sabha"),
+    user=Depends(get_admin_user),
+):
+    """
+    Upload a PDF (manual report, gazette, etc.) and AI-parse it into the
+    constituency profile JSON schema. Returns the structured profile dict.
+    """
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(400, "Only PDF files are supported")
+
+    raw_bytes = await file.read()
+    if len(raw_bytes) > 20 * 1024 * 1024:  # 20 MB cap
+        raise HTTPException(400, "PDF too large (max 20 MB)")
+
+    # ── Extract text with pdfplumber ──────────────────────────────────────
+    try:
+        import pdfplumber, io as _io
+        with pdfplumber.open(_io.BytesIO(raw_bytes)) as pdf:
+            pages_text = []
+            for page in pdf.pages[:40]:  # cap at 40 pages
+                t = page.extract_text() or ""
+                if t.strip():
+                    pages_text.append(t)
+        extracted_text = "\n\n".join(pages_text).strip()
+    except Exception as exc:
+        logger.exception("PDF text extraction failed")
+        raise HTTPException(500, f"Could not read PDF: {exc}")
+
+    if not extracted_text:
+        raise HTTPException(422, "PDF contains no extractable text (scanned image PDFs are not supported)")
+
+    # ── Schema hint (compact) ─────────────────────────────────────────────
+    schema_hint = """{
+  "meta": {"tenant_id":0,"name":"","state":"","type":"Lok Sabha","reservation":"General","total_electors_2024":0,"last_updated":""},
+  "geography": {"area_sq_km":0,"terrain":"","rivers":[],"climate":{"type":"","avg_annual_rainfall_mm":0},"bordering_districts":[],"talukas":[]},
+  "demographics": {"source":"Census 2011","total_population":0,"male_population":0,"female_population":0,"literacy":{"overall_percent":0,"male_percent":0,"female_percent":0},"urban_rural_split":{"urban_percent":0,"rural_percent":0},"religion":{},"castes":{"scheduled_caste_percent":0,"scheduled_tribe_percent":0},"languages":{"primary":"","other":[]}},
+  "assembly_segments": [{"number":0,"name":"","reservation":"General","district":"","mla":"","party":"","elected_year":0,"winning_margin":0}],
+  "political_history": {"current_mp":{"name":"","party":"","elected_year":0,"vote_share_percent":0,"winning_margin":0,"voter_turnout_percent":0,"bio":""},"past_mps":[],"political_character":""},
+  "economy": {"overview":"","industries":[],"agriculture":{"primary_crops":[],"irrigation_sources":[]}},
+  "infrastructure": {"roads":{},"railways":{},"airports":[],"education":{},"healthcare":{}},
+  "social_indicators": {"key_central_schemes":[],"key_state_schemes":[]},
+  "cultural_profile": {"heritage_sites":[],"festivals":[],"arts_and_crafts":{},"famous_personalities":[]},
+  "key_challenges": [{"title":"","detail":""}],
+  "development_priorities": [],
+  "notable_facts": []
+}"""
+
+    prompt = f"""You are given raw text extracted from a document about {constituency_name} ({constituency_type}) in {state}, India.
+
+Parse the text and fill in the following JSON schema with as much information as you can find. Leave fields as empty string, 0, or empty array if the information is not present in the document.
+
+Rules:
+- meta.tenant_id must be exactly {tenant_id}
+- meta.name must be "{constituency_name}"
+- meta.state must be "{state}"
+- meta.type must be "{constituency_type}"
+- Only use information from the provided text — do not invent data
+- Return ONLY valid JSON, no markdown fences, no explanation
+
+Schema:
+{schema_hint}
+
+Document text:
+<document_content>
+{extracted_text[:12000]}
+</document_content>"""
+
+    # ── Parse with Claude (primary) or Gemini (fallback) ─────────────────
+    parsed: dict | None = None
+    errors: list = []
+
+    # Try Claude first
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    if anthropic_key:
+        try:
+            import anthropic as _anthropic
+            aclient = _anthropic.Anthropic(api_key=anthropic_key)
+            resp = aclient.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=6000,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = ""
+            for block in resp.content:
+                if hasattr(block, "text"):
+                    raw = block.text
+                    break
+            raw = raw.strip()
+            if raw.startswith("```"):
+                raw = re.sub(r"^```[a-z]*\n?", "", raw)
+                raw = re.sub(r"\n?```$", "", raw)
+            s = raw.find("{"); e = raw.rfind("}") + 1
+            if s != -1 and e > s:
+                raw = re.sub(r",\s*([}\]])", r"\1", raw[s:e])  # fix trailing commas
+                parsed = json.loads(raw)
+        except Exception as exc:
+            errors.append(f"Claude: {exc}")
+
+    # Gemini fallback
+    if parsed is None:
+        gemini_client = get_gemini_client()
+        if gemini_client:
+            try:
+                from google.genai import types as _gt
+                cfg = _gt.GenerateContentConfig(temperature=0.1, response_mime_type="application/json")
+                gr = gemini_client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt,
+                    config=cfg,
+                )
+                raw = (getattr(gr, "text", "") or "").strip()
+                if raw.startswith("```"):
+                    raw = re.sub(r"^```[a-z]*\n?", "", raw)
+                    raw = re.sub(r"\n?```$", "", raw)
+                s = raw.find("{"); e = raw.rfind("}") + 1
+                if s != -1 and e > s:
+                    raw = re.sub(r",\s*([}\]])", r"\1", raw[s:e])
+                    parsed = json.loads(raw)
+            except Exception as exc:
+                errors.append(f"Gemini: {exc}")
+
+    if parsed is None:
+        logger.error("PDF profile parse failed: %s", " | ".join(errors))
+        raise HTTPException(500, "AI could not parse the PDF. " + "; ".join(errors))
+
+    # Stamp metadata and save
+    parsed = _stamp_profile_metadata(constituency_name, parsed)
+    parsed.setdefault("meta", {})
+    parsed["meta"]["tenant_id"] = tenant_id
+    parsed["meta"]["name"] = parsed["meta"].get("name") or constituency_name
+    parsed["meta"]["state"] = parsed["meta"].get("state") or state
+    parsed["meta"]["type"] = parsed["meta"].get("type") or constituency_type
+
+    safe_slug = _safe_profile_slug(constituency_name.replace(" ", "-"))
+    if not safe_slug:
+        safe_slug = f"constituency-{tenant_id}"
+
+    _PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+    path = _PROFILES_DIR / f"{safe_slug}.json"
+    path.write_text(json.dumps(parsed, indent=2, ensure_ascii=False))
+    logger.info("PDF profile upload saved: %s (tenant_id=%s)", safe_slug, tenant_id)
+
+    return {"ok": True, "slug": safe_slug, "profile": parsed}
+
+
 @router.get("/constituency-profiles/{slug}")
 def get_constituency_profile(slug: str, user=Depends(get_admin_user)):
     """Return the full constituency profile JSON for a given slug."""
