@@ -3194,6 +3194,9 @@ def _run_profile_generation(job_id: str, req: GenerateProfileRequest):
 class ParliamentConfirmRequest(BaseModel):
     member_id: str   # mpsno from sansad.in
 
+class PrsSlugRequest(BaseModel):
+    prs_slug: str   # PRS India profile slug, e.g. "atul-garg"
+
 
 @router.get("/parliament/sync/status")
 def get_parliament_sync_status(user=Depends(get_admin_user)):
@@ -3211,6 +3214,7 @@ def get_parliament_sync_status(user=Depends(get_admin_user)):
             t.parliament_sync_enabled,
             t.parliament_sync_status,
             t.parliament_last_synced,
+            t.prs_profile_slug,
             t.config,
             tp.mp_name,
             tp.state,
@@ -3236,6 +3240,7 @@ def get_parliament_sync_status(user=Depends(get_admin_user)):
             "parliament_sync_status": r["parliament_sync_status"] or "pending",
             "parliament_sync_enabled": r["parliament_sync_enabled"],
             "parliament_last_synced": r["parliament_last_synced"].isoformat() if r["parliament_last_synced"] else None,
+            "prs_profile_slug":      r.get("prs_profile_slug"),
             "candidate":             candidate,   # populated when status = needs_review
         })
     return {"tenants": result, "total": len(result)}
@@ -3298,6 +3303,45 @@ def confirm_parliament_identity(
     except Exception as e:
         logger.exception("confirm_parliament_identity(%d) failed: %s", tenant_id, e)
         raise HTTPException(500, "Failed to confirm parliament identity")
+
+
+@router.patch("/parliament/sync/{tenant_id}/prs-slug")
+def set_prs_slug(
+    tenant_id: int,
+    body: PrsSlugRequest,
+    user=Depends(get_admin_user),
+):
+    """
+    Manually set or override the PRS India profile slug for a tenant.
+    Use when auto-resolution fails because the MP's name differs between
+    sansad.in and PRS India (e.g. transliteration variants).
+
+    The slug is the last URL segment of the PRS profile page:
+      https://prsindia.org/mptrack/18th-lok-sabha/{slug}
+    """
+    slug = body.prs_slug.strip().lower()
+    if not slug:
+        raise HTTPException(400, "prs_slug cannot be empty")
+
+    # Verify the slug actually exists on PRS before saving
+    try:
+        from jobs.parliament_scraper import verify_prs_slug
+        if not verify_prs_slug(slug):
+            raise HTTPException(404, f"PRS profile not found for slug '{slug}'. "
+                                     "Check the slug on prsindia.org/mptrack/18th-lok-sabha/")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning("PRS slug verification error for %s: %s", slug, e)
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE tenants SET prs_profile_slug = :slug WHERE id = :tid"),
+            {"slug": slug, "tid": tenant_id},
+        )
+
+    logger.info("Admin set prs_profile_slug=%s for tenant %d", slug, tenant_id)
+    return {"ok": True, "tenant_id": tenant_id, "prs_profile_slug": slug}
 
 
 # ─── Parliament backfill endpoints ────────────────────────────────────────────
