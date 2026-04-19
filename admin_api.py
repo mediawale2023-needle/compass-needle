@@ -3184,3 +3184,117 @@ def _run_profile_generation(job_id: str, req: GenerateProfileRequest):
             "error": "Profile generation failed. Please check Gemini or Claude configuration and try again.",
             "slug": None,
         }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PARLIAMENT SYNC — IDENTITY MANAGEMENT
+# Maps subscribed MP tenants to their sansad.in parliament member ID (mpsno).
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ParliamentConfirmRequest(BaseModel):
+    member_id: str   # mpsno from sansad.in
+
+
+@router.get("/parliament/sync/status")
+def get_parliament_sync_status(user=Depends(get_admin_user)):
+    """
+    Return all active tenants with their parliament sync status.
+    Used by the Parliament Sync Setup screen in the admin dashboard.
+    """
+    rows = _q("""
+        SELECT
+            t.id            AS tenant_id,
+            t.name          AS tenant_name,
+            t.constituency,
+            t.parliament_member_id,
+            t.parliament_house,
+            t.parliament_sync_enabled,
+            t.parliament_sync_status,
+            t.parliament_last_synced,
+            t.config,
+            tp.mp_name,
+            tp.state,
+            tp.house        AS profile_house
+        FROM tenants t
+        LEFT JOIN tenant_profiles tp ON tp.tenant_id = t.id
+        WHERE t.is_active = TRUE
+        ORDER BY t.name
+    """)
+
+    result = []
+    for r in rows:
+        config = r.get("config") or {}
+        candidate = config.get("parliament_candidate") if isinstance(config, dict) else None
+        result.append({
+            "tenant_id":             r["tenant_id"],
+            "tenant_name":           r["tenant_name"],
+            "mp_name":               r.get("mp_name") or r["tenant_name"],
+            "constituency":          r["constituency"],
+            "state":                 r.get("state"),
+            "house":                 r.get("profile_house") or r.get("parliament_house") or "lok_sabha",
+            "parliament_member_id":  r["parliament_member_id"],
+            "parliament_sync_status": r["parliament_sync_status"] or "pending",
+            "parliament_sync_enabled": r["parliament_sync_enabled"],
+            "parliament_last_synced": r["parliament_last_synced"].isoformat() if r["parliament_last_synced"] else None,
+            "candidate":             candidate,   # populated when status = needs_review
+        })
+    return {"tenants": result, "total": len(result)}
+
+
+@router.post("/parliament/sync/resolve-all")
+def trigger_resolve_all(background_tasks: BackgroundTasks, user=Depends(get_admin_user)):
+    """
+    Trigger batch identity resolution for all tenants without a confirmed member_id.
+    Runs in the background — poll /parliament/sync/status to see progress.
+    """
+    def _run():
+        try:
+            from jobs.parliament_identity_resolver import resolve_all_unmatched
+            resolve_all_unmatched()
+        except Exception as e:
+            logger.exception("Background parliament resolve-all failed: %s", e)
+
+    background_tasks.add_task(_run)
+    return {"ok": True, "message": "Identity resolution started in background. Refresh status in 30s."}
+
+
+@router.post("/parliament/sync/{tenant_id}/resolve")
+def trigger_resolve_one(tenant_id: int, background_tasks: BackgroundTasks, user=Depends(get_admin_user)):
+    """
+    Trigger identity resolution for a single tenant.
+    Called automatically at onboarding; also available manually.
+    """
+    def _run():
+        try:
+            from jobs.parliament_identity_resolver import resolve_tenant
+            resolve_tenant(tenant_id)
+        except Exception as e:
+            logger.exception("Background parliament resolve(%d) failed: %s", tenant_id, e)
+
+    background_tasks.add_task(_run)
+    return {"ok": True, "tenant_id": tenant_id, "message": "Resolution started in background."}
+
+
+@router.patch("/parliament/sync/{tenant_id}/confirm")
+def confirm_parliament_identity(
+    tenant_id: int,
+    body: ParliamentConfirmRequest,
+    user=Depends(get_admin_user),
+):
+    """
+    Admin confirms or overrides the parliament member_id for a tenant.
+    Used for:
+      - Confirming 'needs_review' auto-matches
+      - Manually entering an mpsno for 'unmatched' tenants
+    """
+    try:
+        from jobs.parliament_identity_resolver import confirm_tenant_match
+        result = confirm_tenant_match(tenant_id, body.member_id)
+        if "error" in result:
+            raise HTTPException(404, result["error"])
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("confirm_parliament_identity(%d) failed: %s", tenant_id, e)
+        raise HTTPException(500, "Failed to confirm parliament identity")
