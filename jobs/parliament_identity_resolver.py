@@ -63,7 +63,36 @@ CONFIDENCE_NEEDS_REVIEW = 60.0  # store as candidate, admin confirms
 
 # Honorifics to strip before name comparison
 _HONORIFICS = {"shri", "smt", "dr", "adv", "prof", "col", "brig", "capt",
-               "maj", "lt", "ms", "mr", "mrs", "kumar", "kumari"}
+               "maj", "lt", "ms", "mr", "mrs", "kumar", "kumari", "ji"}
+
+# Constituency name aliases: tenant-side variants → sansad.in canonical name
+# Covers renamed constituencies and common long-form / short-form mismatches.
+# Keys are lowercase, values must match sansad.in constName (case-insensitive).
+_CONSTITUENCY_ALIASES: dict[str, str] = {
+    # Renamed constituencies (old ECI name still used by sansad.in)
+    "belagavi":          "belgaum",
+    "belagaum":          "belgaum",
+    "hubballi dharwad":  "hubli-dharwad",
+    "hubbali dharwad":   "hubli-dharwad",
+    "shivamogga":        "shimoga",
+    "mysuru":            "mysore",
+    "tumakuru":          "tumkur",
+    "vijayapura":        "bijapur",
+    "kalaburagi":        "gulbarga",
+    "ballari":           "bellary",
+    "chikkaballapura":   "chikballapur",
+    "raichur":           "raichur",
+    # Long-form → short sansad.in name
+    "kalyan dombivli":   "kalyan",
+    "mumbai north west": "mumbai north-west",
+    "mumbai north east": "mumbai north-east",
+    "mumbai south central": "mumbai south central",
+    # Transliteration variants
+    "bhopal sahib":      "bhopal",
+    "jhansi lalitpur":   "jhansi",
+    "faridabad":         "faridabad",
+    "gurugram":          "gurgaon",
+}
 
 # ─────────────────────────────────────────
 # IN-MEMORY MEMBER CACHE (refreshed every 24h)
@@ -82,14 +111,15 @@ def _normalize_name(name: str) -> str:
 
 
 def _normalize_constituency(name: str) -> str:
-    """Lowercase + strip common suffixes that vary across sources."""
+    """Lowercase + strip reservation suffixes + resolve known aliases."""
     if not name:
         return ""
-    return (
+    normalised = (
         name.lower()
         .replace(" (sc)", "").replace(" (st)", "").replace(" (gen)", "")
         .strip()
     )
+    return _CONSTITUENCY_ALIASES.get(normalised, normalised)
 
 
 def fetch_all_members(force_refresh: bool = False) -> list[dict]:
