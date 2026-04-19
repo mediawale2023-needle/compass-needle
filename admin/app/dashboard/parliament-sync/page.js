@@ -25,13 +25,13 @@ function ConfidenceBar({ value }) {
 
 function StatusBadge({ status }) {
     const map = {
-        active:        { label: 'Confirmed',     bg: '#dcfce7', color: '#166534' },
-        auto_matched:  { label: 'Auto-matched',  bg: '#dcfce7', color: '#166534' },
-        needs_review:  { label: 'Needs Review',  bg: '#fef9c3', color: '#854d0e' },
-        unmatched:     { label: 'Unmatched',     bg: '#fee2e2', color: '#991b1b' },
-        pending:       { label: 'Pending',       bg: '#f1f5f9', color: '#475569' },
-        error:         { label: 'Error',         bg: '#fee2e2', color: '#991b1b' },
-        already_confirmed: { label: 'Confirmed', bg: '#dcfce7', color: '#166534' },
+        active:            { label: 'Confirmed',    bg: '#dcfce7', color: '#166534' },
+        auto_matched:      { label: 'Auto-matched', bg: '#dcfce7', color: '#166534' },
+        needs_review:      { label: 'Needs Review', bg: '#fef9c3', color: '#854d0e' },
+        unmatched:         { label: 'Unmatched',    bg: '#fee2e2', color: '#991b1b' },
+        pending:           { label: 'Pending',      bg: '#f1f5f9', color: '#475569' },
+        error:             { label: 'Error',        bg: '#fee2e2', color: '#991b1b' },
+        already_confirmed: { label: 'Confirmed',    bg: '#dcfce7', color: '#166534' },
     };
     const s = map[status] || map.pending;
     return (
@@ -45,9 +45,365 @@ function StatusBadge({ status }) {
     );
 }
 
+// ─── Parliament Data Drawer ──────────────────────────────────────────────────
+
+const DATA_TABS = [
+    { key: 'questions', label: 'Questions' },
+    { key: 'debates',   label: 'Debates' },
+    { key: 'pmbs',      label: 'PMBs' },
+    { key: 'zero_hour', label: 'Zero Hour' },
+];
+
+function QTypeChip({ type }) {
+    if (!type) return null;
+    const label = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+    const isStarred = type.toLowerCase() === 'starred';
+    return (
+        <span style={{
+            display: 'inline-block', padding: '1px 7px', borderRadius: 6,
+            fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.04em',
+            background: isStarred ? '#fef9c3' : '#f1f5f9',
+            color: isStarred ? '#854d0e' : '#475569',
+        }}>
+            {label}
+        </span>
+    );
+}
+
+function DataDrawer({ tenant, onClose, onToast }) {
+    const [activeTab, setActiveTab]   = useState('questions');
+    const [records, setRecords]       = useState([]);
+    const [counts, setCounts]         = useState({});
+    const [total, setTotal]           = useState(0);
+    const [loading, setLoading]       = useState(false);
+    const [page, setPage]             = useState(0);
+    const [backfilling, setBackfilling] = useState(false);
+    const PAGE_SIZE = 30;
+
+    const loadRecords = useCallback(async (tab, pg) => {
+        setLoading(true);
+        try {
+            const d = await apiGet(
+                `/api/admin/parliament/data/${tenant.tenant_id}?data_type=${tab}&limit=${PAGE_SIZE}&offset=${pg * PAGE_SIZE}`
+            );
+            setRecords(d.records || []);
+            setTotal(d.total || 0);
+        } catch (e) {
+            onToast(e.message || 'Failed to load records', 'error');
+        }
+        setLoading(false);
+    }, [tenant.tenant_id, onToast]);
+
+    // Load counts for all 4 tabs once
+    useEffect(() => {
+        const fetchCounts = async () => {
+            const results = {};
+            await Promise.all(DATA_TABS.map(async ({ key }) => {
+                try {
+                    const d = await apiGet(`/api/admin/parliament/data/${tenant.tenant_id}?data_type=${key}&limit=1&offset=0`);
+                    results[key] = d.total || 0;
+                } catch { results[key] = 0; }
+            }));
+            setCounts(results);
+        };
+        fetchCounts();
+    }, [tenant.tenant_id]);
+
+    useEffect(() => {
+        setPage(0);
+        loadRecords(activeTab, 0);
+    }, [activeTab, loadRecords]);
+
+    const triggerBackfill = async () => {
+        setBackfilling(true);
+        try {
+            const r = await apiPost(`/api/admin/parliament/backfill/${tenant.tenant_id}`, {});
+            onToast(`Backfill started for ${tenant.mp_name} — check back in ~30s`);
+            setTimeout(() => loadRecords(activeTab, page), 35000);
+        } catch (e) {
+            onToast(e.message || 'Backfill failed to start', 'error');
+        }
+        setBackfilling(false);
+    };
+
+    const totalPages = Math.ceil(total / PAGE_SIZE);
+    const hasData = Object.values(counts).some(c => c > 0);
+
+    return (
+        <>
+            {/* Backdrop */}
+            <div
+                onClick={onClose}
+                style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)',
+                    zIndex: 1000, backdropFilter: 'blur(2px)',
+                }}
+            />
+
+            {/* Drawer panel */}
+            <div style={{
+                position: 'fixed', top: 0, right: 0, bottom: 0, width: 720,
+                background: 'white', zIndex: 1001, boxShadow: '-4px 0 32px rgba(0,0,0,0.12)',
+                display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            }}>
+                {/* Drawer header */}
+                <div style={{
+                    padding: '20px 24px', borderBottom: '1px solid #e2ebe5',
+                    display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+                    flexShrink: 0,
+                }}>
+                    <div>
+                        <div style={{ fontSize: '1rem', fontWeight: 700, color: '#1a2e28' }}>
+                            {tenant.mp_name || tenant.tenant_name}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: '#6b7f76', marginTop: 2 }}>
+                            {tenant.constituency}
+                            {tenant.state ? ` · ${tenant.state}` : ''}
+                            {tenant.parliament_member_id
+                                ? <> · <a href={`https://sansad.in/ls/members/${tenant.parliament_member_id}`}
+                                    target="_blank" rel="noreferrer"
+                                    style={{ color: '#006a4d', textDecoration: 'none', fontWeight: 600 }}>
+                                    mpsno {tenant.parliament_member_id} ↗
+                                  </a></>
+                                : null
+                            }
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <button
+                            onClick={triggerBackfill}
+                            disabled={backfilling}
+                            style={{
+                                padding: '7px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                                background: backfilling ? '#e2ebe5' : '#006a4d',
+                                color: backfilling ? '#94a3b8' : 'white',
+                                fontSize: '0.78rem', fontWeight: 600,
+                            }}>
+                            {backfilling ? 'Starting…' : '↓ Backfill Data'}
+                        </button>
+                        <button
+                            onClick={onClose}
+                            style={{
+                                width: 32, height: 32, borderRadius: 8,
+                                border: '1px solid #e2ebe5', background: 'white',
+                                cursor: 'pointer', fontSize: '1rem', color: '#6b7f76',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontWeight: 700,
+                            }}>
+                            ✕
+                        </button>
+                    </div>
+                </div>
+
+                {/* Data type tabs */}
+                <div style={{
+                    display: 'flex', gap: 0, borderBottom: '1px solid #e2ebe5',
+                    padding: '0 24px', flexShrink: 0,
+                }}>
+                    {DATA_TABS.map(({ key, label }) => {
+                        const count = counts[key] ?? '…';
+                        const active = activeTab === key;
+                        return (
+                            <button
+                                key={key}
+                                onClick={() => setActiveTab(key)}
+                                style={{
+                                    padding: '12px 18px', border: 'none', background: 'none',
+                                    cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600,
+                                    color: active ? '#006a4d' : '#6b7f76',
+                                    borderBottom: active ? '2px solid #006a4d' : '2px solid transparent',
+                                    marginBottom: -1,
+                                    display: 'flex', alignItems: 'center', gap: 6,
+                                }}>
+                                {label}
+                                <span style={{
+                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                    minWidth: 20, height: 18, padding: '0 5px',
+                                    borderRadius: 99, fontSize: '0.65rem', fontWeight: 700,
+                                    background: active ? '#006a4d' : '#e2ebe5',
+                                    color: active ? 'white' : '#6b7f76',
+                                }}>
+                                    {count}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* Records area */}
+                <div style={{ flex: 1, overflow: 'auto', padding: '0 0 16px' }}>
+                    {loading ? (
+                        <div style={{ padding: 40, textAlign: 'center', color: '#6b7f76', fontSize: '0.85rem' }}>
+                            Loading…
+                        </div>
+                    ) : records.length === 0 ? (
+                        <div style={{ padding: 40, textAlign: 'center' }}>
+                            <div style={{ color: '#94a3b8', fontSize: '0.88rem', marginBottom: 10 }}>
+                                No {activeTab.replace('_', ' ')} found.
+                            </div>
+                            {!hasData && (
+                                <div style={{ fontSize: '0.78rem', color: '#6b7f76' }}>
+                                    Run <strong>Backfill Data</strong> above to scrape this MP's 18th Lok Sabha record from sansad.in.
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                            <thead>
+                                <tr style={{ background: '#f8faf9', position: 'sticky', top: 0 }}>
+                                    {activeTab === 'questions' && (
+                                        <>
+                                            <Th>Session</Th>
+                                            <Th>Q No.</Th>
+                                            <Th>Type</Th>
+                                            <Th w={260}>Subject</Th>
+                                            <Th w={160}>Ministry</Th>
+                                            <Th>Date</Th>
+                                        </>
+                                    )}
+                                    {activeTab === 'debates' && (
+                                        <>
+                                            <Th>Session</Th>
+                                            <Th w={300}>Topic</Th>
+                                            <Th w={180}>Bill Reference</Th>
+                                            <Th>Date</Th>
+                                        </>
+                                    )}
+                                    {activeTab === 'pmbs' && (
+                                        <>
+                                            <Th>Session</Th>
+                                            <Th>Bill No.</Th>
+                                            <Th w={280}>Title</Th>
+                                            <Th>Status</Th>
+                                            <Th>Introduced</Th>
+                                        </>
+                                    )}
+                                    {activeTab === 'zero_hour' && (
+                                        <>
+                                            <Th>Session</Th>
+                                            <Th w={380}>Subject</Th>
+                                            <Th>Date</Th>
+                                        </>
+                                    )}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {records.map((r, i) => (
+                                    <tr key={i} style={{ borderBottom: '1px solid #f0f4f2' }}>
+                                        {activeTab === 'questions' && (
+                                            <>
+                                                <Td muted>{r.session_name || '—'}</Td>
+                                                <Td mono>{r.question_number || '—'}</Td>
+                                                <Td><QTypeChip type={r.question_type} /></Td>
+                                                <Td w={260}>{r.subject || '—'}</Td>
+                                                <Td w={160} muted>{r.ministry || '—'}</Td>
+                                                <Td muted>{formatDate(r.date_asked)}</Td>
+                                            </>
+                                        )}
+                                        {activeTab === 'debates' && (
+                                            <>
+                                                <Td muted>{r.session_name || '—'}</Td>
+                                                <Td w={300}>{r.topic || '—'}</Td>
+                                                <Td w={180} muted>{r.bill_reference || '—'}</Td>
+                                                <Td muted>{formatDate(r.date)}</Td>
+                                            </>
+                                        )}
+                                        {activeTab === 'pmbs' && (
+                                            <>
+                                                <Td muted>{r.session_name || '—'}</Td>
+                                                <Td mono>{r.bill_number || '—'}</Td>
+                                                <Td w={280}>{r.title || '—'}</Td>
+                                                <Td>
+                                                    <span style={{
+                                                        display: 'inline-block', padding: '1px 8px', borderRadius: 6,
+                                                        fontSize: '0.68rem', fontWeight: 600,
+                                                        background: '#f1f5f9', color: '#475569',
+                                                    }}>
+                                                        {r.current_status || 'Introduced'}
+                                                    </span>
+                                                </Td>
+                                                <Td muted>{formatDate(r.date_introduced)}</Td>
+                                            </>
+                                        )}
+                                        {activeTab === 'zero_hour' && (
+                                            <>
+                                                <Td muted>{r.session_name || '—'}</Td>
+                                                <Td w={380}>{r.subject || '—'}</Td>
+                                                <Td muted>{formatDate(r.date)}</Td>
+                                            </>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+
+                {/* Pagination footer */}
+                {totalPages > 1 && (
+                    <div style={{
+                        padding: '12px 24px', borderTop: '1px solid #e2ebe5',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        flexShrink: 0, background: 'white',
+                    }}>
+                        <span style={{ fontSize: '0.75rem', color: '#6b7f76' }}>
+                            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total}
+                        </span>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <PaginBtn disabled={page === 0} onClick={() => { const p = page - 1; setPage(p); loadRecords(activeTab, p); }}>← Prev</PaginBtn>
+                            <PaginBtn disabled={page >= totalPages - 1} onClick={() => { const p = page + 1; setPage(p); loadRecords(activeTab, p); }}>Next →</PaginBtn>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </>
+    );
+}
+
+// Small table helpers
+function Th({ children, w }) {
+    return (
+        <th style={{
+            padding: '8px 14px', textAlign: 'left', fontSize: '0.67rem',
+            fontWeight: 700, color: '#6b7f76', textTransform: 'uppercase',
+            letterSpacing: '0.07em', borderBottom: '1px solid #e2ebe5',
+            whiteSpace: 'nowrap', maxWidth: w || undefined,
+        }}>{children}</th>
+    );
+}
+
+function Td({ children, muted, mono, w }) {
+    return (
+        <td style={{
+            padding: '9px 14px', color: muted ? '#6b7f76' : '#1a2e28',
+            fontFamily: mono ? 'monospace' : 'inherit',
+            fontSize: mono ? '0.82rem' : '0.8rem',
+            maxWidth: w || undefined,
+            overflow: 'hidden', textOverflow: 'ellipsis',
+            whiteSpace: w ? 'nowrap' : undefined,
+            verticalAlign: 'top',
+        }}>{children}</td>
+    );
+}
+
+function PaginBtn({ children, disabled, onClick }) {
+    return (
+        <button
+            onClick={onClick}
+            disabled={disabled}
+            style={{
+                padding: '5px 14px', borderRadius: 7, border: '1px solid #e2ebe5',
+                background: 'white', fontSize: '0.75rem', fontWeight: 600,
+                color: disabled ? '#94a3b8' : '#1a2e28', cursor: disabled ? 'default' : 'pointer',
+            }}>
+            {children}
+        </button>
+    );
+}
+
 // ─── Row-level action panel ──────────────────────────────────────────────────
 
-function SyncRow({ tenant, onRefresh, onToast }) {
+function SyncRow({ tenant, onRefresh, onToast, onViewData }) {
     const [manualId, setManualId]   = useState('');
     const [saving, setSaving]       = useState(false);
     const [resolving, setResolving] = useState(false);
@@ -131,15 +487,33 @@ function SyncRow({ tenant, onRefresh, onToast }) {
 
             {/* Actions */}
             <td style={{ padding: '12px 16px', verticalAlign: 'top', minWidth: 260 }}>
-                {confirmed && !candidate && (
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.75rem', color: '#6b7f76' }}>
-                            mpsno {tenant.parliament_member_id}
-                        </span>
-                        <button onClick={() => confirm(prompt('Enter new mpsno to override:'))}
-                            style={{ fontSize: '0.72rem', color: '#6b7f76', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-                            Change
+                {confirmed && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {/* View Data button */}
+                        <button
+                            onClick={() => onViewData(tenant)}
+                            style={{
+                                padding: '6px 14px', borderRadius: 8, border: '1px solid #e2ebe5',
+                                background: 'white', color: '#006a4d', fontSize: '0.78rem',
+                                fontWeight: 600, cursor: 'pointer', textAlign: 'left',
+                                display: 'flex', alignItems: 'center', gap: 6,
+                            }}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+                            </svg>
+                            View Records
                         </button>
+                        {!candidate && (
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.72rem', color: '#6b7f76' }}>
+                                    mpsno {tenant.parliament_member_id}
+                                </span>
+                                <button onClick={() => confirm(prompt('Enter new mpsno to override:'))}
+                                    style={{ fontSize: '0.72rem', color: '#6b7f76', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                                    Change
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -239,7 +613,8 @@ export default function ParliamentSyncPage() {
     const [loading, setLoading]     = useState(true);
     const [resolving, setResolving] = useState(false);
     const [filter, setFilter]       = useState('all');
-    const [toast, setToast]         = useState(null); // { msg, type }
+    const [toast, setToast]         = useState(null);
+    const [drawerTenant, setDrawerTenant] = useState(null);
 
     const showToast = (msg, type = 'success') => {
         setToast({ msg, type });
@@ -301,6 +676,15 @@ export default function ParliamentSyncPage() {
                 </div>
             )}
 
+            {/* Data drawer */}
+            {drawerTenant && (
+                <DataDrawer
+                    tenant={drawerTenant}
+                    onClose={() => setDrawerTenant(null)}
+                    onToast={showToast}
+                />
+            )}
+
             {/* Action bar */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
                 <div>
@@ -335,10 +719,10 @@ export default function ParliamentSyncPage() {
 
             {/* Stats */}
             <div style={{ display: 'flex', gap: 14, marginBottom: 24 }}>
-                <StatCard label="Total MPs"     value={stats.total}        color="#1a2e28" />
-                <StatCard label="Confirmed"     value={stats.confirmed}    color="#006a4d" />
-                <StatCard label="Needs Review"  value={stats.needs_review} color="#d97706" />
-                <StatCard label="Unmatched"     value={stats.unmatched}    color="#dc2626" />
+                <StatCard label="Total MPs"    value={stats.total}        color="#1a2e28" />
+                <StatCard label="Confirmed"    value={stats.confirmed}    color="#006a4d" />
+                <StatCard label="Needs Review" value={stats.needs_review} color="#d97706" />
+                <StatCard label="Unmatched"    value={stats.unmatched}    color="#dc2626" />
             </div>
 
             {/* Filter tabs */}
@@ -393,6 +777,7 @@ export default function ParliamentSyncPage() {
                                     tenant={t}
                                     onRefresh={load}
                                     onToast={showToast}
+                                    onViewData={setDrawerTenant}
                                 />
                             ))}
                         </tbody>
@@ -405,6 +790,7 @@ export default function ParliamentSyncPage() {
                 Member IDs link to sansad.in profiles. To look up an mpsno manually, search{' '}
                 <a href="https://sansad.in/ls/members" target="_blank" rel="noreferrer"
                     style={{ color: '#006a4d' }}>sansad.in/ls/members</a>.
+                Confirmed MPs show a <strong>View Records</strong> button to preview scraped data.
             </p>
         </div>
     );
