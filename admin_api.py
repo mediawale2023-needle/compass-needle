@@ -3298,3 +3298,121 @@ def confirm_parliament_identity(
     except Exception as e:
         logger.exception("confirm_parliament_identity(%d) failed: %s", tenant_id, e)
         raise HTTPException(500, "Failed to confirm parliament identity")
+
+
+# ─── Parliament backfill endpoints ────────────────────────────────────────────
+
+@router.post("/parliament/backfill/all")
+def trigger_backfill_all(background_tasks: BackgroundTasks, user=Depends(get_admin_user)):
+    """
+    Kick off the 6-session historical backfill for ALL confirmed tenants.
+    Runs entirely in the background — poll /parliament/backfill/progress to watch.
+    """
+    def _run():
+        try:
+            from jobs.parliament_scraper import backfill_all_confirmed_tenants
+            backfill_all_confirmed_tenants()
+        except Exception as e:
+            logger.exception("Background backfill-all failed: %s", e)
+
+    background_tasks.add_task(_run)
+    return {"ok": True, "message": "6-session backfill started for all confirmed MPs. Check progress endpoint."}
+
+
+@router.post("/parliament/backfill/{tenant_id}")
+def trigger_backfill_one(tenant_id: int, background_tasks: BackgroundTasks, user=Depends(get_admin_user)):
+    """
+    Kick off the 6-session historical backfill for a single tenant.
+    Called automatically after admin confirms identity; also available manually.
+    """
+    def _run():
+        try:
+            from jobs.parliament_scraper import backfill_tenant
+            backfill_tenant(tenant_id)
+        except Exception as e:
+            logger.exception("Background backfill(%d) failed: %s", tenant_id, e)
+
+    background_tasks.add_task(_run)
+    return {"ok": True, "tenant_id": tenant_id, "message": "Backfill started in background."}
+
+
+@router.get("/parliament/backfill/progress")
+def get_backfill_progress(user=Depends(get_admin_user)):
+    """
+    Return per-tenant per-session backfill job progress.
+    Used by the admin UI to show a progress indicator during batch backfill.
+    """
+    rows = _q("""
+        SELECT
+            j.tenant_id,
+            t.name          AS tenant_name,
+            j.session_name,
+            j.data_type,
+            j.status,
+            j.records_fetched,
+            j.error_message,
+            j.started_at,
+            j.completed_at
+        FROM parliament_backfill_jobs j
+        JOIN tenants t ON t.id = j.tenant_id
+        ORDER BY j.tenant_id, j.session_name, j.data_type
+    """)
+
+    # Group by tenant
+    from collections import defaultdict
+    by_tenant = defaultdict(lambda: {"tenant_name": "", "sessions": {}})
+    totals    = {"pending": 0, "running": 0, "done": 0, "error": 0}
+
+    for r in rows:
+        tid  = r["tenant_id"]
+        by_tenant[tid]["tenant_name"] = r["tenant_name"]
+        key = f"{r['session_name']}::{r['data_type']}"
+        by_tenant[tid]["sessions"][key] = {
+            "session":  r["session_name"],
+            "type":     r["data_type"],
+            "status":   r["status"],
+            "records":  r["records_fetched"],
+            "error":    r["error_message"],
+            "done_at":  r["completed_at"].isoformat() if r["completed_at"] else None,
+        }
+        totals[r["status"]] = totals.get(r["status"], 0) + 1
+
+    return {
+        "totals":   totals,
+        "tenants":  dict(by_tenant),
+    }
+
+
+@router.get("/parliament/data/{tenant_id}")
+def get_tenant_parliament_data(tenant_id: int, data_type: str = "questions",
+                                limit: int = 50, offset: int = 0,
+                                user=Depends(get_admin_user)):
+    """
+    Preview scraped parliamentary data for a specific tenant.
+    data_type: questions | debates | pmbs | zero_hour
+    """
+    table_map = {
+        "questions": "parliamentary_questions",
+        "debates":   "parliamentary_debates",
+        "pmbs":      "private_members_bills",
+        "zero_hour": "zero_hour_submissions",
+    }
+    if data_type not in table_map:
+        raise HTTPException(400, f"Invalid data_type. Choose from: {list(table_map)}")
+
+    table = table_map[data_type]
+    rows  = _q(f"""
+        SELECT * FROM {table}
+        WHERE tenant_id = :tid
+        ORDER BY scraped_at DESC
+        LIMIT :lim OFFSET :off
+    """, {"tid": tenant_id, "lim": min(limit, 200), "off": offset})
+
+    total_row = _q_one(f"SELECT COUNT(*) AS cnt FROM {table} WHERE tenant_id = :tid",
+                       {"tid": tenant_id})
+    return {
+        "tenant_id": tenant_id,
+        "data_type": data_type,
+        "total":     total_row["cnt"] if total_row else 0,
+        "records":   [dict(r) for r in rows],
+    }
