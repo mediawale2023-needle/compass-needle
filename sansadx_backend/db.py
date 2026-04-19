@@ -4,7 +4,7 @@ All other files import engine, SessionLocal, and models from here.
 """
 import os
 import bcrypt
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, Float, text as sa_text, UniqueConstraint
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Text, ForeignKey, JSON, Float, text as sa_text, UniqueConstraint
 try:
     from sqlalchemy.orm import declarative_base
 except ImportError:
@@ -91,6 +91,13 @@ class Tenant(Base):
     is_active = Column(Boolean, default=True)
     onboarding_state = Column(JSON, default=dict)   # {geography: bool, staff: bool, test_sent: bool, live: bool}
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Parliamentary data sync fields (18th Lok Sabha)
+    parliament_member_id    = Column(String, nullable=True)   # Sansad.in / Lok Sabha member ID
+    parliament_house        = Column(String, nullable=True)   # 'lok_sabha' | 'rajya_sabha'
+    parliament_sync_enabled = Column(Boolean, default=True)
+    parliament_last_synced  = Column(DateTime, nullable=True)
+    parliament_sync_status  = Column(String, default="pending")  # pending|active|error|unmatched
 
     users = relationship("User", back_populates="tenant")
     cases = relationship("Case", back_populates="tenant")
@@ -580,6 +587,107 @@ class WAMessageDedup(Base):
 
 
 # ─────────────────────────────────────────
+# PARLIAMENTARY DATA MODELS (18th Lok Sabha)
+# ─────────────────────────────────────────
+
+class ParliamentaryQuestion(Base):
+    """Questions asked by the MP in Lok Sabha / Rajya Sabha, scraped from sansad.in."""
+    __tablename__ = "parliamentary_questions"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "session_name", "question_number", "question_type",
+                         name="uq_pq_tenant_session_number_type"),
+    )
+    id              = Column(Integer, primary_key=True, index=True)
+    tenant_id       = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=False)
+    house           = Column(String, nullable=False)              # lok_sabha | rajya_sabha
+    session_name    = Column(String, nullable=False)              # e.g. "Budget Session 2025"
+    session_number  = Column(String, nullable=True)               # e.g. "4" (4th session of 18th LS)
+    question_number = Column(String, nullable=False)
+    question_type   = Column(String, nullable=False)              # starred | unstarred | short_notice
+    subject         = Column(String, nullable=True)
+    ministry        = Column(String, nullable=True)
+    question_text   = Column(Text, nullable=True)
+    answer_text     = Column(Text, nullable=True)
+    date_asked      = Column(Date, nullable=True)
+    scraped_at      = Column(DateTime, default=datetime.utcnow)
+
+
+class ParliamentaryDebate(Base):
+    """Speeches / debate participations by the MP, scraped from sansad.in."""
+    __tablename__ = "parliamentary_debates"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "session_name", "date", "topic",
+                         name="uq_pd_tenant_session_date_topic"),
+    )
+    id             = Column(Integer, primary_key=True, index=True)
+    tenant_id      = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=False)
+    house          = Column(String, nullable=False)
+    session_name   = Column(String, nullable=False)
+    date           = Column(Date, nullable=True)
+    topic          = Column(String, nullable=True)
+    bill_reference = Column(String, nullable=True)               # bill number if debate was on a bill
+    speech_excerpt = Column(Text, nullable=True)                 # first ~500 chars of speech
+    full_speech_url = Column(String, nullable=True)
+    scraped_at     = Column(DateTime, default=datetime.utcnow)
+
+
+class PrivateMembersBill(Base):
+    """Private Members' Bills introduced by the MP."""
+    __tablename__ = "private_members_bills"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "session_name", "bill_number",
+                         name="uq_pmb_tenant_session_bill"),
+    )
+    id              = Column(Integer, primary_key=True, index=True)
+    tenant_id       = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=False)
+    house           = Column(String, nullable=False)
+    session_name    = Column(String, nullable=False)
+    bill_number     = Column(String, nullable=False)
+    title           = Column(String, nullable=True)
+    subject         = Column(Text, nullable=True)
+    date_introduced = Column(Date, nullable=True)
+    current_status  = Column(String, nullable=True)              # introduced | lapsed | withdrawn | passed
+    bill_text_url   = Column(String, nullable=True)
+    scraped_at      = Column(DateTime, default=datetime.utcnow)
+
+
+class ZeroHourSubmission(Base):
+    """Zero Hour / Special Mentions raised by the MP."""
+    __tablename__ = "zero_hour_submissions"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "session_name", "date", "subject",
+                         name="uq_zh_tenant_session_date_subject"),
+    )
+    id           = Column(Integer, primary_key=True, index=True)
+    tenant_id    = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=False)
+    house        = Column(String, nullable=False)
+    session_name = Column(String, nullable=False)
+    date         = Column(Date, nullable=True)
+    subject      = Column(String, nullable=True)
+    text_excerpt = Column(Text, nullable=True)
+    scraped_at   = Column(DateTime, default=datetime.utcnow)
+
+
+class ParliamentBackfillJob(Base):
+    """Tracks per-tenant per-session backfill progress for the 6-session historical import."""
+    __tablename__ = "parliament_backfill_jobs"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "session_name", "data_type",
+                         name="uq_pbj_tenant_session_type"),
+    )
+    id              = Column(Integer, primary_key=True, index=True)
+    tenant_id       = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=False)
+    session_name    = Column(String, nullable=False)             # e.g. "Budget Session 2025"
+    data_type       = Column(String, nullable=False)             # questions|debates|pmbs|zero_hour
+    status          = Column(String, default="pending")          # pending|running|done|error
+    records_fetched = Column(Integer, default=0)
+    error_message   = Column(Text, nullable=True)
+    started_at      = Column(DateTime, nullable=True)
+    completed_at    = Column(DateTime, nullable=True)
+    created_at      = Column(DateTime, default=datetime.utcnow)
+
+
+# ─────────────────────────────────────────
 # INIT — Create all tables
 # ─────────────────────────────────────────
 def init_db():
@@ -606,6 +714,12 @@ def init_db():
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS notes_for_staff TEXT",
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS response_to_citizen TEXT",
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP",
+        # Parliamentary sync fields on tenants (18th Lok Sabha integration)
+        "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS parliament_member_id VARCHAR",
+        "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS parliament_house VARCHAR DEFAULT 'lok_sabha'",
+        "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS parliament_sync_enabled BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS parliament_last_synced TIMESTAMP",
+        "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS parliament_sync_status VARCHAR DEFAULT 'pending'",
     ]
     with engine.connect() as conn:
         for stmt in _migrations:

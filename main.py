@@ -534,6 +534,109 @@ try:
 except Exception as e:
     logger.warning(f"letterbox_batches migration skipped: {e}")
 
+# ─── Migration: parliamentary data tables (18th Lok Sabha intelligence feed) ───
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS parliamentary_questions (
+                id              SERIAL PRIMARY KEY,
+                tenant_id       INTEGER NOT NULL REFERENCES tenants(id),
+                house           VARCHAR NOT NULL DEFAULT 'lok_sabha',
+                session_name    VARCHAR NOT NULL,
+                session_number  VARCHAR,
+                question_number VARCHAR NOT NULL,
+                question_type   VARCHAR NOT NULL,
+                subject         VARCHAR,
+                ministry        VARCHAR,
+                question_text   TEXT,
+                answer_text     TEXT,
+                date_asked      DATE,
+                scraped_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_pq_tenant_session_number_type
+                    UNIQUE (tenant_id, session_name, question_number, question_type)
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pq_tenant ON parliamentary_questions (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pq_tenant_session ON parliamentary_questions (tenant_id, session_name)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pq_date ON parliamentary_questions (tenant_id, date_asked)"))
+
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS parliamentary_debates (
+                id              SERIAL PRIMARY KEY,
+                tenant_id       INTEGER NOT NULL REFERENCES tenants(id),
+                house           VARCHAR NOT NULL DEFAULT 'lok_sabha',
+                session_name    VARCHAR NOT NULL,
+                date            DATE,
+                topic           VARCHAR,
+                bill_reference  VARCHAR,
+                speech_excerpt  TEXT,
+                full_speech_url VARCHAR,
+                scraped_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_pd_tenant_session_date_topic
+                    UNIQUE (tenant_id, session_name, date, topic)
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pd_tenant ON parliamentary_debates (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pd_tenant_session ON parliamentary_debates (tenant_id, session_name)"))
+
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS private_members_bills (
+                id              SERIAL PRIMARY KEY,
+                tenant_id       INTEGER NOT NULL REFERENCES tenants(id),
+                house           VARCHAR NOT NULL DEFAULT 'lok_sabha',
+                session_name    VARCHAR NOT NULL,
+                bill_number     VARCHAR NOT NULL,
+                title           VARCHAR,
+                subject         TEXT,
+                date_introduced DATE,
+                current_status  VARCHAR,
+                bill_text_url   VARCHAR,
+                scraped_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_pmb_tenant_session_bill
+                    UNIQUE (tenant_id, session_name, bill_number)
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pmb_tenant ON private_members_bills (tenant_id)"))
+
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS zero_hour_submissions (
+                id           SERIAL PRIMARY KEY,
+                tenant_id    INTEGER NOT NULL REFERENCES tenants(id),
+                house        VARCHAR NOT NULL DEFAULT 'lok_sabha',
+                session_name VARCHAR NOT NULL,
+                date         DATE,
+                subject      VARCHAR,
+                text_excerpt TEXT,
+                scraped_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_zh_tenant_session_date_subject
+                    UNIQUE (tenant_id, session_name, date, subject)
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_zh_tenant ON zero_hour_submissions (tenant_id)"))
+
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS parliament_backfill_jobs (
+                id              SERIAL PRIMARY KEY,
+                tenant_id       INTEGER NOT NULL REFERENCES tenants(id),
+                session_name    VARCHAR NOT NULL,
+                data_type       VARCHAR NOT NULL,
+                status          VARCHAR NOT NULL DEFAULT 'pending',
+                records_fetched INTEGER NOT NULL DEFAULT 0,
+                error_message   TEXT,
+                started_at      TIMESTAMP,
+                completed_at    TIMESTAMP,
+                created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+                CONSTRAINT uq_pbj_tenant_session_type
+                    UNIQUE (tenant_id, session_name, data_type)
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pbj_tenant ON parliament_backfill_jobs (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_pbj_status ON parliament_backfill_jobs (status)"))
+
+        logger.info("Migration: parliamentary data tables ready")
+except Exception as e:
+    logger.warning(f"Parliamentary tables migration skipped: {e}")
+
 # Seed CSR company profiles from static JSON files on startup
 try:
     from modules.csr_data_loader import seed_csr_companies
