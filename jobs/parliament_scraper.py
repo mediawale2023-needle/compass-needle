@@ -428,8 +428,11 @@ def scrape_prs_profile(prs_slug: str) -> dict:
 
     soup = BeautifulSoup(resp.text, "html.parser")
 
-    questions_table = _find_section_table(soup, ["question"])
-    debates_table   = _find_section_table(soup, ["debate"])
+    # Use specific phrases from PRS section headings to avoid matching the
+    # summary stat h4 elements ("No. of Questions", "No. of Debates") that
+    # appear earlier in the page and would redirect to the wrong table.
+    questions_table = _find_section_table(soup, ["questions details", "questions asked"])
+    debates_table   = _find_section_table(soup, ["participated in", "debates ("])
 
     questions = _parse_question_table(questions_table) if questions_table else []
     debates   = _parse_debate_table(debates_table)     if debates_table   else []
