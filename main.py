@@ -161,6 +161,20 @@ else:
 init_db()
 logger.info("Database initialised.")
 
+# ── Phase 1 Brain: ensure parliament answer-fetcher schema exists ─────────
+# Creates prs_pdf_cache and adds question_pdf_url / real_question_number /
+# answer_fetched_at / answer_fetch_status columns to parliamentary_questions.
+# Also moves PDF URLs that earlier scraper runs stored inside question_text
+# into the new question_pdf_url column.
+try:
+    from jobs.parliament_answer_fetcher import ensure_schema as _pq_ensure_schema, migrate_question_text_urls as _pq_migrate_urls
+    _pq_ensure_schema()
+    _moved = _pq_migrate_urls()
+    if _moved:
+        logger.info("Brain migration: moved %d question_text→question_pdf_url rows", _moved)
+except Exception as _e:
+    logger.warning("Brain schema migration skipped: %s", _e)
+
 # On startup: seed DB from JSON files, reconstruct files from DB, sync geo_overrides.
 # This two-way sync ensures geography data is ALWAYS durable:
 #   - JSON files committed to git → seeded into DB on first deploy (permanent)

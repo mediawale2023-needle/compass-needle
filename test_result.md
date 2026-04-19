@@ -185,3 +185,52 @@ agent_communication:
     message: "Implemented Admin Dashboard (Streamlit) with 3 tabs and Geography Resolver backend. Ready for testing."
   - agent: "testing"
     message: "✅ TESTING COMPLETE: All backend components tested successfully. Geography Resolver API (sansadx-backend) running on port 8000 with all endpoints working correctly. Admin Dashboard imports successfully and ready for use. All high-priority tasks are now working."
+  - agent: "main"
+    message: |
+      🧠 PHASE 1 OF NEEDLE BRAIN SHIPPED — PRS ANSWER INGESTION
+
+      Problem: Parliamentary Sync was only scraping question metadata from PRS.
+      `question_text` stored the PDF URL (not text) and `answer_text` was always
+      empty. No Ministry replies were ever ingested.
+
+      Solution (this commit):
+        • modules/prs_answer_extractor.py — downloads PRS-linked Q&A PDFs,
+          pdfplumber extraction + Gemini 2.5 Flash Vision OCR fallback,
+          splits into individual Q&A blocks (supports STARRED / UNSTARRED /
+          SHORT NOTICE headers, ministry detection, asker extraction).
+        • jobs/parliament_answer_fetcher.py — DB-aware orchestrator with
+          prs_pdf_cache table (download once, reuse), subject-similarity
+          matcher (fuzzy ≥ 0.55, ministry boost), per-tenant + all-tenants
+          entry points, coverage stats, CLI runner.
+        • Schema: new columns question_pdf_url, real_question_number,
+          answer_fetched_at, answer_fetch_status on parliamentary_questions;
+          new table prs_pdf_cache. Idempotent migration runs on app startup
+          (registered in main.py). One-off data move from question_text→
+          question_pdf_url for rows holding a URL.
+        • jobs/parliament_scraper.py — now writes PDF URL into the proper
+          column, not into question_text.
+        • admin_api.py — 5 new endpoints:
+            GET  /api/admin/parliament/answer-coverage
+            GET  /api/admin/parliament/answer-coverage/{tenant_id}
+            POST /api/admin/parliament/fetch-answers/{tenant_id}
+            POST /api/admin/parliament/fetch-answers-all
+            GET  /api/admin/parliament/fetch-answers/status/{job_id}
+            GET  /api/admin/parliament/question/{row_id}   (full Q+A detail)
+        • admin/app/dashboard/parliament-sync/page.js — Answer Coverage
+          strip (progress bar + stats), "🧠 Fetch Answers" button,
+          expandable rows showing full Question + Ministry Answer + PDF
+          source link + extractor method, AnswerStatusChip per row,
+          background job polling.
+
+      Smoke test (live PRS PDF, AU6230):
+        ✓ 8-page PDF, 376 KB, extracted via pdfplumber
+        ✓ Real Q No. 6230, type=unstarred, Ministry of Food Processing
+        ✓ Parsed 8 joint-signatory MP names
+        ✓ Full question text and full ministry reply by Shri Ravneet Singh
+
+      Deployment note: this repo runs on Railway (Postgres + FastAPI).
+      On next deploy main.py auto-runs ensure_schema() + migrate_question_text_urls().
+      After deploy, admins click "🧠 Fetch Answers" per tenant OR run
+      `python -m jobs.parliament_answer_fetcher --all` on the host.
+
+      Next (Phase 2): pgvector + memory_chunks + OpenAI embeddings.

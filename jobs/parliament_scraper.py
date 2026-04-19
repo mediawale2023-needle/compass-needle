@@ -455,13 +455,16 @@ def _upsert_questions(records: list) -> int:
                 INSERT INTO parliamentary_questions
                     (tenant_id, house, session_name, session_number, question_number,
                      question_type, subject, ministry, question_text, answer_text,
+                     question_pdf_url,
                      date_asked, scraped_at)
                 VALUES
                     (:tenant_id, :house, :session_name, :session_number, :question_number,
                      :question_type, :subject, :ministry, :question_text, :answer_text,
+                     :question_pdf_url,
                      :date_asked, NOW())
                 ON CONFLICT ON CONSTRAINT uq_pq_tenant_session_number_type
-                DO NOTHING
+                DO UPDATE SET
+                    question_pdf_url = COALESCE(EXCLUDED.question_pdf_url, parliamentary_questions.question_pdf_url)
             """), r)
             inserted += result.rowcount
     return inserted
@@ -602,7 +605,11 @@ def scrape_tenant(tenant_id: int, prs_slug: str,
             "question_type":   q["question_type"].lower(),
             "subject":         q["title"],
             "ministry":        q["ministry"],
-            "question_text":   q.get("pdf_url", ""),   # PDF link for reference
+            # Phase 1 Brain: PDF URL goes into its own column. The actual
+            # question_text / answer_text are populated later by the
+            # jobs/parliament_answer_fetcher.py worker.
+            "question_pdf_url": q.get("pdf_url", ""),
+            "question_text":   "",
             "answer_text":     "",
             "date_asked":      d,
         })

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { Fragment, useState, useEffect, useCallback } from 'react';
 import { apiGet, apiPost, apiPatch } from '@/lib/api';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -78,6 +78,14 @@ function DataDrawer({ tenant, onClose, onToast }) {
     const [loading, setLoading]       = useState(false);
     const [page, setPage]             = useState(0);
     const [backfilling, setBackfilling] = useState(false);
+    // Phase 1 Brain: Q&A answer coverage + fetch state
+    const [coverage, setCoverage]     = useState(null);
+    const [fetchingAnswers, setFetchingAnswers] = useState(false);
+    const [answerJobId, setAnswerJobId] = useState(null);
+    // Row detail drawer (expanded Q+A view)
+    const [expandedRowId, setExpandedRowId] = useState(null);
+    const [rowDetail, setRowDetail]         = useState(null);
+    const [rowLoading, setRowLoading]       = useState(false);
     const PAGE_SIZE = 30;
 
     const loadRecords = useCallback(async (tab, pg) => {
@@ -94,6 +102,15 @@ function DataDrawer({ tenant, onClose, onToast }) {
         setLoading(false);
     }, [tenant.tenant_id, onToast]);
 
+    const loadCoverage = useCallback(async () => {
+        try {
+            const c = await apiGet(`/api/admin/parliament/answer-coverage/${tenant.tenant_id}`);
+            setCoverage(c);
+        } catch {
+            /* coverage endpoint may be unavailable on older deploys */
+        }
+    }, [tenant.tenant_id]);
+
     // Load counts for all 4 tabs once
     useEffect(() => {
         const fetchCounts = async () => {
@@ -107,12 +124,48 @@ function DataDrawer({ tenant, onClose, onToast }) {
             setCounts(results);
         };
         fetchCounts();
-    }, [tenant.tenant_id]);
+        loadCoverage();
+    }, [tenant.tenant_id, loadCoverage]);
 
     useEffect(() => {
         setPage(0);
+        setExpandedRowId(null);
         loadRecords(activeTab, 0);
     }, [activeTab, loadRecords]);
+
+    // Poll the answer-fetch job if one is running
+    useEffect(() => {
+        if (!answerJobId) return undefined;
+        let stopped = false;
+        const poll = async () => {
+            try {
+                const j = await apiGet(`/api/admin/parliament/fetch-answers/status/${answerJobId}`);
+                if (stopped) return;
+                if (j.status === 'done') {
+                    setFetchingAnswers(false);
+                    setAnswerJobId(null);
+                    const s = j.summary || {};
+                    onToast(
+                        `Answers fetched — ${s.rows_updated || 0} updated, ` +
+                        `${s.pdfs_processed || 0}/${s.unique_pdfs || 0} PDFs`,
+                        'success'
+                    );
+                    loadCoverage();
+                    loadRecords(activeTab, page);
+                } else if (j.status === 'error') {
+                    setFetchingAnswers(false);
+                    setAnswerJobId(null);
+                    onToast(`Answer fetch failed: ${j.error || 'unknown error'}`, 'error');
+                } else {
+                    setTimeout(poll, 4000);
+                }
+            } catch {
+                if (!stopped) setTimeout(poll, 6000);
+            }
+        };
+        poll();
+        return () => { stopped = true; };
+    }, [answerJobId, onToast, loadCoverage, loadRecords, activeTab, page]);
 
     const triggerBackfill = async () => {
         setBackfilling(true);
@@ -124,6 +177,40 @@ function DataDrawer({ tenant, onClose, onToast }) {
             onToast(e.message || 'Backfill failed to start', 'error');
         }
         setBackfilling(false);
+    };
+
+    const triggerFetchAnswers = async () => {
+        setFetchingAnswers(true);
+        try {
+            const r = await apiPost(`/api/admin/parliament/fetch-answers/${tenant.tenant_id}`, {
+                max_pdfs:  null,
+                allow_ocr: true,
+                force:     false,
+            });
+            setAnswerJobId(r.job_id);
+            onToast(`Fetching answers for ${tenant.mp_name} — this may take a few minutes`);
+        } catch (e) {
+            setFetchingAnswers(false);
+            onToast(e.message || 'Answer fetch failed to start', 'error');
+        }
+    };
+
+    const toggleExpand = async (row) => {
+        if (expandedRowId === row.id) {
+            setExpandedRowId(null);
+            setRowDetail(null);
+            return;
+        }
+        setExpandedRowId(row.id);
+        setRowDetail(null);
+        setRowLoading(true);
+        try {
+            const d = await apiGet(`/api/admin/parliament/question/${row.id}`);
+            setRowDetail(d);
+        } catch (e) {
+            onToast('Failed to load question details', 'error');
+        }
+        setRowLoading(false);
     };
 
     const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -170,6 +257,23 @@ function DataDrawer({ tenant, onClose, onToast }) {
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        {activeTab === 'questions' && (
+                            <button
+                                onClick={triggerFetchAnswers}
+                                disabled={fetchingAnswers || (coverage && coverage.with_pdf_url === 0)}
+                                title={(coverage && coverage.with_pdf_url === 0)
+                                    ? 'No PDF URLs yet — run Backfill Data first.'
+                                    : 'Download & parse PRS-linked Q&A PDFs to populate answer text.'}
+                                style={{
+                                    padding: '7px 14px', borderRadius: 8, border: '1px solid #006a4d',
+                                    cursor: fetchingAnswers ? 'default' : 'pointer',
+                                    background: fetchingAnswers ? '#e2ebe5' : 'white',
+                                    color: fetchingAnswers ? '#94a3b8' : '#006a4d',
+                                    fontSize: '0.78rem', fontWeight: 600,
+                                }}>
+                                {fetchingAnswers ? 'Fetching…' : '🧠 Fetch Answers'}
+                            </button>
+                        )}
                         <button
                             onClick={triggerBackfill}
                             disabled={backfilling}
@@ -232,6 +336,38 @@ function DataDrawer({ tenant, onClose, onToast }) {
 
                 {/* Records area */}
                 <div style={{ flex: 1, overflow: 'auto', padding: '0 0 16px' }}>
+                    {/* Phase 1 Brain: answer coverage strip (questions tab only) */}
+                    {activeTab === 'questions' && coverage && coverage.total > 0 && (
+                        <div style={{
+                            margin: '12px 24px 4px', padding: '10px 14px', borderRadius: 10,
+                            background: '#f0fdf4', border: '1px solid #bbf7d0',
+                            display: 'flex', alignItems: 'center', gap: 14, fontSize: '0.78rem',
+                        }}>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>
+                                    Answer Coverage — {coverage.pct_covered}%
+                                </div>
+                                <div style={{ height: 5, background: '#e2ebe5', borderRadius: 99, overflow: 'hidden' }}>
+                                    <div style={{
+                                        width: `${coverage.pct_covered}%`, height: '100%',
+                                        background: coverage.pct_covered >= 80 ? '#006a4d'
+                                                  : coverage.pct_covered >= 40 ? '#d97706' : '#dc2626',
+                                        borderRadius: 99, transition: 'width 0.4s',
+                                    }} />
+                                </div>
+                            </div>
+                            <div style={{ color: '#475569', fontSize: '0.72rem', textAlign: 'right', minWidth: 200 }}>
+                                <div><strong>{coverage.with_answer}</strong> / {coverage.total} answered</div>
+                                <div>
+                                    {coverage.with_pdf_url} w/PDF ·{' '}
+                                    {coverage.pending > 0 && <span>{coverage.pending} pending · </span>}
+                                    {coverage.failed > 0 && <span style={{ color: '#dc2626' }}>{coverage.failed} failed · </span>}
+                                    {coverage.no_match > 0 && <span style={{ color: '#d97706' }}>{coverage.no_match} no-match</span>}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {loading ? (
                         <div style={{ padding: 40, textAlign: 'center', color: '#6b7f76', fontSize: '0.85rem' }}>
                             Loading…
@@ -253,11 +389,13 @@ function DataDrawer({ tenant, onClose, onToast }) {
                                 <tr style={{ background: '#f8faf9', position: 'sticky', top: 0 }}>
                                     {activeTab === 'questions' && (
                                         <>
+                                            <Th w={30}></Th>
                                             <Th>Session</Th>
                                             <Th>Q No.</Th>
                                             <Th>Type</Th>
                                             <Th w={260}>Subject</Th>
                                             <Th w={160}>Ministry</Th>
+                                            <Th w={70}>Answer</Th>
                                             <Th>Date</Th>
                                         </>
                                     )}
@@ -289,14 +427,30 @@ function DataDrawer({ tenant, onClose, onToast }) {
                             </thead>
                             <tbody>
                                 {records.map((r, i) => (
-                                    <tr key={i} style={{ borderBottom: '1px solid #f0f4f2' }}>
+                                    <Fragment key={r.id || i}>
+                                    <tr
+                                        onClick={() => activeTab === 'questions' ? toggleExpand(r) : null}
+                                        style={{
+                                            borderBottom: '1px solid #f0f4f2',
+                                            cursor: activeTab === 'questions' ? 'pointer' : 'default',
+                                            background: expandedRowId === r.id ? '#f8faf9' : 'transparent',
+                                        }}>
                                         {activeTab === 'questions' && (
                                             <>
+                                                <Td muted w={30}>
+                                                    <span style={{
+                                                        display: 'inline-block', width: 14, textAlign: 'center',
+                                                        color: '#006a4d', fontWeight: 700,
+                                                        transform: expandedRowId === r.id ? 'rotate(90deg)' : 'none',
+                                                        transition: 'transform 0.15s',
+                                                    }}>›</span>
+                                                </Td>
                                                 <Td muted>{r.session_name || '—'}</Td>
-                                                <Td mono>{r.question_number || '—'}</Td>
+                                                <Td mono>{r.real_question_number || r.question_number || '—'}</Td>
                                                 <Td><QTypeChip type={r.question_type} /></Td>
                                                 <Td w={260}>{r.subject || '—'}</Td>
                                                 <Td w={160} muted>{r.ministry || '—'}</Td>
+                                                <Td w={70}><AnswerStatusChip status={r.answer_fetch_status} hasAnswer={!!(r.answer_text && r.answer_text.length > 0)} /></Td>
                                                 <Td muted>{formatDate(r.date_asked)}</Td>
                                             </>
                                         )}
@@ -333,6 +487,18 @@ function DataDrawer({ tenant, onClose, onToast }) {
                                             </>
                                         )}
                                     </tr>
+                                    {activeTab === 'questions' && expandedRowId === r.id && (
+                                        <tr>
+                                            <td colSpan={8} style={{ padding: 0, background: '#f8faf9' }}>
+                                                <QAExpandedView
+                                                    detail={rowDetail}
+                                                    loading={rowLoading}
+                                                    rowSummary={r}
+                                                />
+                                            </td>
+                                        </tr>
+                                    )}
+                                    </Fragment>
                                 ))}
                             </tbody>
                         </table>
@@ -398,6 +564,114 @@ function PaginBtn({ children, disabled, onClick }) {
             }}>
             {children}
         </button>
+    );
+}
+
+// ─── Phase 1 Brain: answer-status chip + expanded Q&A view ──────────────────
+
+function AnswerStatusChip({ status, hasAnswer }) {
+    let label, bg, color;
+    if (hasAnswer) {
+        label = 'Answered';  bg = '#dcfce7'; color = '#166534';
+    } else if (status === 'no_match') {
+        label = 'No match';   bg = '#fef9c3'; color = '#854d0e';
+    } else if (status === 'no_pdf') {
+        label = 'No PDF';     bg = '#fee2e2'; color = '#991b1b';
+    } else if (status === 'failed') {
+        label = 'Failed';     bg = '#fee2e2'; color = '#991b1b';
+    } else if (status === 'no_answer_in_pdf') {
+        label = 'Q only';     bg = '#e0e7ff'; color = '#3730a3';
+    } else {
+        label = 'Pending';    bg = '#f1f5f9'; color = '#475569';
+    }
+    return (
+        <span style={{
+            display: 'inline-block', padding: '1px 8px', borderRadius: 6,
+            fontSize: '0.64rem', fontWeight: 700, letterSpacing: '0.03em',
+            background: bg, color,
+        }}>{label}</span>
+    );
+}
+
+function QAExpandedView({ detail, loading, rowSummary }) {
+    if (loading) {
+        return (
+            <div style={{ padding: 20, fontSize: '0.78rem', color: '#6b7f76' }}>
+                Loading question + answer…
+            </div>
+        );
+    }
+    const d = detail || rowSummary || {};
+    const qText = (d.question_text || '').trim();
+    const aText = (d.answer_text   || '').trim();
+    const pdfUrl = d.question_pdf_url || null;
+    const fetchStatus = d.answer_fetch_status;
+    const method = d.pdf_cache_method;
+    const fetchedAt = d.answer_fetched_at;
+
+    return (
+        <div style={{ padding: '14px 20px 20px 44px', borderTop: '1px dashed #e2ebe5' }}>
+            {/* Metadata strip */}
+            <div style={{
+                display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: '0.72rem',
+                color: '#6b7f76', marginBottom: 12,
+            }}>
+                {d.real_question_number && (
+                    <span><strong>Real Q No.</strong> {d.real_question_number}</span>
+                )}
+                {pdfUrl && (
+                    <span>
+                        <strong>PDF:</strong>{' '}
+                        <a href={pdfUrl} target="_blank" rel="noreferrer"
+                            style={{ color: '#006a4d', textDecoration: 'none', fontWeight: 600 }}>
+                            Open source ↗
+                        </a>
+                    </span>
+                )}
+                {method && <span><strong>Extracted via:</strong> {method}</span>}
+                {fetchedAt && (
+                    <span><strong>Fetched:</strong> {new Date(fetchedAt).toLocaleString('en-IN')}</span>
+                )}
+                <span><strong>Status:</strong> <AnswerStatusChip status={fetchStatus} hasAnswer={!!aText} /></span>
+            </div>
+
+            {/* Question text */}
+            <div style={{ marginBottom: 14 }}>
+                <div style={{
+                    fontSize: '0.7rem', fontWeight: 700, color: '#006a4d',
+                    textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6,
+                }}>Question</div>
+                <div style={{
+                    background: 'white', border: '1px solid #e2ebe5', borderRadius: 8,
+                    padding: '10px 14px', fontSize: '0.82rem', color: '#1a2e28',
+                    whiteSpace: 'pre-wrap', maxHeight: 260, overflow: 'auto', lineHeight: 1.55,
+                }}>
+                    {qText || <em style={{ color: '#94a3b8' }}>
+                        No question text yet. Click <strong>🧠 Fetch Answers</strong> above to
+                        download the ministry PDF and populate question + answer text.
+                    </em>}
+                </div>
+            </div>
+
+            {/* Answer text */}
+            <div>
+                <div style={{
+                    fontSize: '0.7rem', fontWeight: 700, color: '#006a4d',
+                    textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6,
+                }}>Ministry Answer</div>
+                <div style={{
+                    background: aText ? '#f0fdf4' : 'white',
+                    border: '1px solid ' + (aText ? '#bbf7d0' : '#e2ebe5'),
+                    borderRadius: 8, padding: '10px 14px', fontSize: '0.82rem',
+                    color: '#1a2e28', whiteSpace: 'pre-wrap',
+                    maxHeight: 380, overflow: 'auto', lineHeight: 1.55,
+                }}>
+                    {aText || <em style={{ color: '#94a3b8' }}>
+                        Answer not yet extracted.
+                    </em>}
+                </div>
+            </div>
+        </div>
     );
 }
 

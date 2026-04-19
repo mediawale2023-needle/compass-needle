@@ -3460,3 +3460,162 @@ def get_tenant_parliament_data(tenant_id: int, data_type: str = "questions",
         "total":     total_row["cnt"] if total_row else 0,
         "records":   [dict(r) for r in rows],
     }
+
+
+# ─── Phase 1 Brain: parliamentary Q&A answer backfill ───────────────────────
+# Fetch Ministry answers for PRS-linked questions by downloading the daily
+# consolidated Q&A PDF, extracting text (pdfplumber → Gemini OCR fallback),
+# splitting into Q&A blocks, and matching back by subject similarity.
+# Implemented in jobs/parliament_answer_fetcher.py + modules/prs_answer_extractor.py.
+
+# In-memory job tracker for fetch-answers background tasks.
+# Keyed by job_id. Entries: {status, summary, tenant_id, started_at, finished_at, error}
+_pq_answer_jobs: dict = {}
+
+
+@router.get("/parliament/answer-coverage")
+def get_answer_coverage_all(user=Depends(get_admin_user)):
+    """Return answer-coverage stats for every tenant with parliamentary questions."""
+    try:
+        from jobs.parliament_answer_fetcher import get_coverage_stats_per_tenant
+        return {"tenants": get_coverage_stats_per_tenant()}
+    except Exception as e:
+        logger.exception("answer-coverage all failed: %s", e)
+        raise HTTPException(500, f"Coverage lookup failed: {e}")
+
+
+@router.get("/parliament/answer-coverage/{tenant_id}")
+def get_answer_coverage_one(tenant_id: int, user=Depends(get_admin_user)):
+    """Return answer-coverage stats for a single tenant."""
+    try:
+        from jobs.parliament_answer_fetcher import get_coverage_stats
+        return get_coverage_stats(tenant_id)
+    except Exception as e:
+        logger.exception("answer-coverage(%d) failed: %s", tenant_id, e)
+        raise HTTPException(500, f"Coverage lookup failed: {e}")
+
+
+class FetchAnswersRequest(BaseModel):
+    max_pdfs: Optional[int] = None   # cap unique PDFs processed (None = all)
+    allow_ocr: bool = True            # use Gemini Vision OCR fallback
+    force: bool = False               # ignore prs_pdf_cache
+
+
+@router.post("/parliament/fetch-answers/{tenant_id}")
+def trigger_fetch_answers(
+    tenant_id: int,
+    body: FetchAnswersRequest = FetchAnswersRequest(),
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_admin_user),
+):
+    """
+    Kick off the Q&A answer fetcher for ONE tenant in the background.
+    Returns a job_id that can be polled at /parliament/fetch-answers/status/{job_id}.
+    """
+    job_id = f"ansfetch_{tenant_id}_{uuid.uuid4().hex[:10]}"
+    _pq_answer_jobs[job_id] = {
+        "status":      "running",
+        "tenant_id":   tenant_id,
+        "started_at":  datetime.utcnow().isoformat() + "Z",
+        "finished_at": None,
+        "summary":     None,
+        "error":       None,
+    }
+
+    def _run():
+        try:
+            from jobs.parliament_answer_fetcher import fetch_answers_for_tenant
+            summary = fetch_answers_for_tenant(
+                tenant_id,
+                max_pdfs=body.max_pdfs,
+                allow_ocr=body.allow_ocr,
+                force=body.force,
+            )
+            _pq_answer_jobs[job_id]["status"]      = "done"
+            _pq_answer_jobs[job_id]["summary"]     = summary
+            _pq_answer_jobs[job_id]["finished_at"] = datetime.utcnow().isoformat() + "Z"
+        except Exception as e:
+            logger.exception("fetch-answers(%d) background failed: %s", tenant_id, e)
+            _pq_answer_jobs[job_id]["status"]      = "error"
+            _pq_answer_jobs[job_id]["error"]       = str(e)
+            _pq_answer_jobs[job_id]["finished_at"] = datetime.utcnow().isoformat() + "Z"
+
+    if background_tasks:
+        background_tasks.add_task(_run)
+    else:
+        threading.Thread(target=_run, daemon=True).start()
+
+    return {"ok": True, "job_id": job_id, "tenant_id": tenant_id,
+            "message": "Answer fetch started in background."}
+
+
+@router.post("/parliament/fetch-answers-all")
+def trigger_fetch_answers_all(
+    body: FetchAnswersRequest = FetchAnswersRequest(),
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_admin_user),
+):
+    """Kick off the Q&A answer fetcher for ALL tenants that have pending rows."""
+    job_id = f"ansfetch_all_{uuid.uuid4().hex[:10]}"
+    _pq_answer_jobs[job_id] = {
+        "status":      "running",
+        "tenant_id":   None,
+        "started_at":  datetime.utcnow().isoformat() + "Z",
+        "finished_at": None,
+        "summary":     None,
+        "error":       None,
+    }
+
+    def _run():
+        try:
+            from jobs.parliament_answer_fetcher import fetch_answers_for_all_tenants
+            summary = fetch_answers_for_all_tenants(
+                max_pdfs_per_tenant=body.max_pdfs,
+                allow_ocr=body.allow_ocr,
+            )
+            _pq_answer_jobs[job_id]["status"]      = "done"
+            _pq_answer_jobs[job_id]["summary"]     = summary
+            _pq_answer_jobs[job_id]["finished_at"] = datetime.utcnow().isoformat() + "Z"
+        except Exception as e:
+            logger.exception("fetch-answers-all background failed: %s", e)
+            _pq_answer_jobs[job_id]["status"]      = "error"
+            _pq_answer_jobs[job_id]["error"]       = str(e)
+            _pq_answer_jobs[job_id]["finished_at"] = datetime.utcnow().isoformat() + "Z"
+
+    if background_tasks:
+        background_tasks.add_task(_run)
+    else:
+        threading.Thread(target=_run, daemon=True).start()
+
+    return {"ok": True, "job_id": job_id,
+            "message": "Answer fetch started for all tenants."}
+
+
+@router.get("/parliament/fetch-answers/status/{job_id}")
+def get_fetch_answers_status(job_id: str, user=Depends(get_admin_user)):
+    """Poll the status of a running answer-fetch job."""
+    job = _pq_answer_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found or expired")
+    return job
+
+
+@router.get("/parliament/question/{row_id}")
+def get_question_full(row_id: int, user=Depends(get_admin_user)):
+    """
+    Full detail view of a single parliamentary_questions row — used by the
+    admin UI drawer to show the Q+A text + PDF cache metadata.
+    """
+    q_row = _q_one("""
+        SELECT pq.*,
+               c.fetch_status   AS pdf_cache_status,
+               c.extractor_method AS pdf_cache_method,
+               c.pages          AS pdf_cache_pages,
+               c.fetched_at     AS pdf_cache_fetched_at
+          FROM parliamentary_questions pq
+     LEFT JOIN prs_pdf_cache c ON c.pdf_url = pq.question_pdf_url
+         WHERE pq.id = :rid
+    """, {"rid": row_id})
+    if not q_row:
+        raise HTTPException(404, "Question not found")
+    return dict(q_row)
