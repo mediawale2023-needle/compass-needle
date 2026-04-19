@@ -637,6 +637,14 @@ try:
 except Exception as e:
     logger.warning(f"Parliamentary tables migration skipped: {e}")
 
+# Migration: prs_profile_slug on tenants (PRS India identity for data scraping)
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS prs_profile_slug VARCHAR(200)"))
+    logger.info("Migration: tenants.prs_profile_slug ready")
+except Exception as e:
+    logger.warning(f"prs_profile_slug migration skipped: {e}")
+
 # Seed CSR company profiles from static JSON files on startup
 try:
     from modules.csr_data_loader import seed_csr_companies

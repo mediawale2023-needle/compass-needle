@@ -1,78 +1,90 @@
 """
-jobs/parliament_scraper.py — Targeted parliamentary data scraper (18th Lok Sabha)
+jobs/parliament_scraper.py — Parliamentary data scraper (18th Lok Sabha)
+                              Sourced from PRS India (prsindia.org)
 
-Fetches questions, debates, PMBs, and zero hour submissions for each subscribed
-MP tenant from sansad.in, keyed by their parliament_member_id (mpsno).
+Fetches the MP's full parliamentary track record from PRS India's MP Tracker.
+PRS India serves all questions, debates, and attendance on a single HTML page
+per MP — no API authentication, no session-by-session iteration needed.
 
-Data sourced from sansad.in internal API (api_ls/*). All endpoints follow the
-same base pattern discovered during Phase 2 identity resolution:
+Profile URL: https://prsindia.org/mptrack/18th-lok-sabha/{prs_slug}
 
-  Base:    https://sansad.in/api_ls/
-  Headers: Referer: https://sansad.in/ls/  (required, otherwise 403)
+Identity mapping (no numeric ID required):
+  PRS uses name-based URL slugs (e.g. "atul-garg", "supriya-sule").
+  Resolution order:
+    1. Return stored tenants.prs_profile_slug if already set.
+    2. Derive slug from mp_name (lowercase, hyphenated) → verify URL exists.
+    3. Fall back to scanning PRS listing pages with fuzzy name+constituency match.
+  Resolved slug is persisted in tenants.prs_profile_slug.
 
-API ENDPOINT REGISTRY (update here if sansad.in changes URLs):
-  Questions:   /api_ls/lsquestion        ?loksabha=18&session=N&mpsno=ID
-  Debates:     /api_ls/lsdebate          ?loksabha=18&session=N&mpsno=ID
-  PMBs:        /api_ls/privatebill       ?loksabha=18&session=N&mpsno=ID
-  Zero Hour:   /api_ls/zerohour          ?loksabha=18&session=N&mpsno=ID
+Data extracted per MP:
+  Questions : date, title, type (starred/unstarred), ministry, PDF URL
+  Debates   : date, title, debate type (Special Mention / Zero Hour / etc.)
+  Zero Hour : split out from debates where debate_type == "Zero Hour"
+  PMBs      : PRS shows count only — no record-level data; table left at 0
 
-Each endpoint is tried with a fallback to the sansad.in HTML search page
-if the JSON API returns unexpected data, giving us two layers of resilience.
-
-18th Lok Sabha Sessions (as of April 2026):
-  1 → 1st Session      Jun 24–Jul 3, 2024
-  2 → Monsoon Session  Jul 22–Aug 9, 2024
-  3 → Winter Session   Nov 25–Dec 20, 2024
-  4 → Budget Session   Jan 31–May 4, 2025
-  5 → Monsoon Session  Jul 21–Aug 22, 2025
-  6 → Winter Session   Nov 24–Dec 19, 2025
+One HTTP request per MP fetches all sessions at once; date-to-session mapping
+assigns each record to the correct 18th Lok Sabha session name.
 
 Usage:
-  # Backfill one tenant (6 sessions, all 4 data types)
-  from jobs.parliament_scraper import backfill_tenant
+  from jobs.parliament_scraper import backfill_tenant, sync_all_active_tenants
   backfill_tenant(tenant_id=5)
-
-  # Sync all tenants (incremental — only new records since last_synced)
-  from jobs.parliament_scraper import sync_all_active_tenants
   sync_all_active_tenants()
 
   # CLI
   python -m jobs.parliament_scraper --backfill-tenant 5
+  python -m jobs.parliament_scraper --backfill-all
   python -m jobs.parliament_scraper --sync-all
 """
 
 import os
 import sys
 import time
+import hashlib
 import logging
 from datetime import datetime, date
 from typing import Optional
 
 import requests
+from bs4 import BeautifulSoup
+from difflib import SequenceMatcher
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from sqlalchemy import text
-from sansadx_backend.db import SessionLocal, Tenant, engine
+from sansadx_backend.db import SessionLocal, Tenant, TenantProfile, engine
 
 logger = logging.getLogger("needle.parliament.scraper")
+
 
 # ─────────────────────────────────────────
 # CONFIGURATION
 # ─────────────────────────────────────────
 
-SANSAD_BASE   = "https://sansad.in"
-SANSAD_API    = f"{SANSAD_BASE}/api_ls"
-SANSAD_HEADERS = {
-    "Referer":    f"{SANSAD_BASE}/ls/",
-    "User-Agent": "Mozilla/5.0 (compatible; NeedleParliamentSync/1.0)",
-    "Accept":     "application/json",
-}
-REQUEST_TIMEOUT = 20   # seconds per request
-INTER_REQUEST_DELAY = 1.2  # seconds between requests (polite)
-MAX_RETRIES = 3
+PRS_BASE        = "https://prsindia.org"
+PRS_PROFILE_URL = f"{PRS_BASE}/mptrack/18th-lok-sabha"
+PRS_LISTING_URL = f"{PRS_BASE}/mptrack/18loksabha"
 
-# 18th Lok Sabha sessions: (session_number, human_name, start_date, end_date)
+PRS_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Referer":         f"{PRS_BASE}/mptrack/",
+}
+
+REQUEST_TIMEOUT     = 20    # seconds per request
+INTER_REQUEST_DELAY = 1.0   # polite crawl delay between requests
+MAX_LISTING_PAGES   = 65    # ~543 MPs / 9 per page
+
+# Honorifics to strip before deriving PRS slug
+_HONORIFICS = {
+    "shri", "smt", "dr", "adv", "prof", "mr", "mrs", "ms",
+    "col", "capt", "lt", "maj", "brig", "ji", "kumar", "kumari",
+}
+
+# 18th Lok Sabha session date ranges — used to assign session_name to each record
 LOK_SABHA_18_SESSIONS = [
     (1, "1st Session 2024",      date(2024, 6, 24),  date(2024, 7, 3)),
     (2, "Monsoon Session 2024",  date(2024, 7, 22),  date(2024, 8, 9)),
@@ -80,186 +92,350 @@ LOK_SABHA_18_SESSIONS = [
     (4, "Budget Session 2025",   date(2025, 1, 31),  date(2025, 5, 4)),
     (5, "Monsoon Session 2025",  date(2025, 7, 21),  date(2025, 8, 22)),
     (6, "Winter Session 2025",   date(2025, 11, 24), date(2025, 12, 19)),
+    (7, "Budget Session 2026",   date(2026, 1, 31),  date(2026, 5, 31)),  # approximate
 ]
 
-# Data types and their API slug + DB target
-DATA_TYPES = {
-    "questions":  {
-        "api_slug":   "lsquestion",
-        "table":      "parliamentary_questions",
-        "dedup_cols": ("tenant_id", "session_name", "question_number", "question_type"),
-    },
-    "debates": {
-        "api_slug":   "lsdebate",
-        "table":      "parliamentary_debates",
-        "dedup_cols": ("tenant_id", "session_name", "date", "topic"),
-    },
-    "pmbs": {
-        "api_slug":   "privatebill",
-        "table":      "private_members_bills",
-        "dedup_cols": ("tenant_id", "session_name", "bill_number"),
-    },
-    "zero_hour": {
-        "api_slug":   "zerohour",
-        "table":      "zero_hour_submissions",
-        "dedup_cols": ("tenant_id", "session_name", "date", "subject"),
-    },
-}
+
+# ─────────────────────────────────────────
+# SESSION DATE MAPPER
+# ─────────────────────────────────────────
+
+def _date_to_session(d: Optional[date]) -> tuple[int, str]:
+    """
+    Map a date to the corresponding 18th Lok Sabha session.
+    Returns (session_num, session_name).
+    Records between sessions are assigned to the nearest past session.
+    """
+    if not d:
+        return (0, "Unknown Session")
+    for snum, sname, sstart, send in LOK_SABHA_18_SESSIONS:
+        if sstart <= d <= send:
+            return (snum, sname)
+    # Between sessions — assign to nearest preceding session
+    for snum, sname, sstart, send in reversed(LOK_SABHA_18_SESSIONS):
+        if d >= sstart:
+            return (snum, sname)
+    return (LOK_SABHA_18_SESSIONS[0][0], LOK_SABHA_18_SESSIONS[0][1])
 
 
 # ─────────────────────────────────────────
-# HTTP HELPER
+# PRS SLUG RESOLUTION
 # ─────────────────────────────────────────
 
-def _get(url: str, params: dict) -> Optional[list]:
+def derive_prs_slug(name: str) -> str:
     """
-    GET request to sansad.in API with retry logic.
-    Returns parsed list of records, or None on persistent failure.
+    Derive a candidate PRS India profile slug from an MP name.
+    PRS slugs are lowercase, all name parts joined with hyphens, honorifics removed.
+      "Dr. Atul Garg"   → "atul-garg"
+      "Supriya Sule"    → "supriya-sule"
+      "Atul Kumar Singh" → "atul-kumar-singh"
     """
-    for attempt in range(1, MAX_RETRIES + 1):
+    words = name.lower().replace(".", " ").replace(",", " ").split()
+    words = [w for w in words if w not in _HONORIFICS and len(w) > 1]
+    return "-".join(words)
+
+
+def verify_prs_slug(slug: str) -> bool:
+    """Return True if the PRS profile page exists and has content for this slug."""
+    url = f"{PRS_PROFILE_URL}/{slug}"
+    try:
+        resp = requests.get(
+            url, headers=PRS_HEADERS,
+            timeout=REQUEST_TIMEOUT, allow_redirects=True,
+        )
+        # Page must return 200 and contain actual MP data (>3 KB)
+        return resp.status_code == 200 and len(resp.text) > 3000
+    except Exception as e:
+        logger.debug("verify_prs_slug(%s) error: %s", slug, e)
+        return False
+
+
+def find_prs_slug_from_listing(mp_name: str, constituency: str) -> Optional[str]:
+    """
+    Scan PRS listing pages to find the profile slug for an MP by fuzzy
+    name + constituency matching.  Scores: 40% name + 60% constituency.
+    Returns the best slug if score ≥ 70, else None.
+    """
+    def _norm(s: str) -> str:
+        return s.lower().strip()
+
+    mp_name_norm  = _norm(mp_name)
+    const_norm    = _norm(constituency)
+    best_slug     = None
+    best_score    = 0.0
+
+    for page in range(1, MAX_LISTING_PAGES + 1):
+        url = f"{PRS_LISTING_URL}?page={page}"
         try:
-            resp = requests.get(
-                url, params=params,
-                headers=SANSAD_HEADERS,
-                timeout=REQUEST_TIMEOUT,
-            )
-            if resp.status_code == 404:
-                logger.debug("404 for %s — endpoint may not exist for this session", url)
-                return []
-            if resp.status_code == 403:
-                logger.warning("403 from %s — check Referer header", url)
-                return None
-            resp.raise_for_status()
+            resp = requests.get(url, headers=PRS_HEADERS, timeout=REQUEST_TIMEOUT)
+            if resp.status_code != 200:
+                logger.debug("PRS listing page %d returned %d — stopping", page, resp.status_code)
+                break
 
-            data = resp.json()
-            # Normalise: API may return list or {"data": [...]} or {"records": [...]}
-            if isinstance(data, list):
-                return data
-            for key in ("data", "records", "results", "items"):
-                if key in data and isinstance(data[key], list):
-                    return data[key]
-            # Single object response (e.g. empty result set as {})
-            return []
+            soup  = BeautifulSoup(resp.text, "html.parser")
+            cards = soup.find_all("div", class_="mp-card")
+            if not cards:
+                logger.debug("PRS listing page %d: no cards found — stopping", page)
+                break
 
-        except requests.exceptions.Timeout:
-            logger.warning("Timeout on attempt %d for %s", attempt, url)
-        except requests.exceptions.ConnectionError as e:
-            logger.warning("Connection error attempt %d: %s", attempt, e)
+            for card in cards:
+                a = card.find("a")
+                if not a:
+                    continue
+                href  = a.get("href", "")
+                slug  = href.rstrip("/").split("/")[-1]
+                h3    = a.find("h3") or a.find("h2") or a.find("strong")
+                if not h3:
+                    continue
+                card_name  = _norm(h3.get_text())
+                paras      = card.find_all("p")
+                card_const = _norm(paras[1].get_text()) if len(paras) > 1 else ""
+
+                name_score  = SequenceMatcher(None, card_name, mp_name_norm).ratio() * 100
+                const_score = SequenceMatcher(None, card_const, const_norm).ratio() * 100
+                score       = 0.4 * name_score + 0.6 * const_score
+
+                if score > best_score:
+                    best_score = score
+                    best_slug  = slug
+                    if best_score >= 90:
+                        logger.info(
+                            "PRS listing scan: fast exit at page %d, slug=%s (score=%.1f)",
+                            page, slug, score,
+                        )
+                        return best_slug
+
         except Exception as e:
-            logger.warning("Request error attempt %d: %s", attempt, e)
+            logger.warning("PRS listing page %d error: %s", page, e)
+            break
 
-        if attempt < MAX_RETRIES:
-            time.sleep(INTER_REQUEST_DELAY * attempt)
+        time.sleep(0.3)
 
-    logger.error("All %d attempts failed for %s", MAX_RETRIES, url)
+    if best_score >= 70 and best_slug:
+        logger.info("PRS listing scan: best slug=%s (score=%.1f)", best_slug, best_score)
+        return best_slug
+
+    logger.warning(
+        "PRS listing scan: no match above 70 for '%s' / '%s' (best=%.1f)",
+        mp_name, constituency, best_score,
+    )
+    return None
+
+
+def _save_prs_slug(tenant_id: int, slug: str):
+    """Persist prs_profile_slug to the tenants table."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE tenants SET prs_profile_slug = :slug WHERE id = :tid"),
+            {"slug": slug, "tid": tenant_id},
+        )
+
+
+def resolve_prs_slug(tenant_id: int) -> Optional[str]:
+    """
+    Resolve and persist the PRS India profile slug for a tenant.
+      1. Return stored prs_profile_slug if already set.
+      2. Derive slug from mp_name → verify URL → save on success.
+      3. Fall back to listing-page scan.
+    Returns the slug string on success, None on failure.
+    """
+    db = SessionLocal()
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            return None
+
+        if tenant.prs_profile_slug:
+            return tenant.prs_profile_slug
+
+        profile      = db.query(TenantProfile).filter(TenantProfile.tenant_id == tenant_id).first()
+        mp_name      = (profile.mp_name if profile else None) or tenant.name or ""
+        constituency = (profile.constituency if profile else None) or tenant.constituency or ""
+    finally:
+        db.close()
+
+    if not mp_name:
+        logger.warning("resolve_prs_slug: tenant %d has no mp_name", tenant_id)
+        return None
+
+    # Step 1: derived slug
+    candidate = derive_prs_slug(mp_name)
+    logger.info("Trying derived PRS slug: %s (mp_name=%s)", candidate, mp_name)
+    if verify_prs_slug(candidate):
+        _save_prs_slug(tenant_id, candidate)
+        logger.info("Tenant %d PRS slug confirmed: %s", tenant_id, candidate)
+        return candidate
+
+    time.sleep(INTER_REQUEST_DELAY)
+
+    # Step 2: listing scan
+    logger.info("Derived slug failed — scanning PRS listing for '%s' / '%s'", mp_name, constituency)
+    found = find_prs_slug_from_listing(mp_name, constituency)
+    if found:
+        _save_prs_slug(tenant_id, found)
+        logger.info("Tenant %d PRS slug (from listing): %s", tenant_id, found)
+        return found
+
+    logger.warning(
+        "Could not resolve PRS slug for tenant %d (%s / %s)", tenant_id, mp_name, constituency
+    )
     return None
 
 
 # ─────────────────────────────────────────
-# RECORD PARSERS
+# DATE PARSER
 # ─────────────────────────────────────────
 
-def _parse_date(val) -> Optional[date]:
-    """Parse various date formats sansad.in might return."""
+def _parse_date(val: str) -> Optional[date]:
+    """Parse DD.MM.YYYY (PRS default) or ISO / other common formats."""
     if not val:
         return None
-    if isinstance(val, date):
-        return val
-    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%d %b %Y"):
+    val = str(val).strip()
+    for fmt in ("%d.%m.%Y", "%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
         try:
-            return datetime.strptime(str(val).strip(), fmt).date()
+            return datetime.strptime(val, fmt).date()
         except ValueError:
             continue
     return None
 
 
-def _parse_questions(raw: list, tenant_id: int, session_name: str) -> list:
-    """Normalise raw sansad.in question records into DB-ready dicts."""
-    out = []
-    for r in raw:
-        # sansad.in question record fields (best-guess from api_ls pattern)
-        q_num  = str(r.get("questionNo") or r.get("qno") or r.get("questionNumber") or "").strip()
-        q_type = str(r.get("questionType") or r.get("type") or "unstarred").strip().lower()
-        if not q_num:
+# ─────────────────────────────────────────
+# QUESTION NUMBER — STABLE HASH
+# ─────────────────────────────────────────
+
+def _q_num(date_str: str, title: str, q_type: str) -> str:
+    """
+    Generate a stable 10-char hex 'question number' from date + title + type.
+    PRS does not expose question numbers, so we use a deterministic hash for
+    deduplication against the UNIQUE(tenant_id, session_name, question_number, question_type)
+    constraint.
+    """
+    key = f"{date_str}:{title.lower()[:80]}:{q_type.lower()[:20]}"
+    return hashlib.md5(key.encode()).hexdigest()[:10]
+
+
+# ─────────────────────────────────────────
+# HTML SECTION FINDER
+# ─────────────────────────────────────────
+
+def _find_section_table(soup: BeautifulSoup, keywords: list) -> Optional[object]:
+    """
+    Return the first <table> that immediately follows a heading whose text
+    contains any of the given keywords (case-insensitive).
+    Searches h1-h5, p, strong, b tags for the heading.
+    """
+    seen = set()
+    for tag in soup.find_all(["h1", "h2", "h3", "h4", "h5", "p", "strong", "b"]):
+        text_lower = tag.get_text(strip=True).lower()
+        if not any(kw in text_lower for kw in keywords):
             continue
-        out.append({
-            "tenant_id":       tenant_id,
-            "house":           "lok_sabha",
-            "session_name":    session_name,
-            "session_number":  str(r.get("session") or ""),
-            "question_number": q_num,
-            "question_type":   q_type,
-            "subject":         str(r.get("subject") or r.get("title") or "")[:500],
-            "ministry":        str(r.get("ministry") or r.get("ministryName") or "")[:200],
-            "question_text":   str(r.get("questionText") or r.get("question") or ""),
-            "answer_text":     str(r.get("answerText") or r.get("answer") or ""),
-            "date_asked":      _parse_date(r.get("date") or r.get("questionDate")),
+        # Find the next <table> in the document after this heading
+        tbl = tag.find_next_sibling("table") or tag.find_next("table")
+        if tbl and id(tbl) not in seen:
+            seen.add(id(tbl))
+            return tbl
+    return None
+
+
+# ─────────────────────────────────────────
+# TABLE PARSERS
+# ─────────────────────────────────────────
+
+def _parse_question_table(table) -> list:
+    """
+    Parse the PRS questions table.
+    Columns: Date | Title (linked to PDF) | Type | Ministry
+    """
+    rows = []
+    for tr in table.find_all("tr"):
+        tds = tr.find_all("td")
+        if len(tds) < 2:
+            continue  # header or empty row
+
+        date_str = tds[0].get_text(strip=True)
+        d = _parse_date(date_str)
+        if not d:
+            continue  # skip non-data rows
+
+        a       = tds[1].find("a")
+        title   = (a.get_text(strip=True) if a else tds[1].get_text(strip=True))[:500]
+        pdf_url = (a.get("href", "") if a else "")
+        if pdf_url and not pdf_url.startswith("http"):
+            pdf_url = PRS_BASE + pdf_url
+
+        q_type   = tds[2].get_text(strip=True) if len(tds) > 2 else "Unstarred"
+        ministry = tds[3].get_text(strip=True) if len(tds) > 3 else ""
+
+        rows.append({
+            "date":          d,
+            "date_str":      date_str,
+            "title":         title.strip(),
+            "question_type": q_type.strip(),
+            "ministry":      ministry.strip()[:200],
+            "pdf_url":       pdf_url if pdf_url.startswith("http") else "",
         })
-    return out
+    return rows
 
 
-def _parse_debates(raw: list, tenant_id: int, session_name: str) -> list:
-    out = []
-    for r in raw:
-        topic = str(r.get("topic") or r.get("subject") or r.get("title") or "").strip()
-        if not topic:
+def _parse_debate_table(table) -> list:
+    """
+    Parse the PRS debates table.
+    Columns: Date | Title (linked to PDF or /mptrack/debatenotfound) | Debate Type
+    """
+    rows = []
+    for tr in table.find_all("tr"):
+        tds = tr.find_all("td")
+        if len(tds) < 2:
             continue
-        out.append({
-            "tenant_id":      tenant_id,
-            "house":          "lok_sabha",
-            "session_name":   session_name,
-            "date":           _parse_date(r.get("date") or r.get("debateDate")),
-            "topic":          topic[:500],
-            "bill_reference": str(r.get("billNumber") or r.get("billRef") or "")[:100] or None,
-            "speech_excerpt": str(r.get("speechText") or r.get("excerpt") or "")[:1000],
-            "full_speech_url": str(r.get("speechUrl") or r.get("url") or "") or None,
-        })
-    return out
 
-
-def _parse_pmbs(raw: list, tenant_id: int, session_name: str) -> list:
-    out = []
-    for r in raw:
-        bill_no = str(r.get("billNumber") or r.get("billNo") or r.get("number") or "").strip()
-        if not bill_no:
+        date_str = tds[0].get_text(strip=True)
+        d = _parse_date(date_str)
+        if not d:
             continue
-        out.append({
-            "tenant_id":       tenant_id,
-            "house":           "lok_sabha",
-            "session_name":    session_name,
-            "bill_number":     bill_no,
-            "title":           str(r.get("title") or r.get("billTitle") or "")[:500],
-            "subject":         str(r.get("subject") or r.get("description") or ""),
-            "date_introduced": _parse_date(r.get("date") or r.get("dateIntroduced")),
-            "current_status":  str(r.get("status") or "introduced")[:100],
-            "bill_text_url":   str(r.get("url") or r.get("pdfUrl") or "") or None,
+
+        a    = tds[1].find("a")
+        title   = (a.get_text(strip=True) if a else tds[1].get_text(strip=True))[:500]
+        href    = a.get("href", "") if a else ""
+        pdf_url = ""
+        if href and "debatenotfound" not in href:
+            pdf_url = href if href.startswith("http") else (PRS_BASE + href)
+
+        debate_type = tds[2].get_text(strip=True) if len(tds) > 2 else "Debate"
+
+        rows.append({
+            "date":        d,
+            "date_str":    date_str,
+            "title":       title.strip(),
+            "debate_type": debate_type.strip()[:100],
+            "pdf_url":     pdf_url[:500],
         })
-    return out
+    return rows
 
 
-def _parse_zero_hour(raw: list, tenant_id: int, session_name: str) -> list:
-    out = []
-    for r in raw:
-        subject = str(r.get("subject") or r.get("title") or "").strip()
-        if not subject:
-            continue
-        out.append({
-            "tenant_id":    tenant_id,
-            "house":        "lok_sabha",
-            "session_name": session_name,
-            "date":         _parse_date(r.get("date") or r.get("submissionDate")),
-            "subject":      subject[:500],
-            "text_excerpt": str(r.get("text") or r.get("description") or "")[:1000],
-        })
-    return out
+# ─────────────────────────────────────────
+# PRS PROFILE FETCHER
+# ─────────────────────────────────────────
 
+def scrape_prs_profile(prs_slug: str) -> dict:
+    """
+    Fetch and parse https://prsindia.org/mptrack/18th-lok-sabha/{prs_slug}.
+    Returns {"questions": [...], "debates": [...]}
+    Raises requests.HTTPError on non-200 response.
+    """
+    url  = f"{PRS_PROFILE_URL}/{prs_slug}"
+    resp = requests.get(url, headers=PRS_HEADERS, timeout=REQUEST_TIMEOUT)
+    resp.raise_for_status()
 
-PARSERS = {
-    "questions": _parse_questions,
-    "debates":   _parse_debates,
-    "pmbs":      _parse_pmbs,
-    "zero_hour": _parse_zero_hour,
-}
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    questions_table = _find_section_table(soup, ["question"])
+    debates_table   = _find_section_table(soup, ["debate"])
+
+    questions = _parse_question_table(questions_table) if questions_table else []
+    debates   = _parse_debate_table(debates_table)     if debates_table   else []
+
+    logger.info("PRS %s: %d questions, %d debates parsed", prs_slug, len(questions), len(debates))
+    return {"questions": questions, "debates": debates}
 
 
 # ─────────────────────────────────────────
@@ -308,26 +484,6 @@ def _upsert_debates(records: list) -> int:
     return inserted
 
 
-def _upsert_pmbs(records: list) -> int:
-    if not records:
-        return 0
-    inserted = 0
-    with engine.begin() as conn:
-        for r in records:
-            result = conn.execute(text("""
-                INSERT INTO private_members_bills
-                    (tenant_id, house, session_name, bill_number, title,
-                     subject, date_introduced, current_status, bill_text_url, scraped_at)
-                VALUES
-                    (:tenant_id, :house, :session_name, :bill_number, :title,
-                     :subject, :date_introduced, :current_status, :bill_text_url, NOW())
-                ON CONFLICT ON CONSTRAINT uq_pmb_tenant_session_bill
-                DO NOTHING
-            """), r)
-            inserted += result.rowcount
-    return inserted
-
-
 def _upsert_zero_hour(records: list) -> int:
     if not records:
         return 0
@@ -346,14 +502,6 @@ def _upsert_zero_hour(records: list) -> int:
             """), r)
             inserted += result.rowcount
     return inserted
-
-
-UPSERT_FNS = {
-    "questions": _upsert_questions,
-    "debates":   _upsert_debates,
-    "pmbs":      _upsert_pmbs,
-    "zero_hour": _upsert_zero_hour,
-}
 
 
 # ─────────────────────────────────────────
@@ -386,103 +534,180 @@ def _mark_job(tenant_id: int, session_name: str, data_type: str, status: str,
             "status":    status,
             "recs":      records,
             "err":       error,
-            "started":   now if status == "running" else None,
-            "completed": now if status in ("done", "error") else None,
+            "started":   now if status == "running"              else None,
+            "completed": now if status in ("done", "error")      else None,
         })
 
 
+def _mark_all_sessions(tenant_id: int, data_type: str,
+                       status: str, counts: dict = None):
+    """Mark all 18th LS sessions for a given data_type."""
+    counts = counts or {}
+    for _, sname, _, _ in LOK_SABHA_18_SESSIONS:
+        _mark_job(tenant_id, sname, data_type, status,
+                  records=counts.get(sname, 0))
+
+
 # ─────────────────────────────────────────
-# CORE SCRAPE — ONE SESSION, ONE DATA TYPE
+# CORE SCRAPE FOR ONE TENANT
 # ─────────────────────────────────────────
 
-def scrape_session(tenant_id: int, member_id: str, session_num: int,
-                   session_name: str, data_type: str) -> int:
+def scrape_tenant(tenant_id: int, prs_slug: str,
+                  since_date: Optional[date] = None) -> dict:
     """
-    Fetch one data type for one MP for one session.
-    Returns number of new records inserted.
+    Fetch and store all parliamentary data for one tenant from PRS India.
+
+    Args:
+        tenant_id:  DB tenant id
+        prs_slug:   PRS India profile slug (e.g. "atul-garg")
+        since_date: If set, skip records older than this date (incremental sync).
+
+    Returns summary: {
+        "questions_inserted": N, "debates_inserted": N, "zero_hour_inserted": N
+    }
     """
-    cfg     = DATA_TYPES[data_type]
-    url     = f"{SANSAD_API}/{cfg['api_slug']}"
-    params  = {"loksabha": "18", "session": str(session_num), "mpsno": str(member_id), "locale": "en"}
+    # Mark all session/type combos as running
+    for dt in ("questions", "debates", "pmbs", "zero_hour"):
+        _mark_all_sessions(tenant_id, dt, "running")
 
-    logger.info("Scraping %s | tenant=%d | session=%s | mpsno=%s",
-                data_type, tenant_id, session_name, member_id)
+    try:
+        data = scrape_prs_profile(prs_slug)
+    except Exception as e:
+        err_msg = str(e)
+        logger.error("PRS fetch failed for slug=%s tenant=%d: %s", prs_slug, tenant_id, err_msg)
+        for dt in ("questions", "debates", "pmbs", "zero_hour"):
+            _mark_all_sessions(tenant_id, dt, "error",
+                               counts={s[1]: 0 for s in LOK_SABHA_18_SESSIONS})
+        return {"questions_inserted": 0, "debates_inserted": 0, "zero_hour_inserted": 0,
+                "error": err_msg}
 
-    _mark_job(tenant_id, session_name, data_type, "running")
+    # ── Build question records ─────────────────────────────────────
+    q_records    = []
+    q_by_session = {}
+    for q in data["questions"]:
+        d = q["date"]
+        if since_date and d < since_date:
+            continue
+        snum, sname = _date_to_session(d)
+        q_by_session[sname] = q_by_session.get(sname, 0) + 1
+        q_records.append({
+            "tenant_id":       tenant_id,
+            "house":           "lok_sabha",
+            "session_name":    sname,
+            "session_number":  str(snum),
+            "question_number": _q_num(q["date_str"], q["title"], q["question_type"]),
+            "question_type":   q["question_type"].lower(),
+            "subject":         q["title"],
+            "ministry":        q["ministry"],
+            "question_text":   q.get("pdf_url", ""),   # PDF link for reference
+            "answer_text":     "",
+            "date_asked":      d,
+        })
 
-    raw = _get(url, params)
-    if raw is None:
-        _mark_job(tenant_id, session_name, data_type, "error",
-                  error=f"All {MAX_RETRIES} HTTP attempts failed")
-        return 0
+    # ── Split debates into regular debates vs zero-hour ───────────
+    deb_records = []
+    zh_records  = []
+    deb_by_session = {}
+    zh_by_session  = {}
 
-    if not raw:
-        _mark_job(tenant_id, session_name, data_type, "done", records=0)
-        return 0
+    for deb in data["debates"]:
+        d = deb["date"]
+        if since_date and d < since_date:
+            continue
+        snum, sname = _date_to_session(d)
+        dtype = deb["debate_type"].lower()
 
-    # Parse
-    parse_fn  = PARSERS[data_type]
-    records   = parse_fn(raw, tenant_id, session_name)
-    upsert_fn = UPSERT_FNS[data_type]
-    inserted  = upsert_fn(records)
+        if "zero hour" in dtype or "zero-hour" in dtype:
+            zh_by_session[sname] = zh_by_session.get(sname, 0) + 1
+            zh_records.append({
+                "tenant_id":    tenant_id,
+                "house":        "lok_sabha",
+                "session_name": sname,
+                "date":         d,
+                "subject":      deb["title"],
+                "text_excerpt": "",
+            })
+        else:
+            deb_by_session[sname] = deb_by_session.get(sname, 0) + 1
+            deb_records.append({
+                "tenant_id":      tenant_id,
+                "house":          "lok_sabha",
+                "session_name":   sname,
+                "date":           d,
+                "topic":          deb["title"],
+                "bill_reference": deb["debate_type"],   # e.g. "Special Mention"
+                "speech_excerpt": "",
+                "full_speech_url": deb.get("pdf_url") or None,
+            })
 
-    _mark_job(tenant_id, session_name, data_type, "done", records=inserted)
-    logger.info("  → %d raw records, %d new inserts", len(records), inserted)
-    return inserted
+    # ── Upsert ────────────────────────────────────────────────────
+    q_ins  = _upsert_questions(q_records)
+    d_ins  = _upsert_debates(deb_records)
+    zh_ins = _upsert_zero_hour(zh_records)
+
+    # ── Mark jobs done ────────────────────────────────────────────
+    _mark_all_sessions(tenant_id, "questions", "done", q_by_session)
+    _mark_all_sessions(tenant_id, "debates",   "done", deb_by_session)
+    _mark_all_sessions(tenant_id, "zero_hour", "done", zh_by_session)
+    _mark_all_sessions(tenant_id, "pmbs",      "done", {})  # PRS: count only
+
+    logger.info(
+        "scrape_tenant(%d, %s): %d questions, %d debates, %d zero-hour inserted",
+        tenant_id, prs_slug, q_ins, d_ins, zh_ins,
+    )
+    return {
+        "questions_inserted": q_ins,
+        "debates_inserted":   d_ins,
+        "zero_hour_inserted": zh_ins,
+    }
 
 
 # ─────────────────────────────────────────
-# BACKFILL — ALL 6 SESSIONS, ONE TENANT
+# BACKFILL — ONE TENANT
 # ─────────────────────────────────────────
 
 def backfill_tenant(tenant_id: int, data_types: list = None,
                     sessions: list = None) -> dict:
     """
-    Run the 6-session historical backfill for one tenant.
+    Run the full historical backfill for one tenant from PRS India.
 
-    Args:
-        tenant_id:   DB tenant id
-        data_types:  subset of ['questions','debates','pmbs','zero_hour']
-                     defaults to all 4
-        sessions:    subset of session numbers 1–6
-                     defaults to all 6
+    data_types and sessions args are accepted for API compatibility but
+    ignored — PRS delivers all data types and all sessions in one page fetch.
 
-    Returns summary dict: {data_type: {session_name: records_inserted}}
+    Returns a summary dict.
     """
     db = SessionLocal()
     try:
         tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
         if not tenant:
             return {"error": f"Tenant {tenant_id} not found"}
-        if not tenant.parliament_member_id:
-            return {"error": f"Tenant {tenant_id} has no parliament_member_id — run identity resolver first"}
         if tenant.parliament_sync_status not in ("active", "auto_matched"):
-            return {"error": f"Tenant {tenant_id} sync status is '{tenant.parliament_sync_status}' — confirm identity first"}
-        member_id = tenant.parliament_member_id
+            return {
+                "error": (
+                    f"Tenant {tenant_id} sync status is '{tenant.parliament_sync_status}' "
+                    "— confirm MP identity first via the Parliament Sync screen."
+                )
+            }
+        prs_slug = tenant.prs_profile_slug
     finally:
         db.close()
 
-    target_types    = data_types or list(DATA_TYPES.keys())
-    target_sessions = [s for s in LOK_SABHA_18_SESSIONS if sessions is None or s[0] in sessions]
+    # Resolve PRS slug if not yet set
+    if not prs_slug:
+        logger.info("Tenant %d: no prs_profile_slug — resolving now …", tenant_id)
+        prs_slug = resolve_prs_slug(tenant_id)
+        if not prs_slug:
+            return {
+                "error": (
+                    f"Could not resolve PRS India profile for tenant {tenant_id}. "
+                    "The MP name may not exactly match PRS records. "
+                    "Set prs_profile_slug manually via the admin parliament sync screen."
+                )
+            }
 
-    summary = {dt: {} for dt in target_types}
-    total   = len(target_types) * len(target_sessions)
-    done    = 0
+    logger.info("Starting backfill: tenant=%d prs_slug=%s", tenant_id, prs_slug)
+    result = scrape_tenant(tenant_id, prs_slug)
 
-    logger.info("Starting backfill: tenant=%d mpsno=%s | %d types × %d sessions",
-                tenant_id, member_id, len(target_types), len(target_sessions))
-
-    for session_num, session_name, _, _ in target_sessions:
-        for data_type in target_types:
-            inserted = scrape_session(
-                tenant_id, member_id, session_num, session_name, data_type
-            )
-            summary[data_type][session_name] = inserted
-            done += 1
-            logger.info("Progress: %d/%d", done, total)
-            time.sleep(INTER_REQUEST_DELAY)
-
-    # Update tenant sync timestamp
     with engine.begin() as conn:
         conn.execute(text("""
             UPDATE tenants
@@ -491,8 +716,8 @@ def backfill_tenant(tenant_id: int, data_types: list = None,
             WHERE id = :tid
         """), {"tid": tenant_id})
 
-    logger.info("Backfill complete for tenant %d: %s", tenant_id, summary)
-    return summary
+    logger.info("Backfill complete for tenant %d: %s", tenant_id, result)
+    return result
 
 
 # ─────────────────────────────────────────
@@ -501,57 +726,45 @@ def backfill_tenant(tenant_id: int, data_types: list = None,
 
 def sync_all_active_tenants(data_types: list = None) -> dict:
     """
-    Incremental sync: fetch only the latest/current session for all tenants
-    whose parliament_sync_enabled = true and parliament_member_id is set.
-
-    Called by the session monitor cron (every 4–6h during active sessions).
+    Incremental sync: fetch PRS data for all active tenants and insert
+    only records newer than their parliament_last_synced timestamp.
+    Called by the session monitor cron during active Lok Sabha sessions.
     """
     db = SessionLocal()
     try:
         tenants = db.query(Tenant).filter(
             Tenant.parliament_sync_enabled == True,
-            Tenant.parliament_member_id.isnot(None),
+            Tenant.prs_profile_slug.isnot(None),
             Tenant.parliament_sync_status == "active",
             Tenant.is_active == True,
         ).all()
-        tenant_list = [(t.id, t.parliament_member_id) for t in tenants]
+        tenant_list = [
+            (t.id, t.prs_profile_slug, t.parliament_last_synced)
+            for t in tenants
+        ]
     finally:
         db.close()
 
     if not tenant_list:
-        logger.info("No active tenants with confirmed parliament identity — nothing to sync")
+        logger.info("No active tenants with PRS profile slug — nothing to sync")
         return {}
 
-    # Determine the most recent completed session (don't scrape future sessions)
-    today = date.today()
-    completed = [s for s in LOK_SABHA_18_SESSIONS if s[3] <= today]
-    if not completed:
-        logger.info("No completed 18th Lok Sabha sessions yet")
-        return {}
-    latest = completed[-1]   # (session_num, session_name, start, end)
-
-    target_types = data_types or list(DATA_TYPES.keys())
     results = {}
+    logger.info("Incremental sync: %d tenants", len(tenant_list))
 
-    logger.info("Incremental sync: %d tenants, session=%s, types=%s",
-                len(tenant_list), latest[1], target_types)
+    for tenant_id, prs_slug, last_synced in tenant_list:
+        since = last_synced.date() if last_synced else None
+        logger.info("Syncing tenant=%d prs_slug=%s since=%s", tenant_id, prs_slug, since)
+        result = scrape_tenant(tenant_id, prs_slug, since_date=since)
 
-    for tenant_id, member_id in tenant_list:
-        tenant_results = {}
-        for data_type in target_types:
-            inserted = scrape_session(
-                tenant_id, member_id, latest[0], latest[1], data_type
-            )
-            tenant_results[data_type] = inserted
-            time.sleep(INTER_REQUEST_DELAY)
-
-        # Update last_synced
         with engine.begin() as conn:
-            conn.execute(text("""
-                UPDATE tenants SET parliament_last_synced = NOW() WHERE id = :tid
-            """), {"tid": tenant_id})
+            conn.execute(
+                text("UPDATE tenants SET parliament_last_synced = NOW() WHERE id = :tid"),
+                {"tid": tenant_id},
+            )
 
-        results[tenant_id] = tenant_results
+        results[tenant_id] = result
+        time.sleep(INTER_REQUEST_DELAY)
 
     return results
 
@@ -562,15 +775,12 @@ def sync_all_active_tenants(data_types: list = None) -> dict:
 
 def backfill_all_confirmed_tenants() -> dict:
     """
-    Run 6-session backfill for every tenant with a confirmed parliament_member_id
-    that hasn't been backfilled yet (no backfill_jobs rows = not started).
-
-    Called once from the admin "Run Backfill for All" button.
+    Run full backfill for every confirmed tenant that hasn't been fully backfilled.
+    Called from the admin "Run Backfill for All" button.
     """
     db = SessionLocal()
     try:
         tenants = db.query(Tenant).filter(
-            Tenant.parliament_member_id.isnot(None),
             Tenant.parliament_sync_status == "active",
             Tenant.is_active == True,
         ).all()
@@ -578,7 +788,8 @@ def backfill_all_confirmed_tenants() -> dict:
     finally:
         db.close()
 
-    # Filter to those with at least one pending backfill job
+    # Filter to tenants that need backfill (fewer done jobs than expected)
+    expected_done = len(LOK_SABHA_18_SESSIONS) * 4   # 7 sessions × 4 types
     to_backfill = []
     for tid in ids:
         with engine.connect() as conn:
@@ -587,18 +798,18 @@ def backfill_all_confirmed_tenants() -> dict:
                 WHERE tenant_id = :tid AND status = 'done'
             """), {"tid": tid}).mappings().fetchone()
         done_count = row["cnt"] if row else 0
-        total_expected = len(LOK_SABHA_18_SESSIONS) * len(DATA_TYPES)
-        if done_count < total_expected:
+        if done_count < expected_done:
             to_backfill.append(tid)
 
-    logger.info("Batch backfill: %d tenants need work (out of %d confirmed)",
-                len(to_backfill), len(ids))
+    logger.info(
+        "Batch backfill: %d tenants need work (out of %d confirmed)",
+        len(to_backfill), len(ids),
+    )
 
     results = {}
     for i, tid in enumerate(to_backfill):
         logger.info("Backfilling tenant %d (%d/%d)…", tid, i + 1, len(to_backfill))
         results[tid] = backfill_tenant(tid)
-        # Brief pause between tenants
         if i < len(to_backfill) - 1:
             time.sleep(2.0)
 
@@ -616,32 +827,32 @@ if __name__ == "__main__":
     )
 
     import argparse
-    parser = argparse.ArgumentParser(description="Needle Parliament Scraper")
+    parser = argparse.ArgumentParser(description="Needle Parliament Scraper (PRS India)")
     parser.add_argument("--backfill-tenant", type=int, metavar="TENANT_ID",
-                        help="Run 6-session backfill for one tenant")
-    parser.add_argument("--backfill-all",  action="store_true",
-                        help="Backfill all confirmed tenants that haven't been backfilled yet")
-    parser.add_argument("--sync-all",      action="store_true",
-                        help="Incremental sync (latest session only) for all active tenants")
-    parser.add_argument("--data-types",    nargs="+",
-                        choices=["questions", "debates", "pmbs", "zero_hour"],
-                        help="Limit to specific data types (default: all)")
-    parser.add_argument("--sessions",      nargs="+", type=int, metavar="N",
-                        help="Limit to specific session numbers 1-6 (default: all)")
+                        help="Run full backfill for one tenant")
+    parser.add_argument("--backfill-all", action="store_true",
+                        help="Backfill all confirmed tenants that are not yet fully filled")
+    parser.add_argument("--sync-all", action="store_true",
+                        help="Incremental sync (records since last_synced) for all active tenants")
+    parser.add_argument("--resolve-slug", type=int, metavar="TENANT_ID",
+                        help="Resolve and save PRS profile slug for one tenant (no scrape)")
     args = parser.parse_args()
 
-    if args.backfill_tenant:
-        result = backfill_tenant(
-            args.backfill_tenant,
-            data_types=args.data_types,
-            sessions=args.sessions,
-        )
+    if args.resolve_slug:
+        slug = resolve_prs_slug(args.resolve_slug)
+        print(f"Resolved: {slug}" if slug else "Could not resolve PRS slug.")
+
+    elif args.backfill_tenant:
+        result = backfill_tenant(args.backfill_tenant)
         print(result)
+
     elif args.backfill_all:
         result = backfill_all_confirmed_tenants()
         print(result)
+
     elif args.sync_all:
-        result = sync_all_active_tenants(data_types=args.data_types)
+        result = sync_all_active_tenants()
         print(result)
+
     else:
         parser.print_help()

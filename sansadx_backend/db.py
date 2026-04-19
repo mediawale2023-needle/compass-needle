@@ -98,6 +98,7 @@ class Tenant(Base):
     parliament_sync_enabled = Column(Boolean, default=True)
     parliament_last_synced  = Column(DateTime, nullable=True)
     parliament_sync_status  = Column(String, default="pending")  # pending|active|error|unmatched
+    prs_profile_slug        = Column(String, nullable=True)       # PRS India profile slug (e.g. "atul-garg")
 
     users = relationship("User", back_populates="tenant")
     cases = relationship("Case", back_populates="tenant")
