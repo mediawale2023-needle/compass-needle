@@ -112,8 +112,14 @@ def fetch_all_members(force_refresh: bool = False) -> list[dict]:
         resp = requests.get(SANSAD_API_URL, headers=SANSAD_HEADERS, timeout=SANSAD_TIMEOUT_SECS)
         resp.raise_for_status()
         data = resp.json()
-        # API returns either a list or {"data": [...]} — handle both
-        members = data if isinstance(data, list) else data.get("data", data.get("members", []))
+        # sansad.in returns {"membersDtoList": [...], "metaDatasDto": {...}}
+        # Fallback chain handles any future shape changes
+        members = (
+            data if isinstance(data, list)
+            else data.get("membersDtoList",
+                 data.get("data",
+                 data.get("members", [])))
+        )
         if not isinstance(members, list) or len(members) < 100:
             raise ValueError(f"Unexpected response shape — got {len(members) if isinstance(members, list) else type(members)}")
         _member_cache = members
