@@ -21,13 +21,11 @@ import { cn } from '@/lib/utils';
 
 const TABS = [
     { key: 'All', label: 'All Cases' },
-    { key: 'my_cases', label: 'My Cases' },
     { key: 'new', label: 'New' },
     { key: 'awaiting_location', label: 'Needs Location' },
     { key: 'in_progress', label: 'In Progress' },
     { key: 'resolved', label: 'Resolved' },
     { key: 'escalated', label: 'Escalated' },
-    { key: 'closed', label: 'Closed' },
     { key: 'other', label: 'Other' },
     { key: 'clusters', label: 'Related Clusters' },
     { key: 'deleted', label: 'Deleted' },
@@ -988,10 +986,7 @@ function BriefcaseInner() {
                     limit: String(pageSize),
                 });
 
-                if (statusFilter === 'my_cases') {
-                    if (user?.username) params.set('assigned_to', user.username);
-                    params.set('exclude_status', 'resolved,closed');
-                } else if (statusFilter === 'All') {
+                if (statusFilter === 'All') {
                     params.set('exclude_status', 'resolved,closed');
                 } else if (statusFilter === 'other') {
                     params.set('categories', OTHER_CATEGORIES.join(','));
@@ -1031,8 +1026,7 @@ function BriefcaseInner() {
             if (document.visibilityState !== 'visible') return;
             try {
                 const params = new URLSearchParams({ page: '1', limit: '1' });
-                if (statusFilter === 'my_cases') { if (user?.username) params.set('assigned_to', user.username); params.set('exclude_status', 'resolved,closed'); }
-                else if (statusFilter === 'All') params.set('exclude_status', 'resolved,closed');
+                if (statusFilter === 'All') params.set('exclude_status', 'resolved,closed');
                 else if (statusFilter === 'other') params.set('categories', OTHER_CATEGORIES.join(','));
                 else params.set('status', statusFilter);
                 if (search) params.set('search', search);
