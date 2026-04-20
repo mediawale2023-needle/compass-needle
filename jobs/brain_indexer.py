@@ -56,28 +56,56 @@ logger = logging.getLogger("needle.brain_indexer")
 # SCHEMA
 # ─────────────────────────────────────────────────────────────────────────
 
+def _pgvector_available() -> bool:
+    """
+    Return True if the vector type is usable in this Postgres instance.
+    Uses a fast type-existence query instead of a dummy cast so it never
+    leaves a failed transaction behind.
+    """
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(text(
+                "SELECT 1 FROM pg_type WHERE typname = 'vector'"
+            )).fetchone()
+            return row is not None
+    except Exception:
+        return False
+
+
 def ensure_schema():
     """
-    Enable pgvector + create memory_chunks. Idempotent. Safe to run on
-    every app boot.
+    Enable pgvector + create memory_chunks.  Idempotent.
 
-    IMPORTANT: each DDL statement that might fail goes in its OWN transaction
-    so that a failure (e.g. CREATE EXTENSION permission denied) does not
-    put the whole transaction into an aborted state and kill all subsequent
-    statements in the same block.
+    Design rules so Railway / hosted Postgres never leaves an aborted txn:
+      • Each DDL that can fail independently goes in its OWN engine.begin().
+      • The core CREATE TABLE never references 'vector' directly — the
+        embedding column is added / altered in a separate step so the table
+        is always created even when pgvector is not (yet) installed.
+      • Call ensure_schema() again after enabling the extension and it will
+        ADD the vector column without recreating the table.
+
+    How to enable pgvector on Railway:
+      Railway Dashboard → your Postgres service → Query tab → run:
+          CREATE EXTENSION IF NOT EXISTS vector;
+      Then re-run indexing — this function will auto-add the vector column.
     """
-    # ── 1. pgvector extension — isolated transaction ───────────────────────
-    # Railway managed Postgres has the vector extension available; standalone
-    # Postgres requires superuser. If it fails, retrieval falls back to seq scan.
+    # ── 1. Try to create extension (may fail without superuser) ───────────
     try:
         with engine.begin() as conn:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        logger.info("ensure_schema: pgvector extension enabled.")
     except Exception as e:
-        logger.warning("CREATE EXTENSION vector failed (pgvector unavailable?): %s", e)
+        logger.warning(
+            "ensure_schema: CREATE EXTENSION vector failed — "
+            "pgvector may not be installed on this Postgres. "
+            "Enable it in Railway Dashboard → Postgres → Query tab, then re-run. "
+            "Error: %s", e,
+        )
 
-    # ── 2. Core table + plain indexes — isolated transaction ──────────────
+    # ── 2. Core table WITHOUT the vector column ────────────────────────────
+    # This always succeeds regardless of pgvector availability.
     with engine.begin() as conn:
-        conn.execute(text(f"""
+        conn.execute(text("""
             CREATE TABLE IF NOT EXISTS memory_chunks (
                 id              BIGSERIAL PRIMARY KEY,
                 tenant_id       INTEGER,
@@ -85,25 +113,70 @@ def ensure_schema():
                 source_table    VARCHAR(60)  NOT NULL,
                 source_id       VARCHAR(120) NOT NULL,
                 title           TEXT,
-                content         TEXT NOT NULL,
-                content_hash    VARCHAR(64) NOT NULL,
+                content         TEXT         NOT NULL,
+                content_hash    VARCHAR(64)  NOT NULL,
                 metadata        JSONB,
                 ministry        VARCHAR(160),
                 date_ref        DATE,
                 topic_tags      TEXT[],
-                embedding       vector({EMBED_DIM}),
                 embed_model     VARCHAR(60),
-                indexed_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+                indexed_at      TIMESTAMP    NOT NULL DEFAULT NOW(),
                 UNIQUE (source_type, source_id, content_hash)
             )
         """))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_tenant    ON memory_chunks (tenant_id)"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_type      ON memory_chunks (source_type)"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_min       ON memory_chunks (LOWER(ministry))"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_date      ON memory_chunks (date_ref)"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_table_id  ON memory_chunks (source_table, source_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_tenant   ON memory_chunks (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_type     ON memory_chunks (source_type)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_min      ON memory_chunks (LOWER(ministry))"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_date     ON memory_chunks (date_ref)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_table_id ON memory_chunks (source_table, source_id)"))
 
-    # ── 3. HNSW vector index — isolated transaction (heavy, pgvector ≥0.5) ─
+    # ── 3. Add / upgrade the embedding column — only if pgvector is live ──
+    if not _pgvector_available():
+        logger.warning(
+            "ensure_schema: pgvector not available — memory_chunks created "
+            "WITHOUT embedding column. Semantic search will not work until "
+            "you enable the extension and re-run indexing."
+        )
+        return
+
+    # Check whether the column already exists and what type it has
+    try:
+        with engine.connect() as conn:
+            col = conn.execute(text("""
+                SELECT data_type, udt_name
+                  FROM information_schema.columns
+                 WHERE table_name = 'memory_chunks'
+                   AND column_name = 'embedding'
+            """)).fetchone()
+    except Exception:
+        col = None
+
+    if col is None:
+        # Column doesn't exist yet — add it
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    f"ALTER TABLE memory_chunks "
+                    f"ADD COLUMN IF NOT EXISTS embedding vector({EMBED_DIM})"
+                ))
+            logger.info("ensure_schema: embedding vector(%d) column added.", EMBED_DIM)
+        except Exception as e:
+            logger.error("ensure_schema: could not add embedding column: %s", e)
+            return
+    elif col[1] != "vector":
+        # Column exists but is TEXT (legacy) — convert it
+        logger.info("ensure_schema: converting embedding column from TEXT to vector(%d)", EMBED_DIM)
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    f"ALTER TABLE memory_chunks "
+                    f"ALTER COLUMN embedding TYPE vector({EMBED_DIM}) "
+                    f"USING embedding::vector({EMBED_DIM})"
+                ))
+        except Exception as e:
+            logger.warning("ensure_schema: TEXT→vector conversion failed: %s", e)
+
+    # ── 4. Vector ANN index — isolated (heavy op, only runs once) ─────────
     try:
         with engine.begin() as conn:
             conn.execute(text("""
@@ -111,9 +184,9 @@ def ensure_schema():
                   ON memory_chunks
                   USING hnsw (embedding vector_cosine_ops)
             """))
+        logger.info("ensure_schema: HNSW index ready.")
     except Exception as e:
-        logger.warning("HNSW index unavailable, trying ivfflat: %s", e)
-        # ── 4. IVFFlat fallback — also isolated ───────────────────────────
+        logger.warning("HNSW unavailable, trying ivfflat: %s", e)
         try:
             with engine.begin() as conn:
                 conn.execute(text("""
@@ -122,8 +195,9 @@ def ensure_schema():
                       USING ivfflat (embedding vector_cosine_ops)
                       WITH (lists = 100)
                 """))
+            logger.info("ensure_schema: ivfflat index ready.")
         except Exception as e2:
-            logger.warning("ivfflat also unavailable, retrieval will use seq scan: %s", e2)
+            logger.warning("ivfflat also unavailable — seq scan will be used: %s", e2)
 
 
 # ─────────────────────────────────────────────────────────────────────────
