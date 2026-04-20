@@ -768,123 +768,146 @@ def llm_tag_batch(limit: int = LLM_TAG_MAX_PER_RUN) -> dict:
 # for any tenant are served from cache — no duplicate downloads.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Common English stopwords to strip before word-overlap comparison
+# Common English + parliamentary stopwords stripped before matching
 _STOPWORDS = frozenset(
     "a an the and or of in on at to by for is are was were be been being "
     "with from that this has have had will would could should may might "
-    "their its it he she we they do does did not no its its".split()
+    "their its it he she we they do does did not no per cent whether "
+    "state please kindly furnished details particulars information "
+    "government india minister ministry hon ble shri smt dr prof km "
+    "also any all year years since till date thereof regard regarding".split()
 )
 
 _RE_NORM = re.compile(r"[^a-z0-9 ]+")
 
 
+def _stem(w: str) -> str:
+    """Very light stemming to equate plural/verb forms (railways→railway)."""
+    if len(w) <= 4:
+        return w
+    for suffix in ("ations", "tion", "ment", "ness", "ings", "ing", "ers", "ies"):
+        if w.endswith(suffix) and len(w) - len(suffix) >= 3:
+            return w[: -len(suffix)]
+    if w.endswith("s") and len(w) > 4:
+        return w[:-1]
+    return w
+
+
 def _key_words(s: str) -> frozenset[str]:
-    """Lowercase, remove punctuation, drop stopwords, return word set."""
+    """Normalise → strip stopwords → stem → return word set."""
     s = _RE_NORM.sub(" ", (s or "").lower())
-    return frozenset(w for w in s.split() if len(w) > 2 and w not in _STOPWORDS)
+    return frozenset(
+        _stem(w) for w in s.split()
+        if len(w) > 2 and w not in _STOPWORDS
+    )
 
 
-def _jaccard(a: frozenset, b: frozenset) -> float:
-    if not a or not b:
+def _coverage(db_words: frozenset, text: str) -> float:
+    """
+    What fraction of DB subject words appear anywhere in `text` (after stemming)?
+
+    This is the primary matching signal for global PQs because:
+      • DB subject  = short PRS profile title  e.g. "Water Supply in Rural Areas"
+      • PDF text    = full question block, which always contains the subject
+                      heading verbatim plus the question body
+
+    Example:
+      db_words  = {water, suppl, rural, area}        (stemmed)
+      text      = "WATER SUPPLY IN RURAL AREAS\nWill the Minister..."
+      text_words = {water, suppl, rural, area, will, minister, ...}
+      coverage  = 4/4 = 1.0  ✓
+    """
+    if not db_words or not text:
         return 0.0
-    return len(a & b) / len(a | b)
-
-
-def _ministry_match(a: str, b: str) -> bool:
-    """Loose ministry match — true if any word of length ≥5 is shared."""
-    return bool(_key_words(a) & _key_words(b))
+    text_words = _key_words(text)
+    hits = sum(1 for w in db_words if w in text_words)
+    return hits / len(db_words)
 
 
 def _match_global_qas(
     parsed_qas: list[dict],
     db_rows: list[dict],
-    min_jaccard: float = 0.18,
+    min_coverage: float = 0.50,   # ≥50% of DB subject words must appear in Q text
 ) -> dict:
     """
     Match PDF-extracted Q&A blocks to global_parliamentary_questions rows.
 
-    Unlike the generic match_qas_to_rows() which uses SequenceMatcher on full
-    subject strings (threshold 0.55), this uses Jaccard word-overlap so that
-    short PRS profile titles ("Drinking Water Supply") still match verbose PDF
-    headers ("PROVISION OF DRINKING WATER IN RURAL AREAS", score ≈ 0.33).
+    Root cause of previous no_match: _guess_subject() in prs_answer_extractor
+    returns "Will the Minister of X be pleased to state..." rather than the
+    actual subject heading ("WATER SUPPLY IN RURAL AREAS"), so subject-to-subject
+    similarity is near-zero even for perfectly matching records.
 
-    Strategy (in order):
-      1. Single-row group + single parsed block + loose ministry match → auto-assign
-      2. Jaccard word overlap ≥ min_jaccard on subject words
-      3. Partial containment: all key words from the shorter subject appear
-         in the longer (handles "Water Supply" ⊂ "Water Supply in Rural Areas")
+    Fix: match DB subject words against the FULL question_text of each parsed
+    block. The actual subject heading is always present in question_text verbatim,
+    so word-coverage is near 1.0 for matching records.
+
+    Strategy:
+      1. Single-row group → auto-assign best-coverage block (avoids needing
+         exact subject match when only one row needs filling)
+      2. Multi-row groups → assign each row to best-coverage block ≥ min_coverage
 
     Returns: { db_row_id: {"parsed_qa": {...}, "score": float, "match_basis": str} }
     """
+    if not parsed_qas or not db_rows:
+        return {}
+
     matches: dict = {}
-    used_idx: set[int] = set()
 
-    qa_words = [_key_words(qa.get("subject") or "") for qa in parsed_qas]
+    # Pre-compute stemmed DB subject words and full-text corpus per parsed block
+    # Use question_text (full body) — subject heading is always in it
+    qa_full_texts = [
+        (qa.get("question_text") or "") + " " + (qa.get("subject") or "")
+        for qa in parsed_qas
+    ]
 
-    # ── 1. Auto-assign: one row, one block, ministry roughly matches ──────────
-    if len(db_rows) == 1 and len(parsed_qas) == 1:
-        row = db_rows[0]
-        qa  = parsed_qas[0]
-        db_min  = row.get("ministry") or ""
-        pdf_min = qa.get("ministry")  or ""
-        # Assign even without ministry match if subjects have any word overlap
-        db_w = _key_words(row.get("subject") or "")
-        if (not db_min or not pdf_min or _ministry_match(db_min, pdf_min)
-                or (db_w and _jaccard(db_w, qa_words[0]) > 0)):
-            matches[row["id"]] = {
-                "parsed_qa":   qa,
-                "score":       1.0 if (db_w and qa_words[0]) else 0.5,
-                "match_basis": "single_row_auto",
-            }
-            return matches
+    # ── 1. Single-row group: assign best coverage block unconditionally ────────
+    if len(db_rows) == 1:
+        row    = db_rows[0]
+        db_w   = _key_words(row.get("subject") or "")
+        best_i = 0
+        best_s = 0.0
+        for i, full_text in enumerate(qa_full_texts):
+            cov = _coverage(db_w, full_text) if db_w else 0.5
+            if cov > best_s:
+                best_s = cov
+                best_i = i
+        matches[row["id"]] = {
+            "parsed_qa":   parsed_qas[best_i],
+            "score":       round(best_s, 3),
+            "match_basis": "single_row_best_coverage",
+        }
+        return matches
 
-    # ── 2 & 3. Scored matching ────────────────────────────────────────────────
+    # ── 2. Multi-row group: scored coverage matching ──────────────────────────
     for row in db_rows:
-        if row["id"] in matches:
-            continue
-        db_w    = _key_words(row.get("subject") or "")
-        db_min  = row.get("ministry") or ""
+        db_w = _key_words(row.get("subject") or "")
         if not db_w:
+            # No subject to match on — assign highest-scoring block
+            best_i = max(range(len(qa_full_texts)),
+                         key=lambda i: len(_key_words(qa_full_texts[i])),
+                         default=0)
+            matches[row["id"]] = {
+                "parsed_qa":   parsed_qas[best_i],
+                "score":       0.3,
+                "match_basis": "no_subject_fallback",
+            }
             continue
 
         best_idx   = -1
         best_score = -1.0
-        best_basis = ""
 
-        for idx, (qa, pw) in enumerate(zip(parsed_qas, qa_words)):
-            if idx in used_idx:
-                continue
-            if not pw:
-                continue
+        for i, full_text in enumerate(qa_full_texts):
+            cov = _coverage(db_w, full_text)
+            if cov > best_score:
+                best_score = cov
+                best_idx   = i
 
-            # Base Jaccard score
-            score = _jaccard(db_w, pw)
-
-            # Ministry bonus (+0.10 if ministry words overlap)
-            pdf_min = qa.get("ministry") or ""
-            if db_min and pdf_min and _ministry_match(db_min, pdf_min):
-                score = min(1.0, score + 0.10)
-
-            # Containment bonus: all DB words appear in PDF subject
-            if db_w and db_w.issubset(pw):
-                score = min(1.0, score + 0.15)
-            elif pw and pw.issubset(db_w):
-                score = min(1.0, score + 0.08)
-
-            basis = "jaccard"
-            if score > best_score:
-                best_score = score
-                best_idx   = idx
-                best_basis = basis
-
-        if best_idx >= 0 and best_score >= min_jaccard:
+        if best_idx >= 0 and best_score >= min_coverage:
             matches[row["id"]] = {
                 "parsed_qa":   parsed_qas[best_idx],
                 "score":       round(best_score, 3),
-                "match_basis": best_basis,
+                "match_basis": "text_coverage",
             }
-            # Don't mark idx as used — multiple rows can draw from same PDF block
-            # (safer to over-assign than to leave rows blank)
 
     return matches
 
@@ -1047,10 +1070,17 @@ def fetch_global_answers(
             _mark_global_rows_status(row_ids, "failed")
             continue
 
-        if result.get("status") != "ok" or not result.get("parsed_qas"):
+        if result.get("status") != "ok":
             pdfs_failed += 1
             status = "no_pdf" if (result.get("error") == "download_failed") else "failed"
             _mark_global_rows_status(row_ids, status)
+            continue
+
+        if not result.get("parsed_qas"):
+            # PDF was downloaded and parsed but had no question headers.
+            # Mark as no_parse so we don't retry endlessly.
+            pdfs_failed += 1
+            _mark_global_rows_status(row_ids, "no_parse")
             continue
 
         if result.get("cached"):
@@ -1096,10 +1126,12 @@ def get_answer_coverage() -> dict:
                                                                            AS with_answers,
                 COUNT(*) FILTER (WHERE question_pdf_url IS NOT NULL AND question_pdf_url != '')
                                                                            AS with_pdf_url,
-                COUNT(*) FILTER (WHERE answer_fetch_status = 'ok')         AS fetch_ok,
+                COUNT(*) FILTER (WHERE answer_fetch_status IN ('ok','ok_raw')) AS fetch_ok,
                 COUNT(*) FILTER (WHERE answer_fetch_status = 'no_match')   AS no_match,
                 COUNT(*) FILTER (WHERE answer_fetch_status = 'failed')     AS failed,
-                COUNT(*) FILTER (WHERE answer_fetch_status = 'no_pdf')     AS no_pdf
+                COUNT(*) FILTER (WHERE answer_fetch_status = 'no_pdf')     AS no_pdf,
+                COUNT(*) FILTER (WHERE answer_fetch_status = 'no_parse')   AS no_parse,
+                COUNT(*) FILTER (WHERE answer_fetch_status IS NULL)        AS pending
               FROM global_parliamentary_questions
         """)).mappings().fetchone()
     row = dict(r) if r else {}
