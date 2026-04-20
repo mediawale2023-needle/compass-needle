@@ -176,6 +176,10 @@ def ensure_schema():
         except Exception as e:
             logger.warning("ensure_schema: TEXT→vector conversion failed: %s", e)
 
+    # Reset the module-level flag so next _upsert_chunks call re-verifies
+    global _embedding_col_checked
+    _embedding_col_checked = False
+
     # ── 4. Vector ANN index — isolated (heavy op, only runs once) ─────────
     try:
         with engine.begin() as conn:
@@ -237,10 +241,54 @@ def _delete_for_tenant(tenant_id: int):
         )
 
 
+def _ensure_embedding_column():
+    """
+    Verify the embedding column exists and is of type vector.
+    Called once before the first INSERT attempt.  Raises RuntimeError with
+    a clear action message if pgvector is not enabled so the admin UI can
+    surface it instead of showing a cryptic Postgres error.
+    """
+    if not _pgvector_available():
+        raise RuntimeError(
+            "pgvector extension is not enabled on this Postgres instance. "
+            "Go to Railway Dashboard → your Postgres service → Query tab and run:\n"
+            "    CREATE EXTENSION IF NOT EXISTS vector;\n"
+            "Then click 'Embed global PQs' again."
+        )
+    # Attempt to add the column if missing (handles fresh deploys)
+    try:
+        with engine.connect() as conn:
+            col = conn.execute(text(
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_name='memory_chunks' AND column_name='embedding'"
+            )).fetchone()
+        if not col:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    f"ALTER TABLE memory_chunks "
+                    f"ADD COLUMN IF NOT EXISTS embedding vector({EMBED_DIM})"
+                ))
+            logger.info("_ensure_embedding_column: embedding column added.")
+    except Exception as e:
+        raise RuntimeError(
+            f"Could not add embedding column to memory_chunks: {e}\n"
+            "Ensure pgvector is enabled: CREATE EXTENSION IF NOT EXISTS vector;"
+        ) from e
+
+
+_embedding_col_checked = False   # module-level flag so we only check once per process
+
+
 def _upsert_chunks(chunks: list[dict], embeddings: list[Optional[list[float]]]) -> int:
     """Insert (or skip-on-conflict) chunks with their embeddings."""
     if not chunks:
         return 0
+
+    global _embedding_col_checked
+    if not _embedding_col_checked:
+        _ensure_embedding_column()   # raises RuntimeError with clear message if missing
+        _embedding_col_checked = True
+
     inserted = 0
     sql = text("""
         INSERT INTO memory_chunks (
@@ -255,11 +303,12 @@ def _upsert_chunks(chunks: list[dict], embeddings: list[Optional[list[float]]]) 
             CAST(:emb AS vector), :model, NOW()
         )
         ON CONFLICT (source_type, source_id, content_hash) DO UPDATE
-            SET indexed_at = NOW(),
-                metadata   = EXCLUDED.metadata,
-                ministry   = EXCLUDED.ministry,
-                date_ref   = EXCLUDED.date_ref,
-                topic_tags = EXCLUDED.topic_tags
+            SET indexed_at  = NOW(),
+                embedding   = EXCLUDED.embedding,
+                metadata    = EXCLUDED.metadata,
+                ministry    = EXCLUDED.ministry,
+                date_ref    = EXCLUDED.date_ref,
+                topic_tags  = EXCLUDED.topic_tags
     """)
     with engine.begin() as conn:
         for c, vec in zip(chunks, embeddings):
