@@ -49,3 +49,12 @@ _archive/
 # Claude Code local config (contains API tokens)
 .claude/settings.local.json
 .claude/settings.json
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials

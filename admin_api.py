@@ -3619,3 +3619,197 @@ def get_question_full(row_id: int, user=Depends(get_admin_user)):
     if not q_row:
         raise HTTPException(404, "Question not found")
     return dict(q_row)
+
+
+# ─── Phase 2 Brain: memory-chunk indexing + retrieval playground ─────────────
+# Indexes PQs + debates + zero-hour + cases + constituency profiles + global
+# schemes into the memory_chunks pgvector table. Queries are served by
+# modules/brain_retriever.py and surfaced to copilot/drafter via api_router.
+
+_brain_index_jobs: dict = {}
+
+
+class BrainReindexRequest(BaseModel):
+    sources: Optional[list[str]] = None   # e.g. ["pq", "debate", "case", "profile", "zero_hour"]
+    rebuild: bool = False                   # delete existing chunks before reindex
+
+
+@router.post("/brain/reindex/{tenant_id}")
+def trigger_brain_reindex(
+    tenant_id: int,
+    body: BrainReindexRequest = BrainReindexRequest(),
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_admin_user),
+):
+    """Background re-index of all (or selected) sources for one tenant."""
+    job_id = f"brain_reindex_{tenant_id}_{uuid.uuid4().hex[:10]}"
+    _brain_index_jobs[job_id] = {
+        "status":      "running",
+        "tenant_id":   tenant_id,
+        "started_at":  datetime.utcnow().isoformat() + "Z",
+        "finished_at": None,
+        "summary":     None,
+        "error":       None,
+    }
+
+    def _run():
+        try:
+            from jobs.brain_indexer import index_tenant
+            summary = index_tenant(tenant_id, sources=body.sources, rebuild=body.rebuild)
+            _brain_index_jobs[job_id]["status"] = "done"
+            _brain_index_jobs[job_id]["summary"] = summary
+        except Exception as e:
+            logger.exception("brain reindex(%s) failed: %s", tenant_id, e)
+            _brain_index_jobs[job_id]["status"] = "error"
+            _brain_index_jobs[job_id]["error"] = str(e)
+        _brain_index_jobs[job_id]["finished_at"] = datetime.utcnow().isoformat() + "Z"
+
+    if background_tasks:
+        background_tasks.add_task(_run)
+    else:
+        threading.Thread(target=_run, daemon=True).start()
+
+    return {"ok": True, "job_id": job_id, "tenant_id": tenant_id,
+            "message": "Brain re-index started."}
+
+
+@router.post("/brain/reindex-all")
+def trigger_brain_reindex_all(
+    body: BrainReindexRequest = BrainReindexRequest(),
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_admin_user),
+):
+    """Background re-index of every active tenant."""
+    job_id = f"brain_reindex_all_{uuid.uuid4().hex[:10]}"
+    _brain_index_jobs[job_id] = {
+        "status":      "running",
+        "tenant_id":   None,
+        "started_at":  datetime.utcnow().isoformat() + "Z",
+        "finished_at": None,
+        "summary":     None,
+        "error":       None,
+    }
+
+    def _run():
+        try:
+            from jobs.brain_indexer import index_all_tenants, index_schemes_global
+            schemes = index_schemes_global()
+            tenants = index_all_tenants(sources=body.sources, rebuild=body.rebuild)
+            _brain_index_jobs[job_id]["status"] = "done"
+            _brain_index_jobs[job_id]["summary"] = {
+                "schemes_global": schemes,
+                "per_tenant":     tenants,
+            }
+        except Exception as e:
+            logger.exception("brain reindex-all failed: %s", e)
+            _brain_index_jobs[job_id]["status"] = "error"
+            _brain_index_jobs[job_id]["error"] = str(e)
+        _brain_index_jobs[job_id]["finished_at"] = datetime.utcnow().isoformat() + "Z"
+
+    if background_tasks:
+        background_tasks.add_task(_run)
+    else:
+        threading.Thread(target=_run, daemon=True).start()
+
+    return {"ok": True, "job_id": job_id,
+            "message": "Brain re-index started for all tenants + global schemes."}
+
+
+@router.post("/brain/reindex-schemes")
+def trigger_brain_reindex_schemes(
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_admin_user),
+):
+    """Re-index the global schemes_db.json (foreground — fast)."""
+    try:
+        from jobs.brain_indexer import index_schemes_global
+        return {"ok": True, "summary": index_schemes_global()}
+    except Exception as e:
+        logger.exception("schemes reindex failed: %s", e)
+        raise HTTPException(500, f"Schemes reindex failed: {e}")
+
+
+@router.get("/brain/reindex/status/{job_id}")
+def get_brain_reindex_status(job_id: str, user=Depends(get_admin_user)):
+    job = _brain_index_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found or expired")
+    return job
+
+
+@router.get("/brain/stats")
+def brain_stats(user=Depends(get_admin_user)):
+    try:
+        from jobs.brain_indexer import get_stats, get_stats_per_tenant
+        return {
+            "global":     get_stats(None),
+            "per_tenant": get_stats_per_tenant(),
+        }
+    except Exception as e:
+        logger.exception("brain stats failed: %s", e)
+        raise HTTPException(500, f"Brain stats failed: {e}")
+
+
+@router.get("/brain/stats/{tenant_id}")
+def brain_stats_one(tenant_id: int, user=Depends(get_admin_user)):
+    try:
+        from jobs.brain_indexer import get_stats
+        return get_stats(tenant_id)
+    except Exception as e:
+        logger.exception("brain stats(%s) failed: %s", tenant_id, e)
+        raise HTTPException(500, f"Brain stats failed: {e}")
+
+
+class BrainRetrieveRequest(BaseModel):
+    query: str
+    tenant_id: Optional[int] = None
+    source_types: Optional[list[str]] = None
+    k: int = 12
+    ministry: Optional[str] = None
+    include_global: bool = True
+    include_cross_mp: bool = False
+
+
+@router.post("/brain/retrieve")
+def brain_retrieve(body: BrainRetrieveRequest, user=Depends(get_admin_user)):
+    """
+    Retrieval playground — runs the same retrieval call that the
+    drafter/copilot will use, returns top-K chunks with scores so admins
+    can debug poor drafts.
+    """
+    if not body.query or not body.query.strip():
+        raise HTTPException(400, "query required")
+    try:
+        from modules.brain_retriever import retrieve
+        chunks = retrieve(
+            tenant_id=body.tenant_id,
+            query_text=body.query,
+            source_types=body.source_types or None,
+            k=body.k,
+            ministry=body.ministry,
+            include_global=body.include_global,
+            include_cross_mp=body.include_cross_mp,
+        )
+        # Trim content for transport
+        return {
+            "query":    body.query,
+            "k":        len(chunks),
+            "chunks":   [{
+                "id":           c["id"],
+                "tenant_id":    c.get("tenant_id"),
+                "source_type":  c["source_type"],
+                "source_table": c["source_table"],
+                "source_id":    c["source_id"],
+                "title":        c.get("title"),
+                "ministry":     c.get("ministry"),
+                "date_ref":     str(c.get("date_ref")) if c.get("date_ref") else None,
+                "topic_tags":   c.get("topic_tags") or [],
+                "score":        c.get("score"),
+                "citation":     c.get("citation"),
+                "content_preview": (c.get("content") or "")[:600],
+                "metadata":     c.get("metadata") or {},
+            } for c in chunks],
+        }
+    except Exception as e:
+        logger.exception("brain retrieve failed: %s", e)
+        raise HTTPException(500, f"Retrieval failed: {e}")

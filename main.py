@@ -175,6 +175,18 @@ try:
 except Exception as _e:
     logger.warning("Brain schema migration skipped: %s", _e)
 
+# ── Phase 2 Brain: ensure memory_chunks + pgvector ─────────────────────────
+# Creates the unified semantic-memory store: memory_chunks (vector(1536))
+# plus the pgvector extension and HNSW index. All chunks (PQs, debates,
+# constituency profile, cases, schemes) are embedded with OpenAI text-
+# embedding-3-small and queried by modules/brain_retriever.py.
+try:
+    from jobs.brain_indexer import ensure_schema as _brain_ensure_schema
+    _brain_ensure_schema()
+    logger.info("Brain schema (memory_chunks + pgvector) ensured.")
+except Exception as _e:
+    logger.warning("Brain schema setup skipped: %s", _e)
+
 # On startup: seed DB from JSON files, reconstruct files from DB, sync geo_overrides.
 # This two-way sync ensures geography data is ALWAYS durable:
 #   - JSON files committed to git → seeded into DB on first deploy (permanent)
