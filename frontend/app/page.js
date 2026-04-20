@@ -7,16 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Compass, AlertCircle, Wifi, WifiOff, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Compass, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
-const PROBE_INTERVAL_MS = 4000;   // re-ping every 4s while server is unreachable
-const PROBE_TIMEOUT_MS  = 5000;   // give each ping 5s before counting as failed
+const PROBE_INTERVAL_MS = 4000;
+const PROBE_TIMEOUT_MS  = 5000;
 
-/**
- * Pings /health and resolves true (ok) or false (unreachable).
- * Never throws — a failed probe is a normal state during cold start.
- */
 async function probeBackend() {
     try {
         const controller = new AbortController();
@@ -32,6 +28,15 @@ async function probeBackend() {
     }
 }
 
+function isConnError(msg) {
+    return (
+        msg.includes('Connection timed out') ||
+        msg.includes('try again') ||
+        msg.includes('Connection issue') ||
+        msg === 'Request failed after retries'
+    );
+}
+
 export default function LoginPage() {
     const { user, login } = useAuth();
     const router = useRouter();
@@ -40,21 +45,18 @@ export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError]         = useState('');
     const [loading, setLoading]     = useState(false);
+    const [retryingLogin, setRetryingLogin] = useState(false);
 
-    // --- Server connection state ---
-    // 'checking'   → first probe in progress
-    // 'connecting' → server unreachable, retrying
-    // 'ready'      → /health returned 200
     const [serverStatus, setServerStatus] = useState('checking');
     const [retryCount, setRetryCount]     = useState(0);
-    const probeTimerRef = useRef(null);
+    const probeTimerRef    = useRef(null);
+    const loginRetryTimerRef = useRef(null);
+    const handleSubmitRef  = useRef(null);
 
-    // Redirect if already authenticated
     useEffect(() => {
         if (user) router.push('/dashboard');
     }, [user, router]);
 
-    // Backend wake-up probe — runs on mount and retries until server is ready
     useEffect(() => {
         let cancelled = false;
 
@@ -78,8 +80,20 @@ export default function LoginPage() {
         };
     }, []);
 
+    // When server becomes ready while we're waiting to retry login, fire immediately
+    useEffect(() => {
+        if (serverStatus === 'ready' && retryingLogin) {
+            clearTimeout(loginRetryTimerRef.current);
+            handleSubmitRef.current?.();
+        }
+    }, [serverStatus, retryingLogin]);
+
+    useEffect(() => () => clearTimeout(loginRetryTimerRef.current), []);
+
     const handleSubmit = async (e) => {
-        e.preventDefault();
+        e?.preventDefault();
+        clearTimeout(loginRetryTimerRef.current);
+        setRetryingLogin(false);
         setError('');
         setLoading(true);
         try {
@@ -87,29 +101,30 @@ export default function LoginPage() {
             router.push('/dashboard');
         } catch (err) {
             const msg = err.message || 'Invalid credentials';
-            setError(
-                msg.includes('Connection timed out') || msg.includes('try again')
-                    ? msg
-                    : msg === 'Request failed after retries'
-                        ? 'Connection issue. Please try again in a moment.'
-                        : msg
-            );
+            if (isConnError(msg) && serverStatus !== 'ready') {
+                // Server still cold-starting — queue a retry instead of showing error
+                setRetryingLogin(true);
+                loginRetryTimerRef.current = setTimeout(() => handleSubmitRef.current?.(), 6000);
+            } else {
+                setError(isConnError(msg) ? 'Connection issue. Please try again in a moment.' : msg);
+            }
         } finally {
             setLoading(false);
         }
     };
 
-    const isServerReady   = serverStatus === 'ready';
+    handleSubmitRef.current = handleSubmit;
+
+    const isServerReady    = serverStatus === 'ready';
     const isServerChecking = serverStatus === 'checking';
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-accent/30 p-4">
-            {/* Subtle background pattern */}
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMwMDAiIGZpbGwtb3BhY2l0eT0iMC4wMiI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-50" />
 
             <div className="w-full max-w-md relative animate-fade-in">
 
-                {/* ── Server status banner ── */}
+                {/* Server status banner */}
                 {!isServerReady && (
                     <div className={`mb-3 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
                         ${isServerChecking
@@ -208,6 +223,13 @@ export default function LoginPage() {
                                 </p>
                             </div>
 
+                            {retryingLogin && !loading && (
+                                <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-sm">
+                                    <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                                    <span>Waiting for server to start — will sign in automatically.</span>
+                                </div>
+                            )}
+
                             {error && (
                                 <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
                                     <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -217,13 +239,18 @@ export default function LoginPage() {
 
                             <Button
                                 type="submit"
-                                disabled={loading}
+                                disabled={loading || retryingLogin}
                                 className="w-full h-11 text-base font-semibold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
                             >
                                 {loading ? (
                                     <>
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                         Signing in…
+                                    </>
+                                ) : retryingLogin ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Retrying…
                                     </>
                                 ) : (
                                     'Sign in'
