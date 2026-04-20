@@ -60,16 +60,23 @@ def ensure_schema():
     """
     Enable pgvector + create memory_chunks. Idempotent. Safe to run on
     every app boot.
-    """
-    with engine.begin() as conn:
-        # pgvector extension — Railway managed Postgres supports this out of
-        # the box. Requires SUPERUSER on standalone PG; on Railway the
-        # default role has CREATE EXTENSION privileges.
-        try:
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        except Exception as e:
-            logger.warning("CREATE EXTENSION vector failed (pgvector unavailable?): %s", e)
 
+    IMPORTANT: each DDL statement that might fail goes in its OWN transaction
+    so that a failure (e.g. CREATE EXTENSION permission denied) does not
+    put the whole transaction into an aborted state and kill all subsequent
+    statements in the same block.
+    """
+    # ── 1. pgvector extension — isolated transaction ───────────────────────
+    # Railway managed Postgres has the vector extension available; standalone
+    # Postgres requires superuser. If it fails, retrieval falls back to seq scan.
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+    except Exception as e:
+        logger.warning("CREATE EXTENSION vector failed (pgvector unavailable?): %s", e)
+
+    # ── 2. Core table + plain indexes — isolated transaction ──────────────
+    with engine.begin() as conn:
         conn.execute(text(f"""
             CREATE TABLE IF NOT EXISTS memory_chunks (
                 id              BIGSERIAL PRIMARY KEY,
@@ -90,33 +97,33 @@ def ensure_schema():
                 UNIQUE (source_type, source_id, content_hash)
             )
         """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_tenant    ON memory_chunks (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_type      ON memory_chunks (source_type)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_min       ON memory_chunks (LOWER(ministry))"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_date      ON memory_chunks (date_ref)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_table_id  ON memory_chunks (source_table, source_id)"))
 
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_tenant ON memory_chunks (tenant_id)"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_type ON memory_chunks (source_type)"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_min ON memory_chunks (LOWER(ministry))"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_date ON memory_chunks (date_ref)"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_mc_table_id ON memory_chunks (source_table, source_id)"))
-
-        # HNSW index on the vector column. Postgres + pgvector >= 0.5.0
-        # supports HNSW; CREATE INDEX is a heavy op on first call but only
-        # runs once thanks to IF NOT EXISTS.
-        try:
+    # ── 3. HNSW vector index — isolated transaction (heavy, pgvector ≥0.5) ─
+    try:
+        with engine.begin() as conn:
             conn.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_mc_embedding_hnsw
                   ON memory_chunks
                   USING hnsw (embedding vector_cosine_ops)
             """))
-        except Exception as e:
-            logger.warning("HNSW index unavailable, falling back to ivfflat: %s", e)
-            try:
+    except Exception as e:
+        logger.warning("HNSW index unavailable, trying ivfflat: %s", e)
+        # ── 4. IVFFlat fallback — also isolated ───────────────────────────
+        try:
+            with engine.begin() as conn:
                 conn.execute(text("""
                     CREATE INDEX IF NOT EXISTS idx_mc_embedding_ivf
                       ON memory_chunks
                       USING ivfflat (embedding vector_cosine_ops)
                       WITH (lists = 100)
                 """))
-            except Exception as e2:
-                logger.warning("ivfflat also unavailable, retrieval will use seq scan: %s", e2)
+        except Exception as e2:
+            logger.warning("ivfflat also unavailable, retrieval will use seq scan: %s", e2)
 
 
 # ─────────────────────────────────────────────────────────────────────────
