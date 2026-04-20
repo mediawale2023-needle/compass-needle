@@ -58,16 +58,21 @@ logger = logging.getLogger("needle.brain_indexer")
 
 def _pgvector_available() -> bool:
     """
-    Return True if the vector type is usable in this Postgres instance.
-    Uses a fast type-existence query instead of a dummy cast so it never
-    leaves a failed transaction behind.
+    Return True if the pgvector extension is installed and the vector type
+    is usable.  Checks pg_extension (authoritative) then does a live cast
+    to confirm the type is accessible in the current search_path.
     """
     try:
         with engine.connect() as conn:
-            row = conn.execute(text(
-                "SELECT 1 FROM pg_type WHERE typname = 'vector'"
+            # Primary: is the extension registered?
+            ext = conn.execute(text(
+                "SELECT 1 FROM pg_extension WHERE extname = 'vector'"
             )).fetchone()
-            return row is not None
+            if not ext:
+                return False
+            # Secondary: is the type actually castable (search_path check)?
+            conn.execute(text("SELECT '[1,2,3]'::vector(3)"))
+            return True
     except Exception:
         return False
 
@@ -482,9 +487,12 @@ def index_schemes_global() -> dict:
 # GLOBAL CORPUS — Phase 4
 # ─────────────────────────────────────────────────────────────────────────
 
+_INDEX_BATCH = 2000   # rows per embed batch for progress granularity
+
 def index_global_pqs(limit: Optional[int] = None,
                      only_with_answers: bool = False,
-                     rebuild: bool = False) -> dict:
+                     rebuild: bool = False,
+                     _progress: Optional[dict] = None) -> dict:
     """
     Index global_parliamentary_questions into memory_chunks (tenant_id=NULL).
 
@@ -495,6 +503,7 @@ def index_global_pqs(limit: Optional[int] = None,
         limit:             cap how many rows to process (None = all)
         only_with_answers: skip rows where answer_text is empty
         rebuild:           delete all existing global_pq_qa chunks first
+        _progress:         optional dict updated with {done, total, label}
 
     The operation is idempotent — only re-embeds when content_hash changes.
     """
@@ -547,19 +556,35 @@ def index_global_pqs(limit: Optional[int] = None,
 
     logger.info("index_global_pqs: %d rows to process", len(rows))
 
-    chunks: list[dict] = []
-    for r in rows:
-        row_dict = dict(r)
-        mp_info = {
-            "mp_name":      row_dict.pop("mp_name", ""),
-            "party":        row_dict.pop("party", ""),
-            "constituency": row_dict.pop("constituency", ""),
-            "state":        row_dict.pop("state", ""),
-            "prs_slug":     row_dict.get("prs_slug", ""),
-        }
-        chunks.extend(chunk_global_pq_row(row_dict, mp_info))
+    if _progress is not None:
+        _progress["total"] = len(rows)
+        _progress["done"]  = 0
+        _progress["label"] = "embedding"
 
-    return _index_collection(chunks, "global_pqs")
+    # Process in batches so progress updates are meaningful
+    totals = {"chunks_proposed": 0, "chunks_new": 0, "embeddings_made": 0, "chunks_inserted": 0}
+    for batch_start in range(0, len(rows), _INDEX_BATCH):
+        batch_rows = rows[batch_start: batch_start + _INDEX_BATCH]
+        chunks: list[dict] = []
+        for r in batch_rows:
+            row_dict = dict(r)
+            mp_info = {
+                "mp_name":      row_dict.pop("mp_name", ""),
+                "party":        row_dict.pop("party", ""),
+                "constituency": row_dict.pop("constituency", ""),
+                "state":        row_dict.pop("state", ""),
+                "prs_slug":     row_dict.get("prs_slug", ""),
+            }
+            chunks.extend(chunk_global_pq_row(row_dict, mp_info))
+
+        res = _index_collection(chunks, f"global_pqs[{batch_start}:{batch_start+len(batch_rows)}]")
+        for k in totals:
+            totals[k] += res.get(k, 0)
+
+        if _progress is not None:
+            _progress["done"] = min(batch_start + _INDEX_BATCH, len(rows))
+
+    return totals
 
 
 # ─────────────────────────────────────────────────────────────────────────

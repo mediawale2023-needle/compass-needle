@@ -734,6 +734,7 @@ function GlobalCorpusTab() {
     const [tagLimit, setTagLimit] = useState(500);
     const [indexAnswersOnly, setIndexAnswersOnly] = useState(false);
     const [indexRebuild, setIndexRebuild] = useState(false);
+    const [allowOcr, setAllowOcr] = useState(false);
 
     const loadStats = useCallback(() => {
         setStatsLoading(true);
@@ -757,7 +758,7 @@ function GlobalCorpusTab() {
                     if (['done', 'error', 'warning'].includes(j.status)) loadStats();
                 } catch (_) {}
             }
-        }, 3000);
+        }, 2000);
         return () => clearInterval(t);
     }, [jobs, loadStats]);
 
@@ -800,7 +801,7 @@ function GlobalCorpusTab() {
     const pqs      = globalStats?.corpus?.questions || {};
     const coverage = globalStats?.coverage || {};
     const mins     = globalStats?.ministries || [];
-    const [answerLimit, setAnswerLimit] = useState(500);
+    const [answerLimit, setAnswerLimit] = useState(100);
 
     return (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
@@ -962,7 +963,22 @@ function GlobalCorpusTab() {
                                 }}>
                                     <div style={{ color: clr, fontWeight: 600 }}>
                                         {icon} {j.type || jid.split('_')[1]} — {j.status}
+                                        {j.status === 'running' && j.progress && j.progress.total > 0 && (
+                                            <span style={{ color: '#6b7280', fontWeight: 400, fontSize: 11, marginLeft: 8 }}>
+                                                {j.progress.done}/{j.progress.total} {j.progress.label}
+                                            </span>
+                                        )}
                                     </div>
+                                    {j.status === 'running' && j.progress && j.progress.total > 0 && (
+                                        <div style={{ margin: '5px 0 3px', height: 4, background: '#1f2937', borderRadius: 2, overflow: 'hidden' }}>
+                                            <div style={{
+                                                width: `${Math.round((j.progress.done / j.progress.total) * 100)}%`,
+                                                height: '100%', borderRadius: 2,
+                                                background: '#3b82f6',
+                                                transition: 'width 0.4s ease',
+                                            }} />
+                                        </div>
+                                    )}
                                     {j.summary && (
                                         <div style={{ color: '#9ca3af', marginTop: 4, fontSize: 11 }}>
                                             {j.summary.discovered != null
@@ -971,6 +987,10 @@ function GlobalCorpusTab() {
                                                 ? `PDFs: ${(j.summary.pdfs_processed||0) + (j.summary.pdfs_from_cache||0)} (${j.summary.pdfs_from_cache||0} cached) · rows updated: ${j.summary.rows_updated} · unmatched: ${j.summary.rows_unmatched} · failed: ${j.summary.pdfs_failed}`
                                                 : j.summary.crawled != null
                                                 ? `crawled: ${j.summary.crawled} MPs, Qs inserted: ${j.summary.inserted_total}`
+                                                : j.summary.chunks_inserted != null
+                                                ? `${j.summary.chunks_inserted} chunks inserted · ${j.summary.embeddings_made} embeddings · ${j.summary.chunks_new} new (${j.summary.chunks_proposed} proposed)`
+                                                : j.summary.tagged != null
+                                                ? `tagged: ${j.summary.tagged} · batches: ${j.summary.batches} · skipped: ${j.summary.skipped}`
                                                 : JSON.stringify(j.summary).slice(0, 120)
                                             }
                                         </div>
@@ -1054,8 +1074,8 @@ function GlobalCorpusTab() {
                         <label style={{ color: '#9ca3af', fontSize: 12 }}>
                             Batch:&nbsp;
                             <input
-                                type="number" min={50} max={5000} value={answerLimit}
-                                onChange={e => setAnswerLimit(Math.max(50, parseInt(e.target.value) || 500))}
+                                type="number" min={10} max={5000} value={answerLimit}
+                                onChange={e => setAnswerLimit(Math.max(10, parseInt(e.target.value) || 100))}
                                 style={{
                                     background: '#1f2937', border: '1px solid #374151', color: '#e5e7eb',
                                     borderRadius: 4, padding: '3px 8px', fontSize: 12, width: 72,
@@ -1063,13 +1083,17 @@ function GlobalCorpusTab() {
                             />
                             &nbsp;PDFs
                         </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#9ca3af', fontSize: 12, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={allowOcr} onChange={e => setAllowOcr(e.target.checked)} style={{ accentColor: '#f59e0b' }} />
+                            Gemini OCR&nbsp;<span style={{ color: '#6b7280', fontSize: 11 }}>(slow — for scanned PDFs)</span>
+                        </label>
                         <span style={{ color: '#4b5563', fontSize: 11 }}>
                             ~49K PQs → ~2K unique PDFs (session bundles)
                         </span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                         <button
-                            onClick={() => trigger('/api/admin/brain/global-fetch-answers', { limit: answerLimit })}
+                            onClick={() => trigger('/api/admin/brain/global-fetch-answers', { limit: answerLimit, allow_ocr: allowOcr })}
                             disabled={anyRunning}
                             style={{
                                 background: anyRunning ? '#374151' : '#059669',

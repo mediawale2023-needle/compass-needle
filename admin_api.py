@@ -3821,10 +3821,11 @@ _global_crawl_jobs: dict = {}
 
 
 class GlobalCrawlRequest(BaseModel):
-    limit:           Optional[int]  = None
-    include_failed:  bool           = False
-    only_with_answers: bool         = False
-    rebuild:         bool           = False
+    limit:             Optional[int]  = None
+    include_failed:    bool           = False
+    only_with_answers: bool           = False
+    rebuild:           bool           = False
+    allow_ocr:         bool           = False
 
 
 @router.post("/brain/global-discover")
@@ -3915,12 +3916,16 @@ def trigger_global_tag(
         "type": "tag", "status": "running",
         "started_at": datetime.utcnow().isoformat() + "Z",
         "finished_at": None, "summary": None, "error": None,
+        "progress": {"done": 0, "total": 0, "label": ""},
     }
 
     def _run():
         try:
             from jobs.global_parliament_crawler import llm_tag_batch
-            summary = llm_tag_batch(limit=body.limit or 2000)
+            summary = llm_tag_batch(
+                limit=body.limit or 2000,
+                _progress=_global_crawl_jobs[job_id]["progress"],
+            )
             _global_crawl_jobs[job_id]["status"]  = "done"
             _global_crawl_jobs[job_id]["summary"] = summary
         except Exception as e:
@@ -3949,6 +3954,7 @@ def trigger_global_index(
         "type": "index", "status": "running",
         "started_at": datetime.utcnow().isoformat() + "Z",
         "finished_at": None, "summary": None, "error": None,
+        "progress": {"done": 0, "total": 0, "label": ""},
     }
 
     def _run():
@@ -3958,6 +3964,7 @@ def trigger_global_index(
                 limit=body.limit,
                 only_with_answers=body.only_with_answers,
                 rebuild=body.rebuild,
+                _progress=_global_crawl_jobs[job_id]["progress"],
             )
             _global_crawl_jobs[job_id]["status"]  = "done"
             _global_crawl_jobs[job_id]["summary"] = summary
@@ -3990,15 +3997,17 @@ def trigger_global_fetch_answers(
         "type": "fetch_answers", "status": "running",
         "started_at": datetime.utcnow().isoformat() + "Z",
         "finished_at": None, "summary": None, "error": None,
+        "progress": {"done": 0, "total": 0, "label": ""},
     }
 
     def _run():
         try:
             from jobs.global_parliament_crawler import fetch_global_answers
             summary = fetch_global_answers(
-                limit=body.limit or 2000,
-                allow_ocr=True,
-                max_pdfs=body.limit or None,
+                limit=body.limit or 500,
+                allow_ocr=body.allow_ocr,
+                max_pdfs=body.limit or 500,
+                _progress=_global_crawl_jobs[job_id]["progress"],
             )
             _global_crawl_jobs[job_id]["status"]  = "done"
             _global_crawl_jobs[job_id]["summary"] = summary

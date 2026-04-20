@@ -703,7 +703,8 @@ def _openai_tag_batch(subjects: list[dict]) -> Optional[list[dict]]:
         return None
 
 
-def llm_tag_batch(limit: int = LLM_TAG_MAX_PER_RUN) -> dict:
+def llm_tag_batch(limit: int = LLM_TAG_MAX_PER_RUN,
+                  _progress: Optional[dict] = None) -> dict:
     """
     Find global PQs with tags_source='rule' or no tags and re-tag with GPT-4o-mini.
     Writes updated tags back to global_parliamentary_questions.
@@ -727,6 +728,11 @@ def llm_tag_batch(limit: int = LLM_TAG_MAX_PER_RUN) -> dict:
         return {"tagged": 0, "batches": 0, "skipped": 0}
 
     logger.info("llm_tag_batch: %d questions to tag", len(rows))
+
+    if _progress is not None:
+        _progress["total"] = len(rows)
+        _progress["done"]  = 0
+        _progress["label"] = "tagging"
 
     tagged_count  = 0
     batch_count   = 0
@@ -763,6 +769,9 @@ def llm_tag_batch(limit: int = LLM_TAG_MAX_PER_RUN) -> dict:
             skip_count += len(batch)
             logger.debug("llm_tag_batch: batch %d skipped (OpenAI unavailable)",
                          batch_start // LLM_TAG_BATCH_SIZE + 1)
+
+        if _progress is not None:
+            _progress["done"] = min(batch_start + LLM_TAG_BATCH_SIZE, len(rows))
 
         time.sleep(1.5)   # respect OpenAI RPM limits (60 req/min → ~1s min)
 
@@ -963,9 +972,10 @@ def _mark_global_rows_status(row_ids: list[int], status: str):
 def fetch_global_answers(
     limit:       int = 500,
     prs_slug:    Optional[str] = None,
-    allow_ocr:   bool = True,
+    allow_ocr:   bool = False,
     force:       bool = False,
     max_pdfs:    Optional[int] = None,
+    _progress:   Optional[dict] = None,
 ) -> dict:
     """
     Backfill answer_text for global_parliamentary_questions rows that have a
@@ -1061,6 +1071,11 @@ def fetch_global_answers(
         len(rows), len(unique_urls), max_pdfs, allow_ocr,
     )
 
+    if _progress is not None:
+        _progress["total"] = len(unique_urls)
+        _progress["done"]  = 0
+        _progress["label"] = "fetching PDFs"
+
     pdfs_processed  = 0
     pdfs_from_cache = 0
     pdfs_failed     = 0
@@ -1104,6 +1119,9 @@ def fetch_global_answers(
         unmatched_ids = [rid for rid in row_ids if rid not in matches]
         rows_unmatched += len(unmatched_ids)
         _mark_global_rows_status(unmatched_ids, "no_match")
+
+        if _progress is not None:
+            _progress["done"] = i
 
         if i % 10 == 0 or i == len(unique_urls):
             logger.info(
