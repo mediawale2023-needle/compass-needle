@@ -140,10 +140,10 @@ export default function AdminLoginPage() {
                     >
                         <SpinnerIcon className="mt-0.5 h-4 w-4 shrink-0" />
                         <div>
-                            <p>{isChecking ? 'Connecting to server…' : 'Server is starting up — please wait.'}</p>
+                            <p>{isChecking ? 'Connecting to server…' : 'Server is starting up — this may take a moment.'}</p>
                             {!isChecking && (
                                 <p className="mt-0.5 text-xs font-normal opacity-80">
-                                    This can take up to 1 minute on first load. Retrying automatically…
+                                    You can sign in now — the request will wait for the server automatically.
                                 </p>
                             )}
                         </div>
@@ -160,8 +160,8 @@ export default function AdminLoginPage() {
                 <div className="rounded-3xl border border-[#e2ebe5] bg-white/95 p-8 shadow-xl backdrop-blur-sm">
                     <div className="mb-6 text-center">
                         <div className="mb-4 flex items-center justify-center">
-                            <div className={`flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg transition-colors duration-500 ${isReady ? 'bg-[#006a4d] text-white shadow-[0_12px_32px_rgba(0,106,77,0.18)]' : 'bg-[#e8efe9] text-[#6b7f76]'}`}>
-                                {isReady ? <CompassIcon /> : <SpinnerIcon className="h-7 w-7" />}
+                            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#006a4d] text-white shadow-lg shadow-[0_12px_32px_rgba(0,106,77,0.18)]">
+                                <CompassIcon />
                             </div>
                         </div>
                         <h1 className="text-2xl font-bold tracking-tight text-[#1a2e28]">Needle Command Center</h1>
@@ -177,10 +177,9 @@ export default function AdminLoginPage() {
                                 id="username"
                                 type="text"
                                 className="w-full rounded-xl border border-[#d4e0d9] bg-[#f8faf9] px-4 py-3 text-sm text-[#1a2e28] outline-none transition focus:border-[#006a4d] focus:bg-white focus:ring-4 focus:ring-[#006a4d]/10 disabled:cursor-not-allowed disabled:opacity-60"
-                                placeholder={isReady ? 'Enter your username' : 'Waiting for server…'}
+                                placeholder="Enter your username"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
-                                disabled={!isReady}
                                 required
                                 autoFocus
                                 autoComplete="username"
@@ -196,10 +195,9 @@ export default function AdminLoginPage() {
                                     id="password"
                                     type={showPassword ? 'text' : 'password'}
                                     className="w-full rounded-xl border border-[#d4e0d9] bg-[#f8faf9] px-4 py-3 pr-12 text-sm text-[#1a2e28] outline-none transition focus:border-[#006a4d] focus:bg-white focus:ring-4 focus:ring-[#006a4d]/10 disabled:cursor-not-allowed disabled:opacity-60"
-                                    placeholder={isReady ? 'Enter your password' : 'Waiting for server…'}
+                                    placeholder="Enter your password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    disabled={!isReady}
                                     required
                                     autoComplete="current-password"
                                 />
@@ -207,8 +205,7 @@ export default function AdminLoginPage() {
                                     type="button"
                                     onClick={() => setShowPassword(v => !v)}
                                     aria-label={showPassword ? 'Hide password' : 'Show password'}
-                                    disabled={!isReady}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-[#6b7f76] transition hover:bg-black/5 hover:text-[#1a2e28] disabled:cursor-not-allowed disabled:opacity-60"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-[#6b7f76] transition hover:bg-black/5 hover:text-[#1a2e28]"
                                 >
                                     {showPassword ? (
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -240,18 +237,13 @@ export default function AdminLoginPage() {
 
                         <button
                             type="submit"
-                            disabled={loading || !isReady}
+                            disabled={loading}
                             className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#006a4d] to-[#00875f] px-4 text-base font-semibold text-white shadow-[0_10px_24px_rgba(0,106,77,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(0,106,77,0.22)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                         >
                             {loading ? (
                                 <>
                                     <SpinnerIcon className="h-4 w-4" />
                                     Signing in…
-                                </>
-                            ) : !isReady ? (
-                                <>
-                                    <SpinnerIcon className="h-4 w-4" />
-                                    {isChecking ? 'Connecting…' : 'Starting server…'}
                                 </>
                             ) : (
                                 'Sign in'
