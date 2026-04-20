@@ -11,9 +11,9 @@ const PROBE_TIMEOUT_MS = 5000;
 
 function CompassIcon({ className = 'h-7 w-7' }) {
     return (
-        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="2" x2="12" y2="22" />
-            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
         </svg>
     );
 }
@@ -60,18 +60,30 @@ async function probeBackend() {
     }
 }
 
+function isConnError(msg) {
+    return (
+        msg.includes('Connection timed out') ||
+        msg.includes('try again') ||
+        msg.includes('Connection issue') ||
+        msg === 'Request failed after retries'
+    );
+}
+
 export default function AdminLoginPage() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [retryingLogin, setRetryingLogin] = useState(false);
     const { user, login } = useAuth();
     const router = useRouter();
 
     const [serverStatus, setServerStatus] = useState('checking');
     const [retryCount, setRetryCount] = useState(0);
     const probeTimerRef = useRef(null);
+    const loginRetryTimerRef = useRef(null);
+    const handleSubmitRef = useRef(null);
 
     useEffect(() => {
         if (user) router.push('/dashboard');
@@ -100,8 +112,20 @@ export default function AdminLoginPage() {
         };
     }, []);
 
+    // When server becomes ready while we're waiting to retry login, fire immediately
+    useEffect(() => {
+        if (serverStatus === 'ready' && retryingLogin) {
+            clearTimeout(loginRetryTimerRef.current);
+            handleSubmitRef.current?.();
+        }
+    }, [serverStatus, retryingLogin]);
+
+    useEffect(() => () => clearTimeout(loginRetryTimerRef.current), []);
+
     const handleSubmit = async (e) => {
-        e.preventDefault();
+        e?.preventDefault();
+        clearTimeout(loginRetryTimerRef.current);
+        setRetryingLogin(false);
         setError('');
         setLoading(true);
         try {
@@ -110,17 +134,19 @@ export default function AdminLoginPage() {
             router.push('/dashboard');
         } catch (err) {
             const msg = err.message || 'Invalid credentials';
-            setError(
-                msg.includes('Connection timed out') || msg.includes('try again')
-                    ? msg
-                    : msg === 'Request failed after retries'
-                        ? 'Connection issue. Please try again in a moment.'
-                        : msg
-            );
+            if (isConnError(msg) && serverStatus !== 'ready') {
+                // Server still cold-starting — queue a retry instead of showing error
+                setRetryingLogin(true);
+                loginRetryTimerRef.current = setTimeout(() => handleSubmitRef.current?.(), 6000);
+            } else {
+                setError(isConnError(msg) ? 'Connection issue. Please try again in a moment.' : msg);
+            }
         } finally {
             setLoading(false);
         }
     };
+
+    handleSubmitRef.current = handleSubmit;
 
     const isReady = serverStatus === 'ready';
     const isChecking = serverStatus === 'checking';
@@ -228,6 +254,13 @@ export default function AdminLoginPage() {
                             </p>
                         </div>
 
+                        {retryingLogin && !loading && (
+                            <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-700">
+                                <SpinnerIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                                <span>Waiting for server to start — will sign in automatically.</span>
+                            </div>
+                        )}
+
                         {error && (
                             <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-700">
                                 <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
@@ -237,13 +270,18 @@ export default function AdminLoginPage() {
 
                         <button
                             type="submit"
-                            disabled={loading}
+                            disabled={loading || retryingLogin}
                             className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#006a4d] to-[#00875f] px-4 text-base font-semibold text-white shadow-[0_10px_24px_rgba(0,106,77,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(0,106,77,0.22)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                         >
                             {loading ? (
                                 <>
                                     <SpinnerIcon className="h-4 w-4" />
                                     Signing in…
+                                </>
+                            ) : retryingLogin ? (
+                                <>
+                                    <SpinnerIcon className="h-4 w-4" />
+                                    Retrying…
                                 </>
                             ) : (
                                 'Sign in'
