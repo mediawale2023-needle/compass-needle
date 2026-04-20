@@ -658,34 +658,43 @@ def _openai_tag_batch(subjects: list[dict]) -> Optional[list[dict]]:
     """
     Call GPT-4o-mini to tag a batch of {id, subject, ministry} dicts.
     Returns list of {id, tags} or None on failure.
+    Retries once on rate-limit (429) with a 20-second back-off.
     """
     try:
-        from openai import OpenAI
+        from openai import OpenAI, RateLimitError
         key = os.environ.get("OPENAI_API_KEY")
         if not key:
             return None
         client = OpenAI(api_key=key)
         batch_json = json.dumps(subjects, ensure_ascii=False)
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": _TAG_SYSTEM},
-                {"role": "user",   "content": _TAG_USER.format(batch_json=batch_json)},
-            ],
-            temperature=0,
-            response_format={"type": "json_object"},
-            max_tokens=800,
-        )
-        raw = resp.choices[0].message.content or ""
+
+        def _call():
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": _TAG_SYSTEM},
+                    {"role": "user",   "content": _TAG_USER.format(batch_json=batch_json)},
+                ],
+                temperature=0,
+                response_format={"type": "json_object"},
+                max_tokens=800,
+            )
+            return resp.choices[0].message.content or ""
+
+        try:
+            raw = _call()
+        except RateLimitError:
+            logger.info("LLM tag: rate limited — waiting 20s before retry")
+            time.sleep(20)
+            raw = _call()
+
         # Model may return {"questions": [...]} or just [...]
         parsed = json.loads(raw)
         if isinstance(parsed, list):
             return parsed
-        # Try common wrapper keys
         for key_try in ("questions", "items", "results", "data"):
             if key_try in parsed and isinstance(parsed[key_try], list):
                 return parsed[key_try]
-        # Fallback: if it's a single dict with id+tags
         if "id" in parsed and "tags" in parsed:
             return [parsed]
         return None
@@ -755,7 +764,7 @@ def llm_tag_batch(limit: int = LLM_TAG_MAX_PER_RUN) -> dict:
             logger.debug("llm_tag_batch: batch %d skipped (OpenAI unavailable)",
                          batch_start // LLM_TAG_BATCH_SIZE + 1)
 
-        time.sleep(0.3)   # avoid rate limits
+        time.sleep(1.5)   # respect OpenAI RPM limits (60 req/min → ~1s min)
 
     logger.info("llm_tag_batch: %d tagged, %d batches, %d skipped",
                 tagged_count, batch_count, skip_count)
