@@ -102,6 +102,12 @@ const Icons = {
             <line x1="8" y1="12" x2="16" y2="12" />
         </svg>
     ),
+    Brain: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.84A2.5 2.5 0 0 1 9.5 2Z" />
+            <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.84A2.5 2.5 0 0 0 14.5 2Z" />
+        </svg>
+    ),
     Compass: () => (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
             <line x1="12" y1="2" x2="12" y2="22" />
@@ -134,6 +140,12 @@ const NAV_GROUPS = [
         label: 'Communicate',
         items: [
             { href: '/dashboard/announcements', label: 'Announcements', Icon: Icons.Announcements },
+        ],
+    },
+    {
+        label: 'AI Brain',
+        items: [
+            { href: '/dashboard/brain', label: 'Brain Playground', Icon: Icons.Brain },
         ],
     },
     {

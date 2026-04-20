@@ -45,6 +45,7 @@ from sansadx_backend.db import engine
 from modules.brain_chunker import (
     chunk_pq_row, chunk_debate_row, chunk_zero_hour_row,
     chunk_constituency_profile, chunk_case_row, chunk_scheme,
+    chunk_global_pq_row,
 )
 from modules.brain_embedder import embed_texts, to_vector_literal, EMBED_DIM, EMBED_MODEL
 
@@ -345,6 +346,90 @@ def index_schemes_global() -> dict:
     for s in schemes:
         chunks.extend(chunk_scheme(s))
     return _index_collection(chunks, "schemes[global]")
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# GLOBAL CORPUS — Phase 4
+# ─────────────────────────────────────────────────────────────────────────
+
+def index_global_pqs(limit: Optional[int] = None,
+                     only_with_answers: bool = False,
+                     rebuild: bool = False) -> dict:
+    """
+    Index global_parliamentary_questions into memory_chunks (tenant_id=NULL).
+
+    Each row is joined with global_mp_registry to get mp_name/party/constituency
+    so the chunk clearly attributes the question to its author.
+
+    Args:
+        limit:             cap how many rows to process (None = all)
+        only_with_answers: skip rows where answer_text is empty
+        rebuild:           delete all existing global_pq_qa chunks first
+
+    The operation is idempotent — only re-embeds when content_hash changes.
+    """
+    ensure_schema()
+
+    if rebuild:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "DELETE FROM memory_chunks WHERE source_type = 'global_pq_qa'"
+            ))
+        logger.info("index_global_pqs: deleted existing global_pq_qa chunks (rebuild=True)")
+
+    # Ensure global tables exist
+    try:
+        from jobs.global_parliament_crawler import ensure_schema as _gc_schema
+        _gc_schema()
+    except Exception as e:
+        logger.warning("global_parliament_crawler schema ensure failed: %s", e)
+
+    # Join PQs with registry for MP attribution
+    answer_filter = "AND gpq.answer_text IS NOT NULL AND gpq.answer_text != ''" if only_with_answers else ""
+    limit_clause  = f"LIMIT {int(limit)}" if limit else ""
+
+    sql = f"""
+        SELECT gpq.id, gpq.prs_slug, gpq.house, gpq.session_name,
+               gpq.question_number, gpq.question_type, gpq.subject,
+               gpq.ministry, gpq.question_pdf_url,
+               gpq.question_text, gpq.answer_text, gpq.date_asked,
+               gpq.topic_tags,
+               gmp.mp_name, gmp.party, gmp.constituency, gmp.state
+          FROM global_parliamentary_questions gpq
+          JOIN global_mp_registry gmp ON gmp.id = gpq.global_mp_id
+         WHERE gpq.subject IS NOT NULL AND gpq.subject != ''
+           {answer_filter}
+         ORDER BY gpq.id
+         {limit_clause}
+    """
+
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text(sql)).mappings().all()
+    except Exception as e:
+        logger.exception("index_global_pqs: query failed (tables may not exist yet): %s", e)
+        return {"chunks_proposed": 0, "chunks_new": 0, "embeddings_made": 0,
+                "chunks_inserted": 0, "error": str(e)}
+
+    if not rows:
+        return {"chunks_proposed": 0, "chunks_new": 0, "embeddings_made": 0,
+                "chunks_inserted": 0, "note": "no global PQs found"}
+
+    logger.info("index_global_pqs: %d rows to process", len(rows))
+
+    chunks: list[dict] = []
+    for r in rows:
+        row_dict = dict(r)
+        mp_info = {
+            "mp_name":      row_dict.pop("mp_name", ""),
+            "party":        row_dict.pop("party", ""),
+            "constituency": row_dict.pop("constituency", ""),
+            "state":        row_dict.pop("state", ""),
+            "prs_slug":     row_dict.get("prs_slug", ""),
+        }
+        chunks.extend(chunk_global_pq_row(row_dict, mp_info))
+
+    return _index_collection(chunks, "global_pqs")
 
 
 # ─────────────────────────────────────────────────────────────────────────

@@ -462,6 +462,119 @@ def chunk_constituency_profile(tenant_id: int, profile: dict) -> list[dict]:
     return chunks
 
 
+def chunk_global_pq_row(row: dict, mp_info: dict) -> list[dict]:
+    """
+    Convert one global_parliamentary_questions row into chunks.
+    Identical logic to chunk_pq_row but:
+      • tenant_id is None (global corpus, shared across all tenants)
+      • source_type is "global_pq_qa" so retrieval can distinguish origin
+      • MP attribution is stamped into title, content, and metadata so the
+        LLM prompt clearly shows "(asked by Shri X, [Party], [Constituency])"
+
+    mp_info keys: mp_name, party, constituency, state, prs_slug
+    """
+    q = _clean(row.get("question_text") or "")
+    a = _clean(row.get("answer_text") or "")
+    subject  = (row.get("subject") or "").strip()
+    ministry = (row.get("ministry") or "").strip()
+    date_ref = _fmt_date(row.get("date_asked"))
+
+    if not subject:
+        return []
+
+    mp_name      = (mp_info.get("mp_name") or "").strip()
+    party        = (mp_info.get("party") or "").strip()
+    constituency = (mp_info.get("constituency") or "").strip()
+    state        = (mp_info.get("state") or "").strip()
+    prs_slug     = (mp_info.get("prs_slug") or row.get("prs_slug") or "").strip()
+
+    # Attribution line that will be visible in every retrieved chunk
+    attribution = f"asked by {mp_name} ({party}, {constituency})" if mp_name else f"prs_slug: {prs_slug}"
+
+    qtype   = (row.get("question_type") or "").strip().lower()
+    session = (row.get("session_name") or "").strip()
+    qn      = (row.get("question_number") or "").strip()
+
+    title = (
+        f"{'Starred' if 'starred' == qtype else 'Unstarred'} PQ"
+        + (f" ({ministry})" if ministry else "")
+        + (f" — {subject[:100]}" if subject else "")
+        + f" [{attribution}]"
+    )[:240]
+
+    parts = [
+        f"SUBJECT: {subject}",
+        f"MINISTRY: {ministry}" if ministry else "",
+        f"DATE: {date_ref}" if date_ref else "",
+        f"SESSION: {session}" if session else "",
+        f"MP: {mp_name} | PARTY: {party} | CONSTITUENCY: {constituency}, {state}",
+        "",
+        "QUESTION:",
+        q or "(question text not yet fetched)",
+        "",
+        "MINISTRY ANSWER:",
+        a or "(answer not yet fetched)",
+    ]
+    body = "\n".join(p for p in parts if p is not None).strip()
+
+    base_meta = {
+        "subject":         subject,
+        "ministry":        ministry,
+        "session_name":    session,
+        "question_number": qn,
+        "question_type":   qtype,
+        "mp_name":         mp_name,
+        "party":           party,
+        "constituency":    constituency,
+        "state":           state,
+        "prs_slug":        prs_slug,
+        "is_global":       True,
+    }
+
+    # Use pre-computed LLM tags if available, else rule-based fallback
+    stored_tags = row.get("topic_tags") or []
+    tags = stored_tags if stored_tags else _topic_tags_from_subject(f"{subject} {ministry}")
+
+    if len(body) <= MAX_CHUNK_CHARS:
+        return [{
+            "tenant_id":    None,          # global — shared across all tenants
+            "source_type":  "global_pq_qa",
+            "source_id":    f"g{row['id']}",
+            "source_table": "global_parliamentary_questions",
+            "title":        title,
+            "content":      body,
+            "metadata":     base_meta,
+            "ministry":     ministry or None,
+            "date_ref":     date_ref,
+            "topic_tags":   tags,
+        }]
+
+    # Long answer — split, keep Q header on first chunk
+    answer_paras = _split_paragraphs(a, max_chars=SOFT_CHUNK_CHARS)
+    chunks: list[dict] = []
+    for i, ap in enumerate(answer_paras):
+        suffix = f" [part {i+1}/{len(answer_paras)}]" if i > 0 else ""
+        chunk_body = (
+            f"SUBJECT: {subject}\nMINISTRY: {ministry}\nDATE: {date_ref}\n"
+            f"MP: {mp_name} | PARTY: {party} | CONSTITUENCY: {constituency}, {state}\n\n"
+            + (f"QUESTION:\n{q}\n\n" if i == 0 else "")
+            + f"MINISTRY ANSWER (part {i+1}/{len(answer_paras)}):\n{ap}"
+        ).strip()
+        chunks.append({
+            "tenant_id":    None,
+            "source_type":  "global_pq_qa",
+            "source_id":    f"g{row['id']}#{i}",
+            "source_table": "global_parliamentary_questions",
+            "title":        (title + suffix)[:240],
+            "content":      chunk_body[:MAX_CHUNK_CHARS],
+            "metadata":     {**base_meta, "part": i, "parts_total": len(answer_paras)},
+            "ministry":     ministry or None,
+            "date_ref":     date_ref,
+            "topic_tags":   tags,
+        })
+    return chunks
+
+
 def chunk_case_row(row: dict) -> list[dict]:
     """
     One chunk per resolved/active case from the WhatsApp letterbox.

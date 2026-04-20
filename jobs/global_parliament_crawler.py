@@ -1,0 +1,751 @@
+"""
+jobs/global_parliament_crawler.py — Phase 4: Cross-MP Parliament Intelligence
+
+Crawls the PRS India listing page to discover all ~543 18th Lok Sabha MPs,
+then scrapes and stores each MP's parliamentary questions into a shared global
+corpus — independent of Needle's tenant subscriptions.
+
+This is the data foundation for cross-MP intelligence:
+  "What has the Ministry of Education said this year about NEP?"
+  → retrieves answers from 5+ different MPs' questions, with citations.
+
+Tables managed here (all idempotent):
+  global_mp_registry           — one row per discovered MP
+  global_parliamentary_questions — their PQs + answers + topic tags
+
+The global PQs are indexed into memory_chunks (tenant_id=NULL) by
+jobs/brain_indexer.py::index_global_pqs(), making them retrievable
+by modules/brain_retriever.py when include_cross_mp=True.
+
+LLM auto-tagging (GPT-4o-mini):
+  Each question's subject + ministry → 3-5 semantic topic tags stored in
+  global_parliamentary_questions.topic_tags. Falls back to rule-based tags
+  (from brain_chunker._topic_tags_from_subject) if OpenAI is unavailable.
+
+Usage:
+  # Full discovery + crawl (run once, then nightly incremental)
+  python -m jobs.global_parliament_crawler --discover
+  python -m jobs.global_parliament_crawler --crawl-all
+  python -m jobs.global_parliament_crawler --crawl-pending --limit 50
+  python -m jobs.global_parliament_crawler --tag-untagged
+  python -m jobs.global_parliament_crawler --stats
+
+  # Programmatic (called from admin API + brain_indexer)
+  from jobs.global_parliament_crawler import (
+      ensure_schema, discover_all_mps, crawl_mp, crawl_all_pending,
+      llm_tag_batch, get_stats,
+  )
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+import json
+import time
+import hashlib
+import logging
+from datetime import date, datetime
+from typing import Optional
+
+import requests
+from bs4 import BeautifulSoup
+from difflib import SequenceMatcher
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+from sqlalchemy import text
+from sansadx_backend.db import engine
+
+logger = logging.getLogger("needle.global_crawler")
+
+# ── Reuse PRS constants + helpers from parliament_scraper ──────────────────────
+from jobs.parliament_scraper import (
+    PRS_BASE, PRS_PROFILE_URL, PRS_LISTING_URL, PRS_HEADERS,
+    REQUEST_TIMEOUT, INTER_REQUEST_DELAY, MAX_LISTING_PAGES,
+    scrape_prs_profile, _date_to_session, _q_num,
+)
+from modules.brain_chunker import _topic_tags_from_subject
+
+# ── Config ─────────────────────────────────────────────────────────────────────
+LLM_TAG_BATCH_SIZE   = 40     # subjects per GPT call
+LLM_TAG_MAX_PER_RUN  = 2000   # safety cap per invocation
+CRAWL_DELAY          = 1.2    # seconds between MP profile fetches
+LISTING_DELAY        = 0.4    # seconds between listing page fetches
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SCHEMA
+# ─────────────────────────────────────────────────────────────────────────────
+
+def ensure_schema():
+    """Create global tables if they don't exist. Idempotent."""
+    with engine.begin() as conn:
+
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS global_mp_registry (
+                id              SERIAL PRIMARY KEY,
+                prs_slug        VARCHAR(120) UNIQUE NOT NULL,
+                mp_name         VARCHAR(200),
+                party           VARCHAR(120),
+                constituency    VARCHAR(200),
+                state           VARCHAR(120),
+                house           VARCHAR(20)  DEFAULT 'lok_sabha',
+                scrape_status   VARCHAR(20)  DEFAULT 'pending',
+                questions_count INTEGER      DEFAULT 0,
+                last_scraped_at TIMESTAMP,
+                created_at      TIMESTAMP    DEFAULT NOW()
+            )
+        """))
+
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS global_parliamentary_questions (
+                id                  BIGSERIAL PRIMARY KEY,
+                global_mp_id        INTEGER REFERENCES global_mp_registry(id) ON DELETE CASCADE,
+                prs_slug            VARCHAR(120) NOT NULL,
+                house               VARCHAR(20)  DEFAULT 'lok_sabha',
+                session_name        VARCHAR(80),
+                question_number     VARCHAR(40),
+                question_type       VARCHAR(20),
+                subject             TEXT,
+                ministry            VARCHAR(200),
+                question_pdf_url    TEXT,
+                question_text       TEXT,
+                answer_text         TEXT,
+                date_asked          DATE,
+                topic_tags          TEXT[],
+                tags_source         VARCHAR(20),
+                answer_fetched_at   TIMESTAMP,
+                answer_fetch_status VARCHAR(20),
+                scraped_at          TIMESTAMP DEFAULT NOW(),
+                UNIQUE (prs_slug, session_name, question_number, question_type)
+            )
+        """))
+
+        # Indexes for fast ministry/session/tag lookups
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_gpq_slug     ON global_parliamentary_questions (prs_slug)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_gpq_ministry ON global_parliamentary_questions (LOWER(ministry))"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_gpq_session  ON global_parliamentary_questions (session_name)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_gpq_date     ON global_parliamentary_questions (date_asked)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_gmp_status   ON global_mp_registry (scrape_status)"
+        ))
+
+    logger.info("global_mp_registry + global_parliamentary_questions schema ensured.")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STEP 1 — DISCOVER ALL MPs FROM PRS LISTING
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _parse_listing_page(html: str) -> list[dict]:
+    """
+    Parse one PRS MP listing page. Returns list of:
+      {prs_slug, mp_name, party, constituency, state}
+    """
+    soup  = BeautifulSoup(html, "html.parser")
+    cards = soup.find_all("div", class_="mp-card")
+    mps   = []
+
+    for card in cards:
+        a = card.find("a")
+        if not a:
+            continue
+        href = a.get("href", "")
+        slug = href.rstrip("/").split("/")[-1]
+        if not slug:
+            continue
+
+        # Name
+        h3 = a.find("h3") or a.find("h2") or a.find("strong")
+        mp_name = h3.get_text(strip=True) if h3 else ""
+
+        # Paragraphs: [0]=party, [1]=constituency, [2]=state (varies by PRS version)
+        paras = [p.get_text(strip=True) for p in card.find_all("p")]
+        party        = paras[0] if len(paras) > 0 else ""
+        constituency = paras[1] if len(paras) > 1 else ""
+        state        = paras[2] if len(paras) > 2 else ""
+
+        mps.append({
+            "prs_slug":     slug,
+            "mp_name":      mp_name,
+            "party":        party,
+            "constituency": constituency,
+            "state":        state,
+        })
+
+    return mps
+
+
+def discover_all_mps(force: bool = False) -> dict:
+    """
+    Crawl all PRS listing pages and upsert into global_mp_registry.
+    Safe to re-run — existing rows are updated only if force=True or new data differs.
+
+    Returns: {"discovered": N, "new": N, "pages_scanned": N}
+    """
+    ensure_schema()
+
+    discovered = 0
+    new_count  = 0
+    pages_done = 0
+
+    logger.info("Discovering MPs from PRS listing (max %d pages)…", MAX_LISTING_PAGES)
+
+    for page in range(1, MAX_LISTING_PAGES + 1):
+        url = f"{PRS_LISTING_URL}?page={page}"
+        try:
+            resp = requests.get(url, headers=PRS_HEADERS, timeout=REQUEST_TIMEOUT)
+            if resp.status_code == 404 or resp.status_code == 410:
+                break
+            resp.raise_for_status()
+
+            mps = _parse_listing_page(resp.text)
+            if not mps:
+                logger.info("Listing page %d: no cards found — end of listing.", page)
+                break
+
+            pages_done += 1
+            discovered += len(mps)
+
+            with engine.begin() as conn:
+                for mp in mps:
+                    result = conn.execute(text("""
+                        INSERT INTO global_mp_registry
+                            (prs_slug, mp_name, party, constituency, state, house)
+                        VALUES
+                            (:prs_slug, :mp_name, :party, :constituency, :state, 'lok_sabha')
+                        ON CONFLICT (prs_slug) DO UPDATE SET
+                            mp_name      = EXCLUDED.mp_name,
+                            party        = EXCLUDED.party,
+                            constituency = EXCLUDED.constituency,
+                            state        = EXCLUDED.state
+                    """), mp)
+                    if result.rowcount == 1:
+                        new_count += 1
+
+            logger.info("Page %d: %d MPs found (total so far: %d)", page, len(mps), discovered)
+            time.sleep(LISTING_DELAY)
+
+        except Exception as e:
+            logger.warning("Listing page %d error: %s", page, e)
+            break
+
+    logger.info("Discovery complete: %d MPs across %d pages (%d new)",
+                discovered, pages_done, new_count)
+    return {"discovered": discovered, "new": new_count, "pages_scanned": pages_done}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STEP 2 — CRAWL ONE MP
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _upsert_global_questions(global_mp_id: int, prs_slug: str,
+                             records: list) -> int:
+    """Upsert PQ records into global_parliamentary_questions."""
+    if not records:
+        return 0
+    inserted = 0
+    with engine.begin() as conn:
+        for r in records:
+            res = conn.execute(text("""
+                INSERT INTO global_parliamentary_questions
+                    (global_mp_id, prs_slug, house, session_name, question_number,
+                     question_type, subject, ministry, question_pdf_url,
+                     question_text, answer_text, date_asked,
+                     topic_tags, tags_source, scraped_at)
+                VALUES
+                    (:global_mp_id, :prs_slug, :house, :session_name, :question_number,
+                     :question_type, :subject, :ministry, :question_pdf_url,
+                     :question_text, :answer_text, :date_asked,
+                     :topic_tags, :tags_source, NOW())
+                ON CONFLICT (prs_slug, session_name, question_number, question_type)
+                DO UPDATE SET
+                    subject          = EXCLUDED.subject,
+                    ministry         = EXCLUDED.ministry,
+                    question_pdf_url = COALESCE(EXCLUDED.question_pdf_url,
+                                               global_parliamentary_questions.question_pdf_url)
+            """), r)
+            inserted += res.rowcount
+    return inserted
+
+
+def crawl_mp(prs_slug: str, global_mp_id: Optional[int] = None,
+             skip_if_done: bool = True) -> dict:
+    """
+    Scrape one MP's PQs from PRS India and store in global_parliamentary_questions.
+
+    Args:
+        prs_slug:      PRS profile slug, e.g. "supriya-sule"
+        global_mp_id:  DB id from global_mp_registry (resolved if None)
+        skip_if_done:  skip MPs whose scrape_status is already 'done'
+
+    Returns summary dict.
+    """
+    ensure_schema()
+
+    # Resolve global_mp_id if not provided
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT id, scrape_status FROM global_mp_registry WHERE prs_slug = :s"),
+            {"s": prs_slug},
+        ).mappings().fetchone()
+
+    if not row:
+        logger.warning("crawl_mp: %s not in global_mp_registry — run discover first", prs_slug)
+        return {"error": f"{prs_slug} not in registry"}
+
+    global_mp_id   = global_mp_id or row["id"]
+    scrape_status  = row["scrape_status"]
+
+    if skip_if_done and scrape_status == "done":
+        logger.debug("crawl_mp: %s already done, skipping", prs_slug)
+        return {"skipped": True, "prs_slug": prs_slug}
+
+    # Mark as running
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE global_mp_registry
+            SET scrape_status = 'running'
+            WHERE id = :id
+        """), {"id": global_mp_id})
+
+    try:
+        data = scrape_prs_profile(prs_slug)
+    except Exception as e:
+        logger.error("crawl_mp: PRS fetch failed for %s: %s", prs_slug, e)
+        with engine.begin() as conn:
+            conn.execute(text("""
+                UPDATE global_mp_registry
+                SET scrape_status = 'failed', last_scraped_at = NOW()
+                WHERE id = :id
+            """), {"id": global_mp_id})
+        return {"prs_slug": prs_slug, "error": str(e)}
+
+    # Build records
+    q_records = []
+    for q in data.get("questions", []):
+        d = q.get("date")
+        _, sname = _date_to_session(d)
+        qnum = _q_num(q.get("date_str", ""), q.get("title", ""), q.get("question_type", ""))
+        subject  = q.get("title", "")
+        ministry = q.get("ministry", "")
+        tags = _topic_tags_from_subject(f"{subject} {ministry}")
+
+        q_records.append({
+            "global_mp_id":     global_mp_id,
+            "prs_slug":         prs_slug,
+            "house":            "lok_sabha",
+            "session_name":     sname,
+            "question_number":  qnum,
+            "question_type":    (q.get("question_type") or "").lower(),
+            "subject":          subject,
+            "ministry":         ministry,
+            "question_pdf_url": q.get("pdf_url") or None,
+            "question_text":    "",
+            "answer_text":      "",
+            "date_asked":       d,
+            "topic_tags":       tags,
+            "tags_source":      "rule",
+        })
+
+    inserted = _upsert_global_questions(global_mp_id, prs_slug, q_records)
+
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE global_mp_registry
+            SET scrape_status   = 'done',
+                questions_count = :cnt,
+                last_scraped_at = NOW()
+            WHERE id = :id
+        """), {"id": global_mp_id, "cnt": inserted})
+
+    logger.info("crawl_mp(%s): %d questions inserted", prs_slug, inserted)
+    return {"prs_slug": prs_slug, "questions_inserted": inserted}
+
+
+def crawl_all_pending(limit: Optional[int] = None,
+                      include_failed: bool = False) -> dict:
+    """
+    Crawl all MPs whose scrape_status is 'pending' (or 'failed' if include_failed).
+    Rate-limited politely. Designed for nightly cron.
+
+    Returns: {"crawled": N, "inserted_total": N, "errors": [...]}
+    """
+    ensure_schema()
+
+    statuses = ["pending"]
+    if include_failed:
+        statuses.append("failed")
+
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT id, prs_slug FROM global_mp_registry
+            WHERE scrape_status = ANY(:statuses)
+            ORDER BY id
+            LIMIT :lim
+        """), {"statuses": statuses, "lim": limit or 10000}).mappings().all()
+
+    if not rows:
+        logger.info("crawl_all_pending: nothing to crawl.")
+        return {"crawled": 0, "inserted_total": 0, "errors": []}
+
+    logger.info("crawl_all_pending: %d MPs to crawl", len(rows))
+
+    crawled  = 0
+    inserted = 0
+    errors   = []
+
+    for i, row in enumerate(rows):
+        result = crawl_mp(row["prs_slug"], global_mp_id=row["id"], skip_if_done=True)
+        if result.get("error"):
+            errors.append({"prs_slug": row["prs_slug"], "error": result["error"]})
+        elif not result.get("skipped"):
+            crawled  += 1
+            inserted += result.get("questions_inserted", 0)
+            logger.info("[%d/%d] %s → %d Qs", i + 1, len(rows),
+                        row["prs_slug"], result.get("questions_inserted", 0))
+
+        time.sleep(CRAWL_DELAY)
+
+    logger.info("crawl_all_pending done: %d crawled, %d Qs inserted, %d errors",
+                crawled, inserted, len(errors))
+    return {"crawled": crawled, "inserted_total": inserted, "errors": errors}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STEP 3 — LLM AUTO-TAGGING (GPT-4o-mini)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_TAG_SYSTEM = """\
+You receive a JSON array of parliamentary questions. Each has an "id", "subject", and "ministry".
+Return a JSON array with exactly the same ids and a "tags" key containing 3-6 lowercase topic tags.
+Tags should be specific and useful for retrieval — e.g. "drinking_water", "northeast_india",
+"jal_jeevan_mission", "farmer_subsidy", "nep_implementation", "coastal_erosion".
+Prefer specific over generic. Never use tags like "india", "parliament", "ministry".
+Output ONLY valid JSON — no markdown, no explanation."""
+
+_TAG_USER = "Questions:\n{batch_json}\n\nReturn tagged JSON array."
+
+
+def _openai_tag_batch(subjects: list[dict]) -> Optional[list[dict]]:
+    """
+    Call GPT-4o-mini to tag a batch of {id, subject, ministry} dicts.
+    Returns list of {id, tags} or None on failure.
+    """
+    try:
+        from openai import OpenAI
+        key = os.environ.get("OPENAI_API_KEY")
+        if not key:
+            return None
+        client = OpenAI(api_key=key)
+        batch_json = json.dumps(subjects, ensure_ascii=False)
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": _TAG_SYSTEM},
+                {"role": "user",   "content": _TAG_USER.format(batch_json=batch_json)},
+            ],
+            temperature=0,
+            response_format={"type": "json_object"},
+            max_tokens=800,
+        )
+        raw = resp.choices[0].message.content or ""
+        # Model may return {"questions": [...]} or just [...]
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            return parsed
+        # Try common wrapper keys
+        for key_try in ("questions", "items", "results", "data"):
+            if key_try in parsed and isinstance(parsed[key_try], list):
+                return parsed[key_try]
+        # Fallback: if it's a single dict with id+tags
+        if "id" in parsed and "tags" in parsed:
+            return [parsed]
+        return None
+    except Exception as e:
+        logger.warning("LLM tag batch failed: %s", e)
+        return None
+
+
+def llm_tag_batch(limit: int = LLM_TAG_MAX_PER_RUN) -> dict:
+    """
+    Find global PQs with tags_source='rule' or no tags and re-tag with GPT-4o-mini.
+    Writes updated tags back to global_parliamentary_questions.
+    Falls back gracefully to rule-based tags when OpenAI is unavailable.
+
+    Returns: {"tagged": N, "batches": N, "skipped": N}
+    """
+    ensure_schema()
+
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT id, subject, ministry
+            FROM global_parliamentary_questions
+            WHERE (tags_source IS NULL OR tags_source = 'rule')
+              AND subject IS NOT NULL AND subject != ''
+            ORDER BY id
+            LIMIT :lim
+        """), {"lim": limit}).mappings().all()
+
+    if not rows:
+        return {"tagged": 0, "batches": 0, "skipped": 0}
+
+    logger.info("llm_tag_batch: %d questions to tag", len(rows))
+
+    tagged_count  = 0
+    batch_count   = 0
+    skip_count    = 0
+
+    for batch_start in range(0, len(rows), LLM_TAG_BATCH_SIZE):
+        batch = list(rows[batch_start: batch_start + LLM_TAG_BATCH_SIZE])
+        subjects = [
+            {"id": r["id"],
+             "subject": (r["subject"] or "")[:200],
+             "ministry": (r["ministry"] or "")[:80]}
+            for r in batch
+        ]
+
+        tagged = _openai_tag_batch(subjects)
+
+        if tagged:
+            batch_count += 1
+            id_to_tags = {}
+            for item in tagged:
+                if isinstance(item, dict) and "id" in item and "tags" in item:
+                    id_to_tags[item["id"]] = item["tags"]
+
+            with engine.begin() as conn:
+                for item_id, tags in id_to_tags.items():
+                    if isinstance(tags, list) and tags:
+                        conn.execute(text("""
+                            UPDATE global_parliamentary_questions
+                            SET topic_tags = :tags, tags_source = 'llm'
+                            WHERE id = :id
+                        """), {"id": item_id, "tags": tags})
+                        tagged_count += 1
+        else:
+            skip_count += len(batch)
+            logger.debug("llm_tag_batch: batch %d skipped (OpenAI unavailable)",
+                         batch_start // LLM_TAG_BATCH_SIZE + 1)
+
+        time.sleep(0.3)   # avoid rate limits
+
+    logger.info("llm_tag_batch: %d tagged, %d batches, %d skipped",
+                tagged_count, batch_count, skip_count)
+    return {"tagged": tagged_count, "batches": batch_count, "skipped": skip_count}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STEP 4 — FETCH ANSWERS FOR GLOBAL PQs
+# (Delegates to parliament_answer_fetcher logic on the global table)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def fetch_global_answers(limit: int = 200, prs_slug: Optional[str] = None) -> dict:
+    """
+    Download and parse PRS PDFs to populate question_text + answer_text
+    for global_parliamentary_questions rows that have a pdf_url but no answer yet.
+
+    Uses the same prs_answer_extractor logic as the per-tenant fetcher.
+    Rate-limited to 1 req/s.
+
+    Returns: {"processed": N, "updated": N, "errors": N}
+    """
+    ensure_schema()
+
+    try:
+        from modules.prs_answer_extractor import extract_qas_from_pdf, match_qas_to_rows
+    except ImportError:
+        return {"error": "prs_answer_extractor not available"}
+
+    where = "question_pdf_url IS NOT NULL AND question_pdf_url != '' AND answer_text = ''"
+    params: dict = {"lim": limit}
+    if prs_slug:
+        where += " AND prs_slug = :slug"
+        params["slug"] = prs_slug
+
+    with engine.connect() as conn:
+        rows = conn.execute(text(f"""
+            SELECT id, prs_slug, subject, ministry, question_number,
+                   question_type, session_name, date_asked, question_pdf_url
+            FROM global_parliamentary_questions
+            WHERE {where}
+            ORDER BY date_asked DESC
+            LIMIT :lim
+        """), params).mappings().all()
+
+    if not rows:
+        return {"processed": 0, "updated": 0, "errors": 0}
+
+    # Group by PDF URL (one PDF can cover many questions)
+    from collections import defaultdict
+    pdf_groups: dict[str, list] = defaultdict(list)
+    for r in rows:
+        pdf_groups[r["question_pdf_url"]].append(dict(r))
+
+    processed = 0
+    updated   = 0
+    errors    = 0
+
+    for pdf_url, group_rows in pdf_groups.items():
+        try:
+            qas = extract_qas_from_pdf(pdf_url)
+            if not qas:
+                errors += 1
+                continue
+
+            matched = match_qas_to_rows(qas, group_rows)
+            processed += 1
+
+            with engine.begin() as conn:
+                for row_id, qa in matched.items():
+                    conn.execute(text("""
+                        UPDATE global_parliamentary_questions
+                        SET question_text       = :qt,
+                            answer_text         = :at,
+                            answer_fetched_at   = NOW(),
+                            answer_fetch_status = 'ok'
+                        WHERE id = :id
+                    """), {
+                        "id": row_id,
+                        "qt": qa.get("question_text", ""),
+                        "at": qa.get("answer_text", ""),
+                    })
+                    updated += 1
+
+        except Exception as e:
+            logger.warning("fetch_global_answers: PDF %s failed: %s", pdf_url, e)
+            errors += 1
+
+        time.sleep(1.0)   # polite crawl
+
+    logger.info("fetch_global_answers: processed=%d updated=%d errors=%d",
+                processed, updated, errors)
+    return {"processed": processed, "updated": updated, "errors": errors}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STATS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_stats() -> dict:
+    """Return a summary of the global corpus."""
+    ensure_schema()
+    with engine.connect() as conn:
+        reg = conn.execute(text("""
+            SELECT
+                COUNT(*)                                       AS total_mps,
+                COUNT(*) FILTER (WHERE scrape_status='done')   AS done,
+                COUNT(*) FILTER (WHERE scrape_status='pending') AS pending,
+                COUNT(*) FILTER (WHERE scrape_status='failed')  AS failed,
+                COUNT(*) FILTER (WHERE scrape_status='running') AS running
+            FROM global_mp_registry
+        """)).mappings().fetchone()
+
+        pqs = conn.execute(text("""
+            SELECT
+                COUNT(*)                                          AS total_questions,
+                COUNT(*) FILTER (WHERE answer_text != '' AND answer_text IS NOT NULL)
+                                                                  AS with_answers,
+                COUNT(*) FILTER (WHERE tags_source = 'llm')       AS llm_tagged,
+                COUNT(*) FILTER (WHERE tags_source = 'rule')      AS rule_tagged,
+                COUNT(DISTINCT ministry)                           AS ministries,
+                MIN(date_asked)                                    AS earliest,
+                MAX(date_asked)                                    AS latest
+            FROM global_parliamentary_questions
+        """)).mappings().fetchone()
+
+    return {
+        "registry": dict(reg) if reg else {},
+        "questions": dict(pqs) if pqs else {},
+    }
+
+
+def get_ministry_breakdown(limit: int = 30) -> list[dict]:
+    """Top ministries by question count in the global corpus."""
+    ensure_schema()
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT ministry, COUNT(*) AS total,
+                   COUNT(*) FILTER (WHERE answer_text != '' AND answer_text IS NOT NULL) AS with_answers
+            FROM global_parliamentary_questions
+            WHERE ministry IS NOT NULL AND ministry != ''
+            GROUP BY ministry
+            ORDER BY total DESC
+            LIMIT :lim
+        """), {"lim": limit}).mappings().all()
+    return [dict(r) for r in rows]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CLI
+# ─────────────────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+    )
+    import argparse
+    ap = argparse.ArgumentParser(description="Needle Global Parliament Crawler (Phase 4)")
+    ap.add_argument("--discover",      action="store_true",
+                    help="Discover all ~543 MPs from PRS listing and upsert into global_mp_registry")
+    ap.add_argument("--crawl-all",     action="store_true",
+                    help="Crawl all pending MPs (full run)")
+    ap.add_argument("--crawl-pending", action="store_true",
+                    help="Crawl pending/failed MPs up to --limit")
+    ap.add_argument("--crawl-mp",      metavar="SLUG",
+                    help="Crawl a single MP by prs_slug")
+    ap.add_argument("--tag-untagged",  action="store_true",
+                    help="LLM-tag questions that only have rule-based tags")
+    ap.add_argument("--fetch-answers", action="store_true",
+                    help="Fetch Ministry answers for global PQs with PDF URLs")
+    ap.add_argument("--fetch-slug",    metavar="SLUG",
+                    help="Fetch answers only for this prs_slug")
+    ap.add_argument("--stats",         action="store_true",
+                    help="Print global corpus stats")
+    ap.add_argument("--limit",         type=int, default=100,
+                    help="Max MPs/questions to process (default 100)")
+    ap.add_argument("--include-failed", action="store_true",
+                    help="Re-attempt previously failed MPs")
+    args = ap.parse_args()
+
+    if args.stats:
+        import pprint
+        pprint.pprint(get_stats())
+        pprint.pprint({"top_ministries": get_ministry_breakdown(15)})
+
+    elif args.discover:
+        result = discover_all_mps()
+        print(json.dumps(result, indent=2))
+
+    elif args.crawl_all:
+        result = crawl_all_pending(limit=None, include_failed=args.include_failed)
+        print(json.dumps(result, default=str, indent=2))
+
+    elif args.crawl_pending:
+        result = crawl_all_pending(limit=args.limit, include_failed=args.include_failed)
+        print(json.dumps(result, default=str, indent=2))
+
+    elif args.crawl_mp:
+        result = crawl_mp(args.crawl_mp, skip_if_done=False)
+        print(json.dumps(result, default=str, indent=2))
+
+    elif args.tag_untagged:
+        result = llm_tag_batch(limit=args.limit)
+        print(json.dumps(result, indent=2))
+
+    elif args.fetch_answers:
+        result = fetch_global_answers(limit=args.limit, prs_slug=args.fetch_slug)
+        print(json.dumps(result, default=str, indent=2))
+
+    else:
+        ap.print_help()

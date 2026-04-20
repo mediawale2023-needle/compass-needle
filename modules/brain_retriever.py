@@ -156,6 +156,15 @@ def _build_citation(c: dict) -> str:
             f"PQ #{qn} ({(md.get('question_type') or '').title()}) — "
             f"{md.get('ministry') or ''} — {c.get('date_ref') or ''}"
         ).strip(" —")
+    if st == "global_pq_qa":
+        mp  = md.get("mp_name") or md.get("prs_slug") or "Unknown MP"
+        pty = md.get("party") or ""
+        con = md.get("constituency") or ""
+        attr = f"{mp} ({pty}, {con})" if pty else mp
+        return (
+            f"Cross-MP PQ — {md.get('ministry') or ''} — {c.get('date_ref') or ''} "
+            f"[{attr}]"
+        ).strip()
     if st == "debate_speech":
         return f"Debate: {md.get('topic') or c.get('title')} — {c.get('date_ref') or ''}".strip(" —")
     if st == "zero_hour":
@@ -216,6 +225,7 @@ DRAFT_LETTER_SOURCES = [
 
 DRAFT_PQ_SOURCES = [
     "pq_qa",
+    "global_pq_qa",           # Phase 4: other MPs' PQs + ministry answers
     "const_challenge", "const_priority",
     "scheme",
     "debate_speech",
@@ -223,6 +233,7 @@ DRAFT_PQ_SOURCES = [
 
 COPILOT_SOURCES = [
     "pq_qa",
+    "global_pq_qa",           # Phase 4: cross-MP intelligence
     "const_challenge", "const_priority", "const_overview",
     "const_political", "const_assembly", "const_economy",
     "const_social", "const_culture", "const_fact",

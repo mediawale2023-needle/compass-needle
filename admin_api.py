@@ -3813,3 +3813,181 @@ def brain_retrieve(body: BrainRetrieveRequest, user=Depends(get_admin_user)):
     except Exception as e:
         logger.exception("brain retrieve failed: %s", e)
         raise HTTPException(500, f"Retrieval failed: {e}")
+
+
+# ── Phase 4: Global Parliament Crawler endpoints ───────────────────────────────
+
+_global_crawl_jobs: dict = {}
+
+
+class GlobalCrawlRequest(BaseModel):
+    limit:           Optional[int]  = None
+    include_failed:  bool           = False
+    only_with_answers: bool         = False
+    rebuild:         bool           = False
+
+
+@router.post("/brain/global-discover")
+def trigger_global_discover(
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_admin_user),
+):
+    """Crawl PRS listing pages to discover all ~543 18th Lok Sabha MPs."""
+    job_id = f"global_discover_{uuid.uuid4().hex[:10]}"
+    _global_crawl_jobs[job_id] = {
+        "type": "discover", "status": "running",
+        "started_at": datetime.utcnow().isoformat() + "Z",
+        "finished_at": None, "summary": None, "error": None,
+    }
+
+    def _run():
+        try:
+            from jobs.global_parliament_crawler import discover_all_mps
+            summary = discover_all_mps()
+            _global_crawl_jobs[job_id]["status"]  = "done"
+            _global_crawl_jobs[job_id]["summary"] = summary
+        except Exception as e:
+            logger.exception("global_discover failed: %s", e)
+            _global_crawl_jobs[job_id]["status"] = "error"
+            _global_crawl_jobs[job_id]["error"]  = str(e)
+        _global_crawl_jobs[job_id]["finished_at"] = datetime.utcnow().isoformat() + "Z"
+
+    if background_tasks:
+        background_tasks.add_task(_run)
+    else:
+        threading.Thread(target=_run, daemon=True).start()
+
+    return {"ok": True, "job_id": job_id,
+            "message": "Discovering MPs from PRS listing…"}
+
+
+@router.post("/brain/global-crawl")
+def trigger_global_crawl(
+    body: GlobalCrawlRequest = GlobalCrawlRequest(),
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_admin_user),
+):
+    """Crawl pending MPs' PQs from PRS into global_parliamentary_questions."""
+    job_id = f"global_crawl_{uuid.uuid4().hex[:10]}"
+    _global_crawl_jobs[job_id] = {
+        "type": "crawl", "status": "running",
+        "started_at": datetime.utcnow().isoformat() + "Z",
+        "finished_at": None, "summary": None, "error": None,
+    }
+
+    def _run():
+        try:
+            from jobs.global_parliament_crawler import crawl_all_pending
+            summary = crawl_all_pending(
+                limit=body.limit,
+                include_failed=body.include_failed,
+            )
+            _global_crawl_jobs[job_id]["status"]  = "done"
+            _global_crawl_jobs[job_id]["summary"] = summary
+        except Exception as e:
+            logger.exception("global_crawl failed: %s", e)
+            _global_crawl_jobs[job_id]["status"] = "error"
+            _global_crawl_jobs[job_id]["error"]  = str(e)
+        _global_crawl_jobs[job_id]["finished_at"] = datetime.utcnow().isoformat() + "Z"
+
+    if background_tasks:
+        background_tasks.add_task(_run)
+    else:
+        threading.Thread(target=_run, daemon=True).start()
+
+    return {"ok": True, "job_id": job_id,
+            "message": f"Crawling pending MPs (limit={body.limit or 'all'})…"}
+
+
+@router.post("/brain/global-tag")
+def trigger_global_tag(
+    body: GlobalCrawlRequest = GlobalCrawlRequest(),
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_admin_user),
+):
+    """LLM-tag global questions that only have rule-based tags."""
+    job_id = f"global_tag_{uuid.uuid4().hex[:10]}"
+    _global_crawl_jobs[job_id] = {
+        "type": "tag", "status": "running",
+        "started_at": datetime.utcnow().isoformat() + "Z",
+        "finished_at": None, "summary": None, "error": None,
+    }
+
+    def _run():
+        try:
+            from jobs.global_parliament_crawler import llm_tag_batch
+            summary = llm_tag_batch(limit=body.limit or 2000)
+            _global_crawl_jobs[job_id]["status"]  = "done"
+            _global_crawl_jobs[job_id]["summary"] = summary
+        except Exception as e:
+            logger.exception("global_tag failed: %s", e)
+            _global_crawl_jobs[job_id]["status"] = "error"
+            _global_crawl_jobs[job_id]["error"]  = str(e)
+        _global_crawl_jobs[job_id]["finished_at"] = datetime.utcnow().isoformat() + "Z"
+
+    if background_tasks:
+        background_tasks.add_task(_run)
+    else:
+        threading.Thread(target=_run, daemon=True).start()
+
+    return {"ok": True, "job_id": job_id, "message": "LLM tagging started…"}
+
+
+@router.post("/brain/global-index")
+def trigger_global_index(
+    body: GlobalCrawlRequest = GlobalCrawlRequest(),
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_admin_user),
+):
+    """Embed global PQs into memory_chunks (tenant_id=NULL)."""
+    job_id = f"global_index_{uuid.uuid4().hex[:10]}"
+    _global_crawl_jobs[job_id] = {
+        "type": "index", "status": "running",
+        "started_at": datetime.utcnow().isoformat() + "Z",
+        "finished_at": None, "summary": None, "error": None,
+    }
+
+    def _run():
+        try:
+            from jobs.brain_indexer import index_global_pqs
+            summary = index_global_pqs(
+                limit=body.limit,
+                only_with_answers=body.only_with_answers,
+                rebuild=body.rebuild,
+            )
+            _global_crawl_jobs[job_id]["status"]  = "done"
+            _global_crawl_jobs[job_id]["summary"] = summary
+        except Exception as e:
+            logger.exception("global_index failed: %s", e)
+            _global_crawl_jobs[job_id]["status"] = "error"
+            _global_crawl_jobs[job_id]["error"]  = str(e)
+        _global_crawl_jobs[job_id]["finished_at"] = datetime.utcnow().isoformat() + "Z"
+
+    if background_tasks:
+        background_tasks.add_task(_run)
+    else:
+        threading.Thread(target=_run, daemon=True).start()
+
+    return {"ok": True, "job_id": job_id, "message": "Global PQ indexing started…"}
+
+
+@router.get("/brain/global-stats")
+def brain_global_stats(user=Depends(get_admin_user)):
+    """Stats for the global parliament corpus."""
+    try:
+        from jobs.global_parliament_crawler import get_stats, get_ministry_breakdown
+        return {
+            "corpus":     get_stats(),
+            "ministries": get_ministry_breakdown(20),
+        }
+    except Exception as e:
+        logger.exception("global stats failed: %s", e)
+        raise HTTPException(500, f"Global stats failed: {e}")
+
+
+@router.get("/brain/global-crawl/status/{job_id}")
+def get_global_crawl_status(job_id: str, user=Depends(get_admin_user)):
+    job = _global_crawl_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found or expired")
+    return job
