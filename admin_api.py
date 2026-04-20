@@ -3846,6 +3846,10 @@ def trigger_global_discover(
             summary = discover_all_mps()
             _global_crawl_jobs[job_id]["status"]  = "done"
             _global_crawl_jobs[job_id]["summary"] = summary
+            # Bubble up the hint (e.g. JS-rendering issue) as an error note
+            if summary.get("hint") and summary.get("discovered", 0) == 0:
+                _global_crawl_jobs[job_id]["status"] = "warning"
+                _global_crawl_jobs[job_id]["error"]  = summary["hint"]
         except Exception as e:
             logger.exception("global_discover failed: %s", e)
             _global_crawl_jobs[job_id]["status"] = "error"
@@ -3983,6 +3987,61 @@ def brain_global_stats(user=Depends(get_admin_user)):
     except Exception as e:
         logger.exception("global stats failed: %s", e)
         raise HTTPException(500, f"Global stats failed: {e}")
+
+
+@router.post("/brain/global-seed")
+async def trigger_global_seed(request: Request, user=Depends(get_admin_user)):
+    """
+    Seed global_mp_registry from a JSON array in the request body when the PRS
+    listing page cannot be scraped (e.g. it requires JavaScript rendering).
+
+    Body: JSON array of {prs_slug, mp_name?, party?, constituency?, state?}
+    Returns: {seeded: N, new: N}
+
+    Example minimal payload:
+      [{"prs_slug": "supriya-sule"}, {"prs_slug": "rahul-gandhi"}, ...]
+    """
+    try:
+        rows = await request.json()
+        if not isinstance(rows, list):
+            raise HTTPException(400, "Body must be a JSON array")
+        from jobs.global_parliament_crawler import ensure_schema, engine
+        from sqlalchemy import text as _text
+        ensure_schema()
+        seeded  = 0
+        new_cnt = 0
+        with engine.begin() as conn:
+            for mp in rows:
+                slug = (mp.get("prs_slug") or "").strip()
+                if not slug:
+                    continue
+                res = conn.execute(_text("""
+                    INSERT INTO global_mp_registry
+                        (prs_slug, mp_name, party, constituency, state, house)
+                    VALUES
+                        (:prs_slug, :mp_name, :party, :constituency, :state, 'lok_sabha')
+                    ON CONFLICT (prs_slug) DO UPDATE SET
+                        mp_name      = EXCLUDED.mp_name,
+                        party        = EXCLUDED.party,
+                        constituency = EXCLUDED.constituency,
+                        state        = EXCLUDED.state
+                """), {
+                    "prs_slug":     slug,
+                    "mp_name":      mp.get("mp_name", slug.replace("-", " ").title()),
+                    "party":        mp.get("party", ""),
+                    "constituency": mp.get("constituency", ""),
+                    "state":        mp.get("state", ""),
+                })
+                seeded += 1
+                if res.rowcount == 1:
+                    new_cnt += 1
+        logger.info("global_seed: %d seeded (%d new)", seeded, new_cnt)
+        return {"ok": True, "seeded": seeded, "new": new_cnt}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("global_seed failed: %s", e)
+        raise HTTPException(500, f"Seed failed: {e}")
 
 
 @router.get("/brain/global-crawl/status/{job_id}")

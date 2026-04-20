@@ -40,6 +40,7 @@ Usage:
 from __future__ import annotations
 
 import os
+import re
 import sys
 import json
 import time
@@ -146,43 +147,212 @@ def ensure_schema():
 # STEP 1 — DISCOVER ALL MPs FROM PRS LISTING
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Regex that matches PRS 18th Lok Sabha profile URLs so we can extract slugs
+# from any link on the page regardless of CSS class structure.
+_PROFILE_HREF_RE = re.compile(
+    r"/mptrack/18(?:th-lok-sabha|loksabha)/([a-z0-9][a-z0-9\-]+[a-z0-9])",
+    re.IGNORECASE,
+)
+
+
 def _parse_listing_page(html: str) -> list[dict]:
     """
-    Parse one PRS MP listing page. Returns list of:
+    Parse one PRS MP listing page.  Returns list of:
       {prs_slug, mp_name, party, constituency, state}
+
+    Strategy (in order):
+      1. Classic div.mp-card structure (old PRS layout)
+      2. Any other common card class patterns (member-card, mp_item, etc.)
+      3. Fallback: extract every <a> whose href matches the profile URL pattern
+         and pull name/meta from surrounding markup.
+
+    Handles JS-rendered pages that return near-empty HTML by returning []
+    and logging a clear diagnostic message.
     """
-    soup  = BeautifulSoup(html, "html.parser")
-    cards = soup.find_all("div", class_="mp-card")
-    mps   = []
+    soup = BeautifulSoup(html, "html.parser")
 
-    for card in cards:
-        a = card.find("a")
-        if not a:
-            continue
+    # ── 0. JS-rendered guard ───────────────────────────────────────────────
+    # If the response body is very short it's almost certainly a JS SPA shell.
+    if len(html) < 4_000:
+        logger.warning(
+            "_parse_listing_page: HTML too short (%d chars) — "
+            "page may require JavaScript rendering. "
+            "Run scripts/diagnose_prs_listing.py locally to inspect.",
+            len(html),
+        )
+        return []
+
+    mps: list[dict] = []
+    seen_slugs: set[str] = set()
+
+    # ── 1. Classic card selector cascade ──────────────────────────────────
+    card_selectors = [
+        ("div", "mp-card"),
+        ("div", "member-card"),
+        ("div", "mp_card"),
+        ("div", "mp-item"),
+        ("div", "member-item"),
+        ("article", "mp-card"),
+        ("li", "mp-card"),
+        ("li", "member-card"),
+    ]
+
+    cards = []
+    for tag, cls in card_selectors:
+        cards = soup.find_all(tag, class_=cls)
+        if cards:
+            logger.debug("_parse_listing_page: matched selector %s.%s → %d cards",
+                         tag, cls, len(cards))
+            break
+
+    if cards:
+        for card in cards:
+            a = card.find("a", href=_PROFILE_HREF_RE)
+            if not a:
+                # Try any <a> and test href separately
+                a = card.find("a")
+            if not a:
+                continue
+            href = a.get("href", "")
+            m = _PROFILE_HREF_RE.search(href)
+            if not m:
+                continue
+            slug = m.group(1).lower()
+            if slug in seen_slugs:
+                continue
+            seen_slugs.add(slug)
+
+            # Name — h3 > h2 > strong > a-text
+            h = a.find(["h3", "h2", "h1"]) or card.find(["h3", "h2", "h1"])
+            if not h:
+                h = a.find("strong") or card.find("strong")
+            mp_name = h.get_text(strip=True) if h else a.get_text(strip=True)
+
+            paras = [p.get_text(strip=True) for p in card.find_all("p")]
+            party        = paras[0] if len(paras) > 0 else ""
+            constituency = paras[1] if len(paras) > 1 else ""
+            state        = paras[2] if len(paras) > 2 else ""
+
+            # Sometimes party/constituency are in spans rather than paragraphs
+            if not party:
+                spans = [s.get_text(strip=True) for s in card.find_all("span")]
+                party        = spans[0] if len(spans) > 0 else ""
+                constituency = spans[1] if len(spans) > 1 else ""
+                state        = spans[2] if len(spans) > 2 else ""
+
+            mps.append({
+                "prs_slug": slug,
+                "mp_name":  mp_name,
+                "party":    party,
+                "constituency": constituency,
+                "state":    state,
+            })
+        if mps:
+            return mps
+
+    # ── 2. Fallback: direct href extraction from ALL links ─────────────────
+    # Works even when the card wrapper class has changed.  We collect every
+    # unique profile-URL slug and try to infer name from surrounding text.
+    logger.info(
+        "_parse_listing_page: no cards matched — falling back to href extraction "
+        "(HTML size %d). Run scripts/diagnose_prs_listing.py to see actual structure.",
+        len(html),
+    )
+    for a in soup.find_all("a", href=_PROFILE_HREF_RE):
         href = a.get("href", "")
-        slug = href.rstrip("/").split("/")[-1]
-        if not slug:
+        m = _PROFILE_HREF_RE.search(href)
+        if not m:
             continue
+        slug = m.group(1).lower()
+        if slug in seen_slugs:
+            continue
+        seen_slugs.add(slug)
 
-        # Name
-        h3 = a.find("h3") or a.find("h2") or a.find("strong")
-        mp_name = h3.get_text(strip=True) if h3 else ""
+        # Name: try heading inside the link, then the link text itself
+        h = a.find(["h3", "h2", "h1", "strong"])
+        mp_name = h.get_text(strip=True) if h else a.get_text(strip=True)
+        # Remove junk like "Read More" from link text
+        if mp_name.lower() in ("", "read more", "view profile", "details"):
+            mp_name = slug.replace("-", " ").title()
 
-        # Paragraphs: [0]=party, [1]=constituency, [2]=state (varies by PRS version)
-        paras = [p.get_text(strip=True) for p in card.find_all("p")]
-        party        = paras[0] if len(paras) > 0 else ""
-        constituency = paras[1] if len(paras) > 1 else ""
-        state        = paras[2] if len(paras) > 2 else ""
+        # Look for party/constituency in the parent container
+        parent = a.parent
+        paras  = [p.get_text(strip=True) for p in parent.find_all("p")]
+        spans  = [s.get_text(strip=True) for s in parent.find_all("span")]
+        meta   = paras or spans
+        party        = meta[0] if len(meta) > 0 else ""
+        constituency = meta[1] if len(meta) > 1 else ""
+        state        = meta[2] if len(meta) > 2 else ""
 
         mps.append({
-            "prs_slug":     slug,
-            "mp_name":      mp_name,
-            "party":        party,
+            "prs_slug": slug,
+            "mp_name":  mp_name,
+            "party":    party,
             "constituency": constituency,
-            "state":        state,
+            "state":    state,
         })
 
+    if not mps:
+        # Log the first 1 KB of body so admins can diagnose manually
+        body_preview = soup.get_text(separator=" ", strip=True)[:800]
+        logger.warning(
+            "_parse_listing_page: zero MPs extracted. "
+            "Page body preview: %s …", body_preview
+        )
+
     return mps
+
+
+def seed_from_file(filepath: str) -> dict:
+    """
+    Seed global_mp_registry from a local JSON file when PRS scraping is
+    unavailable (e.g. the site requires JS rendering).
+
+    The file should be a JSON array of objects with at minimum a 'prs_slug' key.
+    Other optional keys: mp_name, party, constituency, state.
+
+    Create the seed file with scripts/diagnose_prs_listing.py or manually.
+
+    Returns: {"seeded": N, "new": N}
+    """
+    ensure_schema()
+
+    with open(filepath, encoding="utf-8") as f:
+        rows = json.load(f)
+
+    if not isinstance(rows, list):
+        raise ValueError("Seed file must be a JSON array")
+
+    seeded  = 0
+    new_cnt = 0
+    with engine.begin() as conn:
+        for mp in rows:
+            slug = (mp.get("prs_slug") or "").strip()
+            if not slug:
+                continue
+            res = conn.execute(text("""
+                INSERT INTO global_mp_registry
+                    (prs_slug, mp_name, party, constituency, state, house)
+                VALUES
+                    (:prs_slug, :mp_name, :party, :constituency, :state, 'lok_sabha')
+                ON CONFLICT (prs_slug) DO UPDATE SET
+                    mp_name      = EXCLUDED.mp_name,
+                    party        = EXCLUDED.party,
+                    constituency = EXCLUDED.constituency,
+                    state        = EXCLUDED.state
+            """), {
+                "prs_slug":     slug,
+                "mp_name":      mp.get("mp_name", slug.replace("-", " ").title()),
+                "party":        mp.get("party", ""),
+                "constituency": mp.get("constituency", ""),
+                "state":        mp.get("state", ""),
+            })
+            seeded += 1
+            if res.rowcount == 1:
+                new_cnt += 1
+
+    logger.info("seed_from_file: %d seeded (%d new) from %s", seeded, new_cnt, filepath)
+    return {"seeded": seeded, "new": new_cnt}
 
 
 def discover_all_mps(force: bool = False) -> dict:
@@ -190,28 +360,59 @@ def discover_all_mps(force: bool = False) -> dict:
     Crawl all PRS listing pages and upsert into global_mp_registry.
     Safe to re-run — existing rows are updated only if force=True or new data differs.
 
-    Returns: {"discovered": N, "new": N, "pages_scanned": N}
+    Tries page=0, page=1 … MAX_LISTING_PAGES.  Stops when a page returns no MPs.
+
+    Returns: {"discovered": N, "new": N, "pages_scanned": N,
+              "hint": str}    ← hint is set if discovery fails so the caller
+                                 can surface it in the admin UI.
     """
     ensure_schema()
 
     discovered = 0
     new_count  = 0
     pages_done = 0
+    hint       = ""
 
     logger.info("Discovering MPs from PRS listing (max %d pages)…", MAX_LISTING_PAGES)
 
-    for page in range(1, MAX_LISTING_PAGES + 1):
+    # PRS sometimes paginates from page=0, sometimes from page=1.
+    # Try page=0 first; if it returns MPs, use 0-based pagination.
+    page_offset = 1   # default: start at page=1
+
+    for page in range(page_offset, MAX_LISTING_PAGES + page_offset):
         url = f"{PRS_LISTING_URL}?page={page}"
         try:
             resp = requests.get(url, headers=PRS_HEADERS, timeout=REQUEST_TIMEOUT)
-            if resp.status_code == 404 or resp.status_code == 410:
+            if resp.status_code in (404, 410):
+                logger.info("Listing page %d returned %d — stopping.", page, resp.status_code)
                 break
             resp.raise_for_status()
 
             mps = _parse_listing_page(resp.text)
+
             if not mps:
-                logger.info("Listing page %d: no cards found — end of listing.", page)
-                break
+                if page == page_offset and len(resp.text) > 4000:
+                    # Got a real page but zero MPs on page 1 — site structure changed.
+                    # Try page=0 in case pagination is 0-based.
+                    url0 = f"{PRS_LISTING_URL}?page=0"
+                    resp0 = requests.get(url0, headers=PRS_HEADERS, timeout=REQUEST_TIMEOUT)
+                    mps0  = _parse_listing_page(resp0.text) if resp0.ok else []
+                    if mps0:
+                        logger.info("Listing is 0-based — switching to page=0 start.")
+                        page_offset = 0
+                        mps = mps0
+                    else:
+                        hint = (
+                            "PRS listing page returned HTML but no MP cards could be parsed. "
+                            "The site layout may have changed (JS rendering, new CSS class names). "
+                            "Run: python scripts/diagnose_prs_listing.py  to inspect the actual "
+                            "HTML structure, then update _parse_listing_page() accordingly."
+                        )
+                        logger.warning(hint)
+                        break
+                elif mps is not None:
+                    logger.info("Listing page %d: no MPs found — end of listing.", page)
+                    break
 
             pages_done += 1
             discovered += len(mps)
@@ -232,16 +433,33 @@ def discover_all_mps(force: bool = False) -> dict:
                     if result.rowcount == 1:
                         new_count += 1
 
-            logger.info("Page %d: %d MPs found (total so far: %d)", page, len(mps), discovered)
+            logger.info("Page %d: %d MPs found (total so far: %d)",
+                        page, len(mps), discovered)
             time.sleep(LISTING_DELAY)
 
         except Exception as e:
             logger.warning("Listing page %d error: %s", page, e)
+            hint = f"Request error on page {page}: {e}"
             break
+
+    if not hint and discovered == 0:
+        hint = (
+            "Zero MPs discovered. Most likely cause: the PRS listing page now "
+            "requires JavaScript to render MP cards, so a plain HTTP GET returns "
+            "an empty shell. "
+            "Quick fix: run  python scripts/diagnose_prs_listing.py  from your "
+            "local terminal, paste the output, and the parser will be updated."
+        )
+        logger.warning(hint)
 
     logger.info("Discovery complete: %d MPs across %d pages (%d new)",
                 discovered, pages_done, new_count)
-    return {"discovered": discovered, "new": new_count, "pages_scanned": pages_done}
+    return {
+        "discovered":   discovered,
+        "new":          new_count,
+        "pages_scanned": pages_done,
+        "hint":         hint,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

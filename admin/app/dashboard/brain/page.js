@@ -642,6 +642,88 @@ export default function BrainPlaygroundPage() {
     );
 }
 
+// ─── Seed Panel (fallback when PRS listing needs JS rendering) ────────────────
+function SeedPanel() {
+    const [open,       setOpen]       = useState(false);
+    const [seedJson,   setSeedJson]   = useState('');
+    const [seedStatus, setSeedStatus] = useState('');
+
+    const handleSeed = async () => {
+        setSeedStatus('Seeding…');
+        try {
+            const rows = JSON.parse(seedJson);
+            const r = await apiPost('/api/admin/brain/global-seed', rows);
+            setSeedStatus(`✓ Seeded ${r.seeded} MPs (${r.new} new)`);
+        } catch (e) {
+            setSeedStatus(`✗ ${e.message || 'Parse/seed error — check JSON syntax'}`);
+        }
+    };
+
+    return (
+        <div style={{ marginBottom: 12 }}>
+            <button
+                onClick={() => setOpen(o => !o)}
+                style={{
+                    background: 'none', border: 'none', color: '#6b7280',
+                    fontSize: 11, cursor: 'pointer', padding: '4px 0',
+                    textAlign: 'left',
+                }}
+            >
+                {open ? '▾' : '▸'} Fallback: seed MP list manually (if Discover returns 0)
+            </button>
+            {open && (
+                <div style={{
+                    background: '#0d1117', border: '1px solid #2d2810',
+                    borderRadius: 6, padding: 12, marginTop: 6,
+                }}>
+                    <div style={{ color: '#f59e0b', fontSize: 11, marginBottom: 8 }}>
+                        If "Discover all MPs" finds 0 MPs, the PRS site likely requires JavaScript
+                        rendering. Run{' '}
+                        <code style={{ background: '#1f2937', padding: '1px 5px', borderRadius: 3 }}>
+                            python scripts/diagnose_prs_listing.py
+                        </code>{' '}
+                        locally to inspect the real HTML, then paste a JSON array of MPs here.
+                    </div>
+                    <textarea
+                        value={seedJson}
+                        onChange={e => setSeedJson(e.target.value)}
+                        placeholder={'[\n  {"prs_slug": "supriya-sule", "mp_name": "Supriya Sule", "party": "NCP", "constituency": "Baramati", "state": "Maharashtra"},\n  ...\n]'}
+                        style={{
+                            width: '100%', minHeight: 90, background: '#1f2937',
+                            border: '1px solid #374151', color: '#e5e7eb',
+                            borderRadius: 4, padding: 8, fontSize: 11,
+                            fontFamily: 'monospace', resize: 'vertical', boxSizing: 'border-box',
+                        }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                        <button
+                            onClick={handleSeed}
+                            disabled={!seedJson.trim()}
+                            style={{
+                                background: seedJson.trim() ? '#b45309' : '#374151',
+                                color: '#fff', border: 'none', borderRadius: 5,
+                                padding: '6px 14px', fontSize: 12,
+                                cursor: seedJson.trim() ? 'pointer' : 'not-allowed',
+                            }}
+                        >
+                            Seed Registry
+                        </button>
+                        {seedStatus && (
+                            <span style={{
+                                fontSize: 11,
+                                color: seedStatus.startsWith('✓') ? '#22c55e' : seedStatus === 'Seeding…' ? '#60a5fa' : '#ef4444',
+                            }}>
+                                {seedStatus}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+
 // ─── Global Corpus Tab ────────────────────────────────────────────────────────
 function GlobalCorpusTab() {
     const [globalStats, setGlobalStats] = useState(null);
@@ -672,7 +754,7 @@ function GlobalCorpusTab() {
                 try {
                     const j = await apiGet(`/api/admin/brain/global-crawl/status/${jid}`);
                     setJobs(prev => ({ ...prev, [jid]: j }));
-                    if (j.status === 'done' || j.status === 'error') loadStats();
+                    if (['done', 'error', 'warning'].includes(j.status)) loadStats();
                 } catch (_) {}
             }
         }, 3000);
@@ -827,30 +909,47 @@ function GlobalCorpusTab() {
                 {Object.entries(jobs).length > 0 && (
                     <div style={{ marginTop: 16 }}>
                         <div style={{ color: '#6b7280', fontSize: 11, marginBottom: 8 }}>JOBS</div>
-                        {Object.entries(jobs).map(([jid, j]) => (
-                            <div key={jid} style={{
-                                padding: '8px 12px', borderRadius: 6, marginBottom: 6,
-                                background: j.status === 'done' ? '#1a2e1f' : j.status === 'error' ? '#2d1f1f' : '#1f2937',
-                                border: `1px solid ${j.status === 'done' ? '#22c55e44' : j.status === 'error' ? '#ef444444' : '#374151'}`,
-                                fontSize: 12,
-                            }}>
-                                <div style={{
-                                    color: j.status === 'done' ? '#22c55e' : j.status === 'error' ? '#ef4444' : '#60a5fa',
-                                    fontWeight: 600,
+                        {Object.entries(jobs).map(([jid, j]) => {
+                            const isWarning = j.status === 'warning';
+                            const bg    = j.status === 'done' ? '#1a2e1f'
+                                        : j.status === 'error' ? '#2d1f1f'
+                                        : isWarning ? '#2d2810'
+                                        : '#1f2937';
+                            const bdr   = j.status === 'done' ? '#22c55e44'
+                                        : j.status === 'error' ? '#ef444444'
+                                        : isWarning ? '#f59e0b44'
+                                        : '#374151';
+                            const clr   = j.status === 'done' ? '#22c55e'
+                                        : j.status === 'error' ? '#ef4444'
+                                        : isWarning ? '#f59e0b'
+                                        : '#60a5fa';
+                            const icon  = j.status === 'running' ? '⟳'
+                                        : j.status === 'done' ? '✓'
+                                        : isWarning ? '⚠' : '✗';
+                            return (
+                                <div key={jid} style={{
+                                    padding: '8px 12px', borderRadius: 6, marginBottom: 6,
+                                    background: bg, border: `1px solid ${bdr}`, fontSize: 12,
                                 }}>
-                                    {j.status === 'running' ? '⟳ ' : j.status === 'done' ? '✓ ' : '✗ '}
-                                    {j.type || jid.split('_')[1]} — {j.status}
-                                </div>
-                                {j.summary && (
-                                    <div style={{ color: '#9ca3af', marginTop: 4 }}>
-                                        {JSON.stringify(j.summary).slice(0, 120)}
+                                    <div style={{ color: clr, fontWeight: 600 }}>
+                                        {icon} {j.type || jid.split('_')[1]} — {j.status}
                                     </div>
-                                )}
-                                {j.error && (
-                                    <div style={{ color: '#ef4444', marginTop: 4 }}>{j.error}</div>
-                                )}
-                            </div>
-                        ))}
+                                    {j.summary && (
+                                        <div style={{ color: '#9ca3af', marginTop: 4 }}>
+                                            discovered: {j.summary.discovered ?? '—'} MPs,&nbsp;
+                                            new: {j.summary.new ?? '—'},&nbsp;
+                                            pages: {j.summary.pages_scanned ?? '—'}
+                                        </div>
+                                    )}
+                                    {j.error && (
+                                        <div style={{
+                                            color: isWarning ? '#f59e0b' : '#ef4444',
+                                            marginTop: 4, lineHeight: 1.5,
+                                        }}>{j.error}</div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -869,6 +968,9 @@ function GlobalCorpusTab() {
                     onClick={() => trigger('/api/admin/brain/global-discover')}
                     disabled={anyRunning}
                 />
+
+                {/* Fallback: seed from JSON if PRS requires JS rendering */}
+                <SeedPanel />
 
                 {/* Step 2 */}
                 <div style={{ color: '#4b5563', fontSize: 10, margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 1 }}>
