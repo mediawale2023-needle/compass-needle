@@ -126,9 +126,9 @@ export default function LoginPage() {
                             <>
                                 <Loader2 className="h-4 w-4 animate-spin shrink-0" />
                                 <div>
-                                    <p>Server is starting up — please wait.</p>
+                                    <p>Server is starting up — this may take a moment.</p>
                                     <p className="text-xs font-normal opacity-75 mt-0.5">
-                                        This takes about 30 seconds on first load. Retrying…
+                                        You can sign in now — the request will wait for the server automatically.
                                     </p>
                                 </div>
                             </>
@@ -146,16 +146,8 @@ export default function LoginPage() {
                 <Card className="border-0 shadow-xl bg-card/95 backdrop-blur-sm">
                     <CardHeader className="space-y-1 pb-4 pt-8 px-8">
                         <div className="flex items-center justify-center mb-4">
-                            <div className={`h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg transition-colors duration-500
-                                ${isServerReady
-                                    ? 'bg-primary shadow-primary/20'
-                                    : 'bg-muted'
-                                }`}
-                            >
-                                {isServerReady
-                                    ? <Compass className="h-7 w-7 text-primary-foreground" />
-                                    : <Loader2 className="h-7 w-7 text-muted-foreground animate-spin" />
-                                }
+                            <div className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg bg-primary shadow-primary/20">
+                                <Compass className="h-7 w-7 text-primary-foreground" />
                             </div>
                         </div>
                         <CardTitle className="text-2xl font-bold text-center text-foreground">
@@ -177,12 +169,11 @@ export default function LoginPage() {
                                     type="text"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    placeholder={isServerReady ? 'Enter your username' : 'Waiting for server…'}
+                                    placeholder="Enter your username"
                                     className="h-11 bg-secondary/50 border-input focus-visible:ring-primary"
                                     required
                                     autoFocus
                                     autoComplete="username"
-                                    disabled={!isServerReady}
                                 />
                             </div>
 
@@ -196,11 +187,10 @@ export default function LoginPage() {
                                         type={showPassword ? 'text' : 'password'}
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        placeholder={isServerReady ? 'Enter your password' : 'Waiting for server…'}
+                                        placeholder="Enter your password"
                                         className="h-11 bg-secondary/50 border-input focus-visible:ring-primary pr-12"
                                         required
                                         autoComplete="current-password"
-                                        disabled={!isServerReady}
                                     />
                                     <Button
                                         type="button"
@@ -209,7 +199,6 @@ export default function LoginPage() {
                                         className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9 text-muted-foreground hover:text-foreground"
                                         onClick={() => setShowPassword(v => !v)}
                                         aria-label={showPassword ? 'Hide password' : 'Show password'}
-                                        disabled={!isServerReady}
                                     >
                                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                     </Button>
@@ -228,18 +217,13 @@ export default function LoginPage() {
 
                             <Button
                                 type="submit"
-                                disabled={loading || !isServerReady}
+                                disabled={loading}
                                 className="w-full h-11 text-base font-semibold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
                             >
                                 {loading ? (
                                     <>
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                         Signing in…
-                                    </>
-                                ) : !isServerReady ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        {isServerChecking ? 'Connecting…' : 'Starting server…'}
                                     </>
                                 ) : (
                                     'Sign in'
