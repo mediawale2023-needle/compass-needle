@@ -764,90 +764,217 @@ def llm_tag_batch(limit: int = LLM_TAG_MAX_PER_RUN) -> dict:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # STEP 4 — FETCH ANSWERS FOR GLOBAL PQs
-# (Delegates to parliament_answer_fetcher logic on the global table)
+# Reuses parliament_answer_fetcher's prs_pdf_cache so PDFs already fetched
+# for any tenant are served from cache — no duplicate downloads.
 # ─────────────────────────────────────────────────────────────────────────────
 
-def fetch_global_answers(limit: int = 200, prs_slug: Optional[str] = None) -> dict:
+def _apply_global_matches(matches: dict) -> int:
     """
-    Download and parse PRS PDFs to populate question_text + answer_text
-    for global_parliamentary_questions rows that have a pdf_url but no answer yet.
+    Write matched question_text + answer_text back to global_parliamentary_questions.
+    `matches` = {db_row_id: {parsed_qa, score, match_basis}}
+    Returns count of rows updated.
+    """
+    if not matches:
+        return 0
+    updated = 0
+    with engine.begin() as conn:
+        for row_id, m in matches.items():
+            pqa    = m.get("parsed_qa") or {}
+            q_text = (pqa.get("question_text") or "").strip()
+            a_text = (pqa.get("answer_text")   or "").strip()
+            status = "ok" if a_text else "no_answer_in_pdf"
+            conn.execute(text("""
+                UPDATE global_parliamentary_questions
+                   SET question_text       = COALESCE(NULLIF(:qt, ''), question_text),
+                       answer_text         = COALESCE(NULLIF(:at, ''), answer_text),
+                       answer_fetched_at   = NOW(),
+                       answer_fetch_status = :status
+                 WHERE id = :id
+            """), {"qt": q_text, "at": a_text, "status": status, "id": row_id})
+            updated += 1
+    return updated
 
-    Uses the same prs_answer_extractor logic as the per-tenant fetcher.
-    Rate-limited to 1 req/s.
 
-    Returns: {"processed": N, "updated": N, "errors": N}
+def _mark_global_rows_status(row_ids: list[int], status: str):
+    if not row_ids:
+        return
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE global_parliamentary_questions
+               SET answer_fetched_at   = NOW(),
+                   answer_fetch_status = :s
+             WHERE id = ANY(:ids)
+        """), {"s": status, "ids": row_ids})
+
+
+def fetch_global_answers(
+    limit:       int = 500,
+    prs_slug:    Optional[str] = None,
+    allow_ocr:   bool = True,
+    force:       bool = False,
+    max_pdfs:    Optional[int] = None,
+) -> dict:
+    """
+    Backfill answer_text for global_parliamentary_questions rows that have a
+    question_pdf_url but no answer yet.
+
+    Uses the shared prs_pdf_cache (from parliament_answer_fetcher) so any
+    PDF already downloaded for a per-tenant MP is served from cache instantly —
+    no re-downloading.
+
+    Args:
+        limit:     Max DB rows to consider per run (default 500)
+        prs_slug:  Restrict to one MP's questions (for targeted backfill)
+        allow_ocr: Enable Gemini Vision OCR for scanned/Hindi-font PDFs
+        force:     Ignore PDF cache and re-download everything
+        max_pdfs:  Hard cap on unique PDFs fetched in this run
+
+    Returns:
+        {rows_considered, unique_pdfs, pdfs_processed, pdfs_from_cache,
+         pdfs_failed, rows_updated, rows_unmatched}
     """
     ensure_schema()
 
+    # Import cache-aware fetcher from parliament_answer_fetcher
     try:
-        from modules.prs_answer_extractor import extract_qas_from_pdf, match_qas_to_rows
-    except ImportError:
-        return {"error": "prs_answer_extractor not available"}
+        from jobs.parliament_answer_fetcher import (
+            get_or_fetch_pdf,
+            ensure_schema as _ensure_paf_schema,
+        )
+        _ensure_paf_schema()   # make sure prs_pdf_cache table exists
+    except ImportError as e:
+        return {"error": f"parliament_answer_fetcher not available: {e}"}
 
-    where = "question_pdf_url IS NOT NULL AND question_pdf_url != '' AND answer_text = ''"
+    from modules.prs_answer_extractor import match_qas_to_rows
+    from collections import defaultdict
+
+    # Build WHERE clause
+    where_parts = [
+        "question_pdf_url IS NOT NULL",
+        "question_pdf_url != ''",
+        "(answer_text IS NULL OR answer_text = '')",
+    ]
     params: dict = {"lim": limit}
     if prs_slug:
-        where += " AND prs_slug = :slug"
+        where_parts.append("prs_slug = :slug")
         params["slug"] = prs_slug
 
     with engine.connect() as conn:
         rows = conn.execute(text(f"""
-            SELECT id, prs_slug, subject, ministry, question_number,
-                   question_type, session_name, date_asked, question_pdf_url
-            FROM global_parliamentary_questions
-            WHERE {where}
-            ORDER BY date_asked DESC
-            LIMIT :lim
+            SELECT id, prs_slug, subject, ministry,
+                   question_number, question_type,
+                   session_name, date_asked, question_pdf_url
+              FROM global_parliamentary_questions
+             WHERE {' AND '.join(where_parts)}
+             ORDER BY date_asked DESC NULLS LAST
+             LIMIT :lim
         """), params).mappings().all()
 
+    rows = [dict(r) for r in rows]
     if not rows:
-        return {"processed": 0, "updated": 0, "errors": 0}
+        logger.info("fetch_global_answers: nothing to fetch (all answers present)")
+        return {
+            "rows_considered": 0, "unique_pdfs": 0,
+            "pdfs_processed": 0, "pdfs_from_cache": 0,
+            "pdfs_failed": 0, "rows_updated": 0, "rows_unmatched": 0,
+        }
 
-    # Group by PDF URL (one PDF can cover many questions)
-    from collections import defaultdict
-    pdf_groups: dict[str, list] = defaultdict(list)
+    # Group by PDF URL — one PDF covers multiple questions on the same session day
+    by_url: dict[str, list[dict]] = defaultdict(list)
     for r in rows:
-        pdf_groups[r["question_pdf_url"]].append(dict(r))
+        url = (r["question_pdf_url"] or "").strip()
+        if url:
+            by_url[url].append(r)
 
-    processed = 0
-    updated   = 0
-    errors    = 0
+    unique_urls = list(by_url.keys())
+    if max_pdfs:
+        unique_urls = unique_urls[:max_pdfs]
 
-    for pdf_url, group_rows in pdf_groups.items():
+    logger.info(
+        "fetch_global_answers: %d rows across %d unique PDFs (cap=%s, ocr=%s)",
+        len(rows), len(unique_urls), max_pdfs, allow_ocr,
+    )
+
+    pdfs_processed  = 0
+    pdfs_from_cache = 0
+    pdfs_failed     = 0
+    rows_updated    = 0
+    rows_unmatched  = 0
+
+    for i, url in enumerate(unique_urls, start=1):
+        group_rows = by_url[url]
+        row_ids    = [r["id"] for r in group_rows]
+
         try:
-            qas = extract_qas_from_pdf(pdf_url)
-            if not qas:
-                errors += 1
-                continue
-
-            matched = match_qas_to_rows(qas, group_rows)
-            processed += 1
-
-            with engine.begin() as conn:
-                for row_id, qa in matched.items():
-                    conn.execute(text("""
-                        UPDATE global_parliamentary_questions
-                        SET question_text       = :qt,
-                            answer_text         = :at,
-                            answer_fetched_at   = NOW(),
-                            answer_fetch_status = 'ok'
-                        WHERE id = :id
-                    """), {
-                        "id": row_id,
-                        "qt": qa.get("question_text", ""),
-                        "at": qa.get("answer_text", ""),
-                    })
-                    updated += 1
-
+            result = get_or_fetch_pdf(url, allow_ocr=allow_ocr, force=force)
         except Exception as e:
-            logger.warning("fetch_global_answers: PDF %s failed: %s", pdf_url, e)
-            errors += 1
+            logger.warning("fetch_global_answers: PDF %s error: %s", url, e)
+            pdfs_failed += 1
+            _mark_global_rows_status(row_ids, "failed")
+            continue
 
-        time.sleep(1.0)   # polite crawl
+        if result.get("status") != "ok" or not result.get("parsed_qas"):
+            pdfs_failed += 1
+            status = "no_pdf" if (result.get("error") == "download_failed") else "failed"
+            _mark_global_rows_status(row_ids, status)
+            continue
 
-    logger.info("fetch_global_answers: processed=%d updated=%d errors=%d",
-                processed, updated, errors)
-    return {"processed": processed, "updated": updated, "errors": errors}
+        if result.get("cached"):
+            pdfs_from_cache += 1
+        else:
+            pdfs_processed  += 1
+
+        matches = match_qas_to_rows(result["parsed_qas"], group_rows)
+        if matches:
+            rows_updated += _apply_global_matches(matches)
+
+        unmatched_ids = [rid for rid in row_ids if rid not in matches]
+        rows_unmatched += len(unmatched_ids)
+        _mark_global_rows_status(unmatched_ids, "no_match")
+
+        if i % 10 == 0 or i == len(unique_urls):
+            logger.info(
+                "  … %d/%d PDFs (%d cached), %d rows updated, %d unmatched",
+                i, len(unique_urls), pdfs_from_cache, rows_updated, rows_unmatched,
+            )
+
+    summary = {
+        "rows_considered":  len(rows),
+        "unique_pdfs":      len(unique_urls),
+        "pdfs_processed":   pdfs_processed,
+        "pdfs_from_cache":  pdfs_from_cache,
+        "pdfs_failed":      pdfs_failed,
+        "rows_updated":     rows_updated,
+        "rows_unmatched":   rows_unmatched,
+    }
+    logger.info("fetch_global_answers done: %s", summary)
+    return summary
+
+
+def get_answer_coverage() -> dict:
+    """Quick coverage stats for global_parliamentary_questions."""
+    ensure_schema()
+    with engine.connect() as conn:
+        r = conn.execute(text("""
+            SELECT
+                COUNT(*)                                                    AS total,
+                COUNT(*) FILTER (WHERE answer_text IS NOT NULL AND answer_text != '')
+                                                                           AS with_answers,
+                COUNT(*) FILTER (WHERE question_pdf_url IS NOT NULL AND question_pdf_url != '')
+                                                                           AS with_pdf_url,
+                COUNT(*) FILTER (WHERE answer_fetch_status = 'ok')         AS fetch_ok,
+                COUNT(*) FILTER (WHERE answer_fetch_status = 'no_match')   AS no_match,
+                COUNT(*) FILTER (WHERE answer_fetch_status = 'failed')     AS failed,
+                COUNT(*) FILTER (WHERE answer_fetch_status = 'no_pdf')     AS no_pdf
+              FROM global_parliamentary_questions
+        """)).mappings().fetchone()
+    row = dict(r) if r else {}
+    total    = int(row.get("total") or 0)
+    with_ans = int(row.get("with_answers") or 0)
+    return {
+        **{k: int(v or 0) for k, v in row.items()},
+        "pct_covered": round(with_ans / total * 100, 1) if total else 0.0,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

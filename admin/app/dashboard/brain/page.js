@@ -796,9 +796,11 @@ function GlobalCorpusTab() {
     );
 
     const anyRunning = Object.values(jobs).some(j => j.status === 'running');
-    const reg  = globalStats?.corpus?.registry  || {};
-    const pqs  = globalStats?.corpus?.questions || {};
-    const mins = globalStats?.ministries || [];
+    const reg      = globalStats?.corpus?.registry  || {};
+    const pqs      = globalStats?.corpus?.questions || {};
+    const coverage = globalStats?.coverage || {};
+    const mins     = globalStats?.ministries || [];
+    const [answerLimit, setAnswerLimit] = useState(500);
 
     return (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
@@ -841,12 +843,12 @@ function GlobalCorpusTab() {
                             borderRadius: 8, padding: 14, marginBottom: 12,
                         }}>
                             <div style={{ color: '#9ca3af', fontSize: 11, marginBottom: 8 }}>GLOBAL QUESTIONS</div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 10 }}>
                                 {[
                                     ['Total PQs', (pqs.total_questions ?? 0).toLocaleString(), '#e5e7eb'],
-                                    ['With Answers', (pqs.with_answers ?? 0).toLocaleString(), '#22c55e'],
-                                    ['LLM Tagged', (pqs.llm_tagged ?? 0).toLocaleString(), '#818cf8'],
                                     ['Ministries', pqs.ministries ?? 0, '#60a5fa'],
+                                    ['LLM Tagged', (pqs.llm_tagged ?? 0).toLocaleString(), '#818cf8'],
+                                    ['Rule Tagged', (pqs.rule_tagged ?? 0).toLocaleString(), '#6b7280'],
                                 ].map(([l, v, c]) => (
                                     <div key={l} style={{
                                         background: '#0d1117', borderRadius: 6,
@@ -857,6 +859,33 @@ function GlobalCorpusTab() {
                                     </div>
                                 ))}
                             </div>
+                            {/* Answer coverage progress bar */}
+                            {(() => {
+                                const total   = coverage.total || 0;
+                                const withAns = coverage.with_answers || 0;
+                                const pct     = coverage.pct_covered || 0;
+                                const noMatch = coverage.no_match || 0;
+                                const failed  = coverage.failed || 0;
+                                const barW    = Math.round(pct);
+                                return (
+                                    <div style={{ padding: '4px 0' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                            <span style={{ color: '#9ca3af', fontSize: 11 }}>Answer Coverage</span>
+                                            <span style={{ color: pct > 50 ? '#22c55e' : pct > 20 ? '#f59e0b' : '#ef4444', fontSize: 11, fontWeight: 700 }}>
+                                                {withAns.toLocaleString()} / {total.toLocaleString()} ({pct}%)
+                                            </span>
+                                        </div>
+                                        <div style={{ height: 6, background: '#1f2937', borderRadius: 3, overflow: 'hidden' }}>
+                                            <div style={{ width: `${barW}%`, height: '100%', background: pct > 50 ? '#22c55e' : pct > 20 ? '#f59e0b' : '#3b82f6', borderRadius: 3, transition: 'width 0.5s' }} />
+                                        </div>
+                                        {(noMatch > 0 || failed > 0) && (
+                                            <div style={{ color: '#6b7280', fontSize: 10, marginTop: 4 }}>
+                                                no_match: {noMatch.toLocaleString()}  |  failed: {failed.toLocaleString()}  |  with_pdf: {(coverage.with_pdf_url || 0).toLocaleString()}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                         </div>
 
                         {/* Ministry breakdown */}
@@ -935,10 +964,15 @@ function GlobalCorpusTab() {
                                         {icon} {j.type || jid.split('_')[1]} — {j.status}
                                     </div>
                                     {j.summary && (
-                                        <div style={{ color: '#9ca3af', marginTop: 4 }}>
-                                            discovered: {j.summary.discovered ?? '—'} MPs,&nbsp;
-                                            new: {j.summary.new ?? '—'},&nbsp;
-                                            pages: {j.summary.pages_scanned ?? '—'}
+                                        <div style={{ color: '#9ca3af', marginTop: 4, fontSize: 11 }}>
+                                            {j.summary.discovered != null
+                                                ? `discovered: ${j.summary.discovered} MPs, new: ${j.summary.new}, pages: ${j.summary.pages_scanned}`
+                                                : j.summary.rows_updated != null
+                                                ? `PDFs: ${(j.summary.pdfs_processed||0) + (j.summary.pdfs_from_cache||0)} (${j.summary.pdfs_from_cache||0} cached) · rows updated: ${j.summary.rows_updated} · unmatched: ${j.summary.rows_unmatched} · failed: ${j.summary.pdfs_failed}`
+                                                : j.summary.crawled != null
+                                                ? `crawled: ${j.summary.crawled} MPs, Qs inserted: ${j.summary.inserted_total}`
+                                                : JSON.stringify(j.summary).slice(0, 120)
+                                            }
                                         </div>
                                     )}
                                     {j.error && (
@@ -1001,6 +1035,53 @@ function GlobalCorpusTab() {
                     accent="#7c3aed"
                     disabled={anyRunning}
                 />
+
+                {/* Step 2.5 — Fetch Answers */}
+                <div style={{ color: '#4b5563', fontSize: 10, margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 1 }}>
+                    Step 2.5 — Fetch Ministry Answers
+                </div>
+                <div style={{
+                    background: '#0d1117', border: '1px solid #1f2937',
+                    borderRadius: 8, padding: '10px 14px', marginBottom: 10,
+                }}>
+                    <div style={{ color: '#9ca3af', fontSize: 11, marginBottom: 8, lineHeight: 1.5 }}>
+                        Downloads ministry Q&amp;A PDFs from PRS India and extracts full question + answer text.
+                        Uses <strong style={{ color: '#e5e7eb' }}>shared PDF cache</strong> — PDFs already
+                        fetched for your MP's questions are served instantly without re-downloading.
+                        Runs pdfplumber (primary) + Gemini OCR fallback for scanned/Hindi PDFs.
+                    </div>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                        <label style={{ color: '#9ca3af', fontSize: 12 }}>
+                            Batch:&nbsp;
+                            <input
+                                type="number" min={50} max={5000} value={answerLimit}
+                                onChange={e => setAnswerLimit(Math.max(50, parseInt(e.target.value) || 500))}
+                                style={{
+                                    background: '#1f2937', border: '1px solid #374151', color: '#e5e7eb',
+                                    borderRadius: 4, padding: '3px 8px', fontSize: 12, width: 72,
+                                }}
+                            />
+                            &nbsp;PDFs
+                        </label>
+                        <span style={{ color: '#4b5563', fontSize: 11 }}>
+                            ~49K PQs → ~2K unique PDFs (session bundles)
+                        </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <button
+                            onClick={() => trigger('/api/admin/brain/global-fetch-answers', { limit: answerLimit })}
+                            disabled={anyRunning}
+                            style={{
+                                background: anyRunning ? '#374151' : '#059669',
+                                color: '#fff', border: 'none', borderRadius: 6,
+                                padding: '7px 18px', fontSize: 12,
+                                cursor: anyRunning ? 'not-allowed' : 'pointer',
+                            }}
+                        >
+                            Fetch Answers
+                        </button>
+                    </div>
+                </div>
 
                 {/* Step 3 */}
                 <div style={{ color: '#4b5563', fontSize: 10, margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 1 }}>

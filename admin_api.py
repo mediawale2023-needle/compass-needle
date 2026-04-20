@@ -3975,14 +3975,56 @@ def trigger_global_index(
     return {"ok": True, "job_id": job_id, "message": "Global PQ indexing started…"}
 
 
+@router.post("/brain/global-fetch-answers")
+def trigger_global_fetch_answers(
+    body: GlobalCrawlRequest,
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_admin_user),
+):
+    """
+    Backfill answer_text for global PQs using the shared prs_pdf_cache.
+    PDFs already downloaded for per-tenant MPs are served from cache instantly.
+    """
+    job_id = f"global_answers_{uuid.uuid4().hex[:10]}"
+    _global_crawl_jobs[job_id] = {
+        "type": "fetch_answers", "status": "running",
+        "started_at": datetime.utcnow().isoformat() + "Z",
+        "finished_at": None, "summary": None, "error": None,
+    }
+
+    def _run():
+        try:
+            from jobs.global_parliament_crawler import fetch_global_answers
+            summary = fetch_global_answers(
+                limit=body.limit or 2000,
+                allow_ocr=True,
+                max_pdfs=body.limit or None,
+            )
+            _global_crawl_jobs[job_id]["status"]  = "done"
+            _global_crawl_jobs[job_id]["summary"] = summary
+        except Exception as e:
+            logger.exception("global_fetch_answers failed: %s", e)
+            _global_crawl_jobs[job_id]["status"] = "error"
+            _global_crawl_jobs[job_id]["error"]  = str(e)
+        _global_crawl_jobs[job_id]["finished_at"] = datetime.utcnow().isoformat() + "Z"
+
+    if background_tasks:
+        background_tasks.add_task(_run)
+    else:
+        threading.Thread(target=_run, daemon=True).start()
+
+    return {"ok": True, "job_id": job_id, "message": "Global answer fetch started…"}
+
+
 @router.get("/brain/global-stats")
 def brain_global_stats(user=Depends(get_admin_user)):
     """Stats for the global parliament corpus."""
     try:
-        from jobs.global_parliament_crawler import get_stats, get_ministry_breakdown
+        from jobs.global_parliament_crawler import get_stats, get_ministry_breakdown, get_answer_coverage
         return {
             "corpus":     get_stats(),
             "ministries": get_ministry_breakdown(20),
+            "coverage":   get_answer_coverage(),
         }
     except Exception as e:
         logger.exception("global stats failed: %s", e)
