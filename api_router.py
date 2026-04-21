@@ -3751,7 +3751,7 @@ def get_letterbox_categories(user=Depends(get_current_user)):
 
 @router.get("/letterbox")
 def get_letterbox_items(
-    direction: str = Query("inbox", regex="^(inbox|outbox)$"),
+    direction: str = Query("inbox", pattern="^(inbox|outbox)$"),
     search: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
     status: Optional[str] = Query(None),

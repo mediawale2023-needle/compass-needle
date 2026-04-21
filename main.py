@@ -145,21 +145,52 @@ app.include_router(admin_router, prefix="/api/admin")
 #   - Returns TRUE  → lock acquired, proceed with migrations.
 #   - Returns FALSE → another instance holds it (concurrent startup), skip
 #     migrations here — they're all idempotent so this is safe.
+import time as _time
 from sqlalchemy import text as sa_text
-_startup_migration_lock_conn = engine.connect()
-_migration_lock_acquired = _startup_migration_lock_conn.execute(
-    sa_text("SELECT pg_try_advisory_lock(77772024)")
-).scalar()
-if _migration_lock_acquired:
-    logger.info("Acquired Postgres advisory lock (77772024) for safe startup migrations")
-else:
-    logger.warning(
-        "pg_try_advisory_lock(77772024) returned FALSE — another instance is running "
-        "migrations concurrently.  Skipping migrations on this instance (all are idempotent)."
-    )
 
-init_db()
-logger.info("Database initialised.")
+# Retry connecting to Postgres at startup — Railway's internal network can take
+# a few seconds to route the connection after a fresh deploy.
+_startup_migration_lock_conn = None
+_migration_lock_acquired = False
+_DB_CONNECT_RETRIES = 10
+_DB_CONNECT_DELAY   = 3   # seconds between attempts
+
+for _attempt in range(1, _DB_CONNECT_RETRIES + 1):
+    try:
+        _startup_migration_lock_conn = engine.connect()
+        _migration_lock_acquired = _startup_migration_lock_conn.execute(
+            sa_text("SELECT pg_try_advisory_lock(77772024)")
+        ).scalar()
+        break
+    except Exception as _conn_err:
+        if _attempt < _DB_CONNECT_RETRIES:
+            logger.warning(
+                "DB connection attempt %d/%d failed: %s — retrying in %ds…",
+                _attempt, _DB_CONNECT_RETRIES, _conn_err, _DB_CONNECT_DELAY,
+            )
+            _time.sleep(_DB_CONNECT_DELAY)
+        else:
+            logger.error(
+                "DB unreachable after %d attempts (%s). Startup migrations will be skipped.",
+                _DB_CONNECT_RETRIES, _conn_err,
+            )
+
+if _startup_migration_lock_conn is not None:
+    if _migration_lock_acquired:
+        logger.info("Acquired Postgres advisory lock (77772024) for safe startup migrations")
+    else:
+        logger.warning(
+            "pg_try_advisory_lock(77772024) returned FALSE — another instance is running "
+            "migrations concurrently.  Skipping migrations on this instance (all are idempotent)."
+        )
+else:
+    logger.error("Skipping startup migrations — could not connect to Postgres after retries.")
+
+try:
+    init_db()
+    logger.info("Database initialised.")
+except Exception as _init_err:
+    logger.error("init_db() failed (DB may be unreachable): %s", _init_err)
 
 # ── Phase 1 Brain: ensure parliament answer-fetcher schema exists ─────────
 # Creates prs_pdf_cache and adds question_pdf_url / real_question_number /
