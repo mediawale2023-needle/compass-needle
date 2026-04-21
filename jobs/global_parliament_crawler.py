@@ -1035,7 +1035,7 @@ def fetch_global_answers(
         "question_pdf_url IS NOT NULL",
         "question_pdf_url != ''",
         "(answer_text IS NULL OR answer_text = '')",
-        "(answer_fetch_status IS NULL OR answer_fetch_status NOT IN ('ok', 'failed', 'no_pdf', 'no_parse'))",
+        "(answer_fetch_status IS NULL OR answer_fetch_status NOT IN ('ok', 'failed', 'no_pdf', 'no_parse', 'no_answer_in_pdf'))",
     ]
     params: dict = {"lim": limit}
     if prs_slug:
