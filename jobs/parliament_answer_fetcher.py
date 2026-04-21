@@ -205,21 +205,26 @@ def get_or_fetch_pdf(url: str, allow_ocr: bool = True,
                     force: bool = False) -> dict:
     """
     Cache-aware fetch. Returns the extractor result dict.
-    If cached and status == 'ok', reuses the cached entry.
+    If cached (any terminal status: ok / failed_download / failed_parse),
+    returns the cached entry immediately without re-downloading.
+    Pass force=True to bypass the cache.
     """
+    _TERMINAL_STATUSES = {"ok", "failed_download", "failed_parse"}
+
     if not force:
         cached = _get_cached(url)
-        if cached and cached.get("fetch_status") == "ok":
+        if cached and cached.get("fetch_status") in _TERMINAL_STATUSES:
+            cached_status = cached.get("fetch_status")
             return {
-                "status":             "ok",
+                "status":             cached_status,
                 "method":             cached.get("extractor_method"),
                 "pages":              cached.get("pages") or 0,
                 "size_bytes":         cached.get("size_bytes") or 0,
                 "content_hash":       cached.get("content_hash") or "",
-                "extracted_text":     "",   # not returned from cache by default
+                "extracted_text":     "",
                 "extracted_text_len": len(cached.get("extracted_text") or ""),
                 "parsed_qas":         cached.get("parsed_qas") or [],
-                "error":              None,
+                "error":              cached.get("error_message"),
                 "cached":             True,
             }
 

@@ -1010,25 +1010,32 @@ def fetch_global_answers(
 
     from collections import defaultdict
 
-    # Reset previously no_match rows so they get a fresh attempt with the
-    # improved Jaccard matcher (clears the no_match status set by old runs)
+    # Reset no_match rows ONLY for PDFs that are already in the cache as 'ok'.
+    # These are worth re-matching (PDF is available, just the matcher missed them).
+    # Rows whose PDFs failed download should NOT be reset — they'd just hit the
+    # 25s timeout again on every run.
     with engine.begin() as conn:
         reset = conn.execute(text("""
-            UPDATE global_parliamentary_questions
+            UPDATE global_parliamentary_questions gq
                SET answer_fetch_status = NULL
-             WHERE answer_fetch_status = 'no_match'
-               AND (answer_text IS NULL OR answer_text = '')
+             WHERE gq.answer_fetch_status = 'no_match'
+               AND (gq.answer_text IS NULL OR gq.answer_text = '')
+               AND EXISTS (
+                   SELECT 1 FROM prs_pdf_cache pc
+                    WHERE pc.pdf_url = gq.question_pdf_url
+                      AND pc.fetch_status = 'ok'
+               )
         """))
         reset_count = reset.rowcount or 0
     if reset_count:
-        logger.info("fetch_global_answers: reset %d no_match rows for retry", reset_count)
+        logger.info("fetch_global_answers: reset %d no_match rows (PDF cached-ok) for retry", reset_count)
 
     # Build WHERE clause
     where_parts = [
         "question_pdf_url IS NOT NULL",
         "question_pdf_url != ''",
         "(answer_text IS NULL OR answer_text = '')",
-        "(answer_fetch_status IS NULL OR answer_fetch_status NOT IN ('ok', 'failed', 'no_pdf'))",
+        "(answer_fetch_status IS NULL OR answer_fetch_status NOT IN ('ok', 'failed', 'no_pdf', 'no_parse'))",
     ]
     params: dict = {"lim": limit}
     if prs_slug:
