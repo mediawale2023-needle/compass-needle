@@ -4040,6 +4040,35 @@ def brain_global_stats(user=Depends(get_admin_user)):
         raise HTTPException(500, f"Global stats failed: {e}")
 
 
+@router.post("/brain/global-rematch")
+def trigger_global_rematch(user=Depends(get_admin_user)):
+    """
+    Reset all no_match rows (whose PDFs are cached-ok) back to NULL so the
+    next fetch-answers run re-attempts matching with the latest matcher.
+    Safe to call after matcher improvements. Returns count of rows reset.
+    """
+    try:
+        from sansadx_backend.db import engine as _engine
+        from sqlalchemy import text as _text
+        with _engine.begin() as conn:
+            r = conn.execute(_text("""
+                UPDATE global_parliamentary_questions gq
+                   SET answer_fetch_status = NULL
+                 WHERE gq.answer_fetch_status IN ('no_match', 'no_answer_in_pdf')
+                   AND (gq.answer_text IS NULL OR gq.answer_text = '')
+                   AND EXISTS (
+                       SELECT 1 FROM prs_pdf_cache pc
+                        WHERE pc.pdf_url = gq.question_pdf_url
+                          AND pc.fetch_status = 'ok'
+                   )
+            """))
+            reset = r.rowcount or 0
+        return {"ok": True, "rows_reset": reset}
+    except Exception as e:
+        logger.exception("global-rematch failed: %s", e)
+        raise HTTPException(500, str(e))
+
+
 @router.post("/brain/global-seed")
 async def trigger_global_seed(request: Request, user=Depends(get_admin_user)):
     """

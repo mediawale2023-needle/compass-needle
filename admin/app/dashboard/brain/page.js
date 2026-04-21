@@ -642,6 +642,48 @@ export default function BrainPlaygroundPage() {
     );
 }
 
+// ─── Rematch Button — reset no_match rows so improved matcher retries them ───
+function RematchButton({ onDone }) {
+    const [status, setStatus] = useState(null);
+    const [running, setRunning] = useState(false);
+
+    const run = async () => {
+        setRunning(true);
+        setStatus(null);
+        try {
+            const r = await apiPost('/api/admin/brain/global-rematch', {});
+            setStatus({ ok: true, msg: `↺ Reset ${r.rows_reset} no_match rows for retry` });
+            onDone && onDone();
+        } catch (e) {
+            setStatus({ ok: false, msg: e.message || 'Rematch failed' });
+        } finally {
+            setRunning(false);
+        }
+    };
+
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+                onClick={run}
+                disabled={running}
+                style={{
+                    background: 'none', border: '1px solid #374151',
+                    color: '#9ca3af', borderRadius: 6,
+                    padding: '6px 12px', fontSize: 11,
+                    cursor: running ? 'not-allowed' : 'pointer',
+                }}
+            >
+                {running ? '⟳ Resetting…' : '↺ Rematch no_match'}
+            </button>
+            {status && (
+                <span style={{ fontSize: 11, color: status.ok ? '#22c55e' : '#ef4444' }}>
+                    {status.msg}
+                </span>
+            )}
+        </div>
+    );
+}
+
 // ─── Seed Panel (fallback when PRS listing needs JS rendering) ────────────────
 function SeedPanel() {
     const [open,       setOpen]       = useState(false);
@@ -1091,7 +1133,8 @@ function GlobalCorpusTab() {
                             ~49K PQs → ~2K unique PDFs (session bundles)
                         </span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                        <RematchButton onDone={loadStats} />
                         <button
                             onClick={() => trigger('/api/admin/brain/global-fetch-answers', { limit: answerLimit, allow_ocr: allowOcr })}
                             disabled={anyRunning}

@@ -845,7 +845,7 @@ def _coverage(db_words: frozenset, text: str) -> float:
 def _match_global_qas(
     parsed_qas: list[dict],
     db_rows: list[dict],
-    min_coverage: float = 0.50,   # ≥50% of DB subject words must appear in Q text
+    min_coverage: float = 0.30,   # ≥30% of DB subject words must appear in Q text
 ) -> dict:
     """
     Match PDF-extracted Q&A blocks to global_parliamentary_questions rows.
@@ -896,9 +896,37 @@ def _match_global_qas(
         }
         return matches
 
-    # ── 2. Multi-row group: scored coverage matching ──────────────────────────
+    # ── 2. Multi-row group: question-number first, then subject coverage ─────────
+    # Pre-extract question numbers from parsed QAs for fast lookup
+    qa_numbers = []
+    for qa in parsed_qas:
+        raw = (qa.get("question_number") or qa.get("subject") or "")
+        # extract leading digits e.g. "1234", "Q.1234", "*1234"
+        import re as _re
+        m = _re.search(r'\b(\d{1,5})\b', str(raw))
+        qa_numbers.append(m.group(1) if m else None)
+
     for row in db_rows:
-        db_w = _key_words(row.get("subject") or "")
+        db_qnum = str(row.get("question_number") or "").strip().lstrip("*").lstrip("†")
+        db_w    = _key_words(row.get("subject") or "")
+
+        # Priority 1: exact question-number match
+        num_idx = -1
+        if db_qnum:
+            for i, qn in enumerate(qa_numbers):
+                if qn and qn == db_qnum:
+                    num_idx = i
+                    break
+
+        if num_idx >= 0:
+            matches[row["id"]] = {
+                "parsed_qa":   parsed_qas[num_idx],
+                "score":       1.0,
+                "match_basis": "question_number",
+            }
+            continue
+
+        # Priority 2: subject-word coverage
         if not db_w:
             # No subject to match on — assign highest-scoring block
             best_i = max(range(len(qa_full_texts)),
@@ -1010,25 +1038,10 @@ def fetch_global_answers(
 
     from collections import defaultdict
 
-    # Reset no_match rows ONLY for PDFs that are already in the cache as 'ok'.
-    # These are worth re-matching (PDF is available, just the matcher missed them).
-    # Rows whose PDFs failed download should NOT be reset — they'd just hit the
-    # 25s timeout again on every run.
-    with engine.begin() as conn:
-        reset = conn.execute(text("""
-            UPDATE global_parliamentary_questions gq
-               SET answer_fetch_status = NULL
-             WHERE gq.answer_fetch_status = 'no_match'
-               AND (gq.answer_text IS NULL OR gq.answer_text = '')
-               AND EXISTS (
-                   SELECT 1 FROM prs_pdf_cache pc
-                    WHERE pc.pdf_url = gq.question_pdf_url
-                      AND pc.fetch_status = 'ok'
-               )
-        """))
-        reset_count = reset.rowcount or 0
-    if reset_count:
-        logger.info("fetch_global_answers: reset %d no_match rows (PDF cached-ok) for retry", reset_count)
+    # Do NOT auto-reset no_match rows here — rows that consistently fail the
+    # subject-coverage threshold would loop infinitely (PDF cached-ok → reset →
+    # re-queue → fail match → no_match → repeat). Re-matching should be triggered
+    # explicitly via the /brain/global-rematch endpoint after matcher improvements.
 
     # Build WHERE clause
     where_parts = [
