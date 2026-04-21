@@ -250,14 +250,17 @@ def _apply_matches_to_db(matches: dict) -> int:
     if not matches:
         return 0
     updated = 0
-    with engine.begin() as conn:
-        for row_id, m in matches.items():
-            pqa = m["parsed_qa"]
-            q_text = (pqa.get("question_text") or "").strip()
-            a_text = (pqa.get("answer_text") or "").strip()
-            real_num = (pqa.get("question_number") or "").strip() or None
-            ministry = (pqa.get("ministry") or "").strip() or None
-            status = "ok" if a_text else "no_answer_in_pdf"
+    # Sort by row_id so concurrent jobs always acquire row locks in the same
+    # order, preventing the cross-lock deadlock. One transaction per row keeps
+    # each lock held for the minimum time.
+    for row_id, m in sorted(matches.items()):
+        pqa = m["parsed_qa"]
+        q_text = (pqa.get("question_text") or "").strip()
+        a_text = (pqa.get("answer_text") or "").strip()
+        real_num = (pqa.get("question_number") or "").strip() or None
+        ministry = (pqa.get("ministry") or "").strip() or None
+        status = "ok" if a_text else "no_answer_in_pdf"
+        with engine.begin() as conn:
             conn.execute(text("""
                 UPDATE parliamentary_questions
                    SET question_text        = COALESCE(NULLIF(:qt, ''),   question_text),
@@ -275,7 +278,7 @@ def _apply_matches_to_db(matches: dict) -> int:
                 "status": status,
                 "rid":    row_id,
             })
-            updated += 1
+        updated += 1
     return updated
 
 

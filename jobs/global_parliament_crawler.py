@@ -967,12 +967,15 @@ def _apply_global_matches(matches: dict) -> int:
     if not matches:
         return 0
     updated = 0
-    with engine.begin() as conn:
-        for row_id, m in matches.items():
-            pqa    = m.get("parsed_qa") or {}
-            q_text = (pqa.get("question_text") or "").strip()
-            a_text = (pqa.get("answer_text")   or "").strip()
-            status = "ok" if a_text else "no_answer_in_pdf"
+    # Sort by row_id so concurrent jobs always acquire row locks in the same
+    # order, preventing the cross-lock deadlock. One transaction per row keeps
+    # each lock held for the minimum time.
+    for row_id, m in sorted(matches.items()):
+        pqa    = m.get("parsed_qa") or {}
+        q_text = (pqa.get("question_text") or "").strip()
+        a_text = (pqa.get("answer_text")   or "").strip()
+        status = "ok" if a_text else "no_answer_in_pdf"
+        with engine.begin() as conn:
             conn.execute(text("""
                 UPDATE global_parliamentary_questions
                    SET question_text       = COALESCE(NULLIF(:qt, ''), question_text),
@@ -981,7 +984,7 @@ def _apply_global_matches(matches: dict) -> int:
                        answer_fetch_status = :status
                  WHERE id = :id
             """), {"qt": q_text, "at": a_text, "status": status, "id": row_id})
-            updated += 1
+        updated += 1
     return updated
 
 
