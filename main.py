@@ -2405,3 +2405,40 @@ async def startup_jobs():
     from fastapi.concurrency import run_in_threadpool
     await run_in_threadpool(_sweep_stale_batches)
     await run_in_threadpool(_sweep_pending_citizen_acks)
+    _start_keep_alive()
+
+
+# ─────────────────────────────────────────
+# RAILWAY KEEP-ALIVE (hobby plan anti-sleep)
+# ─────────────────────────────────────────
+_KEEP_ALIVE_INTERVAL = 4 * 60  # 4 minutes — Railway sleeps after ~5 min inactivity
+
+
+def _keep_alive_ping():
+    """Self-ping /health to prevent Railway hobby plan from sleeping."""
+    railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+    custom_url = os.getenv("KEEP_ALIVE_URL")
+    url = custom_url or (f"https://{railway_domain}/health" if railway_domain else None)
+    if not url:
+        return
+    try:
+        resp = http_requests.get(url, timeout=10)
+        logger.debug("Keep-alive ping → %s  [%d]", url, resp.status_code)
+    except Exception as exc:
+        logger.warning("Keep-alive ping failed: %s", exc)
+    finally:
+        t = threading.Timer(_KEEP_ALIVE_INTERVAL, _keep_alive_ping)
+        t.daemon = True
+        t.start()
+
+
+def _start_keep_alive():
+    railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+    custom_url = os.getenv("KEEP_ALIVE_URL")
+    if not railway_domain and not custom_url:
+        logger.info("Keep-alive disabled (RAILWAY_PUBLIC_DOMAIN not set). Set KEEP_ALIVE_URL to enable.")
+        return
+    logger.info("Keep-alive enabled — pinging every %ds", _KEEP_ALIVE_INTERVAL)
+    t = threading.Timer(_KEEP_ALIVE_INTERVAL, _keep_alive_ping)
+    t.daemon = True
+    t.start()
