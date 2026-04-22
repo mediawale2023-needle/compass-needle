@@ -1,706 +1,545 @@
 'use client';
 
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
-import { apiGet, apiPost } from '@/lib/api';
-import { Lock } from 'lucide-react';
+import { apiGet, AI_TIMEOUT } from '@/lib/api';
+import {
+    Lock, ChevronRight, ChevronLeft, Loader2, RefreshCw,
+    Building2, FileText, TrendingUp, AlertTriangle,
+    CheckCircle2, BarChart3, CircleDot, Search
+} from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
-const CITIZEN_GROUPS = ['Women', 'Farmers', 'SC/ST', 'BPL Families', 'Youth / Students',
-    'Senior Citizens', 'Entrepreneurs / MSME', 'Disabled / PwD', 'Rural Residents', 'Urban Residents'];
-
-function LockedModule({ name }) {
+function LockedModule() {
     return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-6">
             <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
                 <Lock className="h-7 w-7 text-muted-foreground" />
             </div>
             <div>
-                <h2 className="text-lg font-semibold text-foreground">{name} is restricted</h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                    This module is available to the MP only. Contact your MP for access.
-                </p>
+                <h2 className="text-lg font-semibold text-foreground">Scheme Intelligence is restricted</h2>
+                <p className="text-sm text-muted-foreground mt-1">Available to the MP only.</p>
             </div>
         </div>
     );
 }
 
-export default function SchemesPage() {
-    const { user } = useAuth();
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
-    if (user && user.role !== 'mp' && user.role !== 'admin') {
-        return <LockedModule name="Schemes" />;
-    }
-    const [tab, setTab] = useState('overview');
-    const [intelFilter, setIntelFilter] = useState('all'); // 'all' | 'scrutinized' | 'unspent' | 'utilization'
-    const [schemes, setSchemes] = useState([]);
-    const [data, setData] = useState({});
+function shortMinistry(name) {
+    return (name || '')
+        .replace(/^Ministry of\s+/i, '')
+        .replace(/^Department of\s+/i, 'Dept. of ')
+        .replace(/^Ministry for\s+/i, '');
+}
+
+function formatDate(d) {
+    if (!d) return null;
+    try {
+        return new Date(d).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+    } catch { return d; }
+}
+
+function answerBand(count) {
+    if (!count || count === 0)
+        return { label: 'No Data',   color: 'bg-muted text-muted-foreground',          dot: 'bg-muted-foreground' };
+    if (count < 5)
+        return { label: 'Limited',   color: 'bg-blue-500/10 text-blue-400',             dot: 'bg-blue-400' };
+    if (count < 15)
+        return { label: 'Moderate',  color: 'bg-amber-500/10 text-amber-400',           dot: 'bg-amber-400' };
+    return         { label: 'Extensive', color: 'bg-emerald-500/10 text-emerald-400',   dot: 'bg-emerald-400' };
+}
+
+// ── Sub-components for the intelligence brief ─────────────────────────────────
+
+function IntelSection({ icon: Icon, title, colorClass, children }) {
+    return (
+        <div className="rounded-xl border border-border/60 overflow-hidden">
+            <div className={`flex items-center gap-2 px-4 py-3 border-b border-border/40 ${colorClass}`}>
+                <Icon className="h-4 w-4" />
+                <span className="text-xs font-semibold tracking-widest uppercase">{title}</span>
+            </div>
+            <div className="px-4 py-4 bg-card/50 space-y-3">{children}</div>
+        </div>
+    );
+}
+
+function IntelRow({ label, value }) {
+    return (
+        <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">{label}</span>
+            {value
+                ? <span className="text-sm text-foreground leading-relaxed">{value}</span>
+                : <span className="text-sm text-muted-foreground italic">Not on record</span>
+            }
+        </div>
+    );
+}
+
+// ── Screen 3: Intelligence Brief ──────────────────────────────────────────────
+
+function SchemeBrief({ scheme, onBack, color }) {
+    const [data, setData]       = useState(null);
     const [loading, setLoading] = useState(true);
-    const [fundIntel, setFundIntel] = useState(null);
-    const [expanded, setExpanded] = useState(null);
-
-    // Finder state
-    const [query, setQuery] = useState('');
-    const [selCategory, setSelCategory] = useState('All');
-    const [selMinistry, setSelMinistry] = useState('All');
-    const [selFocus, setSelFocus] = useState('All');
-    const [searchResults, setSearchResults] = useState(null);
-    const [searchLoading, setSearchLoading] = useState(false);
-
-    // Citizen matcher state
-    const [citizenGroups, setCitizenGroups] = useState(['BPL Families']);
-    const [citizenGender, setCitizenGender] = useState('Any');
-    const [citizenLoc, setCitizenLoc] = useState('Any');
-    const [citizenResults, setCitizenResults] = useState(null);
-    const [citizenLoading, setCitizenLoading] = useState(false);
-
-    const color = user?.theme_color || '#006a4d';
+    const [error, setError]     = useState(null);
 
     useEffect(() => {
-        async function load() {
-            try {
-                const [d, fi] = await Promise.all([
-                    apiGet('/api/schemes/all'),
-                    apiGet('/api/schemes/fund-intel').catch(() => null),
-                ]);
-                setSchemes(d.schemes || []);
-                setData(d);
-                if (fi && fi.ministries) setFundIntel(fi);
-            } catch (err) { console.error(err); }
-            finally { setLoading(false); }
-        }
-        load();
-    }, []);
+        setLoading(true);
+        setError(null);
+        setData(null);
+        const token = sessionStorage.getItem('needle_token') || localStorage.getItem('needle_token') || '';
+        fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || ''}/api/schemes/intelligence/${encodeURIComponent(scheme.name)}`,
+            { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(AI_TIMEOUT) }
+        )
+            .then(r => r.json())
+            .then(d => { setData(d); setLoading(false); })
+            .catch(e => { setError(e.message); setLoading(false); });
+    }, [scheme.name]);
 
-    // Scheme Finder search
-    const search = async () => {
-        if (!query.trim()) { setSearchResults(null); return; }
-        setSearchLoading(true);
-        try {
-            const d = await apiPost('/api/schemes/search', { query });
-            setSearchResults(d.schemes || []);
-        } catch { setSearchResults([]); }
-        finally { setSearchLoading(false); }
-    };
-
-    // Filter locally
-    const getFilteredSchemes = () => {
-        let list = searchResults || schemes;
-        if (selCategory !== 'All') list = list.filter(s => s.category === selCategory);
-        if (selMinistry !== 'All') list = list.filter(s => (s.ministry || '').includes(selMinistry));
-        if (selFocus !== 'All') list = list.filter(s => s.focus === selFocus);
-        return list;
-    };
-
-    // Citizen match
-    const matchCitizen = async () => {
-        if (!citizenGroups.length) return;
-        setCitizenLoading(true);
-        try {
-            const d = await apiPost('/api/schemes/citizen-match', {
-                groups: citizenGroups, gender: citizenGender, location: citizenLoc
-            });
-            setCitizenResults(d);
-        } catch { setCitizenResults({ schemes: [], total: 0, profile: '' }); }
-        finally { setCitizenLoading(false); }
-    };
-
-    const toggleGroup = (g) => {
-        setCitizenGroups(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]);
-    };
-
-    const stats = data.stats || {};
-    const ministrySummary = data.ministry_summary || [];
-    const topSchemes = data.top_schemes || [];
-    const categories = data.categories || [];
-    const ministries = data.ministries || [];
-    const focuses = data.focuses || [];
-
-    if (loading) return <div className="text-center py-20 text-gray-500 text-sm">Loading schemes...</div>;
+    const intel = data?.intel || {};
+    const ff    = intel.fund_flow || {};
+    const bc    = intel.beneficiary_coverage || {};
+    const impl  = intel.implementation_status || {};
+    const ca    = intel.challenges_acknowledged || {};
+    const lp    = intel.latest_position || {};
+    const stats = Array.isArray(intel.key_statistics) ? intel.key_statistics : [];
 
     return (
-        <div className="space-y-5">
-            <div className="flex items-center justify-between">
-                <h1 className="text-lg font-bold text-gray-800">Fund Intelligence HQ</h1>
-                <span className="text-xs text-gray-400">Every scheme, every ministry, at your fingertips</span>
-            </div>
-
-            {/* Stats bar */}
-            <div className="grid grid-cols-3 gap-4">
-                {[
-                    { label: 'Total Schemes', value: stats.total || 0 },
-                    { label: 'Ministries', value: stats.ministries || 0 },
-                    { label: 'Total Allocation', value: `₹${(stats.total_budget || 0).toLocaleString('en-IN')} Cr` },
-                ].map(s => (
-                    <div key={s.label} className="sansad-card">
-                        <div className="sansad-card-body text-center py-3">
-                            <div className="text-xl font-bold" style={{ color }}>{s.value}</div>
-                            <div className="text-[10px] text-gray-500 uppercase">{s.label}</div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Tabs */}
-            <div className="sansad-tabs">
-                {[
-                    { key: 'overview', label: 'Ministry Overview' },
-                    { key: 'intel', label: 'Fund Intelligence' },
-                    { key: 'finder', label: 'Scheme Finder' },
-                    { key: 'citizen', label: 'Citizen Matcher' },
-                ].map(t => (
-                    <button key={t.key}
-                        onClick={() => setTab(t.key)}
-                        className={`sansad-tab ${tab === t.key ? 'sansad-tab-active' : ''}`}
-                        style={tab === t.key ? { color } : {}}>
-                        {t.label}
-                    </button>
-                ))}
-            </div>
-
-            {/* TAB 1: Ministry Overview */}
-            {tab === 'overview' && (
-                <div className="space-y-5">
-                    <div className="sansad-card">
-                        <div className="sansad-card-header" style={{ background: color }}>Top 10 Ministries by Budget</div>
-                        <div className="sansad-card-body">
-                            {ministrySummary.slice(0, 10).map((m, i) => {
-                                const maxBudget = ministrySummary[0]?.budget || 1;
-                                const pct = Math.max(5, (m.budget / maxBudget) * 100);
-                                return (
-                                    <div key={i} className="py-2 border-b last:border-0" style={{ borderColor: '#eee' }}>
-                                        <div className="flex items-center justify-between text-xs mb-1">
-                                            <span className="font-medium text-gray-700 truncate" style={{ maxWidth: '60%' }}>
-                                                {m.ministry.replace('Ministry of ', '').replace('Ministry for ', '')}
-                                            </span>
-                                            <span className="font-bold" style={{ color }}>₹{m.budget.toLocaleString('en-IN')} Cr</span>
-                                        </div>
-                                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                                            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color, opacity: 0.7 }} />
-                                        </div>
-                                        <div className="text-[10px] text-gray-400 mt-0.5">{m.count} schemes</div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    <div className="sansad-card">
-                        <div className="sansad-card-header" style={{ background: '#555' }}>Top 10 Highest-Budget Schemes</div>
-                        <table className="sansad-table">
-                            <thead><tr><th>#</th><th>Scheme</th><th>Ministry</th><th>Budget</th></tr></thead>
-                            <tbody>
-                                {topSchemes.map((s, i) => (
-                                    <tr key={i}>
-                                        <td className="font-mono text-gray-400">{i + 1}</td>
-                                        <td className="font-medium" style={{ color }}>{s.name}</td>
-                                        <td className="text-xs">{s.ministry?.replace('Ministry of ', '') || '–'}</td>
-                                        <td className="font-semibold">{s.budget_allocation || '–'}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="sansad-card">
-                            <div className="sansad-card-header" style={{ background: color }}>By Category</div>
-                            <div className="sansad-card-body">
-                                {categories.map(cat => {
-                                    const cnt = schemes.filter(s => s.category === cat).length;
-                                    return (
-                                        <div key={cat} className="flex items-center justify-between text-xs py-1.5 border-b last:border-0" style={{ borderColor: '#eee' }}>
-                                            <span className="text-gray-700">{cat}</span>
-                                            <span className="sansad-badge" style={{ background: `${color}15`, color }}>{cnt}</span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                        <div className="sansad-card">
-                            <div className="sansad-card-header" style={{ background: '#555' }}>By Focus Area</div>
-                            <div className="sansad-card-body" style={{ maxHeight: 400, overflowY: 'auto' }}>
-                                {focuses.map(f => {
-                                    const cnt = schemes.filter(s => s.focus === f).length;
-                                    return (
-                                        <div key={f} className="flex items-center justify-between text-xs py-1.5 border-b last:border-0" style={{ borderColor: '#eee' }}>
-                                            <span className="text-gray-700 truncate" style={{ maxWidth: '70%' }}>{f}</span>
-                                            <span className="text-gray-500">{cnt}</span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* TAB: Fund Intelligence (merged Radar + Parliament Scrutiny) */}
-            {tab === 'intel' && (() => {
-                const meta = fundIntel?.metadata || {};
-                const fiMinistries = fundIntel?.ministries || [];
-
-                // Build a lookup from fund intel by normalized ministry name for merging
-                const normName = s => s.toUpperCase()
-                    .replace(/MINISTRY OF |MINISTRY FOR |DEPARTMENT OF /g, '')
-                    .replace(/&/g, 'AND').trim();
-
-                const fiByNorm = {};
-                fiMinistries.forEach(m => { fiByNorm[normName(m.ministry)] = m; });
-
-                // Merge ministrySummary (from schemes_db) with fiMinistries (from parliament)
-                // Primary list: ministrySummary enriched with fi data
-                const mergedList = ministrySummary.map(m => {
-                    const key = normName(m.ministry);
-                    // Try to match by key or partial match
-                    let fi = fiByNorm[key];
-                    if (!fi) {
-                        const keys = Object.keys(fiByNorm);
-                        const partial = keys.find(k => k.includes(key) || key.includes(k));
-                        fi = partial ? fiByNorm[partial] : null;
-                    }
-                    return {
-                        ...m,
-                        fi_questions: fi?.total_questions || 0,
-                        fi_tag_counts: fi?.tag_counts || {},
-                        fi_questions_list: (fi?.questions || []).sort((a, b) => (b.date || '').localeCompare(a.date || '')),
-                        fi_severity: fi?.severity_score || 0,
-                        fi_budget_cr: fi?.budget_cr || 0,
-                        fi_schemes: fi?.schemes || [],
-                        fi_has_data: !!fi,
-                    };
-                });
-
-                // Also include fi-only ministries not in ministrySummary
-                const coveredNorms = new Set(mergedList.map(m => normName(m.ministry)));
-                fiMinistries.forEach(fi => {
-                    if (!coveredNorms.has(normName(fi.ministry))) {
-                        mergedList.push({
-                            ministry: fi.full_name || fi.ministry,
-                            budget: fi.budget_cr || 0,
-                            count: fi.scheme_count || 0,
-                            top_scheme: fi.schemes?.[0]?.name || '',
-                            fi_questions: fi.total_questions,
-                            fi_tag_counts: fi.tag_counts || {},
-                            fi_questions_list: (fi.questions || []).sort((a, b) => (b.date || '').localeCompare(a.date || '')),
-                            fi_severity: fi.severity_score || 0,
-                            fi_budget_cr: fi.budget_cr || 0,
-                            fi_schemes: fi.schemes || [],
-                            fi_has_data: true,
-                        });
-                    }
-                });
-
-                mergedList.sort((a, b) => b.budget - a.budget);
-
-                // Filter
-                const filtered = mergedList.filter(m => {
-                    if (intelFilter === 'scrutinized') return m.fi_questions > 0;
-                    if (intelFilter === 'unspent') return (m.fi_tag_counts.unspent || 0) > 0;
-                    if (intelFilter === 'utilization') return (m.fi_tag_counts.utilization || 0) > 0;
-                    return true;
-                });
-
-                const totalBudget = mergedList.reduce((s, m) => s + (m.budget || 0), 0);
-                const totalQs = meta.total_fund_questions || fiMinistries.reduce((s, m) => s + m.total_questions, 0);
-                const scrutinizedCount = mergedList.filter(m => m.fi_questions > 0).length;
-
-                const severityColor = s => s >= 50 ? '#dc2626' : s >= 25 ? '#f59e0b' : '#6b7280';
-                const tagColor = tag => ({ utilization: '#3b82f6', unspent: '#dc2626', allocation: '#8b5cf6', release: '#06b6d4', delay: '#f59e0b' })[tag] || '#6b7280';
-                const tagLabel = tag => ({ utilization: 'Utilization', unspent: 'Unspent', allocation: 'Allocation', release: 'Release', budget: 'Budget', delay: 'Delay', general: 'General' })[tag] || tag;
-
-                return (
-                    <div className="space-y-5">
-                        {/* Top metrics */}
-                        <div className="grid grid-cols-4 gap-3">
-                            {[
-                                { label: 'Total Budget Tracked', value: `₹${(totalBudget / 1000).toFixed(0)}K Cr`, sub: `${mergedList.length} ministries` },
-                                { label: 'Parliament Questions', value: totalQs, sub: `FY ${meta.financial_year || '2025-26'} · LS ${meta.lok_sabha || 18}` },
-                                { label: 'Under Scrutiny', value: scrutinizedCount, sub: 'ministries questioned by MPs' },
-                                { label: 'Unspent Flags', value: mergedList.reduce((s, m) => s + (m.fi_tag_counts.unspent || 0), 0), sub: 'Q&As about unused funds' },
-                            ].map(s => (
-                                <div key={s.label} className="sansad-card">
-                                    <div className="sansad-card-body text-center py-3">
-                                        <div className="text-lg font-bold" style={{ color }}>{s.value}</div>
-                                        <div className="text-[10px] text-gray-500 uppercase">{s.label}</div>
-                                        <div className="text-[9px] text-gray-400">{s.sub}</div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Filter pills */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-400 font-semibold uppercase">Filter:</span>
-                            {[
-                                { key: 'all', label: 'All Ministries' },
-                                { key: 'scrutinized', label: 'Parliament Questioned' },
-                                { key: 'unspent', label: 'Unspent Fund Flags' },
-                                { key: 'utilization', label: 'Utilization Q&As' },
-                            ].map(f => (
-                                <button key={f.key} onClick={() => setIntelFilter(f.key)}
-                                    className="px-3 py-1 text-[11px] font-semibold border"
-                                    style={intelFilter === f.key
-                                        ? { background: color, color: '#fff', borderColor: color }
-                                        : { borderColor: '#ddd', color: '#555', background: '#fff' }}>
-                                    {f.label}
-                                </button>
-                            ))}
-                            <span className="text-xs text-gray-400 ml-auto">{filtered.length} ministries</span>
-                        </div>
-
-                        {/* Ministry list */}
-                        <div className="space-y-2">
-                            {filtered.map((m, i) => {
-                                const isOpen = expanded === `fi${i}`;
-                                const hasPQ = m.fi_questions > 0;
-                                const maxBudget = mergedList[0]?.budget || 1;
-                                const budgetPct = Math.max(2, (m.budget / maxBudget) * 100);
-                                const unspentCount = m.fi_tag_counts.unspent || 0;
-                                const utilCount = m.fi_tag_counts.utilization || 0;
-
-                                return (
-                                    <div key={i} className="sansad-card" style={{
-                                        borderLeft: hasPQ ? `4px solid ${severityColor(m.fi_severity)}` : '4px solid transparent'
-                                    }}>
-                                        <div className="sansad-card-body py-3">
-                                            {/* Header row */}
-                                            <div className="flex items-center justify-between cursor-pointer"
-                                                onClick={() => setExpanded(isOpen ? null : `fi${i}`)}>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <span className="text-sm font-semibold text-gray-800 truncate">
-                                                            {m.ministry.replace('Ministry of ', '').replace('Ministry for ', '')}
-                                                        </span>
-                                                        {hasPQ && (
-                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{
-                                                                background: severityColor(m.fi_severity) + '18',
-                                                                color: severityColor(m.fi_severity)
-                                                            }}>
-                                                                {m.fi_questions} Parliament Q{m.fi_questions > 1 ? 's' : ''}
-                                                            </span>
-                                                        )}
-                                                        {unspentCount > 0 && (
-                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ background: '#fef2f2', color: '#dc2626' }}>
-                                                                {unspentCount} Unspent Flag{unspentCount > 1 ? 's' : ''}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    {/* Budget bar */}
-                                                    <div className="mt-1.5 flex items-center gap-2">
-                                                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                            <div className="h-full rounded-full" style={{ width: `${budgetPct}%`, background: color, opacity: 0.65 }} />
-                                                        </div>
-                                                        <span className="text-[11px] font-bold shrink-0" style={{ color }}>
-                                                            ₹{m.budget.toLocaleString('en-IN')} Cr
-                                                        </span>
-                                                        <span className="text-[10px] text-gray-400 shrink-0">{m.count} schemes</span>
-                                                    </div>
-                                                </div>
-                                                <span className="text-gray-300 ml-4 text-xs">{isOpen ? '▲' : '▼'}</span>
-                                            </div>
-
-                                            {/* Expanded panel */}
-                                            {isOpen && (
-                                                <div className="mt-3 pt-3 border-t space-y-4" style={{ borderColor: '#eee' }}>
-                                                    {/* Stats row */}
-                                                    <div className="grid grid-cols-3 gap-3">
-                                                        <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
-                                                            <div className="text-sm font-bold" style={{ color }}>₹{m.budget.toLocaleString('en-IN')} Cr</div>
-                                                            <div className="text-[10px] text-gray-500 uppercase">Budget Allocated</div>
-                                                            <div className="text-[9px] text-gray-400">{m.count} active schemes</div>
-                                                        </div>
-                                                        <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
-                                                            <div className="text-sm font-bold text-gray-800">{m.fi_questions}</div>
-                                                            <div className="text-[10px] text-gray-500 uppercase">Parliament Q&As</div>
-                                                            <div className="text-[9px] text-gray-400">MPs raised in LS {meta.lok_sabha || 18}</div>
-                                                        </div>
-                                                        <div className="text-center py-2 bg-gray-50 border" style={{ borderColor: '#eee' }}>
-                                                            <div className="text-sm font-bold" style={{ color: unspentCount > 0 ? '#dc2626' : '#6b7280' }}>
-                                                                {unspentCount > 0 ? `${unspentCount} raised` : '—'}
-                                                            </div>
-                                                            <div className="text-[10px] text-gray-500 uppercase">Unspent / Lapsed</div>
-                                                            <div className="text-[9px] text-gray-400">questions about unused funds</div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Tag breakdown */}
-                                                    {hasPQ && Object.keys(m.fi_tag_counts).length > 0 && (
-                                                        <div>
-                                                            <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1.5">What MPs Asked About</div>
-                                                            <div className="flex gap-2 flex-wrap">
-                                                                {Object.entries(m.fi_tag_counts)
-                                                                    .sort((a, b) => b[1] - a[1])
-                                                                    .map(([tag, cnt]) => (
-                                                                        <span key={tag} className="text-[11px] font-semibold px-2 py-0.5 rounded" style={{
-                                                                            background: tagColor(tag) + '18', color: tagColor(tag)
-                                                                        }}>
-                                                                            {tagLabel(tag)}: {cnt}
-                                                                        </span>
-                                                                    ))
-                                                                }
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {/* Schemes under this ministry */}
-                                                    {(m.fi_schemes.length > 0 || schemes.filter(s => s.ministry === m.ministry).length > 0) && (
-                                                        <div>
-                                                            <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1.5">Schemes & Allocation</div>
-                                                            <div className="space-y-1">
-                                                                {(m.fi_schemes.length > 0
-                                                                    ? m.fi_schemes
-                                                                    : schemes.filter(s => s.ministry === m.ministry)
-                                                                        .sort((a, b) => (b.budget_numeric || 0) - (a.budget_numeric || 0))
-                                                                        .map(s => ({ name: s.name, budget_allocation: s.budget_allocation, alloc_cr: s.budget_numeric || 0, focus: s.focus }))
-                                                                ).slice(0, 8).map((s, j) => (
-                                                                    <div key={j} className="flex items-center justify-between text-xs py-1 border-b last:border-0" style={{ borderColor: '#f0f0f0' }}>
-                                                                        <span className="text-gray-700 font-medium truncate" style={{ maxWidth: '65%' }}>
-                                                                            {s.name}
-                                                                        </span>
-                                                                        <span className="font-semibold text-gray-600 shrink-0">
-                                                                            {s.budget_allocation || (s.alloc_cr > 0 ? `₹${s.alloc_cr.toLocaleString('en-IN')} Cr` : 'N/A')}
-                                                                        </span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    {/* Parliament Q&A list */}
-                                                    {m.fi_questions_list.length > 0 && (
-                                                        <div>
-                                                            <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1.5">Parliament Questions Raised</div>
-                                                            <div className="space-y-1.5">
-                                                                {m.fi_questions_list.slice(0, 8).map((q, j) => (
-                                                                    <div key={j} className="text-xs py-1.5 border-b last:border-0" style={{ borderColor: '#f0f0f0' }}>
-                                                                        <div className="flex items-start gap-2">
-                                                                            <span className="text-gray-400 shrink-0 font-mono text-[10px] mt-0.5">{q.date?.slice(0, 7) || '—'}</span>
-                                                                            <span className="text-gray-700">{q.title}</span>
-                                                                        </div>
-                                                                        {q.tags && q.tags.filter(t => t !== 'general').length > 0 && (
-                                                                            <div className="flex gap-1 mt-1 ml-10">
-                                                                                {q.tags.filter(t => t !== 'general').map(t => (
-                                                                                    <span key={t} style={{ fontSize: 9, color: tagColor(t), background: tagColor(t) + '15' }}
-                                                                                        className="px-1.5 py-0.5 rounded font-bold uppercase">
-                                                                                        {t}
-                                                                                    </span>
-                                                                                ))}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                ))}
-                                                                {m.fi_questions_list.length > 8 && (
-                                                                    <div className="text-[10px] text-gray-400 text-right">
-                                                                        +{m.fi_questions_list.length - 8} more questions
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        <div className="text-[10px] text-gray-400 text-right">
-                            Source: Budget data from Ministry Annual Reports · Parliament Q&A: ePARLib (sansad.in) LS {meta.lok_sabha || 18} · FY {meta.financial_year || '2025-26'} · Updated: {meta.enriched_at || meta.scraped_at || 'N/A'}
-                        </div>
-                    </div>
-                );
-            })()}
-
-            {/* TAB 3: Scheme Finder */}
-            {tab === 'finder' && (
-                <div className="space-y-4">
-                    {/* Figma: Full-width search */}
-                    <div className="flex gap-3">
-                        <div className="figma-search-wrap flex-1">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-                            </svg>
-                            <input type="text" value={query}
-                                onChange={e => setQuery(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && search()}
-                                placeholder="Search schemes by name or ministry..."
-                                className="figma-search" />
-                        </div>
-                        <button onClick={search} disabled={searchLoading}
-                            className="px-5 py-2 text-white text-sm font-bold rounded-lg disabled:opacity-40"
-                            style={{ background: color }}>
-                            {searchLoading ? 'Searching...' : 'Search'}
-                        </button>
-                        {searchResults && (
-                            <button onClick={() => { setSearchResults(null); setQuery(''); setSelCategory('All'); }}
-                                className="px-4 py-2 text-sm border rounded-lg text-gray-500" style={{ borderColor: '#ddd' }}>
-                                Clear
-                            </button>
+        <div className="space-y-6">
+            {/* Breadcrumb / back */}
+            <div className="flex items-start gap-3">
+                <Button variant="ghost" size="sm" onClick={onBack}
+                    className="mt-0.5 h-8 w-8 p-0 text-muted-foreground hover:text-foreground shrink-0">
+                    <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <h1 className="text-xl font-bold text-foreground leading-tight">
+                            {scheme.full_name || scheme.name}
+                        </h1>
+                        {data?.is_stale && (
+                            <Badge variant="outline" className="text-xs text-amber-400 border-amber-400/30 gap-1 shrink-0">
+                                <RefreshCw className="h-3 w-3" /> Updating
+                            </Badge>
                         )}
                     </div>
-
-                    {/* Figma: Category pill filters */}
-                    <div className="flex gap-2 flex-wrap">
-                        {['All', ...categories.slice(0, 8)].map(cat => (
-                            <button key={cat}
-                                onClick={() => setSelCategory(cat)}
-                                className={`pill-filter ${selCategory === cat ? 'pill-filter-active' : ''}`}
-                                style={selCategory === cat && cat !== 'All' ? { background: color, borderColor: color, color: 'white' } : {}}>
-                                {cat}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Ministry filter (compact) */}
-                    <div className="flex gap-3 items-center">
-                        <select value={selMinistry} onChange={e => setSelMinistry(e.target.value)}
-                            className="px-3 py-1.5 border text-xs rounded-lg" style={{ borderColor: '#ddd' }}>
-                            <option value="All">All Ministries</option>
-                            {ministries.map(m => <option key={m} value={m}>{m.replace('Ministry of ', '').replace('Ministry for ', '')}</option>)}
-                        </select>
-                        <select value={selFocus} onChange={e => setSelFocus(e.target.value)}
-                            className="px-3 py-1.5 border text-xs rounded-lg" style={{ borderColor: '#ddd' }}>
-                            <option value="All">All Focus Areas</option>
-                            {focuses.map(f => <option key={f} value={f}>{f}</option>)}
-                        </select>
-                    </div>
-
-                    {/* Results */}
-                    {(() => {
-                        const filtered = getFilteredSchemes();
-                        return filtered.length === 0 ? (
-                            <div className="text-center py-10 text-gray-400 text-sm bg-white border rounded-lg" style={{ borderColor: '#e5e7eb' }}>
-                                No schemes found. Try a broader search or reset filters.
-                            </div>
-                        ) : (
-                            <>
-                                <p className="text-xs text-gray-400"><strong className="text-gray-600">{filtered.length}</strong> schemes found</p>
-                                <div className="grid grid-cols-3 gap-4">
-                                    {filtered.slice(0, 30).map((s, i) => (
-                                        <div key={s.id || i} className="figma-card flex flex-col gap-3">
-                                            <div>
-                                                <h3 className="text-sm font-bold text-gray-900 leading-tight">{s.name}</h3>
-                                                <p className="text-xs text-gray-500 mt-1">{(s.ministry || '').replace('Ministry of ', '').replace('Ministry for ', '')}</p>
-                                            </div>
-                                            {s.budget_allocation && (
-                                                <p className="text-lg font-bold" style={{ color }}>{s.budget_allocation}</p>
-                                            )}
-                                            <div className="flex gap-1.5 flex-wrap">
-                                                {[s.focus, s.category].filter(Boolean).map(tag => (
-                                                    <span key={tag} className="sansad-badge"
-                                                        style={{ background: `${color}12`, color, borderRadius: 4, fontSize: 10 }}>
-                                                        {tag}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                            <div className="mt-auto pt-2 border-t" style={{ borderColor: '#f0f0f0' }}>
-                                                <button
-                                                    onClick={() => setExpanded(expanded === `f${i}` ? null : `f${i}`)}
-                                                    className="figma-btn-outline w-full justify-center"
-                                                    style={{ color, borderColor: color }}>
-                                                    ↗ View Details
-                                                </button>
-                                                {expanded === `f${i}` && (
-                                                    <div className="mt-3 text-xs text-gray-600 leading-relaxed">
-                                                        {s.description || 'No detailed description available.'}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </>
-                        );
-                    })()}
+                    <p className="text-sm text-muted-foreground mt-0.5">{scheme.ministry}</p>
+                    {data?.generated_at && (
+                        <p className="text-xs text-muted-foreground/50 mt-0.5">
+                            Analysed {formatDate(data.generated_at)}
+                            {data?.answer_count ? ` · ${data.answer_count} ministry answers` : ''}
+                        </p>
+                    )}
                 </div>
+            </div>
+
+            {/* Loading */}
+            {loading && (
+                <Card className="border-border/60">
+                    <CardContent className="flex flex-col items-center justify-center py-20 gap-4">
+                        <Loader2 className="h-8 w-8 animate-spin" style={{ color }} />
+                        <div className="text-center space-y-1">
+                            <p className="text-sm font-medium text-foreground">Reading parliamentary record…</p>
+                            <p className="text-xs text-muted-foreground">Analysing ministry responses from Lok Sabha &amp; Rajya Sabha</p>
+                        </div>
+                    </CardContent>
+                </Card>
             )}
 
+            {/* Error */}
+            {!loading && error && (
+                <Card className="border-destructive/30">
+                    <CardContent className="py-10 text-center space-y-2">
+                        <AlertTriangle className="h-8 w-8 text-destructive/60 mx-auto" />
+                        <p className="text-sm text-muted-foreground">Could not load intelligence. {error}</p>
+                    </CardContent>
+                </Card>
+            )}
 
-            {/* TAB 4: Citizen Matcher */}
-            {tab === 'citizen' && (
+            {/* No data */}
+            {!loading && !error && data?.no_data && (
+                <Card className="border-border/60">
+                    <CardContent className="py-14 text-center space-y-2">
+                        <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto" />
+                        <p className="text-sm font-medium text-foreground">No parliamentary record found</p>
+                        <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+                            This scheme has not appeared in the ministry answers we have analysed.
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Intelligence brief */}
+            {!loading && !error && Object.keys(intel).length > 0 && (
                 <div className="space-y-4">
-                    <div className="text-sm text-gray-500">Select a citizen's profile and instantly see every scheme they qualify for.</div>
 
-                    <div className="sansad-card">
-                        <div className="sansad-card-header" style={{ background: color }}>Citizen Profile</div>
-                        <div className="sansad-card-body space-y-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Citizen belongs to:</label>
-                                <div className="flex gap-2 flex-wrap">
-                                    {CITIZEN_GROUPS.map(g => (
-                                        <button key={g} onClick={() => toggleGroup(g)}
-                                            className="px-3 py-1.5 text-xs font-semibold border"
-                                            style={citizenGroups.includes(g)
-                                                ? { background: color, color: 'white', borderColor: color }
-                                                : { borderColor: '#ddd', color: '#555' }}>
-                                            {g}
-                                        </button>
-                                    ))}
-                                </div>
+                    {/* Latest Position — most prominent, always first */}
+                    {lp.statement && (
+                        <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
+                            <div className="flex items-center gap-2 px-4 py-3 bg-primary/5 border-b border-border/40">
+                                <CircleDot className="h-4 w-4 text-primary" />
+                                <span className="text-xs font-semibold tracking-widest uppercase text-primary">
+                                    Ministry&apos;s Latest Position
+                                </span>
+                                {lp.date && (
+                                    <span className="ml-auto text-xs text-muted-foreground shrink-0">
+                                        {formatDate(lp.date)}
+                                    </span>
+                                )}
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Gender</label>
-                                    <div className="flex gap-2">
-                                        {['Any', 'Male', 'Female'].map(g => (
-                                            <button key={g} onClick={() => setCitizenGender(g)}
-                                                className="px-3 py-1.5 text-xs font-semibold border"
-                                                style={citizenGender === g
-                                                    ? { background: color, color: 'white', borderColor: color }
-                                                    : { borderColor: '#ddd', color: '#555' }}>
-                                                {g}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Location</label>
-                                    <div className="flex gap-2">
-                                        {['Any', 'Rural', 'Urban'].map(l => (
-                                            <button key={l} onClick={() => setCitizenLoc(l)}
-                                                className="px-3 py-1.5 text-xs font-semibold border"
-                                                style={citizenLoc === l
-                                                    ? { background: color, color: 'white', borderColor: color }
-                                                    : { borderColor: '#ddd', color: '#555' }}>
-                                                {l}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                            <button onClick={matchCitizen} disabled={!citizenGroups.length || citizenLoading}
-                                className="w-full py-2.5 text-white text-sm font-semibold disabled:opacity-40" style={{ background: color }}>
-                                {citizenLoading ? 'Matching...' : 'Find Eligible Schemes'}
-                            </button>
-                        </div>
-                    </div>
-
-                    {citizenResults && (
-                        <div className="space-y-3">
-                            <div className="text-sm font-semibold text-gray-700">
-                                <strong style={{ color }}>{citizenResults.total}</strong> schemes found for: <strong>{citizenResults.profile}</strong>
-                                {citizenGender !== 'Any' && ` | ${citizenGender}`}
-                                {citizenLoc !== 'Any' && ` | ${citizenLoc}`}
-                            </div>
-                            <div className="sansad-card">
-                                <table className="sansad-table">
-                                    <thead><tr><th>Scheme</th><th>Ministry</th><th>Budget</th><th>Description</th></tr></thead>
-                                    <tbody>
-                                        {citizenResults.schemes.slice(0, 30).map((s, i) => (
-                                            <tr key={i}>
-                                                <td className="font-medium" style={{ color }}>{s.name}</td>
-                                                <td className="text-xs">{(s.ministry || '').replace('Ministry of ', '').slice(0, 30)}</td>
-                                                <td className="font-semibold">{s.budget_allocation || '–'}</td>
-                                                <td className="text-xs text-gray-500 max-w-[300px] truncate">{s.description || '–'}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                            <div className="px-5 py-5">
+                                <p className="text-sm text-foreground leading-relaxed italic">
+                                    &ldquo;{lp.statement}&rdquo;
+                                </p>
                             </div>
                         </div>
                     )}
+
+                    {/* 4 main sections in 2×2 grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <IntelSection icon={BarChart3} title="Fund Flow" colorClass="bg-blue-500/5 text-blue-400">
+                            <IntelRow label="Allocated"          value={ff.allocated} />
+                            <IntelRow label="Released"           value={ff.released} />
+                            <IntelRow label="Disbursed"          value={ff.disbursed} />
+                            <IntelRow label="Utilisation"        value={ff.utilization_pct} />
+                            {ff.discrepancies && (
+                                <div className="mt-1 pt-2 border-t border-border/40">
+                                    <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium block mb-1">
+                                        Discrepancies
+                                    </span>
+                                    <p className="text-sm text-amber-400 leading-relaxed">{ff.discrepancies}</p>
+                                </div>
+                            )}
+                        </IntelSection>
+
+                        <IntelSection icon={TrendingUp} title="Beneficiary Coverage" colorClass="bg-emerald-500/5 text-emerald-400">
+                            <IntelRow label="Total Beneficiaries"   value={bc.total_beneficiaries} />
+                            <IntelRow label="Demographic Breakdown" value={bc.demographic_breakdown} />
+                            {bc.coverage_note && <IntelRow label="Coverage Note" value={bc.coverage_note} />}
+                            {bc.states_mentioned?.length > 0 && (
+                                <div>
+                                    <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium block mb-1.5">
+                                        States on Record
+                                    </span>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {bc.states_mentioned.map(s => (
+                                            <span key={s}
+                                                className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                                                {s}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </IntelSection>
+
+                        <IntelSection icon={CheckCircle2} title="Implementation" colorClass="bg-violet-500/5 text-violet-400">
+                            <IntelRow label="Progress"     value={impl.progress} />
+                            <IntelRow label="Achievements" value={impl.achievements} />
+                            <IntelRow label="Timeline"     value={impl.timeline} />
+                        </IntelSection>
+
+                        <IntelSection icon={AlertTriangle} title="Challenges Acknowledged" colorClass="bg-rose-500/5 text-rose-400">
+                            <IntelRow label="Delays"              value={ca.delays} />
+                            <IntelRow label="Implementation Gaps" value={ca.gaps} />
+                            <IntelRow label="Pending Issues"      value={ca.pending_issues} />
+                        </IntelSection>
+                    </div>
+
+                    {/* Key Statistics */}
+                    {stats.length > 0 && (
+                        <div className="rounded-xl border border-border/60 overflow-hidden">
+                            <div className="flex items-center gap-2 px-4 py-3 bg-muted/20 border-b border-border/40">
+                                <FileText className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">
+                                    Key Statistics from Parliament Record
+                                </span>
+                            </div>
+                            <div className="divide-y divide-border/30">
+                                {stats.map((stat, i) => (
+                                    <div key={i} className="px-4 py-3 flex items-start gap-3 bg-card/30">
+                                        <span className="text-xs text-muted-foreground/40 font-mono mt-0.5 shrink-0 w-5">
+                                            {String(i + 1).padStart(2, '0')}
+                                        </span>
+                                        <p className="text-sm text-foreground leading-relaxed">{stat}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <p className="text-xs text-muted-foreground/40 text-center pt-1">
+                        Derived exclusively from ministry responses in Parliament (Starred &amp; Unstarred Questions).
+                        {data?.answer_count ? ` ${data.answer_count} answers analysed.` : ''}
+                    </p>
                 </div>
+            )}
+        </div>
+    );
+}
+
+// ── Screen 2: Schemes under a Ministry ────────────────────────────────────────
+
+function MinistrySchemes({ ministry, onBack, onSelectScheme, color }) {
+    const [schemes, setSchemes] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [search, setSearch]   = useState('');
+
+    useEffect(() => {
+        setLoading(true);
+        apiGet(`/api/schemes/ministry/${encodeURIComponent(ministry)}`)
+            .then(d => { setSchemes(d.schemes || []); setLoading(false); })
+            .catch(() => setLoading(false));
+    }, [ministry]);
+
+    const filtered = schemes.filter(s => {
+        if (!search) return true;
+        const q = search.toLowerCase();
+        return (s.name || '').toLowerCase().includes(q)
+            || (s.full_name || '').toLowerCase().includes(q);
+    });
+
+    return (
+        <div className="space-y-5">
+            <div className="flex items-center gap-3">
+                <Button variant="ghost" size="sm" onClick={onBack}
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground shrink-0">
+                    <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-0.5">Ministry</p>
+                    <h1 className="text-lg font-bold text-foreground leading-tight">{ministry}</h1>
+                </div>
+            </div>
+
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                    placeholder="Search schemes…"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="pl-9 bg-muted/30 border-border/60 text-sm"
+                />
+            </div>
+
+            {loading && (
+                <div className="flex items-center justify-center py-16">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+            )}
+
+            {!loading && filtered.length === 0 && (
+                <div className="text-center py-16 text-sm text-muted-foreground">
+                    No schemes found{search ? ' for this search' : ' for this ministry'}.
+                </div>
+            )}
+
+            {!loading && filtered.length > 0 && (
+                <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                        {filtered.length} scheme{filtered.length !== 1 ? 's' : ''} with parliamentary record
+                    </p>
+                    {filtered.map(scheme => {
+                        const band = answerBand(scheme.answer_count);
+                        return (
+                            <button
+                                key={scheme.id}
+                                onClick={() => onSelectScheme(scheme)}
+                                className="w-full text-left rounded-xl border border-border/60 bg-card hover:bg-muted/20 hover:border-border transition-all duration-150 p-4 group"
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                                            <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors leading-snug">
+                                                {scheme.full_name || scheme.name}
+                                            </p>
+                                            {scheme.intel_status === 'ready' && (
+                                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-medium shrink-0">
+                                                    Ready
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-3 flex-wrap">
+                                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1.5 ${band.color}`}>
+                                                <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${band.dot}`} />
+                                                {band.label} record
+                                            </span>
+                                            {scheme.last_seen && (
+                                                <span className="text-xs text-muted-foreground/50">
+                                                    Last discussed {formatDate(scheme.last_seen)}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0 mt-0.5" />
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Screen 1: Ministry Overview ───────────────────────────────────────────────
+
+function MinistryOverview({ onSelectMinistry }) {
+    const [ministries, setMinistries] = useState([]);
+    const [loading, setLoading]       = useState(true);
+    const [search, setSearch]         = useState('');
+
+    useEffect(() => {
+        apiGet('/api/schemes/ministries')
+            .then(d => { setMinistries(d.ministries || []); setLoading(false); })
+            .catch(() => setLoading(false));
+    }, []);
+
+    const filtered = ministries.filter(m =>
+        !search || (m.ministry || '').toLowerCase().includes(search.toLowerCase())
+    );
+
+    const totalSchemes  = ministries.reduce((s, m) => s + (m.scheme_count  || 0), 0);
+    const totalAnswers  = ministries.reduce((s, m) => s + (m.total_answers || 0), 0);
+
+    return (
+        <div className="space-y-6">
+            <div>
+                <h1 className="text-2xl font-bold text-foreground">Scheme Intelligence</h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                    What the government has said about its schemes in Parliament
+                </p>
+            </div>
+
+            {!loading && ministries.length > 0 && (
+                <div className="grid grid-cols-3 gap-3">
+                    {[
+                        { label: 'Ministries',        value: ministries.length,                  icon: Building2  },
+                        { label: 'Schemes tracked',   value: totalSchemes,                        icon: FileText   },
+                        { label: 'Ministry answers',  value: totalAnswers.toLocaleString('en-IN'), icon: BarChart3  },
+                    ].map(({ label, value, icon: Icon }) => (
+                        <Card key={label} className="border-border/60 bg-card/60">
+                            <CardContent className="p-4 flex items-center gap-3">
+                                <div className="h-9 w-9 rounded-lg bg-muted/50 flex items-center justify-center shrink-0">
+                                    <Icon className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                                <div>
+                                    <p className="text-lg font-bold text-foreground leading-none">{value}</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            )}
+
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                    placeholder="Search ministries…"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="pl-9 bg-muted/30 border-border/60 text-sm"
+                />
+            </div>
+
+            {loading && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {Array.from({ length: 9 }).map((_, i) => (
+                        <div key={i} className="h-28 rounded-xl bg-muted/30 animate-pulse" />
+                    ))}
+                </div>
+            )}
+
+            {!loading && filtered.length === 0 && (
+                <div className="text-center py-16 space-y-2">
+                    <p className="text-sm text-muted-foreground">No ministries found.</p>
+                    <p className="text-xs text-muted-foreground/50">
+                        Run the scheme extraction job to populate data.
+                    </p>
+                </div>
+            )}
+
+            {!loading && filtered.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {filtered.map(m => {
+                        const band = answerBand(m.total_answers);
+                        return (
+                            <button
+                                key={m.ministry}
+                                onClick={() => onSelectMinistry(m.ministry)}
+                                className="text-left rounded-xl border border-border/60 bg-card hover:bg-muted/20 hover:border-border hover:shadow-sm transition-all duration-150 p-4 group"
+                            >
+                                <div className="flex items-start justify-between gap-2 mb-3">
+                                    <div className="h-9 w-9 rounded-lg bg-muted/50 flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
+                                        <Building2 className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                                    </div>
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors mt-0.5 shrink-0" />
+                                </div>
+
+                                <p className="text-sm font-semibold text-foreground leading-snug mb-2 group-hover:text-primary transition-colors line-clamp-2">
+                                    {shortMinistry(m.ministry)}
+                                </p>
+
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs text-muted-foreground">
+                                        {m.scheme_count} scheme{m.scheme_count !== 1 ? 's' : ''}
+                                    </span>
+                                    <span className="text-muted-foreground/30 text-xs">·</span>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1.5 ${band.color}`}>
+                                        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${band.dot}`} />
+                                        {band.label}
+                                    </span>
+                                </div>
+
+                                {m.latest_activity && (
+                                    <p className="text-xs text-muted-foreground/40 mt-1.5">
+                                        Last activity {formatDate(m.latest_activity)}
+                                    </p>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Root ──────────────────────────────────────────────────────────────────────
+
+export default function SchemesPage() {
+    const { user } = useAuth();
+
+    const [screen,          setScreen]    = useState('overview');
+    const [activeMinistry,  setMinistry]  = useState(null);
+    const [activeScheme,    setScheme]    = useState(null);
+
+    const color = user?.theme_color || '#006a4d';
+
+    if (user && user.role !== 'mp' && user.role !== 'admin') {
+        return <LockedModule />;
+    }
+
+    const goMinistry = (ministry) => { setMinistry(ministry); setScheme(null); setScreen('ministry'); };
+    const goScheme   = (scheme)   => { setScheme(scheme); setScreen('scheme'); };
+    const goBack     = () => {
+        if (screen === 'scheme')   { setScreen('ministry'); setScheme(null); }
+        else                       { setScreen('overview'); setMinistry(null); }
+    };
+
+    return (
+        <div className="max-w-5xl mx-auto">
+            {screen === 'overview'  && <MinistryOverview onSelectMinistry={goMinistry} color={color} />}
+            {screen === 'ministry'  && activeMinistry && (
+                <MinistrySchemes ministry={activeMinistry} onBack={goBack} onSelectScheme={goScheme} color={color} />
+            )}
+            {screen === 'scheme'    && activeScheme && (
+                <SchemeBrief scheme={activeScheme} onBack={goBack} color={color} />
             )}
         </div>
     );

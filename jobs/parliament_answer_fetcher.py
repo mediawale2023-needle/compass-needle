@@ -394,6 +394,12 @@ def fetch_answers_for_tenant(
         matches = match_qas_to_rows(result["parsed_qas"], by_url[url])
         if matches:
             rows_updated += _apply_matches_to_db(matches)
+            # Mark affected scheme intelligence briefs as stale
+            try:
+                from modules.schemes_api import mark_stale_schemes
+                mark_stale_schemes(list(matches.keys()))
+            except Exception as _se:
+                logger.warning("mark_stale_schemes failed (non-fatal): %s", _se)
 
         # Rows that had no match — mark as no_match
         unmatched_ids = [rid for rid in urow_ids if rid not in matches]

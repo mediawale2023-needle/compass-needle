@@ -694,6 +694,43 @@ try:
 except Exception as e:
     logger.warning(f"Parliamentary tables migration skipped: {e}")
 
+# ── Scheme Intelligence tables ────────────────────────────────────────────────
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS prs_schemes (
+                id              SERIAL PRIMARY KEY,
+                name            VARCHAR(300) NOT NULL,
+                full_name       VARCHAR(500),
+                ministry        VARCHAR(300),
+                aliases         TEXT[]       DEFAULT '{}',
+                first_seen      DATE,
+                last_seen       DATE,
+                answer_count    INTEGER      DEFAULT 0,
+                created_at      TIMESTAMP    DEFAULT NOW(),
+                updated_at      TIMESTAMP    DEFAULT NOW(),
+                UNIQUE(name)
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_prs_schemes_ministry ON prs_schemes (LOWER(ministry))"
+        ))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS scheme_intelligence_cache (
+                id              SERIAL PRIMARY KEY,
+                scheme_name     VARCHAR(300) NOT NULL UNIQUE,
+                ministry        VARCHAR(300),
+                structured_intel JSONB,
+                generated_at    TIMESTAMP,
+                pq_count_at_gen INTEGER      DEFAULT 0,
+                is_stale        BOOLEAN      DEFAULT false,
+                error           TEXT
+            )
+        """))
+    logger.info("Migration: prs_schemes + scheme_intelligence_cache ready")
+except Exception as e:
+    logger.warning(f"Scheme intelligence tables migration skipped: {e}")
+
 # Migration: prs_profile_slug on tenants (PRS India identity for data scraping)
 try:
     with engine.begin() as conn:

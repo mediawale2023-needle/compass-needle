@@ -1736,190 +1736,33 @@ Do NOT invent statistics beyond what is provided.
 # ─────────────────────────────────────────
 # SCHEMES
 # ─────────────────────────────────────────
-class SchemeSearchRequest(BaseModel):
-    query: str
-    category: Optional[str] = None
-    ministry: Optional[str] = None
+# ─────────────────────────────────────────────────────────────────────────────
+# SCHEME INTELLIGENCE — powered by modules/schemes_api.py
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/schemes/ministries")
+def scheme_ministries(user=Depends(get_current_user)):
+    """All ministries with scheme + parliamentary answer counts."""
+    from modules.schemes_api import get_ministry_overview
+    return {"ministries": get_ministry_overview()}
 
 
-class CitizenMatchRequest(BaseModel):
-    groups: list
-    gender: Optional[str] = "Any"
-    location: Optional[str] = "Any"
+@router.get("/schemes/ministry/{ministry:path}")
+def schemes_by_ministry(ministry: str, user=Depends(get_current_user)):
+    """All schemes under a given ministry, ordered by parliamentary data richness."""
+    from modules.schemes_api import get_ministry_schemes
+    return {"schemes": get_ministry_schemes(ministry), "ministry": ministry}
 
 
-def _parse_budget(budget_str):
-    if not budget_str or not isinstance(budget_str, str):
-        return 0
-    import re
-    cleaned = re.sub(r'[₹,]', '', budget_str)
-    match = re.search(r'([\d.]+)', cleaned)
-    if match:
-        num = float(match.group(1))
-        if 'lakh' in budget_str.lower():
-            return num / 100
-        return num
-    return 0
-
-
-import time
-
-# ─── In-memory cache for JSON data (5 min TTL) ───
-_cache = {}
-_CACHE_TTL = 300  # seconds
-
-def _cached_load(key, loader_fn):
-    now = time.time()
-    if key in _cache and (now - _cache[key]["ts"]) < _CACHE_TTL:
-        return _cache[key]["data"]
-    data = loader_fn()
-    _cache[key] = {"data": data, "ts": now}
-    return data
-
-
-def _load_schemes():
-    try:
-        with open("schemes_db.json", "r", encoding="utf-8") as f:
-            schemes = json.load(f)
-        for s in schemes:
-            s["budget_numeric"] = _parse_budget(s.get("budget_allocation", ""))
-        return schemes
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
-
-
-@router.post("/schemes/search")
-def search_schemes(req: SchemeSearchRequest, user=Depends(get_current_user)):
-    schemes = _cached_load("schemes", _load_schemes)
-    if not schemes:
-        return {"schemes": [], "total": 0}
-    query_lower = req.query.lower()
-    keywords = query_lower.split()
-    results = []
-    for s in schemes:
-        text_blob = f"{s.get('name', '')} {s.get('description', '')} {s.get('focus', '')} {s.get('category', '')} {s.get('ministry', '')}".lower()
-        score = sum(1 for kw in keywords if kw in text_blob)
-        if score > 0:
-            results.append({**s, "_score": score})
-    if req.category:
-        results = [r for r in results if r.get("category", "").lower() == req.category.lower()]
-    if req.ministry:
-        results = [r for r in results if req.ministry.lower() in r.get("ministry", "").lower()]
-    results.sort(key=lambda x: x["_score"], reverse=True)
-    for r in results:
-        r.pop("_score", None)
-    return {"schemes": results[:50], "total": len(results)}
-
-
-@router.get("/schemes/all")
-def get_all_schemes(user=Depends(get_current_user), category: Optional[str] = None, ministry: Optional[str] = None):
-    from collections import defaultdict
-    schemes = _cached_load("schemes", _load_schemes)
-    all_schemes = schemes[:]
-    if category:
-        schemes = [s for s in schemes if s.get("category", "").lower() == category.lower()]
-    if ministry:
-        schemes = [s for s in schemes if ministry.lower() in s.get("ministry", "").lower()]
-    categories = sorted(set(s.get("category", "OTHER") for s in all_schemes))
-    ministries = sorted(set(s.get("ministry", "") for s in all_schemes if s.get("ministry")))
-    ministry_agg = defaultdict(lambda: {"count": 0, "budget": 0, "top": "", "categories": set()})
-    for s in all_schemes:
-        m = s.get("ministry", "Unknown")
-        ministry_agg[m]["count"] += 1
-        ministry_agg[m]["budget"] += s.get("budget_numeric", 0)
-        if not ministry_agg[m]["top"]:
-            ministry_agg[m]["top"] = s.get("name", "")
-        ministry_agg[m]["categories"].add(s.get("category", ""))
-    ministry_summary = [
-        {"ministry": m, "count": d["count"], "budget": d["budget"], "top_scheme": d["top"],
-         "categories": list(d["categories"])[:3]}
-        for m, d in ministry_agg.items()
-    ]
-    ministry_summary.sort(key=lambda x: x["budget"], reverse=True)
-    top_schemes = sorted(all_schemes, key=lambda x: x.get("budget_numeric", 0), reverse=True)[:10]
-    return {
-        "schemes": schemes, "total": len(schemes),
-        "categories": categories, "ministries": ministries,
-        "ministry_summary": ministry_summary[:20],
-        "top_schemes": top_schemes,
-        "stats": {
-            "total": len(all_schemes),
-            "ministries": len(set(s.get("ministry", "") for s in all_schemes)),
-            "total_budget": sum(s.get("budget_numeric", 0) for s in all_schemes),
-        },
-    }
-
-
-CITIZEN_SCHEME_MAP = {
-    "Women": ["Gruha Lakshmi", "Shakti", "Beti Bachao", "Udyogini", "Stand-Up India", "Mahila", "Women", "Stree", "Nari"],
-    "Farmers": ["KISAN", "Fasal Bima", "Krishi", "Agriculture", "MSP", "Soil Health", "e-NAM", "Kisan Credit", "PM-KISAN", "Farmer"],
-    "SC/ST": ["SC/ST", "Tribal", "Scheduled", "Stand-Up India", "Adivasi", "Post Matric Scholarship", "Pre Matric"],
-    "BPL Families": ["Awas", "Ayushman", "Anna Bhagya", "BPL", "Ration", "PMJAY", "Ujjwala", "Housing", "Below Poverty"],
-    "Youth / Students": ["Yuva Nidhi", "Scholarship", "Skill", "Education", "Student", "Training", "Vidya", "NEP"],
-    "Senior Citizens": ["Pension", "Senior", "Vridha", "Old Age", "Elderly"],
-    "Entrepreneurs / MSME": ["Mudra", "SVANidhi", "Vishwakarma", "MSME", "Startup", "Stand-Up", "Entrepreneurship", "Business"],
-    "Disabled / PwD": ["Disability", "Divyang", "PwD", "Handicapped", "Accessible"],
-    "Rural Residents": ["MGNREGA", "Gramin", "Rural", "PMGSY", "Gram Sadak", "Village", "Panchayat"],
-    "Urban Residents": ["AMRUT", "Smart City", "Urban", "Metro", "Municipal", "Swachh Bharat"],
-}
-
-
-@router.post("/schemes/citizen-match")
-def match_citizen_schemes(req: CitizenMatchRequest, user=Depends(get_current_user)):
-    schemes = _cached_load("schemes", _load_schemes)
-    keywords = []
-    for g in req.groups:
-        keywords.extend(CITIZEN_SCHEME_MAP.get(g, []))
-    if req.gender == "Female":
-        keywords.extend(["Women", "Mahila", "Stree", "Nari", "Girl"])
-    if req.location == "Rural":
-        keywords.extend(["Rural", "Gramin", "Village", "Gram"])
-    elif req.location == "Urban":
-        keywords.extend(["Urban", "City", "Municipal", "Smart City"])
-    matched = []
-    for s in schemes:
-        blob = f"{s.get('name', '')} {s.get('description', '')} {s.get('focus', '')}".lower()
-        if any(kw.lower() in blob for kw in keywords):
-            matched.append(s)
-    matched.sort(key=lambda x: x.get("budget_numeric", 0), reverse=True)
-    return {"schemes": matched, "total": len(matched), "profile": ", ".join(req.groups)}
-
-
-def _load_fund_intel():
-    try:
-        with open("fund_intel.json", "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return None
-
-
-@router.get("/schemes/fund-intel")
-def get_fund_intel(user=Depends(get_current_user)):
-    """Serve parliamentary fund intelligence data for treemap visualization."""
-    fund_data = _cached_load("fund_intel", _load_fund_intel)
-    if not fund_data:
-        return {"ministries": [], "metadata": {}, "existing_allocations": []}
-
-    # Also merge with scheme allocation data for richer treemap
-    schemes = _cached_load("schemes", _load_schemes)
-    from collections import defaultdict
-    ministry_alloc = defaultdict(float)
-    for s in schemes:
-        m = (s.get("ministry") or "").upper()
-        ministry_alloc[m] += s.get("budget_numeric", 0)
-
-    # Enrich ministry data with allocation
-    for m in fund_data.get("ministries", []):
-        m_name = m["ministry"].upper()
-        m["allocation"] = ministry_alloc.get(m_name, 0)
-        # Also check approximate matches
-        if not m["allocation"]:
-            for k, v in ministry_alloc.items():
-                if m_name in k or k in m_name:
-                    m["allocation"] = v
-                    break
-
-    return fund_data
+@router.get("/schemes/intelligence/{scheme_name:path}")
+def scheme_intelligence(scheme_name: str, user=Depends(get_current_user)):
+    """
+    AI-structured 6-section intelligence brief for a scheme.
+    Returns cached immediately if available; generates on first request (8-15s).
+    Stale briefs are returned instantly while background regen fires.
+    """
+    from modules.schemes_api import get_scheme_intelligence
+    return get_scheme_intelligence(scheme_name)
 
 
 # ─────────────────────────────────────────
