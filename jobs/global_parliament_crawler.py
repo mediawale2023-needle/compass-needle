@@ -587,6 +587,15 @@ def crawl_mp(prs_slug: str, global_mp_id: Optional[int] = None,
         """), {"id": global_mp_id, "cnt": inserted})
 
     logger.info("crawl_mp(%s): %d questions inserted", prs_slug, inserted)
+
+    # Trigger incremental scheme extraction + staleness marking for new PQs
+    if inserted > 0:
+        try:
+            from jobs.extract_prs_schemes import run_extraction
+            run_extraction(full=False)
+        except Exception as _se:
+            logger.warning("Post-crawl scheme extraction failed (non-fatal): %s", _se)
+
     return {"prs_slug": prs_slug, "questions_inserted": inserted}
 
 
