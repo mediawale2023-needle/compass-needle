@@ -334,15 +334,14 @@ function OtherStatesLayer({ data: os, currentState }) {
 // ── Screen 3: Intelligence Brief ──────────────────────────────────────────────
 
 function SchemeBrief({ scheme, onBack, color }) {
-    const [data, setData]           = useState(null);
-    const [loading, setLoading]     = useState(true);
-    const [error, setError]         = useState(null);
-    const [refreshing, setRefreshing] = useState(false);
+    const [data, setData]       = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError]     = useState(null);
 
-    const fetchIntel = (bust = false) => {
+    useEffect(() => {
         setLoading(true);
         setError(null);
-        if (bust) setData(null);
+        setData(null);
         const token = sessionStorage.getItem('needle_token') || localStorage.getItem('needle_token') || '';
         fetch(
             `${process.env.NEXT_PUBLIC_API_URL || ''}/api/schemes/intelligence/${encodeURIComponent(scheme.name)}`,
@@ -351,21 +350,7 @@ function SchemeBrief({ scheme, onBack, color }) {
             .then(r => r.json())
             .then(d => { setData(d); setLoading(false); })
             .catch(e => { setError(e.message); setLoading(false); });
-    };
-
-    useEffect(() => { fetchIntel(); }, [scheme.name]);
-
-    const handleRefresh = () => {
-        const token = sessionStorage.getItem('needle_token') || localStorage.getItem('needle_token') || '';
-        setRefreshing(true);
-        fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || ''}/api/schemes/intelligence/${encodeURIComponent(scheme.name)}/refresh`,
-            { method: 'POST', headers: { Authorization: `Bearer ${token}` } }
-        )
-            .then(() => fetchIntel(true))
-            .catch(() => fetchIntel(true))
-            .finally(() => setRefreshing(false));
-    };
+    }, [scheme.name]);
 
     const intel     = data?.intel || {};
     const isNewFmt  = !!intel.national_picture;
@@ -412,14 +397,6 @@ function SchemeBrief({ scheme, onBack, color }) {
                         )}
                     </div>
                 </div>
-                {/* Refresh button — only show when not loading */}
-                {!loading && data && !data.no_data && (
-                    <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={refreshing}
-                        title="Regenerate brief from latest parliamentary data"
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground shrink-0 mt-0.5">
-                        <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                    </Button>
-                )}
             </div>
 
             {/* Loading */}
