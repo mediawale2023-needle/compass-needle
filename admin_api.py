@@ -4084,6 +4084,7 @@ def trigger_scheme_extract(
         "type": "scheme_extract", "status": "running",
         "started_at": datetime.utcnow().isoformat() + "Z",
         "finished_at": None, "summary": None, "error": None,
+        "progress": {"done": 0, "total": 0, "label": ""},
     }
 
     def _run():
@@ -4095,7 +4096,7 @@ def trigger_scheme_extract(
             with _engine.connect() as conn:
                 cnt = conn.execute(_text("SELECT COUNT(*) FROM prs_schemes")).scalar()
             full = (cnt == 0)
-            summary = run_extraction(full=full)
+            summary = run_extraction(full=full, _progress=_global_crawl_jobs[job_id]["progress"])
             summary["prs_schemes_stats"] = get_stats()
             summary["mode"] = "full" if full else "incremental"
             _global_crawl_jobs[job_id]["status"]  = "done"
