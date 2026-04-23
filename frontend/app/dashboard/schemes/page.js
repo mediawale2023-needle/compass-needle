@@ -6,7 +6,8 @@ import { apiGet, AI_TIMEOUT } from '@/lib/api';
 import {
     Lock, ChevronRight, ChevronLeft, Loader2, RefreshCw,
     Building2, FileText, TrendingUp, AlertTriangle,
-    CheckCircle2, BarChart3, CircleDot, Search
+    CheckCircle2, BarChart3, CircleDot, Search,
+    MapPin, Globe, ArrowLeftRight
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -53,28 +54,189 @@ function answerBand(count) {
     return         { label: 'Extensive', color: 'bg-emerald-500/10 text-emerald-400',   dot: 'bg-emerald-400' };
 }
 
-// ── Sub-components for the intelligence brief ─────────────────────────────────
+// ── Layer sub-components ───────────────────────────────────────────────────────
 
-function IntelSection({ icon: Icon, title, colorClass, children }) {
+function LayerHeader({ icon: Icon, title, subtitle, colorClass }) {
     return (
-        <div className="rounded-xl border border-border/60 overflow-hidden">
-            <div className={`flex items-center gap-2 px-4 py-3 border-b border-border/40 ${colorClass}`}>
-                <Icon className="h-4 w-4" />
+        <div className={`flex items-center gap-2.5 px-4 py-3 border-b border-border/40 ${colorClass}`}>
+            <Icon className="h-4 w-4 shrink-0" />
+            <div className="flex-1 min-w-0">
                 <span className="text-xs font-semibold tracking-widest uppercase">{title}</span>
+                {subtitle && <span className="text-xs text-muted-foreground ml-2">{subtitle}</span>}
             </div>
-            <div className="px-4 py-4 bg-card/50 space-y-3">{children}</div>
         </div>
     );
 }
 
-function IntelRow({ label, value }) {
+function DataRow({ label, value }) {
     return (
         <div className="flex flex-col gap-0.5">
             <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">{label}</span>
             {value
                 ? <span className="text-sm text-foreground leading-relaxed">{value}</span>
-                : <span className="text-sm text-muted-foreground italic">Not on record</span>
+                : <span className="text-sm text-muted-foreground/40 italic">Not on record</span>
             }
+        </div>
+    );
+}
+
+// ── Layer 1: Your State ────────────────────────────────────────────────────────
+
+function YourStateLayer({ data: ys, state }) {
+    if (!ys) return null;
+
+    const facts = Array.isArray(ys.key_facts) ? ys.key_facts.filter(Boolean) : [];
+    const hasContent = ys.funds_received || ys.beneficiaries || ys.implementation_note || facts.length > 0;
+
+    if (!hasContent) {
+        return (
+            <div className="rounded-xl border border-border/60 overflow-hidden">
+                <LayerHeader
+                    icon={MapPin}
+                    title={`Your State — ${state}`}
+                    colorClass="bg-emerald-500/5 text-emerald-400"
+                />
+                <div className="px-4 py-6 text-center bg-card/50">
+                    <p className="text-sm text-muted-foreground/50 italic">
+                        No specific mention of {state} found in parliamentary answers for this scheme.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="rounded-xl border border-emerald-500/20 overflow-hidden">
+            <LayerHeader
+                icon={MapPin}
+                title={`Your State — ${state}`}
+                colorClass="bg-emerald-500/8 text-emerald-400"
+            />
+            <div className="px-4 py-4 bg-card/50 space-y-3">
+                {ys.funds_received && <DataRow label="Funds Received" value={ys.funds_received} />}
+                {ys.beneficiaries && <DataRow label="Beneficiaries" value={ys.beneficiaries} />}
+                {ys.implementation_note && <DataRow label="On the Ground" value={ys.implementation_note} />}
+                {facts.length > 0 && (
+                    <div>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium block mb-2">
+                            Key Facts
+                        </span>
+                        <ul className="space-y-1.5">
+                            {facts.map((f, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                    <span className="text-emerald-400/60 mt-1.5 shrink-0">•</span>
+                                    <span className="text-sm text-foreground leading-relaxed">{f}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ── Layer 2: National Picture ──────────────────────────────────────────────────
+
+function NationalLayer({ data: np, latestPosition }) {
+    if (!np) return null;
+
+    const stats = Array.isArray(np.key_statistics) ? np.key_statistics.filter(Boolean) : [];
+    const lp = latestPosition || np.latest_position || {};
+
+    return (
+        <div className="rounded-xl border border-border/60 overflow-hidden">
+            <LayerHeader
+                icon={Globe}
+                title="National Picture"
+                colorClass="bg-blue-500/5 text-blue-400"
+            />
+            <div className="px-4 py-4 bg-card/50 space-y-3">
+                {lp.statement && (
+                    <div className="rounded-lg bg-primary/5 border border-primary/10 px-4 py-3">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                            <CircleDot className="h-3.5 w-3.5 text-primary" />
+                            <span className="text-xs font-semibold text-primary uppercase tracking-wider">
+                                Ministry&apos;s Latest
+                            </span>
+                            {lp.date && (
+                                <span className="ml-auto text-xs text-muted-foreground shrink-0">
+                                    {formatDate(lp.date)}
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-sm text-foreground leading-relaxed italic">
+                            &ldquo;{lp.statement}&rdquo;
+                        </p>
+                    </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {np.total_allocation && <DataRow label="Total Allocation" value={np.total_allocation} />}
+                    {np.total_beneficiaries && <DataRow label="Total Beneficiaries" value={np.total_beneficiaries} />}
+                    {np.progress && <DataRow label="Progress" value={np.progress} />}
+                </div>
+
+                {stats.length > 0 && (
+                    <div>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium block mb-2">
+                            Key Statistics from Parliament
+                        </span>
+                        <ul className="space-y-1.5">
+                            {stats.map((s, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                    <span className="text-xs text-muted-foreground/40 font-mono mt-0.5 shrink-0 w-5">
+                                        {String(i + 1).padStart(2, '0')}
+                                    </span>
+                                    <span className="text-sm text-foreground leading-relaxed">{s}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ── Layer 3: Other States ──────────────────────────────────────────────────────
+
+function OtherStatesLayer({ data: os, currentState }) {
+    if (!os) return null;
+
+    const mentioned = Array.isArray(os.top_mentioned)
+        ? os.top_mentioned.filter(s => s && s !== currentState)
+        : [];
+    const hasContent = mentioned.length > 0 || os.comparison || os.lagging_issues;
+    if (!hasContent) return null;
+
+    return (
+        <div className="rounded-xl border border-border/60 overflow-hidden">
+            <LayerHeader
+                icon={ArrowLeftRight}
+                title="Other States"
+                subtitle="— how they compare"
+                colorClass="bg-violet-500/5 text-violet-400"
+            />
+            <div className="px-4 py-4 bg-card/50 space-y-3">
+                {mentioned.length > 0 && (
+                    <div>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium block mb-2">
+                            States Mentioned in Parliament
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                            {mentioned.map(s => (
+                                <span key={s}
+                                    className="text-xs px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border/40">
+                                    {s}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {os.comparison && <DataRow label="Comparison" value={os.comparison} />}
+                {os.lagging_issues && <DataRow label="Issues Reported Elsewhere" value={os.lagging_issues} />}
+            </div>
         </div>
     );
 }
@@ -100,7 +262,10 @@ function SchemeBrief({ scheme, onBack, color }) {
             .catch(e => { setError(e.message); setLoading(false); });
     }, [scheme.name]);
 
-    const intel = data?.intel || {};
+    const intel     = data?.intel || {};
+    const isNewFmt  = !!intel.national_picture;
+
+    // Legacy format fields (for briefs cached before state-aware update)
     const ff    = intel.fund_flow || {};
     const bc    = intel.beneficiary_coverage || {};
     const impl  = intel.implementation_status || {};
@@ -128,12 +293,19 @@ function SchemeBrief({ scheme, onBack, color }) {
                         )}
                     </div>
                     <p className="text-sm text-muted-foreground mt-0.5">{scheme.ministry}</p>
-                    {data?.generated_at && (
-                        <p className="text-xs text-muted-foreground/50 mt-0.5">
-                            Analysed {formatDate(data.generated_at)}
-                            {data?.answer_count ? ` · ${data.answer_count} ministry answers` : ''}
-                        </p>
-                    )}
+                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                        {data?.state && (
+                            <span className="flex items-center gap-1 text-xs text-emerald-400/70">
+                                <MapPin className="h-3 w-3" /> {data.state}
+                            </span>
+                        )}
+                        {data?.generated_at && (
+                            <p className="text-xs text-muted-foreground/50">
+                                Analysed {formatDate(data.generated_at)}
+                                {data?.answer_count ? ` · ${data.answer_count} answers` : ''}
+                            </p>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -173,11 +345,24 @@ function SchemeBrief({ scheme, onBack, color }) {
                 </Card>
             )}
 
-            {/* Intelligence brief */}
-            {!loading && !error && Object.keys(intel).length > 0 && (
+            {/* ── New 3-layer format ── */}
+            {!loading && !error && isNewFmt && (
                 <div className="space-y-4">
+                    {intel.your_state && (
+                        <YourStateLayer data={intel.your_state} state={data?.state} />
+                    )}
+                    <NationalLayer data={intel.national_picture} />
+                    <OtherStatesLayer data={intel.other_states} currentState={data?.state} />
+                    <p className="text-xs text-muted-foreground/40 text-center pt-1">
+                        Derived exclusively from ministry responses in Parliament (Starred &amp; Unstarred Questions).
+                        {data?.answer_count ? ` ${data.answer_count} answers analysed.` : ''}
+                    </p>
+                </div>
+            )}
 
-                    {/* Latest Position — most prominent, always first */}
+            {/* ── Legacy 6-section format (cached briefs before state-aware update) ── */}
+            {!loading && !error && !isNewFmt && Object.keys(intel).length > 0 && (
+                <div className="space-y-4">
                     {lp.statement && (
                         <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
                             <div className="flex items-center gap-2 px-4 py-3 bg-primary/5 border-b border-border/40">
@@ -198,65 +383,47 @@ function SchemeBrief({ scheme, onBack, color }) {
                             </div>
                         </div>
                     )}
-
-                    {/* 4 main sections in 2×2 grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <IntelSection icon={BarChart3} title="Fund Flow" colorClass="bg-blue-500/5 text-blue-400">
-                            <IntelRow label="Allocated"          value={ff.allocated} />
-                            <IntelRow label="Released"           value={ff.released} />
-                            <IntelRow label="Disbursed"          value={ff.disbursed} />
-                            <IntelRow label="Utilisation"        value={ff.utilization_pct} />
-                            {ff.discrepancies && (
-                                <div className="mt-1 pt-2 border-t border-border/40">
-                                    <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium block mb-1">
-                                        Discrepancies
-                                    </span>
-                                    <p className="text-sm text-amber-400 leading-relaxed">{ff.discrepancies}</p>
-                                </div>
-                            )}
-                        </IntelSection>
-
-                        <IntelSection icon={TrendingUp} title="Beneficiary Coverage" colorClass="bg-emerald-500/5 text-emerald-400">
-                            <IntelRow label="Total Beneficiaries"   value={bc.total_beneficiaries} />
-                            <IntelRow label="Demographic Breakdown" value={bc.demographic_breakdown} />
-                            {bc.coverage_note && <IntelRow label="Coverage Note" value={bc.coverage_note} />}
-                            {bc.states_mentioned?.length > 0 && (
-                                <div>
-                                    <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium block mb-1.5">
-                                        States on Record
-                                    </span>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {bc.states_mentioned.map(s => (
-                                            <span key={s}
-                                                className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                                                {s}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </IntelSection>
-
-                        <IntelSection icon={CheckCircle2} title="Implementation" colorClass="bg-violet-500/5 text-violet-400">
-                            <IntelRow label="Progress"     value={impl.progress} />
-                            <IntelRow label="Achievements" value={impl.achievements} />
-                            <IntelRow label="Timeline"     value={impl.timeline} />
-                        </IntelSection>
-
-                        <IntelSection icon={AlertTriangle} title="Challenges Acknowledged" colorClass="bg-rose-500/5 text-rose-400">
-                            <IntelRow label="Delays"              value={ca.delays} />
-                            <IntelRow label="Implementation Gaps" value={ca.gaps} />
-                            <IntelRow label="Pending Issues"      value={ca.pending_issues} />
-                        </IntelSection>
+                        <div className="rounded-xl border border-border/60 overflow-hidden">
+                            <LayerHeader icon={BarChart3} title="Fund Flow" colorClass="bg-blue-500/5 text-blue-400" />
+                            <div className="px-4 py-4 bg-card/50 space-y-3">
+                                <DataRow label="Allocated"   value={ff.allocated} />
+                                <DataRow label="Released"    value={ff.released} />
+                                <DataRow label="Disbursed"   value={ff.disbursed} />
+                                <DataRow label="Utilisation" value={ff.utilization_pct} />
+                            </div>
+                        </div>
+                        <div className="rounded-xl border border-border/60 overflow-hidden">
+                            <LayerHeader icon={TrendingUp} title="Coverage" colorClass="bg-emerald-500/5 text-emerald-400" />
+                            <div className="px-4 py-4 bg-card/50 space-y-3">
+                                <DataRow label="Total Beneficiaries"   value={bc.total_beneficiaries} />
+                                <DataRow label="Demographic Breakdown" value={bc.demographic_breakdown} />
+                                {bc.coverage_note && <DataRow label="Coverage Note" value={bc.coverage_note} />}
+                            </div>
+                        </div>
+                        <div className="rounded-xl border border-border/60 overflow-hidden">
+                            <LayerHeader icon={CheckCircle2} title="Implementation" colorClass="bg-violet-500/5 text-violet-400" />
+                            <div className="px-4 py-4 bg-card/50 space-y-3">
+                                <DataRow label="Progress"     value={impl.progress} />
+                                <DataRow label="Achievements" value={impl.achievements} />
+                                <DataRow label="Timeline"     value={impl.timeline} />
+                            </div>
+                        </div>
+                        <div className="rounded-xl border border-border/60 overflow-hidden">
+                            <LayerHeader icon={AlertTriangle} title="Challenges" colorClass="bg-rose-500/5 text-rose-400" />
+                            <div className="px-4 py-4 bg-card/50 space-y-3">
+                                <DataRow label="Delays"              value={ca.delays} />
+                                <DataRow label="Implementation Gaps" value={ca.gaps} />
+                                <DataRow label="Pending Issues"      value={ca.pending_issues} />
+                            </div>
+                        </div>
                     </div>
-
-                    {/* Key Statistics */}
                     {stats.length > 0 && (
                         <div className="rounded-xl border border-border/60 overflow-hidden">
                             <div className="flex items-center gap-2 px-4 py-3 bg-muted/20 border-b border-border/40">
                                 <FileText className="h-4 w-4 text-muted-foreground" />
                                 <span className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">
-                                    Key Statistics from Parliament Record
+                                    Key Statistics
                                 </span>
                             </div>
                             <div className="divide-y divide-border/30">
@@ -271,9 +438,8 @@ function SchemeBrief({ scheme, onBack, color }) {
                             </div>
                         </div>
                     )}
-
                     <p className="text-xs text-muted-foreground/40 text-center pt-1">
-                        Derived exclusively from ministry responses in Parliament (Starred &amp; Unstarred Questions).
+                        Derived exclusively from ministry responses in Parliament.
                         {data?.answer_count ? ` ${data.answer_count} answers analysed.` : ''}
                     </p>
                 </div>

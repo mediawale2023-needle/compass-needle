@@ -731,6 +731,26 @@ try:
 except Exception as e:
     logger.warning(f"Scheme intelligence tables migration skipped: {e}")
 
+# Migration: state-aware scheme intelligence cache (per-state briefs)
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE scheme_intelligence_cache ADD COLUMN IF NOT EXISTS state VARCHAR(100) NOT NULL DEFAULT ''"))
+        conn.execute(text("ALTER TABLE scheme_intelligence_cache DROP CONSTRAINT IF EXISTS scheme_intelligence_cache_scheme_name_key"))
+        conn.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint WHERE conname = 'sic_scheme_state_uq'
+                ) THEN
+                    ALTER TABLE scheme_intelligence_cache
+                    ADD CONSTRAINT sic_scheme_state_uq UNIQUE (scheme_name, state);
+                END IF;
+            END$$
+        """))
+    logger.info("Migration: scheme_intelligence_cache state column ready")
+except Exception as e:
+    logger.warning(f"scheme_intelligence_cache state migration skipped: {e}")
+
 # Migration: prs_profile_slug on tenants (PRS India identity for data scraping)
 try:
     with engine.begin() as conn:
