@@ -275,17 +275,26 @@ def refresh_answer_counts():
 
 # ── Main extraction ───────────────────────────────────────────────────────────
 
-def run_extraction(full: bool = False) -> dict:
+def run_extraction(full: bool = False, _progress: dict = None) -> dict:
     """
     Extract schemes from global_parliamentary_questions subjects.
 
     full=True  → process all records (first-time setup)
     full=False → process only records with id > last watermark (incremental)
+    _progress  → mutable dict updated in-place for live polling (done/total/label)
     """
+    def _upd(done, total, label):
+        if _progress is not None:
+            _progress["done"] = done
+            _progress["total"] = total
+            _progress["label"] = label
+
     _ensure_settings_table()
 
     watermark = 0 if full else _get_watermark()
     logger.info("Starting extraction (full=%s, watermark=%d)", full, watermark)
+
+    _upd(0, 0, "loading subjects…")
 
     # Fetch subjects from DB
     with engine.connect() as conn:
@@ -301,15 +310,18 @@ def run_extraction(full: bool = False) -> dict:
         logger.info("No new subjects to process.")
         return {"processed": 0, "schemes_upserted": 0}
 
-    logger.info("Processing %d subjects", len(rows))
+    total_rows = len(rows)
+    logger.info("Processing %d subjects", total_rows)
     max_id = max(r["id"] for r in rows)
+
+    _upd(0, total_rows, "subjects (rule pass)")
 
     rule_matched = 0
     gpt_subjects = []
     gpt_meta: dict[str, dict] = {}  # subject → {ministry, date}
     schemes_upserted = 0
 
-    for row in rows:
+    for idx, row in enumerate(rows):
         subject  = row["subject"] or ""
         ministry = row["ministry"] or None
         date_str = row["date_asked"].isoformat() if row["date_asked"] else None
@@ -324,9 +336,16 @@ def run_extraction(full: bool = False) -> dict:
             gpt_subjects.append(subject)
             gpt_meta[subject] = {"ministry": ministry, "date": date_str}
 
+        if idx % 200 == 0:
+            _upd(idx, total_rows, "subjects (rule pass)")
+
+    _upd(total_rows, total_rows, "subjects (rule pass)")
+
     # GPT pass for ambiguous subjects
     gpt_calls = 0
     if gpt_subjects:
+        total_batches = (len(gpt_subjects) + GPT_BATCH_SIZE - 1) // GPT_BATCH_SIZE
+        _upd(0, total_batches, "GPT batches")
         logger.info("%d subjects going to GPT (%d caught by rules)",
                     len(gpt_subjects), rule_matched)
         for i in range(0, len(gpt_subjects), GPT_BATCH_SIZE):
@@ -351,6 +370,7 @@ def run_extraction(full: bool = False) -> dict:
                 _upsert_scheme(name, item.get("full_name") or name, ministry, None, date_str)
                 schemes_upserted += 1
             gpt_calls += 1
+            _upd(gpt_calls, total_batches, "GPT batches")
             if i + GPT_BATCH_SIZE < len(gpt_subjects):
                 time.sleep(0.3)
 
@@ -358,7 +378,9 @@ def run_extraction(full: bool = False) -> dict:
     _set_watermark(max_id)
 
     # Refresh answer counts after extraction
+    _upd(0, 1, "refreshing answer counts")
     refresh_answer_counts()
+    _upd(1, 1, "refreshing answer counts")
 
     summary = {
         "subjects_processed": len(rows),
