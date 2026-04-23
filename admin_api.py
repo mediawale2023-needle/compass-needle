@@ -4116,6 +4116,34 @@ def trigger_scheme_extract(
             "message": "Scheme extraction started (auto-detects full vs incremental)…"}
 
 
+@router.get("/brain/scheme-dedup-preview")
+def scheme_dedup_preview(user=Depends(get_admin_user)):
+    """Dry-run: return duplicate groups without making any changes."""
+    try:
+        from jobs.extract_prs_schemes import deduplicate_schemes
+        return deduplicate_schemes(dry_run=True)
+    except Exception as e:
+        logger.exception("scheme_dedup_preview failed")
+        raise HTTPException(500, "Dedup preview failed")
+
+
+@router.post("/brain/scheme-dedup")
+def trigger_scheme_dedup(user=Depends(get_admin_user)):
+    """
+    Merge near-duplicate scheme names in prs_schemes.
+    Groups by semantic key (strips PM/National prefix, Yojana/Mission/Scheme suffix).
+    Winner = highest answer_count; losers become aliases and are deleted.
+    Synchronous — typically completes in <5 seconds.
+    """
+    try:
+        from jobs.extract_prs_schemes import deduplicate_schemes
+        result = deduplicate_schemes(dry_run=False)
+        return {"ok": True, **result}
+    except Exception as e:
+        logger.exception("scheme_dedup failed")
+        raise HTTPException(500, "Dedup failed")
+
+
 @router.post("/brain/global-seed")
 async def trigger_global_seed(request: Request, user=Depends(get_admin_user)):
     """
