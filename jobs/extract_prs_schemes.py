@@ -222,58 +222,214 @@ def _expand_name(name: str) -> str:
     return re.sub(r"^PM[\s\-]+", "Pradhan Mantri ", name.strip(), flags=re.IGNORECASE)
 
 
-# Known ministry name abbreviations → canonical core (without "Ministry of " prefix)
-_MINISTRY_ABBREV: dict[str, str] = {
-    "msme":    "Micro, Small and Medium Enterprises",
-    "mea":     "External Affairs",
-    "mha":     "Home Affairs",
-    "mof":     "Finance",
-    "mhrd":    "Education",
-    "moe":     "Education",
-    "moci":    "Commerce and Industry",
-    "moef":    "Environment, Forest and Climate Change",
-    "moefcc":  "Environment, Forest and Climate Change",
-    "most":    "Science and Technology",
+# ── Ministry name canonicalisation ───────────────────────────────────────────
+# Maps every known variant (lowercase, & normalised, prefix stripped) →
+# the current official "Ministry of …" name.
+# Add entries here whenever new variants surface.
+_MINISTRY_CANONICAL: dict[str, str] = {
+    # Agriculture
+    "agriculture and farmers welfare":                         "Ministry of Agriculture and Farmers Welfare",
+    "agriculture and farmers' welfare":                        "Ministry of Agriculture and Farmers Welfare",
+    "agriculture & farmers welfare":                           "Ministry of Agriculture and Farmers Welfare",
+    "agriculture":                                             "Ministry of Agriculture and Farmers Welfare",
+    "agriculture and cooperation":                             "Ministry of Agriculture and Farmers Welfare",
+    # Ayush
+    "ayush":                                                   "Ministry of Ayush",
+    # Chemicals
+    "chemicals and fertilizers":                               "Ministry of Chemicals and Fertilizers",
+    "chemicals and fertilisers":                               "Ministry of Chemicals and Fertilizers",
+    "chemicals & fertilizers":                                 "Ministry of Chemicals and Fertilizers",
+    "chemicals":                                               "Ministry of Chemicals and Fertilizers",
+    # Civil Aviation
+    "civil aviation":                                          "Ministry of Civil Aviation",
+    # Coal
+    "coal":                                                    "Ministry of Coal",
+    # Commerce
+    "commerce and industry":                                   "Ministry of Commerce and Industry",
+    "commerce and industries":                                 "Ministry of Commerce and Industry",
+    "commerce & industry":                                     "Ministry of Commerce and Industry",
+    "commerce":                                                "Ministry of Commerce and Industry",
+    # Communications
+    "communications":                                          "Ministry of Communications",
+    "communications and information technology":               "Ministry of Communications",
+    # Consumer Affairs
+    "consumer affairs, food and public distribution":          "Ministry of Consumer Affairs, Food and Public Distribution",
+    "consumer affairs":                                        "Ministry of Consumer Affairs, Food and Public Distribution",
+    "food and public distribution":                            "Ministry of Consumer Affairs, Food and Public Distribution",
+    "consumer affairs food and public distribution":           "Ministry of Consumer Affairs, Food and Public Distribution",
+    # Cooperation
+    "cooperation":                                             "Ministry of Cooperation",
+    "cooperatives":                                            "Ministry of Cooperation",
+    # Culture
+    "culture":                                                 "Ministry of Culture",
+    # Defence
+    "defence":                                                 "Ministry of Defence",
+    "defense":                                                 "Ministry of Defence",
+    # Development of North Eastern Region
+    "development of north eastern region":                     "Ministry of Development of North Eastern Region",
+    "north eastern region development":                        "Ministry of Development of North Eastern Region",
+    "north eastern region":                                    "Ministry of Development of North Eastern Region",
+    "doner":                                                   "Ministry of Development of North Eastern Region",
+    # Earth Sciences
+    "earth sciences":                                          "Ministry of Earth Sciences",
+    "earth science":                                           "Ministry of Earth Sciences",
+    # Education
+    "education":                                               "Ministry of Education",
+    "human resource development":                              "Ministry of Education",
+    "mhrd":                                                    "Ministry of Education",
+    # Electronics and IT
+    "electronics and information technology":                  "Ministry of Electronics and Information Technology",
+    "electronics & information technology":                    "Ministry of Electronics and Information Technology",
+    "information technology":                                  "Ministry of Electronics and Information Technology",
+    "meity":                                                   "Ministry of Electronics and Information Technology",
+    # Environment
+    "environment, forest and climate change":                  "Ministry of Environment, Forest and Climate Change",
+    "environment and climate change":                          "Ministry of Environment, Forest and Climate Change",
+    "environment and forests":                                 "Ministry of Environment, Forest and Climate Change",
+    "environment forest and climate change":                   "Ministry of Environment, Forest and Climate Change",
+    "moef":                                                    "Ministry of Environment, Forest and Climate Change",
+    "moefcc":                                                  "Ministry of Environment, Forest and Climate Change",
+    # External Affairs
+    "external affairs":                                        "Ministry of External Affairs",
+    "mea":                                                     "Ministry of External Affairs",
+    # Finance
+    "finance":                                                 "Ministry of Finance",
+    "mof":                                                     "Ministry of Finance",
+    # Fisheries
+    "fisheries, animal husbandry and dairying":                "Ministry of Fisheries, Animal Husbandry and Dairying",
+    "fisheries animal husbandry and dairying":                 "Ministry of Fisheries, Animal Husbandry and Dairying",
+    "fisheries":                                               "Ministry of Fisheries, Animal Husbandry and Dairying",
+    "animal husbandry and dairying":                           "Ministry of Fisheries, Animal Husbandry and Dairying",
+    "animal husbandry":                                        "Ministry of Fisheries, Animal Husbandry and Dairying",
+    # Food Processing
+    "food processing industries":                              "Ministry of Food Processing Industries",
+    "food processing":                                         "Ministry of Food Processing Industries",
+    # Health
+    "health and family welfare":                               "Ministry of Health and Family Welfare",
+    "health & family welfare":                                 "Ministry of Health and Family Welfare",
+    "health":                                                  "Ministry of Health and Family Welfare",
+    # Heavy Industries
+    "heavy industries":                                        "Ministry of Heavy Industries",
+    "heavy industries and public enterprises":                 "Ministry of Heavy Industries",
+    # Home Affairs
+    "home affairs":                                            "Ministry of Home Affairs",
+    "home":                                                    "Ministry of Home Affairs",
+    "mha":                                                     "Ministry of Home Affairs",
+    # Housing and Urban Affairs
+    "housing and urban affairs":                               "Ministry of Housing and Urban Affairs",
+    "urban development":                                       "Ministry of Housing and Urban Affairs",
+    "urban affairs":                                           "Ministry of Housing and Urban Affairs",
+    "housing":                                                 "Ministry of Housing and Urban Affairs",
+    # Information and Broadcasting
+    "information and broadcasting":                            "Ministry of Information and Broadcasting",
+    "i&b":                                                     "Ministry of Information and Broadcasting",
+    # Jal Shakti (includes renamed Water Resources)
+    "jal shakti":                                              "Ministry of Jal Shakti",
+    "water resources":                                         "Ministry of Jal Shakti",
+    "water resources, river development and ganga rejuvenation": "Ministry of Jal Shakti",
+    "water":                                                   "Ministry of Jal Shakti",
+    # Labour
+    "labour and employment":                                   "Ministry of Labour and Employment",
+    "labor and employment":                                    "Ministry of Labour and Employment",
+    "labour":                                                  "Ministry of Labour and Employment",
+    # Law and Justice
+    "law and justice":                                         "Ministry of Law and Justice",
+    "law":                                                     "Ministry of Law and Justice",
+    # Micro, Small and Medium Enterprises
+    "micro, small and medium enterprises":                     "Ministry of Micro, Small and Medium Enterprises",
+    "micro small and medium enterprises":                      "Ministry of Micro, Small and Medium Enterprises",
+    "msme":                                                    "Ministry of Micro, Small and Medium Enterprises",
+    # Mines
+    "mines":                                                   "Ministry of Mines",
+    # New and Renewable Energy
+    "new and renewable energy":                                "Ministry of New and Renewable Energy",
+    "new & renewable energy":                                  "Ministry of New and Renewable Energy",
+    "renewable energy":                                        "Ministry of New and Renewable Energy",
+    "mnre":                                                    "Ministry of New and Renewable Energy",
+    # Panchayati Raj
+    "panchayati raj":                                          "Ministry of Panchayati Raj",
+    # Petroleum and Natural Gas
+    "petroleum and natural gas":                               "Ministry of Petroleum and Natural Gas",
+    "petroleum":                                               "Ministry of Petroleum and Natural Gas",
+    # Ports, Shipping and Waterways
+    "ports, shipping and waterways":                           "Ministry of Ports, Shipping and Waterways",
+    "shipping":                                                "Ministry of Ports, Shipping and Waterways",
+    "ports and shipping":                                      "Ministry of Ports, Shipping and Waterways",
+    "shipping and waterways":                                  "Ministry of Ports, Shipping and Waterways",
+    # Power
+    "power":                                                   "Ministry of Power",
+    # Railways
+    "railways":                                                "Ministry of Railways",
+    "indian railways":                                         "Ministry of Railways",
+    # Road Transport
+    "road transport and highways":                             "Ministry of Road Transport and Highways",
+    "road transport":                                          "Ministry of Road Transport and Highways",
+    "roads":                                                   "Ministry of Road Transport and Highways",
+    # Rural Development
+    "rural development":                                       "Ministry of Rural Development",
+    # Science and Technology
+    "science and technology":                                  "Ministry of Science and Technology",
+    "most":                                                    "Ministry of Science and Technology",
+    # Skill Development
+    "skill development and entrepreneurship":                  "Ministry of Skill Development and Entrepreneurship",
+    "skill development":                                       "Ministry of Skill Development and Entrepreneurship",
+    # Social Justice
+    "social justice and empowerment":                          "Ministry of Social Justice and Empowerment",
+    "social justice":                                          "Ministry of Social Justice and Empowerment",
+    "social welfare":                                          "Ministry of Social Justice and Empowerment",
+    # Statistics
+    "statistics and programme implementation":                 "Ministry of Statistics and Programme Implementation",
+    "statistics and program implementation":                   "Ministry of Statistics and Programme Implementation",
+    "statistics":                                              "Ministry of Statistics and Programme Implementation",
+    "mospi":                                                   "Ministry of Statistics and Programme Implementation",
+    # Steel
+    "steel":                                                   "Ministry of Steel",
+    # Textiles
+    "textiles":                                                "Ministry of Textiles",
+    # Tourism
+    "tourism":                                                 "Ministry of Tourism",
+    # Tribal Affairs
+    "tribal affairs":                                          "Ministry of Tribal Affairs",
+    # Women and Child Development
+    "women and child development":                             "Ministry of Women and Child Development",
+    "women & child development":                               "Ministry of Women and Child Development",
+    "wcd":                                                     "Ministry of Women and Child Development",
+    # Youth Affairs and Sports
+    "youth affairs and sports":                                "Ministry of Youth Affairs and Sports",
+    "sports":                                                  "Ministry of Youth Affairs and Sports",
+    "youth affairs":                                           "Ministry of Youth Affairs and Sports",
 }
-
-# Suffix variants that mean the same ministry
-_MINISTRY_SUFFIX_NORM: list[tuple[str, str]] = [
-    ("and farmers' welfare",     "and Farmers Welfare"),
-    ("and farmers welfare",      "and Farmers Welfare"),
-    ("& farmers welfare",        "and Farmers Welfare"),
-    ("& farmers' welfare",       "and Farmers Welfare"),
-    ("and family welfare",       "and Family Welfare"),
-    ("& family welfare",         "and Family Welfare"),
-    ("and climate change",       "and Climate Change"),
-    ("& climate change",         "and Climate Change"),
-]
 
 
 def _normalize_ministry(name: str) -> str:
     """
-    Canonical ministry name: normalize & → and, collapse spaces, expand known
-    abbreviations, strip trailing punctuation.
-    'Ministry of Agriculture & Farmers' Welfare' →
-    'Ministry of Agriculture and Farmers Welfare'
+    Return the canonical 'Ministry of …' name for any known variant.
+    Handles prefix stripping, & → and, renamed ministries, abbreviations.
+    Falls back to title-casing the input if no match found.
     """
     if not name:
         return name
     m = name.strip().rstrip(".,;:")
-    # Normalize ampersand
+    # Normalize ampersand and apostrophes
     m = re.sub(r"\s*&\s*", " and ", m)
+    m = m.replace("’", "'").replace("‘", "'")
     # Collapse multiple spaces
     m = re.sub(r"\s+", " ", m).strip()
-    # Normalize known suffix variants
-    ml = m.lower()
-    for bad, good in _MINISTRY_SUFFIX_NORM:
-        if ml.endswith(bad):
-            m = m[: -len(bad)] + good
-            ml = m.lower()
-            break
-    # Expand known abbreviations that appear as the full ministry name
-    core = re.sub(r"^ministry\s+of\s+", "", ml).strip()
-    if core in _MINISTRY_ABBREV:
-        m = "Ministry of " + _MINISTRY_ABBREV[core]
+
+    # Look up exact match first (with "Ministry of " prefix stripped, lowercased)
+    key = re.sub(r"^(ministry|dept|department|min)\s+of\s+", "", m.lower()).strip()
+    key = re.sub(r"^(ministry|dept|department|min)\.\s+of\s+", "", key).strip()
+
+    canonical = _MINISTRY_CANONICAL.get(key)
+    if canonical:
+        return canonical
+
+    # Try with the full lowercased string (for entries stored without prefix)
+    canonical = _MINISTRY_CANONICAL.get(m.lower())
+    if canonical:
+        return canonical
+
+    # No match — return cleaned version with consistent "Ministry of " prefix if present
     return m
 
 
