@@ -272,7 +272,7 @@ def _upsert_scheme(name: str, full_name: str, ministry: Optional[str],
                     "aliases": new_aliases,
                     "id":      existing["id"],
                 })
-                if _sem_cache is not None and len(sem_key) >= 5:
+                if _sem_cache is not None and len(sem_key) >= 10:
                     _sem_cache.setdefault(sem_key, existing["id"])
             else:
                 aliases_arr = [alias] if alias and alias != canonical else []
@@ -294,7 +294,7 @@ def _upsert_scheme(name: str, full_name: str, ministry: Optional[str],
                     "first":     date_seen or "2024-01-01",
                     "last":      date_seen or "2024-01-01",
                 })
-                if _sem_cache is not None and len(sem_key) >= 5:
+                if _sem_cache is not None and len(sem_key) >= 10:
                     row = result.fetchone()
                     if row:
                         _sem_cache.setdefault(sem_key, row[0])
@@ -394,7 +394,7 @@ def run_extraction(full: bool = False, _progress: dict = None) -> dict:
             )).mappings().all()
         for s in existing_schemes:
             key = _semantic_key(s["name"])
-            if len(key) >= 5:
+            if len(key) >= 10:
                 _sem_cache.setdefault(key, s["id"])
     except Exception:
         pass  # cache is optional; fall back to exact-match only
@@ -525,7 +525,7 @@ def deduplicate_schemes(dry_run: bool = False) -> dict:
         if len(key) >= 5:
             groups[key].append(dict(row))
 
-    duplicate_groups = {k: v for k, v in groups.items() if len(v) > 1}
+    duplicate_groups = {k: v for k, v in groups.items() if len(v) > 1 and len(k) >= 10}
 
     if dry_run:
         examples = [
@@ -707,7 +707,7 @@ def deduplicate_acronyms(dry_run: bool = False) -> dict:
     sem_to_full: dict[str, dict] = {}
     for s in full_names:
         key = _semantic_key(s["name"])
-        if len(key) >= 4:
+        if len(key) >= 10:
             sem_to_full.setdefault(key, s)
 
     merge_pairs: list[tuple[dict, dict]] = []
