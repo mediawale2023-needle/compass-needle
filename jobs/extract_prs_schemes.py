@@ -105,12 +105,22 @@ def _extract_by_rules(subject: str) -> list[str]:
     for pat in _COMPILED:
         for m in pat.finditer(subject):
             candidate = m.group(0).strip()
-            # Reject if too short or pure stop-words
             words = candidate.lower().split()
             if len(candidate) < 5 or all(w in _NON_SCHEME_WORDS for w in words):
                 continue
             found.append(candidate)
-    return found
+
+    # Drop any candidate whose text is fully contained within a longer candidate.
+    # Prevents "Capital Subsidy Scheme" surviving alongside
+    # "Credit Linked Capital Subsidy Scheme" from the same subject.
+    deduped = [
+        c for c in found
+        if not any(
+            c.lower() in other.lower() and c.lower() != other.lower()
+            for other in found
+        )
+    ]
+    return deduped
 
 
 # ── GPT extraction for ambiguous subjects ────────────────────────────────────
@@ -212,6 +222,96 @@ def _expand_name(name: str) -> str:
     return re.sub(r"^PM[\s\-]+", "Pradhan Mantri ", name.strip(), flags=re.IGNORECASE)
 
 
+# Known ministry name abbreviations → canonical core (without "Ministry of " prefix)
+_MINISTRY_ABBREV: dict[str, str] = {
+    "msme":    "Micro, Small and Medium Enterprises",
+    "mea":     "External Affairs",
+    "mha":     "Home Affairs",
+    "mof":     "Finance",
+    "mhrd":    "Education",
+    "moe":     "Education",
+    "moci":    "Commerce and Industry",
+    "moef":    "Environment, Forest and Climate Change",
+    "moefcc":  "Environment, Forest and Climate Change",
+    "most":    "Science and Technology",
+}
+
+# Suffix variants that mean the same ministry
+_MINISTRY_SUFFIX_NORM: list[tuple[str, str]] = [
+    ("and farmers' welfare",     "and Farmers Welfare"),
+    ("and farmers welfare",      "and Farmers Welfare"),
+    ("& farmers welfare",        "and Farmers Welfare"),
+    ("& farmers' welfare",       "and Farmers Welfare"),
+    ("and family welfare",       "and Family Welfare"),
+    ("& family welfare",         "and Family Welfare"),
+    ("and climate change",       "and Climate Change"),
+    ("& climate change",         "and Climate Change"),
+]
+
+
+def _normalize_ministry(name: str) -> str:
+    """
+    Canonical ministry name: normalize & → and, collapse spaces, expand known
+    abbreviations, strip trailing punctuation.
+    'Ministry of Agriculture & Farmers' Welfare' →
+    'Ministry of Agriculture and Farmers Welfare'
+    """
+    if not name:
+        return name
+    m = name.strip().rstrip(".,;:")
+    # Normalize ampersand
+    m = re.sub(r"\s*&\s*", " and ", m)
+    # Collapse multiple spaces
+    m = re.sub(r"\s+", " ", m).strip()
+    # Normalize known suffix variants
+    ml = m.lower()
+    for bad, good in _MINISTRY_SUFFIX_NORM:
+        if ml.endswith(bad):
+            m = m[: -len(bad)] + good
+            ml = m.lower()
+            break
+    # Expand known abbreviations that appear as the full ministry name
+    core = re.sub(r"^ministry\s+of\s+", "", ml).strip()
+    if core in _MINISTRY_ABBREV:
+        m = "Ministry of " + _MINISTRY_ABBREV[core]
+    return m
+
+
+def normalize_ministry_names() -> dict:
+    """
+    One-time fix: update all prs_schemes rows so ministry names are canonical.
+    Safe to run multiple times (idempotent).
+    """
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text(
+                "SELECT id, ministry FROM prs_schemes WHERE ministry IS NOT NULL"
+            )).mappings().all()
+
+        updated = 0
+        with engine.begin() as conn:
+            for r in rows:
+                canonical = _normalize_ministry(r["ministry"])
+                if canonical != r["ministry"]:
+                    conn.execute(text(
+                        "UPDATE prs_schemes SET ministry = :m, updated_at = NOW() WHERE id = :id"
+                    ), {"m": canonical, "id": r["id"]})
+                    updated += 1
+
+        # Invalidate cached ministry overview
+        try:
+            from modules.schemes_api import _runtime_cache
+            _runtime_cache.clear()
+        except Exception:
+            pass
+
+        logger.info("Ministry normalization: %d rows updated", updated)
+        return {"rows_updated": updated, "rows_checked": len(rows)}
+    except Exception as e:
+        logger.exception("normalize_ministry_names failed")
+        return {"error": str(e)}
+
+
 # ── DB upsert ────────────────────────────────────────────────────────────────
 
 def _upsert_scheme(name: str, full_name: str, ministry: Optional[str],
@@ -225,6 +325,7 @@ def _upsert_scheme(name: str, full_name: str, ministry: Optional[str],
     if not canonical or len(canonical) < 4:
         return
 
+    ministry = _normalize_ministry(ministry) if ministry else ministry
     sem_key = _semantic_key(canonical)
 
     try:
@@ -262,7 +363,7 @@ def _upsert_scheme(name: str, full_name: str, ministry: Optional[str],
                     "aliases": new_aliases,
                     "id":      existing["id"],
                 })
-                if _sem_cache is not None and len(sem_key) >= 5:
+                if _sem_cache is not None and len(sem_key) >= 10:
                     _sem_cache.setdefault(sem_key, existing["id"])
             else:
                 aliases_arr = [alias] if alias and alias != canonical else []
@@ -284,7 +385,7 @@ def _upsert_scheme(name: str, full_name: str, ministry: Optional[str],
                     "first":     date_seen or "2024-01-01",
                     "last":      date_seen or "2024-01-01",
                 })
-                if _sem_cache is not None and len(sem_key) >= 5:
+                if _sem_cache is not None and len(sem_key) >= 10:
                     row = result.fetchone()
                     if row:
                         _sem_cache.setdefault(sem_key, row[0])
@@ -384,7 +485,7 @@ def run_extraction(full: bool = False, _progress: dict = None) -> dict:
             )).mappings().all()
         for s in existing_schemes:
             key = _semantic_key(s["name"])
-            if len(key) >= 5:
+            if len(key) >= 10:
                 _sem_cache.setdefault(key, s["id"])
     except Exception:
         pass  # cache is optional; fall back to exact-match only
@@ -515,7 +616,7 @@ def deduplicate_schemes(dry_run: bool = False) -> dict:
         if len(key) >= 5:
             groups[key].append(dict(row))
 
-    duplicate_groups = {k: v for k, v in groups.items() if len(v) > 1}
+    duplicate_groups = {k: v for k, v in groups.items() if len(v) > 1 and len(k) >= 10}
 
     if dry_run:
         examples = [
@@ -697,7 +798,7 @@ def deduplicate_acronyms(dry_run: bool = False) -> dict:
     sem_to_full: dict[str, dict] = {}
     for s in full_names:
         key = _semantic_key(s["name"])
-        if len(key) >= 4:
+        if len(key) >= 10:
             sem_to_full.setdefault(key, s)
 
     merge_pairs: list[tuple[dict, dict]] = []
@@ -768,6 +869,116 @@ def deduplicate_acronyms(dry_run: bool = False) -> dict:
         "acronym_pairs_merged": merged,
         "schemes_before":       len(schemes),
         "schemes_remaining":    len(schemes) - merged,
+    }
+
+
+# ── Substring containment dedup ───────────────────────────────────────────────
+
+def deduplicate_substrings(dry_run: bool = False) -> dict:
+    """
+    Pass 3: within each ministry, merge a scheme whose name is a suffix-match
+    or consecutive-word-match inside a longer scheme name.
+
+    'Capital Subsidy Scheme' (suffix of 'Credit Linked Capital Subsidy Scheme') → alias
+    'Kisan Mission'          (suffix of 'Pradhan Mantri Kisan Mission')           → alias
+
+    Minimum candidate length: 12 chars (prevents over-merging short tokens).
+    Only considers pairs within the same ministry to avoid cross-ministry collisions.
+    Should run AFTER semantic + acronym passes on clean data.
+    """
+    from collections import defaultdict
+
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT id, name, ministry, aliases, answer_count
+            FROM prs_schemes
+            WHERE ministry IS NOT NULL AND ministry != ''
+            ORDER BY ministry, LENGTH(name) DESC, COALESCE(answer_count, 0) DESC
+        """)).mappings().all()
+
+    ministry_groups: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        ministry_groups[r["ministry"]].append(dict(r))
+
+    def _is_contained(short: str, long_: str) -> bool:
+        """True if short is a meaningful sub-sequence of long_."""
+        s = short.lower().strip()
+        l = long_.lower().strip()
+        if s == l or len(s) < 12:
+            return False
+        # Suffix match (most common extraction artifact)
+        if l.endswith(" " + s) or l.endswith(s):
+            return True
+        # Consecutive-word match
+        s_words = s.split()
+        l_words = l.split()
+        if len(s_words) >= 2:
+            for i in range(len(l_words) - len(s_words) + 1):
+                if l_words[i: i + len(s_words)] == s_words:
+                    return True
+        return False
+
+    merge_pairs: list[tuple[dict, dict]] = []
+    absorbed: set[int] = set()
+
+    for schemes in ministry_groups.values():
+        for i, short in enumerate(schemes):
+            if short["id"] in absorbed:
+                continue
+            for long_ in schemes[:i]:   # longer names come first (sorted by LENGTH DESC)
+                if long_["id"] in absorbed:
+                    continue
+                if _is_contained(short["name"], long_["name"]):
+                    merge_pairs.append((short, long_))
+                    absorbed.add(short["id"])
+                    break
+
+    if dry_run:
+        return {
+            "substring_pairs_found": len(merge_pairs),
+            "substring_pairs": [
+                {"contained": a["name"], "parent": b["name"]}
+                for a, b in merge_pairs[:40]
+            ],
+        }
+
+    merged = 0
+    with engine.begin() as conn:
+        for short, parent in merge_pairs:
+            all_aliases = list(parent.get("aliases") or [])
+            if short["name"] not in all_aliases:
+                all_aliases.append(short["name"])
+            for a in (short.get("aliases") or []):
+                if a not in all_aliases and a != parent["name"]:
+                    all_aliases.append(a)
+
+            total_count = (parent.get("answer_count") or 0) + (short.get("answer_count") or 0)
+
+            conn.execute(text("""
+                UPDATE prs_schemes
+                SET aliases = :aliases, answer_count = :count, updated_at = NOW()
+                WHERE id = :id
+            """), {"aliases": all_aliases, "count": total_count, "id": parent["id"]})
+
+            conn.execute(text("DELETE FROM prs_schemes WHERE id = :id"),
+                         {"id": short["id"]})
+            conn.execute(text(
+                "DELETE FROM scheme_intelligence_cache WHERE scheme_name = :name"
+            ), {"name": short["name"]})
+
+            merged += 1
+
+    try:
+        from modules.schemes_api import _runtime_cache
+        _runtime_cache.clear()
+    except Exception:
+        pass
+
+    logger.info("Substring dedup done: %d pairs merged", merged)
+    return {
+        "substring_pairs_merged": merged,
+        "schemes_before":         len(rows),
+        "schemes_remaining":      len(rows) - merged,
     }
 
 

@@ -56,7 +56,8 @@ def get_ministry_overview() -> list[dict]:
         with engine.connect() as conn:
             rows = conn.execute(text("""
                 SELECT
-                    ps.ministry,
+                    TRIM(REGEXP_REPLACE(REPLACE(ps.ministry, ' & ', ' and '), '\\s+', ' ', 'g'))
+                        AS ministry,
                     COUNT(ps.id)                          AS scheme_count,
                     SUM(ps.answer_count)                  AS total_answers,
                     MAX(ps.last_seen)                     AS latest_activity,
@@ -64,7 +65,7 @@ def get_ministry_overview() -> list[dict]:
                 FROM prs_schemes ps
                 WHERE ps.ministry IS NOT NULL AND ps.ministry != ''
                   AND ps.answer_count >= 1
-                GROUP BY ps.ministry
+                GROUP BY TRIM(REGEXP_REPLACE(REPLACE(ps.ministry, ' & ', ' and '), '\\s+', ' ', 'g'))
                 ORDER BY total_answers DESC NULLS LAST, scheme_count DESC
             """)).mappings().all()
 
@@ -101,8 +102,9 @@ def get_ministry_schemes(ministry: str) -> list[dict]:
                     id, name, full_name, ministry,
                     aliases, answer_count, first_seen, last_seen
                 FROM prs_schemes
-                WHERE LOWER(ministry) = LOWER(:m)
-                  AND answer_count >= 1
+                WHERE LOWER(TRIM(REGEXP_REPLACE(REPLACE(ministry, ' & ', ' and '), '\\s+', ' ', 'g')))
+                    = LOWER(TRIM(REGEXP_REPLACE(REPLACE(:m, ' & ', ' and '), '\\s+', ' ', 'g')))
+                  AND answer_count >= 2
                 ORDER BY answer_count DESC, name
             """), {"m": ministry}).mappings().all()
 

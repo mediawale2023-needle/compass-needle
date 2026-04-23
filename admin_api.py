@@ -4116,18 +4116,38 @@ def trigger_scheme_extract(
             "message": "Scheme extraction started (auto-detects full vs incremental)…"}
 
 
+@router.post("/brain/scheme-normalize-ministries")
+def trigger_normalize_ministries(user=Depends(get_admin_user)):
+    """
+    Normalize ministry names in prs_schemes: '&' → 'and', collapse spaces,
+    expand known abbreviations. Idempotent — safe to run multiple times.
+    Run this before or after dedup.
+    """
+    try:
+        from jobs.extract_prs_schemes import normalize_ministry_names
+        result = normalize_ministry_names()
+        return {"ok": True, **result}
+    except Exception as e:
+        logger.exception("normalize_ministries failed")
+        raise HTTPException(500, "Ministry normalization failed")
+
+
 @router.get("/brain/scheme-dedup-preview")
 def scheme_dedup_preview(user=Depends(get_admin_user)):
     """
-    Dry-run: return duplicate groups and acronym matches without making any changes.
-    Pass 1 — semantic (PM Awas vs Pradhan Mantri Awas, Mission vs Abhiyan …)
-    Pass 2 — acronym   (PMAY → Pradhan Mantri Awas Yojana, NHM → National Health Mission …)
+    Dry-run: return all three dedup passes without making changes.
+    Pass 1 — semantic    (PM Awas vs Pradhan Mantri Awas, Mission vs Abhiyan …)
+    Pass 2 — acronym     (PMAY → Pradhan Mantri Awas Yojana …)
+    Pass 3 — substring   (Capital Subsidy Scheme ⊂ Credit Linked Capital Subsidy Scheme …)
     """
     try:
-        from jobs.extract_prs_schemes import deduplicate_schemes, deduplicate_acronyms
-        semantic = deduplicate_schemes(dry_run=True)
-        acronym  = deduplicate_acronyms(dry_run=True)
-        return {**semantic, **acronym}
+        from jobs.extract_prs_schemes import (
+            deduplicate_schemes, deduplicate_acronyms, deduplicate_substrings,
+        )
+        semantic   = deduplicate_schemes(dry_run=True)
+        acronym    = deduplicate_acronyms(dry_run=True)
+        substring  = deduplicate_substrings(dry_run=True)
+        return {**semantic, **acronym, **substring}
     except Exception as e:
         logger.exception("scheme_dedup_preview failed")
         raise HTTPException(500, "Dedup preview failed")
@@ -4136,15 +4156,19 @@ def scheme_dedup_preview(user=Depends(get_admin_user)):
 @router.post("/brain/scheme-dedup")
 def trigger_scheme_dedup(user=Depends(get_admin_user)):
     """
-    Two-pass dedup of prs_schemes. Synchronous — typically completes in <10 seconds.
-    Pass 1 — semantic key grouping (strips prefix/suffix variant names)
-    Pass 2 — acronym matching     (dictionary + pattern generation)
+    Three-pass dedup of prs_schemes. Synchronous — typically completes in <15 seconds.
+    Pass 1 — semantic   (prefix/suffix variant names)
+    Pass 2 — acronyms   (dictionary + first-letter pattern)
+    Pass 3 — substrings (contained shorter names within longer canonical names)
     """
     try:
-        from jobs.extract_prs_schemes import deduplicate_schemes, deduplicate_acronyms
+        from jobs.extract_prs_schemes import (
+            deduplicate_schemes, deduplicate_acronyms, deduplicate_substrings,
+        )
         sem = deduplicate_schemes(dry_run=False)
         acr = deduplicate_acronyms(dry_run=False)
-        return {"ok": True, **sem, **acr}
+        sub = deduplicate_substrings(dry_run=False)
+        return {"ok": True, **sem, **acr, **sub}
     except Exception as e:
         logger.exception("scheme_dedup failed")
         raise HTTPException(500, "Dedup failed")
