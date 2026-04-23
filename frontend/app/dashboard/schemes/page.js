@@ -7,7 +7,7 @@ import {
     Lock, ChevronRight, ChevronLeft, Loader2, RefreshCw,
     Building2, FileText, TrendingUp, AlertTriangle,
     CheckCircle2, BarChart3, CircleDot, Search,
-    MapPin, Globe, ArrowLeftRight
+    MapPin, Globe, ArrowLeftRight, Wrench
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -80,13 +80,41 @@ function DataRow({ label, value }) {
     );
 }
 
+// ── Shared sub-section: Fund Flow grid ────────────────────────────────────────
+
+function FundFlowGrid({ ff, compact = false }) {
+    if (!ff) return null;
+    const fields = compact
+        ? [['Funds Received', ff.received], ['Utilisation', ff.utilization], ['Discrepancies', ff.discrepancies]]
+        : [['Allocated', ff.allocated], ['Released', ff.released], ['Disbursed', ff.disbursed], ['Utilisation', ff.utilization_pct], ['Discrepancies', ff.discrepancies]];
+    const visible = fields.filter(([, v]) => v);
+    if (!visible.length) return null;
+    return (
+        <div>
+            <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium block mb-2">
+                Fund Flow
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {visible.map(([label, value]) => (
+                    <DataRow key={label} label={label} value={value} />
+                ))}
+            </div>
+        </div>
+    );
+}
+
 // ── Layer 1: Your State ────────────────────────────────────────────────────────
 
 function YourStateLayer({ data: ys, state }) {
     if (!ys) return null;
 
+    const ff    = ys.fund_flow || {};
+    const impl  = ys.implementation || {};
     const facts = Array.isArray(ys.key_facts) ? ys.key_facts.filter(Boolean) : [];
-    const hasContent = ys.funds_received || ys.beneficiaries || ys.implementation_note || facts.length > 0;
+
+    const hasFF   = ff.received || ff.utilization || ff.discrepancies;
+    const hasImpl = impl.progress || impl.achievements || impl.challenges;
+    const hasContent = hasFF || ys.beneficiaries || hasImpl || facts.length > 0;
 
     if (!hasContent) {
         return (
@@ -112,10 +140,21 @@ function YourStateLayer({ data: ys, state }) {
                 title={`Your State — ${state}`}
                 colorClass="bg-emerald-500/8 text-emerald-400"
             />
-            <div className="px-4 py-4 bg-card/50 space-y-3">
-                {ys.funds_received && <DataRow label="Funds Received" value={ys.funds_received} />}
+            <div className="px-4 py-4 bg-card/50 space-y-4">
+                {hasFF && <FundFlowGrid ff={ff} compact />}
                 {ys.beneficiaries && <DataRow label="Beneficiaries" value={ys.beneficiaries} />}
-                {ys.implementation_note && <DataRow label="On the Ground" value={ys.implementation_note} />}
+                {hasImpl && (
+                    <div>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium block mb-2">
+                            On the Ground
+                        </span>
+                        <div className="space-y-2">
+                            {impl.progress     && <DataRow label="Progress"     value={impl.progress} />}
+                            {impl.achievements && <DataRow label="Achievements" value={impl.achievements} />}
+                            {impl.challenges   && <DataRow label="Challenges"   value={impl.challenges} />}
+                        </div>
+                    </div>
+                )}
                 {facts.length > 0 && (
                     <div>
                         <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium block mb-2">
@@ -138,11 +177,19 @@ function YourStateLayer({ data: ys, state }) {
 
 // ── Layer 2: National Picture ──────────────────────────────────────────────────
 
-function NationalLayer({ data: np, latestPosition }) {
+function NationalLayer({ data: np }) {
     if (!np) return null;
 
+    const ff    = np.fund_flow || {};
+    const bc    = np.beneficiary_coverage || {};
+    const impl  = np.implementation_status || {};
+    const ca    = np.challenges_acknowledged || {};
     const stats = Array.isArray(np.key_statistics) ? np.key_statistics.filter(Boolean) : [];
-    const lp = latestPosition || np.latest_position || {};
+    const lp    = np.latest_position || {};
+
+    // Fallback: old format had these directly on np
+    const totalAlloc = ff.allocated || np.total_allocation;
+    const totalBen   = bc.total_beneficiaries || np.total_beneficiaries;
 
     return (
         <div className="rounded-xl border border-border/60 overflow-hidden">
@@ -151,7 +198,8 @@ function NationalLayer({ data: np, latestPosition }) {
                 title="National Picture"
                 colorClass="bg-blue-500/5 text-blue-400"
             />
-            <div className="px-4 py-4 bg-card/50 space-y-3">
+            <div className="px-4 py-4 bg-card/50 space-y-4">
+
                 {lp.statement && (
                     <div className="rounded-lg bg-primary/5 border border-primary/10 px-4 py-3">
                         <div className="flex items-center gap-1.5 mb-1.5">
@@ -171,12 +219,54 @@ function NationalLayer({ data: np, latestPosition }) {
                     </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {np.total_allocation && <DataRow label="Total Allocation" value={np.total_allocation} />}
-                    {np.total_beneficiaries && <DataRow label="Total Beneficiaries" value={np.total_beneficiaries} />}
-                    {np.progress && <DataRow label="Progress" value={np.progress} />}
-                </div>
+                {/* Fund flow — full 5-field version */}
+                {(ff.allocated || ff.released || ff.disbursed || ff.utilization_pct || ff.discrepancies) && (
+                    <FundFlowGrid ff={ff} compact={false} />
+                )}
 
+                {/* Beneficiary coverage */}
+                {(totalBen || bc.demographic_breakdown || bc.coverage_note) && (
+                    <div>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium block mb-2">
+                            Beneficiary Coverage
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {totalBen && <DataRow label="Total Beneficiaries"   value={totalBen} />}
+                            {bc.demographic_breakdown && <DataRow label="Breakdown" value={bc.demographic_breakdown} />}
+                            {bc.coverage_note && <DataRow label="Note" value={bc.coverage_note} />}
+                        </div>
+                    </div>
+                )}
+
+                {/* Implementation */}
+                {(impl.progress || impl.achievements || impl.timeline || np.progress) && (
+                    <div>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium block mb-2">
+                            Implementation
+                        </span>
+                        <div className="space-y-2">
+                            {(impl.progress   || np.progress)  && <DataRow label="Progress"     value={impl.progress   || np.progress} />}
+                            {impl.achievements && <DataRow label="Achievements" value={impl.achievements} />}
+                            {impl.timeline     && <DataRow label="Timeline"     value={impl.timeline} />}
+                        </div>
+                    </div>
+                )}
+
+                {/* Challenges */}
+                {(ca.delays || ca.gaps || ca.pending_issues) && (
+                    <div>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium block mb-2">
+                            Challenges Acknowledged
+                        </span>
+                        <div className="space-y-2">
+                            {ca.delays         && <DataRow label="Delays"          value={ca.delays} />}
+                            {ca.gaps           && <DataRow label="Gaps"            value={ca.gaps} />}
+                            {ca.pending_issues && <DataRow label="Pending Issues"  value={ca.pending_issues} />}
+                        </div>
+                    </div>
+                )}
+
+                {/* Key statistics */}
                 {stats.length > 0 && (
                     <div>
                         <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium block mb-2">
@@ -234,7 +324,7 @@ function OtherStatesLayer({ data: os, currentState }) {
                         </div>
                     </div>
                 )}
-                {os.comparison && <DataRow label="Comparison" value={os.comparison} />}
+                {os.comparison    && <DataRow label="Comparison"              value={os.comparison} />}
                 {os.lagging_issues && <DataRow label="Issues Reported Elsewhere" value={os.lagging_issues} />}
             </div>
         </div>
@@ -385,24 +475,35 @@ function SchemeBrief({ scheme, onBack, color }) {
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="rounded-xl border border-border/60 overflow-hidden">
-                            <LayerHeader icon={BarChart3} title="Fund Flow" colorClass="bg-blue-500/5 text-blue-400" />
+                            <LayerHeader icon={BarChart3}    title="Fund Flow"      colorClass="bg-blue-500/5 text-blue-400" />
                             <div className="px-4 py-4 bg-card/50 space-y-3">
                                 <DataRow label="Allocated"   value={ff.allocated} />
                                 <DataRow label="Released"    value={ff.released} />
                                 <DataRow label="Disbursed"   value={ff.disbursed} />
                                 <DataRow label="Utilisation" value={ff.utilization_pct} />
+                                {ff.discrepancies && <DataRow label="Discrepancies" value={ff.discrepancies} />}
                             </div>
                         </div>
                         <div className="rounded-xl border border-border/60 overflow-hidden">
-                            <LayerHeader icon={TrendingUp} title="Coverage" colorClass="bg-emerald-500/5 text-emerald-400" />
+                            <LayerHeader icon={TrendingUp}   title="Coverage"       colorClass="bg-emerald-500/5 text-emerald-400" />
                             <div className="px-4 py-4 bg-card/50 space-y-3">
                                 <DataRow label="Total Beneficiaries"   value={bc.total_beneficiaries} />
                                 <DataRow label="Demographic Breakdown" value={bc.demographic_breakdown} />
                                 {bc.coverage_note && <DataRow label="Coverage Note" value={bc.coverage_note} />}
+                                {bc.states_mentioned?.length > 0 && (
+                                    <div>
+                                        <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium block mb-1.5">States on Record</span>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {bc.states_mentioned.map(s => (
+                                                <span key={s} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{s}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                         <div className="rounded-xl border border-border/60 overflow-hidden">
-                            <LayerHeader icon={CheckCircle2} title="Implementation" colorClass="bg-violet-500/5 text-violet-400" />
+                            <LayerHeader icon={Wrench}       title="Implementation" colorClass="bg-violet-500/5 text-violet-400" />
                             <div className="px-4 py-4 bg-card/50 space-y-3">
                                 <DataRow label="Progress"     value={impl.progress} />
                                 <DataRow label="Achievements" value={impl.achievements} />
@@ -410,22 +511,17 @@ function SchemeBrief({ scheme, onBack, color }) {
                             </div>
                         </div>
                         <div className="rounded-xl border border-border/60 overflow-hidden">
-                            <LayerHeader icon={AlertTriangle} title="Challenges" colorClass="bg-rose-500/5 text-rose-400" />
+                            <LayerHeader icon={AlertTriangle} title="Challenges"    colorClass="bg-rose-500/5 text-rose-400" />
                             <div className="px-4 py-4 bg-card/50 space-y-3">
-                                <DataRow label="Delays"              value={ca.delays} />
-                                <DataRow label="Implementation Gaps" value={ca.gaps} />
-                                <DataRow label="Pending Issues"      value={ca.pending_issues} />
+                                <DataRow label="Delays"          value={ca.delays} />
+                                <DataRow label="Gaps"            value={ca.gaps} />
+                                <DataRow label="Pending Issues"  value={ca.pending_issues} />
                             </div>
                         </div>
                     </div>
                     {stats.length > 0 && (
                         <div className="rounded-xl border border-border/60 overflow-hidden">
-                            <div className="flex items-center gap-2 px-4 py-3 bg-muted/20 border-b border-border/40">
-                                <FileText className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">
-                                    Key Statistics
-                                </span>
-                            </div>
+                            <LayerHeader icon={FileText} title="Key Statistics" colorClass="bg-muted/20 text-muted-foreground" />
                             <div className="divide-y divide-border/30">
                                 {stats.map((stat, i) => (
                                     <div key={i} className="px-4 py-3 flex items-start gap-3 bg-card/30">

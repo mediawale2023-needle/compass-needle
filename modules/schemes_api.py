@@ -301,10 +301,18 @@ def _call_gpt(
 
     state_section = f"""
 "your_state": {{
-  "funds_received": "<amount specifically released/disbursed to {state or 'this state'}, or null>",
+  "fund_flow": {{
+    "received": "<funds released/disbursed specifically to {state or 'this state'}, or null>",
+    "utilization": "<utilisation percentage or note for {state or 'this state'}, or null>",
+    "discrepancies": "<shortfalls or gaps for {state or 'this state'} ministry mentioned, or null>"
+  }},
   "beneficiaries": "<number of beneficiaries in {state or 'this state'} per answers, or null>",
-  "implementation_note": "<any specific implementation status, delays, or achievements mentioned for {state or 'this state'}, or null>",
-  "key_facts": ["<verbatim fact about {state or 'this state'} from answers>"]
+  "implementation": {{
+    "progress": "<implementation progress or targets for {state or 'this state'}, or null>",
+    "achievements": "<what is working in {state or 'this state'} per ministry, or null>",
+    "challenges": "<delays, gaps, or issues specific to {state or 'this state'}, or null>"
+  }},
+  "key_facts": ["<verbatim fact explicitly about {state or 'this state'} from answers>"]
 }},""" if state else '"your_state": null,'
 
     user_prompt = f"""Scheme: {scheme_name}
@@ -320,19 +328,38 @@ Return JSON with exactly these 3 keys:
 {{
 {state_section}
   "national_picture": {{
-    "total_allocation": "<total national budget/allocation, or null>",
-    "total_beneficiaries": "<national beneficiary count, or null>",
-    "progress": "<national implementation progress against targets, or null>",
+    "fund_flow": {{
+      "allocated": "<total national budget allocated, or null>",
+      "released": "<total released to states, or null>",
+      "disbursed": "<total disbursed to beneficiaries, or null>",
+      "utilization_pct": "<national utilisation percentage, or null>",
+      "discrepancies": "<national shortfalls or audit gaps ministry mentioned, or null>"
+    }},
+    "beneficiary_coverage": {{
+      "total_beneficiaries": "<national beneficiary count, or null>",
+      "demographic_breakdown": "<beneficiary categories e.g. SC/ST/women, or null>",
+      "coverage_note": "<notable national coverage detail, or null>"
+    }},
+    "implementation_status": {{
+      "progress": "<national progress against targets, or null>",
+      "achievements": "<what ministry says is working nationally, or null>",
+      "timeline": "<key dates or milestones, or null>"
+    }},
+    "challenges_acknowledged": {{
+      "delays": "<delays ministry admitted nationally, or null>",
+      "gaps": "<implementation gaps nationally, or null>",
+      "pending_issues": "<outstanding national issues, or null>"
+    }},
+    "key_statistics": ["<verbatim national figure from answers>"],
     "latest_position": {{
       "statement": "<most recent substantive ministry claim verbatim, or null>",
       "date": "<date or null>"
-    }},
-    "key_statistics": ["<verbatim national figure from answers>"]
+    }}
   }},
   "other_states": {{
-    "top_mentioned": ["<states explicitly mentioned in answers>"],
+    "top_mentioned": ["<states explicitly named in answers>"],
     "comparison": "<how different states compare in allocation/beneficiaries/progress per answers, or null>",
-    "lagging_issues": "<issues or delays reported for other states, or null>"
+    "lagging_issues": "<issues or delays specifically reported for other states, or null>"
   }}
 }}
 Null for any field with no evidence in the answers."""
@@ -345,7 +372,7 @@ Null for any field with no evidence in the answers."""
                 {"role": "user",   "content": user_prompt},
             ],
             temperature=0,
-            max_tokens=1000,
+            max_tokens=1500,
             response_format={"type": "json_object"},
         )
         raw = resp.choices[0].message.content or "{}"
