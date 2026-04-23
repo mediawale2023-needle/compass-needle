@@ -1765,6 +1765,24 @@ def scheme_intelligence(scheme_name: str, user=Depends(get_current_user)):
     return get_scheme_intelligence(scheme_name, tenant_id=user.get("tenant_id"))
 
 
+@router.post("/schemes/intelligence/{scheme_name:path}/refresh")
+def refresh_scheme_intelligence(scheme_name: str, user=Depends(get_current_user)):
+    """Delete the cached brief for this scheme (current user's state) so it regenerates fresh."""
+    from modules.schemes_api import _get_tenant_state, _runtime_cache
+    from sqlalchemy import text as _text
+    from sansadx_backend.db import engine as _engine
+    state = _get_tenant_state(user.get("tenant_id"))
+    try:
+        with _engine.begin() as conn:
+            conn.execute(_text(
+                "DELETE FROM scheme_intelligence_cache WHERE scheme_name = :name AND state = :state"
+            ), {"name": scheme_name, "state": state})
+        _runtime_cache.pop(f"intel:{scheme_name}:{state}", None)
+    except Exception as e:
+        logger.warning("refresh_scheme_intelligence failed: %s", e)
+    return {"ok": True, "scheme_name": scheme_name, "state": state or None}
+
+
 # ─────────────────────────────────────────
 # PARLIAMENT SESSION STATUS
 # ─────────────────────────────────────────
