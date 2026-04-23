@@ -1233,6 +1233,38 @@ def get_profile(user=Depends(get_current_user)):
     return profile or {}
 
 
+class UpdateOwnProfileRequest(BaseModel):
+    state: str = ""
+    party: str = ""
+
+
+@router.patch("/profile")
+def update_own_profile(req: UpdateOwnProfileRequest, user=Depends(get_current_user)):
+    """Allow MP to update their own state and party from the settings page."""
+    tid = get_tenant_or_fail(user)
+    state = sanitize_prompt_input(req.state.strip())[:100]
+    party = sanitize_prompt_input(req.party.strip())[:100]
+    if not state and not party:
+        raise HTTPException(400, "No fields to update")
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO tenant_profiles (tenant_id, state, party)
+                VALUES (:tid, :state, :party)
+                ON CONFLICT (tenant_id) DO UPDATE SET
+                    state = CASE WHEN :state != '' THEN :state ELSE tenant_profiles.state END,
+                    party = CASE WHEN :party != '' THEN :party ELSE tenant_profiles.party END
+            """), {"tid": tid, "state": state, "party": party})
+        # Evict scheme intel runtime cache so next brief uses the updated state
+        from modules.schemes_api import _runtime_cache as _sc
+        for k in [k for k in _sc if k.startswith("intel:")]:
+            _sc.pop(k, None)
+        return {"success": True}
+    except Exception:
+        logger.exception("update_own_profile failed")
+        raise HTTPException(500, "Internal server error")
+
+
 # ─────────────────────────────────────────
 # NEWS
 # ─────────────────────────────────────────

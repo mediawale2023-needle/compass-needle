@@ -7,7 +7,7 @@ import {
     User, Shield, Info, Lock, LifeBuoy, ExternalLink,
     Users, UserPlus, Trash2, Loader2, CheckCircle2,
     AlertCircle, Phone, Crown, ChevronDown, ChevronUp,
-    Eye, EyeOff,
+    Eye, EyeOff, Pencil, MapPin,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -412,6 +412,174 @@ function TeamCard({ user, color }) {
     );
 }
 
+/* ── ProfileCard ─────────────────────────────────────────────────── */
+
+function ProfileCard({ user, color }) {
+    const [editing, setEditing]   = useState(false);
+    const [state, setState]       = useState('');
+    const [party, setParty]       = useState('');
+    const [profile, setProfile]   = useState(null);
+    const [saving, setSaving]     = useState(false);
+    const [msg, setMsg]           = useState({ type: '', text: '' });
+
+    const userInitials = user?.display_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'CN';
+
+    useEffect(() => {
+        api('/api/profile').then(p => {
+            setProfile(p);
+            setState(p?.state || '');
+            setParty(p?.party || '');
+        }).catch(() => {});
+    }, []);
+
+    const handleEdit = () => {
+        setState(profile?.state || '');
+        setParty(profile?.party || '');
+        setMsg({ type: '', text: '' });
+        setEditing(true);
+    };
+
+    const handleSave = async (e) => {
+        e.preventDefault();
+        if (!state.trim()) { setMsg({ type: 'error', text: 'State is required' }); return; }
+        setSaving(true);
+        setMsg({ type: '', text: '' });
+        try {
+            await api('/api/profile', {
+                method: 'PATCH',
+                body: JSON.stringify({ state: state.trim(), party: party.trim() }),
+            });
+            setProfile(p => ({ ...p, state: state.trim(), party: party.trim() }));
+            setMsg({ type: 'success', text: 'Profile updated.' });
+            setEditing(false);
+        } catch (err) {
+            setMsg({ type: 'error', text: err.message || 'Failed to update profile' });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const displayState = profile?.state || user?.state || null;
+    const displayParty = profile?.party || user?.party || null;
+
+    return (
+        <Card>
+            <CardHeader>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <User className="h-5 w-5 text-muted-foreground" />
+                        <CardTitle>Profile</CardTitle>
+                    </div>
+                    {!editing && (
+                        <Button variant="ghost" size="sm" onClick={handleEdit} className="gap-1.5 text-muted-foreground hover:text-foreground">
+                            <Pencil className="h-3.5 w-3.5" /> Edit
+                        </Button>
+                    )}
+                </div>
+                <CardDescription>Your account information</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex items-start gap-6">
+                    <Avatar className="h-16 w-16 border-4 shrink-0" style={{ borderColor: color }}>
+                        <AvatarFallback className="text-lg font-bold text-white" style={{ background: color }}>
+                            {userInitials}
+                        </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            {[
+                                ['Name',         user?.display_name],
+                                ['Username',     user?.username],
+                                ['Constituency', user?.constituency],
+                                ['House',        user?.house],
+                            ].map(([label, value]) => (
+                                <div key={label}>
+                                    <p className="text-xs text-muted-foreground uppercase font-medium">{label}</p>
+                                    <p className="text-sm font-medium text-foreground mt-0.5">{value || '—'}</p>
+                                </div>
+                            ))}
+                            <div>
+                                <p className="text-xs text-muted-foreground uppercase font-medium flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" /> State
+                                </p>
+                                {displayState
+                                    ? <p className="text-sm font-medium text-foreground mt-0.5">{displayState}</p>
+                                    : <p className="text-sm text-amber-400 mt-0.5 flex items-center gap-1">
+                                        <AlertCircle className="h-3.5 w-3.5" /> Not set — needed for scheme intelligence
+                                      </p>
+                                }
+                            </div>
+                            <div>
+                                <p className="text-xs text-muted-foreground uppercase font-medium">Party</p>
+                                <p className="text-sm font-medium text-foreground mt-0.5">{displayParty || '—'}</p>
+                            </div>
+                        </div>
+                        <div>
+                            <p className="text-xs text-muted-foreground uppercase font-medium">Role</p>
+                            <Badge variant="secondary" className="mt-1" style={{ background: `${color}15`, color }}>
+                                {user?.role || 'Member'}
+                            </Badge>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Inline edit form */}
+                {editing && (
+                    <form onSubmit={handleSave} className="mt-6 pt-5 border-t border-border space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="edit-state">
+                                    State <span className="text-destructive">*</span>
+                                    <span className="text-xs text-muted-foreground ml-1">(used for scheme intelligence)</span>
+                                </Label>
+                                <Input
+                                    id="edit-state"
+                                    placeholder="e.g. Karnataka"
+                                    value={state}
+                                    onChange={e => setState(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="edit-party">Party</Label>
+                                <Input
+                                    id="edit-party"
+                                    placeholder="e.g. BJP, INC, JD(S)"
+                                    value={party}
+                                    onChange={e => setParty(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        {msg.text && (
+                            <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border ${
+                                msg.type === 'error'
+                                    ? 'text-destructive bg-destructive/10 border-destructive/20'
+                                    : 'text-green-700 dark:text-green-400 bg-green-500/10 border-green-500/20'
+                            }`}>
+                                {msg.type === 'error'
+                                    ? <AlertCircle className="h-4 w-4 shrink-0" />
+                                    : <CheckCircle2 className="h-4 w-4 shrink-0" />
+                                }
+                                {msg.text}
+                            </div>
+                        )}
+
+                        <div className="flex gap-2 justify-end">
+                            <Button type="button" variant="outline" onClick={() => setEditing(false)} disabled={saving}>
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={saving} style={{ background: color }}>
+                                {saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : 'Save Changes'}
+                            </Button>
+                        </div>
+                    </form>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 /* ── Main Settings Page ──────────────────────────────────────────── */
 
 export default function SettingsPage() {
@@ -422,8 +590,6 @@ export default function SettingsPage() {
     const [pwSaving, setPwSaving]   = useState(false);
     const [pwMsg, setPwMsg]         = useState({ type: '', text: '' });
     const color = user?.theme_color || '#006a4d';
-
-    const userInitials = user?.display_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'CN';
 
     const handlePasswordSubmit = async (e) => {
         e.preventDefault();
@@ -462,49 +628,7 @@ export default function SettingsPage() {
                 </p>
             </div>
 
-            {/* Profile Card */}
-            <Card>
-                <CardHeader>
-                    <div className="flex items-center gap-2">
-                        <User className="h-5 w-5 text-muted-foreground" />
-                        <CardTitle>Profile</CardTitle>
-                    </div>
-                    <CardDescription>Your account information</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex items-start gap-6">
-                        <Avatar className="h-16 w-16 border-4" style={{ borderColor: color }}>
-                            <AvatarFallback
-                                className="text-lg font-bold text-white"
-                                style={{ background: color }}
-                            >
-                                {userInitials}
-                            </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                {[
-                                    ['Name',         user?.display_name],
-                                    ['Username',     user?.username],
-                                    ['Constituency', user?.constituency],
-                                    ['House',        user?.house],
-                                ].map(([label, value]) => (
-                                    <div key={label}>
-                                        <p className="text-xs text-muted-foreground uppercase font-medium">{label}</p>
-                                        <p className="text-sm font-medium text-foreground mt-0.5">{value || '—'}</p>
-                                    </div>
-                                ))}
-                            </div>
-                            <div>
-                                <p className="text-xs text-muted-foreground uppercase font-medium">Role</p>
-                                <Badge variant="secondary" className="mt-1" style={{ background: `${color}15`, color }}>
-                                    {user?.role || 'Member'}
-                                </Badge>
-                            </div>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+            <ProfileCard user={user} color={color} />
 
             {/* Team Management — MP-only */}
             {isMp && <TeamCard user={user} color={color} />}
