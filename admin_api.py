@@ -4116,6 +4116,22 @@ def trigger_scheme_extract(
             "message": "Scheme extraction started (auto-detects full vs incremental)…"}
 
 
+@router.post("/brain/scheme-normalize-ministries")
+def trigger_normalize_ministries(user=Depends(get_admin_user)):
+    """
+    Normalize ministry names in prs_schemes: '&' → 'and', collapse spaces,
+    expand known abbreviations. Idempotent — safe to run multiple times.
+    Run this before or after dedup.
+    """
+    try:
+        from jobs.extract_prs_schemes import normalize_ministry_names
+        result = normalize_ministry_names()
+        return {"ok": True, **result}
+    except Exception as e:
+        logger.exception("normalize_ministries failed")
+        raise HTTPException(500, "Ministry normalization failed")
+
+
 @router.get("/brain/scheme-dedup-preview")
 def scheme_dedup_preview(user=Depends(get_admin_user)):
     """

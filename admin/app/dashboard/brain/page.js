@@ -766,6 +766,63 @@ function SeedPanel() {
 }
 
 
+// ─── Normalize Ministry Button ────────────────────────────────────────────────
+function NormalizeMinistryBtn({ disabled }) {
+    const [status, setStatus] = useState(null);
+    const [running, setRunning] = useState(false);
+
+    const run = async () => {
+        setRunning(true);
+        setStatus(null);
+        try {
+            const r = await apiPost('/api/admin/brain/scheme-normalize-ministries', {});
+            setStatus({ ok: true, msg: `✓ ${r.rows_updated} ministry names normalized (${r.rows_checked} checked)` });
+        } catch (e) {
+            setStatus({ ok: false, msg: e.message || 'Failed' });
+        } finally {
+            setRunning(false);
+        }
+    };
+
+    return (
+        <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '10px 14px', background: '#0d1117',
+            border: '1px solid #1f2937', borderRadius: 8, marginBottom: 10,
+        }}>
+            <div>
+                <div style={{ color: '#d6d3d1', fontSize: 12, fontWeight: 600 }}>
+                    Normalize Ministry Names
+                </div>
+                <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>
+                    Fix &amp; → and, collapse spaces, expand abbreviations — run before dedup
+                </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {status && (
+                    <span style={{ fontSize: 11, color: status.ok ? '#22c55e' : '#ef4444' }}>
+                        {status.msg}
+                    </span>
+                )}
+                <button
+                    onClick={run}
+                    disabled={disabled || running}
+                    style={{
+                        background: (disabled || running) ? '#374151' : '#1e3a5f',
+                        color: '#fff', border: 'none', borderRadius: 6,
+                        padding: '6px 14px', fontSize: 11,
+                        cursor: (disabled || running) ? 'not-allowed' : 'pointer',
+                        whiteSpace: 'nowrap',
+                    }}
+                >
+                    {running ? '⟳ Normalizing…' : 'Normalize'}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+
 // ─── Scheme Dedup Panel ───────────────────────────────────────────────────────
 function DedupPanel({ disabled }) {
     const [preview, setPreview] = useState(null);
@@ -1389,6 +1446,7 @@ function GlobalCorpusTab() {
                     accent="#b45309"
                     disabled={anyRunning}
                 />
+                <NormalizeMinistryBtn disabled={anyRunning} />
                 <DedupPanel disabled={anyRunning} />
 
                 <div style={{

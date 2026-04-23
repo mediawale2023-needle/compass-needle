@@ -222,6 +222,96 @@ def _expand_name(name: str) -> str:
     return re.sub(r"^PM[\s\-]+", "Pradhan Mantri ", name.strip(), flags=re.IGNORECASE)
 
 
+# Known ministry name abbreviations → canonical core (without "Ministry of " prefix)
+_MINISTRY_ABBREV: dict[str, str] = {
+    "msme":    "Micro, Small and Medium Enterprises",
+    "mea":     "External Affairs",
+    "mha":     "Home Affairs",
+    "mof":     "Finance",
+    "mhrd":    "Education",
+    "moe":     "Education",
+    "moci":    "Commerce and Industry",
+    "moef":    "Environment, Forest and Climate Change",
+    "moefcc":  "Environment, Forest and Climate Change",
+    "most":    "Science and Technology",
+}
+
+# Suffix variants that mean the same ministry
+_MINISTRY_SUFFIX_NORM: list[tuple[str, str]] = [
+    ("and farmers' welfare",     "and Farmers Welfare"),
+    ("and farmers welfare",      "and Farmers Welfare"),
+    ("& farmers welfare",        "and Farmers Welfare"),
+    ("& farmers' welfare",       "and Farmers Welfare"),
+    ("and family welfare",       "and Family Welfare"),
+    ("& family welfare",         "and Family Welfare"),
+    ("and climate change",       "and Climate Change"),
+    ("& climate change",         "and Climate Change"),
+]
+
+
+def _normalize_ministry(name: str) -> str:
+    """
+    Canonical ministry name: normalize & → and, collapse spaces, expand known
+    abbreviations, strip trailing punctuation.
+    'Ministry of Agriculture & Farmers' Welfare' →
+    'Ministry of Agriculture and Farmers Welfare'
+    """
+    if not name:
+        return name
+    m = name.strip().rstrip(".,;:")
+    # Normalize ampersand
+    m = re.sub(r"\s*&\s*", " and ", m)
+    # Collapse multiple spaces
+    m = re.sub(r"\s+", " ", m).strip()
+    # Normalize known suffix variants
+    ml = m.lower()
+    for bad, good in _MINISTRY_SUFFIX_NORM:
+        if ml.endswith(bad):
+            m = m[: -len(bad)] + good
+            ml = m.lower()
+            break
+    # Expand known abbreviations that appear as the full ministry name
+    core = re.sub(r"^ministry\s+of\s+", "", ml).strip()
+    if core in _MINISTRY_ABBREV:
+        m = "Ministry of " + _MINISTRY_ABBREV[core]
+    return m
+
+
+def normalize_ministry_names() -> dict:
+    """
+    One-time fix: update all prs_schemes rows so ministry names are canonical.
+    Safe to run multiple times (idempotent).
+    """
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text(
+                "SELECT id, ministry FROM prs_schemes WHERE ministry IS NOT NULL"
+            )).mappings().all()
+
+        updated = 0
+        with engine.begin() as conn:
+            for r in rows:
+                canonical = _normalize_ministry(r["ministry"])
+                if canonical != r["ministry"]:
+                    conn.execute(text(
+                        "UPDATE prs_schemes SET ministry = :m, updated_at = NOW() WHERE id = :id"
+                    ), {"m": canonical, "id": r["id"]})
+                    updated += 1
+
+        # Invalidate cached ministry overview
+        try:
+            from modules.schemes_api import _runtime_cache
+            _runtime_cache.clear()
+        except Exception:
+            pass
+
+        logger.info("Ministry normalization: %d rows updated", updated)
+        return {"rows_updated": updated, "rows_checked": len(rows)}
+    except Exception as e:
+        logger.exception("normalize_ministry_names failed")
+        return {"error": str(e)}
+
+
 # ── DB upsert ────────────────────────────────────────────────────────────────
 
 def _upsert_scheme(name: str, full_name: str, ministry: Optional[str],
@@ -235,6 +325,7 @@ def _upsert_scheme(name: str, full_name: str, ministry: Optional[str],
     if not canonical or len(canonical) < 4:
         return
 
+    ministry = _normalize_ministry(ministry) if ministry else ministry
     sem_key = _semantic_key(canonical)
 
     try:
