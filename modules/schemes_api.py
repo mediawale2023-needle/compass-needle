@@ -181,12 +181,12 @@ def _fetch_scheme_answers_tiered(
 ) -> dict:
     """
     Returns {"state_answers": [...], "national_answers": [...]}.
-    state_answers: answers that explicitly mention the MP's state (up to 4,
-                   excluding answers whose ONLY state mention is in an exam/
-                   outcome table row — prefer answers that discuss the state
-                   in context of funds, schools, or implementation).
-    national_answers: three passes — most recent (5) + longest (5) +
-                      financial/challenge keywords (4) — deduped, max 12.
+
+    Runs three national passes (recent / longest / financial+challenge keywords).
+    Ministry filter is applied first; if it yields 0 national answers the
+    queries are retried without it — this handles cases where the ministry
+    name stored in global_parliamentary_questions doesn't match the prs_schemes
+    canonical name (different abbreviation, formatting, etc.).
     """
     all_aliases = list({scheme_name} | set(aliases or []))
     ilike_parts = " OR ".join(
@@ -196,10 +196,11 @@ def _fetch_scheme_answers_tiered(
     base_params: dict = {f"a{i}": f"%{a}%" for i, a in enumerate(all_aliases)}
 
     ministry_filter = ""
+    ministry_params: dict = {}
     if ministry:
         keyword = ministry.lower().split("ministry of")[-1].strip()[:25]
         ministry_filter = "AND LOWER(ministry) LIKE :mf"
-        base_params["mf"] = f"%{keyword}%"
+        ministry_params = {"mf": f"%{keyword}%"}
 
     def _rows_to_dicts(rows, seen: set) -> list[dict]:
         out = []
@@ -216,15 +217,61 @@ def _fetch_scheme_answers_tiered(
                 })
         return out
 
+    def _run_national_passes(conn, mf: str, params: dict) -> list[dict]:
+        seen: set[str] = set()
+        out: list[dict] = []
+
+        recent = conn.execute(text(f"""
+            SELECT answer_text, subject, date_asked, question_type, session_name
+            FROM global_parliamentary_questions
+            WHERE answer_text IS NOT NULL AND answer_text != ''
+              {mf}
+              AND ({ilike_parts})
+            ORDER BY date_asked DESC NULLS LAST
+            LIMIT 5
+        """), params).mappings().all()
+        out.extend(_rows_to_dicts(recent, seen))
+
+        longest = conn.execute(text(f"""
+            SELECT answer_text, subject, date_asked, question_type, session_name
+            FROM global_parliamentary_questions
+            WHERE answer_text IS NOT NULL AND answer_text != ''
+              {mf}
+              AND ({ilike_parts})
+            ORDER BY LENGTH(answer_text) DESC
+            LIMIT 5
+        """), params).mappings().all()
+        out.extend(_rows_to_dicts(longest, seen))
+
+        fp_params = {**params,
+                     "kw1": "%crore%",    "kw2": "%allocated%", "kw3": "%released%",
+                     "kw4": "%shortage%", "kw5": "%delay%",     "kw6": "%gap%",
+                     "kw7": "%pending%",  "kw8": "%challenge%"}
+        challenge = conn.execute(text(f"""
+            SELECT answer_text, subject, date_asked, question_type, session_name
+            FROM global_parliamentary_questions
+            WHERE answer_text IS NOT NULL AND answer_text != ''
+              {mf}
+              AND ({ilike_parts})
+              AND (answer_text ILIKE :kw1 OR answer_text ILIKE :kw2
+                   OR answer_text ILIKE :kw3 OR answer_text ILIKE :kw4
+                   OR answer_text ILIKE :kw5 OR answer_text ILIKE :kw6
+                   OR answer_text ILIKE :kw7 OR answer_text ILIKE :kw8)
+            ORDER BY date_asked DESC NULLS LAST
+            LIMIT 4
+        """), fp_params).mappings().all()
+        out.extend(_rows_to_dicts(challenge, seen))
+
+        return out[:12]
+
     state_answers: list[dict] = []
     national_answers: list[dict] = []
 
     try:
         with engine.connect() as conn:
-            # State-specific: answers mentioning the MP's state — prefer those
-            # that also discuss funds/schools/infrastructure (not just outcome tables)
+            # ── State-specific pass ───────────────────────────────────────
             if state:
-                sp = {**base_params, "state": f"%{state}%"}
+                sp = {**base_params, **ministry_params, "state": f"%{state}%"}
                 state_rows = conn.execute(text(f"""
                     SELECT answer_text, subject, date_asked, question_type, session_name
                     FROM global_parliamentary_questions
@@ -233,7 +280,6 @@ def _fetch_scheme_answers_tiered(
                       AND ({ilike_parts})
                       AND answer_text ILIKE :state
                     ORDER BY
-                        -- prefer answers that discuss funds or schools in state context
                         (answer_text ILIKE '%crore%' OR answer_text ILIKE '%school%'
                          OR answer_text ILIKE '%fund%' OR answer_text ILIKE '%sanctioned%'
                          OR answer_text ILIKE '%operational%') DESC,
@@ -243,55 +289,40 @@ def _fetch_scheme_answers_tiered(
                 seen_state: set[str] = set()
                 state_answers = _rows_to_dicts(state_rows, seen_state)
 
-            # National pass 1: most recent 5
-            seen_national: set[str] = set()
-            recent = conn.execute(text(f"""
-                SELECT answer_text, subject, date_asked, question_type, session_name
-                FROM global_parliamentary_questions
-                WHERE answer_text IS NOT NULL AND answer_text != ''
-                  {ministry_filter}
-                  AND ({ilike_parts})
-                ORDER BY date_asked DESC NULLS LAST
-                LIMIT 5
-            """), base_params).mappings().all()
-            national_answers.extend(_rows_to_dicts(recent, seen_national))
+                # Fallback: if ministry filter blocked state results, retry without
+                if not state_answers and ministry_filter:
+                    sp_no_mf = {**base_params, "state": f"%{state}%"}
+                    state_rows_fb = conn.execute(text(f"""
+                        SELECT answer_text, subject, date_asked, question_type, session_name
+                        FROM global_parliamentary_questions
+                        WHERE answer_text IS NOT NULL AND answer_text != ''
+                          AND ({ilike_parts})
+                          AND answer_text ILIKE :state
+                        ORDER BY
+                            (answer_text ILIKE '%crore%' OR answer_text ILIKE '%school%'
+                             OR answer_text ILIKE '%fund%' OR answer_text ILIKE '%sanctioned%'
+                             OR answer_text ILIKE '%operational%') DESC,
+                            date_asked DESC NULLS LAST
+                        LIMIT 4
+                    """), sp_no_mf).mappings().all()
+                    seen_state2: set[str] = set()
+                    state_answers = _rows_to_dicts(state_rows_fb, seen_state2)
 
-            # National pass 2: longest 5 (most detailed answers)
-            longest = conn.execute(text(f"""
-                SELECT answer_text, subject, date_asked, question_type, session_name
-                FROM global_parliamentary_questions
-                WHERE answer_text IS NOT NULL AND answer_text != ''
-                  {ministry_filter}
-                  AND ({ilike_parts})
-                ORDER BY LENGTH(answer_text) DESC
-                LIMIT 5
-            """), base_params).mappings().all()
-            national_answers.extend(_rows_to_dicts(longest, seen_national))
+            # ── National passes — try with ministry filter, fall back without ──
+            params_with_mf = {**base_params, **ministry_params}
+            national_answers = _run_national_passes(conn, ministry_filter, params_with_mf)
 
-            # National pass 3: financial/challenge-focused answers (fund flow + gaps)
-            fp_params = {**base_params,
-                         "kw1": "%crore%", "kw2": "%allocated%", "kw3": "%released%",
-                         "kw4": "%shortage%", "kw5": "%delay%", "kw6": "%gap%",
-                         "kw7": "%pending%", "kw8": "%challenge%"}
-            challenge = conn.execute(text(f"""
-                SELECT answer_text, subject, date_asked, question_type, session_name
-                FROM global_parliamentary_questions
-                WHERE answer_text IS NOT NULL AND answer_text != ''
-                  {ministry_filter}
-                  AND ({ilike_parts})
-                  AND (answer_text ILIKE :kw1 OR answer_text ILIKE :kw2
-                       OR answer_text ILIKE :kw3 OR answer_text ILIKE :kw4
-                       OR answer_text ILIKE :kw5 OR answer_text ILIKE :kw6
-                       OR answer_text ILIKE :kw7 OR answer_text ILIKE :kw8)
-                ORDER BY date_asked DESC NULLS LAST
-                LIMIT 4
-            """), fp_params).mappings().all()
-            national_answers.extend(_rows_to_dicts(challenge, seen_national))
+            if not national_answers and ministry_filter:
+                logger.info(
+                    "Ministry filter yielded 0 answers for '%s' (%s) — retrying without",
+                    scheme_name, ministry,
+                )
+                national_answers = _run_national_passes(conn, "", base_params)
 
     except Exception as e:
         logger.error("_fetch_scheme_answers_tiered failed: %s", e)
 
-    return {"state_answers": state_answers, "national_answers": national_answers[:12]}
+    return {"state_answers": state_answers, "national_answers": national_answers}
 
 
 # ── GPT call (3-layer brief) ──────────────────────────────────────────────────
