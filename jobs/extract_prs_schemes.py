@@ -308,7 +308,8 @@ def run_extraction(full: bool = False, _progress: dict = None) -> dict:
 
     if not rows:
         logger.info("No new subjects to process.")
-        return {"processed": 0, "schemes_upserted": 0}
+        return {"subjects_processed": 0, "rule_matched": 0, "gpt_subjects": 0,
+                "gpt_calls": 0, "schemes_upserted": 0, "new_watermark": watermark}
 
     total_rows = len(rows)
     logger.info("Processing %d subjects", total_rows)

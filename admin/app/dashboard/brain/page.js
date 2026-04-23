@@ -1034,7 +1034,7 @@ function GlobalCorpusTab() {
                                                 : j.summary.tagged != null
                                                 ? `tagged: ${j.summary.tagged} · batches: ${j.summary.batches} · skipped: ${j.summary.skipped}`
                                                 : j.summary.schemes_upserted != null
-                                                ? `${j.summary.mode || 'run'} · schemes upserted: ${j.summary.schemes_upserted} · subjects: ${j.summary.subjects_processed} · rule: ${j.summary.rule_matched} · gpt calls: ${j.summary.gpt_calls}${j.summary.prs_schemes_stats?.total_schemes != null ? ` · total in DB: ${j.summary.prs_schemes_stats.total_schemes} (${j.summary.prs_schemes_stats.ministries} ministries)` : ''}`
+                                                ? `${j.summary.mode || 'run'} · schemes upserted: ${j.summary.schemes_upserted} · subjects: ${j.summary.subjects_processed ?? 0} · rule: ${j.summary.rule_matched ?? 0} · gpt calls: ${j.summary.gpt_calls ?? 0}${j.summary.prs_schemes_stats?.total_schemes != null ? ` · total in DB: ${j.summary.prs_schemes_stats.total_schemes} (${j.summary.prs_schemes_stats.ministries} ministries)` : ''}`
                                                 : JSON.stringify(j.summary).slice(0, 120)
                                             }
                                         </div>
