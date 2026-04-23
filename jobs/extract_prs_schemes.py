@@ -164,36 +164,87 @@ def _gpt_extract_batch(subjects: list[str]) -> list[dict]:
 
 # ── Normalisation & dedup ─────────────────────────────────────────────────────
 
+# Ordered longest-first so the right prefix is consumed
+_STRIP_PREFIXES = [
+    "centrally sponsored ", "government of india ", "govt of india ",
+    "pradhan mantri ", "prime minister ", "national ", "central ", "pm-", "pm ",
+]
+_STRIP_SUFFIXES = [
+    " programme", " initiative", " authority", " campaign", " abhiyan",
+    " mission", " project", " scheme", " policy", " yojana", " nidhi",
+    " board", " fund",
+]
+
+
 def _normalise(name: str) -> str:
-    """Canonical form: strip leading articles, normalise spaces, title-case."""
+    """Canonical form: normalise spaces, strip trailing punctuation."""
     name = re.sub(r"\s+", " ", name).strip()
-    # Remove trailing punctuation
     name = name.rstrip(".,;:-")
     return name
 
 
 def _canonical_key(name: str) -> str:
-    """Lowercase, no punctuation, no spaces — for dedup comparison."""
+    """Lowercase, no punctuation, no spaces — for exact dedup comparison."""
     return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+def _semantic_key(name: str) -> str:
+    """
+    Strip common Indian govt scheme prefix/suffix terms for similarity grouping.
+    'Pradhan Mantri Awas Yojana', 'PM Awas Yojana', 'PM Awas Scheme' → 'awas'
+    'Swachh Bharat Mission', 'Swachh Bharat Abhiyan' → 'swachhbharat'
+    """
+    s = re.sub(r"[^a-z0-9\s]", " ", name.lower())
+    s = re.sub(r"\s+", " ", s).strip()
+    for p in _STRIP_PREFIXES:
+        if s.startswith(p):
+            s = s[len(p):].strip()
+            break
+    for sfx in _STRIP_SUFFIXES:
+        if s.endswith(sfx):
+            s = s[:-len(sfx)].strip()
+            break
+    return re.sub(r"\s+", "", s)
+
+
+def _expand_name(name: str) -> str:
+    """Expand 'PM ' prefix to 'Pradhan Mantri ' before upsert for consistency."""
+    return re.sub(r"^PM[\s\-]+", "Pradhan Mantri ", name.strip(), flags=re.IGNORECASE)
 
 
 # ── DB upsert ────────────────────────────────────────────────────────────────
 
 def _upsert_scheme(name: str, full_name: str, ministry: Optional[str],
-                   alias: Optional[str], date_seen: Optional[str]):
-    """Insert or update a scheme in prs_schemes."""
-    canonical = _normalise(name)
+                   alias: Optional[str], date_seen: Optional[str],
+                   _sem_cache: Optional[dict] = None):
+    """
+    Insert or update a scheme in prs_schemes.
+    _sem_cache: optional {semantic_key → id} dict for batch-mode dedup.
+    """
+    canonical = _normalise(_expand_name(name))
     if not canonical or len(canonical) < 4:
         return
 
+    sem_key = _semantic_key(canonical)
+
     try:
         with engine.begin() as conn:
-            # Check if already exists (by canonical key similarity)
+            existing = None
+
+            # 1. Exact canonical match (fast path via DB index)
             existing = conn.execute(text("""
                 SELECT id, name, aliases FROM prs_schemes
                 WHERE LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]', '', 'g'))
                     = LOWER(REGEXP_REPLACE(:cname, '[^a-zA-Z0-9]', '', 'g'))
             """), {"cname": canonical}).mappings().fetchone()
+
+            # 2. Semantic key match via in-memory cache (avoids full-table scan)
+            if not existing and _sem_cache is not None and len(sem_key) >= 5:
+                existing_id = _sem_cache.get(sem_key)
+                if existing_id:
+                    existing = conn.execute(text(
+                        "SELECT id, name, aliases FROM prs_schemes WHERE id = :id"
+                    ), {"id": existing_id}).mappings().fetchone()
 
             if existing:
                 # Update last_seen, add alias if new
@@ -211,9 +262,11 @@ def _upsert_scheme(name: str, full_name: str, ministry: Optional[str],
                     "aliases": new_aliases,
                     "id":      existing["id"],
                 })
+                if _sem_cache is not None and len(sem_key) >= 5:
+                    _sem_cache.setdefault(sem_key, existing["id"])
             else:
                 aliases_arr = [alias] if alias and alias != canonical else []
-                conn.execute(text("""
+                result = conn.execute(text("""
                     INSERT INTO prs_schemes
                         (name, full_name, ministry, aliases, first_seen, last_seen)
                     VALUES
@@ -222,14 +275,19 @@ def _upsert_scheme(name: str, full_name: str, ministry: Optional[str],
                     ON CONFLICT (name) DO UPDATE SET
                         last_seen  = GREATEST(prs_schemes.last_seen, CAST(:last AS DATE)),
                         updated_at = NOW()
+                    RETURNING id
                 """), {
                     "name":      canonical,
-                    "full_name": _normalise(full_name) if full_name else canonical,
+                    "full_name": _normalise(_expand_name(full_name)) if full_name else canonical,
                     "ministry":  ministry,
                     "aliases":   aliases_arr,
                     "first":     date_seen or "2024-01-01",
                     "last":      date_seen or "2024-01-01",
                 })
+                if _sem_cache is not None and len(sem_key) >= 5:
+                    row = result.fetchone()
+                    if row:
+                        _sem_cache.setdefault(sem_key, row[0])
     except Exception as e:
         logger.debug("Upsert scheme '%s' failed: %s", canonical, e)
 
@@ -308,13 +366,28 @@ def run_extraction(full: bool = False, _progress: dict = None) -> dict:
 
     if not rows:
         logger.info("No new subjects to process.")
-        return {"processed": 0, "schemes_upserted": 0}
+        return {"subjects_processed": 0, "rule_matched": 0, "gpt_subjects": 0,
+                "gpt_calls": 0, "schemes_upserted": 0, "new_watermark": watermark}
 
     total_rows = len(rows)
     logger.info("Processing %d subjects", total_rows)
     max_id = max(r["id"] for r in rows)
 
     _upd(0, total_rows, "subjects (rule pass)")
+
+    # Build semantic key cache from existing schemes to prevent batch duplicates
+    _sem_cache: dict[str, int] = {}
+    try:
+        with engine.connect() as conn:
+            existing_schemes = conn.execute(text(
+                "SELECT id, name FROM prs_schemes"
+            )).mappings().all()
+        for s in existing_schemes:
+            key = _semantic_key(s["name"])
+            if len(key) >= 5:
+                _sem_cache.setdefault(key, s["id"])
+    except Exception:
+        pass  # cache is optional; fall back to exact-match only
 
     rule_matched = 0
     gpt_subjects = []
@@ -330,7 +403,8 @@ def run_extraction(full: bool = False, _progress: dict = None) -> dict:
         if found:
             rule_matched += 1
             for scheme_name in found:
-                _upsert_scheme(scheme_name, scheme_name, ministry, None, date_str)
+                _upsert_scheme(scheme_name, scheme_name, ministry, None, date_str,
+                               _sem_cache=_sem_cache)
                 schemes_upserted += 1
         else:
             gpt_subjects.append(subject)
@@ -355,7 +429,6 @@ def run_extraction(full: bool = False, _progress: dict = None) -> dict:
                 name = (item.get("name") or "").strip()
                 if not name or len(name) < 4:
                     continue
-                # Find the most relevant ministry from the batch meta
                 ministry = item.get("ministry") or None
                 if not ministry:
                     for subj in batch:
@@ -367,7 +440,8 @@ def run_extraction(full: bool = False, _progress: dict = None) -> dict:
                     if name.lower()[:8] in subj.lower():
                         date_str = gpt_meta[subj]["date"]
                         break
-                _upsert_scheme(name, item.get("full_name") or name, ministry, None, date_str)
+                _upsert_scheme(name, item.get("full_name") or name, ministry, None, date_str,
+                               _sem_cache=_sem_cache)
                 schemes_upserted += 1
             gpt_calls += 1
             _upd(gpt_calls, total_batches, "GPT batches")
@@ -409,6 +483,292 @@ def get_stats() -> dict:
         return dict(r) if r else {}
     except Exception as e:
         return {"error": str(e)}
+
+
+# ── Deduplication ─────────────────────────────────────────────────────────────
+
+def deduplicate_schemes(dry_run: bool = False) -> dict:
+    """
+    Find and merge near-duplicate scheme names in prs_schemes.
+
+    Groups schemes by semantic key (strips common PM/National prefixes and
+    Yojana/Mission/Scheme suffixes). Within each duplicate group, the row
+    with the highest answer_count wins; losers are added as aliases and deleted.
+
+    dry_run=True returns the duplicate report without making any changes.
+    """
+    from collections import defaultdict
+
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT id, name, full_name, ministry, aliases, answer_count, first_seen, last_seen
+            FROM prs_schemes
+            ORDER BY COALESCE(answer_count, 0) DESC, first_seen ASC NULLS LAST
+        """)).mappings().all()
+
+    total_before = len(rows)
+
+    # Group by semantic key; skip keys that are too short (false-positive risk)
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for row in rows:
+        key = _semantic_key(row["name"])
+        if len(key) >= 5:
+            groups[key].append(dict(row))
+
+    duplicate_groups = {k: v for k, v in groups.items() if len(v) > 1}
+
+    if dry_run:
+        examples = [
+            {"key": k, "schemes": [s["name"] for s in v]}
+            for k, v in sorted(duplicate_groups.items(),
+                               key=lambda x: len(x[1]), reverse=True)[:20]
+        ]
+        return {
+            "duplicate_groups": len(duplicate_groups),
+            "rows_to_delete": sum(len(v) - 1 for v in duplicate_groups.values()),
+            "total_schemes": total_before,
+            "schemes_after_dedup": total_before - sum(len(v) - 1 for v in duplicate_groups.values()),
+            "examples": examples,
+        }
+
+    merged = 0
+    deleted = 0
+
+    with engine.begin() as conn:
+        for key, schemes in duplicate_groups.items():
+            winner = schemes[0]  # highest answer_count (ORDER BY above)
+            losers  = schemes[1:]
+
+            all_aliases  = list(winner.get("aliases") or [])
+            total_count  = winner.get("answer_count") or 0
+
+            for loser in losers:
+                if loser["name"] not in all_aliases and loser["name"] != winner["name"]:
+                    all_aliases.append(loser["name"])
+                for a in (loser.get("aliases") or []):
+                    if a not in all_aliases and a != winner["name"]:
+                        all_aliases.append(a)
+                total_count += loser.get("answer_count") or 0
+                deleted += 1
+
+            conn.execute(text("""
+                UPDATE prs_schemes
+                SET aliases = :aliases, answer_count = :count, updated_at = NOW()
+                WHERE id = :id
+            """), {"aliases": all_aliases, "count": total_count, "id": winner["id"]})
+
+            loser_ids   = [l["id"]   for l in losers]
+            loser_names = [l["name"] for l in losers]
+            conn.execute(text("DELETE FROM prs_schemes WHERE id = ANY(:ids)"),
+                         {"ids": loser_ids})
+            conn.execute(text(
+                "DELETE FROM scheme_intelligence_cache WHERE scheme_name = ANY(:names)"
+            ), {"names": loser_names})
+
+            merged += 1
+
+    # Invalidate runtime ministry overview cache
+    try:
+        from modules.schemes_api import _runtime_cache
+        _runtime_cache.clear()
+    except Exception:
+        pass
+
+    logger.info("Dedup done: %d groups merged, %d rows deleted", merged, deleted)
+    return {
+        "groups_merged":     merged,
+        "rows_deleted":      deleted,
+        "schemes_before":    total_before,
+        "schemes_remaining": total_before - deleted,
+    }
+
+
+# ── Acronym deduplication ─────────────────────────────────────────────────────
+
+# Known acronym → canonical full name. Used as first-pass lookup before
+# the pattern generator runs. Add entries here when new common acronyms appear.
+_ACRONYM_DICT: dict[str, str] = {
+    "MGNREGS":  "Mahatma Gandhi National Rural Employment Guarantee Scheme",
+    "MGNREGA":  "Mahatma Gandhi National Rural Employment Guarantee Act",
+    "NREGA":    "National Rural Employment Guarantee Act",
+    "PMJAY":    "Pradhan Mantri Jan Arogya Yojana",
+    "PMKVY":    "Pradhan Mantri Kaushal Vikas Yojana",
+    "PMGSY":    "Pradhan Mantri Gram Sadak Yojana",
+    "PMAY":     "Pradhan Mantri Awas Yojana",
+    "PMFBY":    "Pradhan Mantri Fasal Bima Yojana",
+    "PMJDY":    "Pradhan Mantri Jan Dhan Yojana",
+    "PMKISAN":  "Pradhan Mantri Kisan Samman Nidhi",
+    "PMKUSUM":  "Pradhan Mantri Kisan Urja Suraksha evam Utthan Mahabhiyan",
+    "PMEGP":    "Pradhan Mantri Employment Generation Programme",
+    "PMVVY":    "Pradhan Mantri Vaya Vandana Yojana",
+    "PMMSY":    "Pradhan Mantri Matsya Sampada Yojana",
+    "PMSBY":    "Pradhan Mantri Suraksha Bima Yojana",
+    "PMJJBY":   "Pradhan Mantri Jeevan Jyoti Bima Yojana",
+    "AMRUT":    "Atal Mission for Rejuvenation and Urban Transformation",
+    "JNNURM":   "Jawaharlal Nehru National Urban Renewal Mission",
+    "RKVY":     "Rashtriya Krishi Vikas Yojana",
+    "NHM":      "National Health Mission",
+    "NRHM":     "National Rural Health Mission",
+    "NUHM":     "National Urban Health Mission",
+    "ICDS":     "Integrated Child Development Services",
+    "MDM":      "Mid Day Meal Scheme",
+    "SSA":      "Sarva Shiksha Abhiyan",
+    "RMSA":     "Rashtriya Madhyamik Shiksha Abhiyan",
+    "RUSA":     "Rashtriya Uchchatar Shiksha Abhiyan",
+    "NEP":      "National Education Policy",
+    "DBT":      "Direct Benefit Transfer",
+    "JAM":      "Jan Dhan Aadhaar Mobile",
+    "UDAN":     "Ude Desh ka Aam Naagrik",
+    "HRIDAY":   "Heritage City Development and Augmentation Yojana",
+    "PRASAD":   "Pilgrimage Rejuvenation and Spiritual Augmentation Drive",
+    "SWAYAM":   "Study Webs of Active Learning for Young Aspiring Minds",
+    "SMILE":    "Support for Marginalised Individuals for Livelihood and Enterprise",
+    "TULIP":    "The Urban Learning Internship Programme",
+    "ASPIRE":   "A Scheme for Promotion of Innovation Rural Industries and Entrepreneurship",
+    "MUDRA":    "Micro Units Development and Refinance Agency",
+    "ATAL":     "Atal Innovation Mission",
+    "PLI":      "Production Linked Incentive",
+    "FAME":     "Faster Adoption and Manufacturing of Hybrid and Electric Vehicles",
+    "POSHAN":   "Prime Ministers Overarching Scheme for Holistic Nourishment",
+    "NIPUN":    "National Initiative for Proficiency in Reading with Understanding and Numeracy",
+}
+
+_ACRONYM_RE = re.compile(r"^[A-Z][A-Z0-9\-]{1,9}$")
+
+_ACRONYM_STOPWORDS = {
+    "of", "for", "the", "and", "in", "under", "to", "a", "an", "on", "at",
+    "from", "by", "with", "its", "their",
+}
+
+
+def _generate_acronyms(name: str) -> set[str]:
+    """
+    Generate candidate acronyms from a multi-word scheme name.
+    'Pradhan Mantri Awas Yojana' → {'PMAY'}
+    'Mahatma Gandhi National Rural Employment Guarantee Scheme' → {'MGNREGS', 'MGNREG'}
+    """
+    candidates: set[str] = set()
+    words = [w for w in re.sub(r"[^a-zA-Z0-9\s]", " ", name).split() if w]
+    if len(words) < 2:
+        return candidates
+
+    # All-words first letter
+    candidates.add("".join(w[0].upper() for w in words))
+
+    # Without stop words (generates alternate forms)
+    filtered = [w for w in words if w.lower() not in _ACRONYM_STOPWORDS]
+    if 1 < len(filtered) < len(words):
+        candidates.add("".join(w[0].upper() for w in filtered))
+
+    return candidates
+
+
+def deduplicate_acronyms(dry_run: bool = False) -> dict:
+    """
+    Match acronym-form scheme rows (PMAY, NHM, MGNREGS …) to their full-name
+    counterparts using two strategies:
+
+    1. Hardcoded _ACRONYM_DICT — catches known/irregular pairs
+    2. Pattern generation — first letter of each word in every full name;
+       if that string matches an acronym row, merge them
+
+    Full-name row is always the winner; acronym becomes an alias.
+    Should be run AFTER deduplicate_schemes() on clean data.
+    """
+    with engine.connect() as conn:
+        all_rows = conn.execute(text("""
+            SELECT id, name, full_name, ministry, aliases, answer_count
+            FROM prs_schemes
+            ORDER BY COALESCE(answer_count, 0) DESC
+        """)).mappings().all()
+
+    schemes    = [dict(r) for r in all_rows]
+    acronyms   = [s for s in schemes if _ACRONYM_RE.match(s["name"].strip())]
+    full_names = [s for s in schemes if not _ACRONYM_RE.match(s["name"].strip())]
+
+    # Build reverse lookup: generated acronym string → full-name scheme
+    # (first scheme with highest answer_count wins when there are collisions)
+    acr_to_full: dict[str, dict] = {}
+    for s in full_names:
+        for acr in _generate_acronyms(s["name"]):
+            acr_to_full.setdefault(acr, s)
+
+    # Also index full names by semantic key for dict-based lookup
+    sem_to_full: dict[str, dict] = {}
+    for s in full_names:
+        key = _semantic_key(s["name"])
+        if len(key) >= 4:
+            sem_to_full.setdefault(key, s)
+
+    merge_pairs: list[tuple[dict, dict]] = []
+    seen_full_ids: set[int] = set()
+
+    for acro in acronyms:
+        raw  = acro["name"].strip()
+        norm = raw.upper().replace("-", "").replace(" ", "")
+
+        target = None
+
+        # Strategy 1 — hardcoded dictionary
+        canon = _ACRONYM_DICT.get(norm) or _ACRONYM_DICT.get(raw)
+        if canon:
+            target = sem_to_full.get(_semantic_key(canon))
+
+        # Strategy 2 — pattern generation
+        if not target:
+            target = acr_to_full.get(norm)
+
+        if target and target["id"] != acro["id"] and target["id"] not in seen_full_ids:
+            merge_pairs.append((acro, target))
+            seen_full_ids.add(target["id"])
+
+    if dry_run:
+        return {
+            "acronym_pairs_found": len(merge_pairs),
+            "acronym_pairs": [
+                {"acronym": a["name"], "full_name": f["name"]}
+                for a, f in merge_pairs[:40]
+            ],
+        }
+
+    merged = 0
+    with engine.begin() as conn:
+        for acro, full in merge_pairs:
+            all_aliases = list(full.get("aliases") or [])
+            if acro["name"] not in all_aliases:
+                all_aliases.append(acro["name"])
+            for a in (acro.get("aliases") or []):
+                if a not in all_aliases and a != full["name"]:
+                    all_aliases.append(a)
+
+            total_count = (full.get("answer_count") or 0) + (acro.get("answer_count") or 0)
+
+            conn.execute(text("""
+                UPDATE prs_schemes
+                SET aliases = :aliases, answer_count = :count, updated_at = NOW()
+                WHERE id = :id
+            """), {"aliases": all_aliases, "count": total_count, "id": full["id"]})
+
+            conn.execute(text("DELETE FROM prs_schemes WHERE id = :id"),
+                         {"id": acro["id"]})
+            conn.execute(text(
+                "DELETE FROM scheme_intelligence_cache WHERE scheme_name = :name"
+            ), {"name": acro["name"]})
+
+            merged += 1
+
+    try:
+        from modules.schemes_api import _runtime_cache
+        _runtime_cache.clear()
+    except Exception:
+        pass
+
+    logger.info("Acronym dedup done: %d pairs merged", merged)
+    return {
+        "acronym_pairs_merged": merged,
+        "schemes_before":       len(schemes),
+        "schemes_remaining":    len(schemes) - merged,
+    }
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────

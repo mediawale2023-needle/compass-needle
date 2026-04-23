@@ -4116,6 +4116,40 @@ def trigger_scheme_extract(
             "message": "Scheme extraction started (auto-detects full vs incremental)…"}
 
 
+@router.get("/brain/scheme-dedup-preview")
+def scheme_dedup_preview(user=Depends(get_admin_user)):
+    """
+    Dry-run: return duplicate groups and acronym matches without making any changes.
+    Pass 1 — semantic (PM Awas vs Pradhan Mantri Awas, Mission vs Abhiyan …)
+    Pass 2 — acronym   (PMAY → Pradhan Mantri Awas Yojana, NHM → National Health Mission …)
+    """
+    try:
+        from jobs.extract_prs_schemes import deduplicate_schemes, deduplicate_acronyms
+        semantic = deduplicate_schemes(dry_run=True)
+        acronym  = deduplicate_acronyms(dry_run=True)
+        return {**semantic, **acronym}
+    except Exception as e:
+        logger.exception("scheme_dedup_preview failed")
+        raise HTTPException(500, "Dedup preview failed")
+
+
+@router.post("/brain/scheme-dedup")
+def trigger_scheme_dedup(user=Depends(get_admin_user)):
+    """
+    Two-pass dedup of prs_schemes. Synchronous — typically completes in <10 seconds.
+    Pass 1 — semantic key grouping (strips prefix/suffix variant names)
+    Pass 2 — acronym matching     (dictionary + pattern generation)
+    """
+    try:
+        from jobs.extract_prs_schemes import deduplicate_schemes, deduplicate_acronyms
+        sem = deduplicate_schemes(dry_run=False)
+        acr = deduplicate_acronyms(dry_run=False)
+        return {"ok": True, **sem, **acr}
+    except Exception as e:
+        logger.exception("scheme_dedup failed")
+        raise HTTPException(500, "Dedup failed")
+
+
 @router.post("/brain/global-seed")
 async def trigger_global_seed(request: Request, user=Depends(get_admin_user)):
     """

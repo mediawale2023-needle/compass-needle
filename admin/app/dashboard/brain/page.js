@@ -766,6 +766,164 @@ function SeedPanel() {
 }
 
 
+// ─── Scheme Dedup Panel ───────────────────────────────────────────────────────
+function DedupPanel({ disabled }) {
+    const [preview, setPreview] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [running, setRunning] = useState(false);
+    const [result,  setResult]  = useState(null);
+
+    const loadPreview = async () => {
+        setLoading(true);
+        setPreview(null);
+        setResult(null);
+        try {
+            const d = await apiGet('/api/admin/brain/scheme-dedup-preview');
+            setPreview(d);
+        } catch (e) {
+            setPreview({ error: e.message });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const runDedup = async () => {
+        setRunning(true);
+        setResult(null);
+        try {
+            const d = await apiPost('/api/admin/brain/scheme-dedup', {});
+            setResult(d);
+            setPreview(null);
+        } catch (e) {
+            setResult({ error: e.message });
+        } finally {
+            setRunning(false);
+        }
+    };
+
+    return (
+        <div style={{
+            background: '#0d1117', border: '1px solid #292524',
+            borderRadius: 8, padding: '10px 14px', marginBottom: 10,
+        }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                    <div style={{ color: '#d6d3d1', fontSize: 12, fontWeight: 600 }}>
+                        Deduplicate Schemes
+                    </div>
+                    <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>
+                        Merge near-duplicates (PM vs Pradhan Mantri, Mission vs Abhiyan, etc.)
+                    </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                        onClick={loadPreview}
+                        disabled={disabled || loading || running}
+                        style={{
+                            background: 'none', border: '1px solid #44403c',
+                            color: '#a8a29e', borderRadius: 6,
+                            padding: '6px 12px', fontSize: 11,
+                            cursor: (disabled || loading || running) ? 'not-allowed' : 'pointer',
+                        }}
+                    >
+                        {loading ? '⟳ Checking…' : 'Preview'}
+                    </button>
+                    {preview && !preview.error && ((preview.rows_to_delete ?? 0) + (preview.acronym_pairs_found ?? 0)) > 0 && (
+                        <button
+                            onClick={runDedup}
+                            disabled={running}
+                            style={{
+                                background: running ? '#374151' : '#92400e',
+                                color: '#fff', border: 'none', borderRadius: 6,
+                                padding: '6px 14px', fontSize: 11,
+                                cursor: running ? 'not-allowed' : 'pointer',
+                            }}
+                        >
+                            {running ? '⟳ Merging…' : `Merge ${(preview.rows_to_delete ?? 0) + (preview.acronym_pairs_found ?? 0)} dupes`}
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Preview results */}
+            {preview && !preview.error && (
+                <div style={{ marginTop: 10 }}>
+                    <div style={{ display: 'flex', gap: 16, marginBottom: 10, flexWrap: 'wrap' }}>
+                        {[
+                            ['Semantic groups',  preview.duplicate_groups,     '#f59e0b'],
+                            ['Acronym pairs',    preview.acronym_pairs_found,  '#818cf8'],
+                            ['Rows to delete',   (preview.rows_to_delete ?? 0) + (preview.acronym_pairs_found ?? 0), '#ef4444'],
+                            ['After dedup',      (preview.schemes_after_dedup ?? 0) - (preview.acronym_pairs_found ?? 0), '#22c55e'],
+                        ].map(([l, v, c]) => (
+                            <div key={l} style={{ textAlign: 'center' }}>
+                                <div style={{ color: c, fontSize: 16, fontWeight: 700 }}>{v ?? '—'}</div>
+                                <div style={{ color: '#6b7280', fontSize: 10 }}>{l}</div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Semantic duplicates */}
+                    {preview.examples && preview.examples.length > 0 && (
+                        <div style={{
+                            background: '#111827', borderRadius: 6, padding: '8px 10px',
+                            maxHeight: 130, overflowY: 'auto', marginBottom: 8,
+                        }}>
+                            <div style={{ color: '#6b7280', fontSize: 10, marginBottom: 6 }}>
+                                SEMANTIC DUPLICATES (PM vs Pradhan Mantri, Mission vs Abhiyan…)
+                            </div>
+                            {preview.examples.map((ex, i) => (
+                                <div key={i} style={{ marginBottom: 5 }}>
+                                    <span style={{ color: '#4b5563', fontSize: 10 }}>[{ex.key}]&nbsp;</span>
+                                    <span style={{ color: '#9ca3af', fontSize: 11 }}>{ex.schemes.join(' · ')}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Acronym pairs */}
+                    {preview.acronym_pairs && preview.acronym_pairs.length > 0 && (
+                        <div style={{
+                            background: '#111827', borderRadius: 6, padding: '8px 10px',
+                            maxHeight: 130, overflowY: 'auto',
+                        }}>
+                            <div style={{ color: '#6b7280', fontSize: 10, marginBottom: 6 }}>
+                                ACRONYM MATCHES (PMAY → Pradhan Mantri Awas Yojana…)
+                            </div>
+                            {preview.acronym_pairs.map((p, i) => (
+                                <div key={i} style={{ marginBottom: 5 }}>
+                                    <span style={{ color: '#818cf8', fontSize: 11, fontWeight: 600 }}>{p.acronym}</span>
+                                    <span style={{ color: '#4b5563', fontSize: 11 }}> → </span>
+                                    <span style={{ color: '#9ca3af', fontSize: 11 }}>{p.full_name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Merge result */}
+            {result && (
+                <div style={{
+                    marginTop: 10, padding: '7px 10px', borderRadius: 6, fontSize: 12,
+                    background: result.error ? '#2d1f1f' : '#1a2e1f',
+                    color: result.error ? '#ef4444' : '#22c55e',
+                }}>
+                    {result.error
+                        ? `Error: ${result.error}`
+                        : `Done — ${result.groups_merged ?? 0} semantic groups + ${result.acronym_pairs_merged ?? 0} acronym pairs merged · ${result.rows_deleted ?? 0} rows deleted · ${result.schemes_remaining ?? '?'} schemes remain`}
+                </div>
+            )}
+
+            {preview?.error && (
+                <div style={{ marginTop: 8, color: '#ef4444', fontSize: 11 }}>
+                    {preview.error}
+                </div>
+            )}
+        </div>
+    );
+}
+
+
 // ─── Global Corpus Tab ────────────────────────────────────────────────────────
 function GlobalCorpusTab() {
     const [globalStats, setGlobalStats] = useState(null);
@@ -1034,7 +1192,7 @@ function GlobalCorpusTab() {
                                                 : j.summary.tagged != null
                                                 ? `tagged: ${j.summary.tagged} · batches: ${j.summary.batches} · skipped: ${j.summary.skipped}`
                                                 : j.summary.schemes_upserted != null
-                                                ? `${j.summary.mode || 'run'} · schemes upserted: ${j.summary.schemes_upserted} · subjects: ${j.summary.subjects_processed} · rule: ${j.summary.rule_matched} · gpt calls: ${j.summary.gpt_calls}${j.summary.prs_schemes_stats?.total_schemes != null ? ` · total in DB: ${j.summary.prs_schemes_stats.total_schemes} (${j.summary.prs_schemes_stats.ministries} ministries)` : ''}`
+                                                ? `${j.summary.mode || 'run'} · schemes upserted: ${j.summary.schemes_upserted} · subjects: ${j.summary.subjects_processed ?? 0} · rule: ${j.summary.rule_matched ?? 0} · gpt calls: ${j.summary.gpt_calls ?? 0}${j.summary.prs_schemes_stats?.total_schemes != null ? ` · total in DB: ${j.summary.prs_schemes_stats.total_schemes} (${j.summary.prs_schemes_stats.ministries} ministries)` : ''}`
                                                 : JSON.stringify(j.summary).slice(0, 120)
                                             }
                                         </div>
@@ -1211,6 +1369,7 @@ function GlobalCorpusTab() {
                     accent="#b45309"
                     disabled={anyRunning}
                 />
+                <DedupPanel disabled={anyRunning} />
 
                 <div style={{
                     marginTop: 20, background: '#0d1117',
