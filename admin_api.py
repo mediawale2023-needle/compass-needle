@@ -4069,6 +4069,52 @@ def trigger_global_rematch(user=Depends(get_admin_user)):
         raise HTTPException(500, str(e))
 
 
+@router.post("/brain/scheme-extract")
+def trigger_scheme_extract(
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_admin_user),
+):
+    """
+    Extract scheme names from global_parliamentary_questions into prs_schemes.
+    First run: full extraction over all subjects (~15 min, minimal GPT cost).
+    Subsequent runs: incremental (only new subjects since last watermark).
+    """
+    job_id = f"scheme_extract_{uuid.uuid4().hex[:10]}"
+    _global_crawl_jobs[job_id] = {
+        "type": "scheme_extract", "status": "running",
+        "started_at": datetime.utcnow().isoformat() + "Z",
+        "finished_at": None, "summary": None, "error": None,
+    }
+
+    def _run():
+        try:
+            from jobs.extract_prs_schemes import run_extraction, get_stats
+            from sansadx_backend.db import engine as _engine
+            from sqlalchemy import text as _text
+            # Check if prs_schemes is empty → full run, else incremental
+            with _engine.connect() as conn:
+                cnt = conn.execute(_text("SELECT COUNT(*) FROM prs_schemes")).scalar()
+            full = (cnt == 0)
+            summary = run_extraction(full=full)
+            summary["prs_schemes_stats"] = get_stats()
+            summary["mode"] = "full" if full else "incremental"
+            _global_crawl_jobs[job_id]["status"]  = "done"
+            _global_crawl_jobs[job_id]["summary"] = summary
+        except Exception as e:
+            logger.exception("scheme_extract failed: %s", e)
+            _global_crawl_jobs[job_id]["status"] = "error"
+            _global_crawl_jobs[job_id]["error"]  = str(e)
+        _global_crawl_jobs[job_id]["finished_at"] = datetime.utcnow().isoformat() + "Z"
+
+    if background_tasks:
+        background_tasks.add_task(_run)
+    else:
+        threading.Thread(target=_run, daemon=True).start()
+
+    return {"ok": True, "job_id": job_id,
+            "message": "Scheme extraction started (auto-detects full vs incremental)…"}
+
+
 @router.post("/brain/global-seed")
 async def trigger_global_seed(request: Request, user=Depends(get_admin_user)):
     """

@@ -1033,6 +1033,8 @@ function GlobalCorpusTab() {
                                                 ? `${j.summary.chunks_inserted} chunks inserted · ${j.summary.embeddings_made} embeddings · ${j.summary.chunks_new} new (${j.summary.chunks_proposed} proposed)`
                                                 : j.summary.tagged != null
                                                 ? `tagged: ${j.summary.tagged} · batches: ${j.summary.batches} · skipped: ${j.summary.skipped}`
+                                                : j.summary.schemes_upserted != null
+                                                ? `${j.summary.mode || 'run'} · schemes upserted: ${j.summary.schemes_upserted} · subjects: ${j.summary.subjects_processed} · rule: ${j.summary.rule_matched} · gpt calls: ${j.summary.gpt_calls}${j.summary.prs_schemes_stats?.total_schemes != null ? ` · total in DB: ${j.summary.prs_schemes_stats.total_schemes} (${j.summary.prs_schemes_stats.ministries} ministries)` : ''}`
                                                 : JSON.stringify(j.summary).slice(0, 120)
                                             }
                                         </div>
@@ -1195,6 +1197,18 @@ function GlobalCorpusTab() {
                     desc="Index global_pq_qa chunks into memory_chunks for retrieval"
                     onClick={() => trigger('/api/admin/brain/global-index', { only_with_answers: indexAnswersOnly, rebuild: indexRebuild })}
                     accent="#166534"
+                    disabled={anyRunning}
+                />
+
+                {/* Step 5 */}
+                <div style={{ color: '#4b5563', fontSize: 10, margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 1 }}>
+                    Step 5 — Build Scheme Intelligence
+                </div>
+                <BtnRow
+                    label="Build Scheme Index"
+                    desc="Extract government schemes from 42K+ PQs and power the Schemes module — auto full vs incremental"
+                    onClick={() => trigger('/api/admin/brain/scheme-extract', {})}
+                    accent="#b45309"
                     disabled={anyRunning}
                 />
 
