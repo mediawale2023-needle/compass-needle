@@ -2,9 +2,14 @@
 modules/schemes_api.py — Scheme Intelligence Engine.
 
 Three public functions consumed by api_router.py:
-  get_ministry_overview()          → all ministries with scheme + answer counts
-  get_ministry_schemes(ministry)   → schemes under one ministry
-  get_scheme_intelligence(name)    → AI-structured 6-section brief (cached)
+  get_ministry_overview()                     → all ministries with scheme + answer counts
+  get_ministry_schemes(ministry)              → schemes under one ministry
+  get_scheme_intelligence(name, tenant_id)    → AI-structured 3-layer brief (cached per state)
+
+The intelligence brief has three layers:
+  • Your State   — what Parliament said specifically about the MP's state
+  • National     — aggregate numbers and overall ministry position
+  • Other States — how other states compare
 
 Staleness is managed by mark_stale_schemes(pq_ids), called from the
 answer fetcher and global crawler after each batch.
@@ -114,9 +119,10 @@ def get_ministry_schemes(ministry: str) -> list[dict]:
         if scheme_names:
             with engine.connect() as conn:
                 intel_rows = conn.execute(text("""
-                    SELECT scheme_name, is_stale
+                    SELECT DISTINCT ON (scheme_name) scheme_name, is_stale
                     FROM scheme_intelligence_cache
                     WHERE scheme_name = ANY(:names)
+                    ORDER BY scheme_name, is_stale ASC
                 """), {"names": scheme_names}).mappings().all()
             for ir in intel_rows:
                 if ir["is_stale"]:
@@ -152,28 +158,82 @@ def get_ministry_schemes(ministry: str) -> list[dict]:
         return []
 
 
-# ── Scheme intelligence (AI brief) ───────────────────────────────────────────
+# ── Tenant state lookup ───────────────────────────────────────────────────────
 
-def _fetch_scheme_answers(scheme_name: str, aliases: list[str], ministry: str) -> list[dict]:
+def _get_tenant_state(tenant_id: Optional[int]) -> str:
+    """Returns the MP's state from tenant_profiles, or '' if not found."""
+    if not tenant_id:
+        return ""
+    try:
+        with engine.connect() as conn:
+            r = conn.execute(text(
+                "SELECT state FROM tenant_profiles WHERE tenant_id = :tid"
+            ), {"tid": tenant_id}).mappings().fetchone()
+        return (r["state"] or "").strip() if r else ""
+    except Exception:
+        return ""
+
+
+# ── Answer fetching (tiered) ──────────────────────────────────────────────────
+
+def _fetch_scheme_answers_tiered(
+    scheme_name: str, aliases: list[str], ministry: str, state: str
+) -> dict:
     """
-    Two-stage filter: ministry first, then scheme ILIKE on subject + answer_text.
-    Selects 5 most-recent + 5 longest answers, deduped. Max 10, each 700 chars.
+    Returns {"state_answers": [...], "national_answers": [...]}.
+    state_answers: answers that explicitly mention the MP's state (up to 6).
+    national_answers: most recent + longest answers overall (up to 8, deduped).
     """
     all_aliases = list({scheme_name} | set(aliases or []))
     ilike_parts = " OR ".join(
         f"(subject ILIKE :a{i} OR answer_text ILIKE :a{i})"
         for i in range(len(all_aliases))
     )
-    params: dict = {f"a{i}": f"%{a}%" for i, a in enumerate(all_aliases)}
+    base_params: dict = {f"a{i}": f"%{a}%" for i, a in enumerate(all_aliases)}
 
     ministry_filter = ""
     if ministry:
         keyword = ministry.lower().split("ministry of")[-1].strip()[:25]
         ministry_filter = "AND LOWER(ministry) LIKE :mf"
-        params["mf"] = f"%{keyword}%"
+        base_params["mf"] = f"%{keyword}%"
+
+    def _rows_to_dicts(rows) -> list[dict]:
+        seen: set[str] = set()
+        out = []
+        for r in rows:
+            fp = (r["answer_text"] or "")[:120]
+            if fp not in seen:
+                seen.add(fp)
+                out.append({
+                    "answer_text":   (r["answer_text"] or "")[:700],
+                    "subject":       r["subject"],
+                    "date_asked":    r["date_asked"].isoformat() if r["date_asked"] else None,
+                    "question_type": r["question_type"],
+                    "session_name":  r["session_name"],
+                })
+        return out
+
+    state_answers: list[dict] = []
+    national_answers: list[dict] = []
 
     try:
         with engine.connect() as conn:
+            # State-specific: answers that mention the MP's state
+            if state:
+                sp = {**base_params, "state": f"%{state}%"}
+                state_rows = conn.execute(text(f"""
+                    SELECT answer_text, subject, date_asked, question_type, session_name
+                    FROM global_parliamentary_questions
+                    WHERE answer_text IS NOT NULL AND answer_text != ''
+                      {ministry_filter}
+                      AND ({ilike_parts})
+                      AND answer_text ILIKE :state
+                    ORDER BY date_asked DESC NULLS LAST
+                    LIMIT 6
+                """), sp).mappings().all()
+                state_answers = _rows_to_dicts(state_rows)[:6]
+
+            # National: most recent 5 + longest 5, deduped
             recent = conn.execute(text(f"""
                 SELECT answer_text, subject, date_asked, question_type, session_name
                 FROM global_parliamentary_questions
@@ -182,7 +242,7 @@ def _fetch_scheme_answers(scheme_name: str, aliases: list[str], ministry: str) -
                   AND ({ilike_parts})
                 ORDER BY date_asked DESC NULLS LAST
                 LIMIT 5
-            """), params).mappings().all()
+            """), base_params).mappings().all()
 
             longest = conn.execute(text(f"""
                 SELECT answer_text, subject, date_asked, question_type, session_name
@@ -192,29 +252,23 @@ def _fetch_scheme_answers(scheme_name: str, aliases: list[str], ministry: str) -
                   AND ({ilike_parts})
                 ORDER BY LENGTH(answer_text) DESC
                 LIMIT 5
-            """), params).mappings().all()
+            """), base_params).mappings().all()
 
-        seen: set[str] = set()
-        combined = []
-        for r in list(recent) + list(longest):
-            fp = (r["answer_text"] or "")[:120]
-            if fp not in seen:
-                seen.add(fp)
-                combined.append({
-                    "answer_text":   (r["answer_text"] or "")[:700],
-                    "subject":       r["subject"],
-                    "date_asked":    r["date_asked"].isoformat() if r["date_asked"] else None,
-                    "question_type": r["question_type"],
-                    "session_name":  r["session_name"],
-                })
-        return combined[:10]
+        national_answers = _rows_to_dicts(list(recent) + list(longest))[:8]
+
     except Exception as e:
-        logger.error("_fetch_scheme_answers failed: %s", e)
-        return []
+        logger.error("_fetch_scheme_answers_tiered failed: %s", e)
+
+    return {"state_answers": state_answers, "national_answers": national_answers}
 
 
-def _call_gpt(scheme_name: str, ministry: str, answers: list[dict]) -> dict:
-    """Call GPT-4o-mini to produce a 6-section structured intelligence brief."""
+# ── GPT call (3-layer brief) ──────────────────────────────────────────────────
+
+def _call_gpt(
+    scheme_name: str, ministry: str, state: str,
+    state_answers: list[dict], national_answers: list[dict]
+) -> dict:
+    """Call GPT-4o-mini to produce a 3-layer intelligence brief."""
     try:
         import openai
         client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -222,15 +276,22 @@ def _call_gpt(scheme_name: str, ministry: str, answers: list[dict]) -> dict:
         logger.error("OpenAI init failed: %s", e)
         return {}
 
-    answer_block = ""
-    for i, a in enumerate(answers, 1):
-        date_label = a.get("date_asked") or "unknown date"
-        qtype = (a.get("question_type") or "").upper()
-        answer_block += (
-            f"[{i} | {qtype} | {date_label}]\n"
-            f"Subject: {a.get('subject','')}\n"
-            f"{a.get('answer_text','')}\n\n"
-        )
+    def _fmt_block(answers, label):
+        if not answers:
+            return f"[No {label} answers available]\n"
+        block = ""
+        for i, a in enumerate(answers, 1):
+            date_label = a.get("date_asked") or "unknown date"
+            qtype = (a.get("question_type") or "").upper()
+            block += (
+                f"[{i} | {qtype} | {date_label}]\n"
+                f"Subject: {a.get('subject','')}\n"
+                f"{a.get('answer_text','')}\n\n"
+            )
+        return block
+
+    state_block    = _fmt_block(state_answers,    f"{state}-specific" if state else "state")
+    national_block = _fmt_block(national_answers, "national")
 
     system = (
         "You are a parliamentary intelligence analyst for India. "
@@ -238,54 +299,53 @@ def _call_gpt(scheme_name: str, ministry: str, answers: list[dict]) -> dict:
         "No inference, no external knowledge. Return valid JSON."
     )
 
-    user = f"""Scheme: {scheme_name}
+    state_section = f"""
+"your_state": {{
+  "funds_received": "<amount specifically released/disbursed to {state or 'this state'}, or null>",
+  "beneficiaries": "<number of beneficiaries in {state or 'this state'} per answers, or null>",
+  "implementation_note": "<any specific implementation status, delays, or achievements mentioned for {state or 'this state'}, or null>",
+  "key_facts": ["<verbatim fact about {state or 'this state'} from answers>"]
+}},""" if state else '"your_state": null,'
+
+    user_prompt = f"""Scheme: {scheme_name}
 Ministry: {ministry}
+MP's State: {state or "Not specified"}
 
-Ministry answers from Parliament ({len(answers)} selected):
-{answer_block}
+=== STATE-SPECIFIC ANSWERS (mentions {state or "state"}) ===
+{state_block}
+=== ALL ANSWERS (national/general) ===
+{national_block}
 
-Return JSON with exactly these 6 keys:
+Return JSON with exactly these 3 keys:
 {{
-  "fund_flow": {{
-    "allocated": "<amount or null>",
-    "released": "<amount or null>",
-    "disbursed": "<amount or null>",
-    "utilization_pct": "<percentage or null>",
-    "discrepancies": "<shortfalls or gaps ministry mentioned, or null>"
+{state_section}
+  "national_picture": {{
+    "total_allocation": "<total national budget/allocation, or null>",
+    "total_beneficiaries": "<national beneficiary count, or null>",
+    "progress": "<national implementation progress against targets, or null>",
+    "latest_position": {{
+      "statement": "<most recent substantive ministry claim verbatim, or null>",
+      "date": "<date or null>"
+    }},
+    "key_statistics": ["<verbatim national figure from answers>"]
   }},
-  "beneficiary_coverage": {{
-    "total_beneficiaries": "<number or null>",
-    "demographic_breakdown": "<beneficiary categories or null>",
-    "states_mentioned": ["<state>"],
-    "coverage_note": "<notable coverage detail or null>"
-  }},
-  "implementation_status": {{
-    "progress": "<progress against targets or null>",
-    "achievements": "<what ministry says is working or null>",
-    "timeline": "<key dates or milestones or null>"
-  }},
-  "challenges_acknowledged": {{
-    "delays": "<delays ministry admitted or null>",
-    "gaps": "<implementation gaps or null>",
-    "pending_issues": "<outstanding issues or null>"
-  }},
-  "key_statistics": ["<verbatim figure from answers>"],
-  "latest_position": {{
-    "statement": "<most recent substantive ministry claim, verbatim>",
-    "date": "<date or null>"
+  "other_states": {{
+    "top_mentioned": ["<states explicitly mentioned in answers>"],
+    "comparison": "<how different states compare in allocation/beneficiaries/progress per answers, or null>",
+    "lagging_issues": "<issues or delays reported for other states, or null>"
   }}
 }}
-Null for any field with no data in the answers."""
+Null for any field with no evidence in the answers."""
 
     try:
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system},
-                {"role": "user",   "content": user},
+                {"role": "user",   "content": user_prompt},
             ],
             temperature=0,
-            max_tokens=900,
+            max_tokens=1000,
             response_format={"type": "json_object"},
         )
         raw = resp.choices[0].message.content or "{}"
@@ -294,6 +354,8 @@ Null for any field with no data in the answers."""
         logger.error("GPT call failed for '%s': %s", scheme_name, e)
         return {}
 
+
+# ── Cache helpers (state-keyed) ───────────────────────────────────────────────
 
 def _count_scheme_answers(scheme_name: str, aliases: list[str], ministry: str) -> int:
     all_aliases = list({scheme_name} | set(aliases or []))
@@ -315,18 +377,18 @@ def _count_scheme_answers(scheme_name: str, aliases: list[str], ministry: str) -
         return 0
 
 
-def _write_cache(scheme_name: str, ministry: str, intel: dict,
+def _write_cache(scheme_name: str, ministry: str, state: str, intel: dict,
                  pq_count: int, error: Optional[str] = None):
     try:
         with engine.begin() as conn:
             conn.execute(text("""
                 INSERT INTO scheme_intelligence_cache
-                    (scheme_name, ministry, structured_intel, generated_at,
+                    (scheme_name, ministry, state, structured_intel, generated_at,
                      pq_count_at_gen, is_stale, error)
                 VALUES
-                    (:name, :ministry, CAST(:intel AS JSONB), NOW(),
+                    (:name, :ministry, :state, CAST(:intel AS JSONB), NOW(),
                      :count, false, :err)
-                ON CONFLICT (scheme_name) DO UPDATE SET
+                ON CONFLICT (scheme_name, state) DO UPDATE SET
                     ministry         = EXCLUDED.ministry,
                     structured_intel = EXCLUDED.structured_intel,
                     generated_at     = EXCLUDED.generated_at,
@@ -336,22 +398,23 @@ def _write_cache(scheme_name: str, ministry: str, intel: dict,
             """), {
                 "name":     scheme_name,
                 "ministry": ministry,
+                "state":    state,
                 "intel":    json.dumps(intel),
                 "count":    pq_count,
                 "err":      error,
             })
     except Exception as e:
-        logger.error("_write_cache failed for '%s': %s", scheme_name, e)
+        logger.error("_write_cache failed for '%s'/%s: %s", scheme_name, state, e)
 
 
-def _load_db_cache(scheme_name: str) -> Optional[dict]:
+def _load_db_cache(scheme_name: str, state: str) -> Optional[dict]:
     try:
         with engine.connect() as conn:
             r = conn.execute(text("""
                 SELECT structured_intel, is_stale, generated_at, pq_count_at_gen, error
                 FROM scheme_intelligence_cache
-                WHERE scheme_name = :name
-            """), {"name": scheme_name}).mappings().fetchone()
+                WHERE scheme_name = :name AND state = :state
+            """), {"name": scheme_name, "state": state}).mappings().fetchone()
         return dict(r) if r else None
     except Exception:
         return None
@@ -369,41 +432,50 @@ def _get_scheme_row(scheme_name: str) -> Optional[dict]:
         return None
 
 
-def _regenerate_in_background(scheme_name: str, scheme_row: dict):
+def _regenerate_in_background(scheme_name: str, scheme_row: dict, state: str):
     try:
-        answers = _fetch_scheme_answers(
+        tiered = _fetch_scheme_answers_tiered(
             scheme_row["name"],
             list(scheme_row.get("aliases") or []),
             scheme_row.get("ministry") or "",
+            state,
         )
-        if not answers:
-            _write_cache(scheme_name, scheme_row.get("ministry") or "", {}, 0, "no_answers")
+        state_answers    = tiered["state_answers"]
+        national_answers = tiered["national_answers"]
+        if not state_answers and not national_answers:
+            _write_cache(scheme_name, scheme_row.get("ministry") or "", state, {}, 0, "no_answers")
             return
         intel = _call_gpt(
-            scheme_row["name"], scheme_row.get("ministry") or "", answers
+            scheme_row["name"], scheme_row.get("ministry") or "", state,
+            state_answers, national_answers,
         )
         pq_count = _count_scheme_answers(
             scheme_row["name"],
             list(scheme_row.get("aliases") or []),
             scheme_row.get("ministry") or "",
         )
-        _write_cache(scheme_name, scheme_row.get("ministry") or "", intel, pq_count)
-        _runtime_cache.pop(f"intel:{scheme_name}", None)
-        logger.info("Background regen complete for '%s'", scheme_name)
+        _write_cache(scheme_name, scheme_row.get("ministry") or "", state, intel, pq_count)
+        _runtime_cache.pop(f"intel:{scheme_name}:{state}", None)
+        logger.info("Background regen complete for '%s' [%s]", scheme_name, state or "national")
     except Exception as e:
         logger.error("Background regen failed for '%s': %s", scheme_name, e)
 
 
-def get_scheme_intelligence(scheme_name: str) -> dict:
+# ── Main entry point ──────────────────────────────────────────────────────────
+
+def get_scheme_intelligence(scheme_name: str, tenant_id: Optional[int] = None) -> dict:
     """
-    Returns the AI intelligence brief for a scheme.
+    Returns the AI intelligence brief for a scheme, personalised to the MP's state.
     Fresh cache → instant. Stale → instant + background regen. No cache → generate now.
     """
-    rt = _runtime_get(f"intel:{scheme_name}")
+    state = _get_tenant_state(tenant_id)
+    rt_key = f"intel:{scheme_name}:{state}"
+
+    rt = _runtime_get(rt_key)
     if rt:
         return rt
 
-    db_cache  = _load_db_cache(scheme_name)
+    db_cache   = _load_db_cache(scheme_name, state)
     scheme_row = _get_scheme_row(scheme_name)
 
     if not scheme_row:
@@ -414,6 +486,7 @@ def get_scheme_intelligence(scheme_name: str) -> dict:
             "scheme_name":  scheme_name,
             "full_name":    scheme_row.get("full_name") or scheme_name,
             "ministry":     scheme_row.get("ministry"),
+            "state":        state or None,
             "intel":        intel,
             "generated_at": generated_at.isoformat() if generated_at else None,
             "is_stale":     is_stale,
@@ -425,12 +498,14 @@ def get_scheme_intelligence(scheme_name: str) -> dict:
             db_cache["structured_intel"], False,
             db_cache.get("pq_count_at_gen", 0), db_cache.get("generated_at"),
         )
-        _runtime_set(f"intel:{scheme_name}", result)
+        _runtime_set(rt_key, result)
         return result
 
     if db_cache and db_cache.get("structured_intel") and db_cache.get("is_stale"):
         threading.Thread(
-            target=_regenerate_in_background, args=(scheme_name, scheme_row), daemon=True
+            target=_regenerate_in_background,
+            args=(scheme_name, scheme_row, state),
+            daemon=True,
         ).start()
         return _build_result(
             db_cache["structured_intel"], True,
@@ -438,21 +513,27 @@ def get_scheme_intelligence(scheme_name: str) -> dict:
         )
 
     # No cache — generate now
-    answers = _fetch_scheme_answers(
+    tiered = _fetch_scheme_answers_tiered(
         scheme_row["name"], list(scheme_row.get("aliases") or []),
-        scheme_row.get("ministry") or "",
+        scheme_row.get("ministry") or "", state,
     )
-    if not answers:
+    state_answers    = tiered["state_answers"]
+    national_answers = tiered["national_answers"]
+
+    if not state_answers and not national_answers:
         return {**_build_result(None, False, 0), "no_data": True}
 
-    intel = _call_gpt(scheme_row["name"], scheme_row.get("ministry") or "", answers)
+    intel = _call_gpt(
+        scheme_row["name"], scheme_row.get("ministry") or "", state,
+        state_answers, national_answers,
+    )
     pq_count = _count_scheme_answers(
         scheme_row["name"], list(scheme_row.get("aliases") or []),
         scheme_row.get("ministry") or "",
     )
-    _write_cache(scheme_name, scheme_row.get("ministry") or "", intel, pq_count)
+    _write_cache(scheme_name, scheme_row.get("ministry") or "", state, intel, pq_count)
     result = _build_result(intel, False, pq_count)
-    _runtime_set(f"intel:{scheme_name}", result)
+    _runtime_set(rt_key, result)
     return result
 
 
@@ -462,6 +543,7 @@ def mark_stale_schemes(new_pq_ids: list[int]):
     """
     Lightweight: no GPT, just DB lookup + UPDATE. Runs in milliseconds.
     Called automatically by answer_fetcher and global_crawler after each batch.
+    Marks ALL state variants of a scheme stale (not just one).
     """
     if not new_pq_ids:
         return

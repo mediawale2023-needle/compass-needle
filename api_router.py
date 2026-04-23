@@ -1757,12 +1757,12 @@ def schemes_by_ministry(ministry: str, user=Depends(get_current_user)):
 @router.get("/schemes/intelligence/{scheme_name:path}")
 def scheme_intelligence(scheme_name: str, user=Depends(get_current_user)):
     """
-    AI-structured 6-section intelligence brief for a scheme.
+    AI-structured 3-layer intelligence brief for a scheme, personalised to the MP's state.
     Returns cached immediately if available; generates on first request (8-15s).
     Stale briefs are returned instantly while background regen fires.
     """
     from modules.schemes_api import get_scheme_intelligence
-    return get_scheme_intelligence(scheme_name)
+    return get_scheme_intelligence(scheme_name, tenant_id=user.get("tenant_id"))
 
 
 # ─────────────────────────────────────────
