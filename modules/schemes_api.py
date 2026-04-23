@@ -334,17 +334,17 @@ def _call_gpt(
     state_section = f"""
 "your_state": {{
   "fund_flow": {{
-    "received": "<budget/funds specifically released or allocated to {state}, or null — do NOT use national totals>",
-    "utilization": "<utilisation rate or note specific to {state}, or null>",
-    "discrepancies": "<funding shortfalls or gaps specific to {state}, or null>"
+    "received": "<budget/funds specifically released or allocated to {state} — do NOT use national totals; null if not stated>",
+    "utilization": "<utilisation rate or note specific to {state}; null if not stated>",
+    "discrepancies": "<funding shortfalls or gaps specific to {state}; null if not stated>"
   }},
-  "beneficiaries": "<total number of enrolled students, schools, households, or direct beneficiaries IN {state} — IMPORTANT: this is a count of enrolled/covered people or institutions, NOT exam qualifiers or outcome scores; if only exam data is available set null>",
+  "beneficiaries": "<total enrolled students, operational schools, or households covered IN {state} — this must be an enrollment/coverage count, NOT competitive exam qualifiers; null if only exam data available>",
   "implementation": {{
-    "progress": "<status of scheme rollout in {state}: sanctioned/operational counts, targets vs actual, or null>",
-    "achievements": "<positive outcomes or milestones in {state} per ministry, or null>",
-    "challenges": "<delays, shortages, vacancies, or implementation gaps in {state}, or null>"
+    "progress": "<sanctioned vs operational school/unit counts in {state}, or rollout status; null if not stated>",
+    "achievements": "<positive milestones in {state} per ministry; null if not stated>",
+    "challenges": "<delays, land issues, staff vacancies, or infrastructure gaps in {state}; null if not stated>"
   }},
-  "key_facts": ["<verbatim statistic explicitly about {state} from the answers — include exam outcomes, school counts, or any specific figure>"]
+  "key_facts": ["<infrastructure, enrollment, or fund facts about {state} — do NOT put competitive exam results (NEET/JEE/board pass rates) here; those belong in national_picture.key_statistics>"]
 }},""" if state else '"your_state": null,'
 
     user_prompt = f"""Scheme: {scheme_name}
@@ -356,45 +356,51 @@ MP's State: {state or "Not specified"}
 === ALL ANSWERS (national/general) ===
 {national_block}
 
+IMPORTANT EXTRACTION RULES:
+1. beneficiaries = enrolled students / operational schools / covered households — NEVER competitive exam qualifiers
+2. If a number like "344 students qualified NEET" appears, put it in key_statistics, NOT in total_beneficiaries
+3. Exam outcomes (NEET/JEE/board results) must only appear in national_picture.key_statistics, never as beneficiary counts
+4. For your_state.key_facts: include school counts, fund amounts, operational status — exclude exam outcomes
+
 Return JSON with exactly these 3 keys:
 {{
 {state_section}
   "national_picture": {{
     "fund_flow": {{
-      "allocated": "<total national budget allocated, or null>",
-      "released": "<total released to states, or null>",
-      "disbursed": "<total disbursed to beneficiaries, or null>",
-      "utilization_pct": "<national utilisation percentage, or null>",
-      "discrepancies": "<national shortfalls or audit gaps ministry mentioned, or null>"
+      "allocated": "<total national budget allocated; null if not stated>",
+      "released": "<total released to states; null if not stated>",
+      "disbursed": "<total disbursed to beneficiaries; null if not stated>",
+      "utilization_pct": "<national utilisation percentage; null if not stated>",
+      "discrepancies": "<national shortfalls or audit gaps ministry mentioned; null if not stated>"
     }},
     "beneficiary_coverage": {{
-      "total_beneficiaries": "<national beneficiary count, or null>",
-      "demographic_breakdown": "<beneficiary categories e.g. SC/ST/women, or null>",
-      "coverage_note": "<notable national coverage detail, or null>"
+      "total_beneficiaries": "<total enrolled students, operational schools, or covered households nationally — NOT exam qualifiers; null if only exam data available>",
+      "demographic_breakdown": "<beneficiary categories e.g. ST/SC/OBC/women; null if not stated>",
+      "coverage_note": "<notable national coverage detail; null if not stated>"
     }},
     "implementation_status": {{
-      "progress": "<national progress against targets, or null>",
-      "achievements": "<what ministry says is working nationally, or null>",
-      "timeline": "<key dates or milestones, or null>"
+      "progress": "<national sanctioned vs operational counts, or progress against targets; null if not stated>",
+      "achievements": "<what ministry says is working nationally; null if not stated>",
+      "timeline": "<key dates or milestones; null if not stated>"
     }},
     "challenges_acknowledged": {{
-      "delays": "<delays ministry admitted nationally, or null>",
-      "gaps": "<implementation gaps nationally, or null>",
-      "pending_issues": "<outstanding national issues, or null>"
+      "delays": "<delays ministry admitted nationally; null if not stated>",
+      "gaps": "<implementation gaps nationally; null if not stated>",
+      "pending_issues": "<outstanding national issues; null if not stated>"
     }},
-    "key_statistics": ["<verbatim national figure from answers>"],
+    "key_statistics": ["<verbatim figures from answers — include exam outcomes, sanctioned counts, financial figures>"],
     "latest_position": {{
-      "statement": "<most recent substantive ministry claim verbatim, or null>",
+      "statement": "<most recent substantive ministry claim verbatim; null if not stated>",
       "date": "<date or null>"
     }}
   }},
   "other_states": {{
     "top_mentioned": ["<states explicitly named in answers>"],
-    "comparison": "<how different states compare in allocation/beneficiaries/progress per answers, or null>",
-    "lagging_issues": "<issues or delays specifically reported for other states, or null>"
+    "comparison": "<how different states compare in allocation/progress per answers; null if not stated>",
+    "lagging_issues": "<issues or delays specifically reported for other states; null if not stated>"
   }}
 }}
-Null for any field with no evidence in the answers."""
+Null for any field with no supporting evidence in the answers."""
 
     try:
         resp = client.chat.completions.create(
