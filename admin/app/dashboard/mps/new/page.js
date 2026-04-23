@@ -25,7 +25,7 @@ export default function CreateMPPage() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!form.name || !form.username || !form.password) { setError('Fill all required fields'); return; }
+        if (!form.name || !form.username || !form.password || !form.state) { setError('MP Name, Username, Password and State are required'); return; }
         setLoading(true);
         setError('');
         try {
@@ -111,7 +111,7 @@ export default function CreateMPPage() {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                             <div>
                                 <label className="form-label">State *</label>
-                                <input className="form-input" placeholder="e.g. Karnataka" value={form.state} onChange={set('state')} />
+                                <input className="form-input" placeholder="e.g. Karnataka" value={form.state} onChange={set('state')} required />
                             </div>
                             <div>
                                 <label className="form-label">Party</label>

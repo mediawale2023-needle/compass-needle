@@ -1233,6 +1233,38 @@ def get_profile(user=Depends(get_current_user)):
     return profile or {}
 
 
+class UpdateOwnProfileRequest(BaseModel):
+    state: str = ""
+    party: str = ""
+
+
+@router.patch("/profile")
+def update_own_profile(req: UpdateOwnProfileRequest, user=Depends(get_current_user)):
+    """Allow MP to update their own state and party from the settings page."""
+    tid = get_tenant_or_fail(user)
+    state = sanitize_prompt_input(req.state.strip())[:100]
+    party = sanitize_prompt_input(req.party.strip())[:100]
+    if not state and not party:
+        raise HTTPException(400, "No fields to update")
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO tenant_profiles (tenant_id, state, party)
+                VALUES (:tid, :state, :party)
+                ON CONFLICT (tenant_id) DO UPDATE SET
+                    state = CASE WHEN :state != '' THEN :state ELSE tenant_profiles.state END,
+                    party = CASE WHEN :party != '' THEN :party ELSE tenant_profiles.party END
+            """), {"tid": tid, "state": state, "party": party})
+        # Evict scheme intel runtime cache so next brief uses the updated state
+        from modules.schemes_api import _runtime_cache as _sc
+        for k in [k for k in _sc if k.startswith("intel:")]:
+            _sc.pop(k, None)
+        return {"success": True}
+    except Exception:
+        logger.exception("update_own_profile failed")
+        raise HTTPException(500, "Internal server error")
+
+
 # ─────────────────────────────────────────
 # NEWS
 # ─────────────────────────────────────────
@@ -1763,6 +1795,24 @@ def scheme_intelligence(scheme_name: str, user=Depends(get_current_user)):
     """
     from modules.schemes_api import get_scheme_intelligence
     return get_scheme_intelligence(scheme_name, tenant_id=user.get("tenant_id"))
+
+
+@router.post("/schemes/intelligence/{scheme_name:path}/refresh")
+def refresh_scheme_intelligence(scheme_name: str, user=Depends(get_current_user)):
+    """Delete the cached brief for this scheme (current user's state) so it regenerates fresh."""
+    from modules.schemes_api import _get_tenant_state, _runtime_cache
+    from sqlalchemy import text as _text
+    from sansadx_backend.db import engine as _engine
+    state = _get_tenant_state(user.get("tenant_id"))
+    try:
+        with _engine.begin() as conn:
+            conn.execute(_text(
+                "DELETE FROM scheme_intelligence_cache WHERE scheme_name = :name AND state = :state"
+            ), {"name": scheme_name, "state": state})
+        _runtime_cache.pop(f"intel:{scheme_name}:{state}", None)
+    except Exception as e:
+        logger.warning("refresh_scheme_intelligence failed: %s", e)
+    return {"ok": True, "scheme_name": scheme_name, "state": state or None}
 
 
 # ─────────────────────────────────────────

@@ -748,6 +748,10 @@ try:
             END$$
         """))
     logger.info("Migration: scheme_intelligence_cache state column ready")
+    # Mark all existing cache entries stale so they regenerate with the new 3-layer format
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE scheme_intelligence_cache SET is_stale = true WHERE structured_intel IS NOT NULL AND is_stale = false"))
+    logger.info("Migration: existing scheme briefs marked stale for regeneration")
 except Exception as e:
     logger.warning(f"scheme_intelligence_cache state migration skipped: {e}")
 
