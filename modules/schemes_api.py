@@ -181,8 +181,12 @@ def _fetch_scheme_answers_tiered(
 ) -> dict:
     """
     Returns {"state_answers": [...], "national_answers": [...]}.
-    state_answers: answers that explicitly mention the MP's state (up to 6).
-    national_answers: most recent + longest answers overall (up to 8, deduped).
+    state_answers: answers that explicitly mention the MP's state (up to 4,
+                   excluding answers whose ONLY state mention is in an exam/
+                   outcome table row — prefer answers that discuss the state
+                   in context of funds, schools, or implementation).
+    national_answers: three passes — most recent (5) + longest (5) +
+                      financial/challenge keywords (4) — deduped, max 12.
     """
     all_aliases = list({scheme_name} | set(aliases or []))
     ilike_parts = " OR ".join(
@@ -197,15 +201,14 @@ def _fetch_scheme_answers_tiered(
         ministry_filter = "AND LOWER(ministry) LIKE :mf"
         base_params["mf"] = f"%{keyword}%"
 
-    def _rows_to_dicts(rows) -> list[dict]:
-        seen: set[str] = set()
+    def _rows_to_dicts(rows, seen: set) -> list[dict]:
         out = []
         for r in rows:
             fp = (r["answer_text"] or "")[:120]
             if fp not in seen:
                 seen.add(fp)
                 out.append({
-                    "answer_text":   (r["answer_text"] or "")[:700],
+                    "answer_text":   (r["answer_text"] or "")[:800],
                     "subject":       r["subject"],
                     "date_asked":    r["date_asked"].isoformat() if r["date_asked"] else None,
                     "question_type": r["question_type"],
@@ -218,7 +221,8 @@ def _fetch_scheme_answers_tiered(
 
     try:
         with engine.connect() as conn:
-            # State-specific: answers that mention the MP's state
+            # State-specific: answers mentioning the MP's state — prefer those
+            # that also discuss funds/schools/infrastructure (not just outcome tables)
             if state:
                 sp = {**base_params, "state": f"%{state}%"}
                 state_rows = conn.execute(text(f"""
@@ -228,12 +232,19 @@ def _fetch_scheme_answers_tiered(
                       {ministry_filter}
                       AND ({ilike_parts})
                       AND answer_text ILIKE :state
-                    ORDER BY date_asked DESC NULLS LAST
-                    LIMIT 6
+                    ORDER BY
+                        -- prefer answers that discuss funds or schools in state context
+                        (answer_text ILIKE '%crore%' OR answer_text ILIKE '%school%'
+                         OR answer_text ILIKE '%fund%' OR answer_text ILIKE '%sanctioned%'
+                         OR answer_text ILIKE '%operational%') DESC,
+                        date_asked DESC NULLS LAST
+                    LIMIT 4
                 """), sp).mappings().all()
-                state_answers = _rows_to_dicts(state_rows)[:6]
+                seen_state: set[str] = set()
+                state_answers = _rows_to_dicts(state_rows, seen_state)
 
-            # National: most recent 5 + longest 5, deduped
+            # National pass 1: most recent 5
+            seen_national: set[str] = set()
             recent = conn.execute(text(f"""
                 SELECT answer_text, subject, date_asked, question_type, session_name
                 FROM global_parliamentary_questions
@@ -243,7 +254,9 @@ def _fetch_scheme_answers_tiered(
                 ORDER BY date_asked DESC NULLS LAST
                 LIMIT 5
             """), base_params).mappings().all()
+            national_answers.extend(_rows_to_dicts(recent, seen_national))
 
+            # National pass 2: longest 5 (most detailed answers)
             longest = conn.execute(text(f"""
                 SELECT answer_text, subject, date_asked, question_type, session_name
                 FROM global_parliamentary_questions
@@ -253,13 +266,32 @@ def _fetch_scheme_answers_tiered(
                 ORDER BY LENGTH(answer_text) DESC
                 LIMIT 5
             """), base_params).mappings().all()
+            national_answers.extend(_rows_to_dicts(longest, seen_national))
 
-        national_answers = _rows_to_dicts(list(recent) + list(longest))[:8]
+            # National pass 3: financial/challenge-focused answers (fund flow + gaps)
+            fp_params = {**base_params,
+                         "kw1": "%crore%", "kw2": "%allocated%", "kw3": "%released%",
+                         "kw4": "%shortage%", "kw5": "%delay%", "kw6": "%gap%",
+                         "kw7": "%pending%", "kw8": "%challenge%"}
+            challenge = conn.execute(text(f"""
+                SELECT answer_text, subject, date_asked, question_type, session_name
+                FROM global_parliamentary_questions
+                WHERE answer_text IS NOT NULL AND answer_text != ''
+                  {ministry_filter}
+                  AND ({ilike_parts})
+                  AND (answer_text ILIKE :kw1 OR answer_text ILIKE :kw2
+                       OR answer_text ILIKE :kw3 OR answer_text ILIKE :kw4
+                       OR answer_text ILIKE :kw5 OR answer_text ILIKE :kw6
+                       OR answer_text ILIKE :kw7 OR answer_text ILIKE :kw8)
+                ORDER BY date_asked DESC NULLS LAST
+                LIMIT 4
+            """), fp_params).mappings().all()
+            national_answers.extend(_rows_to_dicts(challenge, seen_national))
 
     except Exception as e:
         logger.error("_fetch_scheme_answers_tiered failed: %s", e)
 
-    return {"state_answers": state_answers, "national_answers": national_answers}
+    return {"state_answers": state_answers, "national_answers": national_answers[:12]}
 
 
 # ── GPT call (3-layer brief) ──────────────────────────────────────────────────
@@ -302,17 +334,17 @@ def _call_gpt(
     state_section = f"""
 "your_state": {{
   "fund_flow": {{
-    "received": "<funds released/disbursed specifically to {state or 'this state'}, or null>",
-    "utilization": "<utilisation percentage or note for {state or 'this state'}, or null>",
-    "discrepancies": "<shortfalls or gaps for {state or 'this state'} ministry mentioned, or null>"
+    "received": "<budget/funds specifically released or allocated to {state}, or null — do NOT use national totals>",
+    "utilization": "<utilisation rate or note specific to {state}, or null>",
+    "discrepancies": "<funding shortfalls or gaps specific to {state}, or null>"
   }},
-  "beneficiaries": "<number of beneficiaries in {state or 'this state'} per answers, or null>",
+  "beneficiaries": "<total number of enrolled students, schools, households, or direct beneficiaries IN {state} — IMPORTANT: this is a count of enrolled/covered people or institutions, NOT exam qualifiers or outcome scores; if only exam data is available set null>",
   "implementation": {{
-    "progress": "<implementation progress or targets for {state or 'this state'}, or null>",
-    "achievements": "<what is working in {state or 'this state'} per ministry, or null>",
-    "challenges": "<delays, gaps, or issues specific to {state or 'this state'}, or null>"
+    "progress": "<status of scheme rollout in {state}: sanctioned/operational counts, targets vs actual, or null>",
+    "achievements": "<positive outcomes or milestones in {state} per ministry, or null>",
+    "challenges": "<delays, shortages, vacancies, or implementation gaps in {state}, or null>"
   }},
-  "key_facts": ["<verbatim fact explicitly about {state or 'this state'} from answers>"]
+  "key_facts": ["<verbatim statistic explicitly about {state} from the answers — include exam outcomes, school counts, or any specific figure>"]
 }},""" if state else '"your_state": null,'
 
     user_prompt = f"""Scheme: {scheme_name}
@@ -372,7 +404,7 @@ Null for any field with no evidence in the answers."""
                 {"role": "user",   "content": user_prompt},
             ],
             temperature=0,
-            max_tokens=1500,
+            max_tokens=1800,
             response_format={"type": "json_object"},
         )
         raw = resp.choices[0].message.content or "{}"
