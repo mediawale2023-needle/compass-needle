@@ -828,7 +828,7 @@ function DedupPanel({ disabled }) {
                     >
                         {loading ? '⟳ Checking…' : 'Preview'}
                     </button>
-                    {preview && !preview.error && ((preview.rows_to_delete ?? 0) + (preview.acronym_pairs_found ?? 0)) > 0 && (
+                    {preview && !preview.error && ((preview.rows_to_delete ?? 0) + (preview.acronym_pairs_found ?? 0) + (preview.substring_pairs_found ?? 0)) > 0 && (
                         <button
                             onClick={runDedup}
                             disabled={running}
@@ -839,7 +839,7 @@ function DedupPanel({ disabled }) {
                                 cursor: running ? 'not-allowed' : 'pointer',
                             }}
                         >
-                            {running ? '⟳ Merging…' : `Merge ${(preview.rows_to_delete ?? 0) + (preview.acronym_pairs_found ?? 0)} dupes`}
+                            {running ? '⟳ Merging…' : `Merge ${(preview.rows_to_delete ?? 0) + (preview.acronym_pairs_found ?? 0) + (preview.substring_pairs_found ?? 0)} dupes`}
                         </button>
                     )}
                 </div>
@@ -850,10 +850,11 @@ function DedupPanel({ disabled }) {
                 <div style={{ marginTop: 10 }}>
                     <div style={{ display: 'flex', gap: 16, marginBottom: 10, flexWrap: 'wrap' }}>
                         {[
-                            ['Semantic groups',  preview.duplicate_groups,     '#f59e0b'],
-                            ['Acronym pairs',    preview.acronym_pairs_found,  '#818cf8'],
-                            ['Rows to delete',   (preview.rows_to_delete ?? 0) + (preview.acronym_pairs_found ?? 0), '#ef4444'],
-                            ['After dedup',      (preview.schemes_after_dedup ?? 0) - (preview.acronym_pairs_found ?? 0), '#22c55e'],
+                            ['Semantic groups',  preview.duplicate_groups,          '#f59e0b'],
+                            ['Acronym pairs',    preview.acronym_pairs_found,        '#818cf8'],
+                            ['Substring pairs',  preview.substring_pairs_found,      '#f97316'],
+                            ['Rows to delete',   (preview.rows_to_delete ?? 0) + (preview.acronym_pairs_found ?? 0) + (preview.substring_pairs_found ?? 0), '#ef4444'],
+                            ['After dedup',      (preview.schemes_after_dedup ?? 0) - (preview.acronym_pairs_found ?? 0) - (preview.substring_pairs_found ?? 0), '#22c55e'],
                         ].map(([l, v, c]) => (
                             <div key={l} style={{ textAlign: 'center' }}>
                                 <div style={{ color: c, fontSize: 16, fontWeight: 700 }}>{v ?? '—'}</div>
@@ -884,7 +885,7 @@ function DedupPanel({ disabled }) {
                     {preview.acronym_pairs && preview.acronym_pairs.length > 0 && (
                         <div style={{
                             background: '#111827', borderRadius: 6, padding: '8px 10px',
-                            maxHeight: 130, overflowY: 'auto',
+                            maxHeight: 120, overflowY: 'auto', marginBottom: 8,
                         }}>
                             <div style={{ color: '#6b7280', fontSize: 10, marginBottom: 6 }}>
                                 ACRONYM MATCHES (PMAY → Pradhan Mantri Awas Yojana…)
@@ -894,6 +895,25 @@ function DedupPanel({ disabled }) {
                                     <span style={{ color: '#818cf8', fontSize: 11, fontWeight: 600 }}>{p.acronym}</span>
                                     <span style={{ color: '#4b5563', fontSize: 11 }}> → </span>
                                     <span style={{ color: '#9ca3af', fontSize: 11 }}>{p.full_name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Substring pairs */}
+                    {preview.substring_pairs && preview.substring_pairs.length > 0 && (
+                        <div style={{
+                            background: '#111827', borderRadius: 6, padding: '8px 10px',
+                            maxHeight: 120, overflowY: 'auto',
+                        }}>
+                            <div style={{ color: '#6b7280', fontSize: 10, marginBottom: 6 }}>
+                                SUBSTRING CONTAINED ('Capital Subsidy Scheme' ⊂ 'Credit Linked Capital Subsidy Scheme'…)
+                            </div>
+                            {preview.substring_pairs.map((p, i) => (
+                                <div key={i} style={{ marginBottom: 5 }}>
+                                    <span style={{ color: '#f97316', fontSize: 11 }}>{p.contained}</span>
+                                    <span style={{ color: '#4b5563', fontSize: 11 }}> ⊂ </span>
+                                    <span style={{ color: '#9ca3af', fontSize: 11 }}>{p.parent}</span>
                                 </div>
                             ))}
                         </div>
@@ -910,7 +930,7 @@ function DedupPanel({ disabled }) {
                 }}>
                     {result.error
                         ? `Error: ${result.error}`
-                        : `Done — ${result.groups_merged ?? 0} semantic groups + ${result.acronym_pairs_merged ?? 0} acronym pairs merged · ${result.rows_deleted ?? 0} rows deleted · ${result.schemes_remaining ?? '?'} schemes remain`}
+                        : `Done — ${result.groups_merged ?? 0} semantic + ${result.acronym_pairs_merged ?? 0} acronym + ${result.substring_pairs_merged ?? 0} substring · ${(result.rows_deleted ?? 0) + (result.acronym_pairs_merged ?? 0) + (result.substring_pairs_merged ?? 0)} removed · ${result.schemes_remaining ?? '?'} remain`}
                 </div>
             )}
 

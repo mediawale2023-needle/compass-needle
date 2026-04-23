@@ -102,7 +102,7 @@ def get_ministry_schemes(ministry: str) -> list[dict]:
                     aliases, answer_count, first_seen, last_seen
                 FROM prs_schemes
                 WHERE LOWER(ministry) = LOWER(:m)
-                  AND answer_count >= 1
+                  AND answer_count >= 2
                 ORDER BY answer_count DESC, name
             """), {"m": ministry}).mappings().all()
 

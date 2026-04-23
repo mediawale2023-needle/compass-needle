@@ -105,12 +105,22 @@ def _extract_by_rules(subject: str) -> list[str]:
     for pat in _COMPILED:
         for m in pat.finditer(subject):
             candidate = m.group(0).strip()
-            # Reject if too short or pure stop-words
             words = candidate.lower().split()
             if len(candidate) < 5 or all(w in _NON_SCHEME_WORDS for w in words):
                 continue
             found.append(candidate)
-    return found
+
+    # Drop any candidate whose text is fully contained within a longer candidate.
+    # Prevents "Capital Subsidy Scheme" surviving alongside
+    # "Credit Linked Capital Subsidy Scheme" from the same subject.
+    deduped = [
+        c for c in found
+        if not any(
+            c.lower() in other.lower() and c.lower() != other.lower()
+            for other in found
+        )
+    ]
+    return deduped
 
 
 # ── GPT extraction for ambiguous subjects ────────────────────────────────────
@@ -768,6 +778,116 @@ def deduplicate_acronyms(dry_run: bool = False) -> dict:
         "acronym_pairs_merged": merged,
         "schemes_before":       len(schemes),
         "schemes_remaining":    len(schemes) - merged,
+    }
+
+
+# ── Substring containment dedup ───────────────────────────────────────────────
+
+def deduplicate_substrings(dry_run: bool = False) -> dict:
+    """
+    Pass 3: within each ministry, merge a scheme whose name is a suffix-match
+    or consecutive-word-match inside a longer scheme name.
+
+    'Capital Subsidy Scheme' (suffix of 'Credit Linked Capital Subsidy Scheme') → alias
+    'Kisan Mission'          (suffix of 'Pradhan Mantri Kisan Mission')           → alias
+
+    Minimum candidate length: 12 chars (prevents over-merging short tokens).
+    Only considers pairs within the same ministry to avoid cross-ministry collisions.
+    Should run AFTER semantic + acronym passes on clean data.
+    """
+    from collections import defaultdict
+
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT id, name, ministry, aliases, answer_count
+            FROM prs_schemes
+            WHERE ministry IS NOT NULL AND ministry != ''
+            ORDER BY ministry, LENGTH(name) DESC, COALESCE(answer_count, 0) DESC
+        """)).mappings().all()
+
+    ministry_groups: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        ministry_groups[r["ministry"]].append(dict(r))
+
+    def _is_contained(short: str, long_: str) -> bool:
+        """True if short is a meaningful sub-sequence of long_."""
+        s = short.lower().strip()
+        l = long_.lower().strip()
+        if s == l or len(s) < 12:
+            return False
+        # Suffix match (most common extraction artifact)
+        if l.endswith(" " + s) or l.endswith(s):
+            return True
+        # Consecutive-word match
+        s_words = s.split()
+        l_words = l.split()
+        if len(s_words) >= 2:
+            for i in range(len(l_words) - len(s_words) + 1):
+                if l_words[i: i + len(s_words)] == s_words:
+                    return True
+        return False
+
+    merge_pairs: list[tuple[dict, dict]] = []
+    absorbed: set[int] = set()
+
+    for schemes in ministry_groups.values():
+        for i, short in enumerate(schemes):
+            if short["id"] in absorbed:
+                continue
+            for long_ in schemes[:i]:   # longer names come first (sorted by LENGTH DESC)
+                if long_["id"] in absorbed:
+                    continue
+                if _is_contained(short["name"], long_["name"]):
+                    merge_pairs.append((short, long_))
+                    absorbed.add(short["id"])
+                    break
+
+    if dry_run:
+        return {
+            "substring_pairs_found": len(merge_pairs),
+            "substring_pairs": [
+                {"contained": a["name"], "parent": b["name"]}
+                for a, b in merge_pairs[:40]
+            ],
+        }
+
+    merged = 0
+    with engine.begin() as conn:
+        for short, parent in merge_pairs:
+            all_aliases = list(parent.get("aliases") or [])
+            if short["name"] not in all_aliases:
+                all_aliases.append(short["name"])
+            for a in (short.get("aliases") or []):
+                if a not in all_aliases and a != parent["name"]:
+                    all_aliases.append(a)
+
+            total_count = (parent.get("answer_count") or 0) + (short.get("answer_count") or 0)
+
+            conn.execute(text("""
+                UPDATE prs_schemes
+                SET aliases = :aliases, answer_count = :count, updated_at = NOW()
+                WHERE id = :id
+            """), {"aliases": all_aliases, "count": total_count, "id": parent["id"]})
+
+            conn.execute(text("DELETE FROM prs_schemes WHERE id = :id"),
+                         {"id": short["id"]})
+            conn.execute(text(
+                "DELETE FROM scheme_intelligence_cache WHERE scheme_name = :name"
+            ), {"name": short["name"]})
+
+            merged += 1
+
+    try:
+        from modules.schemes_api import _runtime_cache
+        _runtime_cache.clear()
+    except Exception:
+        pass
+
+    logger.info("Substring dedup done: %d pairs merged", merged)
+    return {
+        "substring_pairs_merged": merged,
+        "schemes_before":         len(rows),
+        "schemes_remaining":      len(rows) - merged,
     }
 
 
