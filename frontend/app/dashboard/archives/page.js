@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/lib/auth';
 import { apiGet } from '@/lib/api';
-import { FileText, HelpCircle, Search, Download, Eye, X, Archive } from 'lucide-react';
+import { FileText, Search, Download, Eye, X, Archive } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +14,7 @@ import { cn } from '@/lib/utils';
 
 const TYPE_CONFIG = {
     draft_letter: { label: 'Letter', icon: FileText, className: 'bg-blue-100 text-blue-700' },
-    draft_question: { label: 'Question', icon: HelpCircle, className: 'bg-amber-100 text-amber-700' },
+    draft_question: { label: 'Draft', icon: FileText, className: 'bg-amber-100 text-amber-700' },
     analysis: { label: 'Research', icon: Search, className: 'bg-green-100 text-green-700' },
     copilot_chat: { label: 'Research', icon: Search, className: 'bg-green-100 text-green-700' },
 };
@@ -23,17 +22,14 @@ const TYPE_CONFIG = {
 const TABS = [
     { key: 'all', label: 'All' },
     { key: 'draft_letter', label: 'Letters' },
-    { key: 'draft_question', label: 'Questions' },
     { key: 'analysis', label: 'Research' },
 ];
 
 export default function ArchivesPage() {
-    const { user } = useAuth();
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all');
     const [selected, setSelected] = useState(null);
-    const color = user?.theme_color || '#006a4d';
 
     const fetchItems = async () => {
         setLoading(true);

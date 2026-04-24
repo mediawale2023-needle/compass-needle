@@ -21,8 +21,6 @@ import {
     Compass,
     ChevronLeft,
     ChevronRight,
-    ScrollText,
-    Telescope,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -31,8 +29,6 @@ const NAV_ITEMS = [
     { name: 'Briefcase', path: '/dashboard/sansadx', icon: Briefcase, badgeKey: 'briefcase' },
     { name: 'Research Desk', path: '/dashboard/copilot', icon: BookOpen },
     { name: 'Drafter', path: '/dashboard/drafter', icon: PenTool },
-    { name: 'Parliament', path: '/dashboard/parliament', icon: ScrollText, mpOnly: true },
-    { name: 'Parliament Intel', path: '/dashboard/parliament-intel', icon: Telescope, mpOnly: true },
     { name: 'Schemes', path: '/dashboard/schemes', icon: Gift, mpOnly: true },
     { name: 'CSR Intelligence', path: '/dashboard/csr', icon: Users, mpOnly: true },
     { name: 'Archives', path: '/dashboard/archives', icon: Archive },

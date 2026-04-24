@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-    Loader2,
     AlertTriangle,
     CheckCircle2,
     Building2,
@@ -27,109 +26,11 @@ import {
     ExternalLink,
     Briefcase,
     BarChart2,
-    CalendarClock,
-    FileQuestion,
-    ScrollText,
 } from 'lucide-react';
-
-function PQCalendarCard({ pq }) {
-    if (!pq || pq.window_state === 'unknown') return null;
-
-    const configs = {
-        open: {
-            border:   'border-l-blue-500',
-            bg:       'bg-blue-50/50',
-            dot:      'bg-blue-500',
-            ping:     'bg-blue-400',
-            label:    `${pq.days_remaining} day${pq.days_remaining !== 1 ? 's' : ''} left to submit`,
-            sublabel: `Deadline: ${pq.window_close}`,
-            showCta:  true,
-        },
-        not_yet: {
-            border:   'border-l-muted',
-            bg:       '',
-            dot:      'bg-muted-foreground/40',
-            ping:     null,
-            label:    `PQ window opens in ${pq.days_until_open} day${pq.days_until_open !== 1 ? 's' : ''}`,
-            sublabel: `Opens ${pq.next_window_open} · Closes ${pq.window_close}`,
-            showCta:  false,
-        },
-        closed: {
-            border:   'border-l-amber-400',
-            bg:       'bg-amber-50/30',
-            dot:      'bg-amber-400',
-            ping:     null,
-            label:    'Submission deadline passed',
-            sublabel: `${pq.target_session} starts ${pq.session_start}`,
-            showCta:  false,
-        },
-        in_session: {
-            border:   'border-l-muted',
-            bg:       '',
-            dot:      'bg-muted-foreground/40',
-            ping:     null,
-            label:    pq.next_session_name
-                        ? `PQ window for ${pq.next_session_name} opens ${pq.next_window_open}`
-                        : 'PQ submissions open during recess',
-            sublabel: null,
-            showCta:  false,
-        },
-    };
-
-    const cfg = configs[pq.window_state] || configs.not_yet;
-
-    return (
-        <Card className={cn('border-l-4', cfg.border, cfg.bg)}>
-            <CardContent className="py-4">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="flex items-start gap-2.5">
-                        <div className="mt-0.5 shrink-0">
-                            {cfg.ping ? (
-                                <span className="relative flex h-2.5 w-2.5">
-                                    <span className={cn('animate-ping absolute inline-flex h-full w-full rounded-full opacity-75', cfg.ping)} />
-                                    <span className={cn('relative inline-flex rounded-full h-2.5 w-2.5', cfg.dot)} />
-                                </span>
-                            ) : (
-                                <span className={cn('block h-2.5 w-2.5 rounded-full', cfg.dot)} />
-                            )}
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <CalendarClock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                <span className="text-sm font-semibold text-foreground">
-                                    PQ Calendar — {pq.target_session}
-                                </span>
-                                {pq.pqs_drafted > 0 && (
-                                    <Badge variant="secondary" className="flex items-center gap-1 text-[10px]">
-                                        <FileQuestion className="h-2.5 w-2.5" />
-                                        {pq.pqs_drafted} drafted
-                                    </Badge>
-                                )}
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">{cfg.label}</p>
-                            {cfg.sublabel && (
-                                <p className="text-xs text-muted-foreground/70 mt-0.5">{cfg.sublabel}</p>
-                            )}
-                        </div>
-                    </div>
-                    {cfg.showCta && (
-                        <Button asChild size="sm">
-                            <Link href="/dashboard/drafter?mode=question">
-                                Draft a PQ
-                                <ArrowRight className="h-4 w-4 ml-1" />
-                            </Link>
-                        </Button>
-                    )}
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
 
 const QUICK_ACTIONS = [
     { label: 'Upload Letter', href: '/dashboard/letterbox', desc: 'Scan or upload', icon: Mail },
     { label: 'Draft Response', href: '/dashboard/drafter', desc: 'AI-assisted writing', icon: PenTool },
-    { label: 'Parliament', href: '/dashboard/parliament', desc: 'Questions & record', icon: ScrollText },
     { label: 'Find a Scheme', href: '/dashboard/schemes', desc: 'Match constituents', icon: Gift },
 ];
 
@@ -162,8 +63,6 @@ export default function DashboardPage() {
     const [news, setNews] = useState({ national: [], local: [] });
     const [newsTab, setNewsTab] = useState('national');
     const [showNews, setShowNews] = useState(true);
-    const [parliament, setParliament] = useState(null);
-    const [pqCalendar, setPqCalendar] = useState(null);
     const [staleCases, setStaleCases] = useState([]);
     const [allCases, setAllCases] = useState([]);
 
@@ -189,16 +88,6 @@ export default function DashboardPage() {
                 apiGet('/api/news?news_type=local').catch(() => ({ articles: [] })),
             ]);
             safeSet(() => setNews({ national: nat.articles || [], local: loc.articles || [] }));
-        })();
-
-        (async () => {
-            const parl = await apiGet('/api/parliament/status').catch(() => null);
-            safeSet(() => setParliament(parl));
-        })();
-
-        (async () => {
-            const pqCal = await apiGet('/api/parliament/pq-calendar').catch(() => null);
-            safeSet(() => setPqCalendar(pqCal));
         })();
 
         (async () => {
@@ -253,59 +142,6 @@ export default function DashboardPage() {
 
     return (
         <div className="space-y-6">
-            {/* Parliament Status */}
-            {parliament && (
-                <Card className={cn(
-                    "border-l-4",
-                    parliament.in_session ? "border-l-emerald-500 bg-emerald-50/50" : "border-l-muted"
-                )}>
-                    <CardContent className="py-4">
-                        {parliament.in_session ? (
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between flex-wrap gap-2">
-                                    <div className="flex items-center gap-2">
-                                        <span className="relative flex h-2.5 w-2.5">
-                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                                        </span>
-                                        <span className="font-semibold text-emerald-800">
-                                            House in Session — {parliament.session_name}
-                                        </span>
-                                    </div>
-                                    <span className="text-xs text-muted-foreground">
-                                        {parliament.day}, {parliament.date}
-                                    </span>
-                                </div>
-                                {parliament.business_items?.length > 0 && (
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {parliament.business_items.slice(0, 2).map((item, i) => (
-                                            <Badge key={i} variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200">
-                                                {item}
-                                            </Badge>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/40" />
-                                    <span className="text-sm text-muted-foreground">{parliament.message}</span>
-                                </div>
-                                {parliament.next_session && (
-                                    <span className="text-xs text-muted-foreground">
-                                        Next: {parliament.next_session}
-                                    </span>
-                                )}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* PQ Calendar */}
-            <PQCalendarCard pq={pqCalendar} />
-
             {/* Attention Banner */}
             {hasUrgent && (
                 <Card className="border-destructive/50 bg-destructive/5">
@@ -346,7 +182,7 @@ export default function DashboardPage() {
                             <h2 className="text-lg font-bold text-foreground">Welcome to Compass Needle</h2>
                             <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
                                 Your constituency office is ready. Start by uploading a letter from a constituent,
-                                logging a new case, or drafting your first parliamentary question.
+                                logging a new case, or preparing your first response draft.
                             </p>
                         </div>
                         <div className="flex flex-wrap justify-center gap-3 pt-4">
@@ -357,10 +193,10 @@ export default function DashboardPage() {
                                 <Link href="/dashboard/sansadx">Log a Case</Link>
                             </Button>
                             <Button variant="outline" asChild>
-                                <Link href="/dashboard/parliament">View Parliament Record</Link>
+                                <Link href="/dashboard/schemes">Find a Scheme</Link>
                             </Button>
                             <Button variant="ghost" asChild>
-                                <Link href="/dashboard/drafter">Draft a PQ</Link>
+                                <Link href="/dashboard/drafter">Open Drafter</Link>
                             </Button>
                         </div>
                     </CardContent>
@@ -368,7 +204,7 @@ export default function DashboardPage() {
             ) : (
                 <>
                     {/* Quick Actions */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         {QUICK_ACTIONS.map(({ label, href, desc, icon: Icon }) => (
                             <Link key={href} href={href}>
                                 <Card className="h-full card-hover cursor-pointer">

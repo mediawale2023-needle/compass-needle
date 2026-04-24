@@ -4,8 +4,8 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ToastProvider } from '@/components/ui/toast';
 
 export const metadata = {
-    title: 'Needle - Parliamentary Intelligence',
-    description: 'AI-powered grievance management and parliamentary intelligence platform',
+    title: 'Compass Needle',
+    description: 'AI-powered grievance management and constituency operations platform',
 };
 
 export const viewport = {

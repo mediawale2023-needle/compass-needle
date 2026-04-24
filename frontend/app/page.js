@@ -169,7 +169,7 @@ export default function LoginPage() {
                             Compass Needle
                         </CardTitle>
                         <CardDescription className="text-center text-muted-foreground">
-                            Parliamentary Intelligence Platform
+                            Grievance Management Platform
                         </CardDescription>
                     </CardHeader>
 
@@ -261,7 +261,7 @@ export default function LoginPage() {
                 </Card>
 
                 <p className="text-center text-xs text-muted-foreground mt-6">
-                    Compass Needle · Digital Parliament
+                    Compass Needle · Constituency Operations
                 </p>
             </div>
         </div>

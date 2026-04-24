@@ -25,7 +25,7 @@ import {
 
 const TYPE_LABELS = {
     draft_letter: 'Letter',
-    draft_question: 'PQ',
+    draft_question: 'Draft',
     analysis: 'Analysis',
     copilot_chat: 'Chat',
 };
@@ -99,8 +99,7 @@ export default function DashboardLayout({ children }) {
             return draftId ? `/dashboard/drafter?mode=letter&draft_id=${encodeURIComponent(draftId)}` : '/dashboard/drafter?mode=letter';
         }
         if (item?.activity_type === 'draft_question') {
-            const draftId = meta.draft_id || meta.question_id || meta.id;
-            return draftId ? `/dashboard/drafter?mode=question&draft_id=${encodeURIComponent(draftId)}` : '/dashboard/drafter?mode=question';
+            return `/dashboard/archives?activity_id=${encodeURIComponent(item?.id || '')}`;
         }
         if (item?.activity_type === 'analysis' || item?.activity_type === 'copilot_chat') {
             const sessionId = meta.session_id || meta.chat_id || meta.id;
