@@ -128,7 +128,7 @@ def _extract_by_rules(subject: str) -> list[str]:
 def _gpt_extract_batch(subjects: list[str]) -> list[dict]:
     """
     Send a batch of subjects to GPT-4o-mini.
-    Returns list of {name, full_name, ministry} dicts.
+    Returns list of {"index": <1-based>, "schemes": [{name, full_name, ministry}, ...]}.
     """
     try:
         import openai
@@ -140,11 +140,13 @@ def _gpt_extract_batch(subjects: list[str]) -> list[dict]:
     numbered = "\n".join(f"{i+1}. {s}" for i, s in enumerate(subjects))
     prompt = (
         "These are Indian parliamentary question subjects. "
-        "Extract every government scheme name mentioned. "
-        "Return JSON array: [{\"name\": \"<short canonical name>\", "
+        "For each subject, extract every government scheme name mentioned. "
+        "Return JSON object with key \"items\" whose value is an array of objects in this exact form: "
+        "{\"index\": <subject number>, \"schemes\": [{\"name\": \"<short canonical name>\", "
         "\"full_name\": \"<full official name or same as name>\", "
-        "\"ministry\": \"<ministry if inferable else null>\"}]. "
-        "Skip subjects with no scheme. Return [] if none found.\n\n"
+        "\"ministry\": \"<ministry if inferable else null>\"}]}. "
+        "Use 1-based subject numbering from the list below. "
+        "Skip subjects with no scheme. Return {\"items\": []} if none found.\n\n"
         f"Subjects:\n{numbered}"
     )
     try:
@@ -160,12 +162,10 @@ def _gpt_extract_batch(subjects: list[str]) -> list[dict]:
         )
         raw = resp.choices[0].message.content or "{}"
         data = json.loads(raw)
+        if isinstance(data, dict) and isinstance(data.get("items"), list):
+            return data["items"]
         if isinstance(data, list):
             return data
-        # GPT sometimes wraps in {"schemes": [...]}
-        for v in data.values():
-            if isinstance(v, list):
-                return v
         return []
     except Exception as e:
         logger.warning("GPT batch extraction failed: %s", e)
@@ -472,14 +472,14 @@ def normalize_ministry_names() -> dict:
 
 def _upsert_scheme(name: str, full_name: str, ministry: Optional[str],
                    alias: Optional[str], date_seen: Optional[str],
-                   _sem_cache: Optional[dict] = None):
+                   _sem_cache: Optional[dict] = None) -> Optional[int]:
     """
     Insert or update a scheme in prs_schemes.
     _sem_cache: optional {semantic_key → id} dict for batch-mode dedup.
     """
     canonical = _normalise(_expand_name(name))
     if not canonical or len(canonical) < 4:
-        return
+        return None
 
     ministry = _normalize_ministry(ministry) if ministry else ministry
     sem_key = _semantic_key(canonical)
@@ -521,6 +521,7 @@ def _upsert_scheme(name: str, full_name: str, ministry: Optional[str],
                 })
                 if _sem_cache is not None and len(sem_key) >= 10:
                     _sem_cache.setdefault(sem_key, existing["id"])
+                return existing["id"]
             else:
                 aliases_arr = [alias] if alias and alias != canonical else []
                 result = conn.execute(text("""
@@ -541,49 +542,98 @@ def _upsert_scheme(name: str, full_name: str, ministry: Optional[str],
                     "first":     date_seen or "2024-01-01",
                     "last":      date_seen or "2024-01-01",
                 })
+                inserted_id = None
                 if _sem_cache is not None and len(sem_key) >= 10:
                     row = result.fetchone()
                     if row:
+                        inserted_id = row[0]
                         _sem_cache.setdefault(sem_key, row[0])
+                elif result.returns_rows:
+                    row = result.fetchone()
+                    if row:
+                        inserted_id = row[0]
+                if inserted_id is None:
+                    inserted = conn.execute(text(
+                        "SELECT id FROM prs_schemes WHERE name = :name"
+                    ), {"name": canonical}).mappings().fetchone()
+                    inserted_id = inserted["id"] if inserted else None
+                return inserted_id
     except Exception as e:
         logger.debug("Upsert scheme '%s' failed: %s", canonical, e)
+    return None
+
+
+def _upsert_scheme_mention(pq_id: int, scheme_id: Optional[int], matched_text: Optional[str],
+                           confidence: float, source: str):
+    if not pq_id or not scheme_id:
+        return
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO scheme_mentions
+                    (pq_id, scheme_id, matched_text, confidence, source)
+                VALUES
+                    (:pq_id, :scheme_id, :matched_text, :confidence, :source)
+                ON CONFLICT (pq_id, scheme_id) DO UPDATE SET
+                    matched_text = COALESCE(EXCLUDED.matched_text, scheme_mentions.matched_text),
+                    confidence   = GREATEST(EXCLUDED.confidence, scheme_mentions.confidence),
+                    source       = CASE
+                        WHEN scheme_mentions.source = 'rule' THEN scheme_mentions.source
+                        ELSE EXCLUDED.source
+                    END
+            """), {
+                "pq_id": pq_id,
+                "scheme_id": scheme_id,
+                "matched_text": matched_text[:500] if matched_text else None,
+                "confidence": confidence,
+                "source": source,
+            })
+    except Exception as e:
+        logger.debug("Upsert scheme mention failed for pq_id=%s scheme_id=%s: %s", pq_id, scheme_id, e)
+
+
+def _repoint_mentions(conn, winner_id: int, loser_id: int):
+    conn.execute(text("""
+        INSERT INTO scheme_mentions (pq_id, scheme_id, matched_text, confidence, source)
+        SELECT pq_id, :winner_id, matched_text, confidence, source
+        FROM scheme_mentions
+        WHERE scheme_id = :loser_id
+        ON CONFLICT (pq_id, scheme_id) DO NOTHING
+    """), {"winner_id": winner_id, "loser_id": loser_id})
+    conn.execute(text("DELETE FROM scheme_mentions WHERE scheme_id = :loser_id"),
+                 {"loser_id": loser_id})
 
 
 # ── Answer count refresh ──────────────────────────────────────────────────────
 
 def refresh_answer_counts():
-    """Update prs_schemes.answer_count based on current global_parliamentary_questions."""
+    """Update prs_schemes.answer_count from exact scheme_mentions rows."""
     logger.info("Refreshing answer counts for all schemes...")
     try:
-        with engine.connect() as conn:
-            schemes = conn.execute(text(
-                "SELECT id, name, aliases FROM prs_schemes"
-            )).mappings().all()
+        with engine.begin() as conn:
+            conn.execute(text("""
+                UPDATE prs_schemes ps
+                SET answer_count = COALESCE(src.cnt, 0),
+                    updated_at = NOW()
+                FROM (
+                    SELECT
+                        sm.scheme_id,
+                        COUNT(DISTINCT sm.pq_id) FILTER (
+                            WHERE gpq.answer_text IS NOT NULL AND gpq.answer_text != ''
+                        ) AS cnt
+                    FROM scheme_mentions sm
+                    JOIN global_parliamentary_questions gpq ON gpq.id = sm.pq_id
+                    GROUP BY sm.scheme_id
+                ) src
+                WHERE ps.id = src.scheme_id
+            """))
+            conn.execute(text("""
+                UPDATE prs_schemes
+                SET answer_count = 0, updated_at = NOW()
+                WHERE id NOT IN (SELECT DISTINCT scheme_id FROM scheme_mentions)
+            """))
 
-        for s in schemes:
-            aliases = list(s["aliases"] or []) + [s["name"]]
-            # Build ILIKE conditions for all aliases
-            conditions = " OR ".join(
-                f"(subject ILIKE :a{i} OR answer_text ILIKE :a{i})"
-                for i in range(len(aliases))
-            )
-            params = {f"a{i}": f"%{a}%" for i, a in enumerate(aliases)}
-            sql = f"""
-                SELECT COUNT(*) AS cnt
-                FROM global_parliamentary_questions
-                WHERE answer_text IS NOT NULL AND answer_text != ''
-                  AND ({conditions})
-            """
-            with engine.connect() as conn:
-                r = conn.execute(text(sql), params).mappings().fetchone()
-                count = int(r["cnt"]) if r else 0
-
-            with engine.begin() as conn:
-                conn.execute(text(
-                    "UPDATE prs_schemes SET answer_count = :c WHERE id = :id"
-                ), {"c": count, "id": s["id"]})
-
-        logger.info("Answer counts refreshed for %d schemes", len(schemes))
+        logger.info("Answer counts refreshed from scheme_mentions")
     except Exception as e:
         logger.error("refresh_answer_counts failed: %s", e)
 
@@ -648,10 +698,10 @@ def run_extraction(full: bool = False, _progress: dict = None) -> dict:
 
     rule_matched = 0
     gpt_subjects = []
-    gpt_meta: dict[str, dict] = {}  # subject → {ministry, date}
     schemes_upserted = 0
 
     for idx, row in enumerate(rows):
+        pq_id     = row["id"]
         subject  = row["subject"] or ""
         ministry = row["ministry"] or None
         date_str = row["date_asked"].isoformat() if row["date_asked"] else None
@@ -660,12 +710,19 @@ def run_extraction(full: bool = False, _progress: dict = None) -> dict:
         if found:
             rule_matched += 1
             for scheme_name in found:
-                _upsert_scheme(scheme_name, scheme_name, ministry, None, date_str,
-                               _sem_cache=_sem_cache)
-                schemes_upserted += 1
+                scheme_id = _upsert_scheme(
+                    scheme_name, scheme_name, ministry, None, date_str, _sem_cache=_sem_cache
+                )
+                _upsert_scheme_mention(pq_id, scheme_id, scheme_name, 1.0, "rule")
+                if scheme_id:
+                    schemes_upserted += 1
         else:
-            gpt_subjects.append(subject)
-            gpt_meta[subject] = {"ministry": ministry, "date": date_str}
+            gpt_subjects.append({
+                "id": pq_id,
+                "subject": subject,
+                "ministry": ministry,
+                "date": date_str,
+            })
 
         if idx % 200 == 0:
             _upd(idx, total_rows, "subjects (rule pass)")
@@ -681,25 +738,33 @@ def run_extraction(full: bool = False, _progress: dict = None) -> dict:
                     len(gpt_subjects), rule_matched)
         for i in range(0, len(gpt_subjects), GPT_BATCH_SIZE):
             batch = gpt_subjects[i: i + GPT_BATCH_SIZE]
-            extracted = _gpt_extract_batch(batch)
+            batch_subjects = [b["subject"] for b in batch]
+            extracted = _gpt_extract_batch(batch_subjects)
             for item in extracted:
-                name = (item.get("name") or "").strip()
-                if not name or len(name) < 4:
+                try:
+                    subject_index = int(item.get("index"))
+                except Exception:
                     continue
-                ministry = item.get("ministry") or None
-                if not ministry:
-                    for subj in batch:
-                        if name.lower()[:8] in subj.lower():
-                            ministry = gpt_meta[subj]["ministry"]
-                            break
-                date_str = None
-                for subj in batch:
-                    if name.lower()[:8] in subj.lower():
-                        date_str = gpt_meta[subj]["date"]
-                        break
-                _upsert_scheme(name, item.get("full_name") or name, ministry, None, date_str,
-                               _sem_cache=_sem_cache)
-                schemes_upserted += 1
+                if subject_index < 1 or subject_index > len(batch):
+                    continue
+                batch_row = batch[subject_index - 1]
+                for scheme_item in item.get("schemes") or []:
+                    name = (scheme_item.get("name") or "").strip()
+                    if not name or len(name) < 4:
+                        continue
+                    ministry = scheme_item.get("ministry") or batch_row.get("ministry")
+                    date_str = batch_row.get("date")
+                    scheme_id = _upsert_scheme(
+                        name,
+                        scheme_item.get("full_name") or name,
+                        ministry,
+                        None,
+                        date_str,
+                        _sem_cache=_sem_cache,
+                    )
+                    _upsert_scheme_mention(batch_row["id"], scheme_id, name, 0.8, "gpt")
+                    if scheme_id:
+                        schemes_upserted += 1
             gpt_calls += 1
             _upd(gpt_calls, total_batches, "GPT batches")
             if i + GPT_BATCH_SIZE < len(gpt_subjects):
@@ -816,6 +881,8 @@ def deduplicate_schemes(dry_run: bool = False) -> dict:
 
             loser_ids   = [l["id"]   for l in losers]
             loser_names = [l["name"] for l in losers]
+            for loser in losers:
+                _repoint_mentions(conn, winner["id"], loser["id"])
             conn.execute(text("DELETE FROM prs_schemes WHERE id = ANY(:ids)"),
                          {"ids": loser_ids})
             conn.execute(text(
@@ -1006,6 +1073,7 @@ def deduplicate_acronyms(dry_run: bool = False) -> dict:
                 WHERE id = :id
             """), {"aliases": all_aliases, "count": total_count, "id": full["id"]})
 
+            _repoint_mentions(conn, full["id"], acro["id"])
             conn.execute(text("DELETE FROM prs_schemes WHERE id = :id"),
                          {"id": acro["id"]})
             conn.execute(text(
@@ -1116,6 +1184,7 @@ def deduplicate_substrings(dry_run: bool = False) -> dict:
                 WHERE id = :id
             """), {"aliases": all_aliases, "count": total_count, "id": parent["id"]})
 
+            _repoint_mentions(conn, parent["id"], short["id"])
             conn.execute(text("DELETE FROM prs_schemes WHERE id = :id"),
                          {"id": short["id"]})
             conn.execute(text(

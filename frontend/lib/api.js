@@ -122,8 +122,8 @@ export async function api(path, options = {}) {
     throw lastError || new Error('Request failed after retries');
 }
 
-export async function apiGet(path) {
-    return api(path, { method: 'GET' });
+export async function apiGet(path, opts = {}) {
+    return api(path, { method: 'GET', ...opts });
 }
 
 export async function apiPost(path, body, opts = {}) {

@@ -18,12 +18,14 @@ Background regeneration fires automatically when a stale brief is requested.
 from __future__ import annotations
 
 import os
+import re
 import json
 import time
 import logging
 import threading
 from typing import Optional
 
+from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import text
 
 from sansadx_backend.db import engine
@@ -33,6 +35,244 @@ logger = logging.getLogger("needle.schemes_api")
 # ── In-memory runtime cache (avoids repeated DB reads for hot schemes) ─────
 _runtime_cache: dict[str, dict] = {}
 _RUNTIME_TTL = 3600  # 1 hour
+_generation_guard = threading.Lock()
+_active_generations: set[str] = set()
+_INDIA_STATES = [
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+    "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
+    "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya",
+    "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim",
+    "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand",
+    "West Bengal", "Andaman and Nicobar Islands", "Chandigarh",
+    "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir",
+    "Ladakh", "Lakshadweep", "Puducherry",
+]
+_FACT_SIGNAL_RE = re.compile(
+    r"\b(?:\d[\d,\.]*\s*(?:crore|lakh|lakhs|million|billion|percent|%|students|schools|households|beneficiaries|villages|units|centres|centers)|Rs\.?\s*\d)",
+    re.IGNORECASE,
+)
+_STAT_EXCLUDE_RE = re.compile(r"\b(?:neet|jee|board exam|exam pass|qualified)\b", re.IGNORECASE)
+
+
+def _clean_sentence(text: str) -> Optional[str]:
+    value = _trim_text(text)
+    if not value:
+        return None
+    value = re.sub(r"\s+", " ", value).strip(" \"'")
+    return value or None
+
+
+def _split_sentences(text_value: str) -> list[str]:
+    text_value = re.sub(r"\s+", " ", text_value or "").strip()
+    if not text_value:
+        return []
+    parts = re.split(r"(?<=[\.\?!;])\s+", text_value)
+    return [_clean_sentence(part) for part in parts if _clean_sentence(part)]
+
+
+def _extract_states_from_text(text_value: str, current_state: str = "") -> list[str]:
+    found = []
+    lowered = (text_value or "").lower()
+    current_state_lc = (current_state or "").strip().lower()
+    for state_name in _INDIA_STATES:
+        if state_name.lower() == current_state_lc:
+            continue
+        pattern = r"\b" + re.escape(state_name.lower()) + r"\b"
+        if re.search(pattern, lowered):
+            found.append(state_name)
+    return found
+
+
+def _find_sentence(
+    answers: list[dict],
+    include_terms: list[str],
+    *,
+    exclude_terms: Optional[list[str]] = None,
+    required_state: str = "",
+) -> Optional[str]:
+    required_state_lc = required_state.strip().lower()
+    include_terms_lc = [term.lower() for term in include_terms]
+    exclude_terms_lc = [term.lower() for term in (exclude_terms or [])]
+
+    for answer in answers:
+        for sentence in _split_sentences(answer.get("answer_text") or ""):
+            lowered = sentence.lower()
+            if required_state_lc and required_state_lc not in lowered:
+                continue
+            if exclude_terms_lc and any(term in lowered for term in exclude_terms_lc):
+                continue
+            if include_terms_lc and not any(term in lowered for term in include_terms_lc):
+                continue
+            if not _FACT_SIGNAL_RE.search(sentence) and len(sentence) < 35:
+                continue
+            return sentence[:320]
+    return None
+
+
+def _collect_fact_sentences(
+    answers: list[dict],
+    *,
+    required_state: str = "",
+    exclude_exam: bool = False,
+    limit: int = 5,
+) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    required_state_lc = required_state.strip().lower()
+
+    for answer in answers:
+        for sentence in _split_sentences(answer.get("answer_text") or ""):
+            lowered = sentence.lower()
+            if required_state_lc and required_state_lc not in lowered:
+                continue
+            if exclude_exam and _STAT_EXCLUDE_RE.search(lowered):
+                continue
+            if not _FACT_SIGNAL_RE.search(sentence):
+                continue
+            cleaned = sentence[:320]
+            if cleaned in seen:
+                continue
+            seen.add(cleaned)
+            out.append(cleaned)
+            if len(out) >= limit:
+                return out
+    return out
+
+
+def _derive_deterministic_intel(state: str, state_answers: list[dict], national_answers: list[dict]) -> dict:
+    latest_answer = sorted(
+        national_answers,
+        key=lambda answer: answer.get("date_asked") or "",
+        reverse=True,
+    )[0] if national_answers else None
+
+    other_states: list[str] = []
+    seen_states: set[str] = set()
+    for answer in national_answers:
+        combined = " ".join([
+            answer.get("subject") or "",
+            answer.get("answer_text") or "",
+        ])
+        for state_name in _extract_states_from_text(combined, state):
+            if state_name in seen_states:
+                continue
+            seen_states.add(state_name)
+            other_states.append(state_name)
+            if len(other_states) >= 6:
+                break
+        if len(other_states) >= 6:
+            break
+
+    derived = {
+        "your_state": {
+            "fund_flow": {
+                "received": _find_sentence(
+                    state_answers,
+                    ["released", "allocated", "sanctioned", "approved", "provided"],
+                    required_state=state,
+                ),
+                "utilization": _find_sentence(
+                    state_answers,
+                    ["utilisation", "utilization", "spent", "used"],
+                    required_state=state,
+                ),
+                "discrepancies": _find_sentence(
+                    state_answers,
+                    ["shortfall", "gap", "pending", "delay", "vacanc", "not released"],
+                    required_state=state,
+                ),
+            },
+            "beneficiaries": _find_sentence(
+                state_answers,
+                ["beneficiar", "enrol", "covered", "operational", "household", "student", "school"],
+                exclude_terms=["neet", "jee", "exam", "qualified"],
+                required_state=state,
+            ),
+            "implementation": {
+                "progress": _find_sentence(
+                    state_answers,
+                    ["operational", "sanctioned", "constructed", "approved", "progress"],
+                    required_state=state,
+                ),
+                "achievements": _find_sentence(
+                    state_answers,
+                    ["completed", "established", "operational", "achievement", "provided"],
+                    required_state=state,
+                ),
+                "challenges": _find_sentence(
+                    state_answers,
+                    ["delay", "pending", "vacanc", "land", "gap", "challenge", "shortfall"],
+                    required_state=state,
+                ),
+            },
+            "key_facts": _collect_fact_sentences(
+                state_answers,
+                required_state=state,
+                exclude_exam=True,
+                limit=4,
+            ),
+        } if state else None,
+        "national_picture": {
+            "fund_flow": {
+                "allocated": _find_sentence(national_answers, ["allocated", "budget", "outlay", "sanctioned"]),
+                "released": _find_sentence(national_answers, ["released", "provided", "shared"]),
+                "disbursed": _find_sentence(national_answers, ["disbursed", "transferred", "paid"]),
+                "utilization_pct": _find_sentence(national_answers, ["utilisation", "utilization", "%", "percent"]),
+                "discrepancies": _find_sentence(national_answers, ["shortfall", "gap", "audit", "pending", "delay"]),
+            },
+            "beneficiary_coverage": {
+                "total_beneficiaries": _find_sentence(
+                    national_answers,
+                    ["beneficiar", "covered", "enrol", "household", "student", "school"],
+                    exclude_terms=["neet", "jee", "exam", "qualified"],
+                ),
+                "demographic_breakdown": _find_sentence(
+                    national_answers,
+                    ["sc", "st", "obc", "women", "minority", "girl", "children"],
+                ),
+                "coverage_note": _find_sentence(
+                    national_answers,
+                    ["across", "states", "districts", "villages", "coverage"],
+                ),
+            },
+            "implementation_status": {
+                "progress": _find_sentence(national_answers, ["sanctioned", "operational", "progress", "completed"]),
+                "achievements": _find_sentence(national_answers, ["achieved", "operational", "established", "provided"]),
+                "timeline": _find_sentence(national_answers, ["by", "during", "since", "from", "timeline", "phase"]),
+            },
+            "challenges_acknowledged": {
+                "delays": _find_sentence(national_answers, ["delay", "delayed", "pending"]),
+                "gaps": _find_sentence(national_answers, ["gap", "shortfall", "vacanc", "deficit"]),
+                "pending_issues": _find_sentence(national_answers, ["pending", "under consideration", "remaining"]),
+            },
+            "key_statistics": _collect_fact_sentences(national_answers, limit=6),
+            "latest_position": {
+                "statement": _clean_sentence(((latest_answer or {}).get("answer_text") or "")[:320]) if latest_answer else None,
+                "date": (latest_answer or {}).get("date_asked") if latest_answer else None,
+            },
+        },
+        "other_states": {
+            "top_mentioned": other_states[:5],
+        },
+    }
+
+    return _normalize_payload(derived) or {}
+
+
+def _merge_intel(primary, secondary):
+    if isinstance(primary, dict) and isinstance(secondary, dict):
+        merged = {}
+        for key in set(primary) | set(secondary):
+            if key in primary and key in secondary:
+                merged[key] = _merge_intel(primary[key], secondary[key])
+            elif key in primary:
+                merged[key] = primary[key]
+            else:
+                merged[key] = secondary[key]
+        return merged
+    if isinstance(primary, list):
+        return primary or secondary
+    return primary if primary not in (None, "", [], {}) else secondary
 
 
 def _runtime_get(key: str) -> Optional[dict]:
@@ -44,6 +284,150 @@ def _runtime_get(key: str) -> Optional[dict]:
 
 def _runtime_set(key: str, data):
     _runtime_cache[key] = {"data": data, "ts": time.time()}
+
+
+def _generation_key(scheme_name: str, state: str) -> str:
+    return f"{scheme_name}::{state}"
+
+
+def _begin_generation(key: str) -> bool:
+    with _generation_guard:
+        if key in _active_generations:
+            return False
+        _active_generations.add(key)
+        return True
+
+
+def _end_generation(key: str):
+    with _generation_guard:
+        _active_generations.discard(key)
+
+
+def _trim_text(value) -> Optional[str]:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        value = str(value)
+    value = value.strip()
+    if not value or value.lower() in {"null", "none", "n/a", "na", "not stated", "unknown"}:
+        return None
+    return value
+
+
+def _normalize_payload(value):
+    if isinstance(value, dict):
+        return {
+            str(k): _normalize_payload(v)
+            for k, v in value.items()
+            if _normalize_payload(v) is not None
+        }
+    if isinstance(value, list):
+        out = []
+        seen = set()
+        for item in value:
+            normalized = _normalize_payload(item)
+            if normalized is None:
+                continue
+            marker = json.dumps(normalized, sort_keys=True, default=str)
+            if marker in seen:
+                continue
+            seen.add(marker)
+            out.append(normalized)
+        return out or None
+    return _trim_text(value)
+
+
+class _BaseIntelModel(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+
+class FundFlowModel(_BaseIntelModel):
+    allocated: Optional[str] = None
+    released: Optional[str] = None
+    disbursed: Optional[str] = None
+    utilization_pct: Optional[str] = None
+    discrepancies: Optional[str] = None
+    received: Optional[str] = None
+    utilization: Optional[str] = None
+
+
+class ImplementationModel(_BaseIntelModel):
+    progress: Optional[str] = None
+    achievements: Optional[str] = None
+    challenges: Optional[str] = None
+    timeline: Optional[str] = None
+
+
+class LatestPositionModel(_BaseIntelModel):
+    statement: Optional[str] = None
+    date: Optional[str] = None
+
+
+class BeneficiaryCoverageModel(_BaseIntelModel):
+    total_beneficiaries: Optional[str] = None
+    demographic_breakdown: Optional[str] = None
+    coverage_note: Optional[str] = None
+
+
+class ChallengesModel(_BaseIntelModel):
+    delays: Optional[str] = None
+    gaps: Optional[str] = None
+    pending_issues: Optional[str] = None
+
+
+class YourStateModel(_BaseIntelModel):
+    fund_flow: Optional[FundFlowModel] = None
+    beneficiaries: Optional[str] = None
+    implementation: Optional[ImplementationModel] = None
+    key_facts: list[str] = []
+
+
+class NationalPictureModel(_BaseIntelModel):
+    fund_flow: Optional[FundFlowModel] = None
+    beneficiary_coverage: Optional[BeneficiaryCoverageModel] = None
+    implementation_status: Optional[ImplementationModel] = None
+    challenges_acknowledged: Optional[ChallengesModel] = None
+    key_statistics: list[str] = []
+    latest_position: Optional[LatestPositionModel] = None
+
+
+class OtherStatesModel(_BaseIntelModel):
+    top_mentioned: list[str] = []
+    comparison: Optional[str] = None
+    lagging_issues: Optional[str] = None
+
+
+class SchemeIntelModel(_BaseIntelModel):
+    your_state: Optional[YourStateModel] = None
+    national_picture: Optional[NationalPictureModel] = None
+    other_states: Optional[OtherStatesModel] = None
+
+
+def _validate_intel_payload(raw: dict, national_answers: list[dict]) -> dict:
+    normalized = _normalize_payload(raw) or {}
+    try:
+        intel = SchemeIntelModel.model_validate(normalized)
+    except ValidationError as e:
+        logger.warning("Scheme intel validation failed: %s", e)
+        return {}
+
+    payload = intel.model_dump(exclude_none=True)
+
+    latest = payload.setdefault("national_picture", {}).get("latest_position")
+    if (not latest or not latest.get("statement")) and national_answers:
+        latest_answer = sorted(
+            national_answers,
+            key=lambda a: a.get("date_asked") or "",
+            reverse=True,
+        )[0]
+        excerpt = _trim_text((latest_answer.get("answer_text") or "")[:320])
+        if excerpt:
+            payload.setdefault("national_picture", {})["latest_position"] = {
+                "statement": excerpt,
+                "date": latest_answer.get("date_asked"),
+            }
+
+    return payload
 
 
 # ── Ministry overview ─────────────────────────────────────────────────────────
@@ -93,9 +477,10 @@ def get_ministry_overview() -> list[dict]:
 
 # ── Ministry schemes ──────────────────────────────────────────────────────────
 
-def get_ministry_schemes(ministry: str) -> list[dict]:
+def get_ministry_schemes(ministry: str, tenant_id: Optional[int] = None) -> list[dict]:
     """Returns all schemes for a given ministry, ordered by answer count."""
-    cache_key = f"ministry_schemes:{ministry.lower()}"
+    state = _get_tenant_state(tenant_id)
+    cache_key = f"ministry_schemes:{ministry.lower()}:{(state or '_').lower()}"
     cached = _runtime_get(cache_key)
     if cached is not None:
         return cached
@@ -122,8 +507,9 @@ def get_ministry_schemes(ministry: str) -> list[dict]:
                     SELECT DISTINCT ON (scheme_name) scheme_name, is_stale
                     FROM scheme_intelligence_cache
                     WHERE scheme_name = ANY(:names)
+                      AND state = :state
                     ORDER BY scheme_name, is_stale ASC
-                """), {"names": scheme_names}).mappings().all()
+                """), {"names": scheme_names, "state": state or ""}).mappings().all()
             for ir in intel_rows:
                 if ir["is_stale"]:
                     stale_names.add(ir["scheme_name"])
@@ -176,6 +562,100 @@ def _get_tenant_state(tenant_id: Optional[int]) -> str:
 
 # ── Answer fetching (tiered) ──────────────────────────────────────────────────
 
+def _rows_to_answer_dicts(rows, seen: set[int]) -> list[dict]:
+    out = []
+    for r in rows:
+        pq_id = int(r["id"])
+        if pq_id in seen:
+            continue
+        seen.add(pq_id)
+        out.append({
+            "pq_id":         pq_id,
+            "answer_text":   (r["answer_text"] or "")[:1200],
+            "subject":       r["subject"],
+            "date_asked":    r["date_asked"].isoformat() if r["date_asked"] else None,
+            "question_type": r["question_type"],
+            "session_name":  r["session_name"],
+        })
+    return out
+
+
+def _fetch_scheme_answers_from_mentions(scheme_id: int, state: str) -> dict:
+    state_answers: list[dict] = []
+    national_answers: list[dict] = []
+    seen_state: set[int] = set()
+    seen_national: set[int] = set()
+
+    try:
+        with engine.connect() as conn:
+            if state:
+                state_rows = conn.execute(text("""
+                    SELECT
+                        gpq.id, gpq.answer_text, gpq.subject, gpq.date_asked,
+                        gpq.question_type, gpq.session_name
+                    FROM scheme_mentions sm
+                    JOIN global_parliamentary_questions gpq ON gpq.id = sm.pq_id
+                    WHERE sm.scheme_id = :scheme_id
+                      AND gpq.answer_text IS NOT NULL AND gpq.answer_text != ''
+                      AND gpq.answer_text ILIKE :state
+                    ORDER BY
+                        (gpq.answer_text ILIKE '%crore%' OR gpq.answer_text ILIKE '%fund%'
+                         OR gpq.answer_text ILIKE '%sanctioned%' OR gpq.answer_text ILIKE '%operational%') DESC,
+                        gpq.date_asked DESC NULLS LAST
+                    LIMIT 4
+                """), {"scheme_id": scheme_id, "state": f"%{state}%"}).mappings().all()
+                state_answers = _rows_to_answer_dicts(state_rows, seen_state)
+
+            recent_rows = conn.execute(text("""
+                SELECT
+                    gpq.id, gpq.answer_text, gpq.subject, gpq.date_asked,
+                    gpq.question_type, gpq.session_name
+                FROM scheme_mentions sm
+                JOIN global_parliamentary_questions gpq ON gpq.id = sm.pq_id
+                WHERE sm.scheme_id = :scheme_id
+                  AND gpq.answer_text IS NOT NULL AND gpq.answer_text != ''
+                ORDER BY gpq.date_asked DESC NULLS LAST
+                LIMIT 5
+            """), {"scheme_id": scheme_id}).mappings().all()
+            national_answers.extend(_rows_to_answer_dicts(recent_rows, seen_national))
+
+            longest_rows = conn.execute(text("""
+                SELECT
+                    gpq.id, gpq.answer_text, gpq.subject, gpq.date_asked,
+                    gpq.question_type, gpq.session_name
+                FROM scheme_mentions sm
+                JOIN global_parliamentary_questions gpq ON gpq.id = sm.pq_id
+                WHERE sm.scheme_id = :scheme_id
+                  AND gpq.answer_text IS NOT NULL AND gpq.answer_text != ''
+                ORDER BY LENGTH(gpq.answer_text) DESC
+                LIMIT 5
+            """), {"scheme_id": scheme_id}).mappings().all()
+            national_answers.extend(_rows_to_answer_dicts(longest_rows, seen_national))
+
+            challenge_rows = conn.execute(text("""
+                SELECT
+                    gpq.id, gpq.answer_text, gpq.subject, gpq.date_asked,
+                    gpq.question_type, gpq.session_name
+                FROM scheme_mentions sm
+                JOIN global_parliamentary_questions gpq ON gpq.id = sm.pq_id
+                WHERE sm.scheme_id = :scheme_id
+                  AND gpq.answer_text IS NOT NULL AND gpq.answer_text != ''
+                  AND (
+                    gpq.answer_text ILIKE '%crore%' OR gpq.answer_text ILIKE '%allocated%'
+                    OR gpq.answer_text ILIKE '%released%' OR gpq.answer_text ILIKE '%shortage%'
+                    OR gpq.answer_text ILIKE '%delay%' OR gpq.answer_text ILIKE '%gap%'
+                    OR gpq.answer_text ILIKE '%pending%' OR gpq.answer_text ILIKE '%challenge%'
+                  )
+                ORDER BY gpq.date_asked DESC NULLS LAST
+                LIMIT 4
+            """), {"scheme_id": scheme_id}).mappings().all()
+            national_answers.extend(_rows_to_answer_dicts(challenge_rows, seen_national))
+    except Exception as e:
+        logger.error("_fetch_scheme_answers_from_mentions failed: %s", e)
+
+    return {"state_answers": state_answers, "national_answers": national_answers[:12]}
+
+
 def _fetch_scheme_answers_tiered(
     scheme_name: str, aliases: list[str], ministry: str, state: str
 ) -> dict:
@@ -188,6 +668,12 @@ def _fetch_scheme_answers_tiered(
     name stored in global_parliamentary_questions doesn't match the prs_schemes
     canonical name (different abbreviation, formatting, etc.).
     """
+    scheme_row = _get_scheme_row(scheme_name)
+    if scheme_row and scheme_row.get("id"):
+        exact = _fetch_scheme_answers_from_mentions(int(scheme_row["id"]), state)
+        if exact["state_answers"] or exact["national_answers"]:
+            return exact
+
     all_aliases = list({scheme_name} | set(aliases or []))
     ilike_parts = " OR ".join(
         f"(subject ILIKE :a{i} OR answer_text ILIKE :a{i})"
@@ -202,27 +688,12 @@ def _fetch_scheme_answers_tiered(
         ministry_filter = "AND LOWER(ministry) LIKE :mf"
         ministry_params = {"mf": f"%{keyword}%"}
 
-    def _rows_to_dicts(rows, seen: set) -> list[dict]:
-        out = []
-        for r in rows:
-            fp = (r["answer_text"] or "")[:120]
-            if fp not in seen:
-                seen.add(fp)
-                out.append({
-                    "answer_text":   (r["answer_text"] or "")[:800],
-                    "subject":       r["subject"],
-                    "date_asked":    r["date_asked"].isoformat() if r["date_asked"] else None,
-                    "question_type": r["question_type"],
-                    "session_name":  r["session_name"],
-                })
-        return out
-
     def _run_national_passes(conn, mf: str, params: dict) -> list[dict]:
-        seen: set[str] = set()
+        seen: set[int] = set()
         out: list[dict] = []
 
         recent = conn.execute(text(f"""
-            SELECT answer_text, subject, date_asked, question_type, session_name
+            SELECT id, answer_text, subject, date_asked, question_type, session_name
             FROM global_parliamentary_questions
             WHERE answer_text IS NOT NULL AND answer_text != ''
               {mf}
@@ -230,10 +701,10 @@ def _fetch_scheme_answers_tiered(
             ORDER BY date_asked DESC NULLS LAST
             LIMIT 5
         """), params).mappings().all()
-        out.extend(_rows_to_dicts(recent, seen))
+        out.extend(_rows_to_answer_dicts(recent, seen))
 
         longest = conn.execute(text(f"""
-            SELECT answer_text, subject, date_asked, question_type, session_name
+            SELECT id, answer_text, subject, date_asked, question_type, session_name
             FROM global_parliamentary_questions
             WHERE answer_text IS NOT NULL AND answer_text != ''
               {mf}
@@ -241,14 +712,14 @@ def _fetch_scheme_answers_tiered(
             ORDER BY LENGTH(answer_text) DESC
             LIMIT 5
         """), params).mappings().all()
-        out.extend(_rows_to_dicts(longest, seen))
+        out.extend(_rows_to_answer_dicts(longest, seen))
 
         fp_params = {**params,
                      "kw1": "%crore%",    "kw2": "%allocated%", "kw3": "%released%",
                      "kw4": "%shortage%", "kw5": "%delay%",     "kw6": "%gap%",
                      "kw7": "%pending%",  "kw8": "%challenge%"}
         challenge = conn.execute(text(f"""
-            SELECT answer_text, subject, date_asked, question_type, session_name
+            SELECT id, answer_text, subject, date_asked, question_type, session_name
             FROM global_parliamentary_questions
             WHERE answer_text IS NOT NULL AND answer_text != ''
               {mf}
@@ -260,7 +731,7 @@ def _fetch_scheme_answers_tiered(
             ORDER BY date_asked DESC NULLS LAST
             LIMIT 4
         """), fp_params).mappings().all()
-        out.extend(_rows_to_dicts(challenge, seen))
+        out.extend(_rows_to_answer_dicts(challenge, seen))
 
         return out[:12]
 
@@ -273,7 +744,7 @@ def _fetch_scheme_answers_tiered(
             if state:
                 sp = {**base_params, **ministry_params, "state": f"%{state}%"}
                 state_rows = conn.execute(text(f"""
-                    SELECT answer_text, subject, date_asked, question_type, session_name
+                    SELECT id, answer_text, subject, date_asked, question_type, session_name
                     FROM global_parliamentary_questions
                     WHERE answer_text IS NOT NULL AND answer_text != ''
                       {ministry_filter}
@@ -286,14 +757,14 @@ def _fetch_scheme_answers_tiered(
                         date_asked DESC NULLS LAST
                     LIMIT 4
                 """), sp).mappings().all()
-                seen_state: set[str] = set()
-                state_answers = _rows_to_dicts(state_rows, seen_state)
+                seen_state: set[int] = set()
+                state_answers = _rows_to_answer_dicts(state_rows, seen_state)
 
                 # Fallback: if ministry filter blocked state results, retry without
                 if not state_answers and ministry_filter:
                     sp_no_mf = {**base_params, "state": f"%{state}%"}
                     state_rows_fb = conn.execute(text(f"""
-                        SELECT answer_text, subject, date_asked, question_type, session_name
+                        SELECT id, answer_text, subject, date_asked, question_type, session_name
                         FROM global_parliamentary_questions
                         WHERE answer_text IS NOT NULL AND answer_text != ''
                           AND ({ilike_parts})
@@ -305,8 +776,8 @@ def _fetch_scheme_answers_tiered(
                             date_asked DESC NULLS LAST
                         LIMIT 4
                     """), sp_no_mf).mappings().all()
-                    seen_state2: set[str] = set()
-                    state_answers = _rows_to_dicts(state_rows_fb, seen_state2)
+                    seen_state2: set[int] = set()
+                    state_answers = _rows_to_answer_dicts(state_rows_fb, seen_state2)
 
             # ── National passes — try with ministry filter, fall back without ──
             params_with_mf = {**base_params, **ministry_params}
@@ -329,7 +800,8 @@ def _fetch_scheme_answers_tiered(
 
 def _call_gpt(
     scheme_name: str, ministry: str, state: str,
-    state_answers: list[dict], national_answers: list[dict]
+    state_answers: list[dict], national_answers: list[dict],
+    deterministic_facts: Optional[dict] = None,
 ) -> dict:
     """Call GPT-4o-mini to produce a 3-layer intelligence brief."""
     try:
@@ -355,6 +827,7 @@ def _call_gpt(
 
     state_block    = _fmt_block(state_answers,    f"{state}-specific" if state else "state")
     national_block = _fmt_block(national_answers, "national")
+    fact_sheet = json.dumps(deterministic_facts or {}, ensure_ascii=True, indent=2)
 
     system = (
         "You are a parliamentary intelligence analyst for India. "
@@ -392,6 +865,10 @@ IMPORTANT EXTRACTION RULES:
 2. If a number like "344 students qualified NEET" appears, put it in key_statistics, NOT in total_beneficiaries
 3. Exam outcomes (NEET/JEE/board results) must only appear in national_picture.key_statistics, never as beneficiary counts
 4. For your_state.key_facts: include school counts, fund amounts, operational status — exclude exam outcomes
+5. Prefer the structured fact sheet below when filling fields. Only use answer text to support or refine those facts, never to invent new ones.
+
+=== DETERMINISTIC FACT SHEET ===
+{fact_sheet}
 
 Return JSON with exactly these 3 keys:
 {{
@@ -454,6 +931,22 @@ Null for any field with no supporting evidence in the answers."""
 # ── Cache helpers (state-keyed) ───────────────────────────────────────────────
 
 def _count_scheme_answers(scheme_name: str, aliases: list[str], ministry: str) -> int:
+    scheme_row = _get_scheme_row(scheme_name)
+    if scheme_row and scheme_row.get("id"):
+        try:
+            with engine.connect() as conn:
+                r = conn.execute(text("""
+                    SELECT COUNT(DISTINCT sm.pq_id) AS cnt
+                    FROM scheme_mentions sm
+                    JOIN global_parliamentary_questions gpq ON gpq.id = sm.pq_id
+                    WHERE sm.scheme_id = :scheme_id
+                      AND gpq.answer_text IS NOT NULL AND gpq.answer_text != ''
+                """), {"scheme_id": int(scheme_row["id"])}).mappings().fetchone()
+            if r and r["cnt"] is not None:
+                return int(r["cnt"])
+        except Exception:
+            pass
+
     all_aliases = list({scheme_name} | set(aliases or []))
     ilike_parts = " OR ".join(
         f"(subject ILIKE :a{i} OR answer_text ILIKE :a{i})"
@@ -520,7 +1013,7 @@ def _get_scheme_row(scheme_name: str) -> Optional[dict]:
     try:
         with engine.connect() as conn:
             r = conn.execute(text(
-                "SELECT name, full_name, ministry, aliases, answer_count "
+                "SELECT id, name, full_name, ministry, aliases, answer_count "
                 "FROM prs_schemes WHERE name = :n"
             ), {"n": scheme_name}).mappings().fetchone()
         return dict(r) if r else None
@@ -528,7 +1021,19 @@ def _get_scheme_row(scheme_name: str) -> Optional[dict]:
         return None
 
 
-def _regenerate_in_background(scheme_name: str, scheme_row: dict, state: str):
+def _schedule_regeneration(scheme_name: str, scheme_row: dict, state: str) -> bool:
+    key = _generation_key(scheme_name, state)
+    if not _begin_generation(key):
+        return False
+    threading.Thread(
+        target=_regenerate_in_background,
+        args=(scheme_name, scheme_row, state, key),
+        daemon=True,
+    ).start()
+    return True
+
+
+def _regenerate_in_background(scheme_name: str, scheme_row: dict, state: str, generation_key: str):
     try:
         tiered = _fetch_scheme_answers_tiered(
             scheme_row["name"],
@@ -541,20 +1046,32 @@ def _regenerate_in_background(scheme_name: str, scheme_row: dict, state: str):
         if not state_answers and not national_answers:
             _write_cache(scheme_name, scheme_row.get("ministry") or "", state, {}, 0, "no_answers")
             return
-        intel = _call_gpt(
+        deterministic_facts = _derive_deterministic_intel(state, state_answers, national_answers)
+        raw_intel = _call_gpt(
             scheme_row["name"], scheme_row.get("ministry") or "", state,
-            state_answers, national_answers,
+            state_answers, national_answers, deterministic_facts,
         )
+        validated_intel = _validate_intel_payload(raw_intel, national_answers)
+        intel = _validate_intel_payload(
+            _merge_intel(deterministic_facts, validated_intel),
+            national_answers,
+        )
+        if not state:
+            intel.pop("your_state", None)
         pq_count = _count_scheme_answers(
             scheme_row["name"],
             list(scheme_row.get("aliases") or []),
             scheme_row.get("ministry") or "",
         )
-        _write_cache(scheme_name, scheme_row.get("ministry") or "", state, intel, pq_count)
+        cache_error = None if intel else "validation_failed"
+        _write_cache(scheme_name, scheme_row.get("ministry") or "", state, intel, pq_count, cache_error)
         _runtime_cache.pop(f"intel:{scheme_name}:{state}", None)
         logger.info("Background regen complete for '%s' [%s]", scheme_name, state or "national")
     except Exception as e:
         logger.error("Background regen failed for '%s': %s", scheme_name, e)
+        _write_cache(scheme_name, scheme_row.get("ministry") or "", state, {}, 0, "generation_failed")
+    finally:
+        _end_generation(generation_key)
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
@@ -587,6 +1104,7 @@ def get_scheme_intelligence(scheme_name: str, tenant_id: Optional[int] = None) -
             "generated_at": generated_at.isoformat() if generated_at else None,
             "is_stale":     is_stale,
             "answer_count": pq_count,
+            "pending":      False,
         }
 
     if db_cache and db_cache.get("structured_intel") and not db_cache.get("is_stale"):
@@ -598,37 +1116,18 @@ def get_scheme_intelligence(scheme_name: str, tenant_id: Optional[int] = None) -
         return result
 
     if db_cache and db_cache.get("structured_intel") and db_cache.get("is_stale"):
-        threading.Thread(
-            target=_regenerate_in_background,
-            args=(scheme_name, scheme_row, state),
-            daemon=True,
-        ).start()
+        _schedule_regeneration(scheme_name, scheme_row, state)
         return _build_result(
             db_cache["structured_intel"], True,
             db_cache.get("pq_count_at_gen", 0), db_cache.get("generated_at"),
         )
 
-    # No cache — generate now
-    tiered = _fetch_scheme_answers_tiered(
-        scheme_row["name"], list(scheme_row.get("aliases") or []),
-        scheme_row.get("ministry") or "", state,
-    )
-    state_answers    = tiered["state_answers"]
-    national_answers = tiered["national_answers"]
-
-    if not state_answers and not national_answers:
+    if int(scheme_row.get("answer_count") or 0) < 1:
         return {**_build_result(None, False, 0), "no_data": True}
 
-    intel = _call_gpt(
-        scheme_row["name"], scheme_row.get("ministry") or "", state,
-        state_answers, national_answers,
-    )
-    pq_count = _count_scheme_answers(
-        scheme_row["name"], list(scheme_row.get("aliases") or []),
-        scheme_row.get("ministry") or "",
-    )
-    _write_cache(scheme_name, scheme_row.get("ministry") or "", state, intel, pq_count)
-    result = _build_result(intel, False, pq_count)
+    _schedule_regeneration(scheme_name, scheme_row, state)
+    result = _build_result(None, False, int(scheme_row.get("answer_count") or 0))
+    result["pending"] = True
     _runtime_set(rt_key, result)
     return result
 
@@ -644,6 +1143,27 @@ def mark_stale_schemes(new_pq_ids: list[int]):
     if not new_pq_ids:
         return
     try:
+        with engine.connect() as conn:
+            exact_rows = conn.execute(text("""
+                SELECT DISTINCT ps.name
+                FROM scheme_mentions sm
+                JOIN prs_schemes ps ON ps.id = sm.scheme_id
+                JOIN global_parliamentary_questions gpq ON gpq.id = sm.pq_id
+                WHERE sm.pq_id = ANY(:ids)
+                  AND gpq.answer_text IS NOT NULL AND gpq.answer_text != ''
+            """), {"ids": new_pq_ids}).mappings().all()
+
+        exact_names = [r["name"] for r in exact_rows if r["name"]]
+        if exact_names:
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    UPDATE scheme_intelligence_cache
+                    SET is_stale = true
+                    WHERE scheme_name = ANY(:names) AND is_stale = false
+                """), {"names": exact_names})
+            logger.info("Marked %d scheme briefs stale from exact scheme_mentions", len(exact_names))
+            return
+
         with engine.connect() as conn:
             rows = conn.execute(text("""
                 SELECT subject FROM global_parliamentary_questions

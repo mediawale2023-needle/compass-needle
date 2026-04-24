@@ -727,6 +727,24 @@ try:
                 error           TEXT
             )
         """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS scheme_mentions (
+                id              SERIAL PRIMARY KEY,
+                pq_id           BIGINT NOT NULL REFERENCES global_parliamentary_questions(id) ON DELETE CASCADE,
+                scheme_id       INTEGER NOT NULL REFERENCES prs_schemes(id) ON DELETE CASCADE,
+                matched_text    VARCHAR(500),
+                source          VARCHAR(20) NOT NULL DEFAULT 'rule',
+                confidence      NUMERIC(4, 3) NOT NULL DEFAULT 1.0,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                UNIQUE (pq_id, scheme_id)
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_scheme_mentions_scheme ON scheme_mentions (scheme_id)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_scheme_mentions_pq ON scheme_mentions (pq_id)"
+        ))
     logger.info("Migration: prs_schemes + scheme_intelligence_cache ready")
 except Exception as e:
     logger.warning(f"Scheme intelligence tables migration skipped: {e}")

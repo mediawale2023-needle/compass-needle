@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
-import { apiGet, AI_TIMEOUT } from '@/lib/api';
+import { apiGet, apiPost, AI_TIMEOUT } from '@/lib/api';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
     Lock, ChevronRight, ChevronLeft, Loader2, RefreshCw,
     Building2, FileText, TrendingUp, AlertTriangle,
-    CheckCircle2, BarChart3, CircleDot, Search,
+    BarChart3, CircleDot, Search,
     MapPin, Globe, ArrowLeftRight, Wrench
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -337,20 +338,48 @@ function SchemeBrief({ scheme, onBack, color }) {
     const [data, setData]       = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError]     = useState(null);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const loadBrief = useCallback(async ({ silent = false } = {}) => {
+        if (!silent) {
+            setLoading(true);
+            setError(null);
+            setData(null);
+        }
+        try {
+            const brief = await apiGet(`/api/schemes/intelligence/${encodeURIComponent(scheme.name)}`, { timeout: AI_TIMEOUT });
+            setData(brief);
+            setError(null);
+        } catch (e) {
+            setError(e.message);
+        } finally {
+            if (!silent) setLoading(false);
+            setRefreshing(false);
+        }
+    }, [scheme.name]);
 
     useEffect(() => {
-        setLoading(true);
-        setError(null);
-        setData(null);
-        const token = sessionStorage.getItem('needle_token') || localStorage.getItem('needle_token') || '';
-        fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || ''}/api/schemes/intelligence/${encodeURIComponent(scheme.name)}`,
-            { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(AI_TIMEOUT) }
-        )
-            .then(r => r.json())
-            .then(d => { setData(d); setLoading(false); })
-            .catch(e => { setError(e.message); setLoading(false); });
-    }, [scheme.name]);
+        loadBrief();
+    }, [loadBrief]);
+
+    useEffect(() => {
+        if (!data?.pending && !data?.is_stale) return undefined;
+        const poll = setInterval(() => {
+            loadBrief({ silent: true });
+        }, 3000);
+        return () => clearInterval(poll);
+    }, [data?.pending, data?.is_stale, loadBrief]);
+
+    const refreshBrief = async () => {
+        setRefreshing(true);
+        try {
+            await apiPost(`/api/schemes/intelligence/${encodeURIComponent(scheme.name)}/refresh`, {});
+            await loadBrief();
+        } catch (e) {
+            setError(e.message);
+            setRefreshing(false);
+        }
+    };
 
     const intel     = data?.intel || {};
     const isNewFmt  = !!intel.national_picture;
@@ -376,11 +405,26 @@ function SchemeBrief({ scheme, onBack, color }) {
                         <h1 className="text-xl font-bold text-foreground leading-tight">
                             {scheme.full_name || scheme.name}
                         </h1>
+                        {data?.pending && (
+                            <Badge variant="outline" className="text-xs text-blue-400 border-blue-400/30 gap-1 shrink-0">
+                                <Loader2 className="h-3 w-3 animate-spin" /> Preparing
+                            </Badge>
+                        )}
                         {data?.is_stale && (
                             <Badge variant="outline" className="text-xs text-amber-400 border-amber-400/30 gap-1 shrink-0">
                                 <RefreshCw className="h-3 w-3" /> Updating
                             </Badge>
                         )}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={refreshBrief}
+                            disabled={refreshing}
+                            className="h-7 gap-1.5"
+                        >
+                            {refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                            Refresh
+                        </Button>
                     </div>
                     <p className="text-sm text-muted-foreground mt-0.5">{scheme.ministry}</p>
                     <div className="flex items-center gap-3 mt-0.5 flex-wrap">
@@ -392,7 +436,6 @@ function SchemeBrief({ scheme, onBack, color }) {
                         {data?.generated_at && (
                             <p className="text-xs text-muted-foreground/50">
                                 Analysed {formatDate(data.generated_at)}
-                                {data?.answer_count ? ` · ${data.answer_count} answers` : ''}
                             </p>
                         )}
                     </div>
@@ -422,6 +465,20 @@ function SchemeBrief({ scheme, onBack, color }) {
                 </Card>
             )}
 
+            {!loading && !error && data?.pending && !Object.keys(intel).length && (
+                <Card className="border-border/60">
+                    <CardContent className="flex flex-col items-center justify-center py-20 gap-4">
+                        <Loader2 className="h-8 w-8 animate-spin" style={{ color }} />
+                        <div className="text-center space-y-1">
+                            <p className="text-sm font-medium text-foreground">Preparing scheme brief…</p>
+                            <p className="text-xs text-muted-foreground">
+                                We&apos;re compiling the latest ministry record in the background.
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
             {/* No data */}
             {!loading && !error && data?.no_data && (
                 <Card className="border-border/60">
@@ -445,7 +502,6 @@ function SchemeBrief({ scheme, onBack, color }) {
                     <OtherStatesLayer data={intel.other_states} currentState={data?.state} />
                     <p className="text-xs text-muted-foreground/40 text-center pt-1">
                         Derived exclusively from ministry responses in Parliament (Starred &amp; Unstarred Questions).
-                        {data?.answer_count ? ` ${data.answer_count} answers analysed.` : ''}
                     </p>
                 </div>
             )}
@@ -536,7 +592,6 @@ function SchemeBrief({ scheme, onBack, color }) {
                     )}
                     <p className="text-xs text-muted-foreground/40 text-center pt-1">
                         Derived exclusively from ministry responses in Parliament.
-                        {data?.answer_count ? ` ${data.answer_count} answers analysed.` : ''}
                     </p>
                 </div>
             )}
@@ -666,7 +721,6 @@ function MinistryOverview({ onSelectMinistry }) {
     );
 
     const totalSchemes  = ministries.reduce((s, m) => s + (m.scheme_count  || 0), 0);
-    const totalAnswers  = ministries.reduce((s, m) => s + (m.total_answers || 0), 0);
 
     return (
         <div className="space-y-6">
@@ -682,7 +736,6 @@ function MinistryOverview({ onSelectMinistry }) {
                     {[
                         { label: 'Ministries',        value: ministries.length,                  icon: Building2  },
                         { label: 'Schemes tracked',   value: totalSchemes,                        icon: FileText   },
-                        { label: 'Ministry answers',  value: totalAnswers.toLocaleString('en-IN'), icon: BarChart3  },
                     ].map(({ label, value, icon: Icon }) => (
                         <Card key={label} className="border-border/60 bg-card/60">
                             <CardContent className="p-4 flex items-center gap-3">
@@ -776,10 +829,27 @@ function MinistryOverview({ onSelectMinistry }) {
 
 export default function SchemesPage() {
     const { user } = useAuth();
+    const router = useRouter();
+    const searchParams = useSearchParams();
 
-    const [screen,          setScreen]    = useState('overview');
-    const [activeMinistry,  setMinistry]  = useState(null);
-    const [activeScheme,    setScheme]    = useState(null);
+    const initialView = searchParams.get('view');
+    const initialMinistry = searchParams.get('ministry');
+    const initialScheme = searchParams.get('scheme');
+    const initialSchemeName = searchParams.get('scheme_name');
+
+    const [screen, setScreen] = useState(
+        initialView === 'scheme' || initialView === 'ministry' ? initialView : 'overview'
+    );
+    const [activeMinistry, setMinistry] = useState(initialMinistry || null);
+    const [activeScheme, setScheme] = useState(
+        initialScheme
+            ? {
+                name: initialScheme,
+                full_name: initialSchemeName || initialScheme,
+                ministry: initialMinistry || '',
+            }
+            : null
+    );
 
     const color = user?.theme_color || '#006a4d';
 
@@ -793,6 +863,18 @@ export default function SchemesPage() {
         if (screen === 'scheme')   { setScreen('ministry'); setScheme(null); }
         else                       { setScreen('overview'); setMinistry(null); }
     };
+
+    useEffect(() => {
+        const params = new URLSearchParams();
+        if (screen !== 'overview') params.set('view', screen);
+        if (activeMinistry) params.set('ministry', activeMinistry);
+        if (screen === 'scheme' && activeScheme?.name) {
+            params.set('scheme', activeScheme.name);
+            params.set('scheme_name', activeScheme.full_name || activeScheme.name);
+        }
+        const qs = params.toString();
+        router.replace(qs ? `/dashboard/schemes?${qs}` : '/dashboard/schemes', { scroll: false });
+    }, [screen, activeMinistry, activeScheme, router]);
 
     return (
         <div className="max-w-5xl mx-auto">

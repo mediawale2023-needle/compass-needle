@@ -1783,15 +1783,16 @@ def scheme_ministries(user=Depends(get_current_user)):
 def schemes_by_ministry(ministry: str, user=Depends(get_current_user)):
     """All schemes under a given ministry, ordered by parliamentary data richness."""
     from modules.schemes_api import get_ministry_schemes
-    return {"schemes": get_ministry_schemes(ministry), "ministry": ministry}
+    return {"schemes": get_ministry_schemes(ministry, tenant_id=user.get("tenant_id")), "ministry": ministry}
 
 
 @router.get("/schemes/intelligence/{scheme_name:path}")
 def scheme_intelligence(scheme_name: str, user=Depends(get_current_user)):
     """
     AI-structured 3-layer intelligence brief for a scheme, personalised to the MP's state.
-    Returns cached immediately if available; generates on first request (8-15s).
-    Stale briefs are returned instantly while background regen fires.
+    Returns cached immediately if available.
+    Cache misses return a pending response while background generation runs.
+    Stale briefs are returned instantly while background regeneration fires.
     """
     from modules.schemes_api import get_scheme_intelligence
     return get_scheme_intelligence(scheme_name, tenant_id=user.get("tenant_id"))
