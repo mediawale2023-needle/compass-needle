@@ -4268,3 +4268,123 @@ def get_active_announcements(user=Depends(get_current_user)):
         if r.get("created_at") and hasattr(r["created_at"], "isoformat"):
             r["created_at"] = r["created_at"].isoformat()
     return {"announcements": rows}
+
+
+# ─── Parliament Intel: non-scheme PQ browse (global_parliamentary_questions) ──
+
+@router.get("/parliament-intel/ministries")
+def pi_ministries(user=Depends(get_current_user)):
+    """
+    All ministries that have at least one topic-classified PQ, ordered by classified count desc.
+    """
+    rows = _q("""
+        SELECT
+            TRIM(ministry)              AS ministry,
+            COUNT(*)                    AS classified_count,
+            COUNT(DISTINCT topic)       AS topic_count
+        FROM global_parliamentary_questions
+        WHERE topic IS NOT NULL
+          AND ministry IS NOT NULL AND ministry != ''
+          AND answer_text IS NOT NULL AND answer_text != ''
+        GROUP BY TRIM(ministry)
+        ORDER BY classified_count DESC
+    """, {})
+    return {"ministries": [dict(r) for r in rows]}
+
+
+@router.get("/parliament-intel/ministry/{ministry}/topics")
+def pi_ministry_topics(
+    ministry: str,
+    state: Optional[str] = Query(None),
+    user=Depends(get_current_user),
+):
+    """
+    Topic cards for a ministry: total classified PQs per topic, plus state_count if state provided.
+    state: optional state name — filters answer_text ILIKE '%{state}%'
+    """
+    try:
+        from jobs.classify_pq_topics import get_ministry_topic_counts
+        counts = get_ministry_topic_counts(ministry, state)
+        return {"ministry": ministry, "state": state, "topics": counts}
+    except Exception as e:
+        logger.exception("pi_ministry_topics failed: %s", e)
+        raise HTTPException(500, "Failed to fetch topic counts")
+
+
+@router.get("/parliament-intel/ministry/{ministry}/topic/{topic}/questions")
+def pi_topic_questions(
+    ministry: str,
+    topic: str,
+    state: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    user=Depends(get_current_user),
+):
+    """
+    Paginated PQ list for a ministry + topic, optionally filtered by state mention in answer_text.
+    Returns verbatim question + answer data.
+    """
+    offset = (page - 1) * limit
+    params: dict = {"ministry": ministry, "topic": topic, "limit": limit, "offset": offset}
+
+    state_filter = ""
+    if state:
+        params["state"] = f"%{state}%"
+        state_filter = "AND answer_text ILIKE :state"
+
+    rows = _q(f"""
+        SELECT id, subject, ministry, answer_text, date_asked, session_name,
+               question_number, question_type, mp_name, prs_url
+        FROM global_parliamentary_questions
+        WHERE topic = :topic
+          AND LOWER(TRIM(ministry)) = LOWER(TRIM(:ministry))
+          AND answer_text IS NOT NULL AND answer_text != ''
+          {state_filter}
+        ORDER BY date_asked DESC NULLS LAST
+        LIMIT :limit OFFSET :offset
+    """, params)  # nosec B608
+
+    count_row = _q_one(f"""
+        SELECT COUNT(*) AS cnt
+        FROM global_parliamentary_questions
+        WHERE topic = :topic
+          AND LOWER(TRIM(ministry)) = LOWER(TRIM(:ministry))
+          AND answer_text IS NOT NULL AND answer_text != ''
+          {state_filter}
+    """, params)  # nosec B608
+
+    total = int((count_row or {}).get("cnt", 0))
+
+    questions = []
+    for r in rows:
+        q = dict(r)
+        if q.get("date_asked") and hasattr(q["date_asked"], "isoformat"):
+            q["date_asked"] = q["date_asked"].isoformat()
+        questions.append(q)
+
+    return {
+        "ministry": ministry,
+        "topic": topic,
+        "state": state,
+        "questions": questions,
+        "total": total,
+        "page": page,
+        "pages": max(1, (total + limit - 1) // limit),
+    }
+
+
+@router.get("/parliament-intel/question/{question_id}")
+def pi_question_detail(question_id: int, user=Depends(get_current_user)):
+    """Full detail for a single PQ — subject + verbatim answer."""
+    row = _q_one("""
+        SELECT id, subject, ministry, answer_text, date_asked, session_name,
+               question_number, question_type, mp_name, prs_url, topic
+        FROM global_parliamentary_questions
+        WHERE id = :id
+    """, {"id": question_id})
+    if not row:
+        raise HTTPException(404, "Question not found")
+    q = dict(row)
+    if q.get("date_asked") and hasattr(q["date_asked"], "isoformat"):
+        q["date_asked"] = q["date_asked"].isoformat()
+    return q
