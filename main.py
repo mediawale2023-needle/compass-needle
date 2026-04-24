@@ -781,6 +781,34 @@ try:
 except Exception as e:
     logger.warning(f"prs_profile_slug migration skipped: {e}")
 
+# Migration: SansadAI issue intelligence cache (ministry + topic + state)
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS issue_intelligence_cache (
+                id               SERIAL PRIMARY KEY,
+                ministry         VARCHAR(300) NOT NULL,
+                topic            VARCHAR(120) NOT NULL,
+                state            VARCHAR(100) NOT NULL DEFAULT '',
+                structured_intel JSONB,
+                generated_at     TIMESTAMP,
+                pq_count_at_gen  INTEGER DEFAULT 0,
+                is_stale         BOOLEAN DEFAULT false,
+                error            TEXT,
+                created_at       TIMESTAMP DEFAULT NOW(),
+                UNIQUE (ministry, topic, state)
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_issue_intel_ministry_topic ON issue_intelligence_cache (LOWER(ministry), topic)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_issue_intel_state ON issue_intelligence_cache (state)"
+        ))
+    logger.info("Migration: issue_intelligence_cache ready")
+except Exception as e:
+    logger.warning(f"SansadAI issue intelligence cache migration skipped: {e}")
+
 # Migration: topic column on global_parliamentary_questions for fixed 12-topic taxonomy
 try:
     with engine.begin() as conn:

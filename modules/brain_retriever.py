@@ -218,6 +218,7 @@ def format_for_prompt(chunks: list[dict], label: str = "REFERENCE MATERIAL") -> 
 
 DRAFT_LETTER_SOURCES = [
     "pq_qa",
+    "global_pq_qa",
     "const_challenge", "const_priority", "const_overview", "const_economy",
     "case_summary",
     "scheme",

@@ -400,6 +400,11 @@ def fetch_answers_for_tenant(
                 mark_stale_schemes(list(matches.keys()))
             except Exception as _se:
                 logger.warning("mark_stale_schemes failed (non-fatal): %s", _se)
+            try:
+                from modules.sansadai_api import mark_stale_issue_briefs
+                mark_stale_issue_briefs(list(matches.keys()))
+            except Exception as _ie:
+                logger.warning("mark_stale_issue_briefs failed (non-fatal): %s", _ie)
 
         # Rows that had no match — mark as no_match
         unmatched_ids = [rid for rid in urow_ids if rid not in matches]

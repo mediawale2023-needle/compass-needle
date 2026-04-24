@@ -68,9 +68,9 @@ export default function CopilotPage() {
             const data = await apiPost('/api/copilot/chat', { 
                 document_context: docContext, 
                 message: q, 
-                language: 'English' 
+                history: newMsgs,
             });
-            setMessages([...newMsgs, { role: 'assistant', content: data.reply }]);
+            setMessages([...newMsgs, { role: 'assistant', content: data.response || data.reply || 'No response returned.' }]);
         } catch (err) {
             setMessages([...newMsgs, { role: 'assistant', content: 'Error: ' + err.message }]);
         } finally {
