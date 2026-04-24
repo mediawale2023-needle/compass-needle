@@ -29,6 +29,7 @@ import {
     BarChart2,
     CalendarClock,
     FileQuestion,
+    ScrollText,
 } from 'lucide-react';
 
 function PQCalendarCard({ pq }) {
@@ -128,6 +129,7 @@ function PQCalendarCard({ pq }) {
 const QUICK_ACTIONS = [
     { label: 'Upload Letter', href: '/dashboard/letterbox', desc: 'Scan or upload', icon: Mail },
     { label: 'Draft Response', href: '/dashboard/drafter', desc: 'AI-assisted writing', icon: PenTool },
+    { label: 'Parliament', href: '/dashboard/parliament', desc: 'Questions & record', icon: ScrollText },
     { label: 'Find a Scheme', href: '/dashboard/schemes', desc: 'Match constituents', icon: Gift },
 ];
 
@@ -354,6 +356,9 @@ export default function DashboardPage() {
                             <Button variant="outline" asChild>
                                 <Link href="/dashboard/sansadx">Log a Case</Link>
                             </Button>
+                            <Button variant="outline" asChild>
+                                <Link href="/dashboard/parliament">View Parliament Record</Link>
+                            </Button>
                             <Button variant="ghost" asChild>
                                 <Link href="/dashboard/drafter">Draft a PQ</Link>
                             </Button>
@@ -363,7 +368,7 @@ export default function DashboardPage() {
             ) : (
                 <>
                     {/* Quick Actions */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         {QUICK_ACTIONS.map(({ label, href, desc, icon: Icon }) => (
                             <Link key={href} href={href}>
                                 <Card className="h-full card-hover cursor-pointer">

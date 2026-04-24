@@ -2013,6 +2013,225 @@ def get_pq_calendar(user=Depends(get_current_user)):
 
 
 # ─────────────────────────────────────────
+# PARLIAMENT — MP-FACING RECORD (Non-PQ Intelligence)
+# ─────────────────────────────────────────
+
+@router.get("/parliament/my-record")
+def get_my_parliament_record(user=Depends(get_current_user)):
+    """
+    Summary of the MP's own parliamentary record: question counts, debate counts,
+    PMB counts, and zero-hour counts — grouped by session.
+    """
+    tid = get_tenant_or_fail(user)
+
+    def _count(table: str) -> int:
+        row = _q_one(f"SELECT COUNT(*) AS cnt FROM {table} WHERE tenant_id = :tid", {"tid": tid})  # nosec B608
+        return row["cnt"] if row else 0
+
+    def _sessions(table: str):
+        rows = _q(
+            f"SELECT DISTINCT session_name FROM {table} WHERE tenant_id = :tid ORDER BY session_name DESC",  # nosec B608
+            {"tid": tid},
+        )
+        return [r["session_name"] for r in rows]
+
+    def _session_counts(table: str):
+        rows = _q(
+            f"SELECT session_name, COUNT(*) AS cnt FROM {table} WHERE tenant_id = :tid GROUP BY session_name ORDER BY session_name DESC",  # nosec B608
+            {"tid": tid},
+        )
+        return [{"session": r["session_name"], "count": r["cnt"]} for r in rows]
+
+    sync_row = _q_one(
+        "SELECT parliament_sync_status, parliament_last_synced, parliament_member_id, parliament_house FROM tenants WHERE id = :tid",
+        {"tid": tid},
+    )
+
+    return {
+        "sync_status":     (sync_row or {}).get("parliament_sync_status", "pending"),
+        "last_synced":     (sync_row or {}).get("parliament_last_synced"),
+        "member_id":       (sync_row or {}).get("parliament_member_id"),
+        "house":           (sync_row or {}).get("parliament_house", "lok_sabha"),
+        "totals": {
+            "questions":  _count("parliamentary_questions"),
+            "debates":    _count("parliamentary_debates"),
+            "pmbs":       _count("private_members_bills"),
+            "zero_hour":  _count("zero_hour_submissions"),
+        },
+        "sessions": {
+            "questions":  _session_counts("parliamentary_questions"),
+            "debates":    _session_counts("parliamentary_debates"),
+            "pmbs":       _session_counts("private_members_bills"),
+            "zero_hour":  _session_counts("zero_hour_submissions"),
+        },
+        "all_sessions": sorted(
+            set(
+                _sessions("parliamentary_questions")
+                + _sessions("parliamentary_debates")
+                + _sessions("private_members_bills")
+                + _sessions("zero_hour_submissions")
+            ),
+            reverse=True,
+        ),
+    }
+
+
+@router.get("/parliament/questions")
+def get_my_questions(
+    session: Optional[str] = None,
+    q_type: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+    user=Depends(get_current_user),
+):
+    """The MP's own parliamentary questions, optionally filtered by session or type."""
+    tid = get_tenant_or_fail(user)
+    limit = min(limit, 100)
+    offset = (page - 1) * limit
+
+    conditions = ["tenant_id = :tid"]
+    params: dict = {"tid": tid, "lim": limit, "off": offset}
+    if session:
+        conditions.append("session_name = :session")
+        params["session"] = session
+    if q_type:
+        conditions.append("question_type = :qtype")
+        params["qtype"] = q_type
+
+    where = " AND ".join(conditions)
+    rows = _q(f"""
+        SELECT id, session_name, question_number, question_type, subject,
+               ministry, date_asked, answer_text
+        FROM parliamentary_questions
+        WHERE {where}
+        ORDER BY date_asked DESC NULLS LAST, id DESC
+        LIMIT :lim OFFSET :off
+    """, params)  # nosec B608
+
+    total_row = _q_one(
+        f"SELECT COUNT(*) AS cnt FROM parliamentary_questions WHERE {where}",  # nosec B608
+        {k: v for k, v in params.items() if k not in ("lim", "off")},
+    )
+    total = total_row["cnt"] if total_row else 0
+
+    for r in rows:
+        if r.get("date_asked") and hasattr(r["date_asked"], "isoformat"):
+            r["date_asked"] = r["date_asked"].isoformat()
+
+    return {"questions": rows, "total": total, "page": page, "pages": max(1, -(-total // limit))}
+
+
+@router.get("/parliament/debates")
+def get_my_debates(
+    session: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+    user=Depends(get_current_user),
+):
+    """The MP's own debate speeches."""
+    tid = get_tenant_or_fail(user)
+    limit = min(limit, 100)
+    offset = (page - 1) * limit
+
+    conditions = ["tenant_id = :tid"]
+    params: dict = {"tid": tid, "lim": limit, "off": offset}
+    if session:
+        conditions.append("session_name = :session")
+        params["session"] = session
+
+    where = " AND ".join(conditions)
+    rows = _q(f"""
+        SELECT id, session_name, date, topic, bill_reference, speech_excerpt, full_speech_url
+        FROM parliamentary_debates
+        WHERE {where}
+        ORDER BY date DESC NULLS LAST, id DESC
+        LIMIT :lim OFFSET :off
+    """, params)  # nosec B608
+
+    total_row = _q_one(
+        f"SELECT COUNT(*) AS cnt FROM parliamentary_debates WHERE {where}",  # nosec B608
+        {k: v for k, v in params.items() if k not in ("lim", "off")},
+    )
+    total = total_row["cnt"] if total_row else 0
+
+    for r in rows:
+        if r.get("date") and hasattr(r["date"], "isoformat"):
+            r["date"] = r["date"].isoformat()
+
+    return {"debates": rows, "total": total, "page": page, "pages": max(1, -(-total // limit))}
+
+
+@router.get("/parliament/pmbs")
+def get_my_pmbs(
+    session: Optional[str] = None,
+    user=Depends(get_current_user),
+):
+    """The MP's own Private Members' Bills."""
+    tid = get_tenant_or_fail(user)
+
+    conditions = ["tenant_id = :tid"]
+    params: dict = {"tid": tid}
+    if session:
+        conditions.append("session_name = :session")
+        params["session"] = session
+
+    where = " AND ".join(conditions)
+    rows = _q(f"""
+        SELECT id, session_name, bill_number, title, subject,
+               date_introduced, current_status, bill_text_url
+        FROM private_members_bills
+        WHERE {where}
+        ORDER BY date_introduced DESC NULLS LAST, id DESC
+    """, params)  # nosec B608
+
+    for r in rows:
+        if r.get("date_introduced") and hasattr(r["date_introduced"], "isoformat"):
+            r["date_introduced"] = r["date_introduced"].isoformat()
+
+    return {"pmbs": rows, "total": len(rows)}
+
+
+@router.get("/parliament/zero-hour")
+def get_my_zero_hour(
+    session: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+    user=Depends(get_current_user),
+):
+    """The MP's own Zero Hour / Special Mention submissions."""
+    tid = get_tenant_or_fail(user)
+    limit = min(limit, 100)
+    offset = (page - 1) * limit
+
+    conditions = ["tenant_id = :tid"]
+    params: dict = {"tid": tid, "lim": limit, "off": offset}
+    if session:
+        conditions.append("session_name = :session")
+        params["session"] = session
+
+    where = " AND ".join(conditions)
+    rows = _q(f"""
+        SELECT id, session_name, date, subject, text_excerpt
+        FROM zero_hour_submissions
+        WHERE {where}
+        ORDER BY date DESC NULLS LAST, id DESC
+        LIMIT :lim OFFSET :off
+    """, params)  # nosec B608
+
+    total_row = _q_one(
+        f"SELECT COUNT(*) AS cnt FROM zero_hour_submissions WHERE {where}",  # nosec B608
+        {k: v for k, v in params.items() if k not in ("lim", "off")},
+    )
+    total = total_row["cnt"] if total_row else 0
+
+    for r in rows:
+        if r.get("date") and hasattr(r["date"], "isoformat"):
+            r["date"] = r["date"].isoformat()
+
+    return {"submissions": rows, "total": total, "page": page, "pages": max(1, -(-total // limit))}
+
+
+# ─────────────────────────────────────────
 # CSR
 # ─────────────────────────────────────────
 def _load_csr_data():
@@ -4049,3 +4268,123 @@ def get_active_announcements(user=Depends(get_current_user)):
         if r.get("created_at") and hasattr(r["created_at"], "isoformat"):
             r["created_at"] = r["created_at"].isoformat()
     return {"announcements": rows}
+
+
+# ─── Parliament Intel: non-scheme PQ browse (global_parliamentary_questions) ──
+
+@router.get("/parliament-intel/ministries")
+def pi_ministries(user=Depends(get_current_user)):
+    """
+    All ministries that have at least one topic-classified PQ, ordered by classified count desc.
+    """
+    rows = _q("""
+        SELECT
+            TRIM(ministry)              AS ministry,
+            COUNT(*)                    AS classified_count,
+            COUNT(DISTINCT topic)       AS topic_count
+        FROM global_parliamentary_questions
+        WHERE topic IS NOT NULL
+          AND ministry IS NOT NULL AND ministry != ''
+          AND answer_text IS NOT NULL AND answer_text != ''
+        GROUP BY TRIM(ministry)
+        ORDER BY classified_count DESC
+    """, {})
+    return {"ministries": [dict(r) for r in rows]}
+
+
+@router.get("/parliament-intel/ministry/{ministry}/topics")
+def pi_ministry_topics(
+    ministry: str,
+    state: Optional[str] = Query(None),
+    user=Depends(get_current_user),
+):
+    """
+    Topic cards for a ministry: total classified PQs per topic, plus state_count if state provided.
+    state: optional state name — filters answer_text ILIKE '%{state}%'
+    """
+    try:
+        from jobs.classify_pq_topics import get_ministry_topic_counts
+        counts = get_ministry_topic_counts(ministry, state)
+        return {"ministry": ministry, "state": state, "topics": counts}
+    except Exception as e:
+        logger.exception("pi_ministry_topics failed: %s", e)
+        raise HTTPException(500, "Failed to fetch topic counts")
+
+
+@router.get("/parliament-intel/ministry/{ministry}/topic/{topic}/questions")
+def pi_topic_questions(
+    ministry: str,
+    topic: str,
+    state: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    user=Depends(get_current_user),
+):
+    """
+    Paginated PQ list for a ministry + topic, optionally filtered by state mention in answer_text.
+    Returns verbatim question + answer data.
+    """
+    offset = (page - 1) * limit
+    params: dict = {"ministry": ministry, "topic": topic, "limit": limit, "offset": offset}
+
+    state_filter = ""
+    if state:
+        params["state"] = f"%{state}%"
+        state_filter = "AND answer_text ILIKE :state"
+
+    rows = _q(f"""
+        SELECT id, subject, ministry, answer_text, date_asked, session_name,
+               question_number, question_type, mp_name, prs_url
+        FROM global_parliamentary_questions
+        WHERE topic = :topic
+          AND LOWER(TRIM(ministry)) = LOWER(TRIM(:ministry))
+          AND answer_text IS NOT NULL AND answer_text != ''
+          {state_filter}
+        ORDER BY date_asked DESC NULLS LAST
+        LIMIT :limit OFFSET :offset
+    """, params)  # nosec B608
+
+    count_row = _q_one(f"""
+        SELECT COUNT(*) AS cnt
+        FROM global_parliamentary_questions
+        WHERE topic = :topic
+          AND LOWER(TRIM(ministry)) = LOWER(TRIM(:ministry))
+          AND answer_text IS NOT NULL AND answer_text != ''
+          {state_filter}
+    """, params)  # nosec B608
+
+    total = int((count_row or {}).get("cnt", 0))
+
+    questions = []
+    for r in rows:
+        q = dict(r)
+        if q.get("date_asked") and hasattr(q["date_asked"], "isoformat"):
+            q["date_asked"] = q["date_asked"].isoformat()
+        questions.append(q)
+
+    return {
+        "ministry": ministry,
+        "topic": topic,
+        "state": state,
+        "questions": questions,
+        "total": total,
+        "page": page,
+        "pages": max(1, (total + limit - 1) // limit),
+    }
+
+
+@router.get("/parliament-intel/question/{question_id}")
+def pi_question_detail(question_id: int, user=Depends(get_current_user)):
+    """Full detail for a single PQ — subject + verbatim answer."""
+    row = _q_one("""
+        SELECT id, subject, ministry, answer_text, date_asked, session_name,
+               question_number, question_type, mp_name, prs_url, topic
+        FROM global_parliamentary_questions
+        WHERE id = :id
+    """, {"id": question_id})
+    if not row:
+        raise HTTPException(404, "Question not found")
+    q = dict(row)
+    if q.get("date_asked") and hasattr(q["date_asked"], "isoformat"):
+        q["date_asked"] = q["date_asked"].isoformat()
+    return q

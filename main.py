@@ -763,6 +763,24 @@ try:
 except Exception as e:
     logger.warning(f"prs_profile_slug migration skipped: {e}")
 
+# Migration: topic column on global_parliamentary_questions for fixed 12-topic taxonomy
+try:
+    with engine.begin() as conn:
+        conn.execute(text(
+            "ALTER TABLE global_parliamentary_questions ADD COLUMN IF NOT EXISTS topic VARCHAR(60)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_gpq_topic ON global_parliamentary_questions (topic) "
+            "WHERE topic IS NOT NULL"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_gpq_ministry_topic ON global_parliamentary_questions "
+            "(LOWER(ministry), topic) WHERE topic IS NOT NULL"
+        ))
+    logger.info("Migration: global_parliamentary_questions.topic column ready")
+except Exception as e:
+    logger.warning(f"global_parliamentary_questions topic migration skipped: {e}")
+
 # Seed CSR company profiles from static JSON files on startup
 try:
     from modules.csr_data_loader import seed_csr_companies

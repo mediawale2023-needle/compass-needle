@@ -4235,3 +4235,64 @@ def get_global_crawl_status(job_id: str, user=Depends(get_admin_user)):
     if not job:
         raise HTTPException(404, "Job not found or expired")
     return job
+
+
+# ─── Topic classification job store ─────────────────────────────────────────
+_classify_topic_jobs: dict = {}
+
+
+class ClassifyTopicsRequest(BaseModel):
+    limit: int = 2000
+
+
+@router.post("/brain/classify-topics")
+def trigger_classify_topics(
+    body: ClassifyTopicsRequest = ClassifyTopicsRequest(),
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_admin_user),
+):
+    """Classify unclassified global_parliamentary_questions into 12 fixed topics using GPT-4o-mini."""
+    job_id = f"classify_topics_{uuid.uuid4().hex[:10]}"
+    _classify_topic_jobs[job_id] = {
+        "type": "classify_topics", "status": "running",
+        "started_at": datetime.utcnow().isoformat() + "Z",
+        "finished_at": None, "summary": None, "error": None,
+    }
+
+    def _run():
+        try:
+            from jobs.classify_pq_topics import run_classification
+            summary = run_classification(limit=body.limit)
+            _classify_topic_jobs[job_id]["status"]  = "done"
+            _classify_topic_jobs[job_id]["summary"] = summary
+        except Exception as e:
+            logger.exception("classify_topics failed: %s", e)
+            _classify_topic_jobs[job_id]["status"] = "error"
+            _classify_topic_jobs[job_id]["error"]  = str(e)
+        _classify_topic_jobs[job_id]["finished_at"] = datetime.utcnow().isoformat() + "Z"
+
+    if background_tasks:
+        background_tasks.add_task(_run)
+    else:
+        threading.Thread(target=_run, daemon=True).start()
+
+    return {"ok": True, "job_id": job_id, "message": f"Classifying up to {body.limit} unclassified PQ subjects…"}
+
+
+@router.get("/brain/classify-topics/status/{job_id}")
+def get_classify_topics_status(job_id: str, user=Depends(get_admin_user)):
+    job = _classify_topic_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found or expired")
+    return job
+
+
+@router.get("/brain/classify-topics/stats")
+def get_classify_topics_stats(user=Depends(get_admin_user)):
+    """Return topic classification coverage stats."""
+    try:
+        from jobs.classify_pq_topics import get_stats
+        return get_stats()
+    except Exception as e:
+        logger.exception("classify_topics/stats failed: %s", e)
+        raise HTTPException(500, "Failed to fetch stats")
