@@ -15,6 +15,7 @@ import {
     CheckCircle2,
     Building2,
     Mail,
+    Bot,
     PenTool,
     Gift,
     ArrowRight,
@@ -57,6 +58,7 @@ function AgeBadge({ days }) {
 export default function DashboardPage() {
     const { user } = useAuth();
     const router = useRouter();
+    const canUseSansadAI = user?.role === 'mp' || user?.role === 'admin';
 
     const [summary, setSummary] = useState(null);
     const [reportCard, setReportCard] = useState(null);
@@ -139,6 +141,9 @@ export default function DashboardPage() {
         { label: 'New This Week', value: newThisWeek, icon: TrendingUp, highlight: newThisWeek === 0 ? 'emerald' : newThisWeek <= 5 ? 'amber' : 'destructive' },
         { label: 'Top Issue', value: topIssue, icon: AlertTriangle, highlight: 'default' },
     ];
+    const quickActions = canUseSansadAI
+        ? [...QUICK_ACTIONS, { label: 'Open SansadAI', href: '/dashboard/sansadai', desc: 'Issue intelligence', icon: Bot }]
+        : QUICK_ACTIONS;
 
     return (
         <div className="space-y-6">
@@ -192,6 +197,11 @@ export default function DashboardPage() {
                             <Button variant="outline" asChild>
                                 <Link href="/dashboard/sansadx">Log a Case</Link>
                             </Button>
+                            {canUseSansadAI && (
+                                <Button variant="outline" asChild>
+                                    <Link href="/dashboard/sansadai">Open SansadAI</Link>
+                                </Button>
+                            )}
                             <Button variant="outline" asChild>
                                 <Link href="/dashboard/schemes">Find a Scheme</Link>
                             </Button>
@@ -204,8 +214,8 @@ export default function DashboardPage() {
             ) : (
                 <>
                     {/* Quick Actions */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {QUICK_ACTIONS.map(({ label, href, desc, icon: Icon }) => (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                        {quickActions.map(({ label, href, desc, icon: Icon }) => (
                             <Link key={href} href={href}>
                                 <Card className="h-full card-hover cursor-pointer">
                                     <CardContent className="p-4 text-center">
