@@ -2841,8 +2841,8 @@ def generate_csr_dpr(req: CSRDPRRequest, request: Request, user=Depends(get_curr
         # ── Pull matched NGO partners for the sector ──
         ngo_section = ""
         try:
-            from modules.csr_pipeline import CATEGORY_SECTOR_MAP
-            csr_sector = CATEGORY_SECTOR_MAP.get(req.category, req.sector or req.category)
+            from sansadx_backend.unified_taxonomy import convergence_sector_for
+            csr_sector = convergence_sector_for(req.category or req.sector)
             ngo_data = _load_ngo_data()
             matched_ngos = [
                 n for n in ngo_data
@@ -3305,7 +3305,7 @@ def get_opportunity_matches(opportunity_id: int, user=Depends(get_current_user))
         if not opp:
             raise HTTPException(404, "Opportunity not found.")
 
-        from modules.csr_pipeline import CATEGORY_SECTOR_MAP
+        from sansadx_backend.unified_taxonomy import convergence_sector_for
         from modules.csr_matching_engine import rank_companies_for_opportunity
 
         csr_data = _cached_load("csr_data", _load_csr_data)
@@ -3314,7 +3314,7 @@ def get_opportunity_matches(opportunity_id: int, user=Depends(get_current_user))
             "area": opp.get("location", ""),
             "volume": opp["complaint_count"],
             "velocity_7d": opp.get("velocity_7d", 0),
-            "csr_sector": CATEGORY_SECTOR_MAP.get(opp["category"], "General CSR"),
+            "csr_sector": convergence_sector_for(opp["category"]),
         }
         ranked = rank_companies_for_opportunity(opp_enriched, csr_data, tid, top_n=10)
         return {"matches": ranked, "source": "computed", "total": len(ranked)}
@@ -3333,7 +3333,7 @@ def sync_opportunities(user=Depends(get_current_user)):
     """
     tid = get_tenant_or_fail(user)
     try:
-        from modules.csr_pipeline import get_grievance_clusters, CATEGORY_SECTOR_MAP, CSR_MONITOR_THRESHOLD
+        from modules.csr_pipeline import get_grievance_clusters, CSR_MONITOR_THRESHOLD
         from modules.csr_matching_engine import rank_companies_for_opportunity, persist_matches
 
         import json as _json
@@ -3348,7 +3348,7 @@ def sync_opportunities(user=Depends(get_current_user)):
         for cluster in clusters:
             category = cluster["category"]
             volume = cluster["volume"]
-            csr_sector = CATEGORY_SECTOR_MAP.get(category, "General CSR")
+            csr_sector = cluster.get("csr_sector", "")
             affected_areas_json = _json.dumps(cluster.get("affected_areas", []))
             v7 = _get_velocity(tid, category, 7)
             v30 = _get_velocity(tid, category, 30)
