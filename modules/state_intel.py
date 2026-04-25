@@ -58,7 +58,7 @@ def load_data(selected_file):
         return pd.DataFrame(), None
 
 def render_state_intel(username):
-    st.subheader(" CSR Intelligence Hub")
+    st.subheader(" Convergence Hub")
 
     # --- SETTINGS SECTION ---
     with st.expander(" Data Settings", expanded=True):

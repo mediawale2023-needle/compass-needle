@@ -310,7 +310,7 @@ export default function CompanyProfilePage({ params }) {
                     className="gap-2 mb-4 -ml-2"
                 >
                     <ArrowLeft className="h-4 w-4" />
-                    CSR Intelligence
+                    Convergence
                 </Button>
 
                 <div className="flex flex-wrap items-start justify-between gap-3">
