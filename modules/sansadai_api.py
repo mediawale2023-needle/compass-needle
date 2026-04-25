@@ -52,6 +52,94 @@ _STOPWORDS = {
     "government", "ministry", "question", "answer", "regarding", "subject",
 }
 
+ISSUE_TOPICS = [
+    "Infrastructure & Projects",
+    "Budget & Finance",
+    "Welfare & Beneficiaries",
+    "Implementation & Progress",
+    "Challenges & Delays",
+    "Policy & Legislation",
+    "Data & Statistics",
+    "Appointments & Administration",
+    "International & Bilateral",
+    "Environment & Sustainability",
+    "Research & Technology",
+    "Legal & Regulatory",
+    "Other",
+]
+ISSUE_TOPIC_SET = set(ISSUE_TOPICS)
+_ISSUE_TOPIC_KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
+    ("Challenges & Delays", (
+        "delay", "delayed", "pending", "shortfall", "shortage", "vacancy",
+        "vacancies", "backlog", "underutilized", "under-utilized", "slow progress",
+        "not completed", "not functional", "incomplete", "bottleneck",
+    )),
+    ("Budget & Finance", (
+        "budget", "allocation", "allocated", "fund", "funding", "funds", "outlay",
+        "expenditure", "spent", "financial", "finance", "grant", "subsidy",
+        "loan", "credit", "tax", "pricing", "price rise", "reimbursement",
+        "compensation", "fiscal",
+    )),
+    ("Welfare & Beneficiaries", (
+        "beneficiary", "beneficiaries", "welfare", "pension", "scholarship",
+        "ration", "insurance", "stipend", "livelihood", "self help group",
+        "self-help group", "shg", "anganwadi", "hostel", "relief", "farmer welfare",
+    )),
+    ("Implementation & Progress", (
+        "implementation", "progress", "status", "coverage", "achievement",
+        "completed", "completion", "rollout", "operational", "functioning",
+        "execution", "progress made", "work completed",
+    )),
+    ("Policy & Legislation", (
+        "policy", "bill", "act", "amendment", "guideline", "guidelines",
+        "framework", "mission", "policy decision", "cabinet", "ordinance",
+        "rules", "scheme norms",
+    )),
+    ("Data & Statistics", (
+        "statistics", "statistical", "data", "census", "survey", "details thereof",
+        "year-wise", "state-wise", "district-wise", "number of", "count of",
+        "how many", "figures", "reported data",
+    )),
+    ("Appointments & Administration", (
+        "appointment", "appointments", "recruitment", "recruited", "vacancy",
+        "vacancies", "post of", "posts in", "cadre", "staff", "officer",
+        "officers", "committee", "chairperson", "secretary", "administration",
+        "administrative", "transfer", "promotion",
+    )),
+    ("International & Bilateral", (
+        "international", "bilateral", "foreign", "cross-border", "cross border",
+        "export", "import", "embassy", "visa", "trade agreement", "united nations",
+        "neighbouring country", "neighboring country", "global cooperation",
+    )),
+    ("Environment & Sustainability", (
+        "environment", "environmental", "climate", "pollution", "forest",
+        "wildlife", "emission", "sustainability", "sustainable", "renewable",
+        "solar", "waste management", "conservation", "ecology", "air quality",
+        "river cleaning",
+    )),
+    ("Research & Technology", (
+        "research", "technology", "technological", "innovation", "digital",
+        "artificial intelligence", "ai ", "startup", "scientific", "science",
+        "patent", "satellite", "space", "cyber", "telecom technology",
+    )),
+    ("Legal & Regulatory", (
+        "regulation", "regulatory", "legal", "court", "tribunal", "license",
+        "licence", "compliance", "penalty", "violation", "litigation", "judicial",
+        "adjudication", "statutory",
+    )),
+    ("Infrastructure & Projects", (
+        "infrastructure", "project", "construction", "road", "highway", "bridge",
+        "rail", "railway", "airport", "port", "pipeline", "power plant",
+        "transmission line", "metro", "building", "housing", "connectivity",
+        "broadband", "fibre", "fiber", "dam", "corridor",
+    )),
+]
+_ISSUE_TOPIC_PRIORITY = {
+    topic: index for index, (topic, _) in enumerate(_ISSUE_TOPIC_KEYWORDS)
+}
+for topic in ISSUE_TOPICS:
+    _ISSUE_TOPIC_PRIORITY.setdefault(topic, len(_ISSUE_TOPIC_PRIORITY))
+
 
 def _runtime_get(key: str) -> Optional[dict]:
     entry = _runtime_cache.get(key)
@@ -83,6 +171,52 @@ def _end_generation(key: str):
 
 def _norm(value: str) -> str:
     return re.sub(r"\s+", " ", (value or "").strip()).lower()
+
+
+def _joined_topic_text(subject: str, ministry: str = "", topic_tags: Optional[list[str]] = None) -> str:
+    tags = " ".join(tag for tag in (topic_tags or []) if tag)
+    text = " ".join(part for part in [subject or "", ministry or "", tags] if part)
+    lowered = _norm(text)
+    return re.sub(r"[^a-z0-9&/\-\s]+", " ", lowered)
+
+
+def _date_sort_value(value) -> str:
+    if value and hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value or "")
+
+
+def infer_issue_topic(subject: str, ministry: str = "", topic_tags: Optional[list[str]] = None) -> str:
+    """
+    Derive the fixed SansadAI topic from raw PQ metadata.
+
+    This is the read-time fallback used when the batch topic-classification
+    job has not yet populated global_parliamentary_questions.topic.
+    """
+    text = _joined_topic_text(subject, ministry, topic_tags)
+    if not text:
+        return "Other"
+
+    scores = {topic: 0 for topic in ISSUE_TOPICS}
+    for topic, keywords in _ISSUE_TOPIC_KEYWORDS:
+        for keyword in keywords:
+            if keyword in text:
+                scores[topic] += 2 if " " in keyword else 1
+
+    # Common parliamentary phrasing that points to numeric/status questions.
+    if any(phrase in text for phrase in ("details thereof", "state-wise", "district-wise", "year-wise", "how many", "number of")):
+        scores["Data & Statistics"] += 2
+    if any(phrase in text for phrase in ("status of", "progress of", "progress made", "implementation of")):
+        scores["Implementation & Progress"] += 2
+    if any(phrase in text for phrase in ("delay in", "pending", "shortfall in", "vacancies in")):
+        scores["Challenges & Delays"] += 2
+
+    ranked = sorted(
+        scores.items(),
+        key=lambda item: (-item[1], _ISSUE_TOPIC_PRIORITY.get(item[0], len(ISSUE_TOPICS))),
+    )
+    best_topic, best_score = ranked[0]
+    return best_topic if best_score > 0 else "Other"
 
 
 def _trim_text(value) -> Optional[str]:
@@ -363,70 +497,97 @@ def _rows_to_answer_dicts(rows, seen: set[int]) -> list[dict]:
     return out
 
 
+def _effective_topic_for_row(row: dict) -> str:
+    topic = _trim_text(row.get("topic"))
+    if topic in ISSUE_TOPIC_SET:
+        return topic
+    topic_tags = row.get("topic_tags")
+    if isinstance(topic_tags, str):
+        try:
+            topic_tags = json.loads(topic_tags)
+        except Exception:
+            topic_tags = [topic_tags]
+    if not isinstance(topic_tags, list):
+        topic_tags = []
+    return infer_issue_topic(
+        row.get("subject") or "",
+        row.get("ministry") or "",
+        topic_tags,
+    )
+
+
+def _fetch_ministry_answer_rows(ministry: str) -> list[dict]:
+    cache_key = f"sansadai:ministry-rows:{_norm(ministry)}"
+    cached = _runtime_get(cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT id, subject, answer_text, date_asked, question_type,
+                       session_name, question_number, mp_name, prs_url,
+                       topic, topic_tags, TRIM(ministry) AS ministry
+                FROM global_parliamentary_questions
+                WHERE answer_text IS NOT NULL AND answer_text != ''
+                  AND ministry IS NOT NULL AND ministry != ''
+                  AND LOWER(TRIM(ministry)) = LOWER(TRIM(:ministry))
+            """), {"ministry": ministry}).mappings().all()
+        result = [dict(row) for row in rows]
+        _runtime_set(cache_key, result)
+        return result
+    except Exception as e:
+        logger.error("_fetch_ministry_answer_rows(%s) failed: %s", ministry, e)
+        return []
+
+
 def _fetch_issue_answers(ministry: str, topic: str, state: str) -> dict:
-    params = {"ministry": ministry, "topic": topic}
     state_answers: list[dict] = []
     issue_answers: list[dict] = []
     seen_state: set[int] = set()
     seen_issue: set[int] = set()
-
     try:
-        with engine.connect() as conn:
-            if state:
-                state_rows = conn.execute(text("""
-                    SELECT id, subject, answer_text, date_asked, question_type,
-                           session_name, question_number, mp_name, prs_url
-                    FROM global_parliamentary_questions
-                    WHERE topic = :topic
-                      AND LOWER(TRIM(ministry)) = LOWER(TRIM(:ministry))
-                      AND answer_text IS NOT NULL AND answer_text != ''
-                      AND answer_text ILIKE :state
-                    ORDER BY date_asked DESC NULLS LAST
-                    LIMIT 6
-                """), {**params, "state": f"%{state}%"}).mappings().all()
-                state_answers = _rows_to_answer_dicts(state_rows, seen_state)
+        rows = [
+            row for row in _fetch_ministry_answer_rows(ministry)
+            if _effective_topic_for_row(row) == topic
+        ]
+        if state:
+            state_rows = [
+                row for row in rows
+                if state.lower() in (row.get("answer_text") or "").lower()
+            ]
+            state_rows = sorted(
+                state_rows,
+                key=lambda row: _date_sort_value(row.get("date_asked")),
+                reverse=True,
+            )[:6]
+            state_answers = _rows_to_answer_dicts(state_rows, seen_state)
 
-            recent_rows = conn.execute(text("""
-                SELECT id, subject, answer_text, date_asked, question_type,
-                       session_name, question_number, mp_name, prs_url
-                FROM global_parliamentary_questions
-                WHERE topic = :topic
-                  AND LOWER(TRIM(ministry)) = LOWER(TRIM(:ministry))
-                  AND answer_text IS NOT NULL AND answer_text != ''
-                ORDER BY date_asked DESC NULLS LAST
-                LIMIT 8
-            """), params).mappings().all()
-            issue_answers.extend(_rows_to_answer_dicts(recent_rows, seen_issue))
+        recent_rows = sorted(
+            rows,
+            key=lambda row: _date_sort_value(row.get("date_asked")),
+            reverse=True,
+        )[:8]
+        issue_answers.extend(_rows_to_answer_dicts(recent_rows, seen_issue))
 
-            longest_rows = conn.execute(text("""
-                SELECT id, subject, answer_text, date_asked, question_type,
-                       session_name, question_number, mp_name, prs_url
-                FROM global_parliamentary_questions
-                WHERE topic = :topic
-                  AND LOWER(TRIM(ministry)) = LOWER(TRIM(:ministry))
-                  AND answer_text IS NOT NULL AND answer_text != ''
-                ORDER BY LENGTH(answer_text) DESC
-                LIMIT 6
-            """), params).mappings().all()
-            issue_answers.extend(_rows_to_answer_dicts(longest_rows, seen_issue))
+        longest_rows = sorted(
+            rows,
+            key=lambda row: len(row.get("answer_text") or ""),
+            reverse=True,
+        )[:6]
+        issue_answers.extend(_rows_to_answer_dicts(longest_rows, seen_issue))
 
-            keyword_rows = conn.execute(text("""
-                SELECT id, subject, answer_text, date_asked, question_type,
-                       session_name, question_number, mp_name, prs_url
-                FROM global_parliamentary_questions
-                WHERE topic = :topic
-                  AND LOWER(TRIM(ministry)) = LOWER(TRIM(:ministry))
-                  AND answer_text IS NOT NULL AND answer_text != ''
-                  AND (
-                    answer_text ILIKE '%delay%' OR answer_text ILIKE '%pending%'
-                    OR answer_text ILIKE '%shortfall%' OR answer_text ILIKE '%gap%'
-                    OR answer_text ILIKE '%approved%' OR answer_text ILIKE '%released%'
-                    OR answer_text ILIKE '%crore%' OR answer_text ILIKE '%percent%'
-                  )
-                ORDER BY date_asked DESC NULLS LAST
-                LIMIT 6
-            """), params).mappings().all()
-            issue_answers.extend(_rows_to_answer_dicts(keyword_rows, seen_issue))
+        keyword_rows = []
+        for row in rows:
+            answer_text = (row.get("answer_text") or "").lower()
+            if any(term in answer_text for term in ("delay", "pending", "shortfall", "gap", "approved", "released", "crore", "percent")):
+                keyword_rows.append(row)
+        keyword_rows = sorted(
+            keyword_rows,
+            key=lambda row: _date_sort_value(row.get("date_asked")),
+            reverse=True,
+        )[:6]
+        issue_answers.extend(_rows_to_answer_dicts(keyword_rows, seen_issue))
     except Exception as e:
         logger.error("_fetch_issue_answers failed for %s / %s: %s", ministry, topic, e)
 
@@ -588,15 +749,11 @@ def _load_db_cache(ministry: str, topic: str, state: str) -> Optional[dict]:
 
 def _count_issue_answers(ministry: str, topic: str) -> int:
     try:
-        with engine.connect() as conn:
-            row = conn.execute(text("""
-                SELECT COUNT(*) AS cnt
-                FROM global_parliamentary_questions
-                WHERE topic = :topic
-                  AND LOWER(TRIM(ministry)) = LOWER(TRIM(:ministry))
-                  AND answer_text IS NOT NULL AND answer_text != ''
-            """), {"topic": topic, "ministry": ministry}).mappings().fetchone()
-        return int((row or {}).get("cnt", 0))
+        return sum(
+            1
+            for row in _fetch_ministry_answer_rows(ministry)
+            if _effective_topic_for_row(row) == topic
+        )
     except Exception:
         return 0
 
@@ -647,25 +804,46 @@ def get_issue_ministries() -> list[dict]:
             rows = conn.execute(text("""
                 SELECT
                     TRIM(ministry) AS ministry,
-                    COUNT(*) AS classified_count,
-                    COUNT(DISTINCT topic) AS topic_count,
-                    MAX(date_asked) AS latest_activity
+                    subject,
+                    topic,
+                    topic_tags,
+                    date_asked
                 FROM global_parliamentary_questions
-                WHERE topic IS NOT NULL
-                  AND ministry IS NOT NULL AND ministry != ''
+                WHERE ministry IS NOT NULL AND ministry != ''
                   AND answer_text IS NOT NULL AND answer_text != ''
-                GROUP BY TRIM(ministry)
-                ORDER BY classified_count DESC, topic_count DESC
             """)).mappings().all()
 
-        result = [
-            {
-                "ministry": row["ministry"],
-                "topic_count": int(row["topic_count"] or 0),
-                "latest_activity": row["latest_activity"].isoformat() if row["latest_activity"] else None,
-            }
-            for row in rows
-        ]
+        by_ministry: dict[str, dict] = {}
+        for row in rows:
+            ministry = _trim_text(row.get("ministry"))
+            if not ministry:
+                continue
+            entry = by_ministry.setdefault(ministry, {
+                "ministry": ministry,
+                "classified_count": 0,
+                "topics": set(),
+                "latest_activity": None,
+            })
+            entry["classified_count"] += 1
+            entry["topics"].add(_effective_topic_for_row(dict(row)))
+            if row.get("date_asked") and (entry["latest_activity"] is None or row["date_asked"] > entry["latest_activity"]):
+                entry["latest_activity"] = row["date_asked"]
+
+        result = sorted(
+            (
+                {
+                    "ministry": entry["ministry"],
+                    "topic_count": len(entry["topics"]),
+                    "latest_activity": entry["latest_activity"].isoformat() if entry["latest_activity"] else None,
+                }
+                for entry in by_ministry.values()
+            ),
+            key=lambda item: (
+                -by_ministry[item["ministry"]]["classified_count"],
+                -item["topic_count"],
+                item["ministry"].lower(),
+            ),
+        )
         _runtime_set(cache_key, result)
         return result
     except Exception as e:
@@ -681,32 +859,32 @@ def get_issue_topics(ministry: str, tenant_id: Optional[int] = None, state_overr
         return cached
 
     try:
-        params = {"ministry": ministry}
-        state_col = ""
-        if state:
-            state_col = """,
-                COUNT(*) FILTER (
-                    WHERE answer_text IS NOT NULL AND answer_text ILIKE :state
-                ) AS state_count
-            """
-            params["state"] = f"%{state}%"
+        rows = _fetch_ministry_answer_rows(ministry)
+        aggregates: dict[str, dict] = {}
+        state_lc = (state or "").lower()
+        for row in rows:
+            topic = _effective_topic_for_row(row)
+            entry = aggregates.setdefault(topic, {
+                "topic": topic,
+                "total_count": 0,
+                "latest_activity": None,
+                "state_count": 0,
+            })
+            entry["total_count"] += 1
+            if row.get("date_asked") and (entry["latest_activity"] is None or row["date_asked"] > entry["latest_activity"]):
+                entry["latest_activity"] = row["date_asked"]
+            if state_lc and state_lc in (row.get("answer_text") or "").lower():
+                entry["state_count"] += 1
 
-        with engine.connect() as conn:
-            rows = conn.execute(text(f"""
-                SELECT
-                    topic,
-                    COUNT(*) AS total_count,
-                    MAX(date_asked) AS latest_activity
-                    {state_col}
-                FROM global_parliamentary_questions
-                WHERE topic IS NOT NULL
-                  AND answer_text IS NOT NULL AND answer_text != ''
-                  AND LOWER(TRIM(ministry)) = LOWER(TRIM(:ministry))
-                GROUP BY topic
-                ORDER BY total_count DESC, latest_activity DESC NULLS LAST
-            """), params).mappings().all()
-
-        topic_names = [row["topic"] for row in rows if row["topic"]]
+        topic_rows = sorted(
+            aggregates.values(),
+            key=lambda row: (
+                -row["total_count"],
+                -(row["latest_activity"].toordinal() if row["latest_activity"] else 0),
+                row["topic"],
+            ),
+        )
+        topic_names = [row["topic"] for row in topic_rows if row["topic"]]
         cached_topics: set[str] = set()
         stale_topics: set[str] = set()
         if topic_names:
@@ -726,7 +904,7 @@ def get_issue_topics(ministry: str, tenant_id: Optional[int] = None, state_overr
                     cached_topics.add(item["topic"])
 
         result = []
-        for row in rows:
+        for row in topic_rows:
             topic = row["topic"]
             if topic in cached_topics:
                 intel_status = "ready"
@@ -799,10 +977,9 @@ def mark_stale_issue_briefs(new_pq_ids: list[int]):
     try:
         with engine.connect() as conn:
             rows = conn.execute(text("""
-                SELECT DISTINCT TRIM(ministry) AS ministry, topic
+                SELECT DISTINCT id, TRIM(ministry) AS ministry, topic, subject, topic_tags
                 FROM global_parliamentary_questions
                 WHERE id = ANY(:ids)
-                  AND topic IS NOT NULL
                   AND ministry IS NOT NULL AND ministry != ''
                   AND answer_text IS NOT NULL AND answer_text != ''
             """), {"ids": new_pq_ids}).mappings().all()
@@ -811,13 +988,14 @@ def mark_stale_issue_briefs(new_pq_ids: list[int]):
 
         with engine.begin() as conn:
             for row in rows:
+                topic = _effective_topic_for_row(dict(row))
                 conn.execute(text("""
                     UPDATE issue_intelligence_cache
                     SET is_stale = true
                     WHERE ministry = :ministry
                       AND topic = :topic
                       AND is_stale = false
-                """), {"ministry": row["ministry"], "topic": row["topic"]})
+                """), {"ministry": row["ministry"], "topic": topic})
 
         _runtime_cache.clear()
         logger.info("Marked %d SansadAI issue briefs stale", len(rows))
