@@ -310,7 +310,7 @@ export default function CompanyProfilePage({ params }) {
                     className="gap-2 mb-4 -ml-2"
                 >
                     <ArrowLeft className="h-4 w-4" />
-                    CSR Intelligence
+                    Convergence
                 </Button>
 
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -913,7 +913,7 @@ export default function CompanyProfilePage({ params }) {
                 )}
 
                 <p className="text-[9px] text-muted-foreground mt-6 border-t pt-2">
-                    Internal briefing document. MPs are not in the statutory CSR approval chain (CSR Committee → Board → Implementation).
+                    Internal convergence briefing document. MPs are not in the statutory CSR approval chain (CSR Committee → Board → Implementation).
                     Enforcement authority rests with MCA / Registrar of Companies.
                 </p>
             </div>

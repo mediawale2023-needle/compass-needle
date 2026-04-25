@@ -10,6 +10,7 @@ import re
 from openai import OpenAI
 from openai import RateLimitError, APIError, APIConnectionError
 from .prompts import SYSTEM_PROMPT, TAXONOMY_CATEGORIES
+from .unified_taxonomy import VALID_CATEGORIES as _VALID_CATEGORIES, CATEGORY_ALIASES as _CATEGORY_ALIASES
 
 # ==========================================
 # 1. CONFIGURATION
@@ -25,75 +26,6 @@ def get_client():
     return OpenAI(api_key=api_key)
 
 # ── Category validation ───────────────────────────────────────────────────────
-_VALID_CATEGORIES = {
-    "Infrastructure & Utilities",
-    "Housing & Land",
-    "Health",
-    "Education",
-    "Government Schemes & Welfare",
-    "Agriculture",
-    "Social Issues",
-    "Law & Order",
-    "Bureaucratic / Administrative",
-}
-
-# Known hallucinations / old names / partial names → canonical category
-_CATEGORY_ALIASES = {
-    "infrastructure": "Infrastructure & Utilities",
-    "infrastructure & utility": "Infrastructure & Utilities",
-    "infrastructure (state)": "Infrastructure & Utilities",
-    "infrastructure(state)": "Infrastructure & Utilities",
-    "energy": "Infrastructure & Utilities",
-    "water": "Infrastructure & Utilities",
-    "sanitation": "Infrastructure & Utilities",
-    "civic amenities": "Infrastructure & Utilities",
-    "transport": "Infrastructure & Utilities",
-    "telecom": "Infrastructure & Utilities",
-    "railways": "Infrastructure & Utilities",
-    "road": "Infrastructure & Utilities",
-    "roads": "Infrastructure & Utilities",
-    "electricity": "Infrastructure & Utilities",
-    "revenue & land": "Housing & Land",
-    "land": "Housing & Land",
-    "housing": "Housing & Land",
-    "land records": "Housing & Land",
-    "public health": "Health",
-    "health & sanitation": "Health",
-    "medical": "Health",
-    "healthcare": "Health",
-    "education (central)": "Education",
-    "education (state)": "Education",
-    "school": "Education",
-    "food supply": "Government Schemes & Welfare",
-    "banking & finance": "Government Schemes & Welfare",
-    "labor & employment": "Government Schemes & Welfare",
-    "labour & employment": "Government Schemes & Welfare",
-    "welfare": "Government Schemes & Welfare",
-    "government schemes": "Government Schemes & Welfare",
-    "schemes": "Government Schemes & Welfare",
-    "pension": "Government Schemes & Welfare",
-    "ration": "Government Schemes & Welfare",
-    "farming": "Agriculture",
-    "farmer": "Agriculture",
-    "crop": "Agriculture",
-    "law and order": "Law & Order",
-    "police": "Law & Order",
-    "crime": "Law & Order",
-    "security": "Law & Order",
-    "bureaucratic": "Bureaucratic / Administrative",
-    "administrative": "Bureaucratic / Administrative",
-    "bureaucratic/administrative": "Bureaucratic / Administrative",
-    "bureaucratic/ administrative": "Bureaucratic / Administrative",
-    "civic admin": "Bureaucratic / Administrative",
-    "external affairs": "Bureaucratic / Administrative",
-    "postal services": "Bureaucratic / Administrative",
-    "corruption": "Bureaucratic / Administrative",
-    "social issue": "Social Issues",
-    "caste": "Social Issues",
-    "women": "Social Issues",
-    "general grievance": "Infrastructure & Utilities",
-    "general": "Infrastructure & Utilities",
-}
 
 
 def _normalize_categories(cats: list, raw_message: str) -> list:

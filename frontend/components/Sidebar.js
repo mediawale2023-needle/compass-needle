@@ -32,7 +32,7 @@ const NAV_ITEMS = [
     { name: 'Drafter', path: '/dashboard/drafter', icon: PenTool },
     { name: 'SansadAI', path: '/dashboard/sansadai', icon: Bot, mpOnly: true },
     { name: 'Schemes', path: '/dashboard/schemes', icon: Gift, mpOnly: true },
-    { name: 'CSR Intelligence', path: '/dashboard/csr', icon: Users, mpOnly: true },
+    { name: 'Convergence', path: '/dashboard/csr', icon: Users, mpOnly: true },
     { name: 'Archives', path: '/dashboard/archives', icon: Archive },
     { name: 'Settings', path: '/dashboard/settings', icon: Settings },
 ];
