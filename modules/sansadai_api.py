@@ -888,20 +888,28 @@ def get_issue_topics(ministry: str, tenant_id: Optional[int] = None, state_overr
         cached_topics: set[str] = set()
         stale_topics: set[str] = set()
         if topic_names:
-            with engine.connect() as conn:
-                cache_rows = conn.execute(text("""
-                    SELECT DISTINCT ON (topic) topic, is_stale
-                    FROM issue_intelligence_cache
-                    WHERE ministry = :ministry
-                      AND topic = ANY(:topics)
-                      AND state = :state
-                    ORDER BY topic, is_stale ASC
-                """), {"ministry": ministry, "topics": topic_names, "state": state}).mappings().all()
-            for item in cache_rows:
-                if item["is_stale"]:
-                    stale_topics.add(item["topic"])
-                else:
-                    cached_topics.add(item["topic"])
+            try:
+                with engine.connect() as conn:
+                    cache_rows = conn.execute(text("""
+                        SELECT DISTINCT ON (topic) topic, is_stale
+                        FROM issue_intelligence_cache
+                        WHERE ministry = :ministry
+                          AND topic = ANY(:topics)
+                          AND state = :state
+                        ORDER BY topic, is_stale ASC
+                    """), {"ministry": ministry, "topics": topic_names, "state": state}).mappings().all()
+                for item in cache_rows:
+                    if item["is_stale"]:
+                        stale_topics.add(item["topic"])
+                    else:
+                        cached_topics.add(item["topic"])
+            except Exception as e:
+                logger.warning(
+                    "get_issue_topics cache lookup failed for %s / %s: %s",
+                    ministry,
+                    state or "national",
+                    e,
+                )
 
         result = []
         for row in topic_rows:
