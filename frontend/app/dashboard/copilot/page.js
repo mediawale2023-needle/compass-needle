@@ -292,9 +292,9 @@ export function ResearchDeskExperience({
 
     const runAnalysis = async (opts = {}) => {
         const sessionId = opts.sessionId || selectedSessionId;
-        const content = opts.content ?? docContext;
+        const content = sessionId ? '' : (opts.content ?? docContext);
         const filename = opts.filename ?? (documents[0]?.filename || 'document');
-        if (!content.trim()) {
+        if (!sessionId && !content.trim()) {
             setError('Upload at least one PDF before running structured analysis.');
             return;
         }
@@ -383,7 +383,7 @@ export function ResearchDeskExperience({
         try {
             const data = await apiPost('/api/copilot/chat', {
                 session_id: sessionId,
-                document_context: docContext,
+                document_context: sessionId ? '' : docContext,
                 message: question,
                 history: nextMessages,
             }, { timeout: AI_TIMEOUT, noRetry: true });
