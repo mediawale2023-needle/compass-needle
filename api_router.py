@@ -1896,7 +1896,20 @@ def refresh_sansadai_intelligence(
 # ─────────────────────────────────────────
 # PARLIAMENT SESSION STATUS
 # ─────────────────────────────────────────
+_cache = {}
 _parliament_cache = {"data": None, "ts": None}
+
+
+def _cached_load(key: str, loader, ttl_seconds: int = 1800):
+    """Simple in-process cache for relatively static reference data."""
+    now = datetime.utcnow()
+    entry = _cache.get(key)
+    if entry and entry.get("ts") and (now - entry["ts"]).total_seconds() < ttl_seconds:
+        return entry.get("data")
+
+    data = loader()
+    _cache[key] = {"data": data, "ts": now}
+    return data
 
 
 @router.get("/parliament/status")
