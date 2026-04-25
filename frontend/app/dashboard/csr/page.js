@@ -284,7 +284,7 @@ export default function CSRPage() {
     const router = useRouter();
 
     if (user && user.role !== 'mp' && user.role !== 'admin') {
-        return <LockedModule name="CSR Intelligence" />;
+        return <LockedModule name="Convergence" />;
     }
 
     // ─── Live Data State ───
@@ -447,9 +447,9 @@ export default function CSRPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-bold text-foreground">CSR Intelligence</h1>
+                <h1 className="text-2xl font-bold text-foreground">Convergence</h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                    Match constituency needs to corporate social responsibility opportunities
+                    Converge grievance signals, public systems, and partner funding into executable projects
                 </p>
             </div>
 

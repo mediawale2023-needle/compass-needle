@@ -19,16 +19,14 @@ Usage:
   )
 """
 
+from .unified_taxonomy import CANONICAL_CATEGORIES
+
 # ──────────────────────────────────────────────
 # Valid categories drawn from taxonomy.json
 # Kept here as a single source of truth for the prompt.
 # If taxonomy.json changes, update this list.
 # ──────────────────────────────────────────────
-TAXONOMY_CATEGORIES = (
-    "Infrastructure & Utilities | Housing & Land | Health | Education | "
-    "Government Schemes & Welfare | Agriculture | Social Issues | "
-    "Law & Order | Bureaucratic / Administrative"
-)
+TAXONOMY_CATEGORIES = " | ".join(CANONICAL_CATEGORIES)
 
 # ──────────────────────────────────────────────
 # v3.0 SYSTEM PROMPT — Multi-Label + NER Engine
