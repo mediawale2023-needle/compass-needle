@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { apiGet, apiPost, AI_TIMEOUT } from '@/lib/api';
+import { ResearchDeskExperience } from '@/app/dashboard/copilot/page';
 import {
     Bot, Building2, ChevronLeft, ChevronRight, Landmark,
     Loader2, MapPin, Radar, RefreshCw, Search, AlertTriangle,
@@ -549,7 +550,10 @@ export function GovernmentIntelExperience({
 export default function SansadAIPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const activeTab = searchParams.get('tab') === 'government-intel' ? 'government-intel' : 'schemes';
+    const requestedTab = searchParams.get('tab');
+    const activeTab = requestedTab === 'government-intel' || requestedTab === 'research'
+        ? requestedTab
+        : 'schemes';
 
     const tabButtonClass = (tab) => (
         `inline-flex items-center rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
@@ -565,6 +569,7 @@ export default function SansadAIPage() {
 
     const schemesParams = useMemo(() => ({ tab: 'schemes' }), []);
     const governmentParams = useMemo(() => ({ tab: 'government-intel' }), []);
+    const researchParams = useMemo(() => ({ tab: 'research' }), []);
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
@@ -582,6 +587,9 @@ export default function SansadAIPage() {
                 <button type="button" className={tabButtonClass('government-intel')} onClick={() => openTab('government-intel')}>
                     Government Intel
                 </button>
+                <button type="button" className={tabButtonClass('research')} onClick={() => openTab('research')}>
+                    Research
+                </button>
             </div>
 
             {activeTab === 'schemes' ? (
@@ -592,13 +600,21 @@ export default function SansadAIPage() {
                     heading="Schemes"
                     description="What the government has said about its schemes in Parliament"
                 />
-            ) : (
+            ) : activeTab === 'government-intel' ? (
                 <GovernmentIntelExperience
                     routeBase="/dashboard/sansadai"
                     fixedParams={governmentParams}
                     embedded
                     heading="Government Intel"
                     description="Government record, organized by issue instead of raw PQ archives"
+                />
+            ) : (
+                <ResearchDeskExperience
+                    embedded
+                    heading="Research Desk"
+                    description="Analyse documents, interrogate them, and connect them to parliamentary memory."
+                    routeBase="/dashboard/sansadai"
+                    fixedParams={researchParams}
                 />
             )}
         </div>

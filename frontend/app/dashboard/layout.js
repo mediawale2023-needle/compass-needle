@@ -103,7 +103,9 @@ export default function DashboardLayout({ children }) {
         }
         if (item?.activity_type === 'analysis' || item?.activity_type === 'copilot_chat') {
             const sessionId = meta.session_id || meta.chat_id || meta.id;
-            return sessionId ? `/dashboard/copilot?session=${encodeURIComponent(sessionId)}` : '/dashboard/copilot';
+            return sessionId
+                ? `/dashboard/sansadai?tab=research&session=${encodeURIComponent(sessionId)}`
+                : '/dashboard/sansadai?tab=research';
         }
         return `/dashboard/archives?activity_id=${encodeURIComponent(item?.id || '')}`;
     };

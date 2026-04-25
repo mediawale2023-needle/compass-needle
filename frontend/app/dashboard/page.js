@@ -16,6 +16,7 @@ import {
     Building2,
     Mail,
     Bot,
+    BookOpen,
     PenTool,
     Gift,
     ArrowRight,
@@ -142,7 +143,7 @@ export default function DashboardPage() {
         { label: 'Top Issue', value: topIssue, icon: AlertTriangle, highlight: 'default' },
     ];
     const quickActions = canUseSansadAI
-        ? [...QUICK_ACTIONS, { label: 'Open SansadAI', href: '/dashboard/sansadai', desc: 'Issue intelligence', icon: Bot }]
+        ? [...QUICK_ACTIONS, { label: 'Research Desk', href: '/dashboard/sansadai?tab=research', desc: 'Analyse docs', icon: BookOpen }]
         : QUICK_ACTIONS;
 
     return (

@@ -98,7 +98,7 @@ export default function ArchivesPage() {
                             <Archive className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
                             <p className="text-muted-foreground">No saved items yet.</p>
                             <p className="text-sm text-muted-foreground mt-1">
-                                Use the Drafter or Research Desk to save documents.
+                                Use the Drafter or SansadAI Research to save documents.
                             </p>
                         </div>
                     ) : (
