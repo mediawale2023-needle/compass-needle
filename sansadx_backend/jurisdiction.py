@@ -70,7 +70,7 @@ def get_classification(text: str):
                 }
 
     return {
-        "category": "General Grievance",
+        "category": "Infrastructure & Utilities",
         "authority": "District Collector's Office",
         "level": "Admin",
         "mp_role": "Coordinate",

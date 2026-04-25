@@ -6,7 +6,7 @@ any outreach to companies. Volume thresholds are internal signals only.
 """
 import logging
 from sqlalchemy import text
-from datetime import datetime, timedelta
+from sansadx_backend.unified_taxonomy import canonicalize_category, convergence_sector_for
 
 logger = logging.getLogger("needle.csr_pipeline")
 
@@ -14,19 +14,7 @@ logger = logging.getLogger("needle.csr_pipeline")
 CSR_PROPOSAL_THRESHOLD = 200 # Internal threshold to surface cluster for field verification
 CSR_MONITOR_THRESHOLD = 100 # Internal threshold to begin tracking a cluster
 
-# Category → CSR Sector mapping
-CATEGORY_SECTOR_MAP = {
-    "Water": "Water & Sanitation",
-    "Infrastructure": "Rural Development",
-    "Infrastructure (State)": "Rural Development",
-    "Energy": "Renewable Energy",
-    "Education (Central)": "Education & Skill Development",
-    "Public Health": "Healthcare",
-    "Sanitation": "Swachh Bharat",
-    "Civic Amenities": "Community Development",
-    "Transport": "Rural Development",
-    "Food Supply": "Food Security",
-}
+# Category → Convergence Sector mapping now lives in unified_taxonomy.py
 
 
 def _get_engine():
@@ -96,7 +84,8 @@ def get_grievance_clusters(tenant_id, min_threshold=CSR_MONITOR_THRESHOLD):
 
         clusters = []
         for row in rows:
-            category = row[0]
+            raw_category = row[0]
+            category = canonicalize_category(raw_category)
             volume = row[1]
             clusters.append({
                 "category": category,
@@ -105,8 +94,8 @@ def get_grievance_clusters(tenant_id, min_threshold=CSR_MONITOR_THRESHOLD):
                 "last_report": row[3],
                 "progress_pct": min(100, int((volume / CSR_PROPOSAL_THRESHOLD) * 100)),
                 "status": "verify" if volume >= CSR_PROPOSAL_THRESHOLD else "watch",
-                "csr_sector": CATEGORY_SECTOR_MAP.get(category, "General CSR"),
-                "affected_areas": areas_by_category.get(category, []),
+                "csr_sector": convergence_sector_for(category),
+                "affected_areas": areas_by_category.get(raw_category, []),
             })
         return clusters
     except Exception as e:

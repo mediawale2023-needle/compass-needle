@@ -9,7 +9,18 @@ import unicodedata  # FIX P1: Used for emoji/symbol detection in detect_input_la
 import re
 from openai import OpenAI
 from openai import RateLimitError, APIError, APIConnectionError
-from .prompts import SYSTEM_PROMPT, TAXONOMY_CATEGORIES
+from .prompts import (
+    CONVERGENCE_PROGRAM_TYPES_TEXT,
+    SYSTEM_PROMPT,
+    TAXONOMY_CATEGORIES,
+    TAXONOMY_SUBDOMAINS,
+)
+from .unified_taxonomy import (
+    CATEGORY_ALIASES as _CATEGORY_ALIASES,
+    LEGACY_TO_CANONICAL as _LEGACY_TO_CANONICAL,
+    VALID_CATEGORIES as _VALID_CATEGORIES,
+    build_taxonomy_fields,
+)
 
 # ==========================================
 # 1. CONFIGURATION
@@ -25,75 +36,6 @@ def get_client():
     return OpenAI(api_key=api_key)
 
 # ── Category validation ───────────────────────────────────────────────────────
-_VALID_CATEGORIES = {
-    "Infrastructure & Utilities",
-    "Housing & Land",
-    "Health",
-    "Education",
-    "Government Schemes & Welfare",
-    "Agriculture",
-    "Social Issues",
-    "Law & Order",
-    "Bureaucratic / Administrative",
-}
-
-# Known hallucinations / old names / partial names → canonical category
-_CATEGORY_ALIASES = {
-    "infrastructure": "Infrastructure & Utilities",
-    "infrastructure & utility": "Infrastructure & Utilities",
-    "infrastructure (state)": "Infrastructure & Utilities",
-    "infrastructure(state)": "Infrastructure & Utilities",
-    "energy": "Infrastructure & Utilities",
-    "water": "Infrastructure & Utilities",
-    "sanitation": "Infrastructure & Utilities",
-    "civic amenities": "Infrastructure & Utilities",
-    "transport": "Infrastructure & Utilities",
-    "telecom": "Infrastructure & Utilities",
-    "railways": "Infrastructure & Utilities",
-    "road": "Infrastructure & Utilities",
-    "roads": "Infrastructure & Utilities",
-    "electricity": "Infrastructure & Utilities",
-    "revenue & land": "Housing & Land",
-    "land": "Housing & Land",
-    "housing": "Housing & Land",
-    "land records": "Housing & Land",
-    "public health": "Health",
-    "health & sanitation": "Health",
-    "medical": "Health",
-    "healthcare": "Health",
-    "education (central)": "Education",
-    "education (state)": "Education",
-    "school": "Education",
-    "food supply": "Government Schemes & Welfare",
-    "banking & finance": "Government Schemes & Welfare",
-    "labor & employment": "Government Schemes & Welfare",
-    "labour & employment": "Government Schemes & Welfare",
-    "welfare": "Government Schemes & Welfare",
-    "government schemes": "Government Schemes & Welfare",
-    "schemes": "Government Schemes & Welfare",
-    "pension": "Government Schemes & Welfare",
-    "ration": "Government Schemes & Welfare",
-    "farming": "Agriculture",
-    "farmer": "Agriculture",
-    "crop": "Agriculture",
-    "law and order": "Law & Order",
-    "police": "Law & Order",
-    "crime": "Law & Order",
-    "security": "Law & Order",
-    "bureaucratic": "Bureaucratic / Administrative",
-    "administrative": "Bureaucratic / Administrative",
-    "bureaucratic/administrative": "Bureaucratic / Administrative",
-    "bureaucratic/ administrative": "Bureaucratic / Administrative",
-    "civic admin": "Bureaucratic / Administrative",
-    "external affairs": "Bureaucratic / Administrative",
-    "postal services": "Bureaucratic / Administrative",
-    "corruption": "Bureaucratic / Administrative",
-    "social issue": "Social Issues",
-    "caste": "Social Issues",
-    "women": "Social Issues",
-    "general grievance": "Infrastructure & Utilities",
-    "general": "Infrastructure & Utilities",
-}
 
 
 def _normalize_categories(cats: list, raw_message: str) -> list:
@@ -121,6 +63,11 @@ def _normalize_categories(cats: list, raw_message: str) -> list:
         # 2. Alias lookup
         if cat_lower in _CATEGORY_ALIASES:
             result.append(_CATEGORY_ALIASES[cat_lower])
+            continue
+
+        # 2b. Legacy exact-label lookup
+        if cat.strip() in _LEGACY_TO_CANONICAL:
+            result.append(_LEGACY_TO_CANONICAL[cat.strip()])
             continue
 
         # 3. Fuzzy match against valid category names
@@ -177,9 +124,9 @@ def _default_grievance_data(raw_message: str = "") -> dict:
     Returns a minimal but valid grievance_data dict for error-path returns.
     Runs keyword fallback so cases are never saved with zero categories.
     """
-    cats = _normalize_categories([], raw_message)
+    fields = build_taxonomy_fields(raw_text=raw_message)
     return {
-        "categories": cats,
+        **fields,
         "location": None,
         "person": None,
         "department": None,
@@ -187,6 +134,36 @@ def _default_grievance_data(raw_message: str = "") -> dict:
         "summary": raw_message[:200] if raw_message else "",
         "_ai_fallback": True,
     }
+
+
+def _normalize_grievance_taxonomy(grievance: dict, raw_message: str) -> dict:
+    """
+    Canonicalize the 3-layer taxonomy while keeping legacy `categories`
+    available for unchanged storage and API code paths.
+    """
+    grievance = dict(grievance or {})
+    cats = grievance.get("categories", [])
+    if isinstance(cats, str):
+        cats = [cats]
+
+    candidate_domain = grievance.get("problem_domain")
+    if not candidate_domain and isinstance(cats, list) and cats:
+        candidate_domain = cats[0]
+
+    normalized_categories = _normalize_categories(cats, raw_message)
+    if not candidate_domain and normalized_categories:
+        candidate_domain = normalized_categories[0]
+
+    fields = build_taxonomy_fields(
+        problem_domain=candidate_domain,
+        problem_subdomain=grievance.get("problem_subdomain"),
+        convergence_program_type=grievance.get("convergence_program_type"),
+        raw_text=raw_message,
+        scheme=grievance.get("scheme"),
+        department=grievance.get("department"),
+    )
+    grievance.update(fields)
+    return grievance
 
 
 STATIC_RESPONSES = {
@@ -523,7 +500,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     """
 
     # Format the v3.0 system instructions from prompts.py
-    system_instructions = f"{persona_instructions}\n\n{SYSTEM_PROMPT.format(user_message='{{MESSAGE_BELOW}}', jurisdiction_context=real_jurisdiction_context, taxonomy_categories=TAXONOMY_CATEGORIES)}"
+    system_instructions = f"{persona_instructions}\n\n{SYSTEM_PROMPT.format(user_message='{{MESSAGE_BELOW}}', jurisdiction_context=real_jurisdiction_context, taxonomy_categories=TAXONOMY_CATEGORIES, taxonomy_subdomains=TAXONOMY_SUBDOMAINS, convergence_program_types=CONVERGENCE_PROGRAM_TYPES_TEXT)}"
 
     # Prefix user message with detected language so GPT cannot miss it
     if extra_context:
@@ -796,24 +773,19 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
 
             # 🛠️ MULTI-LABEL SYNC + CATEGORY VALIDATION
             if "grievance_data" in data:
-                cats = data["grievance_data"].get("categories", [])
-                if isinstance(cats, str):
-                    cats = [cats]
                 # FIX P0: OFFENSIVE and IRRELEVANT statuses intentionally have no categories per schema.
                 # Do NOT apply the default fallback — it would pollute analytics dashboards.
                 _current_status = str(data.get("status", "")).lower()
                 if _current_status in ("offensive", "irrelevant"):
                     data["grievance_data"]["categories"] = []
+                    data["grievance_data"]["problem_domain"] = None
+                    data["grievance_data"]["problem_subdomain"] = None
+                    data["grievance_data"]["convergence_program_type"] = None
                 else:
-                    validated = _normalize_categories(cats, effective_user_message)
-                    # C2 guard: completed/incomplete/pending cases must always have ≥1 category
-                    if not validated:
-                        validated = ["Infrastructure & Utilities"]
-                        logger.warning(
-                            "Empty categories on status='%s'; defaulting to Infrastructure & Utilities",
-                            data.get("status", "unknown"),
-                        )
-                    data["grievance_data"]["categories"] = validated
+                    data["grievance_data"] = _normalize_grievance_taxonomy(
+                        data["grievance_data"],
+                        effective_user_message,
+                    )
 
             # Language guardrail: if citizen input was transliterated (mostly ASCII),
             # reject non-ASCII AI replies to avoid Hindi-script swaps for Marathi/Hinglish.

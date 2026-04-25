@@ -2037,8 +2037,8 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         grievance = ai_result.get("grievance_data", {}) or {}
         status = str(ai_result.get("status", "new")).lower()
         detected_language = ai_result.get("detected_language", "")
-        categories = grievance.get("categories", ["General"])
-        category = categories[0] if isinstance(categories, list) and categories else "General"
+        categories = grievance.get("categories", ["Infrastructure & Utilities"])
+        category = categories[0] if isinstance(categories, list) and categories else "Infrastructure & Utilities"
         political_reply = ai_result.get("political_response", "Thank you for contacting us. Your message has been received.")
 
         location_name = grievance.get("location")
@@ -2181,7 +2181,11 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             "location_resolved": bool(location_name and final_constituency != "Unknown"),
             "matched_value": location_name or "",
             "assembly_constituency": final_constituency,
-            "summary": grievance.get("summary", message_body[:100])
+            "summary": grievance.get("summary", message_body[:100]),
+            "categories": categories if isinstance(categories, list) else [category],
+            "problem_domain": grievance.get("problem_domain") or category,
+            "problem_subdomain": grievance.get("problem_subdomain"),
+            "convergence_program_type": grievance.get("convergence_program_type"),
         }
 
         # ── STEP 3: Update the saved case with AI results ──
