@@ -1,0 +1,9 @@
+name: caveman
+description: Talk like a caveman
+version: 1.0.0
+
+entrypoint: prompt.md
+
+commands:
+  - name: caveman
+    description: Respond like a caveman

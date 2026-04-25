@@ -331,7 +331,8 @@ def get_cases(
 
     cases = _q(  # nosec B608
         f"""
-        SELECT c.id, c.case_ref, c.user_phone, c.category, c.status, c.raw_message,
+        SELECT c.id, c.case_ref, c.user_phone, c.category, c.problem_domain,
+               c.problem_subdomain, c.convergence_program_type, c.status, c.raw_message,
                c.case_metadata, c.is_critical, c.created_at, c.updated_at,
                c.response_to_citizen, c.notes_for_staff, c.assigned_to
         FROM cases c WHERE {where}
@@ -357,6 +358,14 @@ def get_cases(
         else:
             c["location"] = ""
             c["assembly"] = ""
+
+        parsed_meta = _parse_meta(meta)
+        if not c.get("problem_domain"):
+            c["problem_domain"] = parsed_meta.get("problem_domain")
+        if not c.get("problem_subdomain"):
+            c["problem_subdomain"] = parsed_meta.get("problem_subdomain")
+        if not c.get("convergence_program_type"):
+            c["convergence_program_type"] = parsed_meta.get("convergence_program_type")
 
         for field in ["created_at", "updated_at"]:
             val = c.get(field)

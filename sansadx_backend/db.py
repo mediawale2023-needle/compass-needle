@@ -3,6 +3,7 @@ db.py — Single source of truth for all database connections and ORM models.
 All other files import engine, SessionLocal, and models from here.
 """
 import os
+import json
 import bcrypt
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Text, ForeignKey, JSON, Float, text as sa_text, UniqueConstraint
 try:
@@ -128,7 +129,10 @@ class Case(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"))
     user_phone = Column(String, index=True)
     raw_message = Column(Text)
-    category = Column(String, default="General")
+    category = Column(String, default="Infrastructure & Utilities")
+    problem_domain = Column(String, nullable=True, index=True)
+    problem_subdomain = Column(String, nullable=True)
+    convergence_program_type = Column(String, nullable=True)
     status = Column(String, default="new")
     location = Column(String, nullable=True)
     ward = Column(String, nullable=True)
@@ -701,6 +705,9 @@ def init_db():
         # Added for AI classification metadata and criticality flag
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS is_critical BOOLEAN DEFAULT FALSE",
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_metadata JSONB",
+        "ALTER TABLE cases ADD COLUMN IF NOT EXISTS problem_domain VARCHAR",
+        "ALTER TABLE cases ADD COLUMN IF NOT EXISTS problem_subdomain VARCHAR",
+        "ALTER TABLE cases ADD COLUMN IF NOT EXISTS convergence_program_type VARCHAR",
         # Added for soft-delete support
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE",
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP",
@@ -729,3 +736,153 @@ def init_db():
             except Exception as e:
                 logging.warning("Migration skipped (%s): %s", stmt[:60], e)
         conn.commit()
+
+    try:
+        updated = backfill_case_taxonomy_fields()
+        logging.info("Case taxonomy backfill verified (rows updated: %d)", updated)
+    except Exception as e:
+        logging.warning("Case taxonomy backfill skipped: %s", e)
+
+
+def _parse_case_metadata_value(meta):
+    if meta is None:
+        return {}
+    if isinstance(meta, dict):
+        return dict(meta)
+    try:
+        return json.loads(meta)
+    except Exception:
+        return {}
+
+
+def derive_case_taxonomy_state(
+    *,
+    category=None,
+    raw_message="",
+    status="",
+    case_metadata=None,
+    problem_domain=None,
+    problem_subdomain=None,
+    convergence_program_type=None,
+):
+    """
+    Build canonical taxonomy fields and merged metadata for a case row.
+
+    This powers the startup backfill and keeps historical rows aligned with the
+    authoritative 3-layer taxonomy without needing DB-specific JSON SQL.
+    """
+    from sansadx_backend.unified_taxonomy import build_taxonomy_fields
+
+    meta = _parse_case_metadata_value(case_metadata)
+    lowered_status = str(status or "").lower().strip()
+
+    if lowered_status in ("offensive", "irrelevant"):
+        merged_meta = dict(meta)
+        merged_meta["categories"] = []
+        merged_meta["problem_domain"] = None
+        merged_meta["problem_subdomain"] = None
+        merged_meta["convergence_program_type"] = None
+        return {
+            "category": category if category not in (None, "General", "General Grievance") else "Uncategorised",
+            "problem_domain": None,
+            "problem_subdomain": None,
+            "convergence_program_type": None,
+            "case_metadata": merged_meta,
+        }
+
+    fields = build_taxonomy_fields(
+        problem_domain=meta.get("problem_domain") or problem_domain or category,
+        problem_subdomain=meta.get("problem_subdomain") or problem_subdomain,
+        convergence_program_type=meta.get("convergence_program_type") or convergence_program_type,
+        raw_text=raw_message or meta.get("summary", ""),
+        scheme=meta.get("scheme"),
+        department=meta.get("department"),
+    )
+    merged_meta = dict(meta)
+    merged_meta.update(fields)
+    return {
+        "category": fields["problem_domain"],
+        "problem_domain": fields["problem_domain"],
+        "problem_subdomain": fields["problem_subdomain"],
+        "convergence_program_type": fields["convergence_program_type"],
+        "case_metadata": merged_meta,
+    }
+
+
+def backfill_case_taxonomy_fields(batch_size: int = 500) -> int:
+    """
+    Idempotently populate canonical taxonomy fields for historical case rows.
+    """
+    total_updated = 0
+
+    while True:
+        with engine.begin() as conn:
+            rows = conn.execute(
+                sa_text(
+                    """
+                    SELECT id, category, raw_message, status, case_metadata,
+                           problem_domain, problem_subdomain, convergence_program_type
+                    FROM cases
+                    WHERE (
+                            LOWER(COALESCE(status, '')) IN ('offensive', 'irrelevant')
+                            AND (
+                                category IS NULL
+                                OR category IN ('General', 'General Grievance')
+                            )
+                        ) OR (
+                            LOWER(COALESCE(status, '')) NOT IN ('offensive', 'irrelevant')
+                            AND (
+                                problem_domain IS NULL
+                                OR problem_subdomain IS NULL
+                                OR convergence_program_type IS NULL
+                                OR category IS NULL
+                                OR category IN ('General', 'General Grievance', 'Uncategorised')
+                            )
+                        )
+                    ORDER BY id
+                    LIMIT :lim
+                    """
+                ),
+                {"lim": batch_size},
+            ).mappings().all()
+
+            if not rows:
+                break
+
+            for row in rows:
+                payload = derive_case_taxonomy_state(
+                    category=row.get("category"),
+                    raw_message=row.get("raw_message") or "",
+                    status=row.get("status") or "",
+                    case_metadata=row.get("case_metadata"),
+                    problem_domain=row.get("problem_domain"),
+                    problem_subdomain=row.get("problem_subdomain"),
+                    convergence_program_type=row.get("convergence_program_type"),
+                )
+                conn.execute(
+                    sa_text(
+                        """
+                        UPDATE cases
+                        SET category = :category,
+                            problem_domain = :problem_domain,
+                            problem_subdomain = :problem_subdomain,
+                            convergence_program_type = :convergence_program_type,
+                            case_metadata = :case_metadata
+                        WHERE id = :id
+                        """
+                    ),
+                    {
+                        "id": row["id"],
+                        "category": payload["category"],
+                        "problem_domain": payload["problem_domain"],
+                        "problem_subdomain": payload["problem_subdomain"],
+                        "convergence_program_type": payload["convergence_program_type"],
+                        "case_metadata": json.dumps(payload["case_metadata"]),
+                    },
+                )
+                total_updated += 1
+
+            if len(rows) < batch_size:
+                break
+
+    return total_updated

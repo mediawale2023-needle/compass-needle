@@ -27,6 +27,7 @@ CANONICAL_CATEGORIES = (
 
 VALID_CATEGORIES = set(CANONICAL_CATEGORIES)
 DEFAULT_PROBLEM_DOMAIN = CANONICAL_CATEGORIES[0]
+GENERIC_DOMAIN_INPUTS = {"", "general", "general grievance", "uncategorised", "uncategorized"}
 
 
 PROBLEM_SUBDOMAINS_BY_DOMAIN = {
@@ -489,6 +490,18 @@ def _search_text_blob(parts: Iterable[str | None]) -> str:
     return " ".join(_lower(part) for part in parts if _norm(part))
 
 
+def _infer_subdomain_from_text(blob: str) -> tuple[str | None, str | None]:
+    if not blob:
+        return None, None
+
+    for domain in CANONICAL_CATEGORIES:
+        for subdomain in PROBLEM_SUBDOMAINS_BY_DOMAIN[domain]:
+            for signal in SUBDOMAIN_SIGNALS.get(subdomain, ()):
+                if signal in blob:
+                    return domain, subdomain
+    return None, None
+
+
 def canonicalize_category(category: str | None) -> str:
     """Normalize any incoming category or legacy label to the canonical domain."""
     value = _norm(category)
@@ -586,9 +599,15 @@ def build_taxonomy_fields(
     """
     Return canonical taxonomy fields for storage and API responses.
     """
-    domain = canonicalize_problem_domain(problem_domain)
+    blob = _search_text_blob((problem_subdomain, scheme, department, raw_text))
+    inferred_domain = None
+    inferred_subdomain = None
+    if _lower(problem_domain) in GENERIC_DOMAIN_INPUTS:
+        inferred_domain, inferred_subdomain = _infer_subdomain_from_text(blob)
+
+    domain = canonicalize_problem_domain(inferred_domain or problem_domain)
     subdomain = canonicalize_problem_subdomain(
-        problem_subdomain,
+        inferred_subdomain or problem_subdomain,
         problem_domain=domain,
         raw_text=raw_text,
         scheme=scheme,

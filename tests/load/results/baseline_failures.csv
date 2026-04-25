@@ -1,0 +1,5 @@
+Method,Name,Error,Occurrences
+GET,/api/cases [list],CatchResponseError('Unexpected 0'),67
+GET,/health,"gaierror(8, 'nodename nor servname provided, or not known')",23
+GET,/api/cases [filter:status],"gaierror(8, 'nodename nor servname provided, or not known')",37
+GET,/api/cases/{id},CatchResponseError('Unexpected 0'),15

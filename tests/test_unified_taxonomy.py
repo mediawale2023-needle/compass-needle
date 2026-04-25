@@ -1,3 +1,4 @@
+from sansadx_backend.db import derive_case_taxonomy_state
 from sansadx_backend.prompts import (
     CONVERGENCE_PROGRAM_TYPES_TEXT,
     TAXONOMY_CATEGORIES,
@@ -78,3 +79,31 @@ def test_build_taxonomy_fields_returns_legacy_categories_mirror():
         "convergence_program_type": "Service Delivery Strengthening",
         "categories": ["Health"],
     }
+
+
+def test_derive_case_taxonomy_state_backfills_legacy_general_rows():
+    payload = derive_case_taxonomy_state(
+        category="General Grievance",
+        raw_message="Pension nahi mil rahi hai",
+        status="completed",
+        case_metadata={"summary": "Pension nahi mil rahi hai"},
+    )
+    assert payload["category"] == "Government Schemes & Welfare"
+    assert payload["problem_domain"] == "Government Schemes & Welfare"
+    assert payload["problem_subdomain"] == "Pension"
+    assert payload["convergence_program_type"] == "Last-mile Access & Outreach"
+    assert payload["case_metadata"]["categories"] == ["Government Schemes & Welfare"]
+
+
+def test_derive_case_taxonomy_state_leaves_offensive_taxonomy_null():
+    payload = derive_case_taxonomy_state(
+        category="General",
+        raw_message="abusive message",
+        status="offensive",
+        case_metadata={"summary": "abusive message"},
+    )
+    assert payload["category"] == "Uncategorised"
+    assert payload["problem_domain"] is None
+    assert payload["problem_subdomain"] is None
+    assert payload["convergence_program_type"] is None
+    assert payload["case_metadata"]["categories"] == []

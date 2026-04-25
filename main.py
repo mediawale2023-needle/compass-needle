@@ -2037,8 +2037,15 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         grievance = ai_result.get("grievance_data", {}) or {}
         status = str(ai_result.get("status", "new")).lower()
         detected_language = ai_result.get("detected_language", "")
-        categories = grievance.get("categories", ["Infrastructure & Utilities"])
-        category = categories[0] if isinstance(categories, list) and categories else "Infrastructure & Utilities"
+        problem_domain = grievance.get("problem_domain")
+        problem_subdomain = grievance.get("problem_subdomain")
+        convergence_program_type = grievance.get("convergence_program_type")
+        categories = grievance.get("categories", [problem_domain] if problem_domain else [])
+        category = (
+            problem_domain
+            or (categories[0] if isinstance(categories, list) and categories else None)
+            or "Uncategorised"
+        )
         political_reply = ai_result.get("political_response", "Thank you for contacting us. Your message has been received.")
 
         location_name = grievance.get("location")
@@ -2183,9 +2190,12 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             "assembly_constituency": final_constituency,
             "summary": grievance.get("summary", message_body[:100]),
             "categories": categories if isinstance(categories, list) else [category],
-            "problem_domain": grievance.get("problem_domain") or category,
-            "problem_subdomain": grievance.get("problem_subdomain"),
-            "convergence_program_type": grievance.get("convergence_program_type"),
+            "problem_domain": problem_domain,
+            "problem_subdomain": problem_subdomain,
+            "convergence_program_type": convergence_program_type,
+            "person": grievance.get("person"),
+            "department": grievance.get("department"),
+            "scheme": grievance.get("scheme"),
         }
 
         # ── STEP 3: Update the saved case with AI results ──
@@ -2194,12 +2204,20 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
                 conn.execute(
                     text("""
                         UPDATE cases
-                        SET category = :cat, status = :stat, case_metadata = :meta,
+                        SET category = :cat,
+                            problem_domain = :problem_domain,
+                            problem_subdomain = :problem_subdomain,
+                            convergence_program_type = :convergence_program_type,
+                            status = :stat,
+                            case_metadata = :meta,
                             is_critical = :crit
                         WHERE id = :cid
                     """),
                     {
                         "cat": category,
+                        "problem_domain": problem_domain,
+                        "problem_subdomain": problem_subdomain,
+                        "convergence_program_type": convergence_program_type,
                         "stat": status,
                         "meta": json.dumps(meta_data),
                         "crit": ai_result.get("is_critical", False) or (status == "emergency"),
