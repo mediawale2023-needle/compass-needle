@@ -705,7 +705,12 @@ function MinistrySchemes({ ministry, onBack, onSelectScheme, color }) {
 
 // ── Screen 1: Ministry Overview ───────────────────────────────────────────────
 
-function MinistryOverview({ onSelectMinistry }) {
+function MinistryOverview({
+    onSelectMinistry,
+    showIntro = true,
+    heading = 'Scheme Intelligence',
+    description = 'What the government has said about its schemes in Parliament',
+}) {
     const [ministries, setMinistries] = useState([]);
     const [loading, setLoading]       = useState(true);
     const [search, setSearch]         = useState('');
@@ -724,12 +729,14 @@ function MinistryOverview({ onSelectMinistry }) {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-foreground">Scheme Intelligence</h1>
-                <p className="text-sm text-muted-foreground mt-1">
-                    What the government has said about its schemes in Parliament
-                </p>
-            </div>
+            {showIntro && (
+                <div>
+                    <h1 className="text-2xl font-bold text-foreground">{heading}</h1>
+                    <p className="text-sm text-muted-foreground mt-1">
+                        {description}
+                    </p>
+                </div>
+            )}
 
             {!loading && ministries.length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
@@ -827,7 +834,13 @@ function MinistryOverview({ onSelectMinistry }) {
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
-export default function SchemesPage() {
+export function SchemesExperience({
+    routeBase = '/dashboard/schemes',
+    fixedParams = {},
+    embedded = false,
+    heading = 'Scheme Intelligence',
+    description = 'What the government has said about its schemes in Parliament',
+}) {
     const { user } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -866,6 +879,9 @@ export default function SchemesPage() {
 
     useEffect(() => {
         const params = new URLSearchParams();
+        Object.entries(fixedParams || {}).forEach(([key, value]) => {
+            if (value) params.set(key, value);
+        });
         if (screen !== 'overview') params.set('view', screen);
         if (activeMinistry) params.set('ministry', activeMinistry);
         if (screen === 'scheme' && activeScheme?.name) {
@@ -873,18 +889,48 @@ export default function SchemesPage() {
             params.set('scheme_name', activeScheme.full_name || activeScheme.name);
         }
         const qs = params.toString();
-        router.replace(qs ? `/dashboard/schemes?${qs}` : '/dashboard/schemes', { scroll: false });
-    }, [screen, activeMinistry, activeScheme, router]);
+        router.replace(qs ? `${routeBase}?${qs}` : routeBase, { scroll: false });
+    }, [screen, activeMinistry, activeScheme, fixedParams, routeBase, router]);
 
     return (
         <div className="max-w-5xl mx-auto">
-            {screen === 'overview'  && <MinistryOverview onSelectMinistry={goMinistry} color={color} />}
+            {screen === 'overview'  && (
+                <MinistryOverview
+                    onSelectMinistry={goMinistry}
+                    color={color}
+                    showIntro={!embedded}
+                    heading={heading}
+                    description={description}
+                />
+            )}
             {screen === 'ministry'  && activeMinistry && (
                 <MinistrySchemes ministry={activeMinistry} onBack={goBack} onSelectScheme={goScheme} color={color} />
             )}
             {screen === 'scheme'    && activeScheme && (
                 <SchemeBrief scheme={activeScheme} onBack={goBack} color={color} />
             )}
+        </div>
+    );
+}
+
+export default function SchemesPage() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    useEffect(() => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('tab', 'schemes');
+        router.replace(`/dashboard/sansadai?${params.toString()}`, { scroll: false });
+    }, [router, searchParams]);
+
+    return (
+        <div className="max-w-5xl mx-auto">
+            <Card className="border-border/60">
+                <CardContent className="flex flex-col items-center justify-center py-16 gap-3">
+                    <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Redirecting to SansadAI…</p>
+                </CardContent>
+            </Card>
         </div>
     );
 }

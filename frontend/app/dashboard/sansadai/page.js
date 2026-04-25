@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { apiGet, apiPost, AI_TIMEOUT } from '@/lib/api';
@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { SchemesExperience } from '@/app/dashboard/schemes/page';
 
 function formatDate(value) {
     if (!value) return null;
@@ -355,7 +356,12 @@ function TopicList({ ministry, stateLabel, onBack, onSelectTopic }) {
     );
 }
 
-function MinistryOverview({ onSelectMinistry }) {
+function MinistryOverview({
+    onSelectMinistry,
+    showIntro = true,
+    heading = 'SansadAI',
+    description = 'Government record, organized by issue instead of raw PQ archives',
+}) {
     const [ministries, setMinistries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -375,12 +381,14 @@ function MinistryOverview({ onSelectMinistry }) {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-foreground">SansadAI</h1>
-                <p className="text-sm text-muted-foreground mt-1">
-                    Government record, organized by issue instead of raw PQ archives
-                </p>
-            </div>
+            {showIntro && (
+                <div>
+                    <h1 className="text-2xl font-bold text-foreground">{heading}</h1>
+                    <p className="text-sm text-muted-foreground mt-1">
+                        {description}
+                    </p>
+                </div>
+            )}
 
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -436,7 +444,13 @@ function MinistryOverview({ onSelectMinistry }) {
     );
 }
 
-export default function SansadAIPage() {
+export function GovernmentIntelExperience({
+    routeBase = '/dashboard/sansadai',
+    fixedParams = {},
+    embedded = false,
+    heading = 'SansadAI',
+    description = 'Government record, organized by issue instead of raw PQ archives',
+}) {
     const { user } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -470,12 +484,15 @@ export default function SansadAIPage() {
 
     useEffect(() => {
         const params = new URLSearchParams();
+        Object.entries(fixedParams || {}).forEach(([key, value]) => {
+            if (value) params.set(key, value);
+        });
         if (screen !== 'overview') params.set('view', screen);
         if (activeMinistry) params.set('ministry', activeMinistry);
         if (activeTopic) params.set('topic', activeTopic);
         const qs = params.toString();
-        router.replace(qs ? `/dashboard/sansadai?${qs}` : '/dashboard/sansadai', { scroll: false });
-    }, [screen, activeMinistry, activeTopic, router]);
+        router.replace(qs ? `${routeBase}?${qs}` : routeBase, { scroll: false });
+    }, [screen, activeMinistry, activeTopic, fixedParams, routeBase, router]);
 
     const goMinistry = (ministry) => {
         setActiveMinistry(ministry);
@@ -500,7 +517,14 @@ export default function SansadAIPage() {
 
     return (
         <div className="max-w-5xl mx-auto">
-            {screen === 'overview' && <MinistryOverview onSelectMinistry={goMinistry} />}
+            {screen === 'overview' && (
+                <MinistryOverview
+                    onSelectMinistry={goMinistry}
+                    showIntro={!embedded}
+                    heading={heading}
+                    description={description}
+                />
+            )}
             {screen === 'topic' && activeMinistry && (
                 <TopicList
                     ministry={activeMinistry}
@@ -516,6 +540,65 @@ export default function SansadAIPage() {
                     stateLabel={stateLabel}
                     onBack={goBack}
                     color={color}
+                />
+            )}
+        </div>
+    );
+}
+
+export default function SansadAIPage() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const activeTab = searchParams.get('tab') === 'government-intel' ? 'government-intel' : 'schemes';
+
+    const tabButtonClass = (tab) => (
+        `inline-flex items-center rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+            activeTab === tab
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border bg-card text-muted-foreground hover:text-foreground'
+        }`
+    );
+
+    const openTab = (tab) => {
+        router.replace(`/dashboard/sansadai?tab=${tab}`, { scroll: false });
+    };
+
+    const schemesParams = useMemo(() => ({ tab: 'schemes' }), []);
+    const governmentParams = useMemo(() => ({ tab: 'government-intel' }), []);
+
+    return (
+        <div className="space-y-6 max-w-5xl mx-auto">
+            <div>
+                <h1 className="text-2xl font-bold text-foreground">SansadAI</h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                    One parliamentary intelligence surface with shared data population for scheme tracking and government issue records.
+                </p>
+            </div>
+
+            <div className="flex items-center gap-3 flex-wrap">
+                <button type="button" className={tabButtonClass('schemes')} onClick={() => openTab('schemes')}>
+                    Schemes
+                </button>
+                <button type="button" className={tabButtonClass('government-intel')} onClick={() => openTab('government-intel')}>
+                    Government Intel
+                </button>
+            </div>
+
+            {activeTab === 'schemes' ? (
+                <SchemesExperience
+                    routeBase="/dashboard/sansadai"
+                    fixedParams={schemesParams}
+                    embedded
+                    heading="Schemes"
+                    description="What the government has said about its schemes in Parliament"
+                />
+            ) : (
+                <GovernmentIntelExperience
+                    routeBase="/dashboard/sansadai"
+                    fixedParams={governmentParams}
+                    embedded
+                    heading="Government Intel"
+                    description="Government record, organized by issue instead of raw PQ archives"
                 />
             )}
         </div>

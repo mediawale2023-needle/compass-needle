@@ -32,7 +32,7 @@ import {
 const QUICK_ACTIONS = [
     { label: 'Upload Letter', href: '/dashboard/letterbox', desc: 'Scan or upload', icon: Mail },
     { label: 'Draft Response', href: '/dashboard/drafter', desc: 'AI-assisted writing', icon: PenTool },
-    { label: 'Find a Scheme', href: '/dashboard/schemes', desc: 'Match constituents', icon: Gift },
+    { label: 'Find a Scheme', href: '/dashboard/sansadai?tab=schemes', desc: 'Match constituents', icon: Gift },
 ];
 
 function daysAgo(dateStr) {
@@ -203,7 +203,7 @@ export default function DashboardPage() {
                                 </Button>
                             )}
                             <Button variant="outline" asChild>
-                                <Link href="/dashboard/schemes">Find a Scheme</Link>
+                                <Link href="/dashboard/sansadai?tab=schemes">Find a Scheme</Link>
                             </Button>
                             <Button variant="ghost" asChild>
                                 <Link href="/dashboard/drafter">Open Drafter</Link>

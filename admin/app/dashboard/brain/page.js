@@ -1004,11 +1004,13 @@ function DedupPanel({ disabled }) {
 // ─── Global Corpus Tab ────────────────────────────────────────────────────────
 function GlobalCorpusTab() {
     const [globalStats, setGlobalStats] = useState(null);
+    const [topicStats, setTopicStats] = useState(null);
     const [statsLoading, setStatsLoading] = useState(true);
     const [jobs, setJobs] = useState({});  // jobId → job state
     const [crawlLimit, setCrawlLimit] = useState(50);
     const [includeFailedCrawl, setIncludeFailedCrawl] = useState(false);
     const [tagLimit, setTagLimit] = useState(500);
+    const [classifyLimit, setClassifyLimit] = useState(2000);
     const [indexAnswersOnly, setIndexAnswersOnly] = useState(false);
     const [indexRebuild, setIndexRebuild] = useState(false);
     const [allowOcr, setAllowOcr] = useState(false);
@@ -1021,7 +1023,18 @@ function GlobalCorpusTab() {
             .finally(() => setStatsLoading(false));
     }, []);
 
-    useEffect(() => { loadStats(); }, [loadStats]);
+    const loadTopicStats = useCallback(() => {
+        apiGet('/api/admin/brain/classify-topics/stats')
+            .then(d => setTopicStats(d))
+            .catch(() => setTopicStats(null));
+    }, []);
+
+    const refreshOverview = useCallback(() => {
+        loadStats();
+        loadTopicStats();
+    }, [loadStats, loadTopicStats]);
+
+    useEffect(() => { refreshOverview(); }, [refreshOverview]);
 
     // Poll running jobs
     useEffect(() => {
@@ -1030,14 +1043,17 @@ function GlobalCorpusTab() {
         const t = setInterval(async () => {
             for (const [jid] of running) {
                 try {
-                    const j = await apiGet(`/api/admin/brain/global-crawl/status/${jid}`);
+                    const statusPath = jid.startsWith('classify_topics_')
+                        ? `/api/admin/brain/classify-topics/status/${jid}`
+                        : `/api/admin/brain/global-crawl/status/${jid}`;
+                    const j = await apiGet(statusPath);
                     setJobs(prev => ({ ...prev, [jid]: j }));
-                    if (['done', 'error', 'warning'].includes(j.status)) loadStats();
+                    if (['done', 'error', 'warning'].includes(j.status)) refreshOverview();
                 } catch (_) {}
             }
         }, 2000);
         return () => clearInterval(t);
-    }, [jobs, loadStats]);
+    }, [jobs, refreshOverview]);
 
     const trigger = async (url, body = {}) => {
         try {
@@ -1079,6 +1095,10 @@ function GlobalCorpusTab() {
     const coverage = globalStats?.coverage || {};
     const mins     = globalStats?.ministries || [];
     const [answerLimit, setAnswerLimit] = useState(100);
+    const topicCoverage = topicStats?.coverage || {};
+    const classifiedTopics = topicCoverage.classified || 0;
+    const totalTopicRows = topicCoverage.total || 0;
+    const topicPct = totalTopicRows ? Math.round((classifiedTopics / totalTopicRows) * 100) : 0;
 
     return (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
@@ -1166,6 +1186,48 @@ function GlobalCorpusTab() {
                             })()}
                         </div>
 
+                        <div style={{
+                            background: '#111827', border: '1px solid #1f2937',
+                            borderRadius: 8, padding: 14, marginBottom: 12,
+                        }}>
+                            <div style={{ color: '#9ca3af', fontSize: 11, marginBottom: 8 }}>SANSADAI DERIVATIVES</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 10 }}>
+                                {[
+                                    ['Topics Classified', classifiedTopics.toLocaleString(), '#60a5fa'],
+                                    ['Pending Topic Classification', (topicCoverage.unclassified || 0).toLocaleString(), '#f59e0b'],
+                                    ['Distinct Topics In Use', (topicStats?.distinct_topics || 0).toLocaleString(), '#818cf8'],
+                                ].map(([l, v, c]) => (
+                                    <div key={l} style={{
+                                        background: '#0d1117', borderRadius: 6,
+                                        padding: '8px 10px', textAlign: 'center',
+                                    }}>
+                                        <div style={{ color: c, fontSize: 18, fontWeight: 700 }}>{v}</div>
+                                        <div style={{ color: '#6b7280', fontSize: 10 }}>{l}</div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div style={{ padding: '4px 0' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                    <span style={{ color: '#9ca3af', fontSize: 11 }}>Government Intel Topic Coverage</span>
+                                    <span style={{ color: topicPct > 75 ? '#22c55e' : topicPct > 35 ? '#f59e0b' : '#ef4444', fontSize: 11, fontWeight: 700 }}>
+                                        {classifiedTopics.toLocaleString()} / {totalTopicRows.toLocaleString()} ({topicPct}%)
+                                    </span>
+                                </div>
+                                <div style={{ height: 6, background: '#1f2937', borderRadius: 3, overflow: 'hidden' }}>
+                                    <div style={{
+                                        width: `${topicPct}%`,
+                                        height: '100%',
+                                        background: topicPct > 75 ? '#22c55e' : topicPct > 35 ? '#f59e0b' : '#3b82f6',
+                                        borderRadius: 3,
+                                        transition: 'width 0.5s',
+                                    }} />
+                                </div>
+                                <div style={{ color: '#6b7280', fontSize: 10, marginTop: 4 }}>
+                                    Shared corpus powers both tabs: topic classification feeds Government Intel, scheme extraction feeds Schemes.
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Ministry breakdown */}
                         {mins.length > 0 && (
                             <div style={{
@@ -1199,7 +1261,7 @@ function GlobalCorpusTab() {
                         )}
 
                         <button
-                            onClick={loadStats}
+                            onClick={refreshOverview}
                             style={{
                                 marginTop: 12, background: 'none',
                                 border: '1px solid #374151', color: '#9ca3af',
@@ -1266,6 +1328,8 @@ function GlobalCorpusTab() {
                                                 ? `crawled: ${j.summary.crawled} MPs, Qs inserted: ${j.summary.inserted_total}`
                                                 : j.summary.chunks_inserted != null
                                                 ? `${j.summary.chunks_inserted} chunks inserted · ${j.summary.embeddings_made} embeddings · ${j.summary.chunks_new} new (${j.summary.chunks_proposed} proposed)`
+                                                : j.summary.classified != null
+                                                ? `classified: ${j.summary.classified} · skipped: ${j.summary.skipped ?? 0} · batches: ${j.summary.batches ?? 0}`
                                                 : j.summary.tagged != null
                                                 ? `tagged: ${j.summary.tagged} · batches: ${j.summary.batches} · skipped: ${j.summary.skipped}`
                                                 : j.summary.schemes_upserted != null
@@ -1290,6 +1354,17 @@ function GlobalCorpusTab() {
             {/* Right: controls */}
             <div>
                 <div style={{ color: '#6b7280', fontSize: 11, marginBottom: 10 }}>PIPELINE CONTROLS</div>
+                <div style={{
+                    marginBottom: 14, background: '#0d1117',
+                    border: '1px solid #1f2937', borderRadius: 8, padding: 14,
+                    fontSize: 12, color: '#9ca3af', lineHeight: 1.7,
+                }}>
+                    Populate the global parliamentary corpus once, then derive both SansadAI tabs from it.
+                    <br />
+                    <span style={{ color: '#6b7280' }}>
+                        Shared base: discover MPs → crawl PQs → fetch answers. Derived products: classify topics for Government Intel, extract schemes for Schemes.
+                    </span>
+                </div>
 
                 {/* Step 1 */}
                 <div style={{ color: '#4b5563', fontSize: 10, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>
@@ -1389,7 +1464,47 @@ function GlobalCorpusTab() {
 
                 {/* Step 3 */}
                 <div style={{ color: '#4b5563', fontSize: 10, margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 1 }}>
-                    Step 3 — LLM Tag (optional)
+                    Step 3 — Derive Government Intel
+                </div>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+                    <label style={{ color: '#9ca3af', fontSize: 12 }}>
+                        Limit:&nbsp;
+                        <input
+                            type="number" min={1} value={classifyLimit}
+                            onChange={e => setClassifyLimit(Math.max(1, parseInt(e.target.value) || 2000))}
+                            style={{
+                                background: '#1f2937', border: '1px solid #374151', color: '#e5e7eb',
+                                borderRadius: 4, padding: '3px 8px', fontSize: 12, width: 84,
+                            }}
+                        />
+                        &nbsp;questions
+                    </label>
+                </div>
+                <BtnRow
+                    label="Classify Topics"
+                    desc="Assign fixed issue topics to answered PQs so SansadAI Government Intel can group ministries by issue"
+                    onClick={() => trigger('/api/admin/brain/classify-topics', { limit: classifyLimit })}
+                    accent="#2563eb"
+                    disabled={anyRunning}
+                />
+
+                {/* Step 4 */}
+                <div style={{ color: '#4b5563', fontSize: 10, margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 1 }}>
+                    Step 4 — Derive Schemes
+                </div>
+                <BtnRow
+                    label="Build Scheme Index"
+                    desc="Extract government schemes from the same answered PQ corpus and power the SansadAI Schemes tab"
+                    onClick={() => trigger('/api/admin/brain/scheme-extract', {})}
+                    accent="#b45309"
+                    disabled={anyRunning}
+                />
+                <NormalizeMinistryBtn disabled={anyRunning} />
+                <DedupPanel disabled={anyRunning} />
+
+                {/* Step 5 */}
+                <div style={{ color: '#4b5563', fontSize: 10, margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 1 }}>
+                    Step 5 — Retrieval Enrichment (optional)
                 </div>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
                     <label style={{ color: '#9ca3af', fontSize: 12 }}>
@@ -1413,9 +1528,8 @@ function GlobalCorpusTab() {
                     disabled={anyRunning}
                 />
 
-                {/* Step 4 */}
                 <div style={{ color: '#4b5563', fontSize: 10, margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 1 }}>
-                    Step 4 — Embed into Brain
+                    Step 5.5 — Embed into Brain
                 </div>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#9ca3af', fontSize: 12, cursor: 'pointer' }}>
@@ -1434,20 +1548,6 @@ function GlobalCorpusTab() {
                     accent="#166534"
                     disabled={anyRunning}
                 />
-
-                {/* Step 5 */}
-                <div style={{ color: '#4b5563', fontSize: 10, margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 1 }}>
-                    Step 5 — Build Scheme Intelligence
-                </div>
-                <BtnRow
-                    label="Build Scheme Index"
-                    desc="Extract government schemes from 42K+ PQs and power the Schemes module — auto full vs incremental"
-                    onClick={() => trigger('/api/admin/brain/scheme-extract', {})}
-                    accent="#b45309"
-                    disabled={anyRunning}
-                />
-                <NormalizeMinistryBtn disabled={anyRunning} />
-                <DedupPanel disabled={anyRunning} />
 
                 <div style={{
                     marginTop: 20, background: '#0d1117',
