@@ -488,7 +488,9 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
     const sendNotification = async () => {
         setNotifySending(true);
         try {
-            await apiPost(`/api/cases/${c.id}/notify/send`, {});
+            await apiPost(`/api/cases/${c.id}/notify/send`, {
+                message: response && response.trim() ? response.trim() : null,
+            });
             setNotifyOpen(false);
             setNotifyInput('');
             toast.success('WhatsApp update sent — case moved to Resolved');

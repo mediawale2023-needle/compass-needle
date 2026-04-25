@@ -537,6 +537,10 @@ class CaseNotesUpdate(BaseModel):
     assigned_to: Optional[str] = None
 
 
+class CitizenNotifyRequest(BaseModel):
+    message: Optional[str] = None
+
+
 @router.patch("/cases/{case_id}")
 def update_case(case_id: int, body: CaseNotesUpdate, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
@@ -732,7 +736,7 @@ def get_similar_cases(case_id: int, user=Depends(get_current_user)):
 # ─────────────────────────────────────────
 
 @router.post("/cases/{case_id}/notify/send")
-def notify_citizen(case_id: int, user=Depends(get_current_user)):
+def notify_citizen(case_id: int, body: Optional[CitizenNotifyRequest] = None, user=Depends(get_current_user)):
     """Send a WhatsApp status update to the citizen. MP role only — PAs cannot trigger this."""
     tid = get_tenant_or_fail(user)
 
@@ -754,10 +758,28 @@ def notify_citizen(case_id: int, user=Depends(get_current_user)):
     status = case.get("status", "new")
     case_ref = case.get("case_ref") or f"#{case_id}"
 
-    # Prefer the MP's custom response if they saved one; fall back to status-based template
-    custom_response = (case.get("response_to_citizen") or "").strip()
-    if custom_response:
-        message = custom_response
+    # Prefer the exact message drafted in the UI if provided; otherwise fall back
+    # to the saved response, then to the status-based template.
+    requested_message = ((body.message if body else None) or "").strip()
+    saved_response = (case.get("response_to_citizen") or "").strip()
+    if requested_message:
+        message = requested_message
+        if requested_message != saved_response:
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "UPDATE cases SET response_to_citizen = :response, updated_at = :now "
+                        "WHERE id = :cid AND tenant_id = :tid"
+                    ),
+                    {
+                        "response": requested_message,
+                        "now": datetime.utcnow(),
+                        "cid": case_id,
+                        "tid": tid,
+                    },
+                )
+    elif saved_response:
+        message = saved_response
     else:
         status_messages = {
             "new":         f"Your grievance ({case_ref}) has been received and is being reviewed.",
