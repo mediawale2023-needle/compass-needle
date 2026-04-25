@@ -551,6 +551,7 @@ export default function SansadAIPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const requestedTab = searchParams.get('tab');
+    const requestedSessionId = searchParams.get('session');
     const activeTab = requestedTab === 'government-intel' || requestedTab === 'research'
         ? requestedTab
         : 'schemes';
@@ -576,7 +577,7 @@ export default function SansadAIPage() {
             <div>
                 <h1 className="text-2xl font-bold text-foreground">SansadAI</h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                    One parliamentary intelligence surface with shared data population for scheme tracking and government issue records.
+                    One parliamentary intelligence surface for schemes, government record, and persistent research workspaces.
                 </p>
             </div>
 
@@ -615,6 +616,7 @@ export default function SansadAIPage() {
                     description="Analyse documents, interrogate them, and connect them to parliamentary memory."
                     routeBase="/dashboard/sansadai"
                     fixedParams={researchParams}
+                    initialSessionId={requestedSessionId}
                 />
             )}
         </div>

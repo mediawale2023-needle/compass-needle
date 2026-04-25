@@ -276,6 +276,47 @@ class ActivityHistory(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class ResearchSession(Base):
+    __tablename__ = "research_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=False)
+    username = Column(String(255), nullable=False)
+    title = Column(String(255), nullable=True)
+    latest_analysis = Column(Text, nullable=True)
+    analysis_language = Column(String(32), nullable=True)
+    analysis_depth = Column(String(32), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_activity_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class ResearchDocument(Base):
+    __tablename__ = "research_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("research_sessions.id"), index=True, nullable=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=False)
+    filename = Column(String(255), nullable=False)
+    page_count = Column(Integer, default=0)
+    char_count = Column(Integer, default=0)
+    content_text = Column(Text, nullable=False)
+    pages_json = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ResearchMessage(Base):
+    __tablename__ = "research_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("research_sessions.id"), index=True, nullable=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=False)
+    role = Column(String(20), nullable=False)
+    content = Column(Text, nullable=False)
+    citations = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
 class Contact(Base):
     """Constituent profile — one record per (tenant, phone) pair."""
     __tablename__ = "contacts"
