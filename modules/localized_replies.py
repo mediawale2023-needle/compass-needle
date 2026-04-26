@@ -7,6 +7,25 @@ Each template receives keyword arguments matching the format() placeholders.
 Language keys match the detected_language values returned by ai_engine.py.
 """
 
+
+def _mostly_ascii(text: str) -> bool:
+    stripped = [c for c in (text or "") if not c.isspace()]
+    if not stripped:
+        return True
+    ascii_count = sum(1 for c in stripped if ord(c) < 128)
+    return (ascii_count / len(stripped)) >= 0.90
+
+
+def _normalize_language(detected_language: str = "") -> str:
+    return _LANG_ALIASES.get((detected_language or "").lower().strip(), "Hindi")
+
+
+def _pick_template(native_templates: dict[str, str], latin_templates: dict[str, str], detected_language: str = "", original_text: str = "") -> str:
+    normalized = _normalize_language(detected_language)
+    if original_text and _mostly_ascii(original_text) and normalized in latin_templates:
+        return latin_templates[normalized]
+    return native_templates.get(normalized, native_templates.get("Hindi", ""))
+
 # ── Awaiting Location ────────────────────────────────────────────────────────
 # Sent when the AI sets status='awaiting_location' because the mentioned
 # location couldn't be matched to a known constituency.
@@ -158,6 +177,175 @@ _AWAITING_LOCATION: dict[str, str] = {
 # Default fallback — covers any language not explicitly listed
 _DEFAULT_AWAITING_LOCATION = _AWAITING_LOCATION["Hindi"]
 
+_AWAITING_LOCATION_LATIN: dict[str, str] = {
+    "Hindi": (
+        "Aapka sandesh mila, dhanyavaad 🙏\n\n"
+        "Aapne *{location}* ka zikr kiya, lekin humein exact jagah samajh nahi aayi. "
+        "Kripya thoda aur vivaran bhejiye.\n\n"
+        "Jaise:\n"
+        "• Gaon ya mohalla ka naam\n"
+        "• Ward number\n"
+        "• Koi paas ka landmark\n\n"
+        "Location clear hote hi hum turant aage ki karvayi karenge. 🙏"
+    ),
+    "Hinglish": _AWAITING_LOCATION["Hinglish"],
+    "Marathi": (
+        "Tumcha sandesh milala, dhanyavaad 🙏\n\n"
+        "Tumhi *{location}* cha ullekh kela, pan amhala exact thikan olakhata ala nahi. "
+        "Krupaya thoda adhik mahiti pathva.\n\n"
+        "Udaharanarth:\n"
+        "• Gaav kiwa mohalla che naav\n"
+        "• Ward number\n"
+        "• Javalcha landmark\n\n"
+        "Location spashta zalyavar amhi turant pudhil karvayi karu. 🙏"
+    ),
+}
+
+
+_GENERIC_ACK: dict[str, str] = {
+    "Hindi": (
+        "Aapka sandesh mil gaya hai 🙏\n\n"
+        "Aapki samasya darj kar li gayi hai aur iski samiksha ki ja rahi hai. "
+        "Hum jald hi aapse sampark karenge."
+    ),
+    "Hinglish": (
+        "Aapka message mil gaya hai 🙏\n\n"
+        "Aapka issue register ho gaya hai aur review kiya ja raha hai. "
+        "Hum aapse jald contact karenge."
+    ),
+    "Marathi": (
+        "Tumcha sandesh milala aahe 🙏\n\n"
+        "Tumchi samasya nondi keli aahe ani ti sadhya tapast aahe. "
+        "Amhi lokerach tumchyashi sampark karu."
+    ),
+    "Kannada": (
+        "Nimma sandesha siggide 🙏\n\n"
+        "Nimma samasyeyannu namoodiside mattu adannu parishilisalaguttide. "
+        "Naavu bega nimmanu samparkisutteve."
+    ),
+    "Tamil": (
+        "Ungal seidhi engalukku vandulladhu 🙏\n\n"
+        "Ungal pirachanai pathivu seyyappattulladhu matrum adhai ippo paarththu varugiroam. "
+        "Naangal seekiram ungalai thodarpu kolvoam."
+    ),
+    "Telugu": (
+        "Mee sandesham maaku andindi 🙏\n\n"
+        "Mee samasya namodayyindi mariyu danini parishilinchtunnamu. "
+        "Memu tvaralone mimmalni sampradinchutamu."
+    ),
+    "Bengali": (
+        "Apnar barta peyechi 🙏\n\n"
+        "Apnar samasya nôthibhukto kora hoyeche ebong eta porjalochona kora hochhe. "
+        "Amra shighroi apnar shathe jogajog korbo."
+    ),
+    "English": (
+        "Thank you for reaching out 🙏\n\n"
+        "Your issue has been received and is being reviewed. We will contact you shortly."
+    ),
+}
+
+_GENERIC_ACK_LATIN: dict[str, str] = {
+    "Hindi": (
+        "Aapka sandesh mil gaya hai 🙏\n\n"
+        "Aapki samasya darj kar li gayi hai aur uski samiksha ho rahi hai. "
+        "Hum jald hi aapse sampark karenge."
+    ),
+    "Hinglish": _GENERIC_ACK["Hinglish"],
+    "Marathi": _GENERIC_ACK["Marathi"],
+    "Kannada": _GENERIC_ACK["Kannada"],
+    "Tamil": _GENERIC_ACK["Tamil"],
+    "Telugu": _GENERIC_ACK["Telugu"],
+    "Bengali": _GENERIC_ACK["Bengali"],
+}
+
+_REVIEW_ACK: dict[str, str] = {
+    "Hindi": (
+        "Aapka sandesh mil gaya hai 🙏\n\n"
+        "Aapka mudda prapt ho gaya hai aur hamari team iski samiksha kar rahi hai. "
+        "Hum jald hi aapse sampark karenge."
+    ),
+    "Hinglish": (
+        "Aapka message mil gaya hai 🙏\n\n"
+        "Aapka issue receive ho gaya hai aur hamari team uska review kar rahi hai. "
+        "Hum aapse jald follow up karenge."
+    ),
+    "Marathi": (
+        "Tumcha sandesh milala aahe 🙏\n\n"
+        "Tumcha mudda amhala milala aahe ani aamchi team tyachi tapasani karat aahe. "
+        "Amhi lokerach tumchyashi follow up karu."
+    ),
+    "English": (
+        "Thank you for reaching out 🙏\n\n"
+        "Your issue has been received and is being reviewed by our team. We will follow up with you shortly."
+    ),
+}
+
+_REVIEW_ACK_LATIN = _REVIEW_ACK
+
+_UNSUPPORTED_MESSAGE_REPLY: dict[str, str] = {
+    "Hindi": (
+        "Aapka sandesh mila 🙏\n\n"
+        "Humein aapka message mila, lekin hum ise text ke roop mein padh nahi paaye. "
+        "Kripya apni samasya type karke text message bhejiye."
+    ),
+    "Hinglish": (
+        "Aapka message mil gaya 🙏\n\n"
+        "Humein aapka message mila, but hum ise text ke roop mein read nahi kar paaye. "
+        "Please apna issue type karke text message bhejein."
+    ),
+    "Marathi": (
+        "Tumcha sandesh milala 🙏\n\n"
+        "Amhala tumcha message milala, pan to text mhanun vachata ala nahi. "
+        "Krupaya tumchi samasya type karun text message pathva."
+    ),
+    "English": (
+        "Thank you for reaching out 🙏\n\n"
+        "We received your message but couldn’t read it as text. Please type your issue and send it as a text message."
+    ),
+}
+
+_UNSUPPORTED_MESSAGE_REPLY_LATIN = _UNSUPPORTED_MESSAGE_REPLY
+
+_RATE_LIMIT_REPLY: dict[str, str] = {
+    "Hindi": (
+        "Aaj aapke number se humein kai sandesh prapt hue hain. "
+        "Hamari team inka samiksha karke jald hi aapse sampark karegi. 🙏"
+    ),
+    "Hinglish": (
+        "Aaj aapke number se humein kai messages mile hain. "
+        "Hamari team review karke aapse jald sampark karegi. 🙏"
+    ),
+    "Marathi": (
+        "Aaj tumchya number varun amhala anek sandesh milale aahet. "
+        "Aamchi team tapasani karun lokerach tumchyashi sampark karel. 🙏"
+    ),
+    "English": (
+        "We've received multiple messages from your number today. Our team will review and follow up. 🙏"
+    ),
+}
+
+_RATE_LIMIT_REPLY_LATIN = _RATE_LIMIT_REPLY
+
+_LOCATION_UPDATE_ACK: dict[str, str] = {
+    "Hindi": (
+        "Ji, aapki shikayat *{location}* ke sambandh mein note kar li gayi hai. "
+        "Hum aapko jald hi update denge. 🙏"
+    ),
+    "Hinglish": (
+        "Ji, aapka issue *{location}* ke sambandh mein note kar liya gaya hai. "
+        "Hum aapko jald update denge. 🙏"
+    ),
+    "Marathi": (
+        "Tumchi *{location}* babatichi samasya nondi keli aahe. "
+        "Amhi tumhala lokerach update deu. 🙏"
+    ),
+    "English": (
+        "Your issue regarding *{location}* has been noted. We will update you shortly. 🙏"
+    ),
+}
+
+_LOCATION_UPDATE_ACK_LATIN = _LOCATION_UPDATE_ACK
+
 
 # ── Details Request ───────────────────────────────────────────────────────────
 # Sent as a SECOND message immediately after the grievance acknowledgment,
@@ -284,7 +472,7 @@ _DEFAULT_DETAILS_REQUEST = _DETAILS_REQUEST["Hindi"]
 DETAILS_REQUEST_STATUSES = {"new", "pending", "incomplete"}
 
 
-def get_details_request_reply(detected_language: str = "") -> str:
+def get_details_request_reply(detected_language: str = "", original_text: str = "") -> str:
     """Return a localized follow-up message asking the citizen for their personal details.
 
     Sent as a second message after the grievance acknowledgment for valid cases
@@ -296,8 +484,7 @@ def get_details_request_reply(detected_language: str = "") -> str:
     Returns:
         A formatted WhatsApp-ready string in the citizen's language.
     """
-    normalized = _LANG_ALIASES.get((detected_language or "").lower().strip())
-    return _DETAILS_REQUEST.get(normalized, _DEFAULT_DETAILS_REQUEST)
+    return _pick_template(_DETAILS_REQUEST, {}, detected_language, original_text) or _DEFAULT_DETAILS_REQUEST
 
 # Normalize incoming detected_language values to our keys
 _LANG_ALIASES: dict[str, str] = {
@@ -320,7 +507,7 @@ _LANG_ALIASES: dict[str, str] = {
 }
 
 
-def get_awaiting_location_reply(location: str, detected_language: str = "") -> str:
+def get_awaiting_location_reply(location: str, detected_language: str = "", original_text: str = "") -> str:
     """Return a localized 'please clarify your location' message.
 
     Args:
@@ -330,10 +517,30 @@ def get_awaiting_location_reply(location: str, detected_language: str = "") -> s
     Returns:
         A formatted WhatsApp-ready string in the citizen's language.
     """
-    normalized = _LANG_ALIASES.get((detected_language or "").lower().strip())
-    template = _AWAITING_LOCATION.get(normalized, _DEFAULT_AWAITING_LOCATION)
+    template = _pick_template(_AWAITING_LOCATION, _AWAITING_LOCATION_LATIN, detected_language, original_text) or _DEFAULT_AWAITING_LOCATION
     # FIX P1: Use str.replace() instead of .format() to prevent Python format-string
     # injection attacks via crafted location strings (e.g. "{0.__class__.__mro__[1]}").
     # .replace() treats the substitution value as a literal string — no format parsing occurs.
     safe_location = str(location) if location else ""
     return template.replace("{location}", safe_location)
+
+
+def get_generic_ack_reply(detected_language: str = "", original_text: str = "") -> str:
+    return _pick_template(_GENERIC_ACK, _GENERIC_ACK_LATIN, detected_language, original_text) or _GENERIC_ACK["English"]
+
+
+def get_review_ack_reply(detected_language: str = "", original_text: str = "") -> str:
+    return _pick_template(_REVIEW_ACK, _REVIEW_ACK_LATIN, detected_language, original_text) or _REVIEW_ACK["English"]
+
+
+def get_unsupported_message_reply(detected_language: str = "", original_text: str = "") -> str:
+    return _pick_template(_UNSUPPORTED_MESSAGE_REPLY, _UNSUPPORTED_MESSAGE_REPLY_LATIN, detected_language, original_text) or _UNSUPPORTED_MESSAGE_REPLY["English"]
+
+
+def get_rate_limit_reply(detected_language: str = "", original_text: str = "") -> str:
+    return _pick_template(_RATE_LIMIT_REPLY, _RATE_LIMIT_REPLY_LATIN, detected_language, original_text) or _RATE_LIMIT_REPLY["English"]
+
+
+def get_location_update_reply(location: str, detected_language: str = "", original_text: str = "") -> str:
+    template = _pick_template(_LOCATION_UPDATE_ACK, _LOCATION_UPDATE_ACK_LATIN, detected_language, original_text) or _LOCATION_UPDATE_ACK["English"]
+    return template.replace("{location}", str(location or ""))

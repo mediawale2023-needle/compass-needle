@@ -21,6 +21,7 @@ from .unified_taxonomy import (
     VALID_CATEGORIES as _VALID_CATEGORIES,
     build_taxonomy_fields,
 )
+from modules.localized_replies import get_generic_ack_reply
 
 # ==========================================
 # 1. CONFIGURATION
@@ -542,10 +543,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 return {
                     "status": "pending",
                     "detected_language": detected_lang,
-                    "political_response": (
-                        "Thank you for contacting us. Your message has been received "
-                        "and will be reviewed by our team. 🙏"
-                    ),
+                    "political_response": get_generic_ack_reply(detected_lang, effective_user_message),
                     "grievance_data": _default_grievance_data(effective_user_message),
                     "is_critical": False,
                     "_ai_retry_exhausted": True,
@@ -555,10 +553,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             return {
                 "status": "pending",
                 "detected_language": detected_lang,
-                "political_response": (
-                    "Thank you for contacting us. Your message has been received "
-                    "and will be reviewed by our team. 🙏"
-                ),
+                "political_response": get_generic_ack_reply(detected_lang, effective_user_message),
                 "grievance_data": _default_grievance_data(effective_user_message),
                 "is_critical": False,
                 "_ai_retry_exhausted": True,
@@ -804,10 +799,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             return {
                 "status": "pending",
                 "detected_language": detected_lang,
-                "political_response": (
-                    "Thank you for contacting us. Your message has been received "
-                    "and will be reviewed by our team. 🙏"
-                ),
+                "political_response": get_generic_ack_reply(detected_lang, effective_user_message),
                 "grievance_data": _default_grievance_data(effective_user_message),
                 "is_critical": False,
             }
@@ -816,11 +808,8 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
         logger.error("Unexpected outer error in ask_chatgpt_agent: %s", e)
         return {
             "status": "pending",
-            "detected_language": "",
-            "political_response": (
-                "Thank you for contacting us. Your message has been received "
-                "and will be reviewed by our team. 🙏"
-            ),
+            "detected_language": detected_lang,
+            "political_response": get_generic_ack_reply(detected_lang, effective_user_message),
             "grievance_data": _default_grievance_data(effective_user_message),
             "is_critical": False,
         }

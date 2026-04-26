@@ -2,7 +2,7 @@
 main.py — Needle Parliamentary Intelligence Platform
 Backend Entry Point (FastAPI)
 """
-from sansadx_backend.ai_engine import ask_chatgpt_agent
+from sansadx_backend.ai_engine import ask_chatgpt_agent, detect_input_language
 import os
 import re
 import json
@@ -947,7 +947,16 @@ def _save_spam_flag(tenant_id: int, phone: str, flag_type: str, reason: str, mes
 from modules.whatsapp import send_whatsapp_message  # noqa: E402
 from modules.case_query_parser import parse_query
 from modules.case_query_engine import query_cases
-from modules.localized_replies import get_awaiting_location_reply, get_details_request_reply, DETAILS_REQUEST_STATUSES
+from modules.localized_replies import (
+    DETAILS_REQUEST_STATUSES,
+    get_awaiting_location_reply,
+    get_details_request_reply,
+    get_generic_ack_reply,
+    get_location_update_reply,
+    get_rate_limit_reply,
+    get_review_ack_reply,
+    get_unsupported_message_reply,
+)
 from modules.case_query_formatter import format_cases_for_whatsapp, format_clarification_request
 
 
@@ -1649,11 +1658,7 @@ def _handle_unsupported_message_type(sender: str, msg_type: str, receiver_number
     if current_tenant is None:
         return
     _wa_phone_id = get_tenant_phone_number_id(current_tenant)
-    reply = (
-        "Thank you for reaching out 🙏\n\n"
-        "We received your message but couldn’t read it as text. "
-        "Please type your issue or request and send it as a text message so we can help you faster."
-    )
+    reply = get_unsupported_message_reply("English")
     try:
         send_whatsapp_message(sender, reply, _wa_phone_id)
         logger.info("Unsupported message type '%s' from %s — sent re-send prompt", msg_type, sender)
@@ -1667,11 +1672,7 @@ def _handle_unsupported_message_type(sender: str, msg_type: str, receiver_number
 # Stored lowercase — compared with category.lower().strip() so GPT variants like
 # "Law and Order", "EMERGENCY", or "law and order" all match correctly.
 _REVIEW_REQUIRED_CATEGORIES = {"law & order", "law and order", "emergency", "political", "legal"}
-_REVIEW_GENERIC_ACK = (
-    "Thank you for reaching out 🙏\n\n"
-    "Your issue has been received and is being reviewed by our team. "
-    "We will follow up with you shortly."
-)
+_REVIEW_GENERIC_ACK = get_review_ack_reply("English")
 
 
 def _handle_pa_done_command(sender: str, receiver_number: str = ""):
@@ -1880,9 +1881,10 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             logger.error(f"Spam case DB save failed: {exc}")
 
         _save_spam_flag(current_tenant, sender, flag_type, flag_reason, message_body)
+        _detected_lang = detect_input_language(message_body)
         send_whatsapp_message(
             sender,
-            "Thank you for contacting us. Your message has been received and will be reviewed by our team.",
+            get_review_ack_reply(_detected_lang, message_body),
             _wa_phone_id,
         )
         return
@@ -1931,9 +1933,10 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
                         "now": datetime.utcnow(),
                     }
                 )
+            _detected_lang = detect_input_language(message_body)
             send_whatsapp_message(
                 sender,
-                "We've received multiple messages from your number today. Our team will review and follow up. 🙏",
+                get_rate_limit_reply(_detected_lang, message_body),
                 _wa_phone_id,
             )
             return
@@ -1979,16 +1982,8 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             logger.error("Failed to update pending case with location: %s", _loc_exc)
 
         _cat = _pending.get("category") or "shikayat"
-        if _resolved_const:
-            _loc_ack = (
-                f"Ji, aapki {_cat} ki {_loc_text} ki samasya note kar li gayi hai. "
-                f"Aapko jald jankari di jayegi. 🙏"
-            )
-        else:
-            _loc_ack = (
-                f"Ji, aapki shikayat {_loc_text} ke liye note kar li gayi hai. "
-                f"Hamare team aapko jald sampark karegi. 🙏"
-            )
+        _detected_lang = detect_input_language(_loc_text)
+        _loc_ack = get_location_update_reply(_loc_text, _detected_lang, _loc_text)
         send_whatsapp_message(sender, _loc_ack, _wa_phone_id)
         return
 
@@ -2018,7 +2013,8 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
     except Exception as e:
         logger.error(f"CRITICAL: DB save failed for raw grievance: {e}")
         # Even if DB fails, still try to acknowledge the citizen
-        send_whatsapp_message(sender, "Thank you for contacting us. Your message has been received.", _wa_phone_id)
+        _detected_lang = detect_input_language(message_body)
+        send_whatsapp_message(sender, get_generic_ack_reply(_detected_lang, message_body), _wa_phone_id)
         return
 
     # ── STEP 2: AI classification (if this fails, the grievance is still saved) ──
@@ -2036,7 +2032,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         # Parse AI result
         grievance = ai_result.get("grievance_data", {}) or {}
         status = str(ai_result.get("status", "new")).lower()
-        detected_language = ai_result.get("detected_language", "")
+        detected_language = ai_result.get("detected_language", "") or detect_input_language(message_body)
         problem_domain = grievance.get("problem_domain")
         problem_subdomain = grievance.get("problem_subdomain")
         convergence_program_type = grievance.get("convergence_program_type")
@@ -2046,7 +2042,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             or (categories[0] if isinstance(categories, list) and categories else None)
             or "Uncategorised"
         )
-        political_reply = ai_result.get("political_response", "Thank you for contacting us. Your message has been received.")
+        political_reply = ai_result.get("political_response", get_generic_ack_reply(detected_language, message_body))
 
         location_name = grievance.get("location")
         final_constituency = None
@@ -2181,7 +2177,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         # and replace the AI's "noted" reply with a localized clarification request
         if final_constituency == "Unknown" and location_name:
             status = "awaiting_location"
-            political_reply = get_awaiting_location_reply(location_name, detected_language)
+            political_reply = get_awaiting_location_reply(location_name, detected_language, message_body)
 
         meta_data = {
             "user_intent": status,
@@ -2259,7 +2255,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             # Send only generic ack — NOT the AI-generated political reply.
             # On failure, flag the case so the startup sweep can retry the ACK.
             try:
-                send_whatsapp_message(sender, _REVIEW_GENERIC_ACK, _wa_phone_id)
+                send_whatsapp_message(sender, get_review_ack_reply(detected_language, message_body), _wa_phone_id)
             except Exception as _rv_send_exc:
                 logger.error("Failed to send review ack to %s (case=%s): %s", sender, case_id, _rv_send_exc)
                 try:
@@ -2291,7 +2287,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         # pending_review (those have separate flows).
         if status in DETAILS_REQUEST_STATUSES:
             try:
-                details_msg = get_details_request_reply(detected_language)
+                details_msg = get_details_request_reply(detected_language, message_body)
                 send_whatsapp_message(sender, details_msg, _wa_phone_id)
                 logger.info("Details request sent to %s (case=%s lang=%s)", sender, case_id, detected_language)
             except Exception as _det_exc:
@@ -2301,9 +2297,10 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         # AI failed — grievance is still saved as pending/Uncategorised
         logger.error(f"AI processing failed for case {case_id}: {e}")
         try:
+            _detected_lang = detect_input_language(message_body)
             send_whatsapp_message(
                 sender,
-                "Thank you for contacting us. Your message has been received and will be reviewed by our team.",
+                get_generic_ack_reply(_detected_lang, message_body),
                 _wa_phone_id,
             )
         except Exception as send_exc:
