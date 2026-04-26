@@ -546,6 +546,28 @@ class CaseNotesUpdate(BaseModel):
 
 class CitizenNotifyRequest(BaseModel):
     message: Optional[str] = None
+    response_to_citizen: Optional[str] = None
+
+
+def _resolve_citizen_notification_message(case: dict, requested_message: str = "") -> str:
+    status = case.get("status", "new")
+    case_id = case.get("id")
+    case_ref = case.get("case_ref") or f"#{case_id}"
+    saved_response = (case.get("response_to_citizen") or "").strip()
+    explicit = (requested_message or "").strip()
+    if explicit:
+        return explicit
+    if saved_response:
+        return saved_response
+    status_messages = {
+        "new":         f"Your grievance ({case_ref}) has been received and is being reviewed.",
+        "in_progress": f"Update on your grievance ({case_ref}): We are actively working on this.",
+        "escalated":   f"Update on your grievance ({case_ref}): This has been escalated to the relevant authority.",
+        "resolved":    f"Good news! Your grievance ({case_ref}) has been resolved. If unsatisfied, reply 'NO' to reopen.",
+        "completed":   f"Good news! Your grievance ({case_ref}) has been resolved. If unsatisfied, reply 'NO' to reopen.",
+        "closed":      f"Your grievance ({case_ref}) has been closed. Thank you for reaching out.",
+    }
+    return status_messages.get(status, f"Update on your grievance ({case_ref}): Status is now '{status}'.")
 
 
 @router.patch("/cases/{case_id}")
@@ -614,22 +636,10 @@ def notify_citizen(case_id: int, user=Depends(get_current_user)):
 
     phone = case.get("user_phone")
     wa_number = case.get("wa_number")
-    status = case.get("status", "")
-    case_ref = case.get("case_ref", f"#{case_id}")
-
     if not phone or not wa_number:
         raise HTTPException(400, "Cannot notify: missing phone or WhatsApp number")
-
-    # Build status message
-    status_messages = {
-        "new": f"Your grievance ({case_ref}) has been received and is being reviewed.",
-        "in_progress": f"Update on your grievance ({case_ref}): We are actively working on this. Our team is looking into the matter.",
-        "escalated": f"Update on your grievance ({case_ref}): This has been escalated to the relevant government authority for immediate attention.",
-        "resolved": f"Good news! Your grievance ({case_ref}) has been resolved. If you're not satisfied with the resolution, please reply 'NO' to reopen.",
-        "closed": f"Your grievance ({case_ref}) has been closed. Thank you for reaching out.",
-    }
-
-    message = status_messages.get(status, f"Update on your grievance ({case_ref}): Status is now '{status}'.")
+    status = case.get("status", "")
+    message = _resolve_citizen_notification_message(case)
 
     # Try to send via Meta WhatsApp Cloud API
     try:
@@ -743,7 +753,7 @@ def get_similar_cases(case_id: int, user=Depends(get_current_user)):
 # ─────────────────────────────────────────
 
 @router.post("/cases/{case_id}/notify/send")
-def notify_citizen(case_id: int, body: Optional[CitizenNotifyRequest] = None, user=Depends(get_current_user)):
+async def notify_citizen(case_id: int, request: Request, body: Optional[CitizenNotifyRequest] = None, user=Depends(get_current_user)):
     """Send a WhatsApp status update to the citizen. MP role only — PAs cannot trigger this."""
     tid = get_tenant_or_fail(user)
 
@@ -762,41 +772,36 @@ def notify_citizen(case_id: int, body: Optional[CitizenNotifyRequest] = None, us
     if not phone:
         raise HTTPException(400, "Cannot notify: citizen phone number missing")
 
-    status = case.get("status", "new")
-    case_ref = case.get("case_ref") or f"#{case_id}"
-
-    # Prefer the exact message drafted in the UI if provided; otherwise fall back
-    # to the saved response, then to the status-based template.
-    requested_message = ((body.message if body else None) or "").strip()
-    saved_response = (case.get("response_to_citizen") or "").strip()
-    if requested_message:
-        message = requested_message
-        if requested_message != saved_response:
-            with engine.begin() as conn:
-                conn.execute(
-                    text(
-                        "UPDATE cases SET response_to_citizen = :response, updated_at = :now "
-                        "WHERE id = :cid AND tenant_id = :tid"
-                    ),
-                    {
-                        "response": requested_message,
-                        "now": datetime.utcnow(),
-                        "cid": case_id,
-                        "tid": tid,
-                    },
+    # Prefer the exact message drafted in the UI if provided. If FastAPI body
+    # parsing ever yields `None` or an empty model, recover the raw JSON payload
+    # manually so custom dashboard messages still win over generic fallbacks.
+    requested_message = ((body.message if body else None) or (body.response_to_citizen if body else None) or "").strip()
+    if not requested_message:
+        try:
+            raw_payload = await request.json()
+            if isinstance(raw_payload, dict):
+                requested_message = (
+                    str(raw_payload.get("message") or raw_payload.get("response_to_citizen") or "").strip()
                 )
-    elif saved_response:
-        message = saved_response
-    else:
-        status_messages = {
-            "new":         f"Your grievance ({case_ref}) has been received and is being reviewed.",
-            "in_progress": f"Update on your grievance ({case_ref}): We are actively working on this.",
-            "escalated":   f"Update on your grievance ({case_ref}): This has been escalated to the relevant authority.",
-            "resolved":    f"Good news! Your grievance ({case_ref}) has been resolved. If unsatisfied, reply 'NO' to reopen.",
-            "completed":   f"Good news! Your grievance ({case_ref}) has been resolved. If unsatisfied, reply 'NO' to reopen.",
-            "closed":      f"Your grievance ({case_ref}) has been closed. Thank you for reaching out.",
-        }
-        message = status_messages.get(status, f"Update on your grievance ({case_ref}): Status is now '{status}'.")
+        except Exception:
+            pass
+    saved_response = (case.get("response_to_citizen") or "").strip()
+    if requested_message and requested_message != saved_response:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "UPDATE cases SET response_to_citizen = :response, updated_at = :now "
+                    "WHERE id = :cid AND tenant_id = :tid"
+                ),
+                {
+                    "response": requested_message,
+                    "now": datetime.utcnow(),
+                    "cid": case_id,
+                    "tid": tid,
+                },
+            )
+        case["response_to_citizen"] = requested_message
+    message = _resolve_citizen_notification_message(case, requested_message=requested_message)
 
     try:
         from modules.whatsapp import send_whatsapp_message

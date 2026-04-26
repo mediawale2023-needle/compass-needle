@@ -488,8 +488,10 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
     const sendNotification = async () => {
         setNotifySending(true);
         try {
+            const customMessage = response && response.trim() ? response.trim() : null;
             await apiPost(`/api/cases/${c.id}/notify/send`, {
-                message: response && response.trim() ? response.trim() : null,
+                message: customMessage,
+                response_to_citizen: customMessage,
             });
             setNotifyOpen(false);
             setNotifyInput('');
