@@ -636,7 +636,7 @@ class IncidentCluster(Base):
     unique_sender_count = Column(Integer, default=1)     # deduplicated sender count
     raw_case_ids = Column(JSON, default=list)            # list of Case IDs in this cluster
     fingerprint_hashes = Column(JSON, default=list)      # normalised text hashes for forward dedup
-    sender_events = Column(JSON, default=list)            # [{phone, ts}] — one entry per unique sender
+    sender_events = Column(JSON, default=list)           # [{phone, ts}] — one entry per unique sender
     alert_level = Column(String, default="t0")           # t0 / t1 / t2 / t3 / unacknowledged
     alert_acknowledged = Column(Boolean, default=False)  # PA confirmed via WhatsApp reply
     last_alert_at = Column(DateTime, nullable=True)      # when last PA alert was sent

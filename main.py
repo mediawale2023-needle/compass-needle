@@ -854,13 +854,19 @@ def _run_escalation_check():
     Lock ID 77772025 (distinct from startup migration lock 77772024).
     """
     try:
-        with engine.begin() as _esc_conn:
-            _acquired = _esc_conn.execute(
-                sa_text("SELECT pg_try_advisory_xact_lock(77772025)")
-            ).scalar()
-            if not _acquired:
-                return  # another instance is running the check
-            from modules.emergency_intake import escalate_pending_clusters
+        from modules.emergency_intake import escalate_pending_clusters
+        if engine.dialect.name == "postgresql":
+            with engine.begin() as _esc_conn:
+                _lock_acquired = _esc_conn.execute(
+                    sa_text("SELECT pg_try_advisory_xact_lock(77772025)")
+                ).scalar()
+                if not _lock_acquired:
+                    logger.info(
+                        "Skipping emergency escalation cycle — another instance holds advisory lock 77772025"
+                    )
+                    return
+                escalate_pending_clusters()
+        else:
             escalate_pending_clusters()
     except Exception as _esc_exc:
         logger.warning("Escalation check error (non-blocking): %s", _esc_exc)
@@ -888,9 +894,9 @@ async def trigger_morning_digest(request: Request):
     preventing the endpoint from being used to spam all tenant PAs.
     Set DIGEST_TOKEN to a random secret and pass it as X-Digest-Token.
     """
-    _digest_token = os.getenv("DIGEST_TOKEN", "")
+    _digest_token = os.getenv("DIGEST_TOKEN", "").strip()
     if not _digest_token:
-        raise HTTPException(status_code=503, detail="DIGEST_TOKEN env var not configured")
+        raise HTTPException(status_code=503, detail="DIGEST_TOKEN is not configured")
     provided = request.headers.get("X-Digest-Token", "")
     if not provided or provided != _digest_token:
         raise HTTPException(status_code=403, detail="Invalid digest token")
@@ -2307,13 +2313,14 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         # detect_emergency_severity() is pure Python (no DB/network) so calling
         # it on every citizen message is negligible cost.
         _is_critical_case = bool(ai_result.get("is_critical", False) or status == "emergency")
+        _emergency_keyword_match = False
         try:
-            from modules.emergency_keywords import detect_emergency_severity as _detect_kw
-            _keyword_emergency = _detect_kw(message_body)
-        except Exception:
-            _keyword_emergency = False
+            from modules.emergency_keywords import detect_emergency_severity
+            _emergency_keyword_match = detect_emergency_severity(message_body)
+        except Exception as _em_kw_exc:
+            logger.warning("Emergency keyword detection failed (non-blocking): %s", _em_kw_exc)
 
-        if _is_critical_case or _keyword_emergency:
+        if _is_critical_case or status == "emergency" or _emergency_keyword_match:
             try:
                 from modules.emergency_intake import process_emergency_case
                 process_emergency_case(

@@ -78,22 +78,22 @@ def _run_digest_for_tenant(db, tenant, cutoff: datetime, results: dict):
 
     # Find T0 clusters: created in last 24h, never escalated beyond t0
     with engine.connect() as conn:
-        t0_clusters = conn.execute(
+        recent_clusters = conn.execute(
             text("""
-                SELECT id, hazard_type, assembly, ward,
+                SELECT id, hazard_type, assembly, ward, alert_level,
                        unique_sender_count, window_start, raw_case_ids
                 FROM incident_clusters
                 WHERE tenant_id = :tid
-                  AND alert_level = 't0'
                   AND created_at >= :cutoff
                 ORDER BY created_at DESC
             """),
             {"tid": tenant.id, "cutoff": cutoff},
         ).mappings().all()
+        t0_clusters = [cluster for cluster in recent_clusters if cluster["alert_level"] == "t0"] if recent_clusters else []
 
         # Also find is_critical cases that were never clustered at all
         # (single case, emergency status, no cluster assigned)
-        unclustered_emergency_cases = conn.execute(
+        candidate_emergency_cases = conn.execute(
             text("""
                 SELECT id, user_phone, location, assembly, ward,
                        category, problem_domain, raw_message, created_at
@@ -108,19 +108,9 @@ def _run_digest_for_tenant(db, tenant, cutoff: datetime, results: dict):
             {"tid": tenant.id, "cutoff": cutoff},
         ).mappings().all()
 
-    # Fix 9: collect case IDs already covered by T0 clusters so the
-    # unclustered section does not double-report them.
-    clustered_case_ids: set = set()
-    for c in t0_clusters:
-        for cid in (c["raw_case_ids"] or []):
-            clustered_case_ids.add(int(cid))
+    unclustered_emergency_cases = _filter_unclustered_cases(candidate_emergency_cases, recent_clusters)
 
-    truly_unclustered = [
-        c for c in unclustered_emergency_cases
-        if int(c["id"]) not in clustered_case_ids
-    ]
-
-    if not t0_clusters and not truly_unclustered:
+    if not t0_clusters and not unclustered_emergency_cases:
         return  # Nothing to report
 
     # Build digest message
@@ -136,9 +126,9 @@ def _run_digest_for_tenant(db, tenant, cutoff: datetime, results: dict):
             ts = _fmt_time(c["window_start"])
             lines.append(f"• [{ts}] {hazard} — {area}{ward} ({count} report{'s' if count != 1 else ''})")
 
-    if truly_unclustered:
-        lines.append(f"\n*Single-reporter emergencies: {len(truly_unclustered)}*")
-        for c in truly_unclustered:
+    if unclustered_emergency_cases:
+        lines.append(f"\n*Single-reporter emergencies: {len(unclustered_emergency_cases)}*")
+        for c in unclustered_emergency_cases:
             area = c.get("assembly") or c.get("location") or "unknown area"
             cat = c.get("problem_domain") or c.get("category") or "emergency"
             ts = _fmt_time(c["created_at"])
@@ -157,6 +147,18 @@ def _run_digest_for_tenant(db, tenant, cutoff: datetime, results: dict):
         logger.info("Morning digest sent to PA for tenant %s (%d items)", tenant.id, len(t0_clusters) + len(unclustered_emergency_cases))
     except Exception as exc:
         raise RuntimeError(f"WhatsApp send failed: {exc}") from exc
+
+
+def _filter_unclustered_cases(cases, clusters):
+    """Remove cases already present in any incident cluster from the single-reporter digest set."""
+    clustered_case_ids = set()
+    for cluster in clusters or []:
+        for case_id in cluster.get("raw_case_ids") or []:
+            try:
+                clustered_case_ids.add(int(case_id))
+            except Exception:
+                continue
+    return [case for case in cases or [] if int(case["id"]) not in clustered_case_ids]
 
 
 def _fmt_time(dt) -> str:
