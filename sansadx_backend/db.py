@@ -636,6 +636,7 @@ class IncidentCluster(Base):
     unique_sender_count = Column(Integer, default=1)     # deduplicated sender count
     raw_case_ids = Column(JSON, default=list)            # list of Case IDs in this cluster
     fingerprint_hashes = Column(JSON, default=list)      # normalised text hashes for forward dedup
+    sender_events = Column(JSON, default=list)            # [{phone, ts}] — one entry per unique sender
     alert_level = Column(String, default="t0")           # t0 / t1 / t2 / t3 / unacknowledged
     alert_acknowledged = Column(Boolean, default=False)  # PA confirmed via WhatsApp reply
     last_alert_at = Column(DateTime, nullable=True)      # when last PA alert was sent
@@ -774,6 +775,7 @@ def init_db():
         "ALTER TABLE incident_clusters ADD COLUMN IF NOT EXISTS call_attempt_count INTEGER DEFAULT 0",
         "ALTER TABLE incident_clusters ADD COLUMN IF NOT EXISTS alert_acknowledged BOOLEAN DEFAULT FALSE",
         "ALTER TABLE incident_clusters ADD COLUMN IF NOT EXISTS last_alert_at TIMESTAMP",
+        "ALTER TABLE incident_clusters ADD COLUMN IF NOT EXISTS sender_events JSONB DEFAULT '[]'",
         # Added for AI classification metadata and criticality flag
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS is_critical BOOLEAN DEFAULT FALSE",
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_metadata JSONB",

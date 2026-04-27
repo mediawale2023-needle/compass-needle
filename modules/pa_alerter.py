@@ -1,32 +1,28 @@
 """
 pa_alerter.py — PA alert dispatch for emergency surge events.
 
-Handles two alert channels:
-  1. WhatsApp text alert (uses existing whatsapp.py, always available)
-  2. Exotel outbound voice call (requires EXOTEL_* env vars; fails gracefully if not set)
+Two channels:
+  1. WhatsApp (always attempted; uses existing whatsapp.py)
+  2. Exotel outbound voice call (requires EXOTEL_* env vars; skipped if absent)
 
-T1 → WhatsApp only
-T2 → WhatsApp + Exotel call
-T3 → WhatsApp to backup PA + Exotel call retry
-
-All functions are fire-and-forget. Failures are logged, never raised to caller.
+Fix 6: record_alert_sent() is called only when at least one delivery channel
+succeeded. A total delivery failure does not advance the cluster state, so the
+next escalation cycle will retry rather than silently exhausting retries.
 """
 import os
 import logging
 import base64
-from datetime import datetime
 
 logger = logging.getLogger("needle.pa_alerter")
 
-# ── Exotel config from environment ────────────────────────────────────────────
-_EXOTEL_API_KEY    = os.getenv("EXOTEL_API_KEY", "")
-_EXOTEL_API_TOKEN  = os.getenv("EXOTEL_API_TOKEN", "")
-_EXOTEL_SID        = os.getenv("EXOTEL_SID", "")
-_EXOTEL_CALLER_ID  = os.getenv("EXOTEL_CALLER_ID", "")
-_EXOTEL_API_HOST   = os.getenv("EXOTEL_API_HOST", "api.exotel.com")
+_EXOTEL_API_KEY   = os.getenv("EXOTEL_API_KEY", "")
+_EXOTEL_API_TOKEN = os.getenv("EXOTEL_API_TOKEN", "")
+_EXOTEL_SID       = os.getenv("EXOTEL_SID", "")
+_EXOTEL_CALLER_ID = os.getenv("EXOTEL_CALLER_ID", "")
+_EXOTEL_API_HOST  = os.getenv("EXOTEL_API_HOST", "api.exotel.com")
 
 
-# ── WhatsApp alert templates ──────────────────────────────────────────────────
+# ── Message templates ─────────────────────────────────────────────────────────
 
 def _format_wa_t1(summary: dict) -> str:
     hazard = summary["hazard_type"].upper()
@@ -79,54 +75,43 @@ def _format_voice_script(summary: dict) -> str:
         f"Alert for your MP office. "
         f"Possible {hazard} reported in {area}. "
         f"{count} unique reports received in the last 15 minutes. "
-        f"Please open your dashboard immediately. "
-        f"This is an automated alert. Repeat: possible {hazard} in {area}."
+        f"Please open your dashboard immediately."
     )
 
 
-# ── WhatsApp dispatch ─────────────────────────────────────────────────────────
+# ── Channel helpers ───────────────────────────────────────────────────────────
 
-def _send_wa(phone: str, message: str, phone_number_id: str | None):
-    """Send a WhatsApp message to the PA phone. Silently fails on error."""
+def _send_wa(phone: str, message: str, phone_number_id) -> bool:
     if not phone:
-        logger.warning("PA phone not configured — cannot send WhatsApp alert")
+        logger.warning("PA phone not configured — WhatsApp alert skipped")
         return False
     try:
         from modules.whatsapp import send_whatsapp_message
         send_whatsapp_message(phone, message, phone_number_id)
-        logger.info("PA WhatsApp alert sent to %s", phone[-4:])
+        logger.info("PA WhatsApp alert sent to ...%s", phone[-4:])
         return True
     except Exception as exc:
-        logger.error("PA WhatsApp alert failed for %s: %s", phone[-4:], exc)
+        logger.error("PA WhatsApp alert failed for ...%s: %s", phone[-4:], exc)
         return False
 
-
-# ── Exotel voice call ─────────────────────────────────────────────────────────
 
 def _trigger_exotel_call(to_phone: str, tts_script: str) -> bool:
     """
-    Make an outbound call to the PA via Exotel with a TTS message.
-
-    Requires env vars: EXOTEL_API_KEY, EXOTEL_API_TOKEN, EXOTEL_SID,
-                       EXOTEL_CALLER_ID, EXOTEL_APPLET_URL
-
-    EXOTEL_APPLET_URL should point to an Exotel Applet (Exoflow) that
-    reads out dynamic text. If not configured, skips the call and logs.
+    Outbound call via Exotel. Requires env vars:
+      EXOTEL_API_KEY, EXOTEL_API_TOKEN, EXOTEL_SID,
+      EXOTEL_CALLER_ID, EXOTEL_APPLET_URL
+    Skips gracefully if any are missing.
     """
     applet_url = os.getenv("EXOTEL_APPLET_URL", "")
-
     if not all([_EXOTEL_API_KEY, _EXOTEL_API_TOKEN, _EXOTEL_SID, _EXOTEL_CALLER_ID, applet_url]):
         logger.warning(
-            "Exotel call skipped — missing env vars. "
-            "Set EXOTEL_API_KEY, EXOTEL_API_TOKEN, EXOTEL_SID, EXOTEL_CALLER_ID, EXOTEL_APPLET_URL."
+            "Exotel call skipped — set EXOTEL_API_KEY, EXOTEL_API_TOKEN, "
+            "EXOTEL_SID, EXOTEL_CALLER_ID, EXOTEL_APPLET_URL to enable voice alerts."
         )
         return False
-
     if not to_phone:
-        logger.warning("Exotel call skipped — no PA phone number configured")
         return False
 
-    # Normalise phone: Exotel expects 0XXXXXXXXXX or +91XXXXXXXXXX
     phone = to_phone.strip()
     if phone.startswith("91") and len(phone) == 12:
         phone = "0" + phone[2:]
@@ -135,14 +120,9 @@ def _trigger_exotel_call(to_phone: str, tts_script: str) -> bool:
 
     try:
         import requests
-        url = (
-            f"https://{_EXOTEL_API_HOST}/v1/Accounts/{_EXOTEL_SID}"
-            f"/Calls/connect.json"
-        )
-        creds = base64.b64encode(
-            f"{_EXOTEL_API_KEY}:{_EXOTEL_API_TOKEN}".encode()
-        ).decode()
-        response = requests.post(
+        url = f"https://{_EXOTEL_API_HOST}/v1/Accounts/{_EXOTEL_SID}/Calls/connect.json"
+        creds = base64.b64encode(f"{_EXOTEL_API_KEY}:{_EXOTEL_API_TOKEN}".encode()).decode()
+        resp = requests.post(
             url,
             headers={"Authorization": f"Basic {creds}"},
             data={
@@ -150,19 +130,15 @@ def _trigger_exotel_call(to_phone: str, tts_script: str) -> bool:
                 "To": phone,
                 "CallerId": _EXOTEL_CALLER_ID,
                 "Url": applet_url,
-                "CustomField": tts_script[:200],  # passed to applet as context
+                "CustomField": tts_script[:200],
             },
             timeout=10,
         )
-        if response.status_code in (200, 201):
-            logger.info("Exotel call initiated to %s", phone[-4:])
+        if resp.status_code in (200, 201):
+            logger.info("Exotel call initiated to ...%s", phone[-4:])
             return True
-        else:
-            logger.error(
-                "Exotel call failed: status=%s body=%s",
-                response.status_code, response.text[:200],
-            )
-            return False
+        logger.error("Exotel call failed: status=%s body=%s", resp.status_code, resp.text[:200])
+        return False
     except Exception as exc:
         logger.error("Exotel call exception: %s", exc)
         return False
@@ -170,40 +146,46 @@ def _trigger_exotel_call(to_phone: str, tts_script: str) -> bool:
 
 # ── Public dispatch functions ─────────────────────────────────────────────────
 
-def dispatch_t1_alert(cluster_id: int, summary: dict, tenant_config: dict, phone_number_id: str | None):
-    """T1: WhatsApp alert to primary PA only."""
+def dispatch_t1_alert(cluster_id: int, summary: dict, tenant_config: dict, phone_number_id) -> None:
+    """T1: WhatsApp only. State advanced only on successful delivery."""
     from modules.incident_cluster import record_alert_sent
     pa_phone = tenant_config.get("pa_phone")
     if not pa_phone:
         logger.warning("T1 alert skipped — pa_phone not configured for tenant")
         return
 
-    message = _format_wa_t1(summary)
-    _send_wa(pa_phone, message, phone_number_id)
-    record_alert_sent(cluster_id, "t1")
-    logger.info("T1 alert dispatched for cluster %s", cluster_id)
+    delivered = _send_wa(pa_phone, _format_wa_t1(summary), phone_number_id)
+
+    # Fix 6: only advance state when delivery succeeded
+    if delivered:
+        record_alert_sent(cluster_id, "t1")
+        logger.info("T1 alert state recorded for cluster %s", cluster_id)
+    else:
+        logger.warning("T1 alert delivery failed — cluster %s state NOT advanced", cluster_id)
 
 
-def dispatch_t2_alert(cluster_id: int, summary: dict, tenant_config: dict, phone_number_id: str | None):
-    """T2: WhatsApp + Exotel call to primary PA."""
+def dispatch_t2_alert(cluster_id: int, summary: dict, tenant_config: dict, phone_number_id) -> None:
+    """T2: WhatsApp + Exotel call. State advanced if WhatsApp succeeds."""
     from modules.incident_cluster import record_alert_sent
     pa_phone = tenant_config.get("pa_phone")
     if not pa_phone:
         logger.warning("T2 alert skipped — pa_phone not configured for tenant")
         return
 
-    message = _format_wa_t2(summary)
-    _send_wa(pa_phone, message, phone_number_id)
+    wa_ok = _send_wa(pa_phone, _format_wa_t2(summary), phone_number_id)
+    # Voice call is best-effort; WA delivery is the primary success criterion
+    _trigger_exotel_call(pa_phone, _format_voice_script(summary))
 
-    script = _format_voice_script(summary)
-    _trigger_exotel_call(pa_phone, script)
+    # Fix 6: advance state only when WhatsApp was delivered
+    if wa_ok:
+        record_alert_sent(cluster_id, "t2")
+        logger.info("T2 alert state recorded for cluster %s", cluster_id)
+    else:
+        logger.warning("T2 WA delivery failed — cluster %s state NOT advanced (will retry)", cluster_id)
 
-    record_alert_sent(cluster_id, "t2")
-    logger.info("T2 alert dispatched for cluster %s", cluster_id)
 
-
-def dispatch_t3_alert(cluster_id: int, summary: dict, tenant_config: dict, phone_number_id: str | None):
-    """T3: WhatsApp to backup PA + Exotel call retry. Called when T2 unacknowledged."""
+def dispatch_t3_alert(cluster_id: int, summary: dict, tenant_config: dict, phone_number_id) -> None:
+    """T3: WhatsApp to backup + Exotel retry. Marks unacknowledged when attempts exhausted."""
     from modules.incident_cluster import record_alert_sent, get_cluster_by_id
     from sansadx_backend.db import SessionLocal, IncidentCluster
 
@@ -218,35 +200,34 @@ def dispatch_t3_alert(cluster_id: int, summary: dict, tenant_config: dict, phone
     attempts = cluster.call_attempt_count or 0
 
     if attempts >= max_attempts:
-        # Mark as unacknowledged and stop
         db = SessionLocal()
         try:
             c = db.query(IncidentCluster).filter(IncidentCluster.id == cluster_id).first()
             if c:
                 c.alert_level = "unacknowledged"
                 db.commit()
-            logger.warning(
-                "Cluster %s marked UNACKNOWLEDGED after %d call attempts", cluster_id, attempts
-            )
+            logger.warning("Cluster %s: UNACKNOWLEDGED after %d call attempts", cluster_id, attempts)
         except Exception:
             db.rollback()
         finally:
             db.close()
         return
 
-    script = _format_voice_script(summary)
+    any_delivered = False
 
-    # WhatsApp to backup PA
     if backup_phone:
-        _send_wa(backup_phone, _format_wa_t3(summary), phone_number_id)
+        ok = _send_wa(backup_phone, _format_wa_t3(summary), phone_number_id)
+        any_delivered = any_delivered or ok
 
-    # Retry call to primary PA
     if pa_phone:
-        _trigger_exotel_call(pa_phone, script)
+        _trigger_exotel_call(pa_phone, _format_voice_script(summary))
 
-    # Call backup PA if different from primary
     if backup_phone and backup_phone != pa_phone:
-        _trigger_exotel_call(backup_phone, script)
+        _trigger_exotel_call(backup_phone, _format_voice_script(summary))
 
-    record_alert_sent(cluster_id, "t3")
-    logger.info("T3 alert dispatched for cluster %s (attempt %d)", cluster_id, attempts + 1)
+    # Fix 6: advance state only when at least one delivery channel succeeded
+    if any_delivered:
+        record_alert_sent(cluster_id, "t3")
+        logger.info("T3 alert state recorded for cluster %s (attempt %d)", cluster_id, attempts + 1)
+    else:
+        logger.warning("T3 delivery failed — cluster %s state NOT advanced (will retry)", cluster_id)
