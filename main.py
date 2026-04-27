@@ -2340,10 +2340,12 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         # ── Human review gate ─────────────────────────────────────────────
         # Sensitive cases (Law & Order, Emergency, Political, is_critical) are
         # held for PA review before the AI reply is sent to the citizen.
-        # The citizen gets only a generic acknowledgment.
+        # Emergency complaints are silent by policy: no citizen acknowledgment.
+        # Other review-required cases still get a generic acknowledgment.
         # The AI-generated reply is stored in case_metadata for PA to see.
         _is_review_category = category.lower().strip() in _REVIEW_REQUIRED_CATEGORIES
         _is_critical_case = bool(ai_result.get("is_critical", False) or status == "emergency")
+        _is_emergency_complaint = bool(status == "emergency" or _emergency_keyword_match)
 
         if (_is_review_category or _is_critical_case) and status not in ("awaiting_location",):
             # Store the AI reply so PA can view and approve it from the dashboard
@@ -2364,6 +2366,13 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
                 )
             except Exception as _rv_exc:
                 logger.error("Failed to set pending_review status for case %s: %s", case_id, _rv_exc)
+
+            if _is_emergency_complaint:
+                logger.info(
+                    "EMERGENCY_SILENT_HOLD: case_id=%s tenant=%s — no citizen acknowledgment sent",
+                    case_id, current_tenant,
+                )
+                return
 
             # Send only generic ack — NOT the AI-generated political reply.
             # On failure, flag the case so the startup sweep can retry the ACK.

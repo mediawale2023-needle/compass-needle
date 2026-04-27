@@ -429,7 +429,7 @@ class TestWhatsAppWebhookSimulation:
     @patch("main.send_whatsapp_message")
     @patch("sansadx_backend.ai_engine.get_client")
     def test_emergency_message_flagged_critical(self, mock_get_client, mock_send):
-        """Emergency message results in is_critical=True saved to DB."""
+        """Emergency message is saved as critical and does not get a citizen acknowledgment."""
         mock_client = MagicMock()
         mock_client.chat.completions.create.return_value = MagicMock(
             choices=[MagicMock(message=MagicMock(content=json.dumps({
@@ -462,6 +462,7 @@ class TestWhatsAppWebhookSimulation:
             )).fetchone()
         assert row is not None, "Emergency case not saved to DB"
         assert row[0] == 1 or row[0] is True, "Emergency case not marked as critical"
+        mock_send.assert_not_called()
 
     @patch("main.send_whatsapp_message")
     @patch("sansadx_backend.ai_engine.get_client")
