@@ -439,6 +439,11 @@ for _idx_sql in [
     "CREATE INDEX IF NOT EXISTS idx_cases_is_deleted ON cases (is_deleted)",
     "CREATE INDEX IF NOT EXISTS idx_spam_flags_tenant_phone ON spam_flags (tenant_id, phone)",
     "CREATE INDEX IF NOT EXISTS idx_token_blocklist_revoked_at ON token_blocklist (revoked_at)",
+    # incident_clusters performance indexes
+    "CREATE INDEX IF NOT EXISTS idx_incident_clusters_tenant ON incident_clusters (tenant_id)",
+    "CREATE INDEX IF NOT EXISTS idx_incident_clusters_tenant_hazard ON incident_clusters (tenant_id, hazard_type)",
+    "CREATE INDEX IF NOT EXISTS idx_incident_clusters_window ON incident_clusters (tenant_id, window_start DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_incident_clusters_level ON incident_clusters (alert_level)",
 ]:
     try:
         with engine.begin() as conn:
@@ -834,6 +839,50 @@ try:
 except Exception as _csr_seed_err:
     logger.warning(f"CSR company seed failed (non-fatal): {_csr_seed_err}")
 
+
+# ─────────────────────────────────────────
+# EMERGENCY ESCALATION BACKGROUND CHECKER
+# ─────────────────────────────────────────
+# Runs every 5 minutes. Promotes T2 clusters to T3 when the PA has not
+# acknowledged within the configured escalation_wait_minutes window.
+def _run_escalation_check():
+    try:
+        from modules.emergency_intake import escalate_pending_clusters
+        escalate_pending_clusters()
+    except Exception as _esc_exc:
+        logger.warning("Escalation check error (non-blocking): %s", _esc_exc)
+    finally:
+        t = threading.Timer(300, _run_escalation_check)
+        t.daemon = True
+        t.start()
+
+_escalation_timer = threading.Timer(300, _run_escalation_check)
+_escalation_timer.daemon = True
+_escalation_timer.start()
+logger.info("Emergency escalation checker started (interval: 5 min)")
+
+
+# ─────────────────────────────────────────
+# MORNING DIGEST ENDPOINT
+# ─────────────────────────────────────────
+@app.post("/internal/morning-digest")
+async def trigger_morning_digest(request: Request):
+    """
+    Trigger the T0 morning digest manually or via Railway cron.
+    Protected by X-Digest-Token header (set DIGEST_TOKEN env var).
+    """
+    _digest_token = os.getenv("DIGEST_TOKEN", "")
+    if _digest_token:
+        provided = request.headers.get("X-Digest-Token", "")
+        if not provided or provided != _digest_token:
+            raise HTTPException(status_code=403, detail="Invalid digest token")
+    try:
+        from jobs.t0_morning_digest import run_morning_digest
+        result = run_morning_digest()
+        return {"ok": True, "result": result}
+    except Exception as exc:
+        logger.error("Morning digest endpoint error: %s", exc)
+        raise HTTPException(status_code=500, detail="Digest failed")
 
 
 # ─────────────────────────────────────────
@@ -1803,6 +1852,16 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             "Staff query from %s (user_id=%s, tenant=%s): %r",
             sender, staff_row[0], current_tenant, message_body[:80],
         )
+
+        # Check for emergency cluster acknowledgment (ACK <id> or ACK)
+        try:
+            from modules.emergency_intake import handle_pa_acknowledgment
+            if handle_pa_acknowledgment(sender, current_tenant, message_body):
+                send_whatsapp_message(sender, "✅ Emergency alert acknowledged.", _wa_phone_id)
+                return
+        except Exception as _ack_exc:
+            logger.warning("PA ACK check failed (non-blocking): %s", _ack_exc)
+
         try:
             filters  = parse_query(message_body, tenant_id=current_tenant)
             # Only ask for clarification if query has NO filters at all
@@ -2223,6 +2282,28 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
                 logger.info(f"AI updated case {case_id}: status='{status}' category='{category}' constituency='{final_constituency}'")
         except Exception as e:
             logger.error(f"DB update failed for case {case_id}: {e}")
+
+        # ── STEP 3.5: Emergency surge detection ───────────────────────────────
+        # Routes emergency-classified cases into the incident cluster pipeline.
+        # Silent at T0 (no alert). PA is alerted only at T1/T2/T3 thresholds.
+        # Never raises — failure must not interrupt the main message flow.
+        _is_critical_case = bool(ai_result.get("is_critical", False) or status == "emergency")
+        if _is_critical_case or status == "emergency":
+            try:
+                from modules.emergency_intake import process_emergency_case
+                process_emergency_case(
+                    case_id=case_id,
+                    tenant_id=current_tenant,
+                    message_body=message_body,
+                    sender_phone=sender,
+                    assembly=final_constituency,
+                    ward=None,
+                    category=category,
+                    problem_domain=problem_domain or "",
+                    status=status,
+                )
+            except Exception as _em_exc:
+                logger.warning("Emergency intake failed (non-blocking): %s", _em_exc)
 
         # ── Human review gate ─────────────────────────────────────────────
         # Sensitive cases (Law & Order, Emergency, Political, is_critical) are
