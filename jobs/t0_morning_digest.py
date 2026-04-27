@@ -108,7 +108,19 @@ def _run_digest_for_tenant(db, tenant, cutoff: datetime, results: dict):
             {"tid": tenant.id, "cutoff": cutoff},
         ).mappings().all()
 
-    if not t0_clusters and not unclustered_emergency_cases:
+    # Fix 9: collect case IDs already covered by T0 clusters so the
+    # unclustered section does not double-report them.
+    clustered_case_ids: set = set()
+    for c in t0_clusters:
+        for cid in (c["raw_case_ids"] or []):
+            clustered_case_ids.add(int(cid))
+
+    truly_unclustered = [
+        c for c in unclustered_emergency_cases
+        if int(c["id"]) not in clustered_case_ids
+    ]
+
+    if not t0_clusters and not truly_unclustered:
         return  # Nothing to report
 
     # Build digest message
@@ -124,9 +136,9 @@ def _run_digest_for_tenant(db, tenant, cutoff: datetime, results: dict):
             ts = _fmt_time(c["window_start"])
             lines.append(f"• [{ts}] {hazard} — {area}{ward} ({count} report{'s' if count != 1 else ''})")
 
-    if unclustered_emergency_cases:
-        lines.append(f"\n*Single-reporter emergencies: {len(unclustered_emergency_cases)}*")
-        for c in unclustered_emergency_cases:
+    if truly_unclustered:
+        lines.append(f"\n*Single-reporter emergencies: {len(truly_unclustered)}*")
+        for c in truly_unclustered:
             area = c.get("assembly") or c.get("location") or "unknown area"
             cat = c.get("problem_domain") or c.get("category") or "emergency"
             ts = _fmt_time(c["created_at"])

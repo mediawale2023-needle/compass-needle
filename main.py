@@ -846,9 +846,22 @@ except Exception as _csr_seed_err:
 # Runs every 5 minutes. Promotes T2 clusters to T3 when the PA has not
 # acknowledged within the configured escalation_wait_minutes window.
 def _run_escalation_check():
+    """
+    Fix 7: wrapped in pg_try_advisory_xact_lock so only one Railway instance
+    runs the escalation check at a time. Lock is transaction-scoped and
+    released automatically when the engine.begin() block exits — no
+    risk of stale lock after crash or connection pool recycling.
+    Lock ID 77772025 (distinct from startup migration lock 77772024).
+    """
     try:
-        from modules.emergency_intake import escalate_pending_clusters
-        escalate_pending_clusters()
+        with engine.begin() as _esc_conn:
+            _acquired = _esc_conn.execute(
+                sa_text("SELECT pg_try_advisory_xact_lock(77772025)")
+            ).scalar()
+            if not _acquired:
+                return  # another instance is running the check
+            from modules.emergency_intake import escalate_pending_clusters
+            escalate_pending_clusters()
     except Exception as _esc_exc:
         logger.warning("Escalation check error (non-blocking): %s", _esc_exc)
     finally:
@@ -869,13 +882,18 @@ logger.info("Emergency escalation checker started (interval: 5 min)")
 async def trigger_morning_digest(request: Request):
     """
     Trigger the T0 morning digest manually or via Railway cron.
-    Protected by X-Digest-Token header (set DIGEST_TOKEN env var).
+
+    Fix 8: DIGEST_TOKEN is now mandatory. If the env var is not set the
+    endpoint returns 503 rather than accepting unauthenticated calls,
+    preventing the endpoint from being used to spam all tenant PAs.
+    Set DIGEST_TOKEN to a random secret and pass it as X-Digest-Token.
     """
     _digest_token = os.getenv("DIGEST_TOKEN", "")
-    if _digest_token:
-        provided = request.headers.get("X-Digest-Token", "")
-        if not provided or provided != _digest_token:
-            raise HTTPException(status_code=403, detail="Invalid digest token")
+    if not _digest_token:
+        raise HTTPException(status_code=503, detail="DIGEST_TOKEN env var not configured")
+    provided = request.headers.get("X-Digest-Token", "")
+    if not provided or provided != _digest_token:
+        raise HTTPException(status_code=403, detail="Invalid digest token")
     try:
         from jobs.t0_morning_digest import run_morning_digest
         result = run_morning_digest()
@@ -2284,11 +2302,18 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             logger.error(f"DB update failed for case {case_id}: {e}")
 
         # ── STEP 3.5: Emergency surge detection ───────────────────────────────
-        # Routes emergency-classified cases into the incident cluster pipeline.
-        # Silent at T0 (no alert). PA is alerted only at T1/T2/T3 thresholds.
-        # Never raises — failure must not interrupt the main message flow.
+        # Fix 5: gate on AI signal OR keyword match so language gaps in AI
+        # classification don't silently bypass the cluster pipeline entirely.
+        # detect_emergency_severity() is pure Python (no DB/network) so calling
+        # it on every citizen message is negligible cost.
         _is_critical_case = bool(ai_result.get("is_critical", False) or status == "emergency")
-        if _is_critical_case or status == "emergency":
+        try:
+            from modules.emergency_keywords import detect_emergency_severity as _detect_kw
+            _keyword_emergency = _detect_kw(message_body)
+        except Exception:
+            _keyword_emergency = False
+
+        if _is_critical_case or _keyword_emergency:
             try:
                 from modules.emergency_intake import process_emergency_case
                 process_emergency_case(
