@@ -617,6 +617,33 @@ class AdminNote(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class IncidentCluster(Base):
+    """
+    Rolling incident window for emergency surge detection.
+
+    Each cluster represents a group of emergency reports that share the same
+    hazard type and geographic area within a configurable time window.
+    Alert levels: t0 (silent) → t1 (WhatsApp) → t2 (call+WA) → t3 (escalate).
+    """
+    __tablename__ = "incident_clusters"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
+    hazard_type = Column(String)                         # fire/flood/violence/medical/stampede/accident/missing/emergency
+    assembly = Column(String)                            # assembly constituency (cluster geo key)
+    ward = Column(String, nullable=True)                 # ward if available (finer key)
+    window_start = Column(DateTime)                      # when first report arrived
+    unique_sender_count = Column(Integer, default=1)     # deduplicated sender count
+    raw_case_ids = Column(JSON, default=list)            # list of Case IDs in this cluster
+    fingerprint_hashes = Column(JSON, default=list)      # normalised text hashes for forward dedup
+    alert_level = Column(String, default="t0")           # t0 / t1 / t2 / t3 / unacknowledged
+    alert_acknowledged = Column(Boolean, default=False)  # PA confirmed via WhatsApp reply
+    last_alert_at = Column(DateTime, nullable=True)      # when last PA alert was sent
+    call_attempt_count = Column(Integer, default=0)      # number of Exotel call attempts
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class WAMessageDedup(Base):
     """
     Indexed deduplication table for Meta WhatsApp webhook message IDs.
@@ -743,6 +770,10 @@ def init_db():
 
     # Additive migrations — safe to run repeatedly (IF NOT EXISTS / DO NOTHING)
     _migrations = [
+        # incident_clusters: additive columns (table created by create_all above)
+        "ALTER TABLE incident_clusters ADD COLUMN IF NOT EXISTS call_attempt_count INTEGER DEFAULT 0",
+        "ALTER TABLE incident_clusters ADD COLUMN IF NOT EXISTS alert_acknowledged BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE incident_clusters ADD COLUMN IF NOT EXISTS last_alert_at TIMESTAMP",
         # Added for AI classification metadata and criticality flag
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS is_critical BOOLEAN DEFAULT FALSE",
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_metadata JSONB",
