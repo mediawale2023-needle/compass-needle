@@ -293,6 +293,8 @@ def get_cases(
     exclude_status: Optional[str] = None,
     category: Optional[str] = None,
     categories: Optional[str] = None,
+    exclude_categories: Optional[str] = None,
+    bucket: Optional[str] = None,
     search: Optional[str] = None,
     assigned_to: Optional[str] = None,
     page: int = Query(1, ge=1),
@@ -301,6 +303,19 @@ def get_cases(
     tid = get_tenant_or_fail(user)
     conditions = ["c.tenant_id = :tid", "(c.is_deleted = false OR c.is_deleted IS NULL)"]
     params = {"tid": tid}
+
+    if bucket == "other":
+        other_statuses = ["offensive", "irrelevant"]
+        other_categories = ["Request", "Greetings", "Spam", "Spam (Offensive)"]
+        status_placeholders = ", ".join(f":bucket_status_{i}" for i in range(len(other_statuses)))
+        category_placeholders = ", ".join(f":bucket_cat_{i}" for i in range(len(other_categories)))
+        conditions.append(
+            f"(c.status IN ({status_placeholders}) OR c.category IN ({category_placeholders}))"
+        )
+        for i, value in enumerate(other_statuses):
+            params[f"bucket_status_{i}"] = value
+        for i, value in enumerate(other_categories):
+            params[f"bucket_cat_{i}"] = value
 
     if status:
         conditions.append("c.status = :st")
@@ -322,6 +337,13 @@ def get_cases(
             conditions.append(f"c.category IN ({placeholders})")
             for i, c in enumerate(cat_list):
                 params[f"cat_{i}"] = c
+    if exclude_categories:
+        excl_cat_list = [c.strip() for c in exclude_categories.split(",") if c.strip()]
+        if excl_cat_list:
+            placeholders = ", ".join(f":excl_cat_{i}" for i in range(len(excl_cat_list)))
+            conditions.append(f"c.category NOT IN ({placeholders})")
+            for i, c in enumerate(excl_cat_list):
+                params[f"excl_cat_{i}"] = c
     if search:
         conditions.append("(c.user_phone ILIKE :search OR c.raw_message ILIKE :search OR c.case_ref ILIKE :search OR c.location ILIKE :search)")
         params["search"] = f"%{search}%"

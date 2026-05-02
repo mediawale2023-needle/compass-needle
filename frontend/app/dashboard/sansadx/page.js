@@ -42,6 +42,7 @@ const STATUS_OPTIONS = [
 ];
 
 const OTHER_CATEGORIES = ['Request', 'Greetings', 'Spam', 'Spam (Offensive)'];
+const OTHER_STATUSES = ['offensive', 'irrelevant'];
 
 function getStatusBadge(status) {
     const opt = STATUS_OPTIONS.find(o => o.value === (status || '').toLowerCase());
@@ -991,9 +992,10 @@ function BriefcaseInner() {
                 });
 
                 if (statusFilter === 'All') {
-                    params.set('exclude_status', 'resolved,closed');
+                    params.set('exclude_status', ['resolved', 'closed', ...OTHER_STATUSES].join(','));
+                    params.set('exclude_categories', OTHER_CATEGORIES.join(','));
                 } else if (statusFilter === 'other') {
-                    params.set('categories', OTHER_CATEGORIES.join(','));
+                    params.set('bucket', 'other');
                 } else {
                     params.set('status', statusFilter);
                 }
@@ -1030,8 +1032,12 @@ function BriefcaseInner() {
             if (document.visibilityState !== 'visible') return;
             try {
                 const params = new URLSearchParams({ page: '1', limit: '1' });
-                if (statusFilter === 'All') params.set('exclude_status', 'resolved,closed');
-                else if (statusFilter === 'other') params.set('categories', OTHER_CATEGORIES.join(','));
+                if (statusFilter === 'All') {
+                    params.set('exclude_status', ['resolved', 'closed', ...OTHER_STATUSES].join(','));
+                    params.set('exclude_categories', OTHER_CATEGORIES.join(','));
+                } else if (statusFilter === 'other') {
+                    params.set('bucket', 'other');
+                }
                 else params.set('status', statusFilter);
                 if (search) params.set('search', search);
                 const data = await apiGet(`/api/cases?${params}`);
