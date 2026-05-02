@@ -59,7 +59,7 @@ def _get_meta_app_secret() -> str:
     """Read the current webhook signing secret from env at request time."""
     return os.getenv("META_APP_SECRET", "") or META_APP_SECRET
 
-from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_geo_overrides, get_tenant_phone_number_id
+from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_geo_overrides, get_tenant_phone_number_id, log_letterbox_activity
 
 # ─────────────────────────────────────────
 # GEOGRAPHY RESOLVER
@@ -528,6 +528,27 @@ try:
         logger.info("Migration: letterbox indexes ready")
 except Exception as e:
     logger.warning(f"Letterbox index migration skipped: {e}")
+
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS letterbox_activity_log (
+                id SERIAL PRIMARY KEY,
+                tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                letterbox_id INTEGER NOT NULL REFERENCES letterbox(id) ON DELETE CASCADE,
+                action_type VARCHAR(64) NOT NULL,
+                actor_username VARCHAR(255),
+                actor_channel VARCHAR(64) NOT NULL DEFAULT 'system',
+                summary VARCHAR(500),
+                details_json TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_letterbox_activity_letter ON letterbox_activity_log (letterbox_id, created_at DESC)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_letterbox_activity_tenant ON letterbox_activity_log (tenant_id, created_at DESC)"))
+        logger.info("Migration: letterbox activity log ready")
+except Exception as e:
+    logger.warning(f"letterbox activity log migration skipped: {e}")
 
 # ─── Migration: page_count column on letterbox ───
 try:
@@ -1408,6 +1429,25 @@ def _flush_letter_batch(sender: str, tenant_id: int, receiver_number: str):
         logger.error(f"Failed to update letter {letter_id} post-extraction: {exc}")
         final_direction = direction_hint or "inbox"
 
+    try:
+        log_letterbox_activity(
+            tenant_id=tenant_id,
+            letterbox_id=letter_id,
+            action_type="created",
+            actor_username=sender,
+            actor_channel="whatsapp_pa",
+            summary=f"WhatsApp {final_direction} letter captured",
+            details={
+                "source": "whatsapp",
+                "direction": final_direction,
+                "page_count": page_count,
+                "sender_phone": sender,
+                "ocr_success": bool(extracted),
+            },
+        )
+    except Exception:
+        pass
+
     # Mark batch done
     try:
         with engine.begin() as conn:
@@ -1799,6 +1839,26 @@ def _process_pa_letter_pdf(
         logger.error(f"Failed to update PDF letter {letter_id} post-extraction: {exc}")
         final_direction = direction_hint or "inbox"
 
+    try:
+        log_letterbox_activity(
+            tenant_id=current_tenant,
+            letterbox_id=letter_id,
+            action_type="created",
+            actor_username=sender,
+            actor_channel="whatsapp_pa",
+            summary=f"WhatsApp PDF saved to {final_direction}",
+            details={
+                "source": "whatsapp",
+                "direction": final_direction,
+                "mime_type": resolved_mime or mime_type or "application/pdf",
+                "page_count": page_count,
+                "sender_phone": sender,
+                "ocr_success": bool(extracted),
+            },
+        )
+    except Exception:
+        pass
+
     direction_label = "INBOX" if final_direction == "inbox" else "OUTBOX"
     pages_label = f"{page_count} page{'s' if page_count != 1 else ''}"
     if extracted:
@@ -1885,7 +1945,24 @@ def _handle_pa_move_command(sender: str, diary_ref: str, direction_str: str, rec
             if result.rowcount == 0:
                 send_whatsapp_message(sender, f"Could not find letter with ref {ref_upper}. Please check the diary number.", _wa_phone_id)
                 return
+            linked_row = conn.execute(
+                text("SELECT id FROM letterbox WHERE diary_number = :ref AND tenant_id = :tid LIMIT 1"),
+                {"ref": ref_upper, "tid": current_tenant},
+            ).fetchone()
         label = "OUTBOX" if new_direction == "outbox" else "INBOX"
+        if linked_row:
+            try:
+                log_letterbox_activity(
+                    tenant_id=current_tenant,
+                    letterbox_id=linked_row[0],
+                    action_type="direction_changed",
+                    actor_username=sender,
+                    actor_channel="whatsapp_pa",
+                    summary=f"Direction corrected to {label}",
+                    details={"direction": new_direction, "diary_number": ref_upper},
+                )
+            except Exception:
+                pass
         send_whatsapp_message(sender, f"Done — {ref_upper} moved to {label}.", _wa_phone_id)
         logger.info(f"MOVE: {ref_upper} → {new_direction} by PA {sender}, tenant {current_tenant}")
     except Exception as exc:

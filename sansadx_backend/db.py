@@ -5,6 +5,7 @@ All other files import engine, SessionLocal, and models from here.
 import os
 import json
 import bcrypt
+import logging
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Text, ForeignKey, JSON, Float, LargeBinary, text as sa_text, UniqueConstraint
 try:
     from sqlalchemy.orm import declarative_base
@@ -12,6 +13,8 @@ except ImportError:
     from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
+
+logger = logging.getLogger("needle.db")
 
 # ─────────────────────────────────────────
 # UNIFIED DATABASE CONNECTION
@@ -266,6 +269,64 @@ class LetterboxItem(Base):
     
     tenant = relationship("Tenant", backref="letterbox_items")
     linked_letterbox = relationship("LetterboxItem", remote_side=[id], uselist=False)
+
+
+class LetterboxActivity(Base):
+    """Immutable audit trail for Letterbox actions."""
+    __tablename__ = "letterbox_activity_log"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=False)
+    letterbox_id = Column(Integer, ForeignKey("letterbox.id"), index=True, nullable=False)
+    action_type = Column(String(64), nullable=False, index=True)
+    actor_username = Column(String(255), nullable=True)
+    actor_channel = Column(String(64), nullable=False, default="system")
+    summary = Column(String(500), nullable=True)
+    details_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    tenant = relationship("Tenant")
+    letterbox = relationship("LetterboxItem")
+
+
+def log_letterbox_activity(
+    tenant_id: int,
+    letterbox_id: int,
+    action_type: str,
+    actor_username: str | None = None,
+    actor_channel: str = "system",
+    summary: str | None = None,
+    details: dict | None = None,
+    created_at: datetime | None = None,
+) -> None:
+    """Best-effort append-only Letterbox audit logging."""
+    try:
+        payload = json.dumps(details, ensure_ascii=True) if details else None
+        with engine.begin() as conn:
+            conn.execute(
+                sa_text(
+                    """
+                    INSERT INTO letterbox_activity_log (
+                        tenant_id, letterbox_id, action_type, actor_username,
+                        actor_channel, summary, details_json, created_at
+                    ) VALUES (
+                        :tenant_id, :letterbox_id, :action_type, :actor_username,
+                        :actor_channel, :summary, :details_json, :created_at
+                    )
+                    """
+                ),
+                {
+                    "tenant_id": tenant_id,
+                    "letterbox_id": letterbox_id,
+                    "action_type": action_type,
+                    "actor_username": actor_username,
+                    "actor_channel": actor_channel,
+                    "summary": summary,
+                    "details_json": payload,
+                    "created_at": created_at or datetime.utcnow(),
+                },
+            )
+    except Exception:
+        logger.exception("Failed to append letterbox activity log")
 
 
 class DNASample(Base):

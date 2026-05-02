@@ -4,12 +4,15 @@ Mounted in main.py as app.include_router(api_router, prefix="/api")
 """
 import os
 import json
+import csv
+import io
 import bcrypt
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Request, Response, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import jwt
 from jwt.exceptions import PyJWTError as JWTError
@@ -23,6 +26,7 @@ from sansadx_backend.db import (
     ResearchMessage,
     ResearchSession,
     get_tenant_phone_number_id,
+    log_letterbox_activity,
 )
 from core.db_helpers import _q, _q_one, _parse_meta
 from modules.auth import get_tenant_or_fail, sanitize_prompt_input
@@ -4412,7 +4416,7 @@ def delete_history_item(item_id: int, user=Depends(get_current_user)):
 # ─────────────────────────────────────────
 import base64 as _b64
 from fastapi import File, UploadFile, Form
-from modules.letterbox import extract_letter_fields, generate_diary_number, LETTER_CATEGORIES
+from modules.letterbox import extract_letter_fields, generate_diary_number, LETTER_CATEGORIES, count_pdf_pages
 
 VALID_LETTERBOX_STATUSES = {"processing", "new", "in_progress", "drafted", "resolved", "sent", "needs_review"}
 
@@ -4427,6 +4431,8 @@ class LetterboxUpdate(BaseModel):
     assigned_to: Optional[str] = None
     notes: Optional[str] = None
     document_text: Optional[str] = None
+    linked_letterbox_id: Optional[int] = None
+    linked_diary_number: Optional[str] = None
     status: Optional[str] = None
 
 
@@ -4441,6 +4447,112 @@ class SaveOutboxDraftRequest(BaseModel):
     linked_letterbox_id: Optional[int] = None
 
 
+def _resolve_linked_letterbox_id(
+    tenant_id: int,
+    linked_letterbox_id: Optional[int] = None,
+    linked_diary_number: Optional[str] = None,
+    current_letterbox_id: Optional[int] = None,
+) -> Optional[int]:
+    if linked_diary_number is not None:
+        linked_diary_number = linked_diary_number.strip()
+        if not linked_diary_number:
+            linked_letterbox_id = None
+        else:
+            linked_row = _q_one(
+                """
+                SELECT id FROM letterbox
+                WHERE diary_number = :ref AND tenant_id = :tid AND (is_deleted IS NULL OR is_deleted = false)
+                """,
+                {"ref": linked_diary_number, "tid": tenant_id},
+            )
+            if not linked_row:
+                raise HTTPException(404, "Linked diary number not found")
+            linked_letterbox_id = linked_row["id"]
+
+    if linked_letterbox_id is None:
+        return None
+
+    linked_row = _q_one(
+        """
+        SELECT id FROM letterbox
+        WHERE id = :id AND tenant_id = :tid AND (is_deleted IS NULL OR is_deleted = false)
+        """,
+        {"id": linked_letterbox_id, "tid": tenant_id},
+    )
+    if not linked_row:
+        raise HTTPException(404, "Linked letter not found")
+    if current_letterbox_id is not None and linked_letterbox_id == current_letterbox_id:
+        raise HTTPException(400, "A letter cannot link to itself")
+    return linked_letterbox_id
+
+
+def _serialize_letterbox_row(row):
+    if row.get("created_at") and hasattr(row["created_at"], "isoformat"):
+        row["created_at"] = row["created_at"].isoformat()
+    if row.get("date_of_letter") and hasattr(row["date_of_letter"], "isoformat"):
+        row["date_of_letter"] = row["date_of_letter"].isoformat()
+    return row
+
+
+def _build_letterbox_filters(
+    tenant_id: int,
+    direction: str,
+    search: Optional[str] = None,
+    category: Optional[str] = None,
+    status: Optional[str] = None,
+    source: Optional[str] = None,
+    assigned_to: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    linked_only: bool = False,
+):
+    params = {"tid": tenant_id, "dir": direction}
+    filters = ["lb.tenant_id = :tid", "lb.direction = :dir", "(lb.is_deleted IS NULL OR lb.is_deleted = false)"]
+
+    if search:
+        filters.append("""(
+            lb.citizen_name ILIKE :search OR
+            lb.phone_number ILIKE :search OR
+            lb.village ILIKE :search OR
+            lb.issue_summary ILIKE :search OR
+            lb.diary_number ILIKE :search OR
+            COALESCE(lb.ocr_text, '') ILIKE :search OR
+            COALESCE(lb.document_text, '') ILIKE :search OR
+            COALESCE(lb.notes, '') ILIKE :search OR
+            COALESCE(lb.assigned_to, '') ILIKE :search
+        )""")
+        params["search"] = f"%{search}%"
+
+    if category:
+        filters.append("lb.category = :category")
+        params["category"] = category
+
+    if status:
+        filters.append("lb.status = :status")
+        params["status"] = status
+
+    if source:
+        filters.append("lb.source = :source")
+        params["source"] = source
+
+    if assigned_to:
+        filters.append("lb.assigned_to ILIKE :assigned_to")
+        params["assigned_to"] = f"%{assigned_to}%"
+
+    if date_from:
+        filters.append("DATE(lb.created_at) >= :date_from")
+        params["date_from"] = date_from
+
+    if date_to:
+        filters.append("DATE(lb.created_at) <= :date_to")
+        params["date_to"] = date_to
+
+    if linked_only:
+        filters.append("lb.linked_letterbox_id IS NOT NULL")
+
+    return filters, params
+
+
 @router.get("/letterbox/categories")
 def get_letterbox_categories(user=Depends(get_current_user)):
     return {"categories": LETTER_CATEGORIES}
@@ -4452,6 +4564,11 @@ def get_letterbox_items(
     search: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    source: Optional[str] = Query(None),
+    assigned_to: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    linked_only: bool = Query(False),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     thumbnail: bool = Query(False),
@@ -4459,53 +4576,46 @@ def get_letterbox_items(
 ):
     tid = get_tenant_or_fail(user)
     try:
-        params = {"tid": tid, "dir": direction}
-        filters = ["tenant_id = :tid", "direction = :dir", "(is_deleted IS NULL OR is_deleted = false)"]
-
-        if search:
-            filters.append("""(
-                citizen_name ILIKE :search OR
-                phone_number ILIKE :search OR
-                village ILIKE :search OR
-                issue_summary ILIKE :search OR
-                diary_number ILIKE :search
-            )""")
-            params["search"] = f"%{search}%"
-
-        if category:
-            filters.append("category = :category")
-            params["category"] = category
-
-        if status:
-            filters.append("status = :status")
-            params["status"] = status
-
+        filters, params = _build_letterbox_filters(
+            tenant_id=tid,
+            direction=direction,
+            search=search,
+            category=category,
+            status=status,
+            source=source,
+            assigned_to=assigned_to,
+            date_from=date_from,
+            date_to=date_to,
+            linked_only=linked_only,
+        )
         where = " AND ".join(filters)
 
         # Count for pagination
-        count_row = _q_one(f"SELECT COUNT(*) as cnt FROM letterbox WHERE {where}", params)
+        count_row = _q_one(f"SELECT COUNT(*) as cnt FROM letterbox lb WHERE {where}", params)
         total = count_row["cnt"] if count_row else 0
 
         # Select — never pull image_data in the list query (too heavy)
-        image_col = "image_mime" if not thumbnail else "image_mime, image_data"
+        image_cols = "lb.image_mime" if not thumbnail else "lb.image_mime, lb.image_data"
         rows = _q(f"""
-            SELECT id, direction, citizen_name, phone_number, village,
-                   issue_summary, urgency_level, ocr_text, ocr_raw_text, document_text,
-                   status, created_at, category, diary_number, source,
-                   sender_phone, assigned_to, date_of_letter, notes, linked_letterbox_id,
-                   COALESCE(page_count, 1) as page_count,
-                   {image_col}
-            FROM letterbox
+            SELECT lb.id, lb.direction, lb.citizen_name, lb.phone_number, lb.village,
+                   lb.issue_summary, lb.urgency_level, lb.ocr_text, lb.ocr_raw_text, lb.document_text,
+                   lb.status, lb.created_at, lb.category, lb.diary_number, lb.source,
+                   lb.sender_phone, lb.assigned_to, lb.date_of_letter, lb.notes, lb.linked_letterbox_id,
+                   COALESCE(lb.page_count, 1) as page_count,
+                   {image_cols},
+                   linked.diary_number AS linked_diary_number,
+                   linked.direction AS linked_direction,
+                   linked.issue_summary AS linked_issue_summary,
+                   linked.citizen_name AS linked_citizen_name
+            FROM letterbox lb
+            LEFT JOIN letterbox linked ON linked.id = lb.linked_letterbox_id
             WHERE {where}
-            ORDER BY created_at DESC
+            ORDER BY lb.created_at DESC
             LIMIT :lim OFFSET :off
         """, {**params, "lim": limit, "off": offset})
 
         for r in rows:
-            if r.get("created_at") and hasattr(r["created_at"], "isoformat"):
-                r["created_at"] = r["created_at"].isoformat()
-            if r.get("date_of_letter") and hasattr(r["date_of_letter"], "isoformat"):
-                r["date_of_letter"] = r["date_of_letter"].isoformat()
+            _serialize_letterbox_row(r)
             # Build base64 thumbnail from stored BYTEA if requested
             if thumbnail and r.get("image_data"):
                 mime = r.get("image_mime", "image/jpeg")
@@ -4521,13 +4631,132 @@ def get_letterbox_items(
         raise HTTPException(500, "Failed to load letterbox items")
 
 
+@router.get("/letterbox/export")
+def export_letterbox_items(
+    direction: str = Query("inbox", pattern="^(inbox|outbox)$"),
+    search: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    source: Optional[str] = Query(None),
+    assigned_to: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    linked_only: bool = Query(False),
+    user=Depends(get_current_user),
+):
+    tid = get_tenant_or_fail(user)
+    try:
+        filters, params = _build_letterbox_filters(
+            tenant_id=tid,
+            direction=direction,
+            search=search,
+            category=category,
+            status=status,
+            source=source,
+            assigned_to=assigned_to,
+            date_from=date_from,
+            date_to=date_to,
+            linked_only=linked_only,
+        )
+        where = " AND ".join(filters)
+        rows = _q(f"""
+            SELECT lb.diary_number, lb.direction, lb.status, lb.source,
+                   lb.citizen_name, lb.phone_number, lb.village,
+                   lb.category, lb.issue_summary, lb.urgency_level,
+                   lb.assigned_to, lb.date_of_letter, lb.created_at,
+                   linked.diary_number AS linked_diary_number
+            FROM letterbox lb
+            LEFT JOIN letterbox linked ON linked.id = lb.linked_letterbox_id
+            WHERE {where}
+            ORDER BY lb.created_at DESC
+        """, params)
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow([
+            "diary_number", "direction", "status", "source", "party_name",
+            "phone_number", "village", "category", "issue_summary",
+            "priority", "assigned_to", "date_of_letter", "created_at", "linked_diary_number",
+        ])
+        for row in rows:
+            _serialize_letterbox_row(row)
+            writer.writerow([
+                row.get("diary_number") or "",
+                row.get("direction") or "",
+                row.get("status") or "",
+                row.get("source") or "",
+                row.get("citizen_name") or "",
+                row.get("phone_number") or "",
+                row.get("village") or "",
+                row.get("category") or "",
+                row.get("issue_summary") or "",
+                row.get("urgency_level") or "",
+                row.get("assigned_to") or "",
+                row.get("date_of_letter") or "",
+                row.get("created_at") or "",
+                row.get("linked_diary_number") or "",
+            ])
+
+        filename = f"letterbox_{direction}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception:
+        logger.exception("Failed to export letterbox items")
+        raise HTTPException(500, "Failed to export letterbox items")
+
+
+@router.get("/letterbox/{item_id}/activity")
+def get_letterbox_activity(item_id: int, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    try:
+        row = _q_one(
+            "SELECT id FROM letterbox WHERE id = :id AND tenant_id = :tid AND (is_deleted IS NULL OR is_deleted = false)",
+            {"id": item_id, "tid": tid},
+        )
+        if not row:
+            raise HTTPException(404, "Letter not found")
+
+        activity = _q(
+            """
+            SELECT action_type, actor_username, actor_channel, summary, details_json, created_at
+            FROM letterbox_activity_log
+            WHERE tenant_id = :tid AND letterbox_id = :lid
+            ORDER BY created_at DESC, id DESC
+            """,
+            {"tid": tid, "lid": item_id},
+        )
+        for entry in activity:
+            if entry.get("created_at") and hasattr(entry["created_at"], "isoformat"):
+                entry["created_at"] = entry["created_at"].isoformat()
+            try:
+                entry["details"] = json.loads(entry.get("details_json") or "null")
+            except Exception:
+                entry["details"] = None
+            entry.pop("details_json", None)
+        return {"items": activity}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed to load letterbox activity")
+        raise HTTPException(500, "Failed to load letter activity")
+
+
 @router.patch("/letterbox/{item_id}")
 def update_letterbox_item(item_id: int, body: LetterboxUpdate, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
+    username = user.get("username", "")
     try:
         # Confirm item belongs to this tenant and is not deleted
         row = _q_one(
-            "SELECT id FROM letterbox WHERE id = :id AND tenant_id = :tid AND (is_deleted IS NULL OR is_deleted = false)",
+            """
+            SELECT id, citizen_name, village, phone_number, issue_summary, category,
+                   urgency_level, date_of_letter, assigned_to, notes, document_text, status,
+                   linked_letterbox_id
+            FROM letterbox WHERE id = :id AND tenant_id = :tid AND (is_deleted IS NULL OR is_deleted = false)
+            """,
             {"id": item_id, "tid": tid}
         )
         if not row:
@@ -4547,6 +4776,13 @@ def update_letterbox_item(item_id: int, body: LetterboxUpdate, user=Depends(get_
         if body.assigned_to is not None:    updates["assigned_to"]    = body.assigned_to
         if body.notes is not None:          updates["notes"]          = body.notes
         if body.document_text is not None:  updates["document_text"]  = body.document_text
+        if body.linked_letterbox_id is not None or body.linked_diary_number is not None:
+            updates["linked_letterbox_id"] = _resolve_linked_letterbox_id(
+                tenant_id=tid,
+                linked_letterbox_id=body.linked_letterbox_id,
+                linked_diary_number=body.linked_diary_number,
+                current_letterbox_id=item_id,
+            )
         if body.status is not None:         updates["status"]         = body.status
 
         if not updates:
@@ -4557,6 +4793,21 @@ def update_letterbox_item(item_id: int, body: LetterboxUpdate, user=Depends(get_
             conn.execute(
                 text(f"UPDATE letterbox SET {set_clause} WHERE id = :id AND tenant_id = :tid"),
                 {**updates, "id": item_id, "tid": tid}
+            )
+        changed_fields = {}
+        for key, new_value in updates.items():
+            old_value = row.get(key)
+            if old_value != new_value:
+                changed_fields[key] = {"from": old_value, "to": new_value}
+        if changed_fields:
+            log_letterbox_activity(
+                tenant_id=tid,
+                letterbox_id=item_id,
+                action_type="updated",
+                actor_username=username,
+                actor_channel="mp_dashboard",
+                summary="Letter details updated",
+                details=changed_fields,
             )
         return {"success": True}
     except HTTPException:
@@ -4583,16 +4834,10 @@ def save_outbox_draft(body: SaveOutboxDraftRequest, user=Depends(get_current_use
 
     linked_letterbox_id = body.linked_letterbox_id
     try:
-        if linked_letterbox_id is not None:
-            linked_row = _q_one(
-                """
-                SELECT id FROM letterbox
-                WHERE id = :id AND tenant_id = :tid AND (is_deleted IS NULL OR is_deleted = false)
-                """,
-                {"id": linked_letterbox_id, "tid": tid},
-            )
-            if not linked_row:
-                raise HTTPException(404, "Linked inbox letter not found")
+        linked_letterbox_id = _resolve_linked_letterbox_id(
+            tenant_id=tid,
+            linked_letterbox_id=linked_letterbox_id,
+        )
 
         metadata_notes = []
         if body.reference:
@@ -4637,6 +4882,20 @@ def save_outbox_draft(body: SaveOutboxDraftRequest, user=Depends(get_current_use
                 {"dn": diary, "id": new_id},
             )
 
+        log_letterbox_activity(
+            tenant_id=tid,
+            letterbox_id=new_id,
+            action_type="created",
+            actor_username=username,
+            actor_channel="mp_dashboard",
+            summary="Saved to Outbox from Drafter",
+            details={
+                "direction": "outbox",
+                "source": "drafter",
+                "linked_letterbox_id": linked_letterbox_id,
+            },
+        )
+
         return {
             "success": True,
             "data": {
@@ -4658,6 +4917,7 @@ def save_outbox_draft(body: SaveOutboxDraftRequest, user=Depends(get_current_use
 @router.delete("/letterbox/{item_id}")
 def delete_letterbox_item(item_id: int, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
+    username = user.get("username", "")
     try:
         row = _q_one(
             "SELECT id FROM letterbox WHERE id = :id AND tenant_id = :tid AND (is_deleted IS NULL OR is_deleted = false)",
@@ -4670,6 +4930,14 @@ def delete_letterbox_item(item_id: int, user=Depends(get_current_user)):
                 text("UPDATE letterbox SET is_deleted = true WHERE id = :id AND tenant_id = :tid"),
                 {"id": item_id, "tid": tid}
             )
+        log_letterbox_activity(
+            tenant_id=tid,
+            letterbox_id=item_id,
+            action_type="deleted",
+            actor_username=username,
+            actor_channel="mp_dashboard",
+            summary="Letter deleted from active register",
+        )
         return {"success": True}
     except HTTPException:
         raise
@@ -4775,6 +5043,7 @@ async def letterbox_upload(
 
     # Run Gemini Vision extraction (shared module function)
     extracted = extract_letter_fields(content, mime_type, tid)
+    page_count = count_pdf_pages(content) if mime_type == "application/pdf" else 1
 
     # Save to DB — always save even if extraction failed
     try:
@@ -4787,12 +5056,12 @@ async def letterbox_upload(
                 INSERT INTO letterbox (
                     tenant_id, direction, image_data, image_mime,
                     citizen_name, phone_number, village, issue_summary,
-                    urgency_level, ocr_text, category,
+                    urgency_level, ocr_text, category, page_count,
                     status, source, created_at
                 ) VALUES (
                     :tid, :dir, :img, :mime,
                     :name, :phone, :village, :summary,
-                    :urgency, :ocr, :category,
+                    :urgency, :ocr, :category, :page_count,
                     :status, 'upload', :now
                 ) RETURNING id
             """), {
@@ -4807,6 +5076,7 @@ async def letterbox_upload(
                 "urgency":  extracted.get("priority", "Normal") if extracted else "Normal",
                 "ocr":      extracted.get("ocr_text", "") if extracted else "",
                 "category": extracted.get("category", "General / Other") if extracted else "General / Other",
+                "page_count": page_count,
                 "status":   default_status,
                 "now":      datetime.utcnow(),
             })
@@ -4816,6 +5086,22 @@ async def letterbox_upload(
                 text("UPDATE letterbox SET diary_number = :dn WHERE id = :id"),
                 {"dn": diary, "id": new_id}
             )
+
+        log_letterbox_activity(
+            tenant_id=tid,
+            letterbox_id=new_id,
+            action_type="created",
+            actor_username=user.get("username", ""),
+            actor_channel="mp_dashboard",
+            summary="Letter uploaded manually",
+            details={
+                "direction": direction,
+                "source": "upload",
+                "mime_type": mime_type,
+                "page_count": page_count,
+                "ocr_success": bool(extracted),
+            },
+        )
 
         return {
             "success": True,

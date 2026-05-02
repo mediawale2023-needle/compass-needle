@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPost } from '@/lib/api';
 import {
     Upload, Send, Loader2, Inbox, Search, X, PenTool,
     ImageIcon, FileText, Download, ChevronLeft, ChevronRight, Trash2, Save,
-    AlertCircle, CheckCircle2, Clock, Eye
+    AlertCircle, CheckCircle2, Clock, Eye, Link2, FileDown, AlertTriangle, History
 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -64,6 +63,22 @@ const SOURCE_META = {
     whatsapp: { label: 'WhatsApp', color: 'bg-emerald-100 text-emerald-700' },
     upload:   { label: 'Uploaded', color: 'bg-slate-100 text-slate-600' },
     drafter:  { label: 'Drafter',  color: 'bg-violet-100 text-violet-700' },
+};
+
+const QUICK_QUEUES = {
+    inbox: [
+        { key: 'all', label: 'All Inbox' },
+        { key: 'needs_review', label: 'Needs Review' },
+        { key: 'new', label: 'New' },
+        { key: 'in_progress', label: 'In Progress' },
+        { key: 'resolved', label: 'Resolved' },
+    ],
+    outbox: [
+        { key: 'all', label: 'All Outbox' },
+        { key: 'drafted', label: 'Drafted' },
+        { key: 'sent', label: 'Sent' },
+        { key: 'linked', label: 'Linked' },
+    ],
 };
 
 function isPdfMime(mime) {
@@ -182,6 +197,8 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageCount, setPageCount] = useState(1);
     const [showOcr, setShowOcr] = useState(false);
+    const [activity, setActivity] = useState([]);
+    const [activityLoading, setActivityLoading] = useState(false);
     const token = typeof window !== 'undefined' ? localStorage.getItem('needle_token') : null;
     const isPdf = isPdfMime(item?.image_mime);
 
@@ -209,6 +226,7 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
             assigned_to:    item.assigned_to || '',
             notes:          item.notes || '',
             document_text:  item.document_text || '',
+            linked_diary_number: item.linked_diary_number || '',
             status:         item.status || 'new',
         });
         setCurrentPage(1);
@@ -216,6 +234,23 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
         setConfirmDelete(false);
         setShowOcr(false);
     }, [item]);
+
+    const loadActivity = useCallback(async (letterId) => {
+        setActivityLoading(true);
+        try {
+            const data = await apiGet(`/api/letterbox/${letterId}/activity`);
+            setActivity(data.items || []);
+        } catch (_e) {
+            setActivity([]);
+        } finally {
+            setActivityLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!item) return;
+        loadActivity(item.id);
+    }, [item, loadActivity]);
 
     if (!item) return null;
 
@@ -231,6 +266,7 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
                 body: JSON.stringify(fields),
             });
             if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || 'Save failed');
+            await loadActivity(item.id);
             onSaved({ ...item, ...fields });
         } catch (e) { alert('Failed to save: ' + e.message); }
         finally { setSaving(false); }
@@ -247,6 +283,7 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
             });
             if (!res.ok) throw new Error('Update failed');
             set('status', newStatus);
+            await loadActivity(item.id);
             onSaved({ ...item, ...fields, status: newStatus });
         } catch (e) { alert('Failed to update status: ' + e.message); }
         finally { setSaving(false); }
@@ -270,6 +307,11 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
 
     const ocr = item.ocr_text || item.ocr_raw_text || '';
     const sourceMeta = SOURCE_META[item.source] || SOURCE_META['upload'];
+    const reviewWarnings = [];
+    if (fields.status === 'needs_review') reviewWarnings.push('This letter is in the review queue and still needs human verification.');
+    if (fields.citizen_name === '[NOT FOUND]' || !fields.citizen_name) reviewWarnings.push('Sender / recipient name is missing.');
+    if (fields.issue_summary === '[NOT FOUND]' || !fields.issue_summary) reviewWarnings.push('Subject / summary needs correction.');
+    if (!fields.category) reviewWarnings.push('Category has not been confirmed.');
 
     return (
         <Dialog open={!!item} onOpenChange={onClose}>
@@ -395,6 +437,18 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
 
                         {/* Fields panel */}
                         <div className="lg:w-1/2 space-y-4">
+                            {reviewWarnings.length > 0 && (
+                                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 space-y-1">
+                                    <div className="flex items-center gap-2 font-medium">
+                                        <AlertTriangle className="h-4 w-4" />
+                                        Review attention
+                                    </div>
+                                    {reviewWarnings.map(msg => (
+                                        <p key={msg} className="text-xs leading-relaxed">{msg}</p>
+                                    ))}
+                                </div>
+                            )}
+
                             {/* Status stepper */}
                             <div>
                                 <Label className="text-xs text-muted-foreground uppercase font-medium mb-2 block">Status</Label>
@@ -459,6 +513,32 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
                                 <Input value={fields.assigned_to} onChange={e => set('assigned_to', e.target.value)}
                                     placeholder="Staff member name" className="h-8 text-sm" />
                             </div>
+
+                            <div className="space-y-1">
+                                <Label className="text-xs">Linked Diary</Label>
+                                <Input
+                                    value={fields.linked_diary_number}
+                                    onChange={e => set('linked_diary_number', e.target.value)}
+                                    placeholder="Optional: MP/2026/0042"
+                                    className="h-8 text-sm font-mono"
+                                />
+                                {fields.linked_diary_number && (
+                                    <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs space-y-1">
+                                        <div className="flex items-center gap-1 font-medium text-foreground">
+                                            <Link2 className="h-3.5 w-3.5" />
+                                            Linked record
+                                        </div>
+                                        <p className="font-mono text-muted-foreground">{fields.linked_diary_number}</p>
+                                        <p className="text-muted-foreground">
+                                            {item.linked_direction === 'inbox' ? 'Incoming letter' : 'Outgoing letter'}
+                                            {item.linked_citizen_name ? ` • ${item.linked_citizen_name}` : ''}
+                                        </p>
+                                        {item.linked_issue_summary && (
+                                            <p className="text-foreground">{item.linked_issue_summary}</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -488,6 +568,34 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
                             />
                         </div>
                     )}
+
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                            <History className="h-4 w-4 text-muted-foreground" />
+                            <Label className="text-xs text-muted-foreground uppercase font-medium">Activity History</Label>
+                        </div>
+                        <div className="rounded-lg border bg-muted/20 divide-y">
+                            {activityLoading ? (
+                                <div className="p-3 text-sm text-muted-foreground">Loading history...</div>
+                            ) : activity.length === 0 ? (
+                                <div className="p-3 text-sm text-muted-foreground">No activity recorded yet.</div>
+                            ) : (
+                                activity.map((entry, idx) => (
+                                    <div key={`${entry.created_at}-${idx}`} className="p-3 text-sm space-y-1">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div className="font-medium text-foreground">{entry.summary || entry.action_type}</div>
+                                            <div className="text-xs text-muted-foreground">
+                                                {entry.created_at ? new Date(entry.created_at).toLocaleString('en-IN') : ''}
+                                            </div>
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {(entry.actor_username || 'System')} via {entry.actor_channel || 'system'}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Footer actions */}
@@ -532,7 +640,6 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function LetterboxPage() {
-    const { user } = useAuth();
     const router = useRouter();
 
     const [tab, setTab] = useState('inbox');
@@ -543,10 +650,15 @@ export default function LetterboxPage() {
     const [search, setSearch] = useState('');
     const [filterCategory, setFilterCategory] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
+    const [filterSource, setFilterSource] = useState('');
+    const [filterAssignedTo, setFilterAssignedTo] = useState('');
+    const [filterDateFrom, setFilterDateFrom] = useState('');
+    const [filterDateTo, setFilterDateTo] = useState('');
+    const [linkedOnly, setLinkedOnly] = useState(false);
     const [page, setPage] = useState(0);
     const LIMIT = 20;
 
-    const fetchItems = useCallback(async (dir, q, cat, stat, pg) => {
+    const fetchItems = useCallback(async (dir, q, cat, stat, pg, src, assigned, fromDate, toDate, linked) => {
         setLoading(true);
         try {
             const params = new URLSearchParams({
@@ -558,6 +670,11 @@ export default function LetterboxPage() {
             if (q) params.set('search', q);
             if (cat) params.set('category', cat);
             if (stat) params.set('status', stat);
+            if (src) params.set('source', src);
+            if (assigned) params.set('assigned_to', assigned);
+            if (fromDate) params.set('date_from', fromDate);
+            if (toDate) params.set('date_to', toDate);
+            if (linked) params.set('linked_only', 'true');
             const data = await apiGet(`/api/letterbox?${params}`);
             setItems(data.items || []);
             setTotal(data.total || 0);
@@ -567,11 +684,11 @@ export default function LetterboxPage() {
 
     useEffect(() => {
         setPage(0);
-    }, [tab, search, filterCategory, filterStatus]);
+    }, [tab, search, filterCategory, filterStatus, filterSource, filterAssignedTo, filterDateFrom, filterDateTo, linkedOnly]);
 
     useEffect(() => {
-        fetchItems(tab, search, filterCategory, filterStatus, page);
-    }, [tab, search, filterCategory, filterStatus, page, fetchItems]);
+        fetchItems(tab, search, filterCategory, filterStatus, page, filterSource, filterAssignedTo, filterDateFrom, filterDateTo, linkedOnly);
+    }, [tab, search, filterCategory, filterStatus, page, filterSource, filterAssignedTo, filterDateFrom, filterDateTo, linkedOnly, fetchItems]);
 
     const handleUpload = async (file) => {
         const formData = new FormData();
@@ -587,7 +704,7 @@ export default function LetterboxPage() {
             const err = await res.json().catch(() => ({ detail: 'Upload failed' }));
             throw new Error(err.detail || 'Upload failed');
         }
-        fetchItems(tab, search, filterCategory, filterStatus, page);
+        fetchItems(tab, search, filterCategory, filterStatus, page, filterSource, filterAssignedTo, filterDateFrom, filterDateTo, linkedOnly);
     };
 
     const draftResponse = (item) => {
@@ -611,6 +728,7 @@ export default function LetterboxPage() {
     const handleSaved = (updated) => {
         setItems(prev => prev.map(i => i.id === updated.id ? { ...i, ...updated } : i));
         setSelected(prev => prev ? { ...prev, ...updated } : prev);
+        fetchItems(tab, search, filterCategory, filterStatus, page, filterSource, filterAssignedTo, filterDateFrom, filterDateTo, linkedOnly);
     };
 
     const handleDeleted = (id) => {
@@ -618,17 +736,54 @@ export default function LetterboxPage() {
         setTotal(prev => Math.max(0, prev - 1));
     };
 
+    const exportCurrentView = async () => {
+        try {
+            const token = localStorage.getItem('needle_token');
+            const params = new URLSearchParams({ direction: tab });
+            if (search) params.set('search', search);
+            if (filterCategory) params.set('category', filterCategory);
+            if (filterStatus) params.set('status', filterStatus);
+            if (filterSource) params.set('source', filterSource);
+            if (filterAssignedTo) params.set('assigned_to', filterAssignedTo);
+            if (filterDateFrom) params.set('date_from', filterDateFrom);
+            if (filterDateTo) params.set('date_to', filterDateTo);
+            if (linkedOnly) params.set('linked_only', 'true');
+
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/letterbox/export?${params.toString()}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!res.ok) throw new Error('Export failed');
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const disposition = res.headers.get('content-disposition') || '';
+            const matched = disposition.match(/filename=\"?([^"]+)\"?/i);
+            a.download = matched?.[1] || `letterbox_${tab}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            alert(`Export failed: ${e.message}`);
+        }
+    };
+
+    const queueKey = linkedOnly ? 'linked' : (filterStatus || 'all');
+
     const totalPages = Math.ceil(total / LIMIT);
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-foreground">Letterbox</h1>
                     <p className="text-sm text-muted-foreground mt-1">
                         Digital dispatch register — incoming and outgoing constituency correspondence
                     </p>
                 </div>
+                <Button variant="outline" className="gap-2 self-start sm:self-auto" onClick={exportCurrentView}>
+                    <FileDown className="h-4 w-4" />
+                    Export Current View
+                </Button>
             </div>
 
             <Card>
@@ -649,14 +804,44 @@ export default function LetterboxPage() {
                             <ScanBtn onUpload={handleUpload} direction={tab} />
                         </div>
 
+                        <div className="flex flex-wrap gap-2">
+                            {QUICK_QUEUES[tab].map(queue => {
+                                const active = queue.key === queueKey;
+                                return (
+                                    <button
+                                        key={queue.key}
+                                        type="button"
+                                        onClick={() => {
+                                            if (queue.key === 'all') {
+                                                setFilterStatus('');
+                                                setLinkedOnly(false);
+                                            } else if (queue.key === 'linked') {
+                                                setFilterStatus('');
+                                                setLinkedOnly(true);
+                                            } else {
+                                                setFilterStatus(queue.key);
+                                                setLinkedOnly(false);
+                                            }
+                                        }}
+                                        className={cn(
+                                            'rounded-full px-3 py-1.5 text-xs font-medium border transition-colors',
+                                            active ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground hover:text-foreground'
+                                        )}
+                                    >
+                                        {queue.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
                         {/* Search + Filters */}
-                        <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     value={search}
                                     onChange={e => setSearch(e.target.value)}
-                                    placeholder="Search by name, phone, village, diary no..."
+                                    placeholder="Search diary, name, phone, village, OCR, notes..."
                                     className="pl-9 h-9"
                                 />
                                 {search && (
@@ -689,6 +874,35 @@ export default function LetterboxPage() {
                                     <SelectItem value="needs_review">Needs Review</SelectItem>
                                 </SelectContent>
                             </Select>
+                            <Select value={filterSource || 'all'} onValueChange={v => setFilterSource(v === 'all' ? '' : v)}>
+                                <SelectTrigger className="w-full sm:w-40 h-9">
+                                    <SelectValue placeholder="All sources" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All sources</SelectItem>
+                                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                                    <SelectItem value="upload">Uploaded</SelectItem>
+                                    <SelectItem value="drafter">Drafter</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Input
+                                value={filterAssignedTo}
+                                onChange={e => setFilterAssignedTo(e.target.value)}
+                                placeholder="Assigned to"
+                                className="h-9"
+                            />
+                            <Input
+                                type="date"
+                                value={filterDateFrom}
+                                onChange={e => setFilterDateFrom(e.target.value)}
+                                className="h-9"
+                            />
+                            <Input
+                                type="date"
+                                value={filterDateTo}
+                                onChange={e => setFilterDateTo(e.target.value)}
+                                className="h-9"
+                            />
                         </div>
                     </div>
                 </CardHeader>
@@ -770,10 +984,25 @@ export default function LetterboxPage() {
                                                         : <span className="text-muted-foreground text-xs">-</span>}
                                                 </TableCell>
                                                 <TableCell className="max-w-[200px]">
-                                                    <p className="truncate text-sm text-muted-foreground">
-                                                        {item.issue_summary && item.issue_summary !== '[NOT FOUND]'
-                                                            ? item.issue_summary : '-'}
-                                                    </p>
+                                                    <div className="space-y-1">
+                                                        <p className="truncate text-sm text-muted-foreground">
+                                                            {item.issue_summary && item.issue_summary !== '[NOT FOUND]'
+                                                                ? item.issue_summary : '-'}
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {item.source && (
+                                                                <Badge variant="secondary" className={cn('text-[10px]', (SOURCE_META[item.source] || SOURCE_META.upload).color)}>
+                                                                    {(SOURCE_META[item.source] || SOURCE_META.upload).label}
+                                                                </Badge>
+                                                            )}
+                                                            {item.linked_diary_number && (
+                                                                <Badge variant="outline" className="text-[10px] gap-1">
+                                                                    <Link2 className="h-3 w-3" />
+                                                                    {item.linked_diary_number}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell><UrgencyBadge urgency={item.urgency_level} /></TableCell>
                                                 <TableCell><StatusBadge status={item.status} /></TableCell>

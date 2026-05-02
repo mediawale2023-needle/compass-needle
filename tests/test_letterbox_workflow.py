@@ -80,7 +80,7 @@ def _seed_database():
     _ensure_letterbox_columns()
 
     with test_engine.begin() as conn:
-        for table_name in ("letterbox", "users", "tenants", "token_blocklist"):
+        for table_name in ("letterbox_activity_log", "letterbox", "users", "tenants", "token_blocklist"):
             conn.execute(text(f"DELETE FROM {table_name}"))  # nosec B608
 
         now = datetime.utcnow()
@@ -273,3 +273,74 @@ def test_pa_pdf_whatsapp_intake_creates_letterbox_record(monkeypatch):
     pdf_resp = client.get(f"/api/letterbox/{row['id']}/image", headers=_auth_headers())
     assert pdf_resp.status_code == 200, pdf_resp.text
     assert pdf_resp.headers["content-type"].startswith("application/pdf")
+
+
+def test_letterbox_activity_history_and_linking():
+    _seed_database()
+    headers = _auth_headers()
+
+    create_resp = client.post(
+        "/api/letterbox/outbox",
+        json={
+            "recipient_name": "Secretary, BWSSB",
+            "subject": "Re: Water issue in Whitefield",
+            "content": "Please address the water disruption urgently.",
+        },
+        headers=headers,
+    )
+    assert create_resp.status_code == 200, create_resp.text
+    letter_id = create_resp.json()["data"]["id"]
+
+    update_resp = client.patch(
+        f"/api/letterbox/{letter_id}",
+        json={"status": "sent", "linked_diary_number": "MP/2026/0055", "assigned_to": "Arun PA"},
+        headers=headers,
+    )
+    assert update_resp.status_code == 200, update_resp.text
+
+    history_resp = client.get(f"/api/letterbox/{letter_id}/activity", headers=headers)
+    assert history_resp.status_code == 200, history_resp.text
+    items = history_resp.json()["items"]
+    assert items[0]["action_type"] == "updated"
+    assert items[1]["action_type"] == "created"
+
+    list_resp = client.get("/api/letterbox?direction=outbox&linked_only=true", headers=headers)
+    assert list_resp.status_code == 200, list_resp.text
+    linked_item = next(item for item in list_resp.json()["items"] if item["id"] == letter_id)
+    assert linked_item["linked_diary_number"] == "MP/2026/0055"
+    assert linked_item["status"] == "sent"
+
+
+def test_letterbox_export_includes_current_filters(monkeypatch):
+    _seed_database()
+    headers = _auth_headers()
+
+    monkeypatch.setattr(
+        api_router,
+        "extract_letter_fields",
+        lambda *_args, **_kwargs: {
+            "sender_name": "District Collector",
+            "phone_number": "[NOT FOUND]",
+            "village": "Bengaluru",
+            "subject": "Forwarding action taken report",
+            "priority": "Normal",
+            "ocr_text": "Forwarding action taken report",
+            "category": "Municipal Services",
+        },
+    )
+
+    files = {"file": ("reply.pdf", io.BytesIO(b"%PDF-1.4 fake export pdf"), "application/pdf")}
+    upload_resp = client.post(
+        "/api/letterbox/upload",
+        data={"direction": "outbox"},
+        files=files,
+        headers=headers,
+    )
+    assert upload_resp.status_code == 200, upload_resp.text
+
+    export_resp = client.get("/api/letterbox/export?direction=outbox&source=upload", headers=headers)
+    assert export_resp.status_code == 200, export_resp.text
+    assert export_resp.headers["content-type"].startswith("text/csv")
+    csv_text = export_resp.text
+    assert "Forwarding action taken report" in csv_text
+    assert "upload" in csv_text
