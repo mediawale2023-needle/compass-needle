@@ -348,3 +348,38 @@ def test_emergency_webhook_creates_cluster_and_sends_no_ack(monkeypatch):
     detail_resp = client.get(f"/api/cases/{created_case['id']}", headers=auth_headers)
     assert detail_resp.status_code == 200, detail_resp.text
     assert detail_resp.json()["status"] == "pending_review"
+
+
+def test_abusive_message_gets_warning_reply_without_ai(monkeypatch):
+    _seed_database()
+    monkeypatch.setattr(main, "META_APP_SECRET", "test-meta-app-secret")
+
+    outbound_messages = []
+
+    def _fail_ai(*_args, **_kwargs):
+        raise AssertionError("AI should not be called for pre-filtered abusive messages")
+
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _fail_ai)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+    monkeypatch.setattr(
+        whatsapp_module,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = f"9197722{int(time.time()) % 100000:05d}"
+    webhook_resp = _post_signed_webhook(_whatsapp_payload(sender, "fuck you madarchod"))
+
+    assert webhook_resp.status_code == 200, webhook_resp.text
+    assert webhook_resp.json()["status"] == "received"
+    assert _wait_for(lambda: list(outbound_messages)), "Abusive message should receive a moderation warning"
+
+    created_case = _wait_for(lambda: _fetch_case_by_phone(sender))
+    assert created_case is not None
+    assert created_case["category"] == "Spam (Offensive)"
+    assert created_case["status"] == "offensive"
+    assert outbound_messages[0][1] == "Maintain decorum. Legal action can be taken for abusive language."

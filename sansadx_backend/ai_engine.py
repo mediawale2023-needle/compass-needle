@@ -174,6 +174,21 @@ STATIC_RESPONSES = {
     "__WARN_ENGLISH__": "Maintain decorum. Legal action can be taken for abusive language."
 }
 
+_OFFENSIVE_WARNING_NATIVE = {
+    "Hindi": STATIC_RESPONSES["__WARN_HINDI__"],
+    "Marathi": STATIC_RESPONSES["__WARN_MARATHI__"],
+    "Kannada": STATIC_RESPONSES["__WARN_KANNADA__"],
+    "English": STATIC_RESPONSES["__WARN_ENGLISH__"],
+}
+
+_OFFENSIVE_WARNING_LATIN = {
+    "Hindi": "Maryada rakhein. Abhadra bhasha ka prayog karne par kanooni karvayi ho sakti hai.",
+    "Hinglish": "Please maintain decorum. Abusive language can lead to legal action.",
+    "Marathi": "Maryada rakha. Abhadra bhasha vaparlyas kanooni karvayi hou shakte.",
+    "Kannada": "Maryade kapadi. Asabhya bhashe balasidare kanoonu kram tegedukollabahudu.",
+    "English": STATIC_RESPONSES["__WARN_ENGLISH__"],
+}
+
 # ==========================================
 # 2. GEOGRAPHY RESOLVER (MASTER CONTEXT)
 # ==========================================
@@ -371,6 +386,13 @@ def _mostly_ascii(text: str) -> bool:
 
 def _safe_language_fallback(lang: str) -> str:
     return _LANGUAGE_SAFE_FALLBACKS.get(lang, _LANGUAGE_SAFE_FALLBACKS["English"])
+
+
+def get_offensive_warning_reply(detected_language: str = "", original_text: str = "") -> str:
+    normalized = (detected_language or "").strip() or "English"
+    if original_text and _mostly_ascii(original_text):
+        return _OFFENSIVE_WARNING_LATIN.get(normalized, _OFFENSIVE_WARNING_LATIN["English"])
+    return _OFFENSIVE_WARNING_NATIVE.get(normalized, _OFFENSIVE_WARNING_NATIVE["English"])
 
 
 def detect_input_language(message: str) -> str:
@@ -589,7 +611,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             # 🛡️ NORMALIZATION: Ensure status is a known canonical value
             _VALID_STATUSES = {
                 "new", "pending", "completed", "incomplete",
-                "emergency", "offensive", "awaiting_location",
+                "emergency", "offensive", "irrelevant", "awaiting_location",
             }
             if "status" in data:
                 _raw_status = str(data["status"]).lower().strip()
@@ -791,6 +813,12 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             raw_resp = data.get("political_response", "")
             if raw_resp in STATIC_RESPONSES:
                 data["political_response"] = STATIC_RESPONSES[raw_resp]
+
+            if str(data.get("status", "")).lower() == "offensive":
+                data["political_response"] = get_offensive_warning_reply(
+                    detected_lang,
+                    effective_user_message,
+                )
 
             # 🛠️ MULTI-LABEL SYNC + CATEGORY VALIDATION
             if "grievance_data" in data:

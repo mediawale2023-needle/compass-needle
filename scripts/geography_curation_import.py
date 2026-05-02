@@ -42,7 +42,20 @@ def _validate_row(row: dict, row_num: int) -> list[str]:
     return errors
 
 
-def _summarize_rows(rows: list[dict]) -> dict:
+def load_csv_rows(csv_path: Path) -> list[dict]:
+    with csv_path.open("r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        return list(reader)
+
+
+def validate_rows(rows: list[dict]) -> list[str]:
+    errors = []
+    for index, row in enumerate(rows, start=2):  # header is line 1
+        errors.extend(_validate_row(row, index))
+    return errors
+
+
+def summarize_rows(rows: list[dict]) -> dict:
     summary = {
         "rows": len(rows),
         "needs_review": 0,
@@ -65,6 +78,13 @@ def _summarize_rows(rows: list[dict]) -> dict:
     return summary
 
 
+def validate_csv_file(csv_path: Path) -> dict:
+    rows = load_csv_rows(csv_path)
+    errors = validate_rows(rows)
+    summary = summarize_rows(rows)
+    return {"rows": rows, "valid": not errors, "summary": summary, "errors": errors}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate a completed geography curation CSV.")
     parser.add_argument("csv_file", help="Path to the curation CSV file")
@@ -75,16 +95,9 @@ def main() -> int:
     if not csv_path.exists():
         raise SystemExit(f"File not found: {csv_path}")
 
-    with csv_path.open("r", encoding="utf-8", newline="") as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
-
-    errors = []
-    for index, row in enumerate(rows, start=2):  # header is line 1
-        errors.extend(_validate_row(row, index))
-
-    summary = _summarize_rows(rows)
-    result = {"valid": not errors, "summary": summary, "errors": errors}
+    result = validate_csv_file(csv_path)
+    errors = result["errors"]
+    summary = result["summary"]
 
     if args.as_json:
         print(json.dumps(result, ensure_ascii=False, indent=2))

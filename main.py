@@ -2,7 +2,7 @@
 main.py — Needle Parliamentary Intelligence Platform
 Backend Entry Point (FastAPI)
 """
-from sansadx_backend.ai_engine import ask_chatgpt_agent, detect_input_language
+from sansadx_backend.ai_engine import ask_chatgpt_agent, detect_input_language, get_offensive_warning_reply
 import os
 import re
 import json
@@ -1919,6 +1919,12 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         flag_type   = "abuse_keyword"    if is_abuse else "coordinated_flood"
         flag_reason = abuse_reason       if is_abuse else flood_reason
         spam_cat    = "Spam (Offensive)" if is_abuse else "Spam"
+        _detected_lang = detect_input_language(message_body)
+        _reply_text = (
+            get_offensive_warning_reply(_detected_lang, message_body)
+            if is_abuse
+            else get_review_ack_reply(_detected_lang, message_body)
+        )
         logger.warning(f"Spam flag [{flag_type}] from {sender}: {flag_reason}")
 
         try:
@@ -1929,13 +1935,14 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
                             (tenant_id, user_phone, category, raw_message,
                              status, case_metadata, is_critical, created_at)
                         VALUES (:tid, :phone, :cat, :msg,
-                                'new', :meta, false, :now)
+                                :status, :meta, false, :now)
                     """),
                     {
                         "tid":   current_tenant,
                         "phone": sender,
                         "cat":   spam_cat,
                         "msg":   message_body,
+                        "status": "offensive" if is_abuse else "new",
                         "meta":  json.dumps({"spam_flagged": True, "flag_reason": flag_reason}),
                         "now":   datetime.utcnow(),
                     },
@@ -1945,10 +1952,9 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             logger.error(f"Spam case DB save failed: {exc}")
 
         _save_spam_flag(current_tenant, sender, flag_type, flag_reason, message_body)
-        _detected_lang = detect_input_language(message_body)
         send_whatsapp_message(
             sender,
-            get_review_ack_reply(_detected_lang, message_body),
+            _reply_text,
             _wa_phone_id,
         )
         return
