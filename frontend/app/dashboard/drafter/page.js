@@ -19,7 +19,7 @@ const LANGUAGES = ['English', 'Hindi', 'Kannada', 'Marathi', 'Tamil', 'Telugu', 
 export default function DrafterPage() {
     const searchParams = useSearchParams();
 
-    // Letterbox linkage — if opened from a letterbox item, auto-update its status on save
+    // Letterbox linkage — if opened from a letterbox item, prefill the optional Save to Outbox link
     const letterboxId = searchParams.get('letterbox_id') || null;
 
     // Letter fields
@@ -35,11 +35,14 @@ export default function DrafterPage() {
     const [draft, setDraft] = useState('');
     const [loading, setLoading] = useState(false);
     const [saved, setSaved] = useState(false);
+    const [savedToOutbox, setSavedToOutbox] = useState(false);
+    const [savingToOutbox, setSavingToOutbox] = useState(false);
 
     const generate = async () => {
         setLoading(true);
         setDraft('');
         setSaved(false);
+        setSavedToOutbox(false);
         try {
             const body = { mode: 'letter', subject, recipient_name: recipientName, recipient_type: recipientType, ministry, reference, key_points: keyPoints, tone, language };
             const data = await apiPost('/api/drafter/generate', body, { timeout: AI_TIMEOUT, noRetry: true });
@@ -74,6 +77,25 @@ export default function DrafterPage() {
             setSaved(true);
         } catch (err) {
             alert('Failed to save: ' + err.message);
+        }
+    };
+
+    const saveToOutbox = async () => {
+        setSavingToOutbox(true);
+        try {
+            await apiPost('/api/letterbox/outbox', {
+                recipient_name: recipientName,
+                subject,
+                content: draft,
+                ministry: ministry || null,
+                reference: reference || null,
+                linked_letterbox_id: letterboxId ? parseInt(letterboxId, 10) : null,
+            });
+            setSavedToOutbox(true);
+        } catch (err) {
+            alert('Failed to save to Outbox: ' + err.message);
+        } finally {
+            setSavingToOutbox(false);
         }
     };
 
@@ -235,6 +257,17 @@ export default function DrafterPage() {
                                     <Button variant="outline" size="sm" onClick={saveDraft}>
                                         <Save className="h-4 w-4" />
                                         Save to Archives
+                                    </Button>
+                                )}
+                                {savedToOutbox ? (
+                                    <Badge variant="secondary" className="bg-violet-100 text-violet-700 gap-1">
+                                        <CheckCircle className="h-3 w-3" />
+                                        Saved to Outbox
+                                    </Badge>
+                                ) : (
+                                    <Button variant="outline" size="sm" onClick={saveToOutbox} disabled={savingToOutbox || !draft || !recipientName || !subject}>
+                                        {savingToOutbox ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                                        Save to Outbox
                                     </Button>
                                 )}
                                 <Button size="sm" onClick={downloadDraft} className="gap-2">

@@ -5,7 +5,7 @@ All other files import engine, SessionLocal, and models from here.
 import os
 import json
 import bcrypt
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Text, ForeignKey, JSON, Float, text as sa_text, UniqueConstraint
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Text, ForeignKey, JSON, Float, LargeBinary, text as sa_text, UniqueConstraint
 try:
     from sqlalchemy.orm import declarative_base
 except ImportError:
@@ -236,21 +236,36 @@ class TokenBlocklist(Base):
     revoked_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 class LetterboxItem(Base):
-    """Unified tracking for physical Inbox (grievances) and Outbox (official MP letters)."""
+    """Correspondence ledger for incoming and outgoing office letters."""
     __tablename__ = "letterbox"
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
-    direction = Column(String, default="inbox")  # 'inbox' or 'outbox'
+    direction = Column(String, default="inbox", index=True)  # 'inbox' or 'outbox'
+    image_data = Column(LargeBinary, nullable=True)
+    image_mime = Column(String, nullable=True)
     citizen_name = Column(String, nullable=True)
     phone_number = Column(String, index=True, nullable=True)
+    sender_phone = Column(String, nullable=True)
     village = Column(String, nullable=True)
     issue_summary = Column(Text)
+    category = Column(String, default="General / Other")
     urgency_level = Column(String, default="Normal")
+    ocr_text = Column(Text, nullable=True)
     ocr_raw_text = Column(Text, nullable=True)
-    status = Column(String, default="Pending-Intake") # 'Pending-Intake', 'Drafted', 'Sent'
+    document_text = Column(Text, nullable=True)
+    status = Column(String, default="new", index=True)
+    diary_number = Column(String, nullable=True, unique=True)
+    source = Column(String, default="upload", index=True)
+    assigned_to = Column(String, nullable=True)
+    date_of_letter = Column(Date, nullable=True)
+    notes = Column(Text, nullable=True)
+    linked_letterbox_id = Column(Integer, ForeignKey("letterbox.id"), nullable=True)
+    is_deleted = Column(Boolean, default=False, index=True)
+    page_count = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     tenant = relationship("Tenant", backref="letterbox_items")
+    linked_letterbox = relationship("LetterboxItem", remote_side=[id], uselist=False)
 
 
 class DNASample(Base):

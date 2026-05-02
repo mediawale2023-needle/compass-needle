@@ -502,12 +502,14 @@ for _col_sql in [
     "ALTER TABLE letterbox ADD COLUMN image_mime VARCHAR",
     "ALTER TABLE letterbox ADD COLUMN category VARCHAR",
     "ALTER TABLE letterbox ADD COLUMN ocr_text TEXT",
+    "ALTER TABLE letterbox ADD COLUMN document_text TEXT",
     "ALTER TABLE letterbox ADD COLUMN diary_number VARCHAR",
     "ALTER TABLE letterbox ADD COLUMN source VARCHAR DEFAULT 'upload'",
     "ALTER TABLE letterbox ADD COLUMN sender_phone VARCHAR",
     "ALTER TABLE letterbox ADD COLUMN assigned_to VARCHAR",
     "ALTER TABLE letterbox ADD COLUMN date_of_letter DATE",
     "ALTER TABLE letterbox ADD COLUMN notes TEXT",
+    "ALTER TABLE letterbox ADD COLUMN linked_letterbox_id INTEGER",
     "ALTER TABLE letterbox ADD COLUMN is_deleted BOOLEAN DEFAULT false",
 ]:
     try:
@@ -1366,6 +1368,7 @@ def _flush_letter_batch(sender: str, tenant_id: int, receiver_number: str):
     try:
         if extracted:
             final_direction = extracted.get("direction", direction_hint or "inbox")
+            final_status = "new" if final_direction == "inbox" else "sent"
             with engine.begin() as conn:
                 conn.execute(text("""
                     UPDATE letterbox SET
@@ -1378,7 +1381,7 @@ def _flush_letter_batch(sender: str, tenant_id: int, receiver_number: str):
                         urgency_level  = :priority,
                         ocr_text       = :ocr,
                         date_of_letter = :dol,
-                        status         = 'new'
+                        status         = :status
                     WHERE id = :lid
                 """), {
                     "dir":      final_direction,
@@ -1390,6 +1393,7 @@ def _flush_letter_batch(sender: str, tenant_id: int, receiver_number: str):
                     "priority": extracted.get("priority", "Normal"),
                     "ocr":      extracted.get("ocr_text", ""),
                     "dol":      extracted.get("date_of_letter") or None,
+                    "status":   final_status,
                     "lid":      letter_id,
                 })
         else:
@@ -1623,6 +1627,198 @@ def _process_pa_letter(sender: str, media_id: str, mime_type: str, receiver_numb
         return
 
     _schedule_batch_flush(sender, current_tenant, receiver_number)
+
+
+def _process_pa_letter_pdf(
+    sender: str,
+    media_id: str,
+    mime_type: str,
+    receiver_number: str = "",
+    caption: str = "",
+):
+    """
+    Background task: PA sends a PDF of a letter via WhatsApp.
+
+    PDFs are saved as a single Letterbox entry immediately instead of using the
+    multi-image batch flow. Caption-based direction hints still apply.
+    """
+    from modules.letterbox import (
+        count_pdf_pages,
+        download_meta_media,
+        extract_letter_fields,
+        generate_diary_number,
+    )
+
+    if not receiver_number:
+        receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
+
+    current_tenant = _resolve_tenant(receiver_number)
+    if current_tenant is None:
+        logger.error(
+            "_process_pa_letter_pdf: tenant resolution returned None for receiver=%s sender=%s — dropping PDF",
+            receiver_number,
+            sender,
+        )
+        return
+    _wa_phone_id = get_tenant_phone_number_id(current_tenant)
+
+    try:
+        with engine.connect() as conn:
+            _bare = sender[2:] if sender.startswith("91") and len(sender) == 12 else sender
+            pa_row = conn.execute(
+                text("""SELECT id, display_name FROM users
+                        WHERE (phone = :phone OR phone = :bare) AND tenant_id = :tid AND is_active = true
+                        LIMIT 1"""),
+                {"phone": sender, "bare": _bare, "tid": current_tenant}
+            ).fetchone()
+    except Exception as exc:
+        logger.error(f"PA check DB query failed for PDF intake: {exc}")
+        return
+
+    if not pa_row:
+        logger.info(f"PDF from {sender} — not a registered PA for tenant {current_tenant}, sending unsupported prompt")
+        _handle_unsupported_message_type(sender, "document", receiver_number)
+        return
+
+    pa_name = pa_row[1] or "Staff"
+    direction_hint = _parse_direction_hint(caption)
+    logger.info(
+        "PA PDF received: sender=%s (%s), tenant=%s, media_id=%s, caption_hint=%s",
+        sender,
+        pa_name,
+        current_tenant,
+        media_id,
+        direction_hint or "auto-classify",
+    )
+
+    try:
+        pdf_bytes, resolved_mime = download_meta_media(media_id)
+    except Exception as exc:
+        logger.error(f"Failed to download PA PDF {media_id}: {exc}")
+        try:
+            send_whatsapp_message(sender, "Sorry, could not retrieve the PDF. Please resend it.", _wa_phone_id)
+        except Exception:
+            pass
+        return
+
+    page_count = count_pdf_pages(pdf_bytes)
+    letter_id = None
+    diary_number = None
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("""
+                INSERT INTO letterbox (
+                    tenant_id, direction, image_data, image_mime, page_count,
+                    status, source, sender_phone, created_at,
+                    citizen_name, issue_summary, urgency_level
+                ) VALUES (
+                    :tid, :dir, :img, :mime, :pages,
+                    'processing', 'whatsapp', :phone, :now,
+                    '[NOT FOUND]', '[Processing...]', 'Normal'
+                ) RETURNING id
+            """), {
+                "tid": current_tenant,
+                "dir": direction_hint or "inbox",
+                "img": pdf_bytes,
+                "mime": resolved_mime or mime_type or "application/pdf",
+                "pages": page_count,
+                "phone": sender,
+                "now": datetime.utcnow(),
+            })
+            letter_id = result.fetchone()[0]
+            diary_number = generate_diary_number(letter_id)
+            conn.execute(
+                text("UPDATE letterbox SET diary_number = :dn WHERE id = :lid"),
+                {"dn": diary_number, "lid": letter_id},
+            )
+        logger.info("PDF letter saved: id=%s, diary=%s, pages=%s", letter_id, diary_number, page_count)
+    except Exception as exc:
+        logger.error(f"CRITICAL: Failed to save PDF letter to DB: {exc}")
+        try:
+            send_whatsapp_message(sender, "Sorry, there was a database error. Please contact support.", _wa_phone_id)
+        except Exception:
+            pass
+        return
+
+    extracted = extract_letter_fields(
+        pdf_bytes,
+        resolved_mime or mime_type or "application/pdf",
+        current_tenant,
+        direction_hint=direction_hint,
+    )
+
+    try:
+        if extracted:
+            final_direction = extracted.get("direction", direction_hint or "inbox")
+            final_status = "new" if final_direction == "inbox" else "sent"
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    UPDATE letterbox SET
+                        direction      = :dir,
+                        citizen_name   = :name,
+                        village        = :village,
+                        phone_number   = :phone,
+                        issue_summary  = :subject,
+                        category       = :category,
+                        urgency_level  = :priority,
+                        ocr_text       = :ocr,
+                        status         = :status,
+                        date_of_letter = :dol
+                    WHERE id = :lid
+                """), {
+                    "dir": final_direction,
+                    "name": extracted.get("sender_name", "[NOT FOUND]"),
+                    "village": extracted.get("village", "[NOT FOUND]"),
+                    "phone": extracted.get("phone_number", "[NOT FOUND]"),
+                    "subject": extracted.get("subject", "[NOT FOUND]"),
+                    "category": extracted.get("category", "General / Other"),
+                    "priority": extracted.get("priority", "Normal"),
+                    "ocr": extracted.get("ocr_text", ""),
+                    "status": final_status,
+                    "dol": extracted.get("date_of_letter") or None,
+                    "lid": letter_id,
+                })
+        else:
+            final_direction = direction_hint or "inbox"
+            final_status = "sent" if final_direction == "outbox" else "needs_review"
+            fallback_summary = "[OCR failed — outbox PDF saved]" if final_direction == "outbox" else "[OCR failed — please review manually]"
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    UPDATE letterbox SET
+                        direction = :dir,
+                        status = :status,
+                        issue_summary = :summary
+                    WHERE id = :lid
+                """), {
+                    "dir": final_direction,
+                    "status": final_status,
+                    "summary": fallback_summary,
+                    "lid": letter_id,
+                })
+    except Exception as exc:
+        logger.error(f"Failed to update PDF letter {letter_id} post-extraction: {exc}")
+        final_direction = direction_hint or "inbox"
+
+    direction_label = "INBOX" if final_direction == "inbox" else "OUTBOX"
+    pages_label = f"{page_count} page{'s' if page_count != 1 else ''}"
+    if extracted:
+        confirm_msg = (
+            f"Saved PDF to {direction_label} — Ref: {diary_number} ({pages_label})\n"
+            f"{'Sender' if final_direction == 'inbox' else 'Recipient'}: "
+            f"{extracted.get('sender_name', '[Unknown]')}\n"
+            f"Category: {extracted.get('category', 'General / Other')}\n"
+            f"Summary: {extracted.get('subject', '')[:120]}\n\n"
+            f"If direction is wrong: MOVE {diary_number} {'OUT' if final_direction == 'inbox' else 'IN'}"
+        )
+    else:
+        confirm_msg = (
+            f"PDF saved to {direction_label} — Ref: {diary_number} ({pages_label})\n"
+            f"OCR could not read clearly. Open Letterbox dashboard to review the document."
+        )
+    try:
+        send_whatsapp_message(sender, confirm_msg, _wa_phone_id)
+    except Exception as exc:
+        logger.warning(f"WhatsApp PDF confirmation failed: {exc}")
 
 
 _MOVE_PATTERN = re.compile(
@@ -2526,6 +2722,17 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         caption = msg.get("image", {}).get("caption", "") or ""
         if media_id:
             background_tasks.add_task(_process_pa_letter, sender, media_id, resolved_mime, display_number, caption)
+        return {"status": "received"}
+
+    elif msg_type == "document":
+        document = msg.get("document", {}) or {}
+        media_id = document.get("id")
+        resolved_mime = document.get("mime_type", "application/octet-stream")
+        caption = document.get("caption", "") or ""
+        if media_id and resolved_mime == "application/pdf":
+            background_tasks.add_task(_process_pa_letter_pdf, sender, media_id, resolved_mime, display_number, caption)
+            return {"status": "received"}
+        background_tasks.add_task(_handle_unsupported_message_type, sender, msg_type, display_number)
         return {"status": "received"}
 
     else:

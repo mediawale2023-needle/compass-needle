@@ -4414,7 +4414,7 @@ import base64 as _b64
 from fastapi import File, UploadFile, Form
 from modules.letterbox import extract_letter_fields, generate_diary_number, LETTER_CATEGORIES
 
-VALID_LETTERBOX_STATUSES = {"processing", "new", "in_progress", "drafted", "resolved", "needs_review"}
+VALID_LETTERBOX_STATUSES = {"processing", "new", "in_progress", "drafted", "resolved", "sent", "needs_review"}
 
 class LetterboxUpdate(BaseModel):
     citizen_name: Optional[str] = None
@@ -4426,7 +4426,19 @@ class LetterboxUpdate(BaseModel):
     date_of_letter: Optional[str] = None
     assigned_to: Optional[str] = None
     notes: Optional[str] = None
+    document_text: Optional[str] = None
     status: Optional[str] = None
+
+
+class SaveOutboxDraftRequest(BaseModel):
+    recipient_name: str
+    subject: str
+    content: str
+    ministry: Optional[str] = None
+    reference: Optional[str] = None
+    category: Optional[str] = None
+    date_of_letter: Optional[str] = None
+    linked_letterbox_id: Optional[int] = None
 
 
 @router.get("/letterbox/categories")
@@ -4478,9 +4490,9 @@ def get_letterbox_items(
         image_col = "image_mime" if not thumbnail else "image_mime, image_data"
         rows = _q(f"""
             SELECT id, direction, citizen_name, phone_number, village,
-                   issue_summary, urgency_level, ocr_text, ocr_raw_text,
+                   issue_summary, urgency_level, ocr_text, ocr_raw_text, document_text,
                    status, created_at, category, diary_number, source,
-                   sender_phone, assigned_to, date_of_letter, notes,
+                   sender_phone, assigned_to, date_of_letter, notes, linked_letterbox_id,
                    COALESCE(page_count, 1) as page_count,
                    {image_col}
             FROM letterbox
@@ -4534,6 +4546,7 @@ def update_letterbox_item(item_id: int, body: LetterboxUpdate, user=Depends(get_
         if body.date_of_letter is not None: updates["date_of_letter"] = body.date_of_letter or None
         if body.assigned_to is not None:    updates["assigned_to"]    = body.assigned_to
         if body.notes is not None:          updates["notes"]          = body.notes
+        if body.document_text is not None:  updates["document_text"]  = body.document_text
         if body.status is not None:         updates["status"]         = body.status
 
         if not updates:
@@ -4551,6 +4564,95 @@ def update_letterbox_item(item_id: int, body: LetterboxUpdate, user=Depends(get_
     except Exception:
         logger.exception(f"Failed to update letterbox item {item_id}")
         raise HTTPException(500, "Failed to update letter")
+
+
+@router.post("/letterbox/outbox")
+def save_outbox_draft(body: SaveOutboxDraftRequest, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    username = user.get("username", "")
+
+    recipient_name = (body.recipient_name or "").strip()
+    subject = (body.subject or "").strip()
+    content = (body.content or "").strip()
+    if not recipient_name:
+        raise HTTPException(400, "Recipient name is required")
+    if not subject:
+        raise HTTPException(400, "Subject is required")
+    if not content:
+        raise HTTPException(400, "Draft content is required")
+
+    linked_letterbox_id = body.linked_letterbox_id
+    try:
+        if linked_letterbox_id is not None:
+            linked_row = _q_one(
+                """
+                SELECT id FROM letterbox
+                WHERE id = :id AND tenant_id = :tid AND (is_deleted IS NULL OR is_deleted = false)
+                """,
+                {"id": linked_letterbox_id, "tid": tid},
+            )
+            if not linked_row:
+                raise HTTPException(404, "Linked inbox letter not found")
+
+        metadata_notes = []
+        if body.reference:
+            metadata_notes.append(f"Reference: {body.reference.strip()}")
+        if body.ministry:
+            metadata_notes.append(f"Department/Ministry: {body.ministry.strip()}")
+
+        with engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    """
+                    INSERT INTO letterbox (
+                        tenant_id, direction, citizen_name, issue_summary,
+                        category, urgency_level, document_text, status,
+                        source, assigned_to, date_of_letter, notes,
+                        linked_letterbox_id, created_at
+                    ) VALUES (
+                        :tid, 'outbox', :recipient_name, :subject,
+                        :category, 'Normal', :document_text, 'drafted',
+                        'drafter', :assigned_to, :date_of_letter, :notes,
+                        :linked_letterbox_id, :created_at
+                    ) RETURNING id
+                    """
+                ),
+                {
+                    "tid": tid,
+                    "recipient_name": recipient_name,
+                    "subject": subject,
+                    "category": body.category or "General / Other",
+                    "document_text": content,
+                    "assigned_to": username or None,
+                    "date_of_letter": body.date_of_letter or None,
+                    "notes": "\n".join(metadata_notes) if metadata_notes else None,
+                    "linked_letterbox_id": linked_letterbox_id,
+                    "created_at": datetime.utcnow(),
+                },
+            )
+            new_id = result.fetchone()[0]
+            diary = generate_diary_number(new_id)
+            conn.execute(
+                text("UPDATE letterbox SET diary_number = :dn WHERE id = :id"),
+                {"dn": diary, "id": new_id},
+            )
+
+        return {
+            "success": True,
+            "data": {
+                "id": new_id,
+                "diary_number": diary,
+                "status": "drafted",
+                "direction": "outbox",
+                "source": "drafter",
+                "linked_letterbox_id": linked_letterbox_id,
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed to save drafter output to outbox")
+        raise HTTPException(500, "Failed to save to outbox")
 
 
 @router.delete("/letterbox/{item_id}")

@@ -146,12 +146,12 @@ Priority rules:
 # FUNCTIONS
 # ─────────────────────────────────────────
 
-def download_meta_image(media_id: str) -> Tuple[bytes, str]:
+def download_meta_media(media_id: str) -> Tuple[bytes, str]:
     """
-    Download image bytes from Meta's Graph API using the media_id from the webhook.
+    Download media bytes from Meta's Graph API using the media_id from the webhook.
 
     Meta media URLs expire in ~5 minutes — call this immediately after receiving the webhook.
-    Returns (image_bytes, mime_type).
+    Returns (media_bytes, mime_type).
     Raises RuntimeError if the download fails.
     """
     access_token = os.getenv("META_ACCESS_TOKEN")
@@ -187,6 +187,25 @@ def download_meta_image(media_id: str) -> Tuple[bytes, str]:
         return img_resp.content, mime_type
     except Exception as exc:
         raise RuntimeError(f"Image download from Meta failed: {exc}")
+
+
+def download_meta_image(media_id: str) -> Tuple[bytes, str]:
+    """Backward-compatible alias for image callers."""
+    return download_meta_media(media_id)
+
+
+def count_pdf_pages(pdf_bytes: bytes) -> int:
+    """Best-effort PDF page count for Letterbox metadata and confirmations."""
+    if not pdf_bytes:
+        return 1
+    try:
+        import pymupdf
+
+        doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+        return max(1, int(doc.page_count or 1))
+    except Exception as exc:
+        logger.warning("Could not determine PDF page count: %s", exc)
+        return 1
 
 
 def generate_diary_number(row_id: int) -> str:

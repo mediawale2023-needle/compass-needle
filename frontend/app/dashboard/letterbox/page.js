@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { apiGet, apiPost } from '@/lib/api';
 import {
     Upload, Send, Loader2, Inbox, Search, X, PenTool,
-    ImageIcon, ChevronLeft, ChevronRight, Trash2, Save,
+    ImageIcon, FileText, Download, ChevronLeft, ChevronRight, Trash2, Save,
     AlertCircle, CheckCircle2, Clock, Eye
 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -36,13 +36,15 @@ const CATEGORIES = [
     'Municipal Services', 'General / Other',
 ];
 
-const STATUS_FLOW = ['new', 'in_progress', 'drafted', 'resolved'];
+const INBOX_STATUS_FLOW = ['new', 'in_progress', 'resolved'];
+const OUTBOX_STATUS_FLOW = ['drafted', 'sent'];
 
 const STATUS_META = {
     processing:   { label: 'Processing',    color: 'bg-blue-100 text-blue-700' },
     new:          { label: 'New',           color: 'bg-sky-100 text-sky-700' },
     in_progress:  { label: 'In Progress',   color: 'bg-amber-100 text-amber-700' },
     drafted:      { label: 'Drafted',       color: 'bg-violet-100 text-violet-700' },
+    sent:         { label: 'Sent',          color: 'bg-emerald-100 text-emerald-700' },
     resolved:     { label: 'Resolved',      color: 'bg-green-100 text-green-700' },
     needs_review: { label: 'Needs Review',  color: 'bg-red-100 text-red-700' },
     // legacy values
@@ -64,6 +66,10 @@ const SOURCE_META = {
     drafter:  { label: 'Drafter',  color: 'bg-violet-100 text-violet-700' },
 };
 
+function isPdfMime(mime) {
+    return typeof mime === 'string' && mime.toLowerCase() === 'application/pdf';
+}
+
 // ─── Helper components ────────────────────────────────────────────────────────
 
 function StatusBadge({ status }) {
@@ -80,6 +86,13 @@ function UrgencyBadge({ urgency }) {
 }
 
 function Thumbnail({ item }) {
+    if (isPdfMime(item.image_mime)) {
+        return (
+            <div className="w-10 h-10 rounded border bg-rose-50 text-rose-700 flex items-center justify-center flex-shrink-0">
+                <FileText className="h-4 w-4" />
+            </div>
+        );
+    }
     if (!item.thumbnail) {
         return (
             <div className="w-10 h-10 rounded bg-muted flex items-center justify-center flex-shrink-0">
@@ -122,15 +135,16 @@ function ScanBtn({ onUpload, direction }) {
 
 // ─── Status Stepper ───────────────────────────────────────────────────────────
 
-function StatusStepper({ current, onUpdate, saving }) {
+function StatusStepper({ current, direction, onUpdate, saving }) {
     const specialStatuses = ['processing', 'needs_review'];
     if (specialStatuses.includes(current)) {
         return <StatusBadge status={current} />;
     }
+    const statusFlow = direction === 'outbox' ? OUTBOX_STATUS_FLOW : INBOX_STATUS_FLOW;
     return (
         <div className="flex items-center gap-1 flex-wrap">
-            {STATUS_FLOW.map((s, i) => {
-                const currentIdx = STATUS_FLOW.indexOf(current);
+            {statusFlow.map((s, i) => {
+                const currentIdx = Math.max(0, statusFlow.indexOf(current));
                 const isPast = i < currentIdx;
                 const isCurrent = s === current;
                 const isNext = i === currentIdx + 1;
@@ -169,10 +183,12 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
     const [pageCount, setPageCount] = useState(1);
     const [showOcr, setShowOcr] = useState(false);
     const token = typeof window !== 'undefined' ? localStorage.getItem('needle_token') : null;
+    const isPdf = isPdfMime(item?.image_mime);
 
     const imageUrl = item
         ? (() => {
             const base = process.env.NEXT_PUBLIC_API_URL || '';
+            if (isPdf) return `${base}/api/letterbox/${item.id}/image`;
             if (currentPage === 1 && item.thumbnail) return item.thumbnail;
             if (item.image_mime || item.page_count > 1)
                 return `${base}/api/letterbox/${item.id}/image?page=${currentPage}`;
@@ -192,6 +208,7 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
             date_of_letter: item.date_of_letter || '',
             assigned_to:    item.assigned_to || '',
             notes:          item.notes || '',
+            document_text:  item.document_text || '',
             status:         item.status || 'new',
         });
         setCurrentPage(1);
@@ -289,14 +306,44 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
                         <div className="lg:w-1/2">
                             {imageUrl ? (
                                 <div className="border rounded-lg overflow-hidden bg-muted">
-                                    <img
-                                        src={imageUrl}
-                                        alt="Original letter"
-                                        className="w-full object-contain max-h-80 lg:max-h-96"
-                                        {...(imageUrl.startsWith('http') || imageUrl.startsWith('/api') ? {
-                                            onError: e => e.target.style.display = 'none'
-                                        } : {})}
-                                    />
+                                    {isPdf ? (
+                                        <div className="bg-white">
+                                            <div className="flex items-center justify-between gap-3 px-3 py-2 border-b bg-muted/30">
+                                                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                                                    <FileText className="h-4 w-4 text-rose-600" />
+                                                    PDF Document
+                                                    {(item.page_count || 1) > 1 && (
+                                                        <span className="text-xs text-muted-foreground">
+                                                            {item.page_count} pages
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <a
+                                                    href={imageUrl}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                                                >
+                                                    <Download className="h-3.5 w-3.5" />
+                                                    Open / Download
+                                                </a>
+                                            </div>
+                                            <iframe
+                                                src={imageUrl}
+                                                title="Original PDF document"
+                                                className="w-full h-[32rem] bg-white"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <img
+                                            src={imageUrl}
+                                            alt="Original letter"
+                                            className="w-full object-contain max-h-80 lg:max-h-96"
+                                            {...(imageUrl.startsWith('http') || imageUrl.startsWith('/api') ? {
+                                                onError: e => e.target.style.display = 'none'
+                                            } : {})}
+                                        />
+                                    )}
                                 </div>
                             ) : (
                                 <div className="border rounded-lg bg-muted flex items-center justify-center h-48 text-muted-foreground text-sm">
@@ -305,7 +352,7 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
                             )}
 
                             {/* Page navigator */}
-                            {pageCount > 1 && (
+                            {!isPdf && pageCount > 1 && (
                                 <div className="flex items-center justify-between mt-2 px-1">
                                     <button
                                         onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
@@ -351,7 +398,7 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
                             {/* Status stepper */}
                             <div>
                                 <Label className="text-xs text-muted-foreground uppercase font-medium mb-2 block">Status</Label>
-                                <StatusStepper current={fields.status} onUpdate={handleStatusUpdate} saving={saving} />
+                                <StatusStepper current={fields.status} direction={item.direction} onUpdate={handleStatusUpdate} saving={saving} />
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
@@ -428,6 +475,19 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
                         <Textarea value={fields.notes} onChange={e => set('notes', e.target.value)}
                             placeholder="Staff notes (not visible to citizens)" rows={2} className="text-sm resize-none" />
                     </div>
+
+                    {item.direction === 'outbox' && (
+                        <div className="space-y-1">
+                            <Label className="text-xs">Letter Text / Draft Content</Label>
+                            <Textarea
+                                value={fields.document_text}
+                                onChange={e => set('document_text', e.target.value)}
+                                placeholder="Final or working letter text"
+                                rows={8}
+                                className="text-sm resize-y font-serif"
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer actions */}
@@ -624,6 +684,7 @@ export default function LetterboxPage() {
                                     <SelectItem value="new">New</SelectItem>
                                     <SelectItem value="in_progress">In Progress</SelectItem>
                                     <SelectItem value="drafted">Drafted</SelectItem>
+                                    <SelectItem value="sent">Sent</SelectItem>
                                     <SelectItem value="resolved">Resolved</SelectItem>
                                     <SelectItem value="needs_review">Needs Review</SelectItem>
                                 </SelectContent>
