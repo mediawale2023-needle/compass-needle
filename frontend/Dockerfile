@@ -11,7 +11,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # NEXT_PUBLIC_* vars must be present at build time for Next.js to inline them.
 # Railway can override via its env var; this default ensures it's never empty.
-ARG NEXT_PUBLIC_API_URL=https://needle-backend.up.railway.app
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npm run build
 

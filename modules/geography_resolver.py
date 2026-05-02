@@ -1,16 +1,17 @@
 """
 Geography Resolver (MULTI-TENANT)
-1. Checks Overrides from tenant_overrides.json (per tenant_id).
-2. Exact Substring Match against geography index.
-3. Spaceless Match (Fixes "Shahunagar" vs "Shahu Nagar").
-4. Fuzzy Typos Match (Fixes "Tilkwadi" vs "Tilakwadi").
+1. Checks tenant-specific DB overrides (per tenant_id).
+2. Filters junk polling-sheet/meta rows before indexing.
+3. Exact/alias substring match against geography index.
+4. Spaceless Match (Fixes "Shahunagar" vs "Shahu Nagar").
+5. Fuzzy Typos Match (Fixes "Tilkwadi" vs "Tilakwadi").
 """
 
 import json
 import logging
 import unicodedata
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Iterable, Set
 import re
 import string
 from difflib import SequenceMatcher
@@ -85,6 +86,28 @@ for p in POSSIBLE_PATHS:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+_META_LOCALITY_VALUES = {
+    "district",
+    "total",
+    "page",
+    "part",
+    "list",
+}
+
+_META_LOCALITY_PATTERNS = [
+    re.compile(r"^\d+\s*\.\s*average number of voters per polling station$", re.IGNORECASE),
+    re.compile(r"^average number of voters per polling station$", re.IGNORECASE),
+    re.compile(r"^(sl|serial)\.?\s*(no|number)\.?\s*$", re.IGNORECASE),
+    re.compile(r"^polling station$", re.IGNORECASE),
+    re.compile(r"^name of polling station$", re.IGNORECASE),
+    re.compile(r"^total number of voters$", re.IGNORECASE),
+]
+
+_WORD_ALIAS_REPLACEMENTS = {
+    "rd": "road",
+    "rod": "road",
+}
+
 # ==========================================
 # TENANT-AWARE OVERRIDES (loaded from tenant_overrides.json)
 # ==========================================
@@ -129,6 +152,7 @@ def _load_tenant_overrides(tenant_id):
 
 _geography_index = {
     "assemblies": {},
+    "ambiguities": {},
     "loaded": False
 }
 
@@ -138,6 +162,175 @@ def normalize(text: str) -> str:
     if not text: return ""
     text = text.translate(str.maketrans('', '', string.punctuation))
     return re.sub(r"\s+", " ", text.lower().strip())
+
+
+def _is_meta_locality(text: str) -> bool:
+    value = normalize(text)
+    if not value:
+        return True
+    if value in _META_LOCALITY_VALUES:
+        return True
+    return any(pattern.match(value) for pattern in _META_LOCALITY_PATTERNS)
+
+
+def _canonicalize_alias(text: str) -> str:
+    value = normalize(text)
+    if not value:
+        return ""
+
+    words = [_WORD_ALIAS_REPLACEMENTS.get(word, word) for word in value.split()]
+    value = " ".join(words)
+    value = re.sub(r"(aa|ae)", "a", value)
+    value = re.sub(r"(ee|ii)", "i", value)
+    value = re.sub(r"(oo|uu)", "u", value)
+    value = re.sub(r"(?<=[aeiou])y(?=[aeiou])", "", value)
+    value = re.sub(r"iya\b", "ia", value)
+    value = re.sub(r"\s+", " ", value).strip()
+    return value
+
+
+def _build_match_forms(*texts: str) -> Set[str]:
+    forms: Set[str] = set()
+    for text in texts:
+        if not text:
+            continue
+        normalized = normalize(text)
+        if normalized:
+            forms.add(normalized)
+            canonical = _canonicalize_alias(text)
+            if canonical:
+                forms.add(canonical)
+        if _is_devanagari(text):
+            transliterated = normalize(_transliterate(text))
+            if transliterated:
+                forms.add(transliterated)
+                canonical = _canonicalize_alias(transliterated)
+                if canonical:
+                    forms.add(canonical)
+    return {form for form in forms if form}
+
+
+def _spaceless_forms(forms: Iterable[str]) -> Set[str]:
+    return {form.replace(" ", "") for form in forms if form}
+
+
+def _init_empty_index() -> None:
+    _geography_index["assemblies"] = {}
+    _geography_index["ambiguities"] = {}
+    _geography_index["loaded"] = False
+
+
+def _register_entry_ambiguities(parliamentary_constituency: str, assembly: str, forms: Set[str]) -> None:
+    parl_key = normalize(parliamentary_constituency)
+    parl_map = _geography_index["ambiguities"].setdefault(parl_key, {})
+    for form in forms:
+        if not form:
+            continue
+        parl_map.setdefault(form, set()).add(assembly)
+
+
+def _collect_constituency_ambiguities(
+    parliamentary_constituency: str,
+    assembly: str,
+    stations: Iterable[Dict[str, Any]],
+    other_rows: Iterable[Dict[str, Any]],
+) -> Dict[str, list]:
+    current_forms = {}
+    for station in stations:
+        locality = (station.get("locality") or "").replace("\n", " ").strip()
+        if not locality or _is_meta_locality(locality):
+            continue
+        forms = _build_match_forms(locality, station.get("locality_en", ""))
+        for form in forms:
+            current_forms.setdefault(form, locality)
+
+    collisions: Dict[str, Set[str]] = {}
+    for row in other_rows:
+        if normalize(row.get("parliamentary_constituency", "")) != normalize(parliamentary_constituency):
+            continue
+        if row.get("assembly") == assembly:
+            continue
+        for station in row.get("stations") or []:
+            locality = (station.get("locality") or "").replace("\n", " ").strip()
+            if not locality or _is_meta_locality(locality):
+                continue
+            for form in _build_match_forms(locality, station.get("locality_en", "")):
+                if form in current_forms:
+                    collisions.setdefault(current_forms[form], set()).add(row.get("assembly", ""))
+
+    return {
+        locality: sorted(assemblies)
+        for locality, assemblies in sorted(collisions.items())
+        if assemblies
+    }
+
+
+def sanitize_and_validate_stations(
+    stations: Iterable[Dict[str, Any]],
+    *,
+    parliamentary_constituency: Optional[str] = None,
+    assembly: Optional[str] = None,
+    other_rows: Optional[Iterable[Dict[str, Any]]] = None,
+) -> tuple[list[Dict[str, Any]], Dict[str, Any]]:
+    cleaned: list[Dict[str, Any]] = []
+    removed_meta_rows: list[str] = []
+    duplicate_localities_in_upload: Dict[str, int] = {}
+    missing_locality_en_samples: list[str] = []
+    locality_counts: Dict[str, int] = {}
+
+    for index, raw_station in enumerate(stations or []):
+        locality = (raw_station.get("locality") or "").replace("\n", " ").strip()
+        if not locality:
+            continue
+        if _is_meta_locality(locality):
+            removed_meta_rows.append(locality)
+            continue
+
+        normalized_locality = normalize(locality)
+        locality_counts[normalized_locality] = locality_counts.get(normalized_locality, 0) + 1
+
+        station_number = str(raw_station.get("station_number") or len(cleaned) + 1).strip() or str(len(cleaned) + 1)
+        building_name = (raw_station.get("building_name") or locality).replace("\n", " ").strip()
+        locality_en = (raw_station.get("locality_en") or "").replace("\n", " ").strip()
+
+        if not locality_en and len(missing_locality_en_samples) < 20:
+            missing_locality_en_samples.append(locality)
+
+        cleaned_station = {
+            "station_number": station_number,
+            "locality": locality,
+            "building_name": building_name,
+        }
+        if locality_en:
+            cleaned_station["locality_en"] = locality_en
+        cleaned.append(cleaned_station)
+
+    for station in cleaned:
+        normalized_locality = normalize(station["locality"])
+        count = locality_counts.get(normalized_locality, 0)
+        if count > 1:
+            duplicate_localities_in_upload[station["locality"]] = count
+
+    ambiguity_report: Dict[str, list] = {}
+    if parliamentary_constituency and assembly and other_rows is not None:
+        ambiguity_report = _collect_constituency_ambiguities(
+            parliamentary_constituency,
+            assembly,
+            cleaned,
+            other_rows,
+        )
+
+    report = {
+        "rows_received": len(list(stations or [])) if not isinstance(stations, list) else len(stations),
+        "rows_saved": len(cleaned),
+        "meta_rows_removed": len(removed_meta_rows),
+        "meta_row_samples": removed_meta_rows[:20],
+        "duplicate_localities_in_upload": duplicate_localities_in_upload,
+        "ambiguous_localities_against_constituency": ambiguity_report,
+        "missing_locality_en_count": sum(1 for station in cleaned if not station.get("locality_en")),
+        "missing_locality_en_samples": missing_locality_en_samples[:20],
+    }
+    return cleaned, report
 
 def get_keywords(text: str) -> set:
     """Get significant words >= 4 chars, excluding generic location/complaint terms."""
@@ -178,60 +371,72 @@ def similarity_score(a: str, b: str) -> float:
 # --- LOADER ---
 def load_geography_index() -> bool:
     global _geography_index
-    if not GEOGRAPHY_BASE_PATH: return False
 
     logger.debug(f"INDEXING GEOGRAPHY FROM: {GEOGRAPHY_BASE_PATH}")
-    _geography_index["assemblies"] = {}
+    _init_empty_index()
     files_loaded = 0
 
-    for parl_dir in GEOGRAPHY_BASE_PATH.iterdir():
-        if not parl_dir.is_dir(): continue
-        parl_name = parl_dir.name
+    sources = []
+    try:
+        from sansadx_backend.db import get_all_geography_data
+        db_rows = get_all_geography_data()
+        if db_rows:
+            for row in db_rows:
+                sources.append(
+                    (
+                        row["parliamentary_constituency"],
+                        row["assembly"],
+                        row["stations"],
+                    )
+                )
+    except Exception:
+        pass
 
-        for json_file in parl_dir.glob("*.json"):
-            assembly = json_file.stem
-            try:
-                with open(json_file, "r", encoding="utf-8") as f:
-                    stations = json.load(f)
-            except: continue
+    if not sources and GEOGRAPHY_BASE_PATH:
+        for parl_dir in GEOGRAPHY_BASE_PATH.iterdir():
+            if not parl_dir.is_dir():
+                continue
+            parl_name = parl_dir.name
+            for json_file in parl_dir.glob("*.json"):
+                try:
+                    with open(json_file, "r", encoding="utf-8") as f:
+                        stations = json.load(f)
+                except Exception:
+                    continue
+                sources.append((parl_name, json_file.stem, stations))
 
-            if assembly not in _geography_index["assemblies"]:
-                _geography_index["assemblies"][assembly] = {"parl": parl_name, "entries": []}
+    for parl_name, assembly, stations in sources:
+        if assembly not in _geography_index["assemblies"]:
+            _geography_index["assemblies"][assembly] = {"parl": parl_name, "entries": []}
 
-            for s in stations:
-                raw_loc = s.get("locality", "").replace("\n", " ").strip()
-                raw_bldg = s.get("building_name", "").replace("\n", " ").strip()
-                station = str(s.get("station_number", "")).strip()
-                
-                # Pre-calculate normalized versions for speed
-                norm_loc = normalize(raw_loc)
-                norm_bldg = normalize(raw_bldg)
-                
-                keywords = get_keywords(raw_loc) | get_keywords(raw_bldg)
-                
-                # Also store locality_en if present (set by Gemini OCR)
-                raw_loc_en = s.get("locality_en", "").replace("\n", " ").strip()
+        for s in stations:
+            raw_loc = s.get("locality", "").replace("\n", " ").strip()
+            raw_bldg = s.get("building_name", "").replace("\n", " ").strip()
+            station = str(s.get("station_number", "")).strip()
 
-                # Transliterate Devanagari locality to Roman for cross-script matching
-                if _is_devanagari(raw_loc):
-                    transliterated = normalize(_transliterate(raw_loc))
-                elif raw_loc_en:
-                    transliterated = normalize(raw_loc_en)
-                else:
-                    transliterated = ""
+            norm_loc = normalize(raw_loc)
+            raw_loc_en = s.get("locality_en", "").replace("\n", " ").strip()
+            if not norm_loc or _is_meta_locality(raw_loc):
+                continue
 
-                if keywords or station:
-                    _geography_index["assemblies"][assembly]["entries"].append({
-                        "orig_name": raw_loc,
-                        "norm_name": norm_loc,
-                        "spaceless_name": norm_loc.replace(" ", ""),
-                        "transliterated": transliterated,
-                        "spaceless_transliterated": transliterated.replace(" ", ""),
-                        "station": station,
-                        "keywords": keywords,
-                    })
-            files_loaded += 1
-            logger.debug(f"   Indexed {assembly}: {len(stations)} locations")
+            match_forms = _build_match_forms(raw_loc, raw_loc_en)
+            spaceless_match_forms = _spaceless_forms(match_forms)
+            keywords = set()
+            for form in match_forms:
+                keywords |= get_keywords(form)
+            keywords |= get_keywords(raw_bldg)
+
+            _geography_index["assemblies"][assembly]["entries"].append({
+                "orig_name": raw_loc,
+                "match_forms": match_forms,
+                "spaceless_match_forms": spaceless_match_forms,
+                "station": station,
+                "keywords": keywords,
+            })
+            _register_entry_ambiguities(parl_name, assembly, match_forms)
+            _register_entry_ambiguities(parl_name, assembly, spaceless_match_forms)
+        files_loaded += 1
+        logger.debug(f"   Indexed {assembly}: {len(stations)} locations")
 
     _geography_index["loaded"] = True
     return files_loaded > 0
@@ -241,9 +446,15 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
     if not text: return {"location_resolved": False}
     if not _geography_index["loaded"]: load_geography_index()
 
-    clean_text = normalize(text)
-    spaceless_text = clean_text.replace(" ", "")
-    user_keywords = get_keywords(text)
+    query_forms = _build_match_forms(text)
+    if not query_forms:
+        return {"location_resolved": False}
+
+    clean_text = max(query_forms, key=len)
+    spaceless_query_forms = _spaceless_forms(query_forms)
+    user_keywords = set()
+    for form in query_forms:
+        user_keywords |= get_keywords(form)
     
     logger.debug(f"RESOLVING: '{clean_text}' (tenant={tenant_id})")
 
@@ -263,56 +474,62 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
         for entry in data["entries"]:
             score = 0
             match_type = "none"
-
-            tl = entry.get("transliterated", "")
-            tl_spaceless = entry.get("spaceless_transliterated", "")
-            entry_name = entry["norm_name"]
+            entry_forms = entry.get("match_forms", set())
+            entry_spaceless_forms = entry.get("spaceless_match_forms", set())
+            entry_name = max(entry_forms, key=len) if entry_forms else ""
 
             # A. EXACT MATCH — highest priority (full string match)
-            if entry_name and entry_name == clean_text:
-                score = 150  # Exact match gets highest score
+            exact_forms = entry_forms & query_forms
+            if exact_forms:
+                score = 150 + max(len(form) for form in exact_forms)
                 match_type = "exact_full"
 
             # B. WORD BOUNDARY MATCH — entry name appears as complete word(s) in user text
             # Prevents "hosur" matching "gilihosur" or "chandanhosur"
-            elif entry_name and len(entry_name) >= 4:
-                # Check if entry name appears as a word boundary match
-                word_pattern = r'\b' + re.escape(entry_name) + r'\b'
-                if re.search(word_pattern, clean_text):
-                    score = 120 + len(entry_name)  # Longer matches score higher
+            elif entry_forms:
+                boundary_lengths = []
+                for entry_form in entry_forms:
+                    if len(entry_form) < 4:
+                        continue
+                    word_pattern = r'\b' + re.escape(entry_form) + r'\b'
+                    if any(re.search(word_pattern, query_form) for query_form in query_forms):
+                        boundary_lengths.append(len(entry_form))
+                if boundary_lengths:
+                    score = 120 + max(boundary_lengths)
                     match_type = "word_boundary"
 
             # C. EXACT SUBSTRING — entry name contained in user text (min 5 chars)
             # Score based on length to prefer longer/more specific matches
-            if score == 0 and entry_name and len(entry_name) >= 5 and entry_name in clean_text:
-                score = 100 + len(entry_name)
-                match_type = "exact_substring"
-
-            # D. EXACT SUBSTRING — transliterated (Roman citizen text vs Hindi index)
-            if score == 0 and tl and len(tl) >= 5 and tl in clean_text:
-                score = 95 + len(tl)
-                match_type = "exact_transliterated"
+            if score == 0 and entry_forms:
+                substring_lengths = []
+                for entry_form in entry_forms:
+                    if len(entry_form) < 5:
+                        continue
+                    if any(entry_form in query_form for query_form in query_forms):
+                        substring_lengths.append(len(entry_form))
+                if substring_lengths:
+                    score = 100 + max(substring_lengths)
+                    match_type = "exact_substring"
 
             # E. SPACELESS MATCH — original (Fixes "Shahunagar" vs "Shahu Nagar")
             # Only if the spaceless version is significantly long (avoid false positives)
-            if score == 0 and entry["spaceless_name"] and len(entry["spaceless_name"]) >= 6:
-                if entry["spaceless_name"] in spaceless_text:
-                    score = 90 + len(entry["spaceless_name"])
+            if score == 0 and entry_spaceless_forms:
+                spaceless_lengths = []
+                for entry_form in entry_spaceless_forms:
+                    if len(entry_form) < 6:
+                        continue
+                    if any(entry_form in query_form for query_form in spaceless_query_forms):
+                        spaceless_lengths.append(len(entry_form))
+                if spaceless_lengths:
+                    score = 90 + max(spaceless_lengths)
                     match_type = "spaceless"
-
-            # F. SPACELESS MATCH — transliterated
-            if score == 0 and tl_spaceless and len(tl_spaceless) >= 6 and tl_spaceless in spaceless_text:
-                score = 88 + len(tl_spaceless)
-                match_type = "spaceless_transliterated"
 
             # G. FUZZY KEYWORD MATCH — STRICT (95% similarity, min 6 char keywords)
             # Only used as last resort to catch typos like "Tilkwadi" vs "Tilakwadi"
             if score == 0:
-                tl_keywords = set(tl.split()) if tl else set()
-                all_dk = entry["keywords"] | tl_keywords
                 for uk in user_keywords:
                     if len(uk) < 6: continue  # Increased from 5 to 6
-                    for dk in all_dk:
+                    for dk in entry["keywords"]:
                         if len(dk) < 6: continue  # Increased from 5 to 6
                         # Only consider if lengths are similar (±25%)
                         if not (0.75 <= len(uk)/len(dk) <= 1.25):
@@ -338,9 +555,19 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
     if not candidates:
         return {"location_resolved": False}
 
-    # D. TIE BREAKER — no hardcoded priority, just use score
     candidates.sort(key=lambda x: x["score"], reverse=True)
     winner = candidates[0]
+    top_score = winner["score"]
+    top_candidates = [c for c in candidates if c["score"] == top_score]
+    top_assemblies = sorted({candidate["assembly"] for candidate in top_candidates})
+    if len(top_assemblies) > 1:
+        return {
+            "location_resolved": False,
+            "reason": "ambiguous_match",
+            "ambiguous_assemblies": top_assemblies,
+            "matched_value": winner["name"],
+            "parliamentary_constituency": winner["parl"],
+        }
 
     logger.debug(f"   WINNER: {winner['name']} ({winner['assembly']}) - Score: {winner['score']:.1f} [{winner['type']}]")
     
@@ -357,6 +584,13 @@ def _get_tenant_constituency(tenant_id):
     """Look up the parliamentary constituency for a given tenant_id."""
     if not tenant_id:
         return None
+    try:
+        from sansadx_backend.db import get_tenant_constituency
+        constituency = get_tenant_constituency(tenant_id)
+        if constituency:
+            return constituency
+    except Exception:
+        pass
     try:
         # Try tenant_overrides.json first
         override_paths = [
@@ -409,10 +643,15 @@ def resolve_constituency(text: str, tenant_id: Optional[int] = None):
 
 
 def get_index_stats() -> Dict[str, int]:
-    return {"loaded": _geography_index["loaded"], "assemblies": len(_geography_index["assemblies"])}
+    ambiguity_count = sum(
+        1 for parl_map in _geography_index.get("ambiguities", {}).values()
+        for assemblies in parl_map.values()
+        if len(assemblies) > 1
+    )
+    return {"loaded": _geography_index["loaded"], "assemblies": len(_geography_index["assemblies"]), "ambiguities": ambiguity_count}
 
 def reload_index():
-    _geography_index["loaded"] = False
+    _init_empty_index()
     return load_geography_index()
 
 # ==========================================
@@ -420,88 +659,91 @@ def reload_index():
 # ==========================================
 def auto_generate_overrides():
     """
-    Scans all geography JSON files, extracts unique locality→assembly mappings,
-    and writes them to BOTH the DB (tenant_overrides table) AND tenant_overrides.json.
-    
-    - Looks up tenant_id by matching constituency name to geography folder name
-    - Preserves manually-added overrides (manual entries take priority)
-    - Cleans newlines and deduplicates
+    Scans persisted geography data, extracts locality→assembly mappings, and
+    writes them to the DB as geo_override rows.
     """
-    if not GEOGRAPHY_BASE_PATH or not GEOGRAPHY_BASE_PATH.exists():
-        logger.warning("Geography base path not found, cannot auto-generate overrides")
-        return {"error": "Geography path not found"}
-    
-    # Look up tenant_ids by constituency name from DB
-    constituency_to_tenant = {}
     try:
-        from sansadx_backend.db import SessionLocal, Tenant
+        from sansadx_backend.db import SessionLocal, Tenant, get_all_geography_data
         db = SessionLocal()
-        tenants = db.query(Tenant).all()
-        for t in tenants:
-            if t.constituency and t.constituency != "System":
-                constituency_to_tenant[t.constituency] = t.id
+        tenant_rows = db.query(Tenant).all()
+        constituency_to_tenant = {
+            t.constituency: t.id
+            for t in tenant_rows
+            if t.constituency and t.constituency != "System"
+        }
         db.close()
+        geography_rows = get_all_geography_data()
     except Exception as e:
-        logger.warning(f"Could not load tenants from DB: {e}")
-    
-    # Scan geography folders
+        logger.warning(f"Could not load geography data from DB: {e}")
+        geography_rows = []
+
+    if not geography_rows and GEOGRAPHY_BASE_PATH and GEOGRAPHY_BASE_PATH.exists():
+        for parl_dir in sorted(GEOGRAPHY_BASE_PATH.iterdir()):
+            if not parl_dir.is_dir():
+                continue
+            for json_file in sorted(parl_dir.glob("*.json")):
+                try:
+                    with open(json_file, "r", encoding="utf-8") as f:
+                        stations = json.load(f)
+                except Exception:
+                    continue
+                geography_rows.append({
+                    "tenant_id": constituency_to_tenant.get(parl_dir.name),
+                    "parliamentary_constituency": parl_dir.name,
+                    "assembly": json_file.stem,
+                    "stations": stations if isinstance(stations, list) else [],
+                })
+
+    if not geography_rows:
+        logger.warning("No geography data available for override generation")
+        return {"error": "No geography data found"}
+
     stats = {}
     total_written = 0
-    
-    for parl_dir in sorted(GEOGRAPHY_BASE_PATH.iterdir()):
-        if not parl_dir.is_dir():
-            continue
-        
-        parl_name = parl_dir.name  # e.g., "Belagavi", "Aligarh"
-        tenant_id = constituency_to_tenant.get(parl_name)
-        
+
+    grouped_rows = {}
+    for row in geography_rows:
+        parl_name = row["parliamentary_constituency"]
+        tenant_id = row.get("tenant_id") or constituency_to_tenant.get(parl_name)
         if not tenant_id:
             logger.info(f"No tenant found for constituency '{parl_name}', skipping override generation")
             continue
-        
+        grouped_rows.setdefault((parl_name, tenant_id), []).append(row)
+
+    for (parl_name, tenant_id), rows in grouped_rows.items():
         overrides_map = {}
-        
-        for json_file in sorted(parl_dir.glob("*.json")):
-            assembly_name = json_file.stem  # e.g., "Koil"
-            
-            try:
-                with open(json_file, "r", encoding="utf-8") as f:
-                    stations = json.load(f)
-            except Exception:
-                continue
-            
-            if not isinstance(stations, list):
-                continue
-            
+        ambiguous_localities: Dict[str, Set[str]] = {}
+        for row in rows:
+            assembly_name = row["assembly"]
+            stations = row.get("stations") or []
             for station in stations:
                 locality = station.get("locality", "").replace("\n", " ").strip()
-                
-                if not locality or len(locality) < 3:
+                if not locality or len(locality) < 3 or _is_meta_locality(locality):
                     continue
-                
                 key = locality.lower().strip()
                 key = re.sub(r'\s+', ' ', key)
-                
                 if key in {"east", "west", "north", "south", "ward", "room", "hall"}:
                     continue
-                
+                if key in overrides_map and overrides_map[key] != assembly_name:
+                    ambiguous_localities.setdefault(key, {overrides_map[key]}).add(assembly_name)
+                    overrides_map.pop(key, None)
+                    continue
+                if key in ambiguous_localities:
+                    ambiguous_localities[key].add(assembly_name)
+                    continue
                 if key not in overrides_map:
                     overrides_map[key] = assembly_name
-        
-        # Write to DB (tenant_overrides table)
+
         try:
             from sansadx_backend.db import SessionLocal as SL, TenantOverride
             from sqlalchemy import text as sa_text
             db = SL()
             try:
-                # Delete existing auto-generated geo_overrides for this tenant
                 db.execute(
                     sa_text("DELETE FROM tenant_overrides WHERE tenant_id = :tid AND override_type = 'geo_override'"),
                     {"tid": tenant_id}
                 )
                 db.commit()
-                
-                # Insert new overrides
                 for loc_key, assembly_val in overrides_map.items():
                     override = TenantOverride(
                         tenant_id=tenant_id,
@@ -522,45 +764,10 @@ def auto_generate_overrides():
         stats[parl_name] = {
             "tenant_id": tenant_id,
             "overrides_written": len(overrides_map),
+            "ambiguous_localities_skipped": {
+                locality: sorted(assemblies)
+                for locality, assemblies in sorted(ambiguous_localities.items())
+            },
         }
-    
-    # Also write JSON file as backup
-    try:
-        overrides_path = PROJECT_ROOT / "tenant_overrides.json"
-        existing_data = {}
-        if overrides_path.exists():
-            try:
-                with open(overrides_path, "r", encoding="utf-8") as f:
-                    existing_data = json.load(f)
-            except Exception:
-                existing_data = {}
-        
-        preserved_keys = {k: v for k, v in existing_data.items() if k != "geo_overrides"}
-        new_geo = {}
-        for parl_name, stat in stats.items():
-            tid_str = str(stat["tenant_id"])
-            # Re-read from the folder for JSON backup
-            parl_dir = GEOGRAPHY_BASE_PATH / parl_name
-            overrides_map = {}
-            for json_file in sorted(parl_dir.glob("*.json")):
-                assembly_name = json_file.stem
-                try:
-                    with open(json_file, "r", encoding="utf-8") as f:
-                        stations = json.load(f)
-                    for s in stations:
-                        loc = s.get("locality", "").replace("\n", " ").strip()
-                        if loc and len(loc) >= 3:
-                            k = re.sub(r'\s+', ' ', loc.lower().strip())
-                            if k not in overrides_map:
-                                overrides_map[k] = assembly_name
-                except Exception:
-                    pass
-            new_geo[tid_str] = overrides_map
-        
-        final_data = {**preserved_keys, "geo_overrides": new_geo}
-        with open(overrides_path, "w", encoding="utf-8") as f:
-            json.dump(final_data, f, indent=2, ensure_ascii=False)
-    except Exception as e:
-        logger.warning(f"JSON backup write failed (non-critical): {e}")
-    
+
     return {"success": True, "total_written": total_written, "stats": stats}

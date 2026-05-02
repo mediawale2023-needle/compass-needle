@@ -1,0 +1,787 @@
+[
+  {
+    "station_number": "1",
+    "locality": "District",
+    "building_name": "Ghaziabad"
+  },
+  {
+    "station_number": "1",
+    "locality": "Kunhaida",
+    "building_name": ""
+  },
+  {
+    "station_number": "3",
+    "locality": "Jhalawa",
+    "building_name": ""
+  },
+  {
+    "station_number": "4",
+    "locality": "Surana",
+    "building_name": ""
+  },
+  {
+    "station_number": "10",
+    "locality": "Surana",
+    "building_name": ""
+  },
+  {
+    "station_number": "12",
+    "locality": "Rawli Kala",
+    "building_name": ""
+  },
+  {
+    "station_number": "17",
+    "locality": "Suthari",
+    "building_name": ""
+  },
+  {
+    "station_number": "19",
+    "locality": "Khorajpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "20",
+    "locality": "Nekpur Sabitnagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "26",
+    "locality": "Vihang",
+    "building_name": ""
+  },
+  {
+    "station_number": "27",
+    "locality": "Rewdi Rewda",
+    "building_name": ""
+  },
+  {
+    "station_number": "30",
+    "locality": "Manauli",
+    "building_name": ""
+  },
+  {
+    "station_number": "31",
+    "locality": "Sultannagar Chhajjupur",
+    "building_name": ""
+  },
+  {
+    "station_number": "32",
+    "locality": "Milak Chakarpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "33",
+    "locality": "Bhadoli",
+    "building_name": ""
+  },
+  {
+    "station_number": "35",
+    "locality": "Nabipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "36",
+    "locality": "Sultanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "38",
+    "locality": "Jalalpur Dhindar",
+    "building_name": ""
+  },
+  {
+    "station_number": "42",
+    "locality": "Milak Rawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "43",
+    "locality": "Kharjivanpur Khimawati",
+    "building_name": ""
+  },
+  {
+    "station_number": "47",
+    "locality": "Amirpur Gadhi",
+    "building_name": ""
+  },
+  {
+    "station_number": "48",
+    "locality": "Kumhaida",
+    "building_name": ""
+  },
+  {
+    "station_number": "50",
+    "locality": "Firojpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "51",
+    "locality": "Kaithwadi",
+    "building_name": ""
+  },
+  {
+    "station_number": "52",
+    "locality": "Gyaspur",
+    "building_name": ""
+  },
+  {
+    "station_number": "54",
+    "locality": "Asadpur Nangal",
+    "building_name": ""
+  },
+  {
+    "station_number": "55",
+    "locality": "Bandipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "56",
+    "locality": "Kakra",
+    "building_name": ""
+  },
+  {
+    "station_number": "58",
+    "locality": "Shahzadpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "59",
+    "locality": "Shahzadpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "60",
+    "locality": "Khurrampur",
+    "building_name": ""
+  },
+  {
+    "station_number": "62",
+    "locality": "Roshanpur Salemabad Patti Pratap",
+    "building_name": ""
+  },
+  {
+    "station_number": "63",
+    "locality": "Roshanpur Salemabad Patti Jiram",
+    "building_name": ""
+  },
+  {
+    "station_number": "64",
+    "locality": "Composite Shool Husainpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "65",
+    "locality": "Husainpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "66",
+    "locality": "Sarna Muradnagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "68",
+    "locality": "Jalalpur Raghunathpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "73",
+    "locality": "Shobhapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "74",
+    "locality": "Basantpur Sainthali",
+    "building_name": ""
+  },
+  {
+    "station_number": "75",
+    "locality": "Basantpur Sainthali",
+    "building_name": ""
+  },
+  {
+    "station_number": "79",
+    "locality": "Hisali",
+    "building_name": ""
+  },
+  {
+    "station_number": "80",
+    "locality": "Uttar Disha Asalatnagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "86",
+    "locality": "Pashachim Dishaa Asalatnagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "87",
+    "locality": "Mohammadpur Dhaidha",
+    "building_name": ""
+  },
+  {
+    "station_number": "88",
+    "locality": "Mohammadpur Dhaidha",
+    "building_name": ""
+  },
+  {
+    "station_number": "89",
+    "locality": "Mohammadpur Dhaidha",
+    "building_name": ""
+  },
+  {
+    "station_number": "90",
+    "locality": "Mohammadpur Dhaidha",
+    "building_name": ""
+  },
+  {
+    "station_number": "91",
+    "locality": "Muradgrampur Pursi",
+    "building_name": ""
+  },
+  {
+    "station_number": "95",
+    "locality": "Ordnance Factory.muradnagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "98",
+    "locality": "Muradnagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "99",
+    "locality": "Mohd.pur Dhaida",
+    "building_name": ""
+  },
+  {
+    "station_number": "104",
+    "locality": "Muradnagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "106",
+    "locality": "Uttar Bhwan G.t. Road Muradnagr",
+    "building_name": ""
+  },
+  {
+    "station_number": "111",
+    "locality": "Pashachim Bhwan G.t. Road Muradnagr",
+    "building_name": ""
+  },
+  {
+    "station_number": "116",
+    "locality": "Ukhalrashi",
+    "building_name": ""
+  },
+  {
+    "station_number": "121",
+    "locality": "Vijay Mandi",
+    "building_name": ""
+  },
+  {
+    "station_number": "126",
+    "locality": "Preet Vihar",
+    "building_name": ""
+  },
+  {
+    "station_number": "128",
+    "locality": "Nagar Palica Parishad",
+    "building_name": ""
+  },
+  {
+    "station_number": "129",
+    "locality": "Nagar Palica Parishad",
+    "building_name": ""
+  },
+  {
+    "station_number": "131",
+    "locality": "Mohalla Brahampuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "136",
+    "locality": "Muradnagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "149",
+    "locality": "Muradnagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "160",
+    "locality": "Faiz-a-aam Urdu Medium Madrasa Rawli Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "163",
+    "locality": "Muradnagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "164",
+    "locality": "Muradnagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "171",
+    "locality": "Muradnagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "180",
+    "locality": "Santosh City",
+    "building_name": ""
+  },
+  {
+    "station_number": "182",
+    "locality": "Block Development Officer",
+    "building_name": ""
+  },
+  {
+    "station_number": "184",
+    "locality": "Badka Aarifpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "185",
+    "locality": "Badka Aarifpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "186",
+    "locality": "Mahmudabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "187",
+    "locality": "Bhikanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "190",
+    "locality": "Bhaikanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "191",
+    "locality": "Milak Duhai",
+    "building_name": ""
+  },
+  {
+    "station_number": "192",
+    "locality": "Dhuai",
+    "building_name": ""
+  },
+  {
+    "station_number": "198",
+    "locality": "Morta",
+    "building_name": ""
+  },
+  {
+    "station_number": "202",
+    "locality": "Morta",
+    "building_name": ""
+  },
+  {
+    "station_number": "205",
+    "locality": "Morta",
+    "building_name": ""
+  },
+  {
+    "station_number": "207",
+    "locality": "Mahiuddinpur Mainapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "208",
+    "locality": "Mahiuddinpur Mainapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "210",
+    "locality": "Shahpur Nij Morta",
+    "building_name": ""
+  },
+  {
+    "station_number": "212",
+    "locality": "Makraida",
+    "building_name": ""
+  },
+  {
+    "station_number": "213",
+    "locality": "Bahadurpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "214",
+    "locality": "Bahadurpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "215",
+    "locality": "Shamsher",
+    "building_name": ""
+  },
+  {
+    "station_number": "216",
+    "locality": "Mathurapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "218",
+    "locality": "Atore",
+    "building_name": ""
+  },
+  {
+    "station_number": "219",
+    "locality": "Atore",
+    "building_name": ""
+  },
+  {
+    "station_number": "221",
+    "locality": "Atore",
+    "building_name": ""
+  },
+  {
+    "station_number": "222",
+    "locality": "Nagla Firoj Mohanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "223",
+    "locality": "Nagla Firoj Mohanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "224",
+    "locality": "Morti",
+    "building_name": ""
+  },
+  {
+    "station_number": "225",
+    "locality": "Morti",
+    "building_name": ""
+  },
+  {
+    "station_number": "226",
+    "locality": "Bhovapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "227",
+    "locality": "Bhovapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "228",
+    "locality": "Makarmatpur Sikrod",
+    "building_name": ""
+  },
+  {
+    "station_number": "229",
+    "locality": "Makarmatpur Sikrod",
+    "building_name": ""
+  },
+  {
+    "station_number": "231",
+    "locality": "Makarmatpur Sikrod",
+    "building_name": ""
+  },
+  {
+    "station_number": "232",
+    "locality": "Gadhi",
+    "building_name": ""
+  },
+  {
+    "station_number": "236",
+    "locality": "Guldhar",
+    "building_name": ""
+  },
+  {
+    "station_number": "240",
+    "locality": "Sanjay Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "241",
+    "locality": "Sanjay Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "247",
+    "locality": "Sanjay Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "248",
+    "locality": "Sanjay Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "281",
+    "locality": "Raispur",
+    "building_name": ""
+  },
+  {
+    "station_number": "287",
+    "locality": "Raispur",
+    "building_name": ""
+  },
+  {
+    "station_number": "289",
+    "locality": "Sadarpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "297",
+    "locality": "Madhuban Bapudham Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "301",
+    "locality": "Rasulpur Sikroda",
+    "building_name": ""
+  },
+  {
+    "station_number": "306",
+    "locality": "Govindpuram",
+    "building_name": ""
+  },
+  {
+    "station_number": "312",
+    "locality": "Govindpuram",
+    "building_name": ""
+  },
+  {
+    "station_number": "340",
+    "locality": "Harshaw",
+    "building_name": ""
+  },
+  {
+    "station_number": "345",
+    "locality": "Police Line Harsaw",
+    "building_name": ""
+  },
+  {
+    "station_number": "352",
+    "locality": "Kamala Nehrunagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "353",
+    "locality": "Kamala Nehru Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "354",
+    "locality": "Rajnagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "359",
+    "locality": "Rajnagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "373",
+    "locality": "Lohiyanagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "374",
+    "locality": "Lohiya Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "397",
+    "locality": "Nehrunagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "398",
+    "locality": "Nehru Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "408",
+    "locality": "Nehrunagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "409",
+    "locality": "Nehru Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "411",
+    "locality": "Ashoknagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "412",
+    "locality": "Ashok Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "414",
+    "locality": "Kavi Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "415",
+    "locality": "Kavinagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "426",
+    "locality": "Kavi Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "427",
+    "locality": "Kavinagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "430",
+    "locality": "Kavi Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "431",
+    "locality": "Kavinagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "433",
+    "locality": "Shastri Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "434",
+    "locality": "Shastrinagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "453",
+    "locality": "Avantika Chiranjeev Vihar",
+    "building_name": ""
+  },
+  {
+    "station_number": "454",
+    "locality": "Avantika Chiranjeev Vihar",
+    "building_name": ""
+  },
+  {
+    "station_number": "460",
+    "locality": "Chiranjeev Vihar",
+    "building_name": ""
+  },
+  {
+    "station_number": "461",
+    "locality": "Shakari Nagar Avantika",
+    "building_name": ""
+  },
+  {
+    "station_number": "469",
+    "locality": "Mahendra Enclave",
+    "building_name": ""
+  },
+  {
+    "station_number": "470",
+    "locality": "Mahendra Enclave",
+    "building_name": ""
+  },
+  {
+    "station_number": "477",
+    "locality": "Mahendra Enclave",
+    "building_name": ""
+  },
+  {
+    "station_number": "478",
+    "locality": "Mahendra Enclave",
+    "building_name": ""
+  },
+  {
+    "station_number": "479",
+    "locality": "Mahendra Enclave Razapur D Block",
+    "building_name": ""
+  },
+  {
+    "station_number": "486",
+    "locality": "Rajapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "491",
+    "locality": "A Block Bagh Wali Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "492",
+    "locality": "Bagh Wali Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "494",
+    "locality": "Maheroli Nagar Kshetra",
+    "building_name": ""
+  },
+  {
+    "station_number": "499",
+    "locality": "Mehroli",
+    "building_name": ""
+  },
+  {
+    "station_number": "500",
+    "locality": "Mehroli",
+    "building_name": ""
+  },
+  {
+    "station_number": "503",
+    "locality": "Mahagunpuram Mehroli",
+    "building_name": ""
+  },
+  {
+    "station_number": "504",
+    "locality": "Mahagunpuram Mehroli",
+    "building_name": ""
+  },
+  {
+    "station_number": "506",
+    "locality": "Naifal",
+    "building_name": ""
+  },
+  {
+    "station_number": "507",
+    "locality": "Bayana",
+    "building_name": ""
+  },
+  {
+    "station_number": "509",
+    "locality": "Sadikpur Urf Kazipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "510",
+    "locality": "Lal Kuwa",
+    "building_name": ""
+  },
+  {
+    "station_number": "517",
+    "locality": "Shahpur Bemheta",
+    "building_name": ""
+  },
+  {
+    "station_number": "524",
+    "locality": "Lal Kuwa",
+    "building_name": ""
+  },
+  {
+    "station_number": "537",
+    "locality": "Wave City",
+    "building_name": ""
+  }
+]

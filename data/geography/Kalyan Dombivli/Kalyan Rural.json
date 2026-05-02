@@ -1,62 +1,62 @@
 [
-    {
-        "station_number": "1",
-        "locality": "Kalyan Rural",
-        "building_name": "Gram Panchayat"
-    },
-    {
-        "station_number": "2",
-        "locality": "Bhiwandi",
-        "building_name": "Municipal School"
-    },
-    {
-        "station_number": "3",
-        "locality": "Murbad",
-        "building_name": "ZP School"
-    },
-    {
-        "station_number": "4",
-        "locality": "Mohone",
-        "building_name": "Primary School"
-    },
-    {
-        "station_number": "5",
-        "locality": "Titwala",
-        "building_name": "Temple Committee Hall"
-    },
-    {
-        "station_number": "6",
-        "locality": "Asangaon",
-        "building_name": "Community Hall"
-    },
-    {
-        "station_number": "7",
-        "locality": "Shahapur",
-        "building_name": "Gram Panchayat"
-    },
-    {
-        "station_number": "8",
-        "locality": "Khoni Kalyan",
-        "building_name": "ZP School"
-    },
-    {
-        "station_number": "9",
-        "locality": "Pisavli Kalyan",
-        "building_name": "Primary School"
-    },
-    {
-        "station_number": "10",
-        "locality": "Durgadi Fort Kalyan",
-        "building_name": "Municipal School"
-    },
-    {
-        "station_number": "11",
-        "locality": "Kalyan West",
-        "building_name": "BMC Office"
-    },
-    {
-        "station_number": "12",
-        "locality": "Birla College Kalyan",
-        "building_name": "Community Hall"
-    }
+  {
+    "station_number": "1",
+    "locality": "Kalyan Rural",
+    "building_name": "Gram Panchayat"
+  },
+  {
+    "station_number": "2",
+    "locality": "Bhiwandi",
+    "building_name": "Municipal School"
+  },
+  {
+    "station_number": "3",
+    "locality": "Murbad",
+    "building_name": "ZP School"
+  },
+  {
+    "station_number": "4",
+    "locality": "Mohone",
+    "building_name": "Primary School"
+  },
+  {
+    "station_number": "5",
+    "locality": "Titwala",
+    "building_name": "Temple Committee Hall"
+  },
+  {
+    "station_number": "6",
+    "locality": "Asangaon",
+    "building_name": "Community Hall"
+  },
+  {
+    "station_number": "7",
+    "locality": "Shahapur",
+    "building_name": "Gram Panchayat"
+  },
+  {
+    "station_number": "8",
+    "locality": "Khoni Kalyan",
+    "building_name": "ZP School"
+  },
+  {
+    "station_number": "9",
+    "locality": "Pisavli Kalyan",
+    "building_name": "Primary School"
+  },
+  {
+    "station_number": "10",
+    "locality": "Durgadi Fort Kalyan",
+    "building_name": "Municipal School"
+  },
+  {
+    "station_number": "11",
+    "locality": "Kalyan West",
+    "building_name": "BMC Office"
+  },
+  {
+    "station_number": "12",
+    "locality": "Birla College Kalyan",
+    "building_name": "Community Hall"
+  }
 ]

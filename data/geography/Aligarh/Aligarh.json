@@ -1,0 +1,1977 @@
+[
+  {
+    "station_number": "1",
+    "locality": "District",
+    "building_name": "Aligarh"
+  },
+  {
+    "station_number": "1",
+    "locality": "Louisa Soules Girls High School Room No 1 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "2",
+    "locality": "Louisa Soules Girls High School Room No 2 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "3",
+    "locality": "Louisa Soules Girls High School Room No 3 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "4",
+    "locality": "Louisa Soules Girls High School Room No 4 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "5",
+    "locality": "Shri Gurunanak Dev Public Evam Junior High School Room No 1 Nai Basti",
+    "building_name": ""
+  },
+  {
+    "station_number": "6",
+    "locality": "Shri Gurunanak Dev Public Evam Junior High School Room No 2 Nai Basti",
+    "building_name": ""
+  },
+  {
+    "station_number": "7",
+    "locality": "Primary School Balika Vidhyalay R0. N0 1 Refugee Quarter",
+    "building_name": ""
+  },
+  {
+    "station_number": "8",
+    "locality": "Primary School Balika Vidhyalay R0 N0 2 Refugee Quarter",
+    "building_name": ""
+  },
+  {
+    "station_number": "9",
+    "locality": "City School Masudabad Room No 1 G T Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "10",
+    "locality": "City School Masudabad Room No 2 G T Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "11",
+    "locality": "City School Masudabad Room No 3 G T Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "12",
+    "locality": "City School Masudabad Room No 4 G T Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "13",
+    "locality": "City School Masudabad Room No 5 G T Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "14",
+    "locality": "City School Masudabad Room No 6 G T Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "15",
+    "locality": "City School Masudabad Room No 7 G T Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "16",
+    "locality": "City School Masudabad Room No 8 G T Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "17",
+    "locality": "City School Masudabad Room No 9 G T Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "18",
+    "locality": "City School Masudabad Room No 10 G T Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "19",
+    "locality": "M M Precidenci Inter College Room No 1 Naveen Nagar Khair By Pass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "20",
+    "locality": "M M Precidenci Inter College Room No 2 Naveen Nagar Khair Bypass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "21",
+    "locality": "M M Precidenci Inter College Room No 3 Naveen Nagar Khair Bypass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "22",
+    "locality": "M M Precidenci Inter College Room No 4 Naveen Nagar Khair Bypass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "23",
+    "locality": "M M Precidenci Inter College Room No 5 Naveen Nagar Khair Bypass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "24",
+    "locality": "M M Precidenci Inter College Room No 6 Naveen Nagar Khair Bypass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "25",
+    "locality": "Manvi Inter National Senior Secondary School Room No 1 Laxim Pur",
+    "building_name": ""
+  },
+  {
+    "station_number": "26",
+    "locality": "Manvi Inter National Senior Secondary School Room No 2 Laxim Pur",
+    "building_name": ""
+  },
+  {
+    "station_number": "27",
+    "locality": "Manvi Inter National Senior Secondary School Room No 3 Laxim Pur",
+    "building_name": ""
+  },
+  {
+    "station_number": "28",
+    "locality": "Manvi Inter National Senior Secondary School Room No 4 Laxim Pur",
+    "building_name": ""
+  },
+  {
+    "station_number": "29",
+    "locality": "Manvi Inter National Senior Secondary School Room No 5 Laxim Pur",
+    "building_name": ""
+  },
+  {
+    "station_number": "30",
+    "locality": "Asian Public School Room No 1 Prem Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "31",
+    "locality": "Asian Public School Room No 2 Prem Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "32",
+    "locality": "Shriram Public School Mel Rose By Pass Room No 1 Prins Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "33",
+    "locality": "Shriram Public School Mel Rose By Pass Room No 2 Prins Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "34",
+    "locality": "Yunicorn Public School Room No 1 Prince Nagar Mailrose By Pass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "35",
+    "locality": "Yunicorn Public School Room No 2 Prince Nagar Mailrose By Pass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "36",
+    "locality": "Yunicorn Public School Room No 3 Prince Nagar Mailrose By Pass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "37",
+    "locality": "Indian Public Inter College Room No 1 Bima Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "38",
+    "locality": "Indian Public Inter College Room No 2 Bima Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "39",
+    "locality": "Indian Public Inter College Room No 3 Bima Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "40",
+    "locality": "Indian Public Inter College Room No 4 Bima Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "41",
+    "locality": "Sant Lorence Public School Room No 1 Kanti Vihar",
+    "building_name": ""
+  },
+  {
+    "station_number": "42",
+    "locality": "Good Shepherd School Room No 1 G T Road Banna Devi",
+    "building_name": ""
+  },
+  {
+    "station_number": "43",
+    "locality": "Good Shepherd School Room No 2 G T Road Banna Devi",
+    "building_name": ""
+  },
+  {
+    "station_number": "44",
+    "locality": "Good Shepherd School Room No 3 G T Road Banna Devi",
+    "building_name": ""
+  },
+  {
+    "station_number": "45",
+    "locality": "Good Shepherd School Room No 4 G T Road Banna Devi",
+    "building_name": ""
+  },
+  {
+    "station_number": "46",
+    "locality": "Karyalay Sanyukt Ayukt Udyog Kendra Room No 1 Industriyal Area I T I Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "47",
+    "locality": "Karyalay Sanyukt Ayukt Udyog Kendra Room No 2 Industriyal Area I T I Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "48",
+    "locality": "Rajkiya Audyogik Prashikshan Sansthan Chhatrawas Room No 1 I T I Road Rasoolpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "49",
+    "locality": "Rajkiya Audyogik Prashikshan Sansthan Chhatrawas Room No 2 I T I Road Rasoolpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "50",
+    "locality": "Rajkiya Audyogik Prashikshan Sansthan Chhatrawas Room No 3 I T I Road Rasoolpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "51",
+    "locality": "Rajkiya Audyogik Prashikshan Sansthan Chhatrawas Room No 4 I T I Road Rasoolpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "52",
+    "locality": "Rajkiya Audyogik Prashikshan Sansthan Chhatrawas Room No 5 I T I Road Rasoolpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "53",
+    "locality": "Rajkiya Audyogik Prashikshan Sansthan Chhatrawas Room No 6 I T I Road Rasoolpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "54",
+    "locality": "Rajkiya Audyogik Prashikshan Sansthan Chhatrawas Room No 7 I T I Road Rasoolpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "55",
+    "locality": "Rajkiya Audyogik Prashikshan Sansthan Chhatrawas Room No 8 I T I Road Rasoolpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "56",
+    "locality": "Rajkiya Audyogik Prashikshan Sansthan Chhatrawas Room No 9 I T I Road Rasoolpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "57",
+    "locality": "Rajkiya Audyogik Prashikshan Sansthan Chhatrawas Room No 10 I T I Road Rasoolpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "58",
+    "locality": "Rajkiya Audyogik Prashikshan Sansthan (mahila) Room No 1 I T I Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "59",
+    "locality": "Rajkiya Audyogik Prashikshan Sansthan (mahila) Room No 2 I T I Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "60",
+    "locality": "Rajkiya Audyogik Prashikshan Sansthan (mahila) Room No 3 I T I Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "61",
+    "locality": "Rajkiya Audyogik Prashikshan Sansthan (mahila) Room No 4 I T I Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "62",
+    "locality": "Rajkiya Audyogik Prashikshan Sansthan (mahila) Room No 5 I T I Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "63",
+    "locality": "Balak Pathshala No 17 Room No 1 Sarai Rehman",
+    "building_name": ""
+  },
+  {
+    "station_number": "64",
+    "locality": "Balak Pathshala No 17 Room No 2 Sarai Rehman",
+    "building_name": ""
+  },
+  {
+    "station_number": "65",
+    "locality": "Balak Pathshala No 17 Room No 3 Sarai Rehman",
+    "building_name": ""
+  },
+  {
+    "station_number": "66",
+    "locality": "Balak Pathshala No 17 Room No 4 Sarai Rehman",
+    "building_name": ""
+  },
+  {
+    "station_number": "67",
+    "locality": "Balak Pathshala No 17 Room No 5 Sarai Rehman",
+    "building_name": ""
+  },
+  {
+    "station_number": "68",
+    "locality": "Balak Pathshala No 17 Room No 6 Sarai Rehman",
+    "building_name": ""
+  },
+  {
+    "station_number": "69",
+    "locality": "Sewage Pump Sarai Rehman",
+    "building_name": ""
+  },
+  {
+    "station_number": "70",
+    "locality": "Malviya Pustkalay Room No. 1 G.t Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "71",
+    "locality": "Malviya Pustkalay Room No. 2 G.t Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "72",
+    "locality": "Malviya Pustkalay Room No. 3 G.t Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "73",
+    "locality": "Malviya Pustkalay Room No. 4 G.t Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "74",
+    "locality": "Malviya Pustkalay Room No. 5 G.t Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "75",
+    "locality": "Shri Jagat Singh Tyagi Higher Secondary School Room No 1 Raghuvirpuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "76",
+    "locality": "Shri Jagat Singh Tyagi Higher Secondary School Room No 2 Raghuvirpuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "77",
+    "locality": "Shri Jagat Singh Tyagi Higher Secondary School Room No 3 Raghuvirpuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "78",
+    "locality": "Shri Jagat Singh Tyagi Higher Secondary School Room No 4 Raghuvirpuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "79",
+    "locality": "Shri Jagat Singh Tyagi Higher Secondary School Room No 5 Raghuvirpuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "80",
+    "locality": "Shri Jagat Singh Tyagi Higher Secondary School Room No 6 Raghuvirpuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "81",
+    "locality": "Nikjay Montessori School Chhatari Compound East Room.no 1 Rasalganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "82",
+    "locality": "Nikjay Montessori School Chhatari Compound East Room.no 2 Rasalganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "83",
+    "locality": "Nikjay Montessori School Chhatari Compound East Room.no 3 Rasalganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "84",
+    "locality": "Nikjay Montessori School Chhatari Compound East Room.no 4 Rasalganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "85",
+    "locality": "Dr Ambedkar Samudaik Bhavan Room No 1 Sarai Labria",
+    "building_name": ""
+  },
+  {
+    "station_number": "86",
+    "locality": "Dr Ambedkar Samudaik Bhavan Room No 2 Sarai Labria",
+    "building_name": ""
+  },
+  {
+    "station_number": "87",
+    "locality": "Shri Uday Singh Jain Kanya Inter College Room No 1 Uday Singh Jain Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "88",
+    "locality": "Shri Uday Singh Jain Kanya Inter College Room No 3 Uday Singh Jain Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "89",
+    "locality": "Uday Singh Jain Girls Inter College R.n. 3 Uday Singh Jain Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "90",
+    "locality": "Shri Uday Singh Jain Kanya Inter College Room No 4 Uday Singh Jain Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "91",
+    "locality": "Shri Uday Singh Jain Kanya Inter College Room No 5 Uday Singh Jain Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "92",
+    "locality": "Shri Uday Singh Jain Kanya Inter College Room No 6 Uday Singh Jain Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "93",
+    "locality": "Shri Uday Singh Jain Kanya Inter College Room No 7 Uday Singh Jain Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "94",
+    "locality": "Shri Uday Singh Jain Kanya Inter College Room No 8 Uday Singh Jain Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "95",
+    "locality": "Jalkar Karyala Nagar Nigam Road Room No.1 Uday Singh Jain",
+    "building_name": ""
+  },
+  {
+    "station_number": "96",
+    "locality": "Jalkar Karyala Nagar Nigam Road Room No. 2 Uday Singh Jain",
+    "building_name": ""
+  },
+  {
+    "station_number": "97",
+    "locality": "Jalkar Karyala Nagar Nigam Road Room No.3 Uday Singh Jain",
+    "building_name": ""
+  },
+  {
+    "station_number": "98",
+    "locality": "Kasturba Gandhi Awasiya Balika Vidhyalay Room No 1 Ghudiyabag",
+    "building_name": ""
+  },
+  {
+    "station_number": "99",
+    "locality": "Kasturba Gandhi Awasiya Balika Vidhyalay Room No 2 Ghudiyabag",
+    "building_name": ""
+  },
+  {
+    "station_number": "100",
+    "locality": "Kasturba Gandhi Awasiya Balika Vidhyalay Room No 3 Ghudiyabag",
+    "building_name": ""
+  },
+  {
+    "station_number": "101",
+    "locality": "Kasturba Gandhi Awasiya Balika Vidhyalay Room No 4 Ghudiyabag",
+    "building_name": ""
+  },
+  {
+    "station_number": "102",
+    "locality": "Primary Balak Pathshala No.3 Room No 1 Ghudiyabag",
+    "building_name": ""
+  },
+  {
+    "station_number": "103",
+    "locality": "Primary Balak Pathshala No.3 Room No 2 Ghudiyabag",
+    "building_name": ""
+  },
+  {
+    "station_number": "104",
+    "locality": "Primary School N0 3 Room No 3 Ghudiyabag",
+    "building_name": ""
+  },
+  {
+    "station_number": "105",
+    "locality": "Primary Balak Pathshala No.3 Room No 4 Ghudiyabag",
+    "building_name": ""
+  },
+  {
+    "station_number": "106",
+    "locality": "Primary Balak Pathshala No.3 Room No 5 Ghudiyabag",
+    "building_name": ""
+  },
+  {
+    "station_number": "107",
+    "locality": "Bal Vikas Niketan R.n. 1 Subhash Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "108",
+    "locality": "Bal Vikas Niketan R.n. 2 Subhash Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "109",
+    "locality": "Bal Vikas Niketan R.n. 3 Subhash Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "110",
+    "locality": "Dharm Samaj Inter College Room No 1 Ramghat Road Padav Duve",
+    "building_name": ""
+  },
+  {
+    "station_number": "111",
+    "locality": "Dharm Samaj Inter College Room No 2 Ramghat Road Padav Duve",
+    "building_name": ""
+  },
+  {
+    "station_number": "112",
+    "locality": "Dharm Samaj Inter College Room No 3 Ramghat Road Padav Duve",
+    "building_name": ""
+  },
+  {
+    "station_number": "113",
+    "locality": "Dharm Samaj Digree College Room No 1 G T Road Padav Duve",
+    "building_name": ""
+  },
+  {
+    "station_number": "114",
+    "locality": "Dharm Samaj Digree College Room No 2 G T Road Padav Duve",
+    "building_name": ""
+  },
+  {
+    "station_number": "115",
+    "locality": "Dharm Samaj Degree College R.n 3 G T Road Padav Dubey",
+    "building_name": ""
+  },
+  {
+    "station_number": "116",
+    "locality": "Dharm Samaj Digree College Room No 4 G T Road Padav Duve",
+    "building_name": ""
+  },
+  {
+    "station_number": "117",
+    "locality": "Dharm Samaj Digree College Room No 5 G T Road Padav Duve",
+    "building_name": ""
+  },
+  {
+    "station_number": "118",
+    "locality": "Adarsh Bal Mandir J H School Room No 1 Gandhi Park",
+    "building_name": ""
+  },
+  {
+    "station_number": "119",
+    "locality": "Adarsh Bal Mandir J H School Room No 2 Gandhi Park",
+    "building_name": ""
+  },
+  {
+    "station_number": "120",
+    "locality": "Adarsh Bal Mandir J H School Room No 3 Gandhi Park",
+    "building_name": ""
+  },
+  {
+    "station_number": "121",
+    "locality": "Shri Maheshwar Girls Inter College Room No 1 Madar Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "122",
+    "locality": "Shri Maheshwar Girls Inter College Room No 2 Madar Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "123",
+    "locality": "Shri Maheshwar Girls Inter College Room No 3 Madar Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "124",
+    "locality": "Shri Maheshwar Girls Inter College Room No 4 Madar Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "125",
+    "locality": "Shri Maheshwar Girls Inter College Room No 5 Madar Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "126",
+    "locality": "Shri Maheshwar Monteshari Bal Mandir Room No 1 Madar Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "127",
+    "locality": "Shri Maheshwar Monteshari Bal Mandir Room No 2 Madar Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "128",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 1 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "129",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 2 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "130",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 3 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "131",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 4 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "132",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 5 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "133",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 6 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "134",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 7 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "135",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 8 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "136",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 9 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "137",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 10 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "138",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 11 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "139",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 12 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "140",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 13 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "141",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 14 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "142",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 15 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "143",
+    "locality": "Subhash Ucchtar Madhyamik Vidhyalay Room No 16 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "144",
+    "locality": "Pashu Chikitsalay R.n.1 Nagla Masani",
+    "building_name": ""
+  },
+  {
+    "station_number": "145",
+    "locality": "Pashu Chikitsalay R.n.2 Nagla Masani",
+    "building_name": ""
+  },
+  {
+    "station_number": "146",
+    "locality": "Gloriyas Public Inter College Room No 1 A D A Colony Shahjmaal",
+    "building_name": ""
+  },
+  {
+    "station_number": "147",
+    "locality": "Gloriyas Public Inter College Room No 2 A D A Colony Shahjmaal",
+    "building_name": ""
+  },
+  {
+    "station_number": "148",
+    "locality": "Gloriyas Public Inter College Room No 3 A D A Colony Shahjmaal",
+    "building_name": ""
+  },
+  {
+    "station_number": "149",
+    "locality": "Gloriyas Public Inter College Room No 4 A D A Colony Shahjmaal",
+    "building_name": ""
+  },
+  {
+    "station_number": "150",
+    "locality": "Glorious Play School R.n 1 Shahjamal",
+    "building_name": ""
+  },
+  {
+    "station_number": "151",
+    "locality": "Glorious Play School R.n 2 Shahjamal",
+    "building_name": ""
+  },
+  {
+    "station_number": "152",
+    "locality": "Glorious Play School R.n 3 Shahjamal",
+    "building_name": ""
+  },
+  {
+    "station_number": "153",
+    "locality": "Rehmat Public School R.n0 1 Shahjamal",
+    "building_name": ""
+  },
+  {
+    "station_number": "154",
+    "locality": "Rehmat Public School R.n0 2 Shahjamal",
+    "building_name": ""
+  },
+  {
+    "station_number": "155",
+    "locality": "Rehmat Public School R.n0 3 Shahjamal",
+    "building_name": ""
+  },
+  {
+    "station_number": "156",
+    "locality": "Rehmat Public School R.n0 3 Shahjamal",
+    "building_name": ""
+  },
+  {
+    "station_number": "157",
+    "locality": "Saraswati Shishu Mandir Gaushala Room No 1 Niranjanpuri Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "158",
+    "locality": "Saraswati Shishu Mandir Gaushala Room No 2 Niranjanpuri Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "159",
+    "locality": "Saraswati Shishu Mandir Gaushala Room No 3 Niranjanpuri Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "160",
+    "locality": "Saraswati Shishu Mandir Gaushala Room No 4 Niranjanpuri Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "161",
+    "locality": "Saraswati Shishu Mandir Gaushala Room No 5 Niranjanpuri Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "162",
+    "locality": "S.s Public School R.n. 1 Nagla Masani",
+    "building_name": ""
+  },
+  {
+    "station_number": "163",
+    "locality": "S.s Public School R.n. 2 Nagla Masani",
+    "building_name": ""
+  },
+  {
+    "station_number": "164",
+    "locality": "New Star Public School R.n.1 Nagla Masani",
+    "building_name": ""
+  },
+  {
+    "station_number": "165",
+    "locality": "New Star Public School R.n.2 Nagla Masani",
+    "building_name": ""
+  },
+  {
+    "station_number": "166",
+    "locality": "G.d. Public Senior Secondary School Room No 1 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "167",
+    "locality": "G.d. Public Senior Secondary School Room No 2 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "168",
+    "locality": "G.d. Public Senior Secondary School Room No 3 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "169",
+    "locality": "G.d. Public Senior Secondary School Room No 4 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "170",
+    "locality": "G.d. Public Senior Secondary School Room No 5 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "171",
+    "locality": "G.d. Public Senior Secondary School Room No 6 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "172",
+    "locality": "G.d. Public Senior Secondary School Room No 7 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "173",
+    "locality": "G.d. Public Senior Secondary School Room No 8 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "174",
+    "locality": "G.d. Public Senior Secondary School Room No 9 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "175",
+    "locality": "G.d. Public Senior Secondary School Room No 10 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "176",
+    "locality": "G D Public Senior Secondary School Room No 11 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "177",
+    "locality": "Gyanoday Junior High School Room No 1 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "178",
+    "locality": "Gyanoday Junior High School Room No 2 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "179",
+    "locality": "Gyanoday Junior High School Room No 3 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "180",
+    "locality": "Gyanoday Junior High School Room No 4 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "181",
+    "locality": "Gyanoday Junior High School Room No 5 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "182",
+    "locality": "Gyanoday Junior High School Room No 6 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "183",
+    "locality": "Sarvodaya Junior High School Room No 1 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "184",
+    "locality": "Sarvodaya Junior High School Room No 2 Khair Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "185",
+    "locality": "Alfiya Public School R.n 1 A.d.a Colony Shahjamal",
+    "building_name": ""
+  },
+  {
+    "station_number": "186",
+    "locality": "Alfiya Public School R.n 2 A.d.a Colony Shahjamal",
+    "building_name": ""
+  },
+  {
+    "station_number": "187",
+    "locality": "Shribarahsaini Dharamshala Room No 1 Kanwari Gunj",
+    "building_name": ""
+  },
+  {
+    "station_number": "188",
+    "locality": "Shribarahsaini Dharamshala Room No 2 Kanwari Gunj",
+    "building_name": ""
+  },
+  {
+    "station_number": "189",
+    "locality": "Shribarahsaini Dharamshala Room No 3 Kanwari Gunj",
+    "building_name": ""
+  },
+  {
+    "station_number": "190",
+    "locality": "Shribarahsaini Dharamshala Room No 4 Kanwari Gunj",
+    "building_name": ""
+  },
+  {
+    "station_number": "191",
+    "locality": "Ansar Girls Public School Room No 1 Ansar Cwock Mohammad Ali Road Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "192",
+    "locality": "Ansar Girls Public School Room No 2 Ansar Cwock Mohammad Ali Road Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "193",
+    "locality": "Ansar Girls Public School Room No 3 Ansar Cwock Mohammad Ali Road Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "194",
+    "locality": "Ansar Girls Public School Room No 4 Ansar Cwock Mohammad Ali Road Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "195",
+    "locality": "Ansar Girls Public School Room No 5 Ansar Cwock Mohammad Ali Road Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "196",
+    "locality": "Lutfiya Inter College Room No 1 Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "197",
+    "locality": "Lutfiya Inter College Room No 2 Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "198",
+    "locality": "Lutfiya Inter College Room No 3 Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "199",
+    "locality": "Lutfiya Inter College Room No 4 Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "200",
+    "locality": "Lutfiya Inter College Room No 5 Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "201",
+    "locality": "Islamiq Nursary And Praimary School Room No 1 Mohalla Shekhan Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "202",
+    "locality": "Islamiq Nursary And Praimary School Room No 2 Mohalla Shekhan Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "203",
+    "locality": "Islamiq Nursary And Praimary School Room No 3 Mohalla Shekhan Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "204",
+    "locality": "Adarsh Junior High School Room No 1 Ramnagar Gular Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "205",
+    "locality": "Adarsh Junior High School Room No 2 Ramnagar Gular Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "206",
+    "locality": "Adarsh Junior High School Room No 3 Ramnagar Gular Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "207",
+    "locality": "Shri Vasudev Hayar Secondary School Room No 1 Ashok Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "208",
+    "locality": "Shri Vasudev Hayar Secondary School Room No 2 Ashok Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "209",
+    "locality": "K. K. Industrial Training Center R.n 1 Goolar Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "210",
+    "locality": "K. K. Industrial Training Center R.n 2 Goolar Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "211",
+    "locality": "K. K. Industrial Training Center R.n 3 Goolar Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "212",
+    "locality": "K. K. Industrial Training Center R.n 4 Goolar Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "213",
+    "locality": "Arya Samaj Prachar Kendra Arya Dharamshala Kanwariganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "214",
+    "locality": "Kanya Junior High School Ghudiyabagh",
+    "building_name": ""
+  },
+  {
+    "station_number": "215",
+    "locality": "Prince Public School R.n 1 Bhujpura By Pass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "216",
+    "locality": "Prince Public School R.n 2 Bhujpura By Pass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "217",
+    "locality": "Prince Public School R.n 3 Bhujpura By Pass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "218",
+    "locality": "Prince Public School R.n 4 Bhujpura By Pass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "219",
+    "locality": "Prince Public School R.n 5 Bhujpura By Pass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "220",
+    "locality": "Prince Public School R.n 6 Bhujpura By Pass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "221",
+    "locality": "Prince Public School R.n 7 Bhujpura By Pass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "222",
+    "locality": "B.p.no.38 Room No 1 Khwaja Chowk Turkman Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "223",
+    "locality": "B.p.no.38 Room No 2 Khwaja Chowk Turkman Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "224",
+    "locality": "B.p.no.38 Room No 3 Khwaja Chowk Turkman Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "225",
+    "locality": "B P No38 Room No 4 Khwaja Chowk Turkman Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "226",
+    "locality": "Tehzeeb Modern Public School Room No 1 Turkman Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "227",
+    "locality": "Tehzeeb Modern Public School Room No 2 Turkman Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "228",
+    "locality": "Tehzeeb Modern Public School Room No 3 Turkman Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "229",
+    "locality": "Tehzeeb Modern Public School Room No 4 Turkman Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "230",
+    "locality": "Holy Angels Convent School Room No 1 Turkman Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "231",
+    "locality": "Holy Angel Public School R.n 2 Turkman Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "232",
+    "locality": "Holy Angels Convent School Room No 3 Turkman Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "233",
+    "locality": "Holy Angels Convent School Room No 4 Turkman Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "234",
+    "locality": "Holy Angels Convent School Room No 5 Turkman Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "235",
+    "locality": "Ziauddin Public School R.n 1 Khwaja Chowk Saray Miyan",
+    "building_name": ""
+  },
+  {
+    "station_number": "236",
+    "locality": "Ziauddin Public School R.n 2 Khwaja Chowk Saray Miyan",
+    "building_name": ""
+  },
+  {
+    "station_number": "237",
+    "locality": "Ziauddin Public School R.n 3 Khwaja Chowk Saray Miyan",
+    "building_name": ""
+  },
+  {
+    "station_number": "238",
+    "locality": "Ziauddin Public School R.n 4 Khwaja Chowk Saray Miyan",
+    "building_name": ""
+  },
+  {
+    "station_number": "239",
+    "locality": "Apple Public School A D A Colony Shahjamal R.n 1",
+    "building_name": ""
+  },
+  {
+    "station_number": "240",
+    "locality": "Apple Public School A D A Colony Shahjamal R.n 2",
+    "building_name": ""
+  },
+  {
+    "station_number": "241",
+    "locality": "Apple Public School A D A Colony Shahjamal R.n 3",
+    "building_name": ""
+  },
+  {
+    "station_number": "242",
+    "locality": "Apple Public School A D A Colony Shahjamal R.n 4",
+    "building_name": ""
+  },
+  {
+    "station_number": "243",
+    "locality": "Shri Khateek Panchyati Dharmashala Room No 1 Dehli Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "244",
+    "locality": "Shri Khateek Panchyati Dharmashala Room No 2 Dehli Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "245",
+    "locality": "Basic Primary Balak Pathshala No 20 Room No 1 Dehli Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "246",
+    "locality": "Basic Primary Balak Pathshala No 20 Room No 2 Dehli Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "247",
+    "locality": "Basic Primary Pathshala Room No1 Bala-e-kila",
+    "building_name": ""
+  },
+  {
+    "station_number": "248",
+    "locality": "Basic Primary Pathshala Room No2 Bala-e-kila",
+    "building_name": ""
+  },
+  {
+    "station_number": "249",
+    "locality": "Basic Primary Pathshala Room No3 Bala-e-kila",
+    "building_name": ""
+  },
+  {
+    "station_number": "250",
+    "locality": "Nishwan College R.n 1 Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "251",
+    "locality": "Nishwan College R.n 2 Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "252",
+    "locality": "Nishwan College R.n 3 Upar Kot",
+    "building_name": ""
+  },
+  {
+    "station_number": "253",
+    "locality": "Sh. Biharilal Inter College Room No1 Nuner Gate Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "254",
+    "locality": "Sh. Biharilal Inter College Room No2 Nuner Gate Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "255",
+    "locality": "Sh. Biharilal Inter College Room No3 Nuner Gate Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "256",
+    "locality": "Sh. Biharilal Inter College Room No4 Nuner Gate Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "257",
+    "locality": "Sh. Biharilal Inter College Room No5 Nuner Gate Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "258",
+    "locality": "Sh. Biharilal Inter College Room No6 Nuner Gate Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "259",
+    "locality": "Sh. Biharilal Inter College Room No7 Nuner Gate Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "260",
+    "locality": "Sh. Biharilal Inter College Room No8 Nuner Gate Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "261",
+    "locality": "Sh. Biharilal Inter College Room No9 Nuner Gate Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "262",
+    "locality": "Sh. Biharilal Inter College Room No10 Nuner Gate Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "263",
+    "locality": "Sh. Biharilal Inter College Room No11 Nuner Gate Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "264",
+    "locality": "Sh. Biharilal Inter College Room No12 Nuner Gate Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "265",
+    "locality": "Seltor Home Room No 1 Mullapada Bhujpura Chauraha Police Chowki Ke Pichhe",
+    "building_name": ""
+  },
+  {
+    "station_number": "266",
+    "locality": "Seltor Home Room No 2 Mullapada Bhujpura Chauraha Police Chowki Ke Pichhe",
+    "building_name": ""
+  },
+  {
+    "station_number": "267",
+    "locality": "Seltor Home Room No 3 Mullapada Bhujpura Chauraha Police Chowki Ke Pichhe",
+    "building_name": ""
+  },
+  {
+    "station_number": "268",
+    "locality": "Seltor Home Room No 4 Mullapada Bhujpura Chauraha Police Chowki Ke Pichhe",
+    "building_name": ""
+  },
+  {
+    "station_number": "269",
+    "locality": "Seltor Home Room No 5 Mullapada Bhujpura Chauraha Police Chowki Ke Pichhe",
+    "building_name": ""
+  },
+  {
+    "station_number": "270",
+    "locality": "Naaz Public School R.n0 1 Siksha Samiti Bhujpura",
+    "building_name": ""
+  },
+  {
+    "station_number": "271",
+    "locality": "Naaz Public School R.n0 2 Siksha Samiti Bhujpura",
+    "building_name": ""
+  },
+  {
+    "station_number": "272",
+    "locality": "Naaz Public School R.n0 3 Siksha Samiti Bhujpura",
+    "building_name": ""
+  },
+  {
+    "station_number": "273",
+    "locality": "Naaz Public School R.n0 4 Siksha Samiti Bhujpura",
+    "building_name": ""
+  },
+  {
+    "station_number": "274",
+    "locality": "Naaz Public School R.n0 5 Siksha Samiti Bhujpura",
+    "building_name": ""
+  },
+  {
+    "station_number": "275",
+    "locality": "Naaz Public School R.n0 6 Siksha Samiti Bhujpura",
+    "building_name": ""
+  },
+  {
+    "station_number": "276",
+    "locality": "Shakuntla Shiksha Sadan Junior High School R.n 1 Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "277",
+    "locality": "Shakuntla Shiksha Sadan Junior High School R.n 2 Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "278",
+    "locality": "Shakuntla Shiksha Sadan Junior High School R.n 3 Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "279",
+    "locality": "Shakuntla Shiksha Sadan Junior High School R.n 4 Bhujpura Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "280",
+    "locality": "S K Inter College R.n 1 Jaiganj Post Office",
+    "building_name": ""
+  },
+  {
+    "station_number": "281",
+    "locality": "S K Inter College R.n 2 Jaiganj Post Office",
+    "building_name": ""
+  },
+  {
+    "station_number": "282",
+    "locality": "A.m.u. Girls School R.n 1 Kazipara",
+    "building_name": ""
+  },
+  {
+    "station_number": "283",
+    "locality": "A.m.u. Girls School R.n 2 Kazipara",
+    "building_name": ""
+  },
+  {
+    "station_number": "284",
+    "locality": "A.m.u. Girls School R.n 3 Kazipara",
+    "building_name": ""
+  },
+  {
+    "station_number": "285",
+    "locality": "A.m.u. Girls School R.n 4 Kazipara",
+    "building_name": ""
+  },
+  {
+    "station_number": "286",
+    "locality": "A.m.u. Girls School R.n 5 Kazipara",
+    "building_name": ""
+  },
+  {
+    "station_number": "287",
+    "locality": "Sanskrit Kanya Pathsahala R.n 1 Kanoon Goyan",
+    "building_name": ""
+  },
+  {
+    "station_number": "288",
+    "locality": "Sanskrit Kanya Pathsahala R.n 2 Kanoon Goyan",
+    "building_name": ""
+  },
+  {
+    "station_number": "289",
+    "locality": "Sanskrit Kanya Pathsahala R.n 3 Kanoon Goyan",
+    "building_name": ""
+  },
+  {
+    "station_number": "290",
+    "locality": "Sanskrit Kanya Pathsahala R.n 4 Kanoon Goyan",
+    "building_name": ""
+  },
+  {
+    "station_number": "291",
+    "locality": "Champa Agrawal Kanya Inter College R.n 1 Achal Talab Sarai Sultani",
+    "building_name": ""
+  },
+  {
+    "station_number": "292",
+    "locality": "Champa Agrawal Kanya Inter College R.n 2 Achal Talab Sarai Sultani",
+    "building_name": ""
+  },
+  {
+    "station_number": "293",
+    "locality": "Champa Agrawal Kanya Inter College R.n 3 Achal Talab Sarai Sultani",
+    "building_name": ""
+  },
+  {
+    "station_number": "294",
+    "locality": "Champa Agrawal Kanya Inter College R.n 4 Achal Talab Sarai Sultani",
+    "building_name": ""
+  },
+  {
+    "station_number": "295",
+    "locality": "Shri Kundanlal Jain Bal Vidyalay R.n 1 Khirni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "296",
+    "locality": "Shri Kundanlal Jain Bal Vidyalay R.n 2 Khirni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "297",
+    "locality": "Shri Kundanlal Jain Bal Vidyalay R.n 3 Khirni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "298",
+    "locality": "Government Girls Inter College R.n 1 Sarai Man Singh",
+    "building_name": ""
+  },
+  {
+    "station_number": "299",
+    "locality": "Government Girls Inter College R.n 2 Sarai Man Singh",
+    "building_name": ""
+  },
+  {
+    "station_number": "300",
+    "locality": "Government Girls Inter College R.n 3 Sarai Man Singh",
+    "building_name": ""
+  },
+  {
+    "station_number": "301",
+    "locality": "Government Girls Inter College R.n 4 Sarai Man Singh",
+    "building_name": ""
+  },
+  {
+    "station_number": "302",
+    "locality": "Government Girls Inter College R.n 5 Sarai Man Singh",
+    "building_name": ""
+  },
+  {
+    "station_number": "303",
+    "locality": "Government Girls Inter College R.n 6 Sarai Man Singh",
+    "building_name": ""
+  },
+  {
+    "station_number": "304",
+    "locality": "Government Girls Inter College R.n 7 Sarai Man Singh",
+    "building_name": ""
+  },
+  {
+    "station_number": "305",
+    "locality": "Government Girls Inter College R.n 8 Sarai Man Singh",
+    "building_name": ""
+  },
+  {
+    "station_number": "306",
+    "locality": "G S Public School Room No 1 Sarai Maansingh",
+    "building_name": ""
+  },
+  {
+    "station_number": "307",
+    "locality": "G S Public School Room No 2 Sarai Maansingh",
+    "building_name": ""
+  },
+  {
+    "station_number": "308",
+    "locality": "Valmiki Dharamshala Durgapuri Sarai Maan Singh",
+    "building_name": ""
+  },
+  {
+    "station_number": "309",
+    "locality": "Valmiki Dharamshala Durgapuri Sarai Maan Singh R.n.2",
+    "building_name": ""
+  },
+  {
+    "station_number": "310",
+    "locality": "Dayanand Baal Mandir Junior High School Ladiya Jaiganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "311",
+    "locality": "Nav Jyoti Public School R.n 1 Choki Ladiya",
+    "building_name": ""
+  },
+  {
+    "station_number": "312",
+    "locality": "Nav Jyoti Public School R.n 2 Choki Ladiya",
+    "building_name": ""
+  },
+  {
+    "station_number": "313",
+    "locality": "Basic Primary School No. 4 R.n 1 Choki Ladiya",
+    "building_name": ""
+  },
+  {
+    "station_number": "314",
+    "locality": "Basic Primary School No. 4 R.n 2 Choki Ladiya",
+    "building_name": ""
+  },
+  {
+    "station_number": "315",
+    "locality": "Basic Primary School No. 4 R.n 3 Choki Ladiya",
+    "building_name": ""
+  },
+  {
+    "station_number": "316",
+    "locality": "Ganesh Dharamshala R.n 1 Jayganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "317",
+    "locality": "Ganesh Dharamshala R.n 2 Jayganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "318",
+    "locality": "Basic Primary School No. 35 R.n 1 Sarai Bholanath",
+    "building_name": ""
+  },
+  {
+    "station_number": "319",
+    "locality": "Basic Primary School No. 35 R.n 2 Sarai Bholanath",
+    "building_name": ""
+  },
+  {
+    "station_number": "320",
+    "locality": "Ward Office Nagar Nigam Sarai Bholanath",
+    "building_name": ""
+  },
+  {
+    "station_number": "321",
+    "locality": "Maheshwari Inter College R.n 1 Sasni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "322",
+    "locality": "Maheshwari Inter College R.n 2 Sasni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "323",
+    "locality": "Maheshwari Inter College R.n 3 Sasni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "324",
+    "locality": "Maheshwari Inter College R.n 4 Sasni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "325",
+    "locality": "Maheshwari Inter College R.n 5 Sasni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "326",
+    "locality": "Maheshwari Inter College R.n 6 Sasni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "327",
+    "locality": "Maheshwari Inter College R.n 7 Sasni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "328",
+    "locality": "Ramkatori Kanya Higher Secondary School Room No 1 Sasni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "329",
+    "locality": "Ramkatori Kanya Higher Secondary School Room No 2 Sasni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "330",
+    "locality": "Ramkatori Kanya Higher Secondary School Room No 3 Sasni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "331",
+    "locality": "Ramkatori Kanya U. Madhyamik Vidhalay Room No 4 Sasni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "332",
+    "locality": "Ramkatori Kanya U. Madhyamik Vidhalay Room No 5 Sasni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "333",
+    "locality": "Ramkatori Kanya U. Madhyamik Vidhalay Room No 6 Sasni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "334",
+    "locality": "Ramkatori Kanya U. Madhyamik Vidhalay Room No 7 Sasni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "335",
+    "locality": "Ramkatori Kanya U. Madhyamik Vidhalay Room No 8 Sasni Gate",
+    "building_name": ""
+  },
+  {
+    "station_number": "336",
+    "locality": "Paliwaal Inter College R.n 1 Achal Talab",
+    "building_name": ""
+  },
+  {
+    "station_number": "337",
+    "locality": "Paliwaal Inter College R.n 2 Achal Talab",
+    "building_name": ""
+  },
+  {
+    "station_number": "338",
+    "locality": "Paliwaal Inter College R.n 3 Achal Talab",
+    "building_name": ""
+  },
+  {
+    "station_number": "339",
+    "locality": "Paliwaal Inter College R.n 4 Achal Talab",
+    "building_name": ""
+  },
+  {
+    "station_number": "340",
+    "locality": "Paliwaal Inter College R.n 5 Achal Talab",
+    "building_name": ""
+  },
+  {
+    "station_number": "341",
+    "locality": "Paliwaal Inter College R.n 6 Achal Talab",
+    "building_name": ""
+  },
+  {
+    "station_number": "342",
+    "locality": "Babulal Jain Inter College R.n 1 Krishanapuri Mathiya Pala Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "343",
+    "locality": "Babulal Jain Inter College R.n 2 Krishanapuri Mathiya Pala Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "344",
+    "locality": "Babulal Jain Inter College R.n 3 Krishanapuri Mathiya Pala Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "345",
+    "locality": "Babulal Jain Inter College R.n 4 Krishanapuri Mathiya Pala Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "346",
+    "locality": "Babulal Jain Inter College R.n 5 Krishanapuri Mathiya Pala Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "347",
+    "locality": "Babulal Jain Inter College R.n 6 Krishanapuri Mathiya Pala Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "348",
+    "locality": "Babulal Jain Inter College R.n 7 Krishanapuri Mathiya Pala Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "349",
+    "locality": "Babulal Jain Inter College R.n 8 Krishanapuri Mathiya Pala Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "350",
+    "locality": "Babulal Jain Inter College R.n 9 Krishanapuri Mathiya Pala Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "351",
+    "locality": "Babulal Jain Inter College R.n 10 Krishanapuri Mathiya Pala Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "352",
+    "locality": "Heritej Inter Natiional Public School R.n 1 Primiyar Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "353",
+    "locality": "Heritej Inter Natiional Public School R.n 2 Primiyar Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "354",
+    "locality": "Heritej Inter Natiional Public School R.n 3 Primiyar Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "355",
+    "locality": "Basic Primary School N0 6 R.n 1 Gambhirpura",
+    "building_name": ""
+  },
+  {
+    "station_number": "356",
+    "locality": "Basic Primary School N0 6 R.n 2 Gambhirpura",
+    "building_name": ""
+  },
+  {
+    "station_number": "357",
+    "locality": "Raghuveer Sahay Inter College Room.n0 1 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "358",
+    "locality": "Raghuveer Sahay Inter College Room.n0 2 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "359",
+    "locality": "Raghuveer Sahay Inter College Room.n0 3 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "360",
+    "locality": "Raghuveer Sahay Inter College Room.n0 4 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "361",
+    "locality": "Raghuveer Sahay Inter College Room.n0 5 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "362",
+    "locality": "Raghuveer Sahay Inter College Room.n0 6 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "363",
+    "locality": "Raghuveer Sahay Inter College Room.n0 7 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "364",
+    "locality": "Raghuveer Sahay Inter College Room.n0 8 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "365",
+    "locality": "Raghuveer Sahay Inter College Room.n0 9 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "366",
+    "locality": "Raghuveer Sahay Inter College Room.n0 10 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "367",
+    "locality": "Raghuveer Sahay Inter College Room.n0 11 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "368",
+    "locality": "Anjani Bal Vidya Mandir R.n 1 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "369",
+    "locality": "Anjani Bal Vidya Mandir R.n 2 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "370",
+    "locality": "Kanya Primary School R.n 1 Pala Shahibabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "371",
+    "locality": "Kanya Primary School R.n 2 Pala Shahibabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "372",
+    "locality": "Kanya Primary School R.n 3 Pala Shahibabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "373",
+    "locality": "Kanya Primary School R.n 4 Pala Shahibabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "374",
+    "locality": "Roshan Singh Memorial Higher Secondary School R.n 1 Pala Sahibabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "375",
+    "locality": "Roshan Singh Memorial Higher Secondary School R.n 2 Pala Sahibabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "376",
+    "locality": "Setilal Public School R.n 1 Rathaur Bagichi Mahendra Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "377",
+    "locality": "Setilal Public School R.n 2 Rathaur Bagichi Mahendra Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "378",
+    "locality": "Setilal Public School R.n 3 Rathaur Bagichi Mahendra Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "379",
+    "locality": "Saraswati Shishu Mandir Room No 1 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "380",
+    "locality": "Saraswati Shishu Mandir Room No 2 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "381",
+    "locality": "Saraswati Shishu Mandir Room No 3 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "382",
+    "locality": "Saraswati Shishu Mandir Room No 4 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "383",
+    "locality": "Saraswati Shishu Mandir Room No 5 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "384",
+    "locality": "Saraswati Shishu Mandir Room No 6 Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "385",
+    "locality": "S P S Public School Room No 1 New Avtar Nagar Baba Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "386",
+    "locality": "S P S Public School Room No 2 New Avtar Nagar Baba Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "387",
+    "locality": "Chiranjilal Kanya Inter College R.n 1 Pala Sahibabad Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "388",
+    "locality": "Chiranjilal Kanya Inter College R.n 2 Pala Sahibabadagra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "389",
+    "locality": "Chiranjilal Kanya Inter College R.n 3 Pala Sahibabad Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "390",
+    "locality": "Chiranjilal Kanya Inter College R.n 4 Pala Sahibabad Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "391",
+    "locality": "Chiranjilal Kanya Inter College R.n 5 Pala Sahibabad Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "392",
+    "locality": "Chiranjilal Kanya Inter College R.n 6 Pala Sahibabad Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "393",
+    "locality": "Chiranjilal Kanya Inter College R.n 7 Pala Sahibabad Agra Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "394",
+    "locality": "Chiranjilal Kanya Inter College R.n 8 Pala Sahibabad 8 Agra Road",
+    "building_name": ""
+  }
+]

@@ -486,6 +486,84 @@ def get_geo_overrides(tenant_id: int) -> dict:
         db.close()
 
 
+def get_tenant_constituency(tenant_id: int) -> str | None:
+    """Return a tenant's parliamentary constituency, if known."""
+    db = SessionLocal()
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        return tenant.constituency if tenant and tenant.constituency else None
+    finally:
+        db.close()
+
+
+def get_geography_data(
+    tenant_id: int | None = None,
+    parliamentary_constituency: str | None = None,
+) -> dict[str, list[dict]]:
+    """Return {assembly_name: [station, ...]} geography rows stored in DB.
+
+    Geography data is persisted in tenant_overrides as override_type='geography_data'
+    with keys in the format "<Parliamentary Constituency>/<Assembly>".
+    """
+    db = SessionLocal()
+    try:
+        query = db.query(TenantOverride).filter(
+            TenantOverride.override_type == "geography_data"
+        )
+        if tenant_id is not None:
+            query = query.filter(TenantOverride.tenant_id == tenant_id)
+
+        assemblies: dict[str, list[dict]] = {}
+        for row in query.all():
+            parts = (row.key or "").split("/", 1)
+            if len(parts) != 2:
+                continue
+            parl_name, assembly_name = parts
+            if parliamentary_constituency and parl_name.lower() != parliamentary_constituency.lower():
+                continue
+            try:
+                payload = json.loads(row.value) if isinstance(row.value, str) else row.value
+            except Exception:
+                continue
+            if isinstance(payload, list):
+                assemblies[assembly_name] = payload
+        return assemblies
+    finally:
+        db.close()
+
+
+def get_all_geography_data() -> list[dict]:
+    """Return all persisted geography rows with parsed payloads."""
+    db = SessionLocal()
+    try:
+        rows = db.query(TenantOverride).filter(
+            TenantOverride.override_type == "geography_data"
+        ).all()
+        result: list[dict] = []
+        for row in rows:
+            parts = (row.key or "").split("/", 1)
+            if len(parts) != 2:
+                continue
+            parl_name, assembly_name = parts
+            try:
+                payload = json.loads(row.value) if isinstance(row.value, str) else row.value
+            except Exception:
+                continue
+            if not isinstance(payload, list):
+                continue
+            result.append(
+                {
+                    "tenant_id": row.tenant_id,
+                    "parliamentary_constituency": parl_name,
+                    "assembly": assembly_name,
+                    "stations": payload,
+                }
+            )
+        return result
+    finally:
+        db.close()
+
+
 def get_all_overrides() -> dict:
     """Return full overrides dict matching the JSON format."""
     db = SessionLocal()

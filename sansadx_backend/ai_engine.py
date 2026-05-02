@@ -199,44 +199,63 @@ def get_jurisdiction_context(tenant_id=1):
     except Exception:
         pass
 
-    # 1. Load from geography JSON files — ONLY this tenant's constituency folder
-    base_paths = ["data/geography", "../data/geography", "/app/data/geography"]
-    for folder in base_paths:
-        if not os.path.exists(folder):
-            continue
+    # 1. Load from DB geography_data first
+    try:
+        from sansadx_backend.db import get_geography_data
+        for stations in get_geography_data(
+            tenant_id=tenant_id,
+            parliamentary_constituency=tenant_constituency,
+        ).values():
+            for item in stations:
+                if isinstance(item, str):
+                    known_areas.add(item)
+                elif isinstance(item, dict):
+                    if "locality" in item:
+                        known_areas.add(item["locality"])
+                    elif "name" in item:
+                        known_areas.add(item["name"])
+    except Exception:
+        pass
 
-        if tenant_constituency:
-            # Try exact match first, then case-insensitive match
-            constituency_folder = os.path.join(folder, tenant_constituency)
-            if not os.path.exists(constituency_folder):
-                # Case-insensitive fallback
-                for d in os.listdir(folder):
-                    if d.lower() == tenant_constituency.lower() and os.path.isdir(os.path.join(folder, d)):
-                        constituency_folder = os.path.join(folder, d)
-                        break
-                else:
-                    constituency_folder = None
+    # 2. File fallback for local/dev bootstraps without DB geography rows
+    if not known_areas:
+        base_paths = ["data/geography", "../data/geography", "/app/data/geography"]
+        for folder in base_paths:
+            if not os.path.exists(folder):
+                continue
 
-            if constituency_folder and os.path.exists(constituency_folder):
-                for file_path in glob.glob(os.path.join(constituency_folder, "*.json")):
-                    try:
-                        with open(file_path, "r") as f:
-                            data = json.load(f)
-                            if isinstance(data, dict): known_areas.update(data.keys())
-                            elif isinstance(data, list):
-                                for item in data:
-                                    if isinstance(item, str): known_areas.add(item)
-                                    elif isinstance(item, dict):
-                                        if "locality" in item: known_areas.add(item["locality"])
-                                        elif "name" in item: known_areas.add(item["name"])
-                    except Exception:
-                        pass  # nosec B110
-            # If no constituency folder found, don't load ANY geography (avoid cross-contamination)
-        else:
-            # No tenant constituency known — skip file-based geography to avoid loading wrong data
-            logger.warning(f"No constituency found for tenant {tenant_id}, skipping file geography")
+            if tenant_constituency:
+                constituency_folder = os.path.join(folder, tenant_constituency)
+                if not os.path.exists(constituency_folder):
+                    for d in os.listdir(folder):
+                        if d.lower() == tenant_constituency.lower() and os.path.isdir(os.path.join(folder, d)):
+                            constituency_folder = os.path.join(folder, d)
+                            break
+                    else:
+                        constituency_folder = None
 
-    # 2. Load from tenant_overrides DB (tenant-specific locations)
+                if constituency_folder and os.path.exists(constituency_folder):
+                    for file_path in glob.glob(os.path.join(constituency_folder, "*.json")):
+                        try:
+                            with open(file_path, "r") as f:
+                                data = json.load(f)
+                                if isinstance(data, dict):
+                                    known_areas.update(data.keys())
+                                elif isinstance(data, list):
+                                    for item in data:
+                                        if isinstance(item, str):
+                                            known_areas.add(item)
+                                        elif isinstance(item, dict):
+                                            if "locality" in item:
+                                                known_areas.add(item["locality"])
+                                            elif "name" in item:
+                                                known_areas.add(item["name"])
+                        except Exception:
+                            pass  # nosec B110
+            else:
+                logger.warning(f"No constituency found for tenant {tenant_id}, skipping file geography")
+
+    # 3. Load from tenant_overrides DB (tenant-specific locations)
     try:
         from sansadx_backend.db import get_geo_overrides
         tenant_geo = get_geo_overrides(tenant_id)
@@ -595,26 +614,33 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 # 2. Also build location→assembly mapping from geography JSON files
                 geo_file_rules = {}
                 try:
-                    # Resolve this tenant's constituency folder
                     _tenant_const = mp_constituency if mp_name else None
                     if not _tenant_const:
                         try:
-                            from sansadx_backend.db import SessionLocal as _SL, Tenant as _T
-                            _db = _SL()
-                            try:
-                                _ten = _db.query(_T).filter(_T.id == tenant_id).first()
-                                if _ten:
-                                    _tenant_const = _ten.constituency
-                            finally:
-                                _db.close()
+                            from sansadx_backend.db import get_tenant_constituency
+                            _tenant_const = get_tenant_constituency(tenant_id)
                         except Exception:
                             pass
-                    
-                    if _tenant_const:
+
+                    try:
+                        from sansadx_backend.db import get_geography_data
+                        geo_db_rules = get_geography_data(
+                            tenant_id=tenant_id,
+                            parliamentary_constituency=_tenant_const,
+                        )
+                        for assembly_name, stations in geo_db_rules.items():
+                            for station in stations:
+                                if isinstance(station, dict):
+                                    loc = station.get("locality", "").strip()
+                                    if loc and loc not in geo_file_rules:
+                                        geo_file_rules[loc] = assembly_name
+                    except Exception:
+                        pass
+
+                    if not geo_file_rules and _tenant_const:
                         for base in ["data/geography", "/app/data/geography"]:
                             const_dir = os.path.join(base, _tenant_const)
                             if not os.path.isdir(const_dir):
-                                # Case-insensitive fallback
                                 if os.path.isdir(base):
                                     for d in os.listdir(base):
                                         if d.lower() == _tenant_const.lower() and os.path.isdir(os.path.join(base, d)):
@@ -624,7 +650,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                                         continue
                                 else:
                                     continue
-                            
+
                             for fpath in glob.glob(os.path.join(const_dir, "*.json")):
                                 assembly_name = os.path.splitext(os.path.basename(fpath))[0]
                                 try:
@@ -638,7 +664,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                                                     geo_file_rules[loc] = assembly_name
                                 except Exception:
                                     pass
-                            break  # found the folder, stop searching
+                            break
                 except Exception as e:
                     logger.warning(f"Geography file scan failed: {e}")
                 

@@ -110,7 +110,7 @@ compass-needle/
 │   └── geography/              # Polling station JSON files per constituency
 │
 ├── Dockerfile                  # Backend container (Python 3.11-slim)
-├── docker-compose.yml          # Local dev: Postgres + API + Streamlit (legacy)
+├── docker-compose.yml          # Local dev: Postgres + FastAPI + both Next.js dashboards
 ├── requirements.txt            # Python dependencies (pinned versions)
 └── tenant_overrides.json       # WhatsApp number → tenant mapping
 ```
@@ -127,7 +127,7 @@ compass-needle/
 | `JWT_SECRET` | ✅ | Token signing key (min 32 chars) |
 | `OPENAI_API_KEY` | ✅ | GPT-4o-mini for grievance classification |
 | `GEMINI_API_KEY` | ✅ | Gemini for copilot, drafter, letterbox OCR |
-| `META_PHONE_NUMBER_ID` | ✅ | Meta WhatsApp Business phone number ID |
+| `WHATSAPP_PHONE_NUMBER_ID` | ✅ | Meta WhatsApp Business phone number ID |
 | `META_ACCESS_TOKEN` | ✅ | Meta permanent System User token |
 | `META_VERIFY_TOKEN` | ✅ | Webhook verification token (you define it) |
 | `META_APP_SECRET` | ✅ | Meta App Secret (for webhook signature validation) |
@@ -243,6 +243,27 @@ Three services from the same GitHub repo, auto-deploy on push to `main`:
 | Backend | `/` | Dockerfile |
 | MP Frontend | `/frontend` | Railpack |
 | Admin Frontend | `/admin` | Railpack |
+
+### Production Smoke Test
+
+After a Railway deploy, run the bundled smoke test instead of checking only the home page:
+
+```bash
+export BACKEND_URL="https://needle-backend.up.railway.app"
+export MP_URL="https://compass-needle-production.up.railway.app"
+export ADMIN_URL="https://admin-production.up.railway.app"
+export MP_USERNAME="..."
+export MP_PASSWORD="..."
+export ADMIN_USERNAME="..."
+export ADMIN_PASSWORD="..."
+export META_APP_SECRET="..."
+export TEST_SENDER="919999999999"
+export WA_DISPLAY_NUMBER="15551636821"
+
+./scripts/railway_smoke_test.sh
+```
+
+The script checks backend health, both frontends, MP login, admin login, signed webhook intake, case visibility, outbound notify, bad-signature rejection, and malformed JSON handling.
 
 ---
 

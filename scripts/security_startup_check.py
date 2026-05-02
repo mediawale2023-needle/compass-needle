@@ -75,16 +75,18 @@ def check_cors_origins():
 
 def check_api_keys():
     """Verify API keys are configured."""
-    keys = {
+    missing = []
+    required = {
         "OPENAI_API_KEY": "OpenAI",
         "GEMINI_API_KEY": "Gemini",
-        "TWILIO_ACCOUNT_SID": "Twilio",
+        "META_ACCESS_TOKEN": "Meta Access Token",
     }
-    
-    missing = []
-    for key, name in keys.items():
+    for key, name in required.items():
         if not os.getenv(key):
             missing.append(name)
+
+    if not (os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID")):
+        missing.append("WhatsApp Phone Number ID")
     
     if missing:
         env = os.getenv("ENV", "development")

@@ -326,6 +326,7 @@ export default function GeographyUploadPage() {
     const [parsing, setParsing]               = useState(false);
     const [ocrProgress, setOcrProgress]       = useState(null);
     const [saving, setSaving]                 = useState(false);
+    const [validationReport, setValidationReport] = useState(null);
     const [deleteTarget, setDeleteTarget]     = useState(null); // {pc, ac}
     const fileRef = useRef();
 
@@ -372,16 +373,20 @@ export default function GeographyUploadPage() {
         setOcrProgress(null);
         setMsg({});
         setStations(null);
+        setValidationReport(null);
         try {
             const r = await apiUpload('/api/admin/geography/upload-pdf', file);
             if (r.job_id) {
                 showMsg('success', 'Hindi PDF detected — processing with AI OCR…');
-                const extracted = applyClean(await pollOcrJob(r.job_id));
+                const job = await pollOcrJob(r.job_id);
+                const extracted = applyClean(job.stations || []);
                 setStations(extracted);
+                setValidationReport(job.validation || null);
                 showMsg('success', `Extracted ${extracted.length} stations`);
             } else {
                 const extracted = applyClean(r.stations || []);
                 setStations(extracted);
+                setValidationReport(r.validation || null);
                 showMsg('success', `Extracted ${extracted.length} stations`);
             }
         } catch (err) {
@@ -401,7 +406,7 @@ export default function GeographyUploadPage() {
             try {
                 const job = await apiGet(`/api/admin/geography/ocr-job/${jobId}`);
                 if (job.progress) setOcrProgress(job.progress);
-                if (job.status === 'done') return job.stations || [];
+                if (job.status === 'done') return job;
                 if (job.status === 'error') throw new Error(job.error || 'OCR failed');
             } catch (err) {
                 if (err.message?.includes('OCR failed')) throw err;
@@ -415,11 +420,17 @@ export default function GeographyUploadPage() {
         if (!stations || stations.length === 0) return;
         setSaving(true);
         try {
-            await apiPut(
+            const r = await apiPut(
                 `/api/admin/geography/${encodeURIComponent(pConst)}/${encodeURIComponent(aConst)}`,
                 { data: stations },
             );
-            showMsg('success', 'Geography data saved successfully.');
+            setValidationReport(r.validation || null);
+            const ambiguityCount = Object.keys(r.validation?.ambiguous_localities_against_constituency || {}).length;
+            const removedCount = r.validation?.meta_rows_removed || 0;
+            const suffix = ambiguityCount || removedCount
+                ? ` Removed ${removedCount} meta rows; flagged ${ambiguityCount} ambiguous localities.`
+                : '';
+            showMsg('success', `Geography data saved successfully.${suffix}`);
             setStations(null);
             if (fileRef.current) fileRef.current.value = '';
             loadSavedFiles();
@@ -537,6 +548,47 @@ export default function GeographyUploadPage() {
 
                     <ReviewTable stations={stations} onChange={setStations} />
 
+                    {validationReport && (
+                        <div style={{
+                            marginTop: 16,
+                            padding: '14px 16px',
+                            border: '1px solid #e2ebe5',
+                            borderRadius: 10,
+                            background: '#f8fbf9',
+                        }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#1a2e28', marginBottom: 8 }}>
+                                Validation Report
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                                <span className="badge badge-slate">{validationReport.rows_received || 0} received</span>
+                                <span className="badge badge-green">{validationReport.rows_saved || 0} saved</span>
+                                <span className="badge badge-amber">{validationReport.meta_rows_removed || 0} meta removed</span>
+                                <span className="badge badge-slate">
+                                    {Object.keys(validationReport.ambiguous_localities_against_constituency || {}).length} ambiguous
+                                </span>
+                            </div>
+                            {validationReport.meta_row_samples?.length > 0 && (
+                                <div style={{ fontSize: '0.78rem', color: '#6b7f76', marginBottom: 8 }}>
+                                    Removed meta rows: {validationReport.meta_row_samples.join(', ')}
+                                </div>
+                            )}
+                            {Object.keys(validationReport.ambiguous_localities_against_constituency || {}).length > 0 && (
+                                <div style={{ fontSize: '0.78rem', color: '#6b7f76', marginBottom: 8 }}>
+                                    {Object.entries(validationReport.ambiguous_localities_against_constituency).map(([locality, assemblies]) => (
+                                        <div key={locality}>
+                                            {locality}: {assemblies.join(', ')}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            {validationReport.missing_locality_en_count > 0 && (
+                                <div style={{ fontSize: '0.78rem', color: '#6b7f76' }}>
+                                    Missing `locality_en` on {validationReport.missing_locality_en_count} rows.
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 16 }}>
                         <button
                             className="btn-primary"
@@ -547,7 +599,7 @@ export default function GeographyUploadPage() {
                         </button>
                         <button
                             className="btn-secondary"
-                            onClick={() => { setStations(null); if (fileRef.current) fileRef.current.value = ''; }}
+                            onClick={() => { setStations(null); setValidationReport(null); if (fileRef.current) fileRef.current.value = ''; }}
                         >
                             Discard
                         </button>

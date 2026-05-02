@@ -54,6 +54,11 @@ if not META_APP_SECRET:
         "App Settings → Basic → App Secret."
     )
 
+
+def _get_meta_app_secret() -> str:
+    """Read the current webhook signing secret from env at request time."""
+    return os.getenv("META_APP_SECRET", "") or META_APP_SECRET
+
 from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_geo_overrides, get_tenant_phone_number_id
 
 # ─────────────────────────────────────────
@@ -218,11 +223,10 @@ try:
 except Exception as _e:
     logger.warning("Brain schema setup skipped: %s", _e)
 
-# On startup: seed DB from JSON files, reconstruct files from DB, sync geo_overrides.
-# This two-way sync ensures geography data is ALWAYS durable:
-#   - JSON files committed to git → seeded into DB on first deploy (permanent)
-#   - DB rows → reconstructed as JSON files on every future deploy (no git needed)
-#   - Admin-entered data via API → stored in DB → reconstructed on next deploy
+# On startup: seed DB from JSON files if present, then sync geo_overrides from
+# persisted geography_data rows. Runtime must not rewrite tracked repository
+# files because Railway/container filesystems may be read-only and local boots
+# should not dirty git state.
 try:
     import pathlib as _pl
     from sansadx_backend.db import SessionLocal as _startup_SL, TenantOverride as _startup_TO, Tenant as _startup_T
@@ -269,33 +273,10 @@ try:
                 _sdb.commit()
                 logger.info(f"Geography startup: seeded {_seeded} new assembly files into DB")
 
-        # ── Step 2: Reconstruct JSON files from DB ────────────────────────────
-        # On clean deploys the git files may not be present; DB rows rebuild them.
-        _geo_rows = _sdb.query(_startup_TO).filter(
-            _startup_TO.override_type == "geography_data"
-        ).all()
-        _files_written = 0
-        for _row in _geo_rows:
-            _parts = _row.key.split("/", 1)
-            if len(_parts) != 2:
-                continue
-            _pc, _ac = _parts
-            _dest = _geo_base / _pc
-            _dest.mkdir(parents=True, exist_ok=True)
-            try:
-                _data = json.loads(_row.value) if isinstance(_row.value, str) else _row.value
-                with open(_dest / f"{_ac}.json", "w", encoding="utf-8") as _f:
-                    json.dump(_data, _f, indent=2, ensure_ascii=False)
-                _files_written += 1
-            except Exception:
-                pass
-        if _files_written:
-            logger.info(f"Geography startup: reconstructed {_files_written} assembly files from DB")
-
     finally:
         _sdb.close()
 
-    # ── Step 3: Sync JSON files → DB geo_override lookup entries ─────────────
+    # ── Step 2: Sync persisted geography_data → DB geo_override lookup entries ──
     from modules.geography_resolver import auto_generate_overrides
     _sync_result = auto_generate_overrides()
     logger.info(f"Geography overrides synced to DB: {_sync_result}")
@@ -2258,7 +2239,10 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
 
         # If location couldn't be verified against geography list, hold the case
         # and replace the AI's "noted" reply with a localized clarification request
-        if final_constituency == "Unknown" and location_name:
+        _requires_silent_emergency_hold = bool(
+            ai_result.get("is_critical", False) or status == "emergency"
+        )
+        if final_constituency == "Unknown" and location_name and not _requires_silent_emergency_hold:
             status = "awaiting_location"
             political_reply = get_awaiting_location_reply(location_name, detected_language, message_body)
 
@@ -2438,7 +2422,8 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
 @_webhook_decorate
 async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     # ── Validate Meta signature (X-Hub-Signature-256) — MANDATORY ──
-    if not META_APP_SECRET:
+    meta_app_secret = _get_meta_app_secret()
+    if not meta_app_secret:
         logger.error("Webhook rejected: META_APP_SECRET not configured")
         raise HTTPException(status_code=503, detail="Webhook not configured")
 
@@ -2448,12 +2433,16 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         logger.warning("Webhook rejected: missing X-Hub-Signature-256 header")
         raise HTTPException(status_code=403, detail="Invalid signature")
     expected = "sha256=" + hmac.new(
-        META_APP_SECRET.encode(), raw_body, hashlib.sha256
+        meta_app_secret.encode(), raw_body, hashlib.sha256
     ).hexdigest()
     if not hmac.compare_digest(signature_header, expected):
         logger.warning("Webhook rejected: signature mismatch")
         raise HTTPException(status_code=403, detail="Invalid signature")
-    data = json.loads(raw_body)
+    try:
+        data = json.loads(raw_body)
+    except json.JSONDecodeError:
+        logger.warning("Webhook rejected: invalid JSON body")
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
 
     # Meta sends a status update or a real message — ignore status pings
     try:
@@ -2493,7 +2482,9 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
             logger.warning("Dedup gate insert failed (non-blocking): %s", dedup_exc)
 
     msg_type = msg.get("type")
-    sender = msg["from"]  # bare number e.g. "919876543210"
+    sender = msg.get("from", "").strip()  # bare number e.g. "919876543210"
+    if not sender:
+        return {"status": "ignored"}
 
     # Content-based dedup is handled inside _process_incoming_message,
     # after staff identification — so staff/PA senders are never blocked.
@@ -2504,7 +2495,7 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         display_number = f"+{display_number}"
 
     if msg_type == "text":
-        message_body = msg["text"]["body"].strip()
+        message_body = str(msg.get("text", {}).get("body", "")).strip()
         if not message_body:
             return {"status": "ignored"}
         # DONE command — immediately flush any pending batch for this PA

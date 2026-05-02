@@ -42,13 +42,14 @@ from sqlalchemy.orm import sessionmaker
 # ENVIRONMENT SETUP — must happen before any app import
 # ─────────────────────────────────────────────────────────────
 TEST_JWT_SECRET = "test-secret-key-32-characters-minimum-ok"
+TEST_META_APP_SECRET = "test-meta-app-secret"
 TEST_DB_URL = "sqlite:///./test_pilot.db"
 
 os.environ.setdefault("JWT_SECRET", TEST_JWT_SECRET)
 os.environ.setdefault("DATABASE_URL", TEST_DB_URL)
 os.environ.setdefault("ENV", "test")
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-fake-key-for-testing")
-os.environ.setdefault("META_APP_SECRET", "")   # disable signature check in tests
+os.environ.setdefault("META_APP_SECRET", TEST_META_APP_SECRET)
 os.environ.setdefault("META_PHONE_NUMBER_ID", "15551636821")
 os.environ.setdefault("META_ACCESS_TOKEN", "FAKE_ACCESS_TOKEN")
 os.environ.setdefault("META_VERIFY_TOKEN", "test-verify-token-123")
@@ -190,6 +191,18 @@ def _whatsapp_payload(sender: str, body: str, receiver: str = "15551636821") -> 
             }]
         }]
     }
+
+
+def _post_signed_webhook(payload, *, secret: str = TEST_META_APP_SECRET, raw_body: bytes | None = None, headers: dict | None = None):
+    body = raw_body if raw_body is not None else json.dumps(payload).encode("utf-8")
+    sig = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    merged_headers = {
+        "Content-Type": "application/json",
+        "X-Hub-Signature-256": sig,
+    }
+    if headers:
+        merged_headers.update(headers)
+    return client.post("/whatsapp/webhook", content=body, headers=merged_headers)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -391,7 +404,7 @@ class TestWhatsAppWebhookSimulation:
         mock_get_client.return_value = mock_client
 
         payload = _whatsapp_payload("919876543210", "Water not coming in Whitefield")
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code == 200
         assert resp.json().get("status") == "received"
 
@@ -420,7 +433,7 @@ class TestWhatsAppWebhookSimulation:
         for i, msg in enumerate(GRIEVANCE_MESSAGES):
             sender = f"91987654{i:04d}"
             payload = _whatsapp_payload(sender, msg)
-            resp = client.post("/whatsapp/webhook", json=payload)
+            resp = _post_signed_webhook(payload)
             if resp.status_code != 200:
                 failures.append((i, msg[:50], resp.status_code))
 
@@ -450,7 +463,7 @@ class TestWhatsAppWebhookSimulation:
 
         payload = _whatsapp_payload("919111111111",
                                     "EMERGENCY: Building collapse! People trapped!")
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code == 200
 
         # Allow background task to complete (TestClient runs them synchronously)
@@ -484,7 +497,7 @@ class TestWhatsAppWebhookSimulation:
         payload = _whatsapp_payload(unique_phone, unique_msg)
 
         # Send once
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code == 200
         time.sleep(0.3)
 
@@ -496,7 +509,7 @@ class TestWhatsAppWebhookSimulation:
         assert count == 1, f"Expected 1 case, found {count} — possible duplicate insert"
 
     def test_non_text_message_ignored(self):
-        """Image/audio message type is ignored gracefully."""
+        """Image/audio message type is accepted and handled without crashing."""
         payload = {
             "entry": [{
                 "changes": [{
@@ -511,9 +524,9 @@ class TestWhatsAppWebhookSimulation:
                 }]
             }]
         }
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code == 200
-        assert resp.json().get("status") == "ignored"
+        assert resp.json().get("status") == "received"
 
     def test_delivery_receipt_ignored(self):
         """Delivery status update (no messages key) is ignored."""
@@ -527,7 +540,7 @@ class TestWhatsAppWebhookSimulation:
                 }]
             }]
         }
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code == 200
         assert resp.json().get("status") == "ignored"
 
@@ -539,26 +552,26 @@ class TestMaliciousWebhookInput:
 
     def test_empty_body_does_not_crash(self):
         """Empty JSON body returns non-500."""
-        resp = client.post("/whatsapp/webhook", json={})
+        resp = _post_signed_webhook({})
         assert resp.status_code != 500, "Server crashed on empty body"
 
     def test_missing_entry_field_returns_gracefully(self):
         """Payload missing 'entry' key handled gracefully."""
-        resp = client.post("/whatsapp/webhook", json={"version": "2.0"})
+        resp = _post_signed_webhook({"version": "2.0"})
         assert resp.status_code in (200, 400, 422), f"Unexpected: {resp.status_code}"
 
     def test_extremely_long_message_accepted_without_crash(self):
         """100KB message body does not crash server."""
         long_msg = "A" * 100_000
         payload = _whatsapp_payload("919123123123", long_msg)
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code != 500, "Server crashed on large payload"
 
     def test_sql_injection_in_message_body(self):
         """SQL injection string in message body does not crash or corrupt DB."""
         sql_inject = "'; DROP TABLE cases; --"
         payload = _whatsapp_payload("919000111222", sql_inject)
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code != 500, "Server crashed on SQL injection"
 
         # Verify cases table still exists
@@ -570,14 +583,14 @@ class TestMaliciousWebhookInput:
         """XSS payload in message body handled safely."""
         xss = "<script>alert('xss')</script><img src=x onerror=alert(1)>"
         payload = _whatsapp_payload("919000111333", xss)
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code != 500
 
     def test_null_bytes_in_message(self):
         """Null bytes in message body handled without crash."""
         null_msg = "Water issue\x00 in area\x00"
         payload = _whatsapp_payload("919000111444", null_msg)
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code != 500
 
     def test_unicode_emoji_and_scripts(self):
@@ -590,7 +603,7 @@ class TestMaliciousWebhookInput:
         ]
         for msg in msgs:
             payload = _whatsapp_payload("919555666777", msg)
-            resp = client.post("/whatsapp/webhook", json=payload)
+            resp = _post_signed_webhook(payload)
             assert resp.status_code != 500, f"Crash on message: {msg[:30]}"
 
     def test_deeply_nested_json_does_not_crash(self):
@@ -598,7 +611,7 @@ class TestMaliciousWebhookInput:
         # Valid structure but extra deeply nested garbage
         payload = _whatsapp_payload("919000999888", "test")
         payload["entry"][0]["changes"][0]["value"]["extra"] = {"a": {"b": {"c": {"d": "x" * 10000}}}}
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code != 500
 
     def test_missing_from_field_does_not_crash(self):
@@ -617,17 +630,17 @@ class TestMaliciousWebhookInput:
                 }]
             }]
         }
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code != 500
 
     def test_wrong_content_type_returns_422_not_500(self):
         """Non-JSON body returns 422 validation error, not 500."""
-        resp = client.post(
-            "/whatsapp/webhook",
-            content=b"not json at all @@#$",
-            headers={"Content-Type": "text/plain"}
+        resp = _post_signed_webhook(
+            None,
+            raw_body=b"not json at all @@#$",
+            headers={"Content-Type": "text/plain"},
         )
-        assert resp.status_code in (400, 422), \
+        assert resp.status_code == 400, \
             f"Expected validation error, got {resp.status_code}"
 
 
@@ -646,7 +659,7 @@ class TestAIFailureHandling:
 
         unique_phone = "919300000001"
         payload = _whatsapp_payload(unique_phone, "Water problem in area")
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code == 200, "Server crashed when OpenAI was down"
 
     @patch("main.send_whatsapp_message")
@@ -659,7 +672,7 @@ class TestAIFailureHandling:
         mock_get_client.return_value = mock_client
 
         payload = _whatsapp_payload("919300000002", "Road broken in Koramangala")
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code == 200
 
     @patch("main.send_whatsapp_message")
@@ -673,7 +686,7 @@ class TestAIFailureHandling:
         mock_get_client.return_value = mock_client
 
         payload = _whatsapp_payload("919300000003", "Garbage collection issue")
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code == 200
 
     @patch("main.send_whatsapp_message")
@@ -687,7 +700,7 @@ class TestAIFailureHandling:
         mock_get_client.return_value = mock_client
 
         payload = _whatsapp_payload("919300000004", "School fee problem")
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code == 200
 
     @patch("main.send_whatsapp_message")
@@ -705,7 +718,7 @@ class TestAIFailureHandling:
 
         unique_phone = "919300000005"
         payload = _whatsapp_payload(unique_phone, "Health centre issue")
-        resp = client.post("/whatsapp/webhook", json=payload)
+        resp = _post_signed_webhook(payload)
         assert resp.status_code == 200
 
         time.sleep(0.2)
@@ -948,7 +961,7 @@ class TestMultiTenantIsolation:
             # Send to Tenant 1's registered number
             payload = _whatsapp_payload("919600000001", "Water problem",
                                          receiver="15551636821")
-            client.post("/whatsapp/webhook", json=payload)
+            _post_signed_webhook(payload)
             time.sleep(0.3)
 
         with test_engine.connect() as conn:
@@ -1204,7 +1217,7 @@ class TestLogSafety:
         # Send bad data to several endpoints
         responses = [
             client.post("/api/auth/login", json={"username": None, "password": None}),
-            client.post("/whatsapp/webhook", content=b"}{bad json}"),
+            _post_signed_webhook(None, raw_body=b"}{bad json}"),
             client.get("/api/cases/999999999"),  # non-existent ID
         ]
         for resp in responses:

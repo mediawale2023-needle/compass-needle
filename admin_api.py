@@ -27,7 +27,6 @@ from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantP
 from core.db_helpers import _q, _q_one, _parse_meta
 from core.gemini_client import get_gemini_client
 from modules.constituencies import ALL_CONSTITUENCIES
-from modules.auth import get_tenant_or_fail
 
 logger = logging.getLogger("needle.admin_api")
 
@@ -264,7 +263,7 @@ def admin_login(req: AdminLoginRequest, request: Request):
     except Exception:
         logger.warning("Failed to update last_login for %s", req.username)
 
-    admin_tid = get_tenant_or_fail(user)
+    admin_tid = int(user.get("tenant_id") or 0)
     token = create_admin_token({
         "sub": user["username"],
         "tid": admin_tid,
@@ -452,14 +451,14 @@ def delete_mp(tenant_id: int, _=Depends(get_admin_user)):
         # Tables that reference both tenants AND other child tables — delete first
         "opportunity_company_matches",
         "csr_pipeline_entries",
-        "case_activity_logs",
+        "case_activity_log",
         "escalations",
         # Tables that reference tenants directly
         "csr_opportunities",
         "spam_flags",
         "tenant_overrides",
         "contacts",
-        "letterbox_items",
+        "letterbox",
         "activity_history",
         "archives",
         "officers",
@@ -736,7 +735,11 @@ def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(g
             TenantOverride.key == db_key,
         ).first()
 
+        from modules.geography_resolver import _is_meta_locality, sanitize_and_validate_stations
+
         locality_clean = req.locality.strip()
+        if not locality_clean or _is_meta_locality(locality_clean):
+            raise HTTPException(400, "Invalid locality row")
         if existing:
             try:
                 stations = json.loads(existing.value) if isinstance(existing.value, str) else existing.value
@@ -746,10 +749,19 @@ def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(g
             existing_locs = {s.get("locality", "").lower() for s in stations}
             if locality_clean.lower() not in existing_locs:
                 stations.append({"station_number": str(len(stations) + 1), "locality": locality_clean, "building_name": locality_clean})
+            stations, validation = sanitize_and_validate_stations(
+                stations,
+                parliamentary_constituency=parl,
+                assembly=req.assembly_constituency,
+            )
             existing.value = json.dumps(stations, ensure_ascii=False)
             flag_modified(existing, "value")
         else:
-            stations = [{"station_number": "1", "locality": locality_clean, "building_name": locality_clean}]
+            stations, validation = sanitize_and_validate_stations(
+                [{"station_number": "1", "locality": locality_clean, "building_name": locality_clean}],
+                parliamentary_constituency=parl,
+                assembly=req.assembly_constituency,
+            )
             db.add(TenantOverride(
                 tenant_id=tenant_id,
                 override_type="geography_data",
@@ -774,7 +786,7 @@ def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(g
             ))
             db.commit()
 
-        return {"success": True, "locality": locality_clean, "assembly": req.assembly_constituency}
+        return {"success": True, "locality": locality_clean, "assembly": req.assembly_constituency, "validation": validation}
     except HTTPException:
         raise
     except Exception:
@@ -792,15 +804,22 @@ def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, _=Depends(get_ad
     Replaces the existing assembly entry in the DB. Use this to import
     a full list at once (e.g. paste from election commission data).
     """
-    from sansadx_backend.db import TenantOverride
+    from sansadx_backend.db import TenantOverride, get_all_geography_data
     db = SessionLocal()
     try:
         db_key = f"{req.parliamentary_constituency}/{req.assembly_constituency}"
-        stations = [
+        raw_stations = [
             {"station_number": str(i + 1), "locality": loc.strip(), "building_name": loc.strip()}
             for i, loc in enumerate(req.localities)
             if loc.strip()
         ]
+        from modules.geography_resolver import sanitize_and_validate_stations
+        stations, validation = sanitize_and_validate_stations(
+            raw_stations,
+            parliamentary_constituency=req.parliamentary_constituency,
+            assembly=req.assembly_constituency,
+            other_rows=get_all_geography_data(),
+        )
         existing = db.query(TenantOverride).filter(
             TenantOverride.override_type == "geography_data",
             TenantOverride.key == db_key,
@@ -819,9 +838,14 @@ def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, _=Depends(get_ad
         db.commit()
 
         # Upsert live geo_override rows for each locality
-        for loc in req.localities:
-            geo_key = loc.strip().lower()
+        for station in stations:
+            geo_key = station["locality"].strip().lower()
             if not geo_key:
+                continue
+            if geo_key in {
+                locality.lower()
+                for locality in validation["ambiguous_localities_against_constituency"].keys()
+            }:
                 continue
             geo_row = db.query(TenantOverride).filter(
                 TenantOverride.tenant_id == tenant_id,
@@ -850,6 +874,7 @@ def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, _=Depends(get_ad
             "success": True,
             "assembly": req.assembly_constituency,
             "localities_saved": len(stations),
+            "validation": validation,
         }
     except HTTPException:
         raise
@@ -1031,11 +1056,20 @@ def save_geography(pc: str, ac: str, req: SaveGeographyRequest, _=Depends(get_ad
     pc = _sanitize_path_param(pc)
     ac = _sanitize_path_param(ac)
     try:
+        from sansadx_backend.db import get_all_geography_data
+        from modules.geography_resolver import sanitize_and_validate_stations
+
+        cleaned_data, validation = sanitize_and_validate_stations(
+            req.data,
+            parliamentary_constituency=pc,
+            assembly=ac,
+            other_rows=get_all_geography_data(),
+        )
         # Save to filesystem
         path = GEOGRAPHY_BASE_PATH / pc
         path.mkdir(parents=True, exist_ok=True)
         with open(path / f"{ac}.json", "w", encoding="utf-8") as f:
-            json.dump(req.data, f, indent=2, ensure_ascii=False)
+            json.dump(cleaned_data, f, indent=2, ensure_ascii=False)
 
         # Persist to DB so it survives Railway ephemeral filesystem resets
         try:
@@ -1057,7 +1091,7 @@ def save_geography(pc: str, ac: str, req: SaveGeographyRequest, _=Depends(get_ad
                         tenant_id=tid,
                         override_type="geography_data",
                         key=db_key,
-                        value=json.dumps(req.data, ensure_ascii=False),
+                        value=json.dumps(cleaned_data, ensure_ascii=False),
                     )
                     db.add(override)
                     db.commit()
@@ -1076,7 +1110,7 @@ def save_geography(pc: str, ac: str, req: SaveGeographyRequest, _=Depends(get_ad
             logger.info(f"Geography index reloaded after save: {pc}/{ac}")
         except Exception as e:
             logger.warning(f"Override auto-gen / index reload: {e}")
-        return {"success": True}
+        return {"success": True, "stations_saved": len(cleaned_data), "validation": validation}
     except Exception as e:
         logger.exception("Admin operation failed")
         raise HTTPException(500, "Internal server error")
@@ -1178,16 +1212,21 @@ async def upload_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(
 
         def _run():
             ocr_stations, ocr_error = _ocr_pdf_with_openai(content, job_id=job_id)
+            from modules.geography_resolver import sanitize_and_validate_stations
+            cleaned_stations, validation = sanitize_and_validate_stations(ocr_stations)
             _ocr_jobs[job_id] = {
                 "status": "done" if not ocr_error else "error",
-                "stations": ocr_stations,
+                "stations": cleaned_stations,
+                "validation": validation,
                 "error": ocr_error,
                 "progress": _ocr_jobs.get(job_id, {}).get("progress", {}),
             }
-            logger.info(f"OCR job {job_id} finished: {len(ocr_stations)} stations, error={ocr_error}")
+            logger.info(f"OCR job {job_id} finished: {len(cleaned_stations)} stations, error={ocr_error}")
 
         background_tasks.add_task(_run)
         return {"job_id": job_id, "stations": [], "debug": debug_info}
+
+    from modules.geography_resolver import sanitize_and_validate_stations
 
     # Dedup
     result = []
@@ -1201,8 +1240,9 @@ async def upload_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(
         if key not in seen:
             seen.add(key)
             result.append(s)
+    cleaned_result, validation = sanitize_and_validate_stations(result)
 
-    return {"stations": result, "debug": debug_info}
+    return {"stations": cleaned_result, "debug": debug_info, "validation": validation}
 
 
 @router.get("/geography/ocr-job/{job_id}")

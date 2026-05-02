@@ -1,52 +1,2252 @@
 [
-  {"station_number": "1", "locality": "Koil", "building_name": "Aligarh City - Koil"},
-  {"station_number": "2", "locality": "Aligarh", "building_name": "Aligarh City Centre"},
-  {"station_number": "3", "locality": "Civil Lines", "building_name": "Civil Lines Aligarh"},
-  {"station_number": "4", "locality": "Ramghat Road", "building_name": "Ramghat Road Area"},
-  {"station_number": "5", "locality": "GT Road", "building_name": "GT Road Aligarh"},
-  {"station_number": "6", "locality": "G.T. Road", "building_name": "G.T. Road Aligarh"},
-  {"station_number": "7", "locality": "Grand Trunk Road", "building_name": "Grand Trunk Road"},
-  {"station_number": "8", "locality": "Quarsi", "building_name": "Quarsi Area"},
-  {"station_number": "9", "locality": "Quarsi Bypass", "building_name": "Quarsi Bypass Road"},
-  {"station_number": "10", "locality": "Sasni Gate", "building_name": "Sasni Gate"},
-  {"station_number": "11", "locality": "New Agra Road", "building_name": "New Agra Road"},
-  {"station_number": "12", "locality": "Rampur Road", "building_name": "Rampur Road"},
-  {"station_number": "13", "locality": "Centre Point", "building_name": "Centre Point"},
-  {"station_number": "14", "locality": "Marris Road", "building_name": "Marris Road"},
-  {"station_number": "15", "locality": "Manik Chowk", "building_name": "Manik Chowk"},
-  {"station_number": "16", "locality": "Vijay Nagar", "building_name": "Vijay Nagar Colony"},
-  {"station_number": "17", "locality": "Nawab Ganj", "building_name": "Nawab Ganj"},
-  {"station_number": "18", "locality": "Dodhpur", "building_name": "Dodhpur"},
-  {"station_number": "19", "locality": "Begwal", "building_name": "Begwal"},
-  {"station_number": "20", "locality": "Chherat", "building_name": "Chherat"},
-  {"station_number": "21", "locality": "Makan Pur", "building_name": "Makan Pur"},
-  {"station_number": "22", "locality": "Nai Basti", "building_name": "Nai Basti"},
-  {"station_number": "23", "locality": "Upper Kot", "building_name": "Upper Kot"},
-  {"station_number": "24", "locality": "Rambagh", "building_name": "Rambagh"},
-  {"station_number": "25", "locality": "Delhi Gate", "building_name": "Delhi Gate"},
-  {"station_number": "26", "locality": "Idgah Colony", "building_name": "Idgah Colony"},
-  {"station_number": "27", "locality": "Chand Bagh", "building_name": "Chand Bagh"},
-  {"station_number": "28", "locality": "Shastri Nagar", "building_name": "Shastri Nagar"},
-  {"station_number": "29", "locality": "Anoopshahar Road", "building_name": "Anoopshahar Road"},
-  {"station_number": "30", "locality": "Mahim Nagar", "building_name": "Mahim Nagar"},
-  {"station_number": "31", "locality": "Masoodpur", "building_name": "Masoodpur"},
-  {"station_number": "32", "locality": "Jamalpur", "building_name": "Jamalpur"},
-  {"station_number": "33", "locality": "Naya Bazar", "building_name": "Naya Bazar"},
-  {"station_number": "34", "locality": "Sarai Bhamola", "building_name": "Sarai Bhamola"},
-  {"station_number": "35", "locality": "Naurangabad", "building_name": "Naurangabad"},
-  {"station_number": "36", "locality": "Nagla Lallu", "building_name": "Nagla Lallu"},
-  {"station_number": "37", "locality": "Nagla Mundel", "building_name": "Nagla Mundel"},
-  {"station_number": "38", "locality": "Malhipur", "building_name": "Malhipur"},
-  {"station_number": "39", "locality": "Dhanipur", "building_name": "Dhanipur"},
-  {"station_number": "40", "locality": "Chandaus", "building_name": "Chandaus"},
-  {"station_number": "41", "locality": "Nagla Rati", "building_name": "Nagla Rati"},
-  {"station_number": "42", "locality": "Harduaganj", "building_name": "Harduaganj"},
-  {"station_number": "43", "locality": "Tappal Road", "building_name": "Tappal Road"},
-  {"station_number": "44", "locality": "Dildarnagar", "building_name": "Dildarnagar"},
-  {"station_number": "45", "locality": "Naveen Nagar", "building_name": "Naveen Nagar"},
-  {"station_number": "46", "locality": "Nai Mandi", "building_name": "Nai Mandi"},
-  {"station_number": "47", "locality": "Fatehgarhi", "building_name": "Fatehgarhi"},
-  {"station_number": "48", "locality": "Mohabbat Ganj", "building_name": "Mohabbat Ganj"},
-  {"station_number": "49", "locality": "Lodha", "building_name": "Lodha"},
-  {"station_number": "50", "locality": "Pilkhuwa Bypass", "building_name": "Pilkhuwa Bypass"}
+  {
+    "station_number": "1",
+    "locality": "District",
+    "building_name": "Aligarh"
+  },
+  {
+    "station_number": "1",
+    "locality": "S.m.b. Inter College R.no.-1 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "2",
+    "locality": "S.m.b. Inter College R.no.-2 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "3",
+    "locality": "S.m.b. Inter College R.no.-3 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "4",
+    "locality": "Abdulla Nursery School, A.m.u. R.no.-1 Mairs Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "5",
+    "locality": "Abdulla Nursery School, A.m.u. R.no.-2 Mairs Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "6",
+    "locality": "Abdulla Nursery School, A.m.u. R.no.-3 Mairs Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "7",
+    "locality": "Abdulla Nursery School, A.m.u. R.no.-4 Mairs Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "8",
+    "locality": "Abdulla Nursery School, A.m.u. R.no.-5 Mairs Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "9",
+    "locality": "Abdulla Nursery School, A.m.u. R.no.-6 Mairs Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "10",
+    "locality": "Senior Secondary Abdullah Girls College R.no.-1 A.m.u.",
+    "building_name": ""
+  },
+  {
+    "station_number": "11",
+    "locality": "Senior Secondary Abdullah Girls College R.no.-2 A.m.u.",
+    "building_name": ""
+  },
+  {
+    "station_number": "12",
+    "locality": "Senior Secondary Abdullah Girls College R.no.-3 A.m.u.",
+    "building_name": ""
+  },
+  {
+    "station_number": "13",
+    "locality": "Senior Secondary Abdullah Girls College R.no.-4 A.m.u.",
+    "building_name": ""
+  },
+  {
+    "station_number": "14",
+    "locality": "Senior Secondary Abdullah Girls College R.no.-5 A.m.u.",
+    "building_name": ""
+  },
+  {
+    "station_number": "15",
+    "locality": "St. Fidelis Junior High School R.no.-1 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "16",
+    "locality": "St. Fidelis Junior High School R.no.-2 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "17",
+    "locality": "St. Fidelis Junior High School R.no.-3 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "18",
+    "locality": "St. Fidelis Junior High School R.no.-4 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "19",
+    "locality": "St. Fidelis Junior High School R.no.-5 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "20",
+    "locality": "St. Fidelis Junior High School R.no.-6 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "21",
+    "locality": "St. Fidelis Junior High School R.no.-7 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "22",
+    "locality": "St. Fidelis Junior High School R.no.-8 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "23",
+    "locality": "National Inter College (senior Wing) R.no.- 1 Jeevangarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "24",
+    "locality": "National Inter College (senior Wing) R.no.- 2 Jeevangarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "25",
+    "locality": "National Inter College (senior Wing) R.no.- 3 Jeevangarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "26",
+    "locality": "National Inter College (senior Wing) R.no.- 4 Jeevangarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "27",
+    "locality": "National Inter College (senior Wing) R.no.- 5 Jeevangarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "28",
+    "locality": "National Inter College (senior Wing) R.no.- 6 Jeevangarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "29",
+    "locality": "National Inter College (junior Wing) R.no.- 1 Jeevangarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "30",
+    "locality": "National Inter College (junior Wing) R.no.- 2 Jeevangarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "31",
+    "locality": "National Inter College (junior Wing) R.no.- 3 Jeevangarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "32",
+    "locality": "National Inter College (junior Wing) R.no.- 4 Jeevangarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "33",
+    "locality": "Office Bhumi Sanrakshan Adhikari R.no. 1 Quarsi Farm",
+    "building_name": ""
+  },
+  {
+    "station_number": "34",
+    "locality": "Office Bhumi Sanrakshan Adhikari R.no. 2 Quarsi Farm",
+    "building_name": ""
+  },
+  {
+    "station_number": "35",
+    "locality": "Gloria Public School R.no.- 1 Kela Nagar Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "36",
+    "locality": "Gloria Public School R.n. 2 Kela Nagar Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "37",
+    "locality": "Gloria Public School R.no.- 3 Kela Nagar Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "38",
+    "locality": "Gloria Public School R.no.- 4 Kela Nagar Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "39",
+    "locality": "Gloria Public School R.no.- 5 Kela Nagar Chauraha",
+    "building_name": ""
+  },
+  {
+    "station_number": "40",
+    "locality": "Iqra Public School, R.no.-1 Nagala Mallah",
+    "building_name": ""
+  },
+  {
+    "station_number": "41",
+    "locality": "Iqra Public School, R.no.-2 Nagala Mallah",
+    "building_name": ""
+  },
+  {
+    "station_number": "42",
+    "locality": "Iqra Public School, R.no.-3 Nagala Mallah",
+    "building_name": ""
+  },
+  {
+    "station_number": "43",
+    "locality": "Iqra Public School, R.no.-4 Nagala Mallah",
+    "building_name": ""
+  },
+  {
+    "station_number": "44",
+    "locality": "Fatima Girls Inter College R.no. 1 Quarsi Bypass",
+    "building_name": ""
+  },
+  {
+    "station_number": "45",
+    "locality": "Fatima Girls Inter College R.no. 2 Quarsi Bypass",
+    "building_name": ""
+  },
+  {
+    "station_number": "46",
+    "locality": "Fatima Girls Inter College R.no. 3 Quarsi Bypass",
+    "building_name": ""
+  },
+  {
+    "station_number": "47",
+    "locality": "Fatima Girls Inter College R.no. 4 Quarsi Bypass",
+    "building_name": ""
+  },
+  {
+    "station_number": "48",
+    "locality": "Fatima Girls Inter College R.no. 5 Quarsi Bypass",
+    "building_name": ""
+  },
+  {
+    "station_number": "49",
+    "locality": "Fatima Girls Inter College R.no. 6 Quarsi Bypass",
+    "building_name": ""
+  },
+  {
+    "station_number": "50",
+    "locality": "Children Academy School R.no.-1 Marris Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "51",
+    "locality": "Children Academy School R.no.-2 Marris Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "52",
+    "locality": "Children Academy School R.no.-3 Marris Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "53",
+    "locality": "Children Academy School R.no.-4 Marris Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "54",
+    "locality": "Children Academy School R.no.-5 Marris Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "55",
+    "locality": "Children Academy School R.no.-6 Marris Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "56",
+    "locality": "Children Academy School R.no.-7 Marris Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "57",
+    "locality": "Children Academy School R.no.-8 Marris Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "58",
+    "locality": "Children Academy School R.no.-9 Marris Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "59",
+    "locality": "Income Tax Office R.no.-1 Maris Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "60",
+    "locality": "Income Tax Office R.no.-2 Maris Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "61",
+    "locality": "Aligarh Public School R.no.-1 A.m.u.",
+    "building_name": ""
+  },
+  {
+    "station_number": "62",
+    "locality": "Aligarh Public School R.no.-2 A.m.u.",
+    "building_name": ""
+  },
+  {
+    "station_number": "63",
+    "locality": "Aligarh Public School R.no.-3 A.m.u.",
+    "building_name": ""
+  },
+  {
+    "station_number": "64",
+    "locality": "Aligarh Public School R.no.-4 A.m.u.",
+    "building_name": ""
+  },
+  {
+    "station_number": "65",
+    "locality": "Aligarh Public School R.no.-5 A.m.u.",
+    "building_name": ""
+  },
+  {
+    "station_number": "66",
+    "locality": "Aligarh Public School R.no.-6 A.m.u.",
+    "building_name": ""
+  },
+  {
+    "station_number": "67",
+    "locality": "Office Nichli Ganga Nahar R.no.-1 Dodhpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "68",
+    "locality": "Office Nichli Ganga Nahar R.no.-2 Dodhpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "69",
+    "locality": "Zakir Husain Model School R.no.-1 Dodpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "70",
+    "locality": "Zakir Husain Model School R.no.-2 Dodpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "71",
+    "locality": "Zakir Husain Model School R.no.-3 Dodpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "72",
+    "locality": "Zakir Husain Model School R.no.-4 Dodpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "73",
+    "locality": "Zakir Husain Model School R.no.-5 Dodpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "74",
+    "locality": "Zakir Husain Model School R.no.-6 Dodpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "75",
+    "locality": "Zakir Husain Model School R.no.-7 Dodpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "76",
+    "locality": "Zakir Husain Model School R.no.-8 Dodpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "77",
+    "locality": "Jamiya Urdu College R.no.-1 Medical Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "78",
+    "locality": "Jamiya Urdu College R.no.-2 Medical Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "79",
+    "locality": "Jamiya Urdu College R.no.-3 Medical Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "80",
+    "locality": "Jamiya Urdu College R.no.-4 Medical Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "81",
+    "locality": "Jamiya Urdu College R.no.-5 Medical Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "82",
+    "locality": "Senior Secondary Boys School R.no.-1 A.m.u Medical Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "83",
+    "locality": "Senior Secondary Boys School R.no.-2 A.m.u Medical Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "84",
+    "locality": "Senior Secondary Boys School R.no.-3 A.m.u Medical Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "85",
+    "locality": "Senior Secondary Boys School R.no.-4 A.m.u Medical Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "86",
+    "locality": "Senior Secondary Boys School R.no.-5 A.m.u Medical Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "87",
+    "locality": "Senior Secondary Boys School R.no.-6 A.m.u Medical Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "88",
+    "locality": "Senior Secondary Boys School R.no.-7 A.m.u Medical Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "89",
+    "locality": "Training And Adjustment Center R.no.-1 Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "90",
+    "locality": "Training And Adjustment Center R.no.-2 Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "91",
+    "locality": "Training And Adjustment Center R.no.-3 Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "92",
+    "locality": "Training And Adjustment Center R.no.-4 Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "93",
+    "locality": "Minto Circle School R.no.-1 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "94",
+    "locality": "Minto Circle School R.no.-2 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "95",
+    "locality": "Minto Circle School R.no.-3 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "96",
+    "locality": "Minto Circle School R.no.-4 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "97",
+    "locality": "Minto Circle School R.no.-5 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "98",
+    "locality": "Minto Circle School R.no.-6 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "99",
+    "locality": "Minto Circle School R.no.-7 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "100",
+    "locality": "Minto Circle School R.no.-8 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "101",
+    "locality": "Minto Circle School R.no.-9 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "102",
+    "locality": "Minto Circle School R.no.-10 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "103",
+    "locality": "Minto Circle School R.no.-11 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "104",
+    "locality": "Minto Circle School R.no.-12 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "105",
+    "locality": "A B K U School R.no.-1 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "106",
+    "locality": "A B K U School R.no.-2 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "107",
+    "locality": "A B K U School R.no.-3 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "108",
+    "locality": "A B K U School R.no.-4 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "109",
+    "locality": "A B K U School R.no.-5 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "110",
+    "locality": "A B K U School R.no.-6 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "111",
+    "locality": "A B K U School R.no.-7 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "112",
+    "locality": "A B K U School R.no.-8 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "113",
+    "locality": "A B K U School R.no.-9 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "114",
+    "locality": "A B K U School R.no.-10 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "115",
+    "locality": "A B K U School R.no.-11 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "116",
+    "locality": "A B K U School R.no.-12 A.m.u Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "117",
+    "locality": "M R Sherwani Public School R.no.-1 Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "118",
+    "locality": "M R Sherwani Public School R.no.-2 Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "119",
+    "locality": "M R Sherwani Public School R.no.-3 Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "120",
+    "locality": "M R Sherwani Public School R.no.-4 Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "121",
+    "locality": "M R Sherwani Public School R.no.-5 Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "122",
+    "locality": "M R Sherwani Public School R.no.-6 Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "123",
+    "locality": "Primary Balak Pathshala No 46 R.no. 1 Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "124",
+    "locality": "Primary Balak Pathshala No 46 R.no. 2 Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "125",
+    "locality": "Primary Balak Pathshala No 46 R.no. 3 Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "126",
+    "locality": "Primary Balak Pathshala No 46 R.no. 4 Jamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "127",
+    "locality": "H. I. Inter College R.no.-1 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "128",
+    "locality": "H. I. Inter College R.no.-2 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "129",
+    "locality": "H. I. Inter College R.no.-3 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "130",
+    "locality": "H. I. Inter College R.no.-4 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "131",
+    "locality": "H. I. Inter College R.no.-5 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "132",
+    "locality": "H. I. Inter College R.no.-6 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "133",
+    "locality": "H. I. Inter College R.no.-7 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "134",
+    "locality": "H. I. Inter College R.no.-8 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "135",
+    "locality": "H. I. Inter College R.no.-9 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "136",
+    "locality": "H. I. Inter College R.no.-10 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "137",
+    "locality": "H. I. Inter College R.no.-11 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "138",
+    "locality": "H I Inter College R.no.-12 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "139",
+    "locality": "H. I. Inter College R.no.-13 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "140",
+    "locality": "H. I. Inter College R.no.-14 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "141",
+    "locality": "Alsara Public School R.no.-1 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "142",
+    "locality": "Alsara Public School R.no.-2 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "143",
+    "locality": "Alsara Public School R.no.-3 Sahansabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "144",
+    "locality": "Primary Balak Pathshala No 19 R.no.- 1 Hamdard Nagar D Jamalpur 24 Futa Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "145",
+    "locality": "Primary Balak Pathshala No 19 R.no.- 2 Hamdard Nagar D Jamalpur 24 Futa Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "146",
+    "locality": "Primary Balak Pathshala No 19 R.no.- 3 Hamdard Nagar D Jamalpur 24 Futa Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "147",
+    "locality": "Primary Balak Pathshala No 19 R.no.- 4 Hamdard Nagar D Jamalpur 24 Futa Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "148",
+    "locality": "Primary Balak Pathshala No 19 R.no.- 5 Hamdard Nagar D Jamalpur 24 Futa Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "149",
+    "locality": "Primary Balak Pathshala No 19 R.no.- 6 Hamdard Nagar D Jamalpur 24 Futa Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "150",
+    "locality": "A M U Blind Of School R.no.-1 Qila Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "151",
+    "locality": "A M U Blind Of School R.no.-2 Qila Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "152",
+    "locality": "A M U Blind Of School R.no.-3 Qila Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "153",
+    "locality": "A M U Blind Of School R.no.-4 Qila Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "154",
+    "locality": "A M U Blind Of School R.no.-5 Qila Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "155",
+    "locality": "A M U Blind Of School R.no.-6 Qila Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "156",
+    "locality": "A M U Blind Of School R.no.-7 Qila Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "157",
+    "locality": "A M U Blind Of School R.no.-8 Qila Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "158",
+    "locality": "A M U Blind Of School R.no.-9 Qila Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "159",
+    "locality": "A M U Blind Of School R.no.-10 Qila Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "160",
+    "locality": "Primary Balak Pathshala No 22 R.no.- 1 Firdaus Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "161",
+    "locality": "Primary Balak Pathshala No 22 R.no.- 2 Firdaus Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "162",
+    "locality": "Primary Balak Pathshala No 22 R.no.- 3 Firdaus Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "163",
+    "locality": "Adhi. Abhi. Prantiya Khand Lo. Ni. Vibhag R.no.-1 Anoopshehar Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "164",
+    "locality": "Adhi. Abhi. Prantiya Khand Lo. Ni. Vibhag R.no.-2 Anoopshehar Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "165",
+    "locality": "Spring Bells Public School R.no.- 1 Anoopshehar Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "166",
+    "locality": "Spring Bels Public School R.no.- 2 Anoopshehar Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "167",
+    "locality": "Basic Primary School R.no.-1 Police Line",
+    "building_name": ""
+  },
+  {
+    "station_number": "168",
+    "locality": "Basic Primary School R.no.-2 Police Line",
+    "building_name": ""
+  },
+  {
+    "station_number": "169",
+    "locality": "Basic Primary School R.no.-3 Police Line",
+    "building_name": ""
+  },
+  {
+    "station_number": "170",
+    "locality": "Basic Primary School R.no.-4 Police Line",
+    "building_name": ""
+  },
+  {
+    "station_number": "171",
+    "locality": "Office Jila Vidkalay Nirishak Naurangilal Inter College, R.no.-1 Ghantaghar",
+    "building_name": ""
+  },
+  {
+    "station_number": "172",
+    "locality": "Office Jila Vidkalay Nirishak Naurangilal Inter College, R.no.-2 Ghantaghar",
+    "building_name": ""
+  },
+  {
+    "station_number": "173",
+    "locality": "Sewa Bhawan Nagar Nigam Office R.no.-1 Nagar Nigam",
+    "building_name": ""
+  },
+  {
+    "station_number": "174",
+    "locality": "Sewa Bhawan Nagar Nigam Office R.no.-2 Nagar Nigam",
+    "building_name": ""
+  },
+  {
+    "station_number": "175",
+    "locality": "Morden Public School R.no.-1 Mathuriya Nagar Baraula Bypass Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "176",
+    "locality": "Parishdiy Primary Vidhalya R.no.-1 Nagla Baraula",
+    "building_name": ""
+  },
+  {
+    "station_number": "177",
+    "locality": "Parishdiy Primary Vidhalya R.no.-2 Nagla Baraula",
+    "building_name": ""
+  },
+  {
+    "station_number": "178",
+    "locality": "Parishdiy Primary Vidhalya R.no.-3 Nagla Baraula",
+    "building_name": ""
+  },
+  {
+    "station_number": "179",
+    "locality": "D.a.v. Inter College R.no.-1 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "180",
+    "locality": "D.a.v. Inter College R.no.-2 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "181",
+    "locality": "D.a.v. Inter College R.no.-3 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "182",
+    "locality": "D.a.v. Inter College R.no.-4 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "183",
+    "locality": "D A. V. Inter College R.no.-5 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "184",
+    "locality": "D.a.v. Inter College R.no.-6 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "185",
+    "locality": "D.a.v. Inter College R.no.-7 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "186",
+    "locality": "D.a.v. Inter College R.no.-8 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "187",
+    "locality": "D A.v. Inter College R.no.-9 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "188",
+    "locality": "D.a.v. Inter College R.no.-10 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "189",
+    "locality": "D.a.v Girls Inter College R.no.-1 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "190",
+    "locality": "D.a.v Girls Inter College R.no.-2 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "191",
+    "locality": "D.a.v Girls Inter College R.no.-3 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "192",
+    "locality": "D.a.v Girls Inter College R.no.-4 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "193",
+    "locality": "D.a.v Girls Inter College R.no.-5 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "194",
+    "locality": "D.a.v Girls Inter College R.no.-6 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "195",
+    "locality": "D.a.v Girls Inter College R.no.-7 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "196",
+    "locality": "D.a.v Girls Inter College R.no.-8 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "197",
+    "locality": "D.a.v Girls Inter College R.no.-9 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "198",
+    "locality": "D.a.v Girls Inter College R.no.-10 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "199",
+    "locality": "D.a.v Girls Inter College R.no.-11 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "200",
+    "locality": "D.a.v Girls Inter College R.no.-12 G.t. Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "201",
+    "locality": "Pratap Singh Memorial Public School R.no.-1 Kundan Nagar, Tikaram Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "202",
+    "locality": "Pratap Singh Memorial Public School R.no.-2 Kundan Nagar, Tikaram Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "203",
+    "locality": "Pratap Singh Memorial Public School R.no.-3 Kundan Nagar, Tikaram Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "204",
+    "locality": "Pratap Singh Memorial Public School R.no.-4 Kundan Nagar, Tikaram Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "205",
+    "locality": "Jaydevi Memorial School R.no.-1 Tikaram Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "206",
+    "locality": "Jaydevi Memorial School R.no.-2 Tikaram Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "207",
+    "locality": "Jaydevi Memorial School R.no.-3 Tikaram Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "208",
+    "locality": "Jaydevi Memorial School R.no.-4 Tikaram Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "209",
+    "locality": "Jaydevi Memorial School R.no.-5 Tikaram Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "210",
+    "locality": "Jaydevi Memorial School R.no.-6 Tikaram Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "211",
+    "locality": "Jaydevi Memorial School R.no.-7 Tikaram Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "212",
+    "locality": "Jaydevi Memorial School R.no.-8 Tikaram Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "213",
+    "locality": "Jaydevi Memorial School R.no.-9 Tikaram Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "214",
+    "locality": "Jaydevi Memorial School R.no.-10 Tikaram Colony",
+    "building_name": ""
+  },
+  {
+    "station_number": "215",
+    "locality": "Mohan Lal Memorial Public School R.no. 1 Ambedkar Colony Chhawani",
+    "building_name": ""
+  },
+  {
+    "station_number": "216",
+    "locality": "Mohan Lal Memorial Public School R.no. 2 Ambedkar Colony Chhawani",
+    "building_name": ""
+  },
+  {
+    "station_number": "217",
+    "locality": "Samudayik Vikas Kendra R.no.-1 Ambedkar Colony Chhawani",
+    "building_name": ""
+  },
+  {
+    "station_number": "218",
+    "locality": "Samudayik Vikas Kendra R.no.-2 Ambedkar Colony Chhawani",
+    "building_name": ""
+  },
+  {
+    "station_number": "219",
+    "locality": "Samudayik Vikas Kendra R.no.-3 Ambedkar Colony Chhawani",
+    "building_name": ""
+  },
+  {
+    "station_number": "220",
+    "locality": "Adarsh Gyandeep Inter College, R.no.-1 Dori Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "221",
+    "locality": "Adarsh Gyandeep Inter College, R.no.-2 Dori Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "222",
+    "locality": "Adarsh Gyandeep Inter College, R.no.-3 Dori Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "223",
+    "locality": "Adarsh Gyandeep Inter College, R.no.-4 Dori Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "224",
+    "locality": "Bhumi Public School R.n.1 Mahavir Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "225",
+    "locality": "Bhumi Public School R.n.2 Mahavir Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "226",
+    "locality": "Bhumi Public School R.n.3 Mahavir Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "227",
+    "locality": "Pt. Brahmdev Shastri Bal Vidhyalay & Junior High School R.no. 1 Mahavir Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "228",
+    "locality": "Pt. Brahmdev Shastri Bal Vidhyalay & Junior High School R.no. 2 Mahavir Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "229",
+    "locality": "Pt Brahmdev Shastri Bal Vidhyalay, Junior High School R.no. 3 Mahavir Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "230",
+    "locality": "Pt. Brahmdev Shastri Bal Vidhyalay & Junior High School R.no. 4 Mahavir Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "231",
+    "locality": "Shri. Mahauru P.m.v. R.no.-1 Ravan Tila Pani Ki Tanki",
+    "building_name": ""
+  },
+  {
+    "station_number": "232",
+    "locality": "Shri. Mahauru P.m.v. R.no.-2 Ravan Tila Pani Ki Tanki",
+    "building_name": ""
+  },
+  {
+    "station_number": "233",
+    "locality": "Shri. Mahauru P.m.v. R.no.-3 Ravan Tila Pani Ki Tanki",
+    "building_name": ""
+  },
+  {
+    "station_number": "234",
+    "locality": "Shri. Mahauru P.m.v. R.no.-4 Ravan Tila Pani Ki Tanki",
+    "building_name": ""
+  },
+  {
+    "station_number": "235",
+    "locality": "Shri. Mahauru P.m.v. R.no.-5 Ravan Tila Pani Ki Tanki",
+    "building_name": ""
+  },
+  {
+    "station_number": "236",
+    "locality": "Primary School No. 44 R.no.-1 Bela Marg Vishnupuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "237",
+    "locality": "Primary School No. 44 R.no.-2 Bela Marg Vishnupuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "238",
+    "locality": "Primary School No. 44 R.no.-3 Bela Marg Vishnupuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "239",
+    "locality": "Primary School No. 44 R.no.-4 Bela Marg Vishnupuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "240",
+    "locality": "Grah Nirman Samiti Girls Inter College R.no.- 1 Vishnupuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "241",
+    "locality": "Grah Nirman Samiti Girls Inter College R.no.- 2 Vishnupuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "242",
+    "locality": "Grah Nirman Samiti Girls Inter College R.no.- 3 Vishnupuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "243",
+    "locality": "Grah Nirman Samiti Girls Inter College R.no.- 4 Vishnupuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "244",
+    "locality": "Grah Nirman Samiti Girls Inter College R.no.- 5 Vishnupuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "245",
+    "locality": "Primary School No 14 R.no.-1 Vishnupuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "246",
+    "locality": "Primary School No 14 R.no.-2 Vishnupuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "247",
+    "locality": "Primary School No 14 R.no.-3 Vishnupuri",
+    "building_name": ""
+  },
+  {
+    "station_number": "248",
+    "locality": "Nabal Kishor Public School R.no. 1 Nagla Tikona Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "249",
+    "locality": "Nabal Kishor Public School R.no. 2 Nagla Tikona Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "250",
+    "locality": "Nabal Kishor Public School R.no. 3 Nagla Tikona Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "251",
+    "locality": "Nabal Kishor Public School R.no. 4 Nagla Tikona Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "252",
+    "locality": "P.d. Public Inter College R.no.- 1 Chadania",
+    "building_name": ""
+  },
+  {
+    "station_number": "253",
+    "locality": "P.d. Public Inter College R.no.- 2 Chadania",
+    "building_name": ""
+  },
+  {
+    "station_number": "254",
+    "locality": "P.d. Public Inter College R.no.- 3 Chadania",
+    "building_name": ""
+  },
+  {
+    "station_number": "255",
+    "locality": "P.d. Public Inter College R.no.- 4 Chadania",
+    "building_name": ""
+  },
+  {
+    "station_number": "256",
+    "locality": "P.d. Public Inter College R.no.- 5 Chadania",
+    "building_name": ""
+  },
+  {
+    "station_number": "257",
+    "locality": "P.d. Public Inter College R.no.- 6 Chadania",
+    "building_name": ""
+  },
+  {
+    "station_number": "258",
+    "locality": "Ganga Public School R.no.- 1 Keshav Vatika Nagla Tikona",
+    "building_name": ""
+  },
+  {
+    "station_number": "259",
+    "locality": "Ganga Public School R.no.- 2 Keshav Vatika Nagla Tikona",
+    "building_name": ""
+  },
+  {
+    "station_number": "260",
+    "locality": "Ganga Public School R.no.- 3 Keshav Vatika Nagla Tikona",
+    "building_name": ""
+  },
+  {
+    "station_number": "261",
+    "locality": "Raghuveer Bal Mandir R.no.-1 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "262",
+    "locality": "Raghuveer Bal Mandir R.no.-2 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "263",
+    "locality": "Raghuveer Bal Mandir R.no.-3 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "264",
+    "locality": "Raghuveer Bal Mandir R.no.- 4 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "265",
+    "locality": "Raghuveer Bal Mandir R.no.- 5 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "266",
+    "locality": "Raghuveer Bal Mandir R.no.- 6 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "267",
+    "locality": "Tikaram Kanya Mahavidhyalay R.no.-1 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "268",
+    "locality": "Tikaram Kanya Mahavidhyalay R.no.-2 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "269",
+    "locality": "Tikaram Kanya Mahavidhyalay R.no.-3 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "270",
+    "locality": "Tikaram Kanya Mahavidhyalay R.no.-4 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "271",
+    "locality": "Tikaram Kanya Mahavidhyalay R.no.-5 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "272",
+    "locality": "Tikaram Kanya Mahavidhyalay R.no.-6 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "273",
+    "locality": "Tikaram Kanya Mahavidhyalay R.no.-7 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "274",
+    "locality": "Tikaram Kanya Inter College R.no.-1 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "275",
+    "locality": "Tikaram Kanya Inter College R.no.-2 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "276",
+    "locality": "Our Lady Of Fatima Sr.sec. School R.no.-1 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "277",
+    "locality": "Our Lady Of Fatima Sr.sec. School R.no.-2 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "278",
+    "locality": "Our Lady Of Fatima Sr.sec. School R.no.-3 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "279",
+    "locality": "Our Lady Of Fatima Sr.sec. School R.no.-4 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "280",
+    "locality": "Our Lady Of Fatima Sr.sec. School R.no.-5 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "281",
+    "locality": "Our Lady Of Fatima Sr.sec. School R.no.-6 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "282",
+    "locality": "Our Lady Of Fatima Sr.sec. School R.no.-7 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "283",
+    "locality": "Our Lady Of Fatima Sr.sec. School R.no.-8 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "284",
+    "locality": "Our Lady Of Fatima Sr.sec. School R.no.-9 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "285",
+    "locality": "Our Lady Of Fatima Sr.sec. School R.no.-10 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "286",
+    "locality": "S K D Inter College R.no. 1 Shatabdi Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "287",
+    "locality": "Our Lady Of Fatima Sr.sec. School R.no.-11 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "288",
+    "locality": "S K D Inter College R.no. 2 Shatabdi Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "289",
+    "locality": "Morden Convent Inter College Rambag Colony R.no.-1 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "290",
+    "locality": "Morden Convent Inter College Rambag Colony R.no.-2 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "291",
+    "locality": "Morden Convent Inter College Rambag Colony R.no.-3 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "292",
+    "locality": "Morden Convent Inter College Rambag Colony R.no.-4 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "293",
+    "locality": "Morden Convent Inter College Rambag Colony R.no.-5 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "294",
+    "locality": "Morden Convent Inter College Rambag Colony R.no.-6 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "295",
+    "locality": "City Garden Public Ju. Ha. School R.no. 1 Kishanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "296",
+    "locality": "City Garden Public Ju. Ha. School R.no. 2 Kishanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "297",
+    "locality": "Three Dots Nursery School R.no.-1 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "298",
+    "locality": "Three Dots Nursery School R.no.-2 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "299",
+    "locality": "Three Dots Nursery School R.no.-3 Ramghat Road",
+    "building_name": ""
+  },
+  {
+    "station_number": "300",
+    "locality": "Primary School No 33 R.no.-1 Chandniya",
+    "building_name": ""
+  },
+  {
+    "station_number": "301",
+    "locality": "Primary School No 33 R.no.-2 Chandniya",
+    "building_name": ""
+  },
+  {
+    "station_number": "302",
+    "locality": "Primary School No 33 R.no.-3 Chandniya",
+    "building_name": ""
+  },
+  {
+    "station_number": "303",
+    "locality": "Primary School No 33 R.no.-4 Chandniya",
+    "building_name": ""
+  },
+  {
+    "station_number": "304",
+    "locality": "Primary School No 33 R.no.-5 Chandniya",
+    "building_name": ""
+  },
+  {
+    "station_number": "305",
+    "locality": "Engenears Public School R.no. 1 Engenears Colony, Quarsi Etah Chungi Bypass",
+    "building_name": ""
+  },
+  {
+    "station_number": "306",
+    "locality": "Engenears Public School R.no. 2 Engenears Colony, Quarsi Etah Chungi Bypass",
+    "building_name": ""
+  },
+  {
+    "station_number": "307",
+    "locality": "Engenears Public School R.no. 3 Engenears Colony, Quarsi Etah Chungi Bypass",
+    "building_name": ""
+  },
+  {
+    "station_number": "308",
+    "locality": "Engenears Public School R.no. 4 Engenears Colony, Quarsi Etah Chungi Bypass",
+    "building_name": ""
+  },
+  {
+    "station_number": "309",
+    "locality": "Lft. Nahar Singh Inter College A Block R.no.-1 Quarsi",
+    "building_name": ""
+  },
+  {
+    "station_number": "310",
+    "locality": "Lft. Nahar Singh Inter College A Block R.no.-2 Quarsi",
+    "building_name": ""
+  },
+  {
+    "station_number": "311",
+    "locality": "Lft. Nahar Singh Inter College A Block R.no.-3 Quarsi",
+    "building_name": ""
+  },
+  {
+    "station_number": "312",
+    "locality": "Lft. Nahar Singh Inter College A Block R.no.-4 Quarsi",
+    "building_name": ""
+  },
+  {
+    "station_number": "313",
+    "locality": "Lft. Nahar Singh Inter College A Block R.no.-5 Quarsi",
+    "building_name": ""
+  },
+  {
+    "station_number": "314",
+    "locality": "Lft. Nahar Singh Inter College B Block R.no.-6 Quarsi",
+    "building_name": ""
+  },
+  {
+    "station_number": "315",
+    "locality": "Lft. Nahar Singh Inter College B Block R.no.-7 Quarsi",
+    "building_name": ""
+  },
+  {
+    "station_number": "316",
+    "locality": "Lft. Nahar Singh Inter College B Block R.no.-8 Quarsi",
+    "building_name": ""
+  },
+  {
+    "station_number": "317",
+    "locality": "Lft. Nahar Singh Inter College B Block R.no.-9 Quarsi",
+    "building_name": ""
+  },
+  {
+    "station_number": "318",
+    "locality": "Lft. Nahar Singh Inter College B Block R.no.-10 Quarsi",
+    "building_name": ""
+  },
+  {
+    "station_number": "319",
+    "locality": "Primary School R.no.-1 Dhaurramafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "320",
+    "locality": "Primary School R.no.-2 Dhaurramafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "321",
+    "locality": "Primary School R.no.-3 Dhaurramafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "322",
+    "locality": "Primary School R.no.-4 Dhaurramafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "323",
+    "locality": "Aganwadi Kendra R.no.-1 Dhaurramafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "324",
+    "locality": "Aganwadi Kendra R.no.-2 Dhaurramafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "325",
+    "locality": "M.u.college R.n. 1 Dhaurra Mafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "326",
+    "locality": "M.u.college R.n. 2 Dhaurra Mafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "327",
+    "locality": "M.u.college R.n. 3 Dhaurra Mafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "328",
+    "locality": "M.u.college R.n. 4 Dhaurra Mafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "329",
+    "locality": "M.u.college R.n. 5 Dhaurra Mafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "330",
+    "locality": "M.u.college R.n. 6 Dhaurra Mafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "331",
+    "locality": "Primary School R.no.-1 Raja Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "332",
+    "locality": "Primary School R.no.-2 Raja Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "333",
+    "locality": "Primary School R.no.-3 Raja Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "334",
+    "locality": "Primary School R.no.-4 Raja Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "335",
+    "locality": "Primary School R.no.-5 Raja Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "336",
+    "locality": "Sanviliyan Vidhyalay R.no.-1 Sihor (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "337",
+    "locality": "Sanviliyan Vidhyalay R.no.-2 Sihor (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "338",
+    "locality": "Primary School R.no.-1 Fridpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "339",
+    "locality": "Primary School R.no.-2 Fridpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "340",
+    "locality": "Primary School R.no.-1 Sisroi",
+    "building_name": ""
+  },
+  {
+    "station_number": "341",
+    "locality": "Primary School R.no.-1 Asgarpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "342",
+    "locality": "Primary School R.no.-1 Balukheda",
+    "building_name": ""
+  },
+  {
+    "station_number": "343",
+    "locality": "Primary School R.no.-1 Rohina Singhpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "344",
+    "locality": "Primary School R.no.-2 Rohina Singhpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "345",
+    "locality": "Primary School R.no.-1 Nagla Dhak",
+    "building_name": ""
+  },
+  {
+    "station_number": "346",
+    "locality": "Junior High School R.no.-1 Bhankari Ahiwasi (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "347",
+    "locality": "Junior High School R.no.-2 Bhankari Ahiwasi (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "348",
+    "locality": "Junior High School R.no.-1 Dihauli",
+    "building_name": ""
+  },
+  {
+    "station_number": "349",
+    "locality": "Primary School R.no.-1 Malikpura",
+    "building_name": ""
+  },
+  {
+    "station_number": "350",
+    "locality": "Primary School R.no.-1 Gokulpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "351",
+    "locality": "Primary School R.no.-2 Gokulpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "352",
+    "locality": "Junior High School R.no.-1 Shahbajpur (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "353",
+    "locality": "Junior High School R.no.-2 Shahbajpur (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "354",
+    "locality": "Primary School R.no.-1 Sirawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "355",
+    "locality": "Primary School R.no.-1 Bharatua",
+    "building_name": ""
+  },
+  {
+    "station_number": "356",
+    "locality": "Primary School R.no.-2 Bharatua,",
+    "building_name": ""
+  },
+  {
+    "station_number": "357",
+    "locality": "Primary School R.no.-1 Uajrra",
+    "building_name": ""
+  },
+  {
+    "station_number": "358",
+    "locality": "Junior High School R.no.-1 Adaun (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "359",
+    "locality": "Junior High School R.no.-2 Adaun (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "360",
+    "locality": "Junior High School R.no.-3 Adaun (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "361",
+    "locality": "Primary School R.no.-1 Nagla Teja",
+    "building_name": ""
+  },
+  {
+    "station_number": "362",
+    "locality": "Primary School R.no.-1 Anwrabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "363",
+    "locality": "Primary School R.no.-1 Nagla Asha",
+    "building_name": ""
+  },
+  {
+    "station_number": "364",
+    "locality": "Junior High School R.no.-1 Dheerdharpur Gdhiyawali (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "365",
+    "locality": "Primary School R.no.-1 Jorawar Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "366",
+    "locality": "Primary School R.no.-1 Kamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "367",
+    "locality": "Primary School R.no.-2 Kamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "368",
+    "locality": "Primary School R.no.-3 Kamalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "369",
+    "locality": "National Public High School R.no.-1 Quarsi Bypass",
+    "building_name": ""
+  },
+  {
+    "station_number": "370",
+    "locality": "National Public High School R.no.-2 Quarsi Bypass",
+    "building_name": ""
+  },
+  {
+    "station_number": "371",
+    "locality": "National Public High School R.no.-3 Quarsi Bypass",
+    "building_name": ""
+  },
+  {
+    "station_number": "372",
+    "locality": "Primary School R.no.-1 Bhadeshi Mafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "373",
+    "locality": "Primary School R.no.-2 Bhadeshi Mafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "374",
+    "locality": "Primary School R.no.-3 Bhadeshi Mafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "375",
+    "locality": "Panchyat Ghar R.no.-1 Chirauliya Daud Khan",
+    "building_name": ""
+  },
+  {
+    "station_number": "376",
+    "locality": "Primary School R.no.-1 Nagla Pankhani",
+    "building_name": ""
+  },
+  {
+    "station_number": "377",
+    "locality": "Primary School R.no.-1 Mukundpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "378",
+    "locality": "Primary School R.no.-2 Mukundpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "379",
+    "locality": "Junior High School R.no.-1 Padiyawali (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "380",
+    "locality": "Junior High School R.no.-2 Padiyawali (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "381",
+    "locality": "Junior High School R.no.-3 Padiyawali (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "382",
+    "locality": "Junior High School R.no.-1 Ghasipur (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "383",
+    "locality": "Junior High School R.no.-2 Ghasipur (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "384",
+    "locality": "Junior High School R.no.-1 Kauchhod",
+    "building_name": ""
+  },
+  {
+    "station_number": "385",
+    "locality": "Junior High School R.no.-2 Kauchhod",
+    "building_name": ""
+  },
+  {
+    "station_number": "386",
+    "locality": "Junior High School R.no.-3 Kauchhod",
+    "building_name": ""
+  },
+  {
+    "station_number": "387",
+    "locality": "Primary School R.no.-1 Balrampur",
+    "building_name": ""
+  },
+  {
+    "station_number": "388",
+    "locality": "Primary School R.no.-1 Nagla Pusa",
+    "building_name": ""
+  },
+  {
+    "station_number": "389",
+    "locality": "Primary School R.no.-1 Rustampur Elam",
+    "building_name": ""
+  },
+  {
+    "station_number": "390",
+    "locality": "Primary School R.no.-1 Gajnipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "391",
+    "locality": "Junior High School R.no.-1 Ishanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "392",
+    "locality": "Junior High School R.no.-2 Ishanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "393",
+    "locality": "Junior High School R.no.-1 Hajipur Fateh Khan (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "394",
+    "locality": "Junior High School R.no.-2 Hajipur Fateh Khan (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "395",
+    "locality": "Primary School R.no.-1 Haiwatpur Pratha",
+    "building_name": ""
+  },
+  {
+    "station_number": "396",
+    "locality": "Juniour High School R.no.-1 Keshopur Gadrana",
+    "building_name": ""
+  },
+  {
+    "station_number": "397",
+    "locality": "Juniour High School R.no.-2 Keshorpur Gadrana",
+    "building_name": ""
+  },
+  {
+    "station_number": "398",
+    "locality": "Juniour High School R.no.-3 Keshorpur Gadrana",
+    "building_name": ""
+  },
+  {
+    "station_number": "399",
+    "locality": "Junior High School R.no.-1 Musepur Jalal (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "400",
+    "locality": "Primary School R.no.-1 Bhopatpur Majra Keshopur Gadrana",
+    "building_name": ""
+  },
+  {
+    "station_number": "401",
+    "locality": "Primary School R.no.-2 Bhopatpur Majra Keshopur Gadrana",
+    "building_name": ""
+  },
+  {
+    "station_number": "402",
+    "locality": "Primary School R.no.-1 Pali Rajapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "403",
+    "locality": "Primary School R.no.-2 Pali Rajapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "404",
+    "locality": "Pirmary School R.no.-1 Sikrana",
+    "building_name": ""
+  },
+  {
+    "station_number": "405",
+    "locality": "Champa High Secendary School R.no.-1 Alipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "406",
+    "locality": "Primary School R.no.-1 Shahpur Madrak",
+    "building_name": ""
+  },
+  {
+    "station_number": "407",
+    "locality": "Junior High School R.no.-1 Madrak",
+    "building_name": ""
+  },
+  {
+    "station_number": "408",
+    "locality": "Junior High School R.no.-2 Madrak",
+    "building_name": ""
+  },
+  {
+    "station_number": "409",
+    "locality": "Junior High School R.no.-3 Madrak",
+    "building_name": ""
+  },
+  {
+    "station_number": "410",
+    "locality": "Junior High School R.no.-4 Madrak",
+    "building_name": ""
+  },
+  {
+    "station_number": "411",
+    "locality": "Junior High School R.no.-1 Ramnagar Majra Madrak (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "412",
+    "locality": "Primary School R.no.-1 Nagla Puranmal",
+    "building_name": ""
+  },
+  {
+    "station_number": "413",
+    "locality": "Primary School R.no.-1 Arya Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "414",
+    "locality": "Primary School R.no.-1 Nauhati",
+    "building_name": ""
+  },
+  {
+    "station_number": "415",
+    "locality": "Primary School R.no.-2 Nauhati",
+    "building_name": ""
+  },
+  {
+    "station_number": "416",
+    "locality": "Junior High School R.no.-1 Kothiya",
+    "building_name": ""
+  },
+  {
+    "station_number": "417",
+    "locality": "Junior High School R.no.-1 Mukutgarhi",
+    "building_name": ""
+  },
+  {
+    "station_number": "418",
+    "locality": "Primary School R.no.-1 Samstpur Kirat",
+    "building_name": ""
+  },
+  {
+    "station_number": "419",
+    "locality": "Primary School R.no.-1 Manoharpur Kaysth",
+    "building_name": ""
+  },
+  {
+    "station_number": "420",
+    "locality": "Junior High School R.no.-1 Mainath (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "421",
+    "locality": "Junior High School R.no.-2 Mainath (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "422",
+    "locality": "Primary School R.no.-1 Aisi",
+    "building_name": ""
+  },
+  {
+    "station_number": "423",
+    "locality": "Primary School R.no.-2 Aisi",
+    "building_name": ""
+  },
+  {
+    "station_number": "424",
+    "locality": "Primary School R.no.-1 Chhanhari",
+    "building_name": ""
+  },
+  {
+    "station_number": "425",
+    "locality": "Primary School R.no.-1 Aboopur",
+    "building_name": ""
+  },
+  {
+    "station_number": "426",
+    "locality": "Priamry School R.no.-1 Ahmad Umar Khan",
+    "building_name": ""
+  },
+  {
+    "station_number": "427",
+    "locality": "Primary School R.no.-1 Hasanpur Bujurg",
+    "building_name": ""
+  },
+  {
+    "station_number": "428",
+    "locality": "Primary School R.no.-1 Saharanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "429",
+    "locality": "Primary School R.no.-1 Ajeetpur Aasna",
+    "building_name": ""
+  },
+  {
+    "station_number": "430",
+    "locality": "Primary School R.no.-2 Ajeetpur Aasna",
+    "building_name": ""
+  },
+  {
+    "station_number": "431",
+    "locality": "Primary School R.no.-1 Khediya Khawaja Budhda",
+    "building_name": ""
+  },
+  {
+    "station_number": "432",
+    "locality": "Priamry School R.no.-1 Pala Aisi",
+    "building_name": ""
+  },
+  {
+    "station_number": "433",
+    "locality": "Priamry School R.no.-2 Pala Aisi",
+    "building_name": ""
+  },
+  {
+    "station_number": "434",
+    "locality": "Junior High School R.no.-1 Bhakraula (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "435",
+    "locality": "Junior High School R.no.-2 Bhakraula (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "436",
+    "locality": "Junior High School R.no.-1 Dolra Nirpal (1-8)",
+    "building_name": ""
+  },
+  {
+    "station_number": "437",
+    "locality": "Primary School R.no.-1 Badhauli Fateh Khan",
+    "building_name": ""
+  },
+  {
+    "station_number": "438",
+    "locality": "Primary School R.no.-2 Badhauli Fateh Khan",
+    "building_name": ""
+  },
+  {
+    "station_number": "439",
+    "locality": "Primary School R.no.-3 Badhauli Fateh Khan",
+    "building_name": ""
+  },
+  {
+    "station_number": "440",
+    "locality": "Denim Public School R.no.-1 Saray Harnarayan",
+    "building_name": ""
+  },
+  {
+    "station_number": "441",
+    "locality": "Denim Public School R.no.-2 Saray Harnarayan",
+    "building_name": ""
+  },
+  {
+    "station_number": "442",
+    "locality": "Denim Public School R.no.-3 Saray Harnarayan",
+    "building_name": ""
+  },
+  {
+    "station_number": "443",
+    "locality": "Denim Public School R.no.-4 Saray Harnarayan",
+    "building_name": ""
+  },
+  {
+    "station_number": "444",
+    "locality": "Denim Public School R.no.-5 Saray Harnarayan",
+    "building_name": ""
+  },
+  {
+    "station_number": "445",
+    "locality": "Primary School R.no.-1 Nagla Aashik Ali",
+    "building_name": ""
+  },
+  {
+    "station_number": "446",
+    "locality": "Primary School R.no.-1 Hajipur Chauhtta",
+    "building_name": ""
+  },
+  {
+    "station_number": "447",
+    "locality": "Primary School R.no.-1 Singharpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "448",
+    "locality": "Primary School R.no.-1 Rustampur Sakat Khan",
+    "building_name": ""
+  },
+  {
+    "station_number": "449",
+    "locality": "Primary School R.no.-2 Rustampur Sakat Khan",
+    "building_name": ""
+  }
 ]

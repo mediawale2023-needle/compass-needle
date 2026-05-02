@@ -1,0 +1,14 @@
+parliamentary_constituency,locality,ambiguous_assemblies,assembly_count,status,curated_assembly,suggested_action,notes
+Belagavi,3. Average number of voters per polling station,Gokak | Saundatti Yellamma,2,leave_unresolved,,Choose one assembly or leave unresolved pending clarification,Header row should never resolve
+Belagavi,Budihal,Bailhongal | Gokak,2,resolved,Bailhongal,Choose one assembly or leave unresolved pending clarification,Curated from constituency team review
+Belagavi,Hallur,Arabhavi | Saundatti Yellamma,2,needs_review,,Choose one assembly or leave unresolved pending clarification,
+Belagavi,Hanamapur,Gokak | Ramdurg,2,needs_review,,Choose one assembly or leave unresolved pending clarification,
+Belagavi,Hulikatti,Belgaum Rural | Gokak,2,needs_review,,Choose one assembly or leave unresolved pending clarification,
+Belagavi,Jalikatti,Ramdurg | Saundatti Yellamma,2,needs_review,,Choose one assembly or leave unresolved pending clarification,
+Belagavi,Karikatti,Bailhongal | Belgaum Rural,2,needs_review,,Choose one assembly or leave unresolved pending clarification,
+Belagavi,Mutnal,Belgaum Rural | Gokak,2,needs_review,,Choose one assembly or leave unresolved pending clarification,
+Belagavi,Naganur,Arabhavi | Ramdurg,2,needs_review,,Choose one assembly or leave unresolved pending clarification,
+Belagavi,Ramapur,Bailhongal | Ramdurg,2,needs_review,,Choose one assembly or leave unresolved pending clarification,
+Belagavi,Shivapur,Arabhavi | Saundatti Yellamma,2,needs_review,,Choose one assembly or leave unresolved pending clarification,
+Belagavi,Soppadla,Ramdurg | Saundatti Yellamma,2,needs_review,,Choose one assembly or leave unresolved pending clarification,
+Belagavi,Venkatapur,Arabhavi | Ramdurg,2,needs_review,,Choose one assembly or leave unresolved pending clarification,

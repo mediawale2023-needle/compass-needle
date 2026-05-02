@@ -1,22 +1,2382 @@
 [
-  {"station_number": "1", "locality": "Chharra", "building_name": "Chharra Town"},
-  {"station_number": "2", "locality": "Chahr", "building_name": "Chahr Village"},
-  {"station_number": "3", "locality": "Chahar", "building_name": "Chahar"},
-  {"station_number": "4", "locality": "Chhara", "building_name": "Chhara"},
-  {"station_number": "5", "locality": "Chhar", "building_name": "Chhar"},
-  {"station_number": "6", "locality": "Garauli", "building_name": "Garauli"},
-  {"station_number": "7", "locality": "Sathna", "building_name": "Sathna"},
-  {"station_number": "8", "locality": "Nagla Bhikhna", "building_name": "Nagla Bhikhna"},
-  {"station_number": "9", "locality": "Iltifatganj", "building_name": "Iltifatganj"},
-  {"station_number": "10", "locality": "Harnathpur", "building_name": "Harnathpur"},
-  {"station_number": "11", "locality": "Bichpuri", "building_name": "Bichpuri"},
-  {"station_number": "12", "locality": "Chandpur", "building_name": "Chandpur"},
-  {"station_number": "13", "locality": "Pisawa", "building_name": "Pisawa"},
-  {"station_number": "14", "locality": "Kheragarh", "building_name": "Kheragarh"},
-  {"station_number": "15", "locality": "Mathura Road", "building_name": "Mathura Road (Chharra side)"},
-  {"station_number": "16", "locality": "Bijaigarh", "building_name": "Bijaigarh"},
-  {"station_number": "17", "locality": "Nagla Kalan", "building_name": "Nagla Kalan"},
-  {"station_number": "18", "locality": "Girdharipur", "building_name": "Girdharipur"},
-  {"station_number": "19", "locality": "Umara", "building_name": "Umara"},
-  {"station_number": "20", "locality": "Dadon", "building_name": "Dadon"}
+  {
+    "station_number": "1",
+    "locality": "District",
+    "building_name": "Aligarh"
+  },
+  {
+    "station_number": "1",
+    "locality": "Prathmik Vidyalay Kheda Narayan Singh",
+    "building_name": ""
+  },
+  {
+    "station_number": "2",
+    "locality": "Prathmik Vidyalay Rajipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "3",
+    "locality": "Ucch Prathmik Vidyalay Room No.1 Dubhiya",
+    "building_name": ""
+  },
+  {
+    "station_number": "4",
+    "locality": "Ucch Prathmik Vidyalay Room No.2 Dubhiya",
+    "building_name": ""
+  },
+  {
+    "station_number": "5",
+    "locality": "Prathmik Vidyalay Room No.1 Dubhiya",
+    "building_name": ""
+  },
+  {
+    "station_number": "6",
+    "locality": "Prathmik Vidyalay Room No. 2 Dubhiya",
+    "building_name": ""
+  },
+  {
+    "station_number": "7",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Bilauthi",
+    "building_name": ""
+  },
+  {
+    "station_number": "8",
+    "locality": "Prathmik Vidyalay Bhatauli",
+    "building_name": ""
+  },
+  {
+    "station_number": "9",
+    "locality": "Purv Madhyamik Vidyalay Room No. 1 Khurrampur",
+    "building_name": ""
+  },
+  {
+    "station_number": "10",
+    "locality": "Purv Madhyamik Vidyalay Room No. 2 Khurrampur",
+    "building_name": ""
+  },
+  {
+    "station_number": "11",
+    "locality": "Prathmik Vidyalay Room No.1 Nanau",
+    "building_name": ""
+  },
+  {
+    "station_number": "12",
+    "locality": "Prathmik Vidyalay Room No.2 Nanau",
+    "building_name": ""
+  },
+  {
+    "station_number": "13",
+    "locality": "Prathmik Vidyalay Room No.3 Nanau",
+    "building_name": ""
+  },
+  {
+    "station_number": "14",
+    "locality": "Prathmik Vidyalay Haidar Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "15",
+    "locality": "Prathmik Vidyalay Nagla Risaldaar",
+    "building_name": ""
+  },
+  {
+    "station_number": "16",
+    "locality": "Prathmik Vidyalay Room No.1 Dhauri",
+    "building_name": ""
+  },
+  {
+    "station_number": "17",
+    "locality": "Prathmik Vidyalay Room No.2 Dhauri",
+    "building_name": ""
+  },
+  {
+    "station_number": "18",
+    "locality": "Prathmik Vidyalay Keeratpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "19",
+    "locality": "Samviliyan Vidyalay Room No.1 Suhawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "20",
+    "locality": "Samviliyan Vidyalay Room No.2 Suhawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "21",
+    "locality": "Samviliyan Vidyalay Room No.3 Suhawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "22",
+    "locality": "Samviliyan Vidyalay Dinawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "23",
+    "locality": "Prathmik Vidyalay Nagla Sarataj",
+    "building_name": ""
+  },
+  {
+    "station_number": "24",
+    "locality": "Samviliyan Vidyalay Chitarauli",
+    "building_name": ""
+  },
+  {
+    "station_number": "25",
+    "locality": "Samviliyan Vidyalay Nagla Tularam",
+    "building_name": ""
+  },
+  {
+    "station_number": "26",
+    "locality": "Samviliyan Vidyalay Barauth",
+    "building_name": ""
+  },
+  {
+    "station_number": "27",
+    "locality": "Prathmik Vidyalay Bijalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "28",
+    "locality": "Purv Madhyamik Vidyalay Room No.1 Mandanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "29",
+    "locality": "Purv Madhyamik Vidyalay Room No.2 Mandanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "30",
+    "locality": "Prathmik Vidyalay Irkhinee (mandanpur)",
+    "building_name": ""
+  },
+  {
+    "station_number": "31",
+    "locality": "Purv Madhyamik Vidyalay Kelanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "32",
+    "locality": "Prathmik Vidyalay Room No.1 Nagla Rampur Majra Ladhauaa",
+    "building_name": ""
+  },
+  {
+    "station_number": "33",
+    "locality": "Prathmik Vidyalay Room No.2 Nagla Rampur Majra Ladhauaa",
+    "building_name": ""
+  },
+  {
+    "station_number": "34",
+    "locality": "Prathmik Vidyalay Dharampur",
+    "building_name": ""
+  },
+  {
+    "station_number": "35",
+    "locality": "Prathmik Vidyalay Room No.1 Manai",
+    "building_name": ""
+  },
+  {
+    "station_number": "36",
+    "locality": "Prathmik Vidyalay Room No.2 Manai",
+    "building_name": ""
+  },
+  {
+    "station_number": "37",
+    "locality": "Prathmik Vidyalay Nagla Hari",
+    "building_name": ""
+  },
+  {
+    "station_number": "38",
+    "locality": "Prathmik Vidyalay Bhadhpura",
+    "building_name": ""
+  },
+  {
+    "station_number": "39",
+    "locality": "Samviliyan Vidyalay Room No.1 Dhaurai",
+    "building_name": ""
+  },
+  {
+    "station_number": "40",
+    "locality": "Samviliyan Vidyalay Room No.2 Dhaurai",
+    "building_name": ""
+  },
+  {
+    "station_number": "41",
+    "locality": "Prathmik Vidyalay Kivlas",
+    "building_name": ""
+  },
+  {
+    "station_number": "42",
+    "locality": "Prathmik Vidyalay Aamamadapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "43",
+    "locality": "Prathmik Vidyalay Shankargarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "44",
+    "locality": "Prathmik Vidyalay Dhanauli Chinauli",
+    "building_name": ""
+  },
+  {
+    "station_number": "45",
+    "locality": "Prathmik Vidyalay Gopi",
+    "building_name": ""
+  },
+  {
+    "station_number": "46",
+    "locality": "Prathmik Vidyalay Rudayan",
+    "building_name": ""
+  },
+  {
+    "station_number": "47",
+    "locality": "Prathmik Vidyalay Nagla Mirja",
+    "building_name": ""
+  },
+  {
+    "station_number": "48",
+    "locality": "Prathmik Vidyalay Prempur",
+    "building_name": ""
+  },
+  {
+    "station_number": "49",
+    "locality": "Kanya Prathmik Vidyalay Room No.1 Chandpur Majra Gopi",
+    "building_name": ""
+  },
+  {
+    "station_number": "50",
+    "locality": "Kanya Prathmik Vidyalay Room No.2 Chandpur Majra Gopi",
+    "building_name": ""
+  },
+  {
+    "station_number": "51",
+    "locality": "Prathmik Vidyalay Heerapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "52",
+    "locality": "Prathmik Vidyalay Room No.1 Kanakpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "53",
+    "locality": "Prathmik Vidyalay Room No.2 Kanakpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "54",
+    "locality": "Ucch Prathmik Vidyalay Room No.1 Gudmai Mishripur",
+    "building_name": ""
+  },
+  {
+    "station_number": "55",
+    "locality": "Ucch Prathmik Vidyalay Room No.2 Gudmai Mishripur",
+    "building_name": ""
+  },
+  {
+    "station_number": "56",
+    "locality": "Samviliyan Vidyalay Room No.1 Bistaulee",
+    "building_name": ""
+  },
+  {
+    "station_number": "57",
+    "locality": "Samviliyan Vidyalay Room No.2 Bistaulee",
+    "building_name": ""
+  },
+  {
+    "station_number": "58",
+    "locality": "Prathmik Vidyalay Gangalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "59",
+    "locality": "Prathmik Vidyalay Room No.1 Bhinauli",
+    "building_name": ""
+  },
+  {
+    "station_number": "60",
+    "locality": "Prathmik Vidyalay Room No.2 Bhinauli",
+    "building_name": ""
+  },
+  {
+    "station_number": "61",
+    "locality": "Prathmik Vidyalay Kishanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "62",
+    "locality": "Prathmik Vidyalay Vadari",
+    "building_name": ""
+  },
+  {
+    "station_number": "63",
+    "locality": "Prathmik Vidyalay Sikatarasani",
+    "building_name": ""
+  },
+  {
+    "station_number": "64",
+    "locality": "Prathmik Vidyalay Bhura Ki Garhi",
+    "building_name": ""
+  },
+  {
+    "station_number": "65",
+    "locality": "Purv Madhyamik Vidyalay Nagla Keshiya",
+    "building_name": ""
+  },
+  {
+    "station_number": "66",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.1 Katra Maloi",
+    "building_name": ""
+  },
+  {
+    "station_number": "67",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.2 Katra Maloi",
+    "building_name": ""
+  },
+  {
+    "station_number": "68",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.3 Katra Maloi",
+    "building_name": ""
+  },
+  {
+    "station_number": "69",
+    "locality": "Prathmik Vidyalay Nagla Basant",
+    "building_name": ""
+  },
+  {
+    "station_number": "70",
+    "locality": "Mahatma Gandhi Gurudutt Smark Inter College Room No.1 Vijaygarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "71",
+    "locality": "Mahatma Gandhi Gurudutt Smark Inter College Room No.2 Vijaygarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "72",
+    "locality": "Mahatma Gandhi Gurudutt Smark Inter College Room No.3 Vijaygarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "73",
+    "locality": "Mahatma Gandhi Gurudutt Smark Inter College Room No.4 Vijaygarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "74",
+    "locality": "Mahatma Gandhi Gurudutt Smark Inter College Room No.5 Vijaygarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "75",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.1 Manikpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "76",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.2 Manikpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "77",
+    "locality": "Prathmik Vidyalay Deeppur",
+    "building_name": ""
+  },
+  {
+    "station_number": "78",
+    "locality": "Prathmik Vidyalay Gopalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "79",
+    "locality": "Prathmik Vidyalay Singhpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "80",
+    "locality": "Prathmik Vidyalay Kurhala",
+    "building_name": ""
+  },
+  {
+    "station_number": "81",
+    "locality": "Prathmik Vidyalay Room No.1 Baghiyaar",
+    "building_name": ""
+  },
+  {
+    "station_number": "82",
+    "locality": "Prathmik Vidyalay Room No.2 Baghiyaar",
+    "building_name": ""
+  },
+  {
+    "station_number": "83",
+    "locality": "Prathmik Vidyalay Barakla",
+    "building_name": ""
+  },
+  {
+    "station_number": "84",
+    "locality": "Prathmik Vidyalay Room No.1 Nagla Bari",
+    "building_name": ""
+  },
+  {
+    "station_number": "85",
+    "locality": "Prathmik Vidyalay Room No.2 Nagla Bari",
+    "building_name": ""
+  },
+  {
+    "station_number": "86",
+    "locality": "Prathmik Vidyalay Room No.3 Nagla Bari",
+    "building_name": ""
+  },
+  {
+    "station_number": "87",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.1 Kathaira",
+    "building_name": ""
+  },
+  {
+    "station_number": "88",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.2 Kathaira",
+    "building_name": ""
+  },
+  {
+    "station_number": "89",
+    "locality": "Prathmik Vidyalay Room No.1 Gaulara",
+    "building_name": ""
+  },
+  {
+    "station_number": "90",
+    "locality": "Prathmik Vidyalay Room No.2 Gaulara",
+    "building_name": ""
+  },
+  {
+    "station_number": "91",
+    "locality": "Prathmik Vidyalay Nagla Ranjeeta",
+    "building_name": ""
+  },
+  {
+    "station_number": "92",
+    "locality": "Prathmik Vidyalay Khandwar",
+    "building_name": ""
+  },
+  {
+    "station_number": "93",
+    "locality": "Samviliyan Vidyalay Room No.1 Parauri",
+    "building_name": ""
+  },
+  {
+    "station_number": "94",
+    "locality": "Samviliyan Vidyalay Room No.2 Parauri",
+    "building_name": ""
+  },
+  {
+    "station_number": "95",
+    "locality": "Prathmik Vidyalay Aalampur",
+    "building_name": ""
+  },
+  {
+    "station_number": "96",
+    "locality": "Samviliyan Vidyalay Room No.1 Warhad",
+    "building_name": ""
+  },
+  {
+    "station_number": "97",
+    "locality": "Samviliyan Vidyalay Room No.2 Warhad",
+    "building_name": ""
+  },
+  {
+    "station_number": "98",
+    "locality": "Prathmik Vidyalay Room No.1 Narrau",
+    "building_name": ""
+  },
+  {
+    "station_number": "99",
+    "locality": "Prathmik Vidyalay Room No.2 Narrau",
+    "building_name": ""
+  },
+  {
+    "station_number": "100",
+    "locality": "Prathmik Vidyalay Room No.1 Gangraul",
+    "building_name": ""
+  },
+  {
+    "station_number": "101",
+    "locality": "Prathmik Vidyalay Room No.2 Gangraul",
+    "building_name": ""
+  },
+  {
+    "station_number": "102",
+    "locality": "Purv Madhyamik Vidyalay Room No.1 Tuamai",
+    "building_name": ""
+  },
+  {
+    "station_number": "103",
+    "locality": "Purv Madhyamik Vidyalay Room No.2 Tuamai",
+    "building_name": ""
+  },
+  {
+    "station_number": "104",
+    "locality": "Prathmik Vidyalay Jujharpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "105",
+    "locality": "Panchayat Ghar Bhimpur Haripur",
+    "building_name": ""
+  },
+  {
+    "station_number": "106",
+    "locality": "Prathmik Vidyalay Room No.1 Karhala",
+    "building_name": ""
+  },
+  {
+    "station_number": "107",
+    "locality": "Prathmik Vidyalay Room No.2 Karhala",
+    "building_name": ""
+  },
+  {
+    "station_number": "108",
+    "locality": "Ucch Prathmik Vidyalay Dabha",
+    "building_name": ""
+  },
+  {
+    "station_number": "109",
+    "locality": "Prathmik Vidyalay Dabhi",
+    "building_name": ""
+  },
+  {
+    "station_number": "110",
+    "locality": "Prathmik Vidyalay Room No.1 Dariyapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "111",
+    "locality": "Prathmik Vidyalay Room No.2 Dariyapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "112",
+    "locality": "Purv Madhyamik Vidyalay Gobara",
+    "building_name": ""
+  },
+  {
+    "station_number": "113",
+    "locality": "Prathmik Vidyalay Nasairabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "114",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.1 Bamnoi",
+    "building_name": ""
+  },
+  {
+    "station_number": "115",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.2 Bamnoi",
+    "building_name": ""
+  },
+  {
+    "station_number": "116",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.3 Bamnoi",
+    "building_name": ""
+  },
+  {
+    "station_number": "117",
+    "locality": "Purv Madhyamik Vidyalay Room No.1 Chandpur Mirja",
+    "building_name": ""
+  },
+  {
+    "station_number": "118",
+    "locality": "Purv Madhyamik Vidyalay Room No.2 Chandpur Mirja",
+    "building_name": ""
+  },
+  {
+    "station_number": "119",
+    "locality": "Prathmik Vidyalay Naya Bans",
+    "building_name": ""
+  },
+  {
+    "station_number": "120",
+    "locality": "Shri Tha. Malkhan Singh Inter College Room No.1 Hasauna Jagmohanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "121",
+    "locality": "Shri Tha. Malkhan Singh Inter College Room No.2 Hasauna Jagmohanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "122",
+    "locality": "Shri Tha. Malkhan Singh Inter College Room No.3 Hasauna Jagmohanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "123",
+    "locality": "Prathmik Vidyalay Govardhanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "124",
+    "locality": "Prathmik Vidyalay Room No.1 Bhadroi",
+    "building_name": ""
+  },
+  {
+    "station_number": "125",
+    "locality": "Prathmik Vidyalay Room No.2 Bhadroi",
+    "building_name": ""
+  },
+  {
+    "station_number": "126",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.1 Kaudiyaganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "127",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.2 Kaudiyaganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "128",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.3 Kaudiyaganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "129",
+    "locality": "Prathmik Vidyalay No.3 Room No.1 Kaudiyaganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "130",
+    "locality": "Prathmik Vidyalay No.3 Room No.2 Kaudiyaganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "131",
+    "locality": "Prathmik Vidyalay No.3 Room No.3 Kaudiyaganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "132",
+    "locality": "Prachin Prathmik Vidyalay No.4 Tanki Ke Pass Room No.1 Kaudiyaganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "133",
+    "locality": "Prachin Prathmik Vidyalay No.4 Tanki Ke Pass Room No.2 Kaudiyaganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "134",
+    "locality": "Prachin Prathmik Vidyalay No.4 Tanki Ke Pass Room No.3 Kaudiyaganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "135",
+    "locality": "Prathmik Vidyalay Room No.1 Sikandarpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "136",
+    "locality": "Prathmik Vidyalay Room No.2 Sikandarpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "137",
+    "locality": "Purv Madhyamik Vidyalay Room No.1 Pilakhana",
+    "building_name": ""
+  },
+  {
+    "station_number": "138",
+    "locality": "Purv Madhyamik Vidyalay Room No.2 Pilakhana",
+    "building_name": ""
+  },
+  {
+    "station_number": "139",
+    "locality": "Purv Madhyamik Vidyalay Room No.3 Pilakhana",
+    "building_name": ""
+  },
+  {
+    "station_number": "140",
+    "locality": "Purv Madhyamik Vidyalay Room No.4 Pilakhana",
+    "building_name": ""
+  },
+  {
+    "station_number": "141",
+    "locality": "Purv Madhyamik Vidyalay Room No.5 Pilakhana",
+    "building_name": ""
+  },
+  {
+    "station_number": "142",
+    "locality": "Shri Mathura Prasad Barahsaini Prathmik Vidyalay Room No.1 Pilakhana",
+    "building_name": ""
+  },
+  {
+    "station_number": "143",
+    "locality": "Shri Mathura Prasad Barahsaini Prathmik Vidyalay Room No.2 Pilakhana",
+    "building_name": ""
+  },
+  {
+    "station_number": "144",
+    "locality": "Shri Mathura Prasad Barahsaini Prathmik Vidyalay Room No.3 Pilakhana",
+    "building_name": ""
+  },
+  {
+    "station_number": "145",
+    "locality": "Shri Mathura Prasad Barahsaini Prathmik Vidyalay Room No.4 Pilakhana",
+    "building_name": ""
+  },
+  {
+    "station_number": "146",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.1 Akrabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "147",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.2 Akrabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "148",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.3 Akrabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "149",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.4 Akrabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "150",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Room No.5 Akrabad",
+    "building_name": ""
+  },
+  {
+    "station_number": "151",
+    "locality": "Tha. Budhpal Singh Adarsh Int. Coll. Room No.1 Jirauli Heera Singh",
+    "building_name": ""
+  },
+  {
+    "station_number": "152",
+    "locality": "Tha. Budhpal Singh Adarsh Int. Coll. Room No.2 Jirauli Heera Singh",
+    "building_name": ""
+  },
+  {
+    "station_number": "153",
+    "locality": "Tha. Budhpal Singh Adarsh Int. Coll. Room No.3 Jirauli Heera Singh",
+    "building_name": ""
+  },
+  {
+    "station_number": "154",
+    "locality": "Tha. Budhpal Singh Adarsh Int. Coll. Room No.4 Jirauli Heera Singh",
+    "building_name": ""
+  },
+  {
+    "station_number": "155",
+    "locality": "Prathmik Vidyalay Kuangawn",
+    "building_name": ""
+  },
+  {
+    "station_number": "156",
+    "locality": "Model Ucch Prathmik Vidyalay Room No. 1 Shahgarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "157",
+    "locality": "Model Ucch Prathmik Vidyalay Room No. 2 Shahgarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "158",
+    "locality": "Model Ucch Prathmik Vidyalay Room No. 3 Shahgarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "159",
+    "locality": "Model Prathmik Vidyalay Shahgarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "160",
+    "locality": "Prathmik Vidyalay Room No.1 Nagriya Patti Chahram",
+    "building_name": ""
+  },
+  {
+    "station_number": "161",
+    "locality": "Prathmik Vidyalay Room No.2 Nagriya Patti Chahram",
+    "building_name": ""
+  },
+  {
+    "station_number": "162",
+    "locality": "Prathmik Vidyalay Room No.1 Raypur Manipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "163",
+    "locality": "Prathmik Vidyalay Room No.2 Raypur Manipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "164",
+    "locality": "Prathmik Vidyalay Bahadurpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "165",
+    "locality": "Samviliyan Vidyalay Room No.1 Kasimpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "166",
+    "locality": "Samviliyan Vidyalay Room No.2 Kasimpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "167",
+    "locality": "Samviliyan Vidyalay Room No.3 Kasimpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "168",
+    "locality": "Prathmik Vidyalay Khediya Harchand",
+    "building_name": ""
+  },
+  {
+    "station_number": "169",
+    "locality": "Samviliyan Ucch Prathmik Vidyalay Dabhaura",
+    "building_name": ""
+  },
+  {
+    "station_number": "170",
+    "locality": "Prathmik Vidyalay Room No.1 Kutubpur Amarpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "171",
+    "locality": "Prathmik Vidyalay Room No.2 Kutubpur Amarpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "172",
+    "locality": "Prathmik Vidyalay Utasani",
+    "building_name": ""
+  },
+  {
+    "station_number": "173",
+    "locality": "Prathmik Vidyalay Bhilawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "174",
+    "locality": "Prathmik Vidyalay Kaseri",
+    "building_name": ""
+  },
+  {
+    "station_number": "175",
+    "locality": "Prathmik Vidyalay Room No.1 Tehra",
+    "building_name": ""
+  },
+  {
+    "station_number": "176",
+    "locality": "Prathmik Vidyalay Room No. 2 Tehra",
+    "building_name": ""
+  },
+  {
+    "station_number": "177",
+    "locality": "Prathmik Vidyalay Room No.1 Ramnagar (bhilet)",
+    "building_name": ""
+  },
+  {
+    "station_number": "178",
+    "locality": "Prathmik Vidyalay Room No.2 Ramnagar (bhilet)",
+    "building_name": ""
+  },
+  {
+    "station_number": "179",
+    "locality": "Prathmik Vidyalay Bhagausa",
+    "building_name": ""
+  },
+  {
+    "station_number": "180",
+    "locality": "Panchayatghar Bhilet (ramnagar)",
+    "building_name": ""
+  },
+  {
+    "station_number": "181",
+    "locality": "Prathmik Vidyalay Room No.1 Mahua Kheda",
+    "building_name": ""
+  },
+  {
+    "station_number": "182",
+    "locality": "Prathmik Vidyalay Room No.2 Mahua Kheda",
+    "building_name": ""
+  },
+  {
+    "station_number": "183",
+    "locality": "Prathmik Vidyalay Darapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "184",
+    "locality": "Prathmik Vidyalay Sikandarpur Machhua",
+    "building_name": ""
+  },
+  {
+    "station_number": "185",
+    "locality": "Prathmik Vidyalay Barkatpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "186",
+    "locality": "Model Prathmik Vidyalay Room No.1 Gurusikaran",
+    "building_name": ""
+  },
+  {
+    "station_number": "187",
+    "locality": "Model Prathmik Vidyalay Room No.2 Gurusikaran",
+    "building_name": ""
+  },
+  {
+    "station_number": "188",
+    "locality": "Prathmik Vidyalay Room No.1 Nijamatpur Borana",
+    "building_name": ""
+  },
+  {
+    "station_number": "189",
+    "locality": "Prathmik Vidyalay Room No.2 Nijamatpur Borana",
+    "building_name": ""
+  },
+  {
+    "station_number": "190",
+    "locality": "Prathmik Vidyalay Room No.1 Pikhalauni",
+    "building_name": ""
+  },
+  {
+    "station_number": "191",
+    "locality": "Prathmik Vidyalay Room No.2 Pikhalauni",
+    "building_name": ""
+  },
+  {
+    "station_number": "192",
+    "locality": "Prathmik Vidyalay Room No.1 Imlanee",
+    "building_name": ""
+  },
+  {
+    "station_number": "193",
+    "locality": "Prathmik Vidyalay Room No.2 Imlanee",
+    "building_name": ""
+  },
+  {
+    "station_number": "194",
+    "locality": "Prathmik Vidyalay Room No.1 Khan Alampur",
+    "building_name": ""
+  },
+  {
+    "station_number": "195",
+    "locality": "Prathmik Vidyalay Room No.2 Khan Alampur",
+    "building_name": ""
+  },
+  {
+    "station_number": "196",
+    "locality": "Prathmik Vidyalay Mai",
+    "building_name": ""
+  },
+  {
+    "station_number": "197",
+    "locality": "Prathmik Vidyalay Itawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "198",
+    "locality": "Prathmik Vidyalay Nagla Khem",
+    "building_name": ""
+  },
+  {
+    "station_number": "199",
+    "locality": "Panchayatghar Deendayalpur (majra Budhansi)",
+    "building_name": ""
+  },
+  {
+    "station_number": "200",
+    "locality": "Kisan Inter College Room No.1 Budhansi",
+    "building_name": ""
+  },
+  {
+    "station_number": "201",
+    "locality": "Kisan Inter College Room No.2 Budhansi",
+    "building_name": ""
+  },
+  {
+    "station_number": "202",
+    "locality": "Kisan Inter College Room No.3 Budhansi",
+    "building_name": ""
+  },
+  {
+    "station_number": "203",
+    "locality": "Kisan Inter College Room No.4 Budhansi",
+    "building_name": ""
+  },
+  {
+    "station_number": "204",
+    "locality": "Prathmik Vidyalay Room No.1 Nidhaula",
+    "building_name": ""
+  },
+  {
+    "station_number": "205",
+    "locality": "Prathmik Vidyalay Room No.2 Nidhaula",
+    "building_name": ""
+  },
+  {
+    "station_number": "206",
+    "locality": "Purv Madhyamik Vidyalay Room No. 1 Rahsoopur",
+    "building_name": ""
+  },
+  {
+    "station_number": "207",
+    "locality": "Purv Madhyamik Vidyalay Room No. 2 Rahsoopur",
+    "building_name": ""
+  },
+  {
+    "station_number": "208",
+    "locality": "Prathmik Vidyalay Kharai",
+    "building_name": ""
+  },
+  {
+    "station_number": "209",
+    "locality": "Prathmik Vidyalay Shekhupur",
+    "building_name": ""
+  },
+  {
+    "station_number": "210",
+    "locality": "Samviliyan Vidyalay Bhataula",
+    "building_name": ""
+  },
+  {
+    "station_number": "211",
+    "locality": "Prathmik Vidyalay Daulatpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "212",
+    "locality": "Prathmik Vidyalay Room No.1 Khitkari",
+    "building_name": ""
+  },
+  {
+    "station_number": "213",
+    "locality": "Prathmik Vidyalay Room No.2 Khitkari",
+    "building_name": ""
+  },
+  {
+    "station_number": "214",
+    "locality": "Prathmik Vidyalay Baharampur",
+    "building_name": ""
+  },
+  {
+    "station_number": "215",
+    "locality": "Anganwadi Kendra Baharampur",
+    "building_name": ""
+  },
+  {
+    "station_number": "216",
+    "locality": "Gram Panchayat Sachivalay (panchayat Ghar) Ukrana",
+    "building_name": ""
+  },
+  {
+    "station_number": "217",
+    "locality": "Prathmik Vidyalay Tajpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "218",
+    "locality": "Samviliyan Vidyalay Shahjahanpur Tajpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "219",
+    "locality": "Prathmik Vidyalay Room No.1 Bhadurgarhi Jalali",
+    "building_name": ""
+  },
+  {
+    "station_number": "220",
+    "locality": "Prathmik Vidyalay Room No.2 Bhadurgarhi Jalali",
+    "building_name": ""
+  },
+  {
+    "station_number": "221",
+    "locality": "Swami Krishananand Intermediate College Room No.1 Jalali",
+    "building_name": ""
+  },
+  {
+    "station_number": "222",
+    "locality": "Swami Krishananand Intermediate College Room No.2 Jalali",
+    "building_name": ""
+  },
+  {
+    "station_number": "223",
+    "locality": "Swami Krishananand Intermediate College Room No.3 Jalali",
+    "building_name": ""
+  },
+  {
+    "station_number": "224",
+    "locality": "Swami Krishananand Intermediate College Room No.4 Jalali",
+    "building_name": ""
+  },
+  {
+    "station_number": "225",
+    "locality": "Swami Krishananand Intermediate College Room No.5 Jalali",
+    "building_name": ""
+  },
+  {
+    "station_number": "226",
+    "locality": "Swami Krishananand Intermediate College Room No.6 Jalali",
+    "building_name": ""
+  },
+  {
+    "station_number": "227",
+    "locality": "Swami Krishananand Intermediate College Room No.7 Jalali",
+    "building_name": ""
+  },
+  {
+    "station_number": "228",
+    "locality": "Swami Krishananand Intermediate College Room No.8 Jalali",
+    "building_name": ""
+  },
+  {
+    "station_number": "229",
+    "locality": "Samviliyan Vidyalay Kanya Room No.1 Jalali",
+    "building_name": ""
+  },
+  {
+    "station_number": "230",
+    "locality": "Samviliyan Vidyalay Kanya Room No.2 Jalali",
+    "building_name": ""
+  },
+  {
+    "station_number": "231",
+    "locality": "Samviliyan Vidyalay Kanya Room No.3 Jalali",
+    "building_name": ""
+  },
+  {
+    "station_number": "232",
+    "locality": "Samviliyan Vidyalay Kanya Room No.4 Jalali",
+    "building_name": ""
+  },
+  {
+    "station_number": "233",
+    "locality": "Prathmik Vidyalay Jalali No.2",
+    "building_name": ""
+  },
+  {
+    "station_number": "234",
+    "locality": "Prathmik Vidyalay Edalpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "235",
+    "locality": "Prathmik Vidyalay Ukawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "236",
+    "locality": "Prathmik Vidyalay Chandgarhi",
+    "building_name": ""
+  },
+  {
+    "station_number": "237",
+    "locality": "Prathmik Vidyalay Shekha",
+    "building_name": ""
+  },
+  {
+    "station_number": "238",
+    "locality": "Prathmik Vidyalay Kaliyanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "239",
+    "locality": "Prathmik Vidyalay Room No.1 Changeri",
+    "building_name": ""
+  },
+  {
+    "station_number": "240",
+    "locality": "Prathmik Vidyalay Room No.2 Changeri",
+    "building_name": ""
+  },
+  {
+    "station_number": "241",
+    "locality": "Prathmik Vidyalay Room No.1 Mahamoodpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "242",
+    "locality": "Prathmik Vidyalay Room No.2 Mahamoodpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "243",
+    "locality": "Prathmik Vidyalay Jamalpur (mahamoodpur)",
+    "building_name": ""
+  },
+  {
+    "station_number": "244",
+    "locality": "Prathmik Vidyalay Room No.1 Alahdadpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "245",
+    "locality": "Prathmik Vidyalay Room No.2 Alahdadpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "246",
+    "locality": "Prathmik Vidyalay Room No.3 Alahdadpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "247",
+    "locality": "Samviliyan Vidyalay Room No.1 Ikari",
+    "building_name": ""
+  },
+  {
+    "station_number": "248",
+    "locality": "Samviliyan Vidyalay Room No.2 Ikari",
+    "building_name": ""
+  },
+  {
+    "station_number": "249",
+    "locality": "Prathmik Vidyalay Nagla Baghel (gurushikran)",
+    "building_name": ""
+  },
+  {
+    "station_number": "250",
+    "locality": "Purv Madhyamik Vidyalay Room No.1 Panaithi",
+    "building_name": ""
+  },
+  {
+    "station_number": "251",
+    "locality": "Purv Madhyamik Vidyalay Room No.2 Panaithi",
+    "building_name": ""
+  },
+  {
+    "station_number": "252",
+    "locality": "Prathmik Vidyalay Khangarhi",
+    "building_name": ""
+  },
+  {
+    "station_number": "253",
+    "locality": "Samviliyan Vidyalay Room No.1 Bhojpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "254",
+    "locality": "Samviliyan Vidyalay Room No.2 Bhojpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "255",
+    "locality": "Prathmik Vidyalay Dumhaira",
+    "building_name": ""
+  },
+  {
+    "station_number": "256",
+    "locality": "Samviliyan Vidyalay Jasrathpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "257",
+    "locality": "Samviliyan Vidyalay Bhawankheda",
+    "building_name": ""
+  },
+  {
+    "station_number": "258",
+    "locality": "Prathmik Vidyalay Bhura Kishangarhi",
+    "building_name": ""
+  },
+  {
+    "station_number": "259",
+    "locality": "Prathmik Vidyalay Room No.1 Boner",
+    "building_name": ""
+  },
+  {
+    "station_number": "260",
+    "locality": "Prathmik Vidyalay Room No.2 Boner",
+    "building_name": ""
+  },
+  {
+    "station_number": "261",
+    "locality": "Model Ucch Prathmik Vidyalay Room No.1 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "262",
+    "locality": "Model Ucch Prathmik Vidyalay Room No.2 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "263",
+    "locality": "Model Ucch Prathmik Vidyalay Room No.3 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "264",
+    "locality": "Model Ucch Prathmik Vidyalay Room No.4 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "265",
+    "locality": "Model Ucch Prathmik Vidyalay Room No.5 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "266",
+    "locality": "Model Prathmik Vidyalay Room No.1 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "267",
+    "locality": "Model Prathmik Vidyalay Room No.2 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "268",
+    "locality": "Model Prathmik Vidyalay Room No.3 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "269",
+    "locality": "Model Prathmik Vidyalay Room No.4 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "270",
+    "locality": "N.d M. Public School Room No.1 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "271",
+    "locality": "N.d M. Public School Room No.2 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "272",
+    "locality": "N.d M. Public School Room No.3 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "273",
+    "locality": "N D M. Public School Room No.4 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "274",
+    "locality": "Block Sansadhan Kendra Room No.1 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "275",
+    "locality": "Block Sansadhan Kendra Room No.2 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "276",
+    "locality": "Block Sansadhan Kendra Room No.3 Dhanipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "277",
+    "locality": "Neehar Meera National Senior Secondary School Room No. 1 Asadpur Qyam",
+    "building_name": ""
+  },
+  {
+    "station_number": "278",
+    "locality": "Neehar Meera National Senior Secondary School Room No. 2 Asadpur Qyam",
+    "building_name": ""
+  },
+  {
+    "station_number": "279",
+    "locality": "Neehar Meera National Senior Secondary School Room No. 3 Asadpur Qyam",
+    "building_name": ""
+  },
+  {
+    "station_number": "280",
+    "locality": "Neehar Meera National Senior Secondary School Room No. 4 Asadpur Qyam",
+    "building_name": ""
+  },
+  {
+    "station_number": "281",
+    "locality": "Neehar Meera National Senior Secondary School Room No. 5 Asadpur Qyam",
+    "building_name": ""
+  },
+  {
+    "station_number": "282",
+    "locality": "Prathmik Vidyalay Room No.1 Devi Nagla",
+    "building_name": ""
+  },
+  {
+    "station_number": "283",
+    "locality": "Prathmik Vidyalay Room No.2 Devi Nagla",
+    "building_name": ""
+  },
+  {
+    "station_number": "284",
+    "locality": "Prathmik Vidyalay Room No.3 Devi Nagla",
+    "building_name": ""
+  },
+  {
+    "station_number": "285",
+    "locality": "Prathmik Vidyalay Room No.1 Sindhauli",
+    "building_name": ""
+  },
+  {
+    "station_number": "286",
+    "locality": "Prathmik Vidyalay Room No.2 Sindhauli",
+    "building_name": ""
+  },
+  {
+    "station_number": "287",
+    "locality": "Prathmik Vidyalay Room No.3 Sindhauli",
+    "building_name": ""
+  },
+  {
+    "station_number": "288",
+    "locality": "Shri Tara Singh Baghel Inter College Room No.1 Jawalagarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "289",
+    "locality": "Shri Tara Singh Baghel Inter College Room No.2 Jawalagarh",
+    "building_name": ""
+  },
+  {
+    "station_number": "290",
+    "locality": "Prathmik Vidyalay Room No.1 Nagla Mansingh",
+    "building_name": ""
+  },
+  {
+    "station_number": "291",
+    "locality": "Prathmik Vidyalay Room No.2 Nagla Mansingh",
+    "building_name": ""
+  },
+  {
+    "station_number": "292",
+    "locality": "Prathmik Vidyalay Room No.3 Nagla Mansingh",
+    "building_name": ""
+  },
+  {
+    "station_number": "293",
+    "locality": "Prathmik Vidyalay Room No.4 Nagla Mansingh",
+    "building_name": ""
+  },
+  {
+    "station_number": "294",
+    "locality": "Prathmik Vidyalay Room No.5 Nagla Mansingh",
+    "building_name": ""
+  },
+  {
+    "station_number": "295",
+    "locality": "Prathmik Vidyalay Room No.6 Nagla Mansingh",
+    "building_name": ""
+  },
+  {
+    "station_number": "296",
+    "locality": "Prathmik Vidyalay Room No.7 Nagla Mansingh",
+    "building_name": ""
+  },
+  {
+    "station_number": "297",
+    "locality": "Prathmik Vidyalay Room No.8 Nagla Mansingh",
+    "building_name": ""
+  },
+  {
+    "station_number": "298",
+    "locality": "Samviliyan Vidyalay Room No.1 Alinagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "299",
+    "locality": "Samviliyan Vidyalay Room No.2 Alinagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "300",
+    "locality": "Purv Madhyamik Vidyalay Sunahara",
+    "building_name": ""
+  },
+  {
+    "station_number": "301",
+    "locality": "Prathmik Vidyalay Room No.-1 Nausha",
+    "building_name": ""
+  },
+  {
+    "station_number": "302",
+    "locality": "Prathmik Vidyalay Room No.-2 Nausha",
+    "building_name": ""
+  },
+  {
+    "station_number": "303",
+    "locality": "Jan Kalayan Inter College Room -1 Datawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "304",
+    "locality": "Jan Kalayan Inter College Room -2 Datawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "305",
+    "locality": "Jan Kalayan Inter College Room -3 Datawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "306",
+    "locality": "Jan Kalayan Inter College Room -4 Datawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "307",
+    "locality": "Prathmik Vidyalay Chandgarhi Mazra Datawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "308",
+    "locality": "Prathmik Vidyalay Khargupura",
+    "building_name": ""
+  },
+  {
+    "station_number": "309",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-1 Alahdadpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "310",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-2 Alahdadpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "311",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-1 Pahadipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "312",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-2 Pahadipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "313",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-3 Pahadipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "314",
+    "locality": "Prathmik Vidyalay Azadpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "315",
+    "locality": "Prathmik Vidyalay Room No.1 Mudhail",
+    "building_name": ""
+  },
+  {
+    "station_number": "316",
+    "locality": "Prathmik Vidyalay Room No.2 Mudhail",
+    "building_name": ""
+  },
+  {
+    "station_number": "317",
+    "locality": "Prathmik Vidyalay Khersa, Nagla Bhud",
+    "building_name": ""
+  },
+  {
+    "station_number": "318",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-1 Fusawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "319",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-2 Fusawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "320",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-3 Fusawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "321",
+    "locality": "Prathmik Vidyalay Mohakmpur Talukat Datawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "322",
+    "locality": "Gyanodaya Inter College Room No.-1 Parora",
+    "building_name": ""
+  },
+  {
+    "station_number": "323",
+    "locality": "Gyanodaya Inter College Room No.-2 Parora",
+    "building_name": ""
+  },
+  {
+    "station_number": "324",
+    "locality": "Gyanodaya Inter College Room No.-3 Parora",
+    "building_name": ""
+  },
+  {
+    "station_number": "325",
+    "locality": "Gyanodaya Inter College Room No.-4 Parora",
+    "building_name": ""
+  },
+  {
+    "station_number": "326",
+    "locality": "Gramoday Seva Sadan Ucch Madhaymik Vidyalay Room No.-1 Barala",
+    "building_name": ""
+  },
+  {
+    "station_number": "327",
+    "locality": "Gramoday Seva Sadan Ucch Madhaymik Vidyalay Room No.-2 Barala",
+    "building_name": ""
+  },
+  {
+    "station_number": "328",
+    "locality": "Gramoday Seva Sadan Ucch Madhaymik Vidyalay Room No.-3 Barala",
+    "building_name": ""
+  },
+  {
+    "station_number": "329",
+    "locality": "Gramoday Seva Sadan Ucch Madhaymik Vidyalay Room No.-4 Barala",
+    "building_name": ""
+  },
+  {
+    "station_number": "330",
+    "locality": "Prathmik Vidyalay Room No.-1 Dilalpur Mazra Barala",
+    "building_name": ""
+  },
+  {
+    "station_number": "331",
+    "locality": "Prathmik Vidyalay Room No.-2 Dilalpur Mazra Barala",
+    "building_name": ""
+  },
+  {
+    "station_number": "332",
+    "locality": "Prathmik Vidyalay No.1 Room No.-1 Barala",
+    "building_name": ""
+  },
+  {
+    "station_number": "333",
+    "locality": "Prathmik Vidyalay No.1 Room No.-2 Barala",
+    "building_name": ""
+  },
+  {
+    "station_number": "334",
+    "locality": "Prathmik Vidyalay No.2 Barala",
+    "building_name": ""
+  },
+  {
+    "station_number": "335",
+    "locality": "Panchayat Ghar Nagla Khitkari Mazra Barala",
+    "building_name": ""
+  },
+  {
+    "station_number": "336",
+    "locality": "Prathmik Vidyalay Nagla Karsav Majra Barla",
+    "building_name": ""
+  },
+  {
+    "station_number": "337",
+    "locality": "Junior High School Nagala Khari Mazra Barala",
+    "building_name": ""
+  },
+  {
+    "station_number": "338",
+    "locality": "Prathmik Vidyalay Room No.-1 Tikata",
+    "building_name": ""
+  },
+  {
+    "station_number": "339",
+    "locality": "Prathmik Vidyalay Room No.-2 Tikata",
+    "building_name": ""
+  },
+  {
+    "station_number": "340",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-1 Arni",
+    "building_name": ""
+  },
+  {
+    "station_number": "341",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-2 Arni",
+    "building_name": ""
+  },
+  {
+    "station_number": "342",
+    "locality": "Prathmik Vidyalay Room No.-1 Sihawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "343",
+    "locality": "Prathmik Vidyalay Room No.-2 Sihawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "344",
+    "locality": "Prathmik Vidyalay Room No.-3 Sihawali",
+    "building_name": ""
+  },
+  {
+    "station_number": "345",
+    "locality": "Prathmik Vidyalay Room No.-1 Satrapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "346",
+    "locality": "Prathmik Vidyalay Room No.-2 Satrapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "347",
+    "locality": "Prathmik Vidyalay Room No.-3 Satrapur",
+    "building_name": ""
+  },
+  {
+    "station_number": "348",
+    "locality": "Prathmik Vidyalay Daheli",
+    "building_name": ""
+  },
+  {
+    "station_number": "349",
+    "locality": "Prathmik Vidyalay Room No.-1 Sikarna Kalan",
+    "building_name": ""
+  },
+  {
+    "station_number": "350",
+    "locality": "Prathmik Vidyalay Room No.-2 Sikarna Kalan",
+    "building_name": ""
+  },
+  {
+    "station_number": "351",
+    "locality": "Composite Vidyalay Bhudiya Rampur",
+    "building_name": ""
+  },
+  {
+    "station_number": "352",
+    "locality": "Prathmik Vidyalay Rampur Mazra Bhudiya",
+    "building_name": ""
+  },
+  {
+    "station_number": "353",
+    "locality": "Raghunandan Inter College Room No.-1 Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "354",
+    "locality": "Raghunandan Inter College Room No.-2 Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "355",
+    "locality": "Raghunandan Inter College Room No.-3 Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "356",
+    "locality": "Raghunandan Inter College Room No.-4 Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "357",
+    "locality": "Raghunandan Inter College Room No.-5 Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "358",
+    "locality": "Raghunandan Inter College Room No.-6 Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "359",
+    "locality": "Raghunandan Inter College Room No.-7 Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "360",
+    "locality": "Raghunandan Inter College Room No.-8 Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "361",
+    "locality": "Karyalay Nagar Panchayat Room No.-1 Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "362",
+    "locality": "Karyalay Nagar Panchayat Room No.-2 Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "363",
+    "locality": "Karyalay Nagar Panchayat Room No.-3 Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "364",
+    "locality": "Prathmik Vidyalay Brahmanpuri Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "365",
+    "locality": "Kanya High School Room No 1 Vinova Marg Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "366",
+    "locality": "Kanya High School Room No 2 Vinova Marg Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "367",
+    "locality": "Kanya High School Room No 3 Vinova Marg Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "368",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-1 Chharra Rafatpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "369",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-2 Chharra Rafatpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "370",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-3 Chharra Rafatpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "371",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-4 Chharra Rafatpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "372",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-5 Chharra Rafatpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "373",
+    "locality": "Prathmik Vidyalay Room No.-1 Nagla Badshah Mazra Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "374",
+    "locality": "Prathmik Vidyalay Room No.-2 Nagla Badshah Mazra Chharra",
+    "building_name": ""
+  },
+  {
+    "station_number": "375",
+    "locality": "Prathmik Vidyalay No.-2 Jatpura Chharra Rafatpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "376",
+    "locality": "Prathmik Vidyalay Bhonai",
+    "building_name": ""
+  },
+  {
+    "station_number": "377",
+    "locality": "Prathmik Vidyalay Room No.-1 Rasaini",
+    "building_name": ""
+  },
+  {
+    "station_number": "378",
+    "locality": "Prathmik Vidyalay Room No.-2 Rasaini",
+    "building_name": ""
+  },
+  {
+    "station_number": "379",
+    "locality": "Prathmik Vidyalay Habibpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "380",
+    "locality": "Prathmik Vidyalay Room No.-1 Barauli",
+    "building_name": ""
+  },
+  {
+    "station_number": "381",
+    "locality": "Prathmik Vidyalay Room No.-2 Barauli",
+    "building_name": ""
+  },
+  {
+    "station_number": "382",
+    "locality": "Ucch Madhyamik Vidyalay Room No.-1 Dhansari",
+    "building_name": ""
+  },
+  {
+    "station_number": "383",
+    "locality": "Ucch Madhyamik Vidyalay Room No.-2 Dhansari",
+    "building_name": ""
+  },
+  {
+    "station_number": "384",
+    "locality": "Pyarelal Inter College Room N0.-1 Dhansari",
+    "building_name": ""
+  },
+  {
+    "station_number": "385",
+    "locality": "Pyarelal Inter College Room N0.-2 Dhansari",
+    "building_name": ""
+  },
+  {
+    "station_number": "386",
+    "locality": "Pyarelal Inter College Room N0.-3 Dhansari",
+    "building_name": ""
+  },
+  {
+    "station_number": "387",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-1 Baikala",
+    "building_name": ""
+  },
+  {
+    "station_number": "388",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-2 Baikala",
+    "building_name": ""
+  },
+  {
+    "station_number": "389",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-3 Baikala",
+    "building_name": ""
+  },
+  {
+    "station_number": "390",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-4 Baikala",
+    "building_name": ""
+  },
+  {
+    "station_number": "391",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-5 Baikala",
+    "building_name": ""
+  },
+  {
+    "station_number": "392",
+    "locality": "Prathmik Vidyalay Room No.-1 Jijathal",
+    "building_name": ""
+  },
+  {
+    "station_number": "393",
+    "locality": "Prathmik Vidyalay Room No.-2 Jijathal",
+    "building_name": ""
+  },
+  {
+    "station_number": "394",
+    "locality": "Prathmik Vidyalay Room No.-3 Jijathal",
+    "building_name": ""
+  },
+  {
+    "station_number": "395",
+    "locality": "Prathmik Vidyalay Lodhai",
+    "building_name": ""
+  },
+  {
+    "station_number": "396",
+    "locality": "Prathmik Vidyalay Room No.-1 Bai Khurd",
+    "building_name": ""
+  },
+  {
+    "station_number": "397",
+    "locality": "Prathmik Vidyalay Room No.-2 Bai Khurd",
+    "building_name": ""
+  },
+  {
+    "station_number": "398",
+    "locality": "Prathmik Vidyalay Room No.-1 Dorai",
+    "building_name": ""
+  },
+  {
+    "station_number": "399",
+    "locality": "Prathmik Vidyalay Room No.-2 Dorai",
+    "building_name": ""
+  },
+  {
+    "station_number": "400",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-1 Rukhala",
+    "building_name": ""
+  },
+  {
+    "station_number": "401",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-2 Rukhala",
+    "building_name": ""
+  },
+  {
+    "station_number": "402",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-3 Rukhala",
+    "building_name": ""
+  },
+  {
+    "station_number": "403",
+    "locality": "Prathmik Vidyalay Nagla Gulariya Mazra Rukhala",
+    "building_name": ""
+  },
+  {
+    "station_number": "404",
+    "locality": "Prathmik Vidyalay Room No.-1 Bahadurpur Rahchoi",
+    "building_name": ""
+  },
+  {
+    "station_number": "405",
+    "locality": "Prathmik Vidyalay Room No.-2 Bahadurpur Rahchoi",
+    "building_name": ""
+  },
+  {
+    "station_number": "406",
+    "locality": "Prathmik Vidyalay Galibpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "407",
+    "locality": "Prathmik Vidyalay Room No.-1 Majhola",
+    "building_name": ""
+  },
+  {
+    "station_number": "408",
+    "locality": "Prathmik Vidyalay Room No.-2 Majhola",
+    "building_name": ""
+  },
+  {
+    "station_number": "409",
+    "locality": "Prathmik Vidyalay Nagla Brahaman Mazra Majhola",
+    "building_name": ""
+  },
+  {
+    "station_number": "410",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-1 Ratroi Mazra Majhola",
+    "building_name": ""
+  },
+  {
+    "station_number": "411",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-2 Ratroi Mazra Majhola",
+    "building_name": ""
+  },
+  {
+    "station_number": "412",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-1 Hidramai",
+    "building_name": ""
+  },
+  {
+    "station_number": "413",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-2 Hidramai",
+    "building_name": ""
+  },
+  {
+    "station_number": "414",
+    "locality": "Prathmik Vidyalay Room No.-1 Husaipur Dehmafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "415",
+    "locality": "Prathmik Vidyalay Room No.-2 Husaipur Dehmafi",
+    "building_name": ""
+  },
+  {
+    "station_number": "416",
+    "locality": "Prathmik Vidyalay Room No.-1 Kumraua Majra Shadipur Kumraua",
+    "building_name": ""
+  },
+  {
+    "station_number": "417",
+    "locality": "Prathmik Vidyalay Room No.-2 Kumraua Majra Shadipur Kumraua",
+    "building_name": ""
+  },
+  {
+    "station_number": "418",
+    "locality": "Prathmik Vidyalay Room No.-1 Shadipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "419",
+    "locality": "Prathmik Vidyalay Room No.-2 Shadipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "420",
+    "locality": "Prathmik Vidyalay Dhansinghpur Mazra Shadipur Kumraua",
+    "building_name": ""
+  },
+  {
+    "station_number": "421",
+    "locality": "Prathmik Vidyalay Narayanpur Mazra Shadipur Kumraua",
+    "building_name": ""
+  },
+  {
+    "station_number": "422",
+    "locality": "Composite Ucch Prathmik Vidyalay Room No.-1 Gangiri",
+    "building_name": ""
+  },
+  {
+    "station_number": "423",
+    "locality": "Composite Ucch Prathmik Vidyalay Room No.-2 Gangiri",
+    "building_name": ""
+  },
+  {
+    "station_number": "424",
+    "locality": "Composite Ucch Prathmik Vidyalay Room No.-3 Gangiri",
+    "building_name": ""
+  },
+  {
+    "station_number": "425",
+    "locality": "Composite Ucch Prathmik Vidyalay Room No.-4 Gangiri",
+    "building_name": ""
+  },
+  {
+    "station_number": "426",
+    "locality": "Composite Ucch Prathmik Vidyalay Room No.-5 Gangiri",
+    "building_name": ""
+  },
+  {
+    "station_number": "427",
+    "locality": "Prathmik Vidyalay Room No.-1 Hasanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "428",
+    "locality": "Prathmik Vidyalay Room No.-2 Hasanpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "429",
+    "locality": "Prathmik Vidyalay Kadampur Mazra Badhari Bujurg",
+    "building_name": ""
+  },
+  {
+    "station_number": "430",
+    "locality": "Composite Poorv Madhyamik Vidyalay Bhogipur Mazra Badhari Bujurg",
+    "building_name": ""
+  },
+  {
+    "station_number": "431",
+    "locality": "Composite Poorv Madhyamik Vidyalay Todarpur Mazra Budhari Bujurg",
+    "building_name": ""
+  },
+  {
+    "station_number": "432",
+    "locality": "Prathmik Vidyalay Room No.-1 Badhari Bujurg",
+    "building_name": ""
+  },
+  {
+    "station_number": "433",
+    "locality": "Prathmik Vidyalay Room No.-2 Badhari Bujurg",
+    "building_name": ""
+  },
+  {
+    "station_number": "434",
+    "locality": "Prathmik Vidyalay Room No.-3 Badhari Bujurg",
+    "building_name": ""
+  },
+  {
+    "station_number": "435",
+    "locality": "Prathmik Vidyalay Badhari Khurd",
+    "building_name": ""
+  },
+  {
+    "station_number": "436",
+    "locality": "Prathmik Vidyalay Room No.-1 Ummedpur Mazra Manena Ummedpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "437",
+    "locality": "Prathmik Vidyalay Room No.-2 Ummedpur Mazra Manena Ummedpur",
+    "building_name": ""
+  },
+  {
+    "station_number": "438",
+    "locality": "Prathmik Vidyalay Room No.-1 Kanoovi",
+    "building_name": ""
+  },
+  {
+    "station_number": "439",
+    "locality": "Prathmik Vidyalay Room No.-2 Kanoovi",
+    "building_name": ""
+  },
+  {
+    "station_number": "440",
+    "locality": "Prathmik Vidyalay Nagla Dohra Mazra Kanovi",
+    "building_name": ""
+  },
+  {
+    "station_number": "441",
+    "locality": "Prathmik Vidyalay Sherpur Mazra Kanovi",
+    "building_name": ""
+  },
+  {
+    "station_number": "442",
+    "locality": "Composite Purv Ma. Vidyalay Room No.-1 Goshpur Mazra Kanovi",
+    "building_name": ""
+  },
+  {
+    "station_number": "443",
+    "locality": "Composite Purv Ma. Vidyalay Room No.-2 Goshpur Mazra Kanovi",
+    "building_name": ""
+  },
+  {
+    "station_number": "444",
+    "locality": "Prathmik Vidyalay Biharipur",
+    "building_name": ""
+  },
+  {
+    "station_number": "445",
+    "locality": "Composite Poorv Madhyamik Vidyalaytikari Mazra Kanobi",
+    "building_name": ""
+  },
+  {
+    "station_number": "446",
+    "locality": "Prathmik Vidyalay Mirgola",
+    "building_name": ""
+  },
+  {
+    "station_number": "447",
+    "locality": "Prathmik Vidyalay Room No.-1 Makhadum Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "448",
+    "locality": "Prathmik Vidyalay Room No.-2 Makhadum Nagar",
+    "building_name": ""
+  },
+  {
+    "station_number": "449",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-1 Malsai",
+    "building_name": ""
+  },
+  {
+    "station_number": "450",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-2 Malsai",
+    "building_name": ""
+  },
+  {
+    "station_number": "451",
+    "locality": "Prathmik Vidyalay Rajgahila",
+    "building_name": ""
+  },
+  {
+    "station_number": "452",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-1 Bilauna Chitrasi",
+    "building_name": ""
+  },
+  {
+    "station_number": "453",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-2 Bilauna Chitrasi",
+    "building_name": ""
+  },
+  {
+    "station_number": "454",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-3 Bilauna Chitrasi",
+    "building_name": ""
+  },
+  {
+    "station_number": "455",
+    "locality": "Prathmik Vidyalay Room No.-1 Nagla Summer Mazra Bilauna Chitrasi",
+    "building_name": ""
+  },
+  {
+    "station_number": "456",
+    "locality": "Prathmik Vidyalay Room No.-2 Nagla Summer Mazra Bilauna Chitrasi",
+    "building_name": ""
+  },
+  {
+    "station_number": "457",
+    "locality": "Prathmik Vidyalay Chitrasi Mazra Bilauna Chitrasi",
+    "building_name": ""
+  },
+  {
+    "station_number": "458",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-1 Naugwan",
+    "building_name": ""
+  },
+  {
+    "station_number": "459",
+    "locality": "Composite Poorv Madhyamik Vidyalay Room No.-2 Naugwan",
+    "building_name": ""
+  },
+  {
+    "station_number": "460",
+    "locality": "Prathmik Vidyalay Nagla Birkhi",
+    "building_name": ""
+  },
+  {
+    "station_number": "461",
+    "locality": "Prathmik Vidyalay Jaraith Mazra Naugwan",
+    "building_name": ""
+  },
+  {
+    "station_number": "462",
+    "locality": "Prathmik Vidyalay Room No.-1 Budhagaon",
+    "building_name": ""
+  },
+  {
+    "station_number": "463",
+    "locality": "Prathmik Vidyalay Room No.-2 Budhagaon",
+    "building_name": ""
+  },
+  {
+    "station_number": "464",
+    "locality": "Prathmik Vidyalay Room No.-3 Budhagaon",
+    "building_name": ""
+  },
+  {
+    "station_number": "465",
+    "locality": "Prathmik Vidyalay Room No.-4 Budhagaon",
+    "building_name": ""
+  },
+  {
+    "station_number": "466",
+    "locality": "Prathmik Vidyalay Room No.-1 Tandoli",
+    "building_name": ""
+  },
+  {
+    "station_number": "467",
+    "locality": "Prathmik Vidyalay Room No.-2 Tandoli",
+    "building_name": ""
+  },
+  {
+    "station_number": "468",
+    "locality": "Prathmik Vidyalay Room No.-3 Tandoli",
+    "building_name": ""
+  },
+  {
+    "station_number": "469",
+    "locality": "Prathmik Vidyalay Nagla Mohan Mazra Tandoli",
+    "building_name": ""
+  },
+  {
+    "station_number": "470",
+    "locality": "Prathmik Vidyalay Khulawali Urf Havivganj",
+    "building_name": ""
+  },
+  {
+    "station_number": "471",
+    "locality": "Prathmik Vidyalay Room No -1 Bhamori Buzurg",
+    "building_name": ""
+  },
+  {
+    "station_number": "472",
+    "locality": "Prathmik Vidyalay Room No -2 Bhamori Buzurg",
+    "building_name": ""
+  },
+  {
+    "station_number": "473",
+    "locality": "Composite Poorv Madhyamik Vidyalay Nagla Natthu Mazra Bhamori Buzurg",
+    "building_name": ""
+  },
+  {
+    "station_number": "474",
+    "locality": "Prathmik Vidyalay Chitkura",
+    "building_name": ""
+  },
+  {
+    "station_number": "475",
+    "locality": "Prathmik Vidyalay Mudiya Kheda",
+    "building_name": ""
+  }
 ]

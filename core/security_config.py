@@ -29,7 +29,7 @@ JWT_REFRESH_EXPIRE_DAYS = 7
 # Known production frontends — always allowed regardless of env var
 _KNOWN_FRONTENDS = [
     "https://compass-needle-production.up.railway.app",
-    "https://needle-admin.up.railway.app",
+    "https://admin-production.up.railway.app",
 ]
 
 raw_origins = os.getenv("ALLOWED_ORIGINS", "")
@@ -40,10 +40,19 @@ if raw_origins:
         if fe not in ALLOWED_ORIGINS:
             ALLOWED_ORIGINS.append(fe)
 else:
-    ALLOWED_ORIGINS = ["*"]
+    if os.getenv("ENV", "development") == "production":
+        ALLOWED_ORIGINS = list(_KNOWN_FRONTENDS)
+    else:
+        ALLOWED_ORIGINS = [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3001",
+            *_KNOWN_FRONTENDS,
+        ]
 # Never use empty list — would block all origins and break login
 if not ALLOWED_ORIGINS:
-    ALLOWED_ORIGINS = ["*"]
+    ALLOWED_ORIGINS = list(_KNOWN_FRONTENDS) if os.getenv("ENV", "development") == "production" else ["http://localhost:3000"]
 
 # ============================================
 # RATE LIMITING

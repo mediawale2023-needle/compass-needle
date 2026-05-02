@@ -1,62 +1,62 @@
 [
-    {
-        "station_number": "1",
-        "locality": "Mumbra",
-        "building_name": "Municipal School"
-    },
-    {
-        "station_number": "2",
-        "locality": "Kausa Mumbra",
-        "building_name": "Community Hall"
-    },
-    {
-        "station_number": "3",
-        "locality": "Kalwa",
-        "building_name": "ZP School"
-    },
-    {
-        "station_number": "4",
-        "locality": "Kalwa East",
-        "building_name": "Primary School"
-    },
-    {
-        "station_number": "5",
-        "locality": "Kalwa West",
-        "building_name": "BMC School"
-    },
-    {
-        "station_number": "6",
-        "locality": "Parsik Hill Mumbra",
-        "building_name": "Gram Panchayat"
-    },
-    {
-        "station_number": "7",
-        "locality": "Mumbra Devi",
-        "building_name": "Municipal School"
-    },
-    {
-        "station_number": "8",
-        "locality": "Shilphata",
-        "building_name": "Community Hall"
-    },
-    {
-        "station_number": "9",
-        "locality": "Diva Mumbra",
-        "building_name": "ZP School"
-    },
-    {
-        "station_number": "10",
-        "locality": "Retibunder Mumbra",
-        "building_name": "Primary School"
-    },
-    {
-        "station_number": "11",
-        "locality": "Vitawa Mumbra",
-        "building_name": "Municipal Office"
-    },
-    {
-        "station_number": "12",
-        "locality": "Khardi Mumbra",
-        "building_name": "BMC School"
-    }
+  {
+    "station_number": "1",
+    "locality": "Mumbra",
+    "building_name": "Municipal School"
+  },
+  {
+    "station_number": "2",
+    "locality": "Kausa Mumbra",
+    "building_name": "Community Hall"
+  },
+  {
+    "station_number": "3",
+    "locality": "Kalwa",
+    "building_name": "ZP School"
+  },
+  {
+    "station_number": "4",
+    "locality": "Kalwa East",
+    "building_name": "Primary School"
+  },
+  {
+    "station_number": "5",
+    "locality": "Kalwa West",
+    "building_name": "BMC School"
+  },
+  {
+    "station_number": "6",
+    "locality": "Parsik Hill Mumbra",
+    "building_name": "Gram Panchayat"
+  },
+  {
+    "station_number": "7",
+    "locality": "Mumbra Devi",
+    "building_name": "Municipal School"
+  },
+  {
+    "station_number": "8",
+    "locality": "Shilphata",
+    "building_name": "Community Hall"
+  },
+  {
+    "station_number": "9",
+    "locality": "Diva Mumbra",
+    "building_name": "ZP School"
+  },
+  {
+    "station_number": "10",
+    "locality": "Retibunder Mumbra",
+    "building_name": "Primary School"
+  },
+  {
+    "station_number": "11",
+    "locality": "Vitawa Mumbra",
+    "building_name": "Municipal Office"
+  },
+  {
+    "station_number": "12",
+    "locality": "Khardi Mumbra",
+    "building_name": "BMC School"
+  }
 ]

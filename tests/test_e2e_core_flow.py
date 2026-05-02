@@ -1,0 +1,350 @@
+import os
+import sys
+import time
+import json
+import hmac
+import hashlib
+from datetime import datetime, timedelta
+
+import jwt
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import sessionmaker
+
+
+TEST_JWT_SECRET = "test-secret-key-32-characters-minimum-ok"
+TEST_DB_URL = "sqlite:///./test_e2e_core_flow.db"
+
+os.environ["JWT_SECRET"] = TEST_JWT_SECRET
+os.environ["DATABASE_URL"] = TEST_DB_URL
+os.environ["ENV"] = "test"
+os.environ["OPENAI_API_KEY"] = "sk-test-fake-key-for-testing"
+os.environ["META_APP_SECRET"] = ""
+os.environ["META_PHONE_NUMBER_ID"] = "15551636821"
+os.environ["META_ACCESS_TOKEN"] = "FAKE_ACCESS_TOKEN"
+os.environ["META_VERIFY_TOKEN"] = "test-verify-token-123"
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+@event.listens_for(Engine, "connect")
+def _sqlite_register_pg_lock_functions(dbapi_connection, connection_record):
+    try:
+        dbapi_connection.create_function("pg_try_advisory_lock", 1, lambda _key: 1)
+        dbapi_connection.create_function("pg_advisory_unlock", 1, lambda _key: 1)
+        dbapi_connection.create_function("pg_try_advisory_xact_lock", 1, lambda _key: 1)
+    except Exception:
+        pass
+
+import main
+import api_router
+import core.db_helpers as db_helpers
+import modules.whatsapp as whatsapp_module
+from main import app
+import sansadx_backend.db as dbmod
+from sansadx_backend.db import Base, hash_password
+
+
+test_engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
+TestSession = sessionmaker(autocommit=False, autoflush=False, bind=test_engine, expire_on_commit=False)
+client = TestClient(app, raise_server_exceptions=False)
+
+
+def _seed_database():
+    dbmod.engine = test_engine
+    dbmod.SessionLocal = TestSession
+    db_helpers.engine = test_engine
+    main.engine = test_engine
+    api_router.engine = test_engine
+
+    Base.metadata.create_all(bind=test_engine)
+
+    with test_engine.begin() as conn:
+        for table_name in (
+            "incident_clusters",
+            "wa_message_dedup",
+            "case_activity_log",
+            "contacts",
+            "cases",
+            "users",
+            "tenants",
+            "tenant_overrides",
+        ):
+            conn.execute(text(f"DELETE FROM {table_name}"))  # nosec B608
+
+        now = datetime.utcnow()
+        conn.execute(
+            text(
+                """
+                INSERT INTO tenants (id, name, constituency, whatsapp_number, subscription_plan, is_active, created_at)
+                VALUES (1, 'Arun Kumar', 'Bangalore North', '+919000000001', 'Pro', 1, :now)
+                """
+            ),
+            {"now": now},
+        )
+
+        conn.execute(
+            text(
+                """
+                INSERT INTO users (tenant_id, username, password_hash, role, constituency, house)
+                VALUES (1, 'mp_arun', :password_hash, 'mp', 'Bangalore North', 'Lok Sabha')
+                """
+            ),
+            {"password_hash": hash_password("ValidPass1!")},
+        )
+
+        conn.execute(
+            text(
+                """
+                INSERT INTO tenant_overrides (tenant_id, override_type, key, value, created_at)
+                VALUES (1, 'geo_override', 'Whitefield', 'Mahadevapura', :now)
+                """
+            ),
+            {"now": now},
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO tenant_overrides (tenant_id, override_type, key, value, created_at)
+                VALUES (1, 'phone_mapping', '+15551636821', '1', :now)
+                """
+            ),
+            {"now": now},
+        )
+
+
+def _make_token(username: str, tenant_id: int, role: str = "mp") -> str:
+    payload = {
+        "sub": username,
+        "tid": tenant_id,
+        "role": role,
+        "exp": datetime.utcnow() + timedelta(hours=8),
+    }
+    return jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
+
+
+def _whatsapp_payload(sender: str, body: str, receiver: str = "15551636821") -> dict:
+    return {
+        "entry": [{
+            "changes": [{
+                "value": {
+                    "metadata": {"display_phone_number": receiver},
+                    "messages": [{
+                        "from": sender,
+                        "type": "text",
+                        "text": {"body": body},
+                    }],
+                }
+            }]
+        }]
+    }
+
+
+def _post_signed_webhook(payload: dict):
+    raw_body = json.dumps(payload).encode("utf-8")
+    signature = "sha256=" + hmac.new(
+        b"test-meta-app-secret",
+        raw_body,
+        hashlib.sha256,
+    ).hexdigest()
+    return client.post(
+        "/whatsapp/webhook",
+        data=raw_body,
+        headers={
+            "Content-Type": "application/json",
+            "X-Hub-Signature-256": signature,
+        },
+    )
+
+
+def _fetch_case_by_phone(phone: str):
+    with test_engine.connect() as conn:
+        row = conn.execute(
+            text(
+                "SELECT id, user_phone, category, problem_domain, status, response_to_citizen, "
+                "raw_message, case_metadata, is_critical "
+                "FROM cases WHERE user_phone = :phone ORDER BY created_at DESC LIMIT 1"
+            ),
+            {"phone": phone},
+        ).mappings().first()
+    return dict(row) if row else None
+
+
+def _cluster_rows():
+    with test_engine.connect() as conn:
+        return conn.execute(
+            text(
+                "SELECT id, raw_case_ids, alert_level, unique_sender_count, alert_acknowledged "
+                "FROM incident_clusters ORDER BY created_at DESC"
+            )
+        ).mappings().all()
+
+
+def _wait_for(predicate, timeout_seconds: float = 2.0, interval_seconds: float = 0.05):
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        result = predicate()
+        if result:
+            return result
+        time.sleep(interval_seconds)
+    return predicate()
+
+
+def test_citizen_webhook_to_notify_and_resolve_flow(monkeypatch):
+    _seed_database()
+    monkeypatch.setattr(main, "META_APP_SECRET", "test-meta-app-secret")
+
+    intake_messages = []
+    citizen_notifications = []
+
+    monkeypatch.setattr(
+        main,
+        "ask_chatgpt_agent",
+        lambda prompt, tenant_id=None: {
+            "status": "new",
+            "detected_language": "English",
+            "political_response": "Your grievance has been noted and will be reviewed.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "Whitefield",
+                "department": "BWSSB",
+                "summary": "No water supply in Whitefield for three days",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: intake_messages.append((phone, message, phone_number_id)),
+    )
+    monkeypatch.setattr(
+        whatsapp_module,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: citizen_notifications.append((phone, message, phone_number_id)),
+    )
+
+    sender = f"9198800{int(time.time()) % 100000:05d}"
+    webhook_resp = _post_signed_webhook(
+        _whatsapp_payload(sender, "Water supply has not come for 3 days in Whitefield area")
+    )
+    assert webhook_resp.status_code == 200, webhook_resp.text
+    assert webhook_resp.json()["status"] == "received"
+    assert _wait_for(lambda: list(intake_messages)), "Normal grievance intake should acknowledge the citizen immediately"
+
+    created_case = _wait_for(lambda: _fetch_case_by_phone(sender))
+    assert created_case is not None, "Webhook intake should create a case"
+    assert created_case["status"] == "new"
+    assert created_case["category"] == "Infrastructure & Utilities"
+    assert created_case["problem_domain"] == "Infrastructure & Utilities"
+    assert "Whitefield" in str(created_case["case_metadata"])
+
+    auth_headers = {"Authorization": f"Bearer {_make_token('mp_arun', 1)}"}
+
+    list_resp = client.get("/api/cases", headers=auth_headers)
+    assert list_resp.status_code == 200, list_resp.text
+    listed_case = next((case for case in list_resp.json()["cases"] if case["id"] == created_case["id"]), None)
+    assert listed_case is not None, "Newly created case should appear in MP case list"
+    assert listed_case["problem_subdomain"] == "Water Supply"
+    assert listed_case["convergence_program_type"] == "Service Delivery Strengthening"
+    assert listed_case["location"] == "Whitefield"
+
+    draft_message = "Your case has been resolved. Please stay in touch."
+    patch_resp = client.patch(
+        f"/api/cases/{created_case['id']}",
+        headers=auth_headers,
+        json={
+            "notes_for_staff": "Verified with BWSSB ward office.",
+            "response_to_citizen": draft_message,
+        },
+    )
+    assert patch_resp.status_code == 200, patch_resp.text
+    assert patch_resp.json()["success"] is True
+
+    notify_resp = client.post(
+        f"/api/cases/{created_case['id']}/notify/send",
+        headers=auth_headers,
+        json={"message": draft_message},
+    )
+    assert notify_resp.status_code == 200, notify_resp.text
+    assert notify_resp.json()["success"] is True
+    assert citizen_notifications, "MP notify flow should send a WhatsApp message"
+    assert citizen_notifications[-1][0] == sender
+    assert citizen_notifications[-1][1] == draft_message
+
+    detail_resp = client.get(f"/api/cases/{created_case['id']}", headers=auth_headers)
+    assert detail_resp.status_code == 200, detail_resp.text
+    detail = detail_resp.json()
+    assert detail["status"] == "resolved"
+    assert detail["response_to_citizen"] == draft_message
+
+    with test_engine.connect() as conn:
+        activity = conn.execute(
+            text(
+                "SELECT action, new_value FROM case_activity_log "
+                "WHERE case_id = :cid ORDER BY created_at DESC LIMIT 1"
+            ),
+            {"cid": created_case["id"]},
+        ).mappings().first()
+    assert activity is not None
+    assert activity["action"] == "citizen_notified"
+    assert activity["new_value"] == "resolved"
+
+
+def test_emergency_webhook_creates_cluster_and_sends_no_ack(monkeypatch):
+    _seed_database()
+    monkeypatch.setattr(main, "META_APP_SECRET", "test-meta-app-secret")
+
+    outbound_messages = []
+    monkeypatch.setattr(
+        main,
+        "ask_chatgpt_agent",
+        lambda prompt, tenant_id=None: {
+            "status": "emergency",
+            "is_critical": True,
+            "detected_language": "English",
+            "political_response": "Emergency services have been alerted.",
+            "grievance_data": {
+                "problem_domain": "Law & Order",
+                "problem_subdomain": "Threat/Extortion",
+                "convergence_program_type": "Safety & Inclusion Add-on",
+                "categories": ["Law & Order"],
+                "location": "Whitefield",
+                "department": "Police",
+                "summary": "Violence reported in Whitefield",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = f"9197711{int(time.time()) % 100000:05d}"
+    webhook_resp = _post_signed_webhook(
+        _whatsapp_payload(sender, "Violence between groups in Whitefield. Immediate police needed.")
+    )
+    assert webhook_resp.status_code == 200, webhook_resp.text
+    assert webhook_resp.json()["status"] == "received"
+    assert outbound_messages == [], "Emergency complaints must not receive citizen acknowledgments"
+
+    created_case = _wait_for(lambda: _fetch_case_by_phone(sender))
+    assert created_case is not None
+    assert created_case["status"] == "pending_review"
+    assert created_case["is_critical"] in (True, 1)
+
+    clusters = _wait_for(lambda: _cluster_rows())
+    assert len(clusters) == 1, "Emergency intake should create an incident cluster"
+    assert clusters[0]["alert_level"] == "t0"
+    assert clusters[0]["unique_sender_count"] == 1
+    assert str(created_case["id"]) in str(clusters[0]["raw_case_ids"])
+
+    auth_headers = {"Authorization": f"Bearer {_make_token('mp_arun', 1)}"}
+    detail_resp = client.get(f"/api/cases/{created_case['id']}", headers=auth_headers)
+    assert detail_resp.status_code == 200, detail_resp.text
+    assert detail_resp.json()["status"] == "pending_review"

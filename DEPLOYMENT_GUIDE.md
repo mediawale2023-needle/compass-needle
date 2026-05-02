@@ -29,8 +29,10 @@ export ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
 export DATABASE_URL=postgresql://user:password@host:port/db
 export OPENAI_API_KEY=sk-...
 export GEMINI_API_KEY=AIza...
-export TWILIO_ACCOUNT_SID=AC...
-export TWILIO_AUTH_TOKEN=...
+export WHATSAPP_PHONE_NUMBER_ID=123456789012345
+export META_ACCESS_TOKEN=replace-with-permanent-system-user-token
+export META_VERIFY_TOKEN=replace-with-webhook-verify-token
+export META_APP_SECRET=replace-with-meta-app-secret
 ```
 
 ### 3. Password Migration
@@ -97,8 +99,10 @@ docker run -d \
   -e DATABASE_URL=$DATABASE_URL \
   -e OPENAI_API_KEY=$OPENAI_API_KEY \
   -e GEMINI_API_KEY=$GEMINI_API_KEY \
-  -e TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID \
-  -e TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN \
+  -e WHATSAPP_PHONE_NUMBER_ID=$WHATSAPP_PHONE_NUMBER_ID \
+  -e META_ACCESS_TOKEN=$META_ACCESS_TOKEN \
+  -e META_VERIFY_TOKEN=$META_VERIFY_TOKEN \
+  -e META_APP_SECRET=$META_APP_SECRET \
   -e ALLOWED_ORIGINS=https://yourdomain.com \
   -p 8000:8000 \
   needle:latest
@@ -115,7 +119,7 @@ git push origin main
 # Railway will auto-deploy
 
 # Verify deployment
-curl https://your-railway-app.up.railway.app/
+curl https://your-railway-app.up.railway.app/health
 ```
 
 ### Option C: Manual Server Deployment
@@ -143,6 +147,33 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
 ## Post-Deployment Verification
+
+Run the full Railway smoke test once the deploy is live:
+
+```bash
+export BACKEND_URL="https://needle-backend.up.railway.app"
+export MP_URL="https://compass-needle-production.up.railway.app"
+export ADMIN_URL="https://admin-production.up.railway.app"
+export MP_USERNAME="..."
+export MP_PASSWORD="..."
+export ADMIN_USERNAME="..."
+export ADMIN_PASSWORD="..."
+export META_APP_SECRET="..."
+export TEST_SENDER="919999999999"
+export WA_DISPLAY_NUMBER="15551636821"
+
+./scripts/railway_smoke_test.sh
+```
+
+This verifies:
+- backend health and docs
+- MP and admin web availability
+- MP login and admin login
+- signed WhatsApp webhook intake
+- case creation visibility for the MP
+- outbound citizen notification
+- `403` on bad webhook signatures
+- `400` on malformed signed webhook payloads
 
 ### 1. Health Check
 

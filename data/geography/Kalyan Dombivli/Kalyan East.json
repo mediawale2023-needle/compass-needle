@@ -1,72 +1,72 @@
 [
-    {
-        "station_number": "1",
-        "locality": "Kalyan East",
-        "building_name": "Municipal School"
-    },
-    {
-        "station_number": "2",
-        "locality": "Tisgaon",
-        "building_name": "Community Hall"
-    },
-    {
-        "station_number": "3",
-        "locality": "Khadakpada Kalyan",
-        "building_name": "ZP School"
-    },
-    {
-        "station_number": "4",
-        "locality": "Bail Bazaar Kalyan",
-        "building_name": "Primary School"
-    },
-    {
-        "station_number": "5",
-        "locality": "Adharwadi Kalyan",
-        "building_name": "BMC School"
-    },
-    {
-        "station_number": "6",
-        "locality": "Santoshi Mata Nagar Kalyan",
-        "building_name": "Gram Panchayat"
-    },
-    {
-        "station_number": "7",
-        "locality": "Patri Pool Kalyan",
-        "building_name": "Municipal School"
-    },
-    {
-        "station_number": "8",
-        "locality": "Gandhari Kalyan",
-        "building_name": "Community Hall"
-    },
-    {
-        "station_number": "9",
-        "locality": "Chinchpada Kalyan",
-        "building_name": "ZP School"
-    },
-    {
-        "station_number": "10",
-        "locality": "Subhash Nagar Kalyan",
-        "building_name": "Primary School"
-    },
-    {
-        "station_number": "11",
-        "locality": "Netivali Kalyan",
-        "building_name": "Municipal Office"
-    },
-    {
-        "station_number": "12",
-        "locality": "Savli Kalyan",
-        "building_name": "BMC School"
-    },
-    {
-        "station_number": "13",
-        "locality": "Kolsewadi Kalyan",
-        "building_name": "Municipal School"
-    },
-    {
-        "station_number": "14",
-        "locality": "Station Road Kalyan",
-        "building_name": "Community Hall"
-    }
+  {
+    "station_number": "1",
+    "locality": "Kalyan East",
+    "building_name": "Municipal School"
+  },
+  {
+    "station_number": "2",
+    "locality": "Tisgaon",
+    "building_name": "Community Hall"
+  },
+  {
+    "station_number": "3",
+    "locality": "Khadakpada Kalyan",
+    "building_name": "ZP School"
+  },
+  {
+    "station_number": "4",
+    "locality": "Bail Bazaar Kalyan",
+    "building_name": "Primary School"
+  },
+  {
+    "station_number": "5",
+    "locality": "Adharwadi Kalyan",
+    "building_name": "BMC School"
+  },
+  {
+    "station_number": "6",
+    "locality": "Santoshi Mata Nagar Kalyan",
+    "building_name": "Gram Panchayat"
+  },
+  {
+    "station_number": "7",
+    "locality": "Patri Pool Kalyan",
+    "building_name": "Municipal School"
+  },
+  {
+    "station_number": "8",
+    "locality": "Gandhari Kalyan",
+    "building_name": "Community Hall"
+  },
+  {
+    "station_number": "9",
+    "locality": "Chinchpada Kalyan",
+    "building_name": "ZP School"
+  },
+  {
+    "station_number": "10",
+    "locality": "Subhash Nagar Kalyan",
+    "building_name": "Primary School"
+  },
+  {
+    "station_number": "11",
+    "locality": "Netivali Kalyan",
+    "building_name": "Municipal Office"
+  },
+  {
+    "station_number": "12",
+    "locality": "Savli Kalyan",
+    "building_name": "BMC School"
+  },
+  {
+    "station_number": "13",
+    "locality": "Kolsewadi Kalyan",
+    "building_name": "Municipal School"
+  },
+  {
+    "station_number": "14",
+    "locality": "Station Road Kalyan",
+    "building_name": "Community Hall"
+  }
 ]
