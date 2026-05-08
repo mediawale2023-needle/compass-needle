@@ -35,7 +35,8 @@ import jwt
 import bcrypt
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 
 # ─────────────────────────────────────────────────────────────
@@ -61,6 +62,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # IMPORT APP (after env is set)
 # ─────────────────────────────────────────────────────────────
 from sansadx_backend.db import Base, engine as app_engine, hash_password
+import sansadx_backend.db as dbmod
+import core.db_helpers as db_helpers
+import api_router
+import admin_api
+import main
 from main import app
 
 # ─────────────────────────────────────────────────────────────
@@ -70,12 +76,38 @@ test_engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": Fals
 TestSession = sessionmaker(bind=test_engine)
 
 
+@event.listens_for(Engine, "connect")
+def _sqlite_register_pg_lock_functions(dbapi_connection, connection_record):
+    try:
+        dbapi_connection.create_function("pg_try_advisory_lock", 1, lambda _key: 1)
+        dbapi_connection.create_function("pg_advisory_unlock", 1, lambda _key: 1)
+        dbapi_connection.create_function("pg_try_advisory_xact_lock", 1, lambda _key: 1)
+    except Exception:
+        pass
+
+
 def _seed_database():
     """Create schema and seed test data for both tenants."""
+    dbmod.engine = test_engine
+    dbmod.SessionLocal = TestSession
+    db_helpers.engine = test_engine
+    main.engine = test_engine
+    api_router.engine = test_engine
+    api_router.JWT_SECRET = TEST_JWT_SECRET
+    admin_api.engine = test_engine
+    admin_api.SessionLocal = TestSession
+    admin_api.JWT_SECRET = TEST_JWT_SECRET
+
     Base.metadata.create_all(bind=test_engine)
 
     with test_engine.begin() as conn:
         # Wipe tables for a clean run
+        conn.execute(text("DELETE FROM wa_message_dedup"))
+        conn.execute(text("DELETE FROM token_blocklist"))
+        conn.execute(text("DELETE FROM case_activity_log"))
+        conn.execute(text("DELETE FROM escalations"))
+        conn.execute(text("DELETE FROM officers"))
+        conn.execute(text("DELETE FROM contacts"))
         conn.execute(text("DELETE FROM cases"))
         conn.execute(text("DELETE FROM users"))
         conn.execute(text("DELETE FROM tenants"))
@@ -131,6 +163,15 @@ def _seed_database():
             VALUES (1, 'phone_mapping', '+15551636821', '1', :now)
         """), {"now": datetime.utcnow()})
 
+        # Some webhook payloads expose the receiver without a leading '+'.
+        conn.execute(text("""
+            INSERT INTO tenant_overrides (tenant_id, override_type, key, value, created_at)
+            VALUES (1, 'phone_mapping', '15551636821', '1', :now)
+        """), {"now": datetime.utcnow()})
+
+    if hasattr(main, "_tenant_config_cache"):
+        main._tenant_config_cache.clear()
+
 
 _seed_database()
 
@@ -143,34 +184,47 @@ client = TestClient(app, raise_server_exceptions=False)
 # ─────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────
+@pytest.fixture(autouse=True)
+def _reset_test_state():
+    """Keep tests isolated from prior auth revocations and webhook side effects."""
+    _seed_database()
+    yield
+
+
 def _make_token(username: str, tenant_id: int, role: str = "user",
                 expire_hours: int = 8) -> str:
+    now = datetime.utcnow()
     payload = {
         "sub": username,
         "tid": tenant_id,
         "role": role,
-        "exp": datetime.utcnow() + timedelta(hours=expire_hours),
+        "iat": now.timestamp(),
+        "exp": now + timedelta(hours=expire_hours),
     }
     return jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
 
 def _make_expired_token(username: str, tenant_id: int) -> str:
+    now = datetime.utcnow()
     payload = {
         "sub": username,
         "tid": tenant_id,
         "role": "user",
-        "exp": datetime.utcnow() - timedelta(hours=1),
+        "iat": now.timestamp(),
+        "exp": now - timedelta(hours=1),
     }
     return jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
 
 def _make_tampered_token(username: str, tenant_id: int) -> str:
     """Sign with wrong secret."""
+    now = datetime.utcnow()
     payload = {
         "sub": username,
         "tid": tenant_id,
         "role": "user",
-        "exp": datetime.utcnow() + timedelta(hours=8),
+        "iat": now.timestamp(),
+        "exp": now + timedelta(hours=8),
     }
     return jwt.encode(payload, "wrong-secret-key-that-does-not-match-123", algorithm="HS256")
 
@@ -745,6 +799,23 @@ class TestAIFailureHandling:
 # ─────────────────────────────────────────────────────────────
 class TestDatabaseStress:
 
+    def _insert_stress_cases(self, count: int = 500):
+        with test_engine.begin() as conn:
+            for i in range(count):
+                conn.execute(text("""
+                    INSERT INTO cases
+                    (tenant_id, user_phone, category, raw_message, status, case_metadata, is_critical, created_at)
+                    VALUES (:tid, :phone, :cat, :msg, :stat, :meta, 0, :now)
+                """), {
+                    "tid": 1,
+                    "phone": f"91900{i:07d}",
+                    "cat": ["Water", "Roads", "Electricity", "Health", "Education"][i % 5],
+                    "msg": f"Stress test grievance number {i}",
+                    "stat": "new",
+                    "meta": json.dumps({"stress_test": True, "index": i}),
+                    "now": datetime.utcnow(),
+                })
+
     def test_500_grievance_inserts_no_error(self):
         """500 direct DB inserts complete without connection errors."""
         errors = []
@@ -771,6 +842,7 @@ class TestDatabaseStress:
 
     def test_500_cases_saved_count_matches(self):
         """After stress inserts verify count is consistent."""
+        self._insert_stress_cases()
         with test_engine.connect() as conn:
             count = conn.execute(text(
                 "SELECT COUNT(*) FROM cases WHERE tenant_id = 1"
@@ -779,6 +851,7 @@ class TestDatabaseStress:
 
     def test_concurrent_reads_no_deadlock(self):
         """50 concurrent dashboard queries complete without errors."""
+        self._insert_stress_cases()
         token = _make_token("mp_arun", 1)
         errors = []
         results = []
@@ -805,6 +878,7 @@ class TestDatabaseStress:
 
     def test_dashboard_query_responds_in_time(self):
         """Dashboard query completes within 2 seconds even under loaded DB."""
+        self._insert_stress_cases()
         token = _make_token("mp_arun", 1)
         start = time.time()
         resp = client.get(
@@ -818,6 +892,7 @@ class TestDatabaseStress:
 
     def test_summary_endpoint_responds_in_time(self):
         """Summary/stats endpoint responds within 2 seconds."""
+        self._insert_stress_cases()
         token = _make_token("mp_arun", 1)
         start = time.time()
         resp = client.get(

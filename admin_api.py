@@ -104,7 +104,8 @@ def _is_token_revoked(username: str, token_issued_at: float) -> bool:
             if hasattr(revoked_at, 'timestamp'):
                 return token_issued_at < revoked_at.timestamp()
     except Exception:
-        logger.warning("Token revocation check failed — defaulting to not revoked")
+        logger.error("Token revocation check failed — rejecting admin token for safety")
+        return True
     return False
 
 

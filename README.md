@@ -234,6 +234,30 @@ npm run dev    # → http://localhost:3001
 
 ---
 
+## Tests And Builds
+
+Run the full product suite before marking work complete:
+
+```bash
+npm run test:all
+```
+
+Useful narrower commands:
+
+```bash
+npm run test:backend      # Backend pytest suite
+npm run test:mp           # MP Vitest suite
+npm run test:admin        # Admin Vitest suite
+npm run test:e2e:mp       # MP Playwright smoke tests
+npm run test:e2e:admin    # Admin Playwright smoke tests
+npm run build:mp          # MP production build
+npm run build:admin       # Admin production build
+```
+
+CI runs `npm run test:all`, `npm run build:mp`, and `npm run build:admin` on push/PR through `.github/workflows/product-tests.yml`.
+
+---
+
 ## Deployment (Railway)
 
 Three services from the same GitHub repo, auto-deploy on push to `main`:

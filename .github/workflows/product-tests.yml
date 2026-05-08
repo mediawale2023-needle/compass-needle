@@ -1,0 +1,77 @@
+name: Product Tests
+
+on:
+  push:
+    branches:
+      - main
+      - "Codex/**"
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-all:
+    name: Backend, Frontend, Admin, And Browser Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      ENV: test
+      DATABASE_URL: sqlite:///./ci_test.db
+      JWT_SECRET: ci-test-secret-key-32-characters-minimum-ok
+      OPENAI_API_KEY: sk-test-fake-key-for-ci
+      GEMINI_API_KEY: test-gemini-key
+      META_APP_SECRET: test-meta-app-secret
+      META_ACCESS_TOKEN: test-meta-access-token
+      META_VERIFY_TOKEN: test-meta-verify-token
+      META_PHONE_NUMBER_ID: "15551636821"
+      WHATSAPP_PHONE_NUMBER_ID: "15551636821"
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Set Up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+            admin/package-lock.json
+
+      - name: Install Backend Dependencies
+        run: |
+          python -m venv venv
+          venv/bin/python -m pip install --upgrade pip
+          venv/bin/pip install -r requirements.txt
+
+      - name: Install Root Node Dependencies
+        run: npm ci
+
+      - name: Install MP Frontend Dependencies
+        run: npm ci --prefix frontend
+
+      - name: Install Admin Frontend Dependencies
+        run: npm ci --prefix admin
+
+      - name: Install Playwright Browser
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Full Product Test Suite
+        run: npm run test:all
+
+      - name: Build MP Frontend
+        run: npm run build:mp
+
+      - name: Build Admin Frontend
+        run: npm run build:admin

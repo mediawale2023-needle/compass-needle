@@ -16,7 +16,7 @@ const LOGIN_RETRY_DELAY = 2000; // 2s between login retries
 const MAX_RETRIES = 1;         // 1 retry only (2 total attempts) for other calls
 const RETRY_DELAY = 500;       // 500ms base delay
 
-function getAuthToken() {
+export function getAuthToken() {
     if (typeof window === 'undefined') return null;
     const token = sessionStorage.getItem('needle_token') || localStorage.getItem('needle_token');
     if (token) {

@@ -1,0 +1,568 @@
+import json
+import os
+import sys
+from datetime import datetime, timedelta
+
+import jwt
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import sessionmaker
+
+
+TEST_JWT_SECRET = "test-secret-key-32-characters-minimum-ok"
+TEST_DB_URL = "sqlite:///./test_briefcase_api.db"
+
+os.environ["JWT_SECRET"] = TEST_JWT_SECRET
+os.environ["DATABASE_URL"] = TEST_DB_URL
+os.environ["ENV"] = "test"
+os.environ["OPENAI_API_KEY"] = "sk-test-fake-key-for-testing"
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+@event.listens_for(Engine, "connect")
+def _sqlite_register_pg_lock_functions(dbapi_connection, connection_record):
+    try:
+        dbapi_connection.create_function("pg_try_advisory_lock", 1, lambda _key: 1)
+        dbapi_connection.create_function("pg_advisory_unlock", 1, lambda _key: 1)
+        dbapi_connection.create_function("pg_try_advisory_xact_lock", 1, lambda _key: 1)
+    except Exception:
+        pass
+
+
+import api_router
+import core.db_helpers as db_helpers
+import main
+import sansadx_backend.db as dbmod
+from sansadx_backend.db import Base, hash_password
+
+
+test_engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
+TestSession = sessionmaker(autocommit=False, autoflush=False, bind=test_engine, expire_on_commit=False)
+client = TestClient(main.app, raise_server_exceptions=False)
+
+
+def _seed_database():
+    dbmod.engine = test_engine
+    dbmod.SessionLocal = TestSession
+    db_helpers.engine = test_engine
+    main.engine = test_engine
+    api_router.engine = test_engine
+
+    Base.metadata.create_all(bind=test_engine)
+
+    with test_engine.begin() as conn:
+        for table_name in (
+            "escalations",
+            "officers",
+            "case_activity_log",
+            "cases",
+            "token_blocklist",
+            "users",
+            "tenant_profiles",
+            "tenants",
+        ):
+            conn.execute(text(f"DELETE FROM {table_name}"))  # nosec B608
+
+        now = datetime.utcnow()
+
+        conn.execute(
+            text(
+                """
+                INSERT INTO tenants (id, name, constituency, whatsapp_number, subscription_plan, is_active, created_at)
+                VALUES
+                    (1, 'Arun Kumar', 'Bangalore North', '+919000000001', 'Pro', 1, :now),
+                    (2, 'Priya Sharma', 'Mumbai North', '+919000000002', 'Pro', 1, :now)
+                """
+            ),
+            {"now": now},
+        )
+
+        conn.execute(
+            text(
+                """
+                INSERT INTO tenant_profiles (tenant_id, mp_name, constituency, state, house, created_at)
+                VALUES
+                    (1, 'Shri Arun Kumar', 'Bangalore North', 'Karnataka', 'Lok Sabha', :now),
+                    (2, 'Smt Priya Sharma', 'Mumbai North', 'Maharashtra', 'Lok Sabha', :now)
+                """
+            ),
+            {"now": now},
+        )
+
+        users = [
+            ("mp_arun", "mp", 1, "Arun Kumar", "Lok Sabha", "Arun MP"),
+            ("pr_meera", "pr", 1, "Bangalore North", "Lok Sabha", "Meera PR"),
+            ("staff_raj", "user", 1, "Bangalore North", "Lok Sabha", "Raj Staff"),
+            ("mp_priya", "mp", 2, "Mumbai North", "Lok Sabha", "Priya MP"),
+        ]
+        for username, role, tenant_id, constituency, house, display_name in users:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO users
+                        (tenant_id, username, password_hash, role, constituency, house, display_name, is_active)
+                    VALUES
+                        (:tenant_id, :username, :password_hash, :role, :constituency, :house, :display_name, true)
+                    """
+                ),
+                {
+                    "tenant_id": tenant_id,
+                    "username": username,
+                    "password_hash": hash_password("ValidPass1!"),
+                    "role": role,
+                    "constituency": constituency,
+                    "house": house,
+                    "display_name": display_name,
+                },
+            )
+
+        cases = [
+            {
+                "id": 101,
+                "tenant_id": 1,
+                "user_phone": "919810000101",
+                "raw_message": "No water supply in Whitefield for 3 days",
+                "category": "Infrastructure & Utilities",
+                "problem_domain": None,
+                "problem_subdomain": None,
+                "convergence_program_type": None,
+                "status": "new",
+                "location": None,
+                "assembly": None,
+                "response_to_citizen": None,
+                "notes_for_staff": None,
+                "assigned_to": None,
+                "is_deleted": False,
+                "deleted_at": None,
+                "deleted_by": None,
+                "case_ref": "NDL-2026-00101",
+                "created_at": now - timedelta(minutes=1),
+                "meta": json.dumps(
+                    {
+                        "matched_value": "Whitefield",
+                        "assembly_constituency": "Mahadevapura",
+                        "summary": "Water outage in Whitefield",
+                        "problem_domain": "Infrastructure & Utilities",
+                        "problem_subdomain": "Water Supply",
+                        "convergence_program_type": "Service Delivery Strengthening",
+                    }
+                ),
+            },
+            {
+                "id": 102,
+                "tenant_id": 1,
+                "user_phone": "919810000102",
+                "raw_message": "Streetlight not working near Indiranagar market",
+                "category": "Infrastructure & Utilities",
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Streetlights",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "status": "in_progress",
+                "location": "Indiranagar",
+                "assembly": "CV Raman Nagar",
+                "response_to_citizen": None,
+                "notes_for_staff": None,
+                "assigned_to": "pr_meera",
+                "is_deleted": False,
+                "deleted_at": None,
+                "deleted_by": None,
+                "case_ref": "NDL-2026-00102",
+                "created_at": now - timedelta(minutes=2),
+                "meta": json.dumps(
+                    {
+                        "matched_value": "Indiranagar",
+                        "assembly_constituency": "CV Raman Nagar",
+                        "summary": "Streetlight issue",
+                    }
+                ),
+            },
+            {
+                "id": 103,
+                "tenant_id": 1,
+                "user_phone": "919810000103",
+                "raw_message": "Please call me back",
+                "category": "Request",
+                "problem_domain": None,
+                "problem_subdomain": None,
+                "convergence_program_type": None,
+                "status": "new",
+                "location": None,
+                "assembly": None,
+                "response_to_citizen": None,
+                "notes_for_staff": None,
+                "assigned_to": None,
+                "is_deleted": False,
+                "deleted_at": None,
+                "deleted_by": None,
+                "case_ref": "NDL-2026-00103",
+                "created_at": now - timedelta(minutes=3),
+                "meta": json.dumps({}),
+            },
+            {
+                "id": 104,
+                "tenant_id": 1,
+                "user_phone": "919810000104",
+                "raw_message": "Good news! Issue solved.",
+                "category": "Infrastructure & Utilities",
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Road Repair",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "status": "resolved",
+                "location": "Malleshwaram",
+                "assembly": "Malleshwaram",
+                "response_to_citizen": "Resolved and closed.",
+                "notes_for_staff": "Done",
+                "assigned_to": "pr_meera",
+                "is_deleted": False,
+                "deleted_at": None,
+                "deleted_by": None,
+                "case_ref": "NDL-2026-00104",
+                "created_at": now - timedelta(minutes=4),
+                "meta": json.dumps(
+                    {
+                        "matched_value": "Malleshwaram",
+                        "assembly_constituency": "Malleshwaram",
+                    }
+                ),
+            },
+            {
+                "id": 105,
+                "tenant_id": 1,
+                "user_phone": "919810000101",
+                "raw_message": "Still no water supply in Whitefield lane 4",
+                "category": "Infrastructure & Utilities",
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "status": "pending",
+                "location": "Whitefield",
+                "assembly": "Mahadevapura",
+                "response_to_citizen": None,
+                "notes_for_staff": None,
+                "assigned_to": None,
+                "is_deleted": False,
+                "deleted_at": None,
+                "deleted_by": None,
+                "case_ref": "NDL-2026-00105",
+                "created_at": now - timedelta(days=2),
+                "meta": json.dumps(
+                    {
+                        "matched_value": "Whitefield",
+                        "assembly_constituency": "Mahadevapura",
+                    }
+                ),
+            },
+            {
+                "id": 106,
+                "tenant_id": 1,
+                "user_phone": "919810000106",
+                "raw_message": "Old deleted case",
+                "category": "Infrastructure & Utilities",
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "status": "new",
+                "location": "Yelahanka",
+                "assembly": "Yelahanka",
+                "response_to_citizen": None,
+                "notes_for_staff": None,
+                "assigned_to": None,
+                "is_deleted": True,
+                "deleted_at": now - timedelta(days=2),
+                "deleted_by": "pr_meera",
+                "case_ref": "NDL-2026-00106",
+                "created_at": now - timedelta(days=3),
+                "meta": json.dumps(
+                    {
+                        "matched_value": "Yelahanka",
+                        "assembly_constituency": "Yelahanka",
+                    }
+                ),
+            },
+            {
+                "id": 107,
+                "tenant_id": 1,
+                "user_phone": "919810000107",
+                "raw_message": "Very old deleted case",
+                "category": "Infrastructure & Utilities",
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Garbage",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "status": "new",
+                "location": "Hebbal",
+                "assembly": "Byatarayanapura",
+                "response_to_citizen": None,
+                "notes_for_staff": None,
+                "assigned_to": None,
+                "is_deleted": True,
+                "deleted_at": now - timedelta(days=10),
+                "deleted_by": "pr_meera",
+                "case_ref": "NDL-2026-00107",
+                "created_at": now - timedelta(days=11),
+                "meta": json.dumps(
+                    {
+                        "matched_value": "Hebbal",
+                        "assembly_constituency": "Byatarayanapura",
+                    }
+                ),
+            },
+            {
+                "id": 201,
+                "tenant_id": 2,
+                "user_phone": "919810000101",
+                "raw_message": "Water issue in Kandivali",
+                "category": "Infrastructure & Utilities",
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "status": "new",
+                "location": "Kandivali",
+                "assembly": "Kandivali East",
+                "response_to_citizen": None,
+                "notes_for_staff": None,
+                "assigned_to": None,
+                "is_deleted": False,
+                "deleted_at": None,
+                "deleted_by": None,
+                "case_ref": "NDL-2026-00201",
+                "created_at": now - timedelta(minutes=1),
+                "meta": json.dumps(
+                    {
+                        "matched_value": "Kandivali",
+                        "assembly_constituency": "Kandivali East",
+                    }
+                ),
+            },
+        ]
+
+        for case in cases:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO cases
+                        (id, tenant_id, user_phone, raw_message, category, problem_domain,
+                         problem_subdomain, convergence_program_type, status, location,
+                         assembly, response_to_citizen, notes_for_staff, assigned_to,
+                         case_metadata, is_critical, created_at, updated_at,
+                         is_deleted, deleted_at, deleted_by, case_ref)
+                    VALUES
+                        (:id, :tenant_id, :user_phone, :raw_message, :category, :problem_domain,
+                         :problem_subdomain, :convergence_program_type, :status, :location,
+                         :assembly, :response_to_citizen, :notes_for_staff, :assigned_to,
+                         :meta, false, :created_at, :created_at,
+                         :is_deleted, :deleted_at, :deleted_by, :case_ref)
+                    """
+                ),
+                case,
+            )
+
+        conn.execute(
+            text(
+                """
+                INSERT INTO officers
+                    (id, tenant_id, name, designation, department, email, phone, jurisdiction, categories, is_active, created_at)
+                VALUES
+                    (1, 1, 'Asha Rao', 'Executive Engineer', 'BWSSB', 'asha.rao@example.com', '9876543210', 'Mahadevapura', :cats, true, :now)
+                """
+            ),
+            {"cats": json.dumps(["Infrastructure & Utilities"]), "now": now},
+        )
+
+
+def _auth_headers(username: str) -> dict[str, str]:
+    token = jwt.encode(
+        {
+            "sub": username,
+            "exp": datetime.utcnow() + timedelta(hours=8),
+            "iat": datetime.utcnow().timestamp(),
+        },
+        TEST_JWT_SECRET,
+        algorithm="HS256",
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_briefcase_cases_list_supports_filters_search_pagination_and_metadata_fallback():
+    _seed_database()
+    headers = _auth_headers("mp_arun")
+
+    resp = client.get("/api/cases?page=1&limit=2", headers=headers)
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+
+    assert payload["total"] == 5
+    assert payload["pages"] == 3
+    assert [case["id"] for case in payload["cases"]] == [101, 102]
+    assert payload["cases"][0]["location"] == "Whitefield"
+    assert payload["cases"][0]["assembly"] == "Mahadevapura"
+    assert payload["cases"][0]["problem_domain"] == "Infrastructure & Utilities"
+    assert payload["cases"][0]["problem_subdomain"] == "Water Supply"
+    assert payload["cases"][0]["convergence_program_type"] == "Service Delivery Strengthening"
+
+    search_resp = client.get("/api/cases?search=Whitefield", headers=headers)
+    assert search_resp.status_code == 200, search_resp.text
+    assert {case["id"] for case in search_resp.json()["cases"]} == {101, 105}
+
+    status_resp = client.get("/api/cases?status=in_progress", headers=headers)
+    assert status_resp.status_code == 200, status_resp.text
+    assert [case["id"] for case in status_resp.json()["cases"]] == [102]
+
+    bucket_resp = client.get("/api/cases?bucket=other", headers=headers)
+    assert bucket_resp.status_code == 200, bucket_resp.text
+    assert {case["id"] for case in bucket_resp.json()["cases"]} == {103}
+
+
+def test_briefcase_status_notes_and_assignment_updates_are_logged():
+    _seed_database()
+    headers = _auth_headers("mp_arun")
+
+    status_resp = client.patch("/api/cases/101/status", headers=headers, json={"status": "in_progress"})
+    assert status_resp.status_code == 200, status_resp.text
+    assert status_resp.json()["success"] is True
+
+    update_resp = client.patch(
+        "/api/cases/101",
+        headers=headers,
+        json={
+            "notes_for_staff": "Called ward engineer and logged complaint.",
+            "response_to_citizen": "We are working on this issue.",
+            "assigned_to": "pr_meera",
+        },
+    )
+    assert update_resp.status_code == 200, update_resp.text
+    assert update_resp.json()["success"] is True
+
+    detail_resp = client.get("/api/cases/101", headers=headers)
+    assert detail_resp.status_code == 200, detail_resp.text
+    detail = detail_resp.json()
+    assert detail["status"] == "in_progress"
+    assert detail["notes_for_staff"] == "Called ward engineer and logged complaint."
+    assert detail["response_to_citizen"] == "We are working on this issue."
+    assert detail["assigned_to"] == "pr_meera"
+
+    activity_resp = client.get("/api/cases/101/activity", headers=headers)
+    assert activity_resp.status_code == 200, activity_resp.text
+    actions = [activity["action"] for activity in activity_resp.json()["activities"]]
+    assert "status_change" in actions
+    assert "case_updated" in actions
+
+
+def test_briefcase_notify_send_is_mp_only_and_auto_resolves(monkeypatch):
+    _seed_database()
+    outbound = []
+
+    monkeypatch.setattr(api_router, "get_tenant_phone_number_id", lambda _tid: "15551636821")
+    monkeypatch.setattr(
+        "modules.whatsapp.send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound.append((phone, message, phone_number_id)),
+    )
+
+    pr_resp = client.post(
+        "/api/cases/101/notify/send",
+        headers=_auth_headers("pr_meera"),
+        json={"message": "Custom update from PR"},
+    )
+    assert pr_resp.status_code == 403, pr_resp.text
+
+    notify_resp = client.post(
+        "/api/cases/101/notify/send",
+        headers=_auth_headers("mp_arun"),
+        json={"message": "Water tanker arranged for tonight."},
+    )
+    assert notify_resp.status_code == 200, notify_resp.text
+    assert notify_resp.json()["success"] is True
+    assert outbound == [("919810000101", "Water tanker arranged for tonight.", "15551636821")]
+
+    detail_resp = client.get("/api/cases/101", headers=_auth_headers("mp_arun"))
+    assert detail_resp.status_code == 200, detail_resp.text
+    detail = detail_resp.json()
+    assert detail["status"] == "resolved"
+    assert detail["response_to_citizen"] == "Water tanker arranged for tonight."
+
+    activity_resp = client.get("/api/cases/101/activity", headers=_auth_headers("mp_arun"))
+    assert activity_resp.status_code == 200, activity_resp.text
+    latest = activity_resp.json()["activities"][0]
+    assert latest["action"] == "citizen_notified"
+    assert latest["new_value"] == "resolved"
+
+
+def test_briefcase_delete_restore_and_deleted_list_respect_roles():
+    _seed_database()
+
+    forbidden_delete = client.delete("/api/cases/102", headers=_auth_headers("staff_raj"))
+    assert forbidden_delete.status_code == 403, forbidden_delete.text
+
+    delete_resp = client.delete("/api/cases/102", headers=_auth_headers("pr_meera"))
+    assert delete_resp.status_code == 200, delete_resp.text
+    assert delete_resp.json()["success"] is True
+
+    active_list_resp = client.get("/api/cases", headers=_auth_headers("mp_arun"))
+    assert active_list_resp.status_code == 200, active_list_resp.text
+    assert 102 not in {case["id"] for case in active_list_resp.json()["cases"]}
+
+    deleted_list_resp = client.get("/api/cases/deleted", headers=_auth_headers("mp_arun"))
+    assert deleted_list_resp.status_code == 200, deleted_list_resp.text
+    deleted_ids = {case["id"] for case in deleted_list_resp.json()["cases"]}
+    assert 102 in deleted_ids
+    assert 106 in deleted_ids
+    assert 107 not in deleted_ids
+
+    forbidden_restore = client.patch("/api/cases/102/restore", headers=_auth_headers("staff_raj"), json={})
+    assert forbidden_restore.status_code == 403, forbidden_restore.text
+
+    restore_resp = client.patch("/api/cases/102/restore", headers=_auth_headers("pr_meera"), json={})
+    assert restore_resp.status_code == 200, restore_resp.text
+    assert restore_resp.json()["success"] is True
+
+    restored_list_resp = client.get("/api/cases", headers=_auth_headers("mp_arun"))
+    assert restored_list_resp.status_code == 200, restored_list_resp.text
+    assert 102 in {case["id"] for case in restored_list_resp.json()["cases"]}
+
+
+def test_briefcase_similar_cases_are_tenant_scoped():
+    _seed_database()
+
+    similar_resp = client.get("/api/cases/101/similar", headers=_auth_headers("mp_arun"))
+    assert similar_resp.status_code == 200, similar_resp.text
+    payload = similar_resp.json()
+
+    similar_ids = {case["id"] for case in payload["cases"]}
+    assert 105 in similar_ids
+    assert 201 not in similar_ids
+    assert payload["source_phone"] == "919810000101"
+    assert payload["source_category"] == "Infrastructure & Utilities"
+
+
+def test_briefcase_escalation_creates_record_and_updates_case_status():
+    _seed_database()
+    headers = _auth_headers("mp_arun")
+
+    create_resp = client.post(
+        "/api/escalations",
+        headers=headers,
+        json={
+            "case_id": 101,
+            "officer_id": 1,
+            "letter_content": "Please inspect the water supply complaint urgently.",
+            "deadline": "2026-05-20T10:00:00",
+        },
+    )
+    assert create_resp.status_code == 200, create_resp.text
+    assert create_resp.json()["success"] is True
+
+    detail_resp = client.get("/api/cases/101", headers=headers)
+    assert detail_resp.status_code == 200, detail_resp.text
+    assert detail_resp.json()["status"] == "escalated"
+
+    history_resp = client.get("/api/escalations?case_id=101", headers=headers)
+    assert history_resp.status_code == 200, history_resp.text
+    escalations = history_resp.json()["escalations"]
+    assert len(escalations) == 1
+    assert escalations[0]["officer_name"] == "Asha Rao"
+    assert escalations[0]["designation"] == "Executive Engineer"
+
+    activity_resp = client.get("/api/cases/101/activity", headers=headers)
+    assert activity_resp.status_code == 200, activity_resp.text
+    assert activity_resp.json()["activities"][0]["action"] == "escalated"

@@ -8,7 +8,12 @@
     "dev:admin": "npm run dev --prefix admin -- --port 3001",
     "build:mp": "npm run build --prefix frontend",
     "build:admin": "npm run build --prefix admin",
-    "test:backend": "venv/bin/python -m pytest tests/"
+    "test:backend": "venv/bin/python -m pytest tests/",
+    "test:mp": "npm run test --prefix frontend",
+    "test:admin": "npm run test --prefix admin",
+    "test:e2e:mp": "npm run test:e2e --prefix frontend",
+    "test:e2e:admin": "npm run test:e2e --prefix admin",
+    "test:all": "npm run test:backend && npm run test:mp && npm run test:admin && npm run test:e2e:mp && npm run test:e2e:admin"
   },
   "devDependencies": {
     "concurrently": "^8.0.0"

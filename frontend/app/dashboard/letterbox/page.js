@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, getAuthToken } from '@/lib/api';
 import {
     Upload, Send, Loader2, Inbox, Search, X, PenTool,
     ImageIcon, FileText, Download, ChevronLeft, ChevronRight, Trash2, Save,
@@ -199,7 +199,7 @@ function LetterModal({ item, onClose, onDraft, onSaved, onDeleted }) {
     const [showOcr, setShowOcr] = useState(false);
     const [activity, setActivity] = useState([]);
     const [activityLoading, setActivityLoading] = useState(false);
-    const token = typeof window !== 'undefined' ? localStorage.getItem('needle_token') : null;
+    const token = getAuthToken();
     const isPdf = isPdfMime(item?.image_mime);
 
     const imageUrl = item
@@ -694,7 +694,7 @@ export default function LetterboxPage() {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('direction', tab);
-        const token = localStorage.getItem('needle_token');
+        const token = getAuthToken();
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/letterbox/upload`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
@@ -738,7 +738,7 @@ export default function LetterboxPage() {
 
     const exportCurrentView = async () => {
         try {
-            const token = localStorage.getItem('needle_token');
+            const token = getAuthToken();
             const params = new URLSearchParams({ direction: tab });
             if (search) params.set('search', search);
             if (filterCategory) params.set('category', filterCategory);

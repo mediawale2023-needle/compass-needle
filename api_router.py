@@ -349,7 +349,15 @@ def get_cases(
             for i, c in enumerate(excl_cat_list):
                 params[f"excl_cat_{i}"] = c
     if search:
-        conditions.append("(c.user_phone ILIKE :search OR c.raw_message ILIKE :search OR c.case_ref ILIKE :search OR c.location ILIKE :search)")
+        conditions.append(
+            "("
+            "LOWER(COALESCE(c.user_phone, '')) LIKE LOWER(:search) "
+            "OR LOWER(COALESCE(c.raw_message, '')) LIKE LOWER(:search) "
+            "OR LOWER(COALESCE(c.case_ref, '')) LIKE LOWER(:search) "
+            "OR LOWER(COALESCE(c.location, '')) LIKE LOWER(:search) "
+            "OR LOWER(COALESCE(CAST(c.case_metadata AS TEXT), '')) LIKE LOWER(:search)"
+            ")"
+        )
         params["search"] = f"%{search}%"
     if assigned_to:
         conditions.append("c.assigned_to = :assigned_to")
