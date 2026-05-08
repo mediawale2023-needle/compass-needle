@@ -9,6 +9,7 @@ import unicodedata  # FIX P1: Used for emoji/symbol detection in detect_input_la
 import re
 from openai import OpenAI
 from openai import RateLimitError, APIError, APIConnectionError
+from modules.geography_resolver import resolve_location as resolve_geography_from_text
 from .prompts import (
     CONVERGENCE_PROGRAM_TYPES_TEXT,
     SYSTEM_PROMPT,
@@ -21,7 +22,7 @@ from .unified_taxonomy import (
     VALID_CATEGORIES as _VALID_CATEGORIES,
     build_taxonomy_fields,
 )
-from modules.localized_replies import get_generic_ack_reply
+from modules.localized_replies import get_generic_ack_reply, get_missing_location_reply
 
 # ==========================================
 # 1. CONFIGURATION
@@ -173,6 +174,56 @@ STATIC_RESPONSES = {
     "__WARN_KANNADA__": "ಮರ್ಯಾದೆ ಕಾಪಾಡಿ. ಅಸಭ್ಯ ಭಾಷೆ ಬಳಸಿದರೆ ಕಾನೂನು ಕ್ರಮ ಕೈಗೊಳ್ಳಲಾಗುವುದು.",
     "__WARN_ENGLISH__": "Maintain decorum. Legal action can be taken for abusive language."
 }
+
+
+def _build_grounding_forms(text: str) -> set[str]:
+    """Build comparable text forms for grounding extracted locations in raw input."""
+    if not text:
+        return set()
+
+    try:
+        from modules.geography_resolver import _build_match_forms
+
+        forms = _build_match_forms(text)
+        if forms:
+            return {form for form in forms if form}
+    except Exception:
+        pass
+
+    lowered = re.sub(r"[^\w\s]", " ", str(text).lower())
+    normalized = re.sub(r"\s+", " ", lowered).strip()
+    if not normalized:
+        return set()
+    return {normalized, normalized.replace(" ", "")}
+
+
+def _location_is_grounded_in_message(candidate_location: str, raw_message: str) -> bool:
+    """
+    Return True only when the candidate location is actually supported by the
+    citizen's raw message text (including spaceless/transliterated forms).
+    """
+    location_forms = _build_grounding_forms(candidate_location)
+    message_forms = _build_grounding_forms(raw_message)
+    if not location_forms or not message_forms:
+        return False
+
+    message_spaceless = {form.replace(" ", "") for form in message_forms if form}
+
+    for loc_form in location_forms:
+        if len(loc_form) < 3:
+            continue
+        if loc_form in message_forms:
+            return True
+
+        boundary_pattern = r"\b" + re.escape(loc_form) + r"\b"
+        if any(re.search(boundary_pattern, message_form) for message_form in message_forms):
+            return True
+
+        loc_spaceless = loc_form.replace(" ", "")
+        if len(loc_spaceless) >= 5 and any(loc_spaceless in message_form for message_form in message_spaceless):
+            return True
+
+    return False
 
 _OFFENSIVE_WARNING_NATIVE = {
     "Hindi": STATIC_RESPONSES["__WARN_HINDI__"],
@@ -620,6 +671,24 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
 
             # [START OF MULTI-TENANT FIX (WITH AUTO-CORRECT)] ----------------
             try:
+                _tenant_const = mp_constituency if mp_name else None
+                if not _tenant_const:
+                    try:
+                        from sansadx_backend.db import get_tenant_constituency
+                        _tenant_const = get_tenant_constituency(tenant_id)
+                    except Exception:
+                        _tenant_const = None
+
+                message_geo = {"location_resolved": False}
+                try:
+                    message_geo = resolve_geography_from_text(
+                        effective_user_message,
+                        scope_parliamentary=_tenant_const,
+                        tenant_id=tenant_id,
+                    )
+                except Exception as e:
+                    logger.warning("Message-grounded geography resolution failed: %s", e)
+
                 # 1. Load the Rulebook from DB (geo_overrides)
                 try:
                     from sansadx_backend.db import get_geo_overrides
@@ -636,14 +705,6 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 # 2. Also build location→assembly mapping from geography JSON files
                 geo_file_rules = {}
                 try:
-                    _tenant_const = mp_constituency if mp_name else None
-                    if not _tenant_const:
-                        try:
-                            from sansadx_backend.db import get_tenant_constituency
-                            _tenant_const = get_tenant_constituency(tenant_id)
-                        except Exception:
-                            pass
-
                     try:
                         from sansadx_backend.db import get_geography_data
                         geo_db_rules = get_geography_data(
@@ -697,7 +758,55 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 
                 # 4. Get AI's extracted location
                 ai_loc = data.get("grievance_data", {}).get("location", "")
-                if ai_loc:
+                ai_loc_grounded = _location_is_grounded_in_message(ai_loc, effective_user_message) if ai_loc else False
+
+                if message_geo.get("location_resolved"):
+                    grounded_loc = message_geo.get("matched_value") or ai_loc
+                    grounded_constituency = message_geo.get("assembly_constituency") or "Unknown"
+                    data["assembly_constituency"] = grounded_constituency
+                    data["constituency"] = grounded_constituency
+                    data["_match_confidence"] = f"message_grounded_{message_geo.get('confidence', 'high')}"
+
+                    original_status = data.get("status", "").lower()
+                    if original_status not in ("emergency", "offensive"):
+                        data["status"] = "new"
+
+                    if original_status == "emergency":
+                        data["is_critical"] = True
+
+                    if "grievance_data" in data:
+                        data["grievance_data"]["assembly_constituency"] = grounded_constituency
+                        data["grievance_data"]["location"] = grounded_loc
+                        data["grievance_data"]["_match_confidence"] = data["_match_confidence"]
+
+                    logger.info(
+                        "Location Mapped [message_grounded]: %s -> %s",
+                        grounded_loc,
+                        grounded_constituency,
+                    )
+                elif ai_loc and not ai_loc_grounded:
+                    logger.warning(
+                        "Discarding ungrounded AI location '%s' for message '%s'",
+                        ai_loc,
+                        effective_user_message[:160],
+                    )
+                    data["assembly_constituency"] = "Unknown"
+                    data["constituency"] = "Unknown"
+                    data["_match_confidence"] = "ungrounded_cleared"
+
+                    original_status = data.get("status", "").lower()
+                    if original_status not in ("emergency", "offensive", "irrelevant"):
+                        data["status"] = "awaiting_location"
+                        data["political_response"] = get_missing_location_reply(
+                            detected_lang,
+                            effective_user_message,
+                        )
+
+                    if "grievance_data" in data:
+                        data["grievance_data"]["location"] = None
+                        data["grievance_data"]["assembly_constituency"] = "Unknown"
+                        data["grievance_data"]["_match_confidence"] = "ungrounded_cleared"
+                elif ai_loc:
                     ai_loc_clean = ai_loc.lower().strip()
                     
                     # 5. SMART MATCHING — STRICT PRIORITY ORDER

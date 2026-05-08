@@ -525,6 +525,49 @@ def get_awaiting_location_reply(location: str, detected_language: str = "", orig
     return template.replace("{location}", safe_location)
 
 
+_MISSING_LOCATION: dict[str, str] = {
+    "Hindi": (
+        "Aapka sandesh mil gaya hai 🙏\n\n"
+        "Madad ko sahi jagah tak pahunchane ke liye kripya apna area, gaon, ward number ya paas ka landmark bhejiye.\n\n"
+        "Jaise hi location milti hai, hum aapki baat turant aage badhayenge."
+    ),
+    "Hinglish": (
+        "Aapka message mil gaya hai 🙏\n\n"
+        "Issue ko sahi jagah tak pahunchane ke liye please apna area, village, ward number ya nearest landmark bhej dijiye.\n\n"
+        "Location milte hi hum aapki baat turant aage badhayenge."
+    ),
+    "Marathi": (
+        "तुमचा संदेश मिळाला आहे 🙏\n\n"
+        "तुमच्या तक्रारीवर योग्य कारवाईसाठी कृपया तुमचा भाग, गाव, वार्ड नंबर किंवा जवळचा landmark पाठवा.\n\n"
+        "location मिळताच आम्ही लगेच पुढची कार्यवाही करू."
+    ),
+    "English": (
+        "Thank you for your message 🙏\n\n"
+        "To route this issue correctly, please share your area, village, ward number, or nearest landmark.\n\n"
+        "As soon as we have the location, we'll move this forward right away."
+    ),
+}
+
+_MISSING_LOCATION_LATIN: dict[str, str] = {
+    "Hindi": (
+        "Aapka sandesh mil gaya hai 🙏\n\n"
+        "Madad ko sahi jagah tak pahunchane ke liye kripya apna area, gaon, ward number ya paas ka landmark bhejiye.\n\n"
+        "Jaise hi location milti hai, hum aapki baat turant aage badhayenge."
+    ),
+    "Hinglish": _MISSING_LOCATION["Hinglish"],
+    "Marathi": (
+        "Tumcha sandesh milala aahe 🙏\n\n"
+        "Tumchya takrariwar yogya karvayisathi krupaya tumcha bhag, gaav, ward number kiwa javalcha landmark pathva.\n\n"
+        "Location miltach amhi lagech pudhchi karvayi karu."
+    ),
+    "English": _MISSING_LOCATION["English"],
+}
+
+
+def get_missing_location_reply(detected_language: str = "", original_text: str = "") -> str:
+    return _pick_template(_MISSING_LOCATION, _MISSING_LOCATION_LATIN, detected_language, original_text) or _MISSING_LOCATION["English"]
+
+
 def get_generic_ack_reply(detected_language: str = "", original_text: str = "") -> str:
     return _pick_template(_GENERIC_ACK, _GENERIC_ACK_LATIN, detected_language, original_text) or _GENERIC_ACK["English"]
 
