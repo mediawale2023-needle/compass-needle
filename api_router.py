@@ -3566,7 +3566,7 @@ def get_csr_opportunities(user=Depends(get_current_user)):
                 "readiness_ngo_available": ngo_available,
             }
             top_companies = get_top_companies_for_opportunity(enriched_c, csr_data, tid, top_n=3)
-            convergence_plan = build_convergence_plan(c["category"], csr_sector)
+            convergence_plan = build_convergence_plan(c["category"], csr_sector, c.get("affected_areas", []))
             score = _compute_opportunity_score(c["volume"], v7, len(top_companies))
             enriched.append({
                 **enriched_c,

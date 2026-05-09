@@ -66,6 +66,19 @@ def _seed_database():
             "tenants",
         ):
             conn.execute(text(f"DELETE FROM {table_name}"))  # nosec B608
+        conn.execute(text("DROP TABLE IF EXISTS prs_schemes"))
+        conn.execute(text("""
+            CREATE TABLE prs_schemes (
+                id INTEGER PRIMARY KEY,
+                name VARCHAR(300) NOT NULL,
+                full_name VARCHAR(500),
+                ministry VARCHAR(300),
+                aliases TEXT,
+                first_seen DATE,
+                last_seen DATE,
+                answer_count INTEGER DEFAULT 0
+            )
+        """))
 
         now = datetime.utcnow()
         conn.execute(
@@ -106,6 +119,27 @@ def _seed_database():
                     "password_hash": hash_password("ValidPass1!"),
                 },
             )
+        conn.execute(
+            text(
+                """
+                INSERT INTO prs_schemes
+                    (id, name, full_name, ministry, aliases, first_seen, last_seen, answer_count)
+                VALUES
+                    (1, 'Jal Jeevan Mission', 'Jal Jeevan Mission', 'Ministry of Jal Shakti',
+                     '["JJM", "drinking water"]', '2024-01-01', '2025-01-01', 18),
+                    (2, 'AMRUT 2.0', 'Atal Mission for Rejuvenation and Urban Transformation',
+                     'Ministry of Housing and Urban Affairs', '["urban water", "sewerage"]',
+                     '2024-01-01', '2025-01-01', 11),
+                    (3, 'Samagra Shiksha', 'Samagra Shiksha', 'Ministry of Education',
+                     '["school education", "learning"]', '2024-01-01', '2025-01-01', 14),
+                    (4, 'National Social Assistance Programme', 'National Social Assistance Programme',
+                     'Ministry of Rural Development', '["pension", "welfare beneficiary"]',
+                     '2024-01-01', '2025-01-01', 9),
+                    (5, 'Unrelated Tourism Promotion Scheme', 'Unrelated Tourism Promotion Scheme',
+                     'Ministry of Tourism', '["tourism"]', '2024-01-01', '2025-01-01', 50)
+                """
+            )
+        )
 
 
 def _make_token(username: str, tenant_id: int) -> str:
@@ -167,7 +201,10 @@ def test_convergence_opportunity_combines_grievance_scheme_and_csr(monkeypatch):
     assert resp.status_code == 200, resp.text
     opportunity = resp.json()["opportunities"][0]
     assert opportunity["category"] == "Infrastructure & Utilities"
-    assert opportunity["government_route"]["schemes"][0]["name"] in {"AMRUT 2.0", "Jal Jeevan Mission"}
+    assert opportunity["government_route"]["schemes"][0]["name"] == "Jal Jeevan Mission"
+    assert opportunity["government_route"]["schemes"][0]["source"] == "prs_schemes"
+    assert opportunity["convergence_plan"]["scheme_source"] == "prs_schemes"
+    assert opportunity["convergence_plan"]["scheme_match_status"] == "ranked"
     assert "department" in opportunity["government_route"]
     assert opportunity["convergence_plan"]["recommended_pathway"] == "hybrid"
     assert "CSR" in opportunity["convergence_plan"]["pathway_label"]
@@ -203,6 +240,7 @@ def test_welfare_convergence_is_government_first(monkeypatch):
     assert plan["recommended_pathway"] == "government_first"
     assert plan["pathway_label"] == "Government first"
     assert "statutory benefits" in plan["csr_complement"]
+    assert plan["schemes"][0]["name"] == "National Social Assistance Programme"
 
 
 def test_convergence_opportunities_use_requesting_tenant(monkeypatch):
@@ -237,3 +275,4 @@ def test_convergence_opportunities_use_requesting_tenant(monkeypatch):
     assert len(opportunities) == 1
     assert opportunities[0]["category"] == "Education"
     assert opportunities[0]["constituency"] == "Mumbai North"
+    assert opportunities[0]["convergence_plan"]["schemes"][0]["name"] == "Samagra Shiksha"
