@@ -309,13 +309,13 @@ def test_emergency_webhook_creates_cluster_and_sends_no_ack(monkeypatch):
             "detected_language": "English",
             "political_response": "Emergency services have been alerted.",
             "grievance_data": {
-                "problem_domain": "Law & Order",
-                "problem_subdomain": "Threat/Extortion",
-                "convergence_program_type": "Safety & Inclusion Add-on",
-                "categories": ["Law & Order"],
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Roads & Bridges",
+                "convergence_program_type": "Public Asset Upgrade",
+                "categories": ["Infrastructure & Utilities"],
                 "location": "Whitefield",
-                "department": "Police",
-                "summary": "Violence reported in Whitefield",
+                "department": "PWD",
+                "summary": "Emergency road accident reported in Whitefield",
             },
         },
     )
@@ -336,6 +336,8 @@ def test_emergency_webhook_creates_cluster_and_sends_no_ack(monkeypatch):
     created_case = _wait_for(lambda: _fetch_case_by_phone(sender))
     assert created_case is not None
     assert created_case["status"] == "pending_review"
+    assert created_case["category"] == "Emergency"
+    assert created_case["problem_domain"] == "Infrastructure & Utilities"
     assert created_case["is_critical"] in (True, 1)
 
     clusters = _wait_for(lambda: _cluster_rows())
@@ -347,7 +349,9 @@ def test_emergency_webhook_creates_cluster_and_sends_no_ack(monkeypatch):
     auth_headers = {"Authorization": f"Bearer {_make_token('mp_arun', 1)}"}
     detail_resp = client.get(f"/api/cases/{created_case['id']}", headers=auth_headers)
     assert detail_resp.status_code == 200, detail_resp.text
-    assert detail_resp.json()["status"] == "pending_review"
+    detail = detail_resp.json()
+    assert detail["status"] == "pending_review"
+    assert detail["category"] == "Emergency"
 
 
 def test_abusive_message_gets_warning_reply_without_ai(monkeypatch):

@@ -2385,6 +2385,24 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             or (categories[0] if isinstance(categories, list) and categories else None)
             or "Uncategorised"
         )
+        # Emergency routing is status/severity-led, not domain-led. Preserve the
+        # AI's problem_domain for context, but make the dashboard bucket explicit.
+        _emergency_keyword_match = False
+        try:
+            from modules.emergency_keywords import detect_emergency_severity
+            _emergency_keyword_match = detect_emergency_severity(message_body)
+        except Exception as _em_kw_exc:
+            logger.warning("Emergency keyword detection failed (non-blocking): %s", _em_kw_exc)
+
+        _is_emergency_complaint = bool(
+            ai_result.get("is_critical", False) or status == "emergency" or _emergency_keyword_match
+        )
+        if _is_emergency_complaint:
+            category = "Emergency"
+            if isinstance(categories, list):
+                categories = ["Emergency", *[c for c in categories if c != "Emergency"]]
+            else:
+                categories = ["Emergency"]
         political_reply = ai_result.get("political_response", get_generic_ack_reply(detected_language, message_body))
 
         location_name = grievance.get("location")
@@ -2519,7 +2537,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         # If location couldn't be verified against geography list, hold the case
         # and replace the AI's "noted" reply with a localized clarification request
         _requires_silent_emergency_hold = bool(
-            ai_result.get("is_critical", False) or status == "emergency"
+            _is_emergency_complaint
         )
         if final_constituency == "Unknown" and location_name and not _requires_silent_emergency_hold:
             status = "awaiting_location"
@@ -2562,7 +2580,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
                         "convergence_program_type": convergence_program_type,
                         "stat": status,
                         "meta": json.dumps(meta_data),
-                        "crit": ai_result.get("is_critical", False) or (status == "emergency"),
+                        "crit": _is_emergency_complaint,
                         "cid": case_id,
                     }
                 )
@@ -2575,13 +2593,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         # classification don't silently bypass the cluster pipeline entirely.
         # detect_emergency_severity() is pure Python (no DB/network) so calling
         # it on every citizen message is negligible cost.
-        _is_critical_case = bool(ai_result.get("is_critical", False) or status == "emergency")
-        _emergency_keyword_match = False
-        try:
-            from modules.emergency_keywords import detect_emergency_severity
-            _emergency_keyword_match = detect_emergency_severity(message_body)
-        except Exception as _em_kw_exc:
-            logger.warning("Emergency keyword detection failed (non-blocking): %s", _em_kw_exc)
+        _is_critical_case = _is_emergency_complaint
 
         if _is_critical_case or status == "emergency" or _emergency_keyword_match:
             try:
@@ -2607,8 +2619,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         # Other review-required cases still get a generic acknowledgment.
         # The AI-generated reply is stored in case_metadata for PA to see.
         _is_review_category = category.lower().strip() in _REVIEW_REQUIRED_CATEGORIES
-        _is_critical_case = bool(ai_result.get("is_critical", False) or status == "emergency")
-        _is_emergency_complaint = bool(status == "emergency" or _emergency_keyword_match)
+        _is_critical_case = _is_emergency_complaint
 
         if (_is_review_category or _is_critical_case) and status not in ("awaiting_location",):
             # Store the AI reply so PA can view and approve it from the dashboard
