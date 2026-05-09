@@ -80,6 +80,11 @@ function FYPill({ window: w, label }) {
 
 // ─── Opportunity Card with embedded company recommendations ───
 function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR, evidence, onEvidenceChange, fyWindow }) {
+    const plan = opp.convergence_plan || {};
+    const governmentRoute = opp.government_route || {};
+    const schemes = governmentRoute.schemes || plan.schemes || [];
+    const primaryScheme = schemes[0];
+
     return (
         <Card className={cn('border-l-4', statusColor)}>
             <CardContent className="p-4">
@@ -144,6 +149,55 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR, evidence
                     </p>
                 </div>
 
+                {/* True convergence plan: citizen need → government route → CSR route */}
+                <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    <div className="rounded-lg border border-border bg-muted/20 p-3">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                            Citizen Need
+                        </p>
+                        <p className="text-sm font-semibold text-foreground">{opp.category}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            {opp.volume} reports across {opp.affected_areas?.length || 0} affected area{(opp.affected_areas?.length || 0) === 1 ? '' : 's'}
+                        </p>
+                    </div>
+
+                    <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3">
+                        <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">
+                            Government Route
+                        </p>
+                        <p className="text-sm font-semibold text-foreground">
+                            {primaryScheme?.name || 'Relevant scheme to verify'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                            {governmentRoute.department || plan.department || 'Relevant line department'}
+                        </p>
+                        {governmentRoute.gap_type && (
+                            <Badge variant="outline" className="mt-2 text-[10px] bg-white/70 border-blue-200 text-blue-700">
+                                {governmentRoute.gap_type.replaceAll('_', ' ')}
+                            </Badge>
+                        )}
+                    </div>
+
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3">
+                        <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1">
+                            CSR Complement
+                        </p>
+                        <p className="text-sm font-semibold text-foreground">
+                            {plan.pathway_label || 'Government + CSR'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-3">
+                            {plan.csr_complement || 'Complementary CSR support after government route is verified.'}
+                        </p>
+                    </div>
+                </div>
+
+                {plan.next_action && (
+                    <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+                        <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-0.5">Recommended Next Action</p>
+                        <p className="text-sm text-foreground">{plan.next_action}</p>
+                    </div>
+                )}
+
                 {/* ─── Supporting Evidence attachment ─── */}
                 <div className="mt-3 space-y-1.5">
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5 cursor-pointer w-fit">
@@ -169,7 +223,7 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR, evidence
                     ) : (
                         <div className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
                             <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
-                            <span>This proposal relies only on grievance data. Attach a government document (Jal Jeevan report, district survey, panchayat record) to strengthen credibility.</span>
+                            <span>This convergence note relies only on grievance data. Attach a government document, scheme status note, district survey, or department verification to strengthen credibility.</span>
                         </div>
                     )}
                 </div>
@@ -225,7 +279,7 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR, evidence
                                             >
                                                 {dprLoading === dprKey
                                                     ? <><Loader2 className="h-3 w-3 animate-spin" />Generating...</>
-                                                    : 'Generate Concept Note'
+                                                    : 'Generate Convergence Note'
                                                 }
                                             </Button>
                                         )}
@@ -317,12 +371,12 @@ export default function CSRPage() {
     // ─── Tab State ───
     const [activeTab, setActiveTab] = useState('live');
 
-    // ─── Fetch enriched opportunities with company recommendations ───
+    // ─── Fetch convergence opportunities with scheme route + company recommendations ───
     const fetchOpportunities = async () => {
         setOpportunitiesLoading(true);
         setOpportunitiesError(null);
         try {
-            const data = await apiGet('/api/csr/opportunities');
+            const data = await apiGet('/api/convergence/opportunities');
             setOpportunities(data.opportunities || []);
             if (data.fy_window) setFyWindow(data.fy_window);
         } catch (err) {
@@ -407,6 +461,11 @@ export default function CSRPage() {
                 volume: opp.volume,
                 company: company.name,
                 sector: company.sector || opp.csr_sector || '',
+                government_scheme: opp.convergence_plan?.schemes?.[0]?.name || '',
+                government_department: opp.convergence_plan?.department || '',
+                gap_type: opp.convergence_plan?.gap_type || '',
+                csr_complement: opp.convergence_plan?.csr_complement || '',
+                recommended_pathway: opp.convergence_plan?.recommended_pathway || '',
                 evidence_text,
                 evidence_filename,
             }, { timeout: AI_TIMEOUT, noRetry: true });
@@ -449,7 +508,7 @@ export default function CSRPage() {
             <div>
                 <h1 className="text-2xl font-bold text-foreground">Convergence</h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                    Match constituency needs to corporate social responsibility opportunities
+                    Connect grievance demand with government schemes and CSR partners
                 </p>
             </div>
 

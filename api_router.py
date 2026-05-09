@@ -3315,6 +3315,11 @@ class CSRDPRRequest(BaseModel):
     sector: str = ""
     evidence_text: str = ""       # Extracted text from an attached government document
     evidence_filename: str = ""   # Original filename shown in the concept note citation
+    government_scheme: str = ""
+    government_department: str = ""
+    gap_type: str = ""
+    csr_complement: str = ""
+    recommended_pathway: str = ""
 
 
 @router.post("/csr/generate-dpr")
@@ -3328,6 +3333,16 @@ def generate_csr_dpr(req: CSRDPRRequest, request: Request, user=Depends(get_curr
         tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
         mp_name = user.get("display_name") or user.get("username", "").title()
         constituency = tenant.get("constituency", "India") if tenant else "India"
+        convergence_context = ""
+        if req.government_scheme or req.government_department or req.csr_complement:
+            convergence_context = f"""
+CONVERGENCE CONTEXT:
+- Government route: {sanitize_prompt_input(req.government_scheme or 'Relevant government scheme to be verified')}
+- Responsible department: {sanitize_prompt_input(req.government_department or 'Relevant line department')}
+- Gap type: {sanitize_prompt_input(req.gap_type or 'implementation/access gap')}
+- Recommended pathway: {sanitize_prompt_input(req.recommended_pathway or 'hybrid')}
+- CSR complement: {sanitize_prompt_input(req.csr_complement or 'Complementary support only; not a replacement for government delivery')}
+"""
 
         # ── RAG: Pull up to 5 real grievance text samples for this cluster ──
         grievance_samples = []
@@ -3394,6 +3409,7 @@ TO: CSR Head, <user_input>{sanitize_prompt_input(req.company)}</user_input>
 ISSUE: <user_input>{sanitize_prompt_input(req.category)}</user_input>
 LOCATION: <user_input>{sanitize_prompt_input(req.area)}</user_input>
 SECTOR: <user_input>{sanitize_prompt_input(req.sector or req.category)}</user_input>
+{convergence_context}
 {evidence_block}
 {ngo_section}
 
@@ -3402,12 +3418,13 @@ DOCUMENT STRUCTURE — use exactly these four sections, in order:
 1. PROBLEM
    Describe the nature and geographic scope of the issue in {sanitize_prompt_input(req.area)}, {constituency}.
    {"Cite the attached evidence document by name." if has_evidence else "Describe the general need — do NOT cite complaint counts or quote grievance messages."}
+   Mention the relevant government scheme/department route if provided, but do not claim approval.
 
 2. PROJECT
-   Proposed intervention: what would be built or delivered, indicative scope, and a conservative 12-18 month timeline.
+   Proposed convergence intervention: what the government route should own, what CSR can complement, indicative scope, and a conservative 12-18 month timeline.
 
 3. ASK
-   What the constituency office is requesting from {sanitize_prompt_input(req.company)}: type of support, indicative budget range, and relevant CSR sectors under Schedule VII.
+   What the constituency office is requesting from {sanitize_prompt_input(req.company)}: complementary support type, indicative budget range, and relevant CSR sectors under Schedule VII.
 
 4. IMPLEMENTER
    {"Name the recommended NGO from the list above, include their Darpan ID, CSR-1 number, and one sentence on their track record." if ngo_section else "Name a suitable type of implementation partner (registered NGO, Section 8 company, or local body). Note registration requirements."}
@@ -3520,6 +3537,7 @@ def get_csr_opportunities(user=Depends(get_current_user)):
     try:
         from modules.csr_pipeline import get_grievance_clusters, CSR_MONITOR_THRESHOLD
         from modules.csr_matching_engine import get_top_companies_for_opportunity, fy_window_label
+        from modules.convergence import build_convergence_plan, pathway_label
 
         tenant = _q_one("SELECT constituency FROM tenants WHERE id = :tid", {"tid": tid})
         constituency = (tenant.get("constituency") or "") if tenant else ""
@@ -3548,6 +3566,7 @@ def get_csr_opportunities(user=Depends(get_current_user)):
                 "readiness_ngo_available": ngo_available,
             }
             top_companies = get_top_companies_for_opportunity(enriched_c, csr_data, tid, top_n=3)
+            convergence_plan = build_convergence_plan(c["category"], csr_sector)
             score = _compute_opportunity_score(c["volume"], v7, len(top_companies))
             enriched.append({
                 **enriched_c,
@@ -3555,6 +3574,21 @@ def get_csr_opportunities(user=Depends(get_current_user)):
                 "opportunity_score": score,
                 "matched_company_count": len(top_companies),
                 "top_companies": top_companies,
+                "government_route": {
+                    "department": convergence_plan["department"],
+                    "schemes": convergence_plan["schemes"],
+                    "gap_type": convergence_plan["gap_type"],
+                },
+                "csr_route": {
+                    "complement": convergence_plan["csr_complement"],
+                    "top_companies": top_companies,
+                },
+                "convergence_plan": {
+                    **convergence_plan,
+                    "pathway_label": pathway_label(convergence_plan["recommended_pathway"]),
+                },
+                "evidence_needed": convergence_plan["evidence_needed"],
+                "next_action": convergence_plan["next_action"],
             })
 
         enriched.sort(key=lambda x: x["opportunity_score"], reverse=True)
@@ -3562,6 +3596,18 @@ def get_csr_opportunities(user=Depends(get_current_user)):
     except Exception:
         logger.exception("CSR opportunities failed")
         return {"opportunities": [], "total": 0, "error": "Failed to load opportunities.", "fy_window": None}
+
+
+@router.get("/convergence/opportunities")
+def get_convergence_opportunities(user=Depends(get_current_user)):
+    """
+    Returns true convergence opportunities combining:
+    grievance demand + government scheme route + CSR complement.
+
+    This endpoint currently reuses the CSR opportunity engine for cluster and company
+    scoring, but exposes the product-facing convergence contract explicitly.
+    """
+    return get_csr_opportunities(user)
 
 
 # ─────────────────────────────────────────
