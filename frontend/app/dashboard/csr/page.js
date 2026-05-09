@@ -84,6 +84,13 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR, evidence
     const governmentRoute = opp.government_route || {};
     const schemes = governmentRoute.schemes || plan.schemes || [];
     const primaryScheme = schemes[0];
+    const schemeIntel = primaryScheme?.intelligence || {};
+    const isFundingAllowed = plan.csr_suitability === 'csr_complement_allowed';
+    const suitabilityLabel = plan.csr_suitability === 'government_only'
+        ? 'Government-only'
+        : plan.csr_suitability === 'facilitation_only'
+            ? 'Facilitation only'
+            : 'CSR complement';
 
     return (
         <Card className={cn('border-l-4', statusColor)}>
@@ -149,21 +156,24 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR, evidence
                     </p>
                 </div>
 
-                {/* True convergence plan: citizen need → government route → CSR route */}
+                {/* True convergence plan: citizen demand → government route → CSR complement */}
                 <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-3">
                     <div className="rounded-lg border border-border bg-muted/20 p-3">
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                            Citizen Need
+                            Citizen Demand
                         </p>
                         <p className="text-sm font-semibold text-foreground">{opp.category}</p>
                         <p className="text-xs text-muted-foreground mt-1">
                             {opp.volume} reports across {opp.affected_areas?.length || 0} affected area{(opp.affected_areas?.length || 0) === 1 ? '' : 's'}
                         </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Context: {plan.settlement_context || 'unknown'}{plan.state ? ` · ${plan.state}` : ''}
+                        </p>
                     </div>
 
                     <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3">
                         <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">
-                            Government Route
+                            Best Government Route
                         </p>
                         <p className="text-sm font-semibold text-foreground">
                             {primaryScheme?.name || 'Relevant scheme to verify'}
@@ -182,14 +192,76 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR, evidence
                         <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1">
                             CSR Complement
                         </p>
-                        <p className="text-sm font-semibold text-foreground">
-                            {plan.pathway_label || 'Government + CSR'}
-                        </p>
+                        <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-foreground">
+                                {plan.pathway_label || 'Government + CSR'}
+                            </p>
+                            <Badge variant="outline" className={cn(
+                                'text-[10px] bg-white/70',
+                                isFundingAllowed
+                                    ? 'border-emerald-200 text-emerald-700'
+                                    : 'border-amber-300 text-amber-700',
+                            )}>
+                                {suitabilityLabel}
+                            </Badge>
+                        </div>
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-3">
                             {plan.csr_complement || 'Complementary CSR support after government route is verified.'}
                         </p>
                     </div>
                 </div>
+
+                <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-border bg-card p-3">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                            Why This Scheme Matched
+                        </p>
+                        <p className="text-sm text-foreground">
+                            {primaryScheme?.fit || 'No ranked prs_schemes match yet. Verify the government route manually.'}
+                        </p>
+                        {primaryScheme?.matched_terms?.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                                {primaryScheme.matched_terms.slice(0, 6).map(term => (
+                                    <Badge key={term} variant="outline" className="text-[10px] bg-muted/30">
+                                        {term}
+                                    </Badge>
+                                ))}
+                            </div>
+                        )}
+                        {(schemeIntel.state_specific_fact || schemeIntel.implementation_gap || schemeIntel.fund_signal) && (
+                            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                                {schemeIntel.state_specific_fact && <p><span className="font-semibold text-foreground">State fact:</span> {schemeIntel.state_specific_fact}</p>}
+                                {schemeIntel.implementation_gap && <p><span className="font-semibold text-foreground">Gap:</span> {schemeIntel.implementation_gap}</p>}
+                                {schemeIntel.fund_signal && <p><span className="font-semibold text-foreground">Fund signal:</span> {schemeIntel.fund_signal}</p>}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="rounded-lg border border-border bg-card p-3">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                            Required Evidence
+                        </p>
+                        <ul className="space-y-1">
+                            {(plan.evidence_needed || []).slice(0, 4).map(item => (
+                                <li key={item} className="text-sm text-foreground flex items-start gap-2">
+                                    <CheckCircle2 className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
+                                    <span>{item}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+
+                {!isFundingAllowed && (
+                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                        <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-0.5">
+                            Do not pitch as CSR funding
+                        </p>
+                        <p className="text-sm text-amber-900">
+                            This should remain a government-led entitlement, administrative, or safety route. CSR can only support lawful facilitation after department verification.
+                        </p>
+                    </div>
+                )}
 
                 {plan.next_action && (
                     <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
@@ -269,7 +341,7 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR, evidence
                                     )}
 
                                     <div className="flex flex-wrap items-start gap-2 pt-0.5">
-                                        {co.suggested_next_action === 'dpr' && (
+                                        {co.suggested_next_action === 'dpr' && isFundingAllowed && (
                                             <Button
                                                 variant="outline"
                                                 size="sm"
@@ -466,6 +538,10 @@ export default function CSRPage() {
                 gap_type: opp.convergence_plan?.gap_type || '',
                 csr_complement: opp.convergence_plan?.csr_complement || '',
                 recommended_pathway: opp.convergence_plan?.recommended_pathway || '',
+                government_scheme_fit: opp.convergence_plan?.schemes?.[0]?.fit || '',
+                scheme_state_fact: opp.convergence_plan?.schemes?.[0]?.intelligence?.state_specific_fact || '',
+                scheme_implementation_gap: opp.convergence_plan?.schemes?.[0]?.intelligence?.implementation_gap || '',
+                scheme_fund_signal: opp.convergence_plan?.schemes?.[0]?.intelligence?.fund_signal || '',
                 evidence_text,
                 evidence_filename,
             }, { timeout: AI_TIMEOUT, noRetry: true });

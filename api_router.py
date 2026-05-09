@@ -3320,6 +3320,10 @@ class CSRDPRRequest(BaseModel):
     gap_type: str = ""
     csr_complement: str = ""
     recommended_pathway: str = ""
+    government_scheme_fit: str = ""
+    scheme_state_fact: str = ""
+    scheme_implementation_gap: str = ""
+    scheme_fund_signal: str = ""
 
 
 @router.post("/csr/generate-dpr")
@@ -3341,6 +3345,9 @@ CONVERGENCE CONTEXT:
 - Responsible department: {sanitize_prompt_input(req.government_department or 'Relevant line department')}
 - Gap type: {sanitize_prompt_input(req.gap_type or 'implementation/access gap')}
 - Recommended pathway: {sanitize_prompt_input(req.recommended_pathway or 'hybrid')}
+- Why this scheme matched: {sanitize_prompt_input(req.government_scheme_fit or 'Ranked from prs_schemes based on category and local signals')}
+- State-specific scheme fact: {sanitize_prompt_input(req.scheme_state_fact or 'Not available in cache')}
+- Implementation/fund signal: {sanitize_prompt_input(req.scheme_implementation_gap or req.scheme_fund_signal or 'Not available in cache')}
 - CSR complement: {sanitize_prompt_input(req.csr_complement or 'Complementary support only; not a replacement for government delivery')}
 """
 
@@ -3537,10 +3544,12 @@ def get_csr_opportunities(user=Depends(get_current_user)):
     try:
         from modules.csr_pipeline import get_grievance_clusters, CSR_MONITOR_THRESHOLD
         from modules.csr_matching_engine import get_top_companies_for_opportunity, fy_window_label
-        from modules.convergence import build_convergence_plan, pathway_label
+        from modules.convergence import build_convergence_plan, is_convergence_eligible, pathway_label
 
         tenant = _q_one("SELECT constituency FROM tenants WHERE id = :tid", {"tid": tid})
+        profile = _q_one("SELECT state FROM tenant_profiles WHERE tenant_id = :tid", {"tid": tid})
         constituency = (tenant.get("constituency") or "") if tenant else ""
+        state = (profile.get("state") or "") if profile else ""
 
         clusters = get_grievance_clusters(tid, CSR_MONITOR_THRESHOLD)
         csr_data = _cached_load("csr_data", _load_csr_data)
@@ -3549,6 +3558,8 @@ def get_csr_opportunities(user=Depends(get_current_user)):
 
         enriched = []
         for c in clusters:
+            if not is_convergence_eligible(c.get("category")):
+                continue
             v7 = _get_velocity(tid, c["category"], 7)
             # Pre-compute readiness signals so score_readiness() can use them
             csr_sector = c.get("csr_sector", "")
@@ -3566,7 +3577,13 @@ def get_csr_opportunities(user=Depends(get_current_user)):
                 "readiness_ngo_available": ngo_available,
             }
             top_companies = get_top_companies_for_opportunity(enriched_c, csr_data, tid, top_n=3)
-            convergence_plan = build_convergence_plan(c["category"], csr_sector, c.get("affected_areas", []))
+            convergence_plan = build_convergence_plan(
+                c["category"],
+                csr_sector,
+                c.get("affected_areas", []),
+                c.get("representative_messages", []),
+                state,
+            )
             score = _compute_opportunity_score(c["volume"], v7, len(top_companies))
             enriched.append({
                 **enriched_c,
@@ -3581,6 +3598,7 @@ def get_csr_opportunities(user=Depends(get_current_user)):
                 },
                 "csr_route": {
                     "complement": convergence_plan["csr_complement"],
+                    "suitability": convergence_plan["csr_suitability"],
                     "top_companies": top_companies,
                 },
                 "convergence_plan": {

@@ -9,6 +9,7 @@ This module bridges three signals:
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import math
 import re
 
@@ -20,6 +21,7 @@ class ConvergenceRule:
     department: str
     gap_type: str
     recommended_pathway: str
+    csr_suitability: str
     csr_complement: str
     evidence_needed: tuple[str, ...]
     next_action: str
@@ -31,6 +33,7 @@ _DEFAULT_RULE = ConvergenceRule(
     department="District Administration / relevant line department",
     gap_type="implementation_or_access_gap",
     recommended_pathway="government_first",
+    csr_suitability="facilitation_only",
     csr_complement="Use CSR only for complementary support after the department route is verified.",
     evidence_needed=(
         "Affected area list",
@@ -48,6 +51,7 @@ _RULES: dict[str, ConvergenceRule] = {
         department="PWD / Urban Local Body / Water Board / Rural Development Department",
         gap_type="infrastructure_implementation_gap",
         recommended_pathway="hybrid",
+        csr_suitability="csr_complement_allowed",
         csr_complement="Fund complementary assets such as water filters, community monitoring, school WASH facilities, lighting support, awareness, or maintenance pilots without replacing government infrastructure obligations.",
         evidence_needed=(
             "Location-wise complaint cluster",
@@ -63,6 +67,7 @@ _RULES: dict[str, ConvergenceRule] = {
         department="District Health Office / Health Department",
         gap_type="service_access_or_equipment_gap",
         recommended_pathway="hybrid",
+        csr_suitability="csr_complement_allowed",
         csr_complement="Fund ambulances, equipment, screening camps, telemedicine support, health awareness, or facility upgrades where legally permissible and department-owned.",
         evidence_needed=(
             "Facility or area list",
@@ -78,6 +83,7 @@ _RULES: dict[str, ConvergenceRule] = {
         department="Education Department / Samagra Shiksha Office",
         gap_type="school_infrastructure_or_learning_gap",
         recommended_pathway="hybrid",
+        csr_suitability="csr_complement_allowed",
         csr_complement="Fund smart classrooms, toilets, drinking water, libraries, labs, remedial learning, career guidance, or digital access with school permission.",
         evidence_needed=(
             "School list",
@@ -93,6 +99,7 @@ _RULES: dict[str, ConvergenceRule] = {
         department="Revenue Department / Housing Department / Urban Local Body",
         gap_type="eligibility_or_documentation_gap",
         recommended_pathway="government_first",
+        csr_suitability="facilitation_only",
         csr_complement="CSR should not replace housing entitlement delivery; it may support documentation camps, awareness, assistive services, or community facilities.",
         evidence_needed=(
             "Beneficiary list or sample cases",
@@ -107,6 +114,7 @@ _RULES: dict[str, ConvergenceRule] = {
         department="District Welfare Office / Scheme Nodal Department",
         gap_type="beneficiary_access_gap",
         recommended_pathway="government_first",
+        csr_suitability="facilitation_only",
         csr_complement="CSR may support awareness camps, help desks, documentation drives, digital assistance, or NGO facilitation; it must not substitute statutory benefits.",
         evidence_needed=(
             "Beneficiary issue list",
@@ -122,6 +130,7 @@ _RULES: dict[str, ConvergenceRule] = {
         department="Agriculture Department / Krishi Vigyan Kendra",
         gap_type="livelihood_or_access_gap",
         recommended_pathway="hybrid",
+        csr_suitability="csr_complement_allowed",
         csr_complement="Fund farmer training, soil testing, water conservation, FPO support, equipment access, or market linkage pilots with agriculture department alignment.",
         evidence_needed=(
             "Affected farmer/area list",
@@ -136,6 +145,7 @@ _RULES: dict[str, ConvergenceRule] = {
         department="Social Welfare Department / Women and Child Development / District Administration",
         gap_type="inclusion_or_support_gap",
         recommended_pathway="hybrid",
+        csr_suitability="csr_complement_allowed",
         csr_complement="Fund counselling, awareness, accessibility upgrades, nutrition support, skill-building, or NGO-led community support where department permissions exist.",
         evidence_needed=(
             "Community or beneficiary need summary",
@@ -143,13 +153,14 @@ _RULES: dict[str, ConvergenceRule] = {
             "Safeguarding and privacy review",
         ),
         next_action="Verify sensitivity and department ownership before involving CSR or NGO partners.",
-        keywords=("women", "child", "anganwadi", "poshan", "nutrition", "disability", "accessible", "social", "safety", "empowerment"),
+        keywords=("women", "child", "anganwadi", "poshan", "nutrition", "disability", "accessible", "safety", "empowerment"),
         ministry_terms=("women", "child", "social justice", "tribal", "minority", "disabilities"),
     ),
     "law & order": ConvergenceRule(
         department="Police Department / District Administration",
         gap_type="public_safety_gap",
         recommended_pathway="government_first",
+        csr_suitability="government_only",
         csr_complement="CSR may support non-policing complements such as lighting, CCTV in public spaces with permissions, awareness, victim support, or safe community infrastructure.",
         evidence_needed=(
             "Police or district administration verification",
@@ -161,22 +172,46 @@ _RULES: dict[str, ConvergenceRule] = {
         keywords=("police", "safety", "crime", "women safety", "nirbhaya", "security", "home", "victim", "cctv"),
         ministry_terms=("home affairs", "women", "child"),
     ),
-    "bureaucratic / administrative": ConvergenceRule(
-        department="District Administration / Department owning the service",
-        gap_type="service_delivery_or_transparency_gap",
-        recommended_pathway="government_first",
-        csr_complement="CSR may support citizen help desks, digital literacy, documentation camps, or monitoring tools, but not replace official service delivery.",
-        evidence_needed=(
-            "Service issue type",
-            "Office or department involved",
-            "Sample cases",
-            "Administrative verification",
-        ),
-        next_action="Escalate service-delivery failures through government channels; use CSR only for facilitation support.",
-        keywords=("digital", "service", "csc", "governance", "administration", "certificate", "documentation", "transparency", "portal"),
-        ministry_terms=("electronics", "information technology", "personnel", "panchayati raj"),
-    ),
 }
+
+_EXCLUDED_CATEGORIES = {
+    "bureaucratic / administrative",
+    "bureaucratic",
+    "administrative",
+    "personal",
+    "personal request",
+    "individual grievance",
+}
+
+_CONVERGENCE_CATEGORIES = set(_RULES.keys())
+
+_ISSUE_TERMS = {
+    "water": ("water", "drinking", "jal", "pipeline", "tap", "paani", "pani"),
+    "road": ("road", "sadak", "street", "pothole", "connectivity", "bridge"),
+    "sanitation": ("sanitation", "swachh", "toilet", "drain", "drainage", "sewer", "garbage", "waste"),
+    "electricity": ("electricity", "power", "light", "streetlight", "transformer", "bijli"),
+    "school": ("school", "student", "classroom", "teacher", "education", "shiksha"),
+    "health": ("health", "hospital", "clinic", "phc", "ambulance", "medical"),
+    "housing": ("housing", "awas", "pmay", "house", "allotment", "land"),
+    "welfare": ("pension", "ration", "beneficiary", "subsidy", "pds", "dbt"),
+}
+
+_RURAL_TERMS = {
+    "village", "gram", "gramin", "panchayat", "rural", "taluka", "block", "gaon", "wadi",
+}
+_URBAN_TERMS = {
+    "urban", "municipal", "municipality", "city", "ward", "nagar", "slum", "corporation",
+}
+_GENERIC_MATCH_TERMS = {
+    "issue", "issues", "support", "community", "service", "delivery", "scheme", "mission",
+}
+
+
+def is_convergence_eligible(category: str | None) -> bool:
+    key = (category or "").strip().lower()
+    if not key or key in _EXCLUDED_CATEGORIES:
+        return False
+    return key in _CONVERGENCE_CATEGORIES
 
 
 def _get_engine():
@@ -193,6 +228,39 @@ def _words(value: str) -> set[str]:
         for token in re.findall(r"[a-z0-9]+", (value or "").lower())
         if len(token) >= 3
     }
+
+
+def _context_text(affected_areas: list[dict] | None, representative_messages: list[dict] | None) -> str:
+    areas = " ".join(str(area.get("area", "")) for area in (affected_areas or []) if isinstance(area, dict))
+    messages = " ".join(
+        str(item.get("message", "")) for item in (representative_messages or []) if isinstance(item, dict)
+    )
+    assemblies = " ".join(
+        str(item.get("assembly", "")) for item in (representative_messages or []) if isinstance(item, dict)
+    )
+    return " ".join([areas, messages, assemblies]).strip()
+
+
+def _issue_terms_from_text(text_value: str) -> set[str]:
+    lowered = (text_value or "").lower()
+    terms: set[str] = set()
+    for canonical, variants in _ISSUE_TERMS.items():
+        matched_variants = {variant for variant in variants if variant in lowered}
+        if matched_variants:
+            terms.update(matched_variants)
+            terms.add(canonical)
+    return terms
+
+
+def infer_settlement_context(affected_areas: list[dict] | None, representative_messages: list[dict] | None) -> str:
+    words = _words(_context_text(affected_areas, representative_messages))
+    rural_hits = len(words & _RURAL_TERMS)
+    urban_hits = len(words & _URBAN_TERMS)
+    if rural_hits > urban_hits:
+        return "rural"
+    if urban_hits > rural_hits:
+        return "urban"
+    return "unknown"
 
 
 def _scheme_haystack(row: dict) -> str:
@@ -225,6 +293,17 @@ def _date_out(value) -> str | None:
     return value.isoformat() if hasattr(value, "isoformat") else str(value)
 
 
+def _parse_jsonish(value):
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        return value
+    try:
+        return json.loads(value)
+    except Exception:
+        return None
+
+
 def _fetch_prs_schemes() -> list[dict]:
     engine = _get_engine()
     if not engine:
@@ -240,21 +319,112 @@ def _fetch_prs_schemes() -> list[dict]:
         return []
 
 
+def _fetch_scheme_intelligence(names: list[str], state: str | None = None) -> dict[str, dict]:
+    engine = _get_engine()
+    if not engine or not names:
+        return {}
+
+    out = {}
+    for name in names:
+        row = None
+        try:
+            with engine.connect() as conn:
+                row = conn.execute(text("""
+                    SELECT scheme_name, structured_intel, pq_count_at_gen, generated_at, is_stale
+                    FROM scheme_intelligence_cache
+                    WHERE scheme_name = :name
+                      AND (:state = '' OR state = :state)
+                    ORDER BY CASE WHEN state = :state THEN 0 ELSE 1 END, generated_at DESC
+                    LIMIT 1
+                """), {"name": name, "state": state or ""}).mappings().fetchone()
+        except Exception:
+            try:
+                with engine.connect() as conn:
+                    row = conn.execute(text("""
+                        SELECT scheme_name, structured_intel, pq_count_at_gen, generated_at, is_stale
+                        FROM scheme_intelligence_cache
+                        WHERE scheme_name = :name
+                        LIMIT 1
+                    """), {"name": name}).mappings().fetchone()
+            except Exception:
+                row = None
+
+        if row:
+            out[name] = {
+                "structured_intel": _parse_jsonish(row.get("structured_intel")) or {},
+                "pq_count_at_gen": int(row.get("pq_count_at_gen") or 0),
+                "generated_at": _date_out(row.get("generated_at")),
+                "is_stale": bool(row.get("is_stale")),
+            }
+    return out
+
+
+def _first_present(*values) -> str | None:
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:260]
+    return None
+
+
+def _scheme_intel_highlights(intel: dict) -> dict:
+    payload = intel.get("structured_intel") or {}
+    your_state = payload.get("your_state") or {}
+    national = payload.get("national_picture") or {}
+    state_fund = your_state.get("fund_flow") or {}
+    state_impl = your_state.get("implementation") or {}
+    national_fund = national.get("fund_flow") or {}
+    national_gaps = national.get("challenges_acknowledged") or {}
+    latest = national.get("latest_position") or {}
+
+    return {
+        "state_specific_fact": _first_present(
+            state_fund.get("received"),
+            state_fund.get("utilization"),
+            your_state.get("beneficiaries"),
+            state_impl.get("progress"),
+        ),
+        "implementation_gap": _first_present(
+            state_impl.get("challenges"),
+            state_fund.get("discrepancies"),
+            national_gaps.get("gaps"),
+            national_gaps.get("pending_issues"),
+            national_gaps.get("delays"),
+        ),
+        "fund_signal": _first_present(
+            state_fund.get("received"),
+            state_fund.get("utilization"),
+            national_fund.get("allocated"),
+            national_fund.get("released"),
+            national_fund.get("utilization_pct"),
+        ),
+        "recent_parliament_position": _first_present(latest.get("statement")),
+        "cache_generated_at": intel.get("generated_at"),
+        "cache_stale": intel.get("is_stale", False),
+        "pq_count_at_generation": intel.get("pq_count_at_gen", 0),
+    }
+
+
 def rank_prs_schemes(
     category: str | None,
     csr_sector: str | None = None,
     affected_areas: list[dict] | None = None,
+    representative_messages: list[dict] | None = None,
+    state: str | None = None,
     *,
     limit: int = 5,
 ) -> list[dict]:
     """Rank relevant government schemes from prs_schemes only."""
     key = (category or "").strip().lower()
     rule = _RULES.get(key, _DEFAULT_RULE)
-    area_terms = " ".join(str(area.get("area", "")) for area in (affected_areas or []) if isinstance(area, dict))
+    context_text = _context_text(affected_areas, representative_messages)
+    context_words = _words(context_text)
+    issue_terms = _issue_terms_from_text(" ".join([category or "", csr_sector or "", context_text]))
+    settlement_context = infer_settlement_context(affected_areas, representative_messages)
     query_terms = (
         _words(category or "")
         | _words(csr_sector or "")
-        | _words(area_terms)
+        | _words(context_text)
+        | issue_terms
         | set(rule.keywords)
         | set(rule.ministry_terms)
     )
@@ -268,18 +438,41 @@ def rank_prs_schemes(
         matched_terms = sorted(term for term in query_terms if term and term in haystack)
         if not matched_terms:
             continue
+        strong_terms = (set(matched_terms) & (issue_terms | set(rule.keywords) | set(rule.ministry_terms))) - _GENERIC_MATCH_TERMS
+        if not strong_terms:
+            continue
 
         score = 0.0
-        score += len(matched_terms) * 12
-        score += sum(16 for term in rule.keywords if term in name)
+        score += len(matched_terms) * 6
+        score += sum(24 for term in issue_terms if term in haystack)
+        score += sum(16 for term in issue_terms if term in name)
+        score += sum(12 for term in rule.keywords if term in name)
         score += sum(10 for term in rule.ministry_terms if term in ministry)
         score += min(20, answer_count) * 1.5
         score += math.log1p(max(answer_count, 0)) * 4
+        if settlement_context == "urban" and any(term in haystack for term in ("urban", "amrut", "municipal")):
+            score += 28
+        if settlement_context == "rural" and any(term in haystack for term in ("rural", "gram", "gramin", "jal jeevan", "pmgsy")):
+            score += 28
+        explicit_sanitation = bool({"sanitation", "drain", "drainage", "garbage", "waste", "toilet"} & context_words)
+        if (
+            settlement_context == "urban"
+            and "amrut" in haystack
+            and ({"water", "sewer", "sewerage"} & issue_terms)
+            and not explicit_sanitation
+        ):
+            score += 35
+        if "swachh" in haystack and explicit_sanitation:
+            score += 75
+        if "sadak" in haystack and ({"road", "sadak", "pothole", "connectivity"} & issue_terms):
+            score += 35
+        if "jal jeevan" in haystack and settlement_context == "rural" and ({"water", "drinking", "jal"} & issue_terms):
+            score += 35
 
         ranked.append((score, answer_count, row, matched_terms))
 
     ranked.sort(key=lambda item: (item[0], item[1], item[2].get("name") or ""), reverse=True)
-    return [
+    selected = [
         {
             "id": row.get("id"),
             "name": row.get("name"),
@@ -288,6 +481,7 @@ def rank_prs_schemes(
             "answer_count": answer_count,
             "fit_score": round(score, 1),
             "fit": _fit_reason(row, matched_terms, answer_count),
+            "matched_terms": matched_terms[:8],
             "source": "prs_schemes",
             "first_seen": _date_out(row.get("first_seen")),
             "last_seen": _date_out(row.get("last_seen")),
@@ -295,23 +489,46 @@ def rank_prs_schemes(
         for score, answer_count, row, matched_terms in ranked[:limit]
     ]
 
+    intelligence = _fetch_scheme_intelligence(
+        [scheme["name"] for scheme in selected if scheme.get("name")],
+        state,
+    )
+    for scheme in selected:
+        scheme["intelligence"] = _scheme_intel_highlights(intelligence.get(scheme["name"], {}))
+    return selected
+
 
 def build_convergence_plan(
     category: str | None,
     csr_sector: str | None = None,
     affected_areas: list[dict] | None = None,
+    representative_messages: list[dict] | None = None,
+    state: str | None = None,
 ) -> dict:
     """Return a product-ready convergence plan using prs_schemes for scheme matches."""
     key = (category or "").strip().lower()
     rule = _RULES.get(key, _DEFAULT_RULE)
-    ranked_schemes = rank_prs_schemes(category, csr_sector, affected_areas, limit=5)
+    ranked_schemes = rank_prs_schemes(
+        category,
+        csr_sector,
+        affected_areas,
+        representative_messages,
+        state,
+        limit=5,
+    )
+    settlement_context = infer_settlement_context(affected_areas, representative_messages)
     return {
+        "eligible_for_convergence": is_convergence_eligible(category),
         "department": rule.department,
         "schemes": ranked_schemes,
         "scheme_source": "prs_schemes",
         "scheme_match_status": "ranked" if ranked_schemes else "no_prs_schemes_match",
+        "settlement_context": settlement_context,
+        "state": state or "",
+        "representative_messages": representative_messages or [],
         "gap_type": rule.gap_type,
         "recommended_pathway": rule.recommended_pathway,
+        "csr_suitability": rule.csr_suitability,
         "csr_complement": rule.csr_complement,
         "evidence_needed": list(rule.evidence_needed),
         "next_action": rule.next_action,

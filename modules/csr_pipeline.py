@@ -69,10 +69,22 @@ def get_grievance_clusters(tenant_id, min_threshold=CSR_MONITOR_THRESHOLD):
         ORDER BY category, area_volume DESC
     """)
 
+    sample_query = text("""
+        SELECT category, raw_message, location, assembly
+        FROM cases
+        WHERE tenant_id = :tid
+          AND status = 'completed'
+          AND raw_message IS NOT NULL
+          AND raw_message != ''
+        ORDER BY created_at DESC
+        LIMIT 80
+    """)
+
     try:
         with engine.connect() as conn:
             rows = conn.execute(category_query, {"tid": tenant_id, "threshold": min_threshold}).fetchall()
             area_rows = conn.execute(area_query, {"tid": tenant_id}).fetchall()
+            sample_rows = conn.execute(sample_query, {"tid": tenant_id}).fetchall()
 
         # Build per-area lookup keyed by category
         areas_by_category = {}
@@ -81,6 +93,19 @@ def get_grievance_clusters(tenant_id, min_threshold=CSR_MONITOR_THRESHOLD):
             if cat not in areas_by_category:
                 areas_by_category[cat] = []
             areas_by_category[cat].append({"area": row[1], "volume": row[2]})
+
+        samples_by_category = {}
+        for row in sample_rows:
+            cat = row[0]
+            if cat not in samples_by_category:
+                samples_by_category[cat] = []
+            if len(samples_by_category[cat]) >= 5:
+                continue
+            samples_by_category[cat].append({
+                "message": (row[1] or "")[:260],
+                "location": row[2],
+                "assembly": row[3],
+            })
 
         clusters = []
         for row in rows:
@@ -96,6 +121,7 @@ def get_grievance_clusters(tenant_id, min_threshold=CSR_MONITOR_THRESHOLD):
                 "status": "verify" if volume >= CSR_PROPOSAL_THRESHOLD else "watch",
                 "csr_sector": convergence_sector_for(category),
                 "affected_areas": areas_by_category.get(raw_category, []),
+                "representative_messages": samples_by_category.get(raw_category, []),
             })
         return clusters
     except Exception as e:
