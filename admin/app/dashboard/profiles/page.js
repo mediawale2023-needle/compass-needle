@@ -1,8 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { apiGet, apiPatch, apiDelete, apiPost } from '@/lib/api';
 
 export default function ProfileEditorPage() {
+    const searchParams = useSearchParams();
+    const requestedTenantId = searchParams.get('tenant_id');
     const [mps, setMps] = useState([]);
     const [selected, setSelected] = useState(null);
     const [profile, setProfile] = useState(null);
@@ -24,6 +27,12 @@ export default function ProfileEditorPage() {
         apiGet('/api/admin/mps').then(r => setMps(r.mps || [])).catch(() => { });
         apiGet('/api/admin/constituencies').then(r => setConstituencies(r.constituencies || [])).catch(() => { });
     }, []);
+
+    useEffect(() => {
+        if (!requestedTenantId || selected || mps.length === 0) return;
+        const mp = mps.find(item => String(item.tenant_id) === String(requestedTenantId));
+        if (mp) setSelected(mp);
+    }, [requestedTenantId, selected, mps]);
 
     useEffect(() => {
         if (!selected) return;

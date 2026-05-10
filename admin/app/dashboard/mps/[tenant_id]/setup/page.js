@@ -4,68 +4,167 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { apiGet, apiPatch } from '@/lib/api';
 
-const CHECKLIST_ITEMS = [
-    { key: 'profile', label: 'Profile Data', desc: 'Name, constituency, state, party', link: '/dashboard/profiles' },
-    { key: 'key_facts', label: 'Key Facts Added', desc: 'Important points about the MP for AI context', link: '/dashboard/profiles' },
-    { key: 'geography', label: 'Geography Uploaded', desc: 'Polling station PDF for constituency', link: '/dashboard/geography' },
-    { key: 'rules', label: 'Geography Rules Set', desc: 'Location override rules configured', link: '/dashboard/rules' },
-    { key: 'staff', label: 'Staff Assigned', desc: 'At least one staff account created', link: '/dashboard/staff' },
-    { key: 'whatsapp', label: 'WhatsApp Mapped', desc: 'Phone number connected to tenant', link: '/dashboard/settings' },
-    { key: 'test_sent', label: 'Test Message Sent', desc: 'Verified end-to-end message flow', link: null },
-];
+const REQUIRED_KEYS = ['profile', 'key_facts', 'geography', 'staff', 'whatsapp', 'test_sent'];
+
+function buildChecklist(tenantId, detail, onboarding, geography) {
+    const p = detail?.profile || {};
+    const assemblies = Object.keys(geography?.assemblies || {});
+    const localityCount = assemblies.reduce((sum, assembly) => sum + (geography.assemblies[assembly]?.length || 0), 0);
+    const hasWhatsAppNumber = !!p.whatsapp_number;
+    const hasPhoneId = !!p.phone_number_id;
+
+    return [
+        {
+            key: 'profile',
+            label: 'Profile Data',
+            desc: 'Name, constituency, state, house, and party are present.',
+            action: 'Edit profile',
+            link: `/dashboard/profiles?tenant_id=${tenantId}`,
+            done: !!(p.mp_name && p.constituency && p.state && p.house),
+            source: 'Verified from profile',
+        },
+        {
+            key: 'key_facts',
+            label: 'AI Context Added',
+            desc: 'Key facts help Copilot, Drafter, and constituency intelligence avoid generic output.',
+            action: 'Add key facts',
+            link: `/dashboard/profiles?tenant_id=${tenantId}`,
+            done: !!(p.key_facts && p.key_facts.length > 0),
+            source: 'Verified from profile',
+        },
+        {
+            key: 'geography',
+            label: 'Geography Uploaded',
+            desc: assemblies.length
+                ? `${assemblies.length} assemblies and ${localityCount} localities available for routing.`
+                : 'Upload or add assembly-locality data before live grievance routing.',
+            action: 'Configure geography',
+            link: `/dashboard/profiles?tenant_id=${tenantId}#geography`,
+            done: assemblies.length > 0 && localityCount > 0,
+            source: 'Verified from saved geography',
+        },
+        {
+            key: 'rules',
+            label: 'Geography Rules Reviewed',
+            desc: 'Optional override rules are not required, but should be reviewed for ambiguous locality names.',
+            action: 'Review rules',
+            link: '/dashboard/rules',
+            done: true,
+            optional: true,
+            source: 'Optional review step',
+        },
+        {
+            key: 'staff',
+            label: 'Staff Assigned',
+            desc: 'At least one active non-admin staff account is assigned to this MP tenant.',
+            action: 'Add staff',
+            link: `/dashboard/mps/${tenantId}`,
+            done: (detail?.staff || []).some(s => s.is_active),
+            source: 'Verified from staff roster',
+        },
+        {
+            key: 'whatsapp',
+            label: 'WhatsApp Routing Ready',
+            desc: hasWhatsAppNumber && hasPhoneId
+                ? 'WhatsApp number and Meta phone number ID are mapped.'
+                : 'Both WhatsApp number and Meta phone number ID are required for reliable routing.',
+            action: 'Configure WhatsApp',
+            link: `/dashboard/mps/${tenantId}`,
+            done: hasWhatsAppNumber && hasPhoneId,
+            source: hasWhatsAppNumber && !hasPhoneId ? 'Missing Meta phone number ID' : 'Verified from tenant config',
+        },
+        {
+            key: 'test_sent',
+            label: 'Live Smoke Test Completed',
+            desc: 'Manually verify MP login, webhook intake, and one citizen reply before enabling production traffic.',
+            action: null,
+            link: null,
+            done: !!onboarding.test_sent,
+            manual: true,
+            source: 'Manual operator verification',
+        },
+    ];
+}
 
 export default function SetupChecklistPage() {
     const params = useParams();
     const tenantId = params.tenant_id;
     const [detail, setDetail] = useState(null);
+    const [geography, setGeography] = useState({ assemblies: {} });
     const [onboarding, setOnboarding] = useState({});
-    const [toast, setToast] = useState('');
+    const [toast, setToast] = useState({ type: '', text: '' });
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [savingKey, setSavingKey] = useState('');
 
-    useEffect(() => {
-        apiGet(`/api/admin/mps/${tenantId}/detail`).then(d => {
-            setDetail(d);
-            setOnboarding(d.onboarding_state || {});
-        }).catch(() => {});
-    }, [tenantId]);
+    const showToast = (type, text) => {
+        setToast({ type, text });
+        setTimeout(() => setToast({ type: '', text: '' }), 3000);
+    };
 
-    const computeStatus = (key) => {
-        if (!detail) return false;
-        const p = detail.profile || {};
-        const ob = onboarding;
-        switch (key) {
-            case 'profile': return !!(p.mp_name && p.constituency && p.state);
-            case 'key_facts': return !!(p.key_facts && p.key_facts.length > 0);
-            case 'geography': return !!ob.geography;
-            case 'rules': return true; // Optional, default to done
-            case 'staff': return detail.staff && detail.staff.length > 0;
-            case 'whatsapp': return !!p.whatsapp_number;
-            case 'test_sent': return !!ob.test_sent;
-            default: return false;
+    const loadSetup = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const [detailData, geographyData] = await Promise.all([
+                apiGet(`/api/admin/mps/${tenantId}/detail`),
+                apiGet(`/api/admin/mps/${tenantId}/geography`),
+            ]);
+            setDetail(detailData);
+            setOnboarding(detailData.onboarding_state || {});
+            setGeography(geographyData || { assemblies: {} });
+        } catch (e) {
+            setError(e.message || 'Failed to load setup readiness');
+        } finally {
+            setLoading(false);
         }
     };
 
-    const toggleStep = async (key, newValue) => {
+    useEffect(() => {
+        loadSetup();
+    }, [tenantId]);
+
+    const toggleManualStep = async (key, newValue) => {
+        setSavingKey(key);
         try {
             const body = {};
             body[key] = newValue;
-            await apiPatch(`/api/admin/mps/${tenantId}/onboarding`, body);
-            setOnboarding(prev => ({ ...prev, [key]: newValue }));
-            setToast(`${key} ${newValue ? 'marked complete' : 'unmarked'}`);
-            setTimeout(() => setToast(''), 2000);
+            const updated = await apiPatch(`/api/admin/mps/${tenantId}/onboarding`, body);
+            setOnboarding(updated.onboarding_state || { ...onboarding, [key]: newValue });
+            showToast('success', `${key === 'test_sent' ? 'Smoke test' : key} ${newValue ? 'verified' : 'unmarked'}.`);
         } catch (e) {
-            setToast('Failed to update');
-            setTimeout(() => setToast(''), 2000);
+            showToast('error', e.message || 'Failed to update setup state');
+        } finally {
+            setSavingKey('');
         }
     };
 
-    const completed = CHECKLIST_ITEMS.filter(i => computeStatus(i.key)).length;
-    const pct = Math.round((completed / CHECKLIST_ITEMS.length) * 100);
+    const checklist = buildChecklist(tenantId, detail, onboarding, geography);
+    const requiredItems = checklist.filter(item => REQUIRED_KEYS.includes(item.key));
+    const completed = requiredItems.filter(item => item.done).length;
+    const pct = Math.round((completed / requiredItems.length) * 100);
+    const canGoLive = requiredItems.every(item => item.done);
+    const isLive = !!onboarding.live;
+    const blockers = requiredItems.filter(item => !item.done);
+
+    if (loading) {
+        return (
+            <div style={{ display: 'grid', gap: 12 }}>
+                {[...Array(4)].map((_, i) => <div key={i} className="glass-panel skeleton" style={{ height: 82 }} />)}
+            </div>
+        );
+    }
 
     return (
         <>
-            {toast && <div className="toast toast-success">{toast}</div>}
+            {toast.text && <div className={`toast ${toast.type === 'success' ? 'toast-success' : 'toast-error'}`}>{toast.text}</div>}
+            {error && (
+                <div className="toast toast-error" style={{ position: 'relative', marginBottom: 16 }}>
+                    {error}
+                    <button className="btn-ghost" onClick={loadSetup} style={{ marginLeft: 12 }}>Retry</button>
+                </div>
+            )}
 
-            {/* Breadcrumb */}
             <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#6b7f76' }}>
                 <Link href="/dashboard" style={{ color: '#006a4d', textDecoration: 'none' }}>Overview</Link>
                 <span>›</span>
@@ -73,102 +172,129 @@ export default function SetupChecklistPage() {
                     {detail?.profile?.mp_name || 'MP'}
                 </Link>
                 <span>›</span>
-                <span>Setup Checklist</span>
+                <span>Launch Readiness</span>
             </div>
 
-            {/* Progress */}
             <div className="glass-panel" style={{ marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#1a2e28' }}>
-                        Setup Progress
-                    </h2>
-                    <span style={{
-                        fontSize: '0.82rem', fontWeight: 700,
-                        color: pct === 100 ? '#059669' : pct >= 50 ? '#d97706' : '#dc2626',
-                    }}>
-                        {completed}/{CHECKLIST_ITEMS.length} complete
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 12 }}>
+                    <div>
+                        <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#1a2e28' }}>
+                            Tenant Launch Readiness
+                        </h2>
+                        <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#6b7f76' }}>
+                            Production traffic should stay off until all required checks are verified from real tenant data.
+                        </p>
+                    </div>
+                    <span className={`badge badge-dot ${isLive ? 'badge-green' : canGoLive ? 'badge-amber' : 'badge-red'}`}>
+                        {isLive ? 'Live' : canGoLive ? 'Ready to enable' : `${blockers.length} blockers`}
                     </span>
                 </div>
-                <div className="completeness-bar" style={{ height: 8 }}>
-                    <div className={`completeness-fill ${pct >= 70 ? 'fill-good' : pct >= 40 ? 'fill-mid' : 'fill-low'}`}
-                        style={{ width: `${pct}%` }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div className="completeness-bar" style={{ height: 9, flex: 1 }}>
+                        <div className={`completeness-fill ${pct >= 80 ? 'fill-good' : pct >= 50 ? 'fill-mid' : 'fill-low'}`}
+                            style={{ width: `${pct}%` }} />
+                    </div>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 800, color: canGoLive ? '#059669' : '#d97706' }}>
+                        {completed}/{requiredItems.length}
+                    </span>
                 </div>
             </div>
 
-            {/* Checklist */}
-            <div className="glass-panel" style={{ padding: 0 }}>
-                {CHECKLIST_ITEMS.map((item, i) => {
-                    const done = computeStatus(item.key);
-                    return (
-                        <div key={item.key} style={{
-                            display: 'flex', alignItems: 'center', gap: 12,
-                            padding: '14px 20px',
-                            borderBottom: i < CHECKLIST_ITEMS.length - 1 ? '1px solid #f0f4f1' : 'none',
-                            background: done ? '#f8fdf9' : 'transparent',
-                            transition: 'background 0.1s',
+            {blockers.length > 0 && (
+                <div style={{
+                    marginBottom: 16,
+                    padding: '12px 14px',
+                    border: '1px solid #fed7aa',
+                    background: '#fff7ed',
+                    borderRadius: 12,
+                    color: '#9a3412',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                }}>
+                    Blocked: {blockers.map(item => item.label).join(', ')}
+                </div>
+            )}
+
+            <div className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
+                {checklist.map((item, i) => (
+                    <div key={item.key} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 14,
+                        padding: '15px 20px',
+                        borderBottom: i < checklist.length - 1 ? '1px solid #f0f4f1' : 'none',
+                        background: item.done ? '#f8fdf9' : item.optional ? '#fbfcfb' : '#fff',
+                    }}>
+                        <div style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: 8,
+                            border: item.done ? 'none' : `2px solid ${item.optional ? '#cbd5d0' : '#f59e0b'}`,
+                            background: item.done ? 'linear-gradient(135deg, #006a4d, #059669)' : '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
                         }}>
-                            {/* Checkbox */}
-                            <div
-                                onClick={() => {
-                                    if (['geography', 'staff', 'test_sent'].includes(item.key)) {
-                                        toggleStep(item.key, !done);
-                                    }
-                                }}
-                                style={{
-                                    width: 22, height: 22, borderRadius: 6,
-                                    border: done ? 'none' : '2px solid #d4e0d9',
-                                    background: done ? 'linear-gradient(135deg, #006a4d, #059669)' : 'transparent',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    cursor: ['geography', 'staff', 'test_sent'].includes(item.key) ? 'pointer' : 'default',
-                                    flexShrink: 0,
-                                    transition: 'all 0.15s ease',
-                                }}
-                            >
-                                {done && (
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                        <polyline points="20 6 9 17 4 12"/>
-                                    </svg>
-                                )}
-                            </div>
-
-                            {/* Label */}
-                            <div style={{ flex: 1 }}>
-                                <div style={{
-                                    fontSize: '0.84rem', fontWeight: 600,
-                                    color: done ? '#059669' : '#1a2e28',
-                                    textDecoration: done ? 'line-through' : 'none',
-                                    opacity: done ? 0.7 : 1,
-                                }}>
-                                    {item.label}
-                                </div>
-                                <div style={{ fontSize: '0.72rem', color: '#94a3a0' }}>{item.desc}</div>
-                            </div>
-
-                            {/* Action link */}
-                            {item.link && !done && (
-                                <Link href={item.link} className="btn-ghost" style={{ textDecoration: 'none', fontSize: '0.72rem' }}>
-                                    Configure →
-                                </Link>
-                            )}
-                            {done && (
-                                <span className="badge badge-green badge-dot" style={{ fontSize: '0.66rem' }}>Done</span>
+                            {item.done ? (
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                            ) : (
+                                <span style={{ width: 7, height: 7, borderRadius: 999, background: item.optional ? '#94a3a0' : '#f59e0b' }} />
                             )}
                         </div>
-                    );
-                })}
+
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.86rem', fontWeight: 700, color: '#1a2e28' }}>
+                                    {item.label}
+                                </span>
+                                {item.optional && <span className="badge badge-slate" style={{ fontSize: '0.64rem' }}>Optional</span>}
+                                {item.manual && <span className="badge badge-amber" style={{ fontSize: '0.64rem' }}>Manual</span>}
+                            </div>
+                            <div style={{ marginTop: 3, fontSize: '0.75rem', color: '#6b7f76' }}>{item.desc}</div>
+                            <div style={{ marginTop: 4, fontSize: '0.68rem', color: item.done ? '#059669' : '#94a3a0' }}>
+                                {item.source}
+                            </div>
+                        </div>
+
+                        {item.manual ? (
+                            <button
+                                className={item.done ? 'btn-secondary' : 'btn-primary'}
+                                disabled={savingKey === item.key}
+                                onClick={() => toggleManualStep(item.key, !item.done)}
+                                style={{ fontSize: '0.72rem', padding: '6px 12px', flexShrink: 0 }}
+                            >
+                                {savingKey === item.key ? 'Saving…' : item.done ? 'Unmark' : 'Mark verified'}
+                            </button>
+                        ) : item.link && !item.done ? (
+                            <Link href={item.link} className="btn-ghost" style={{ textDecoration: 'none', fontSize: '0.72rem', flexShrink: 0 }}>
+                                {item.action} →
+                            </Link>
+                        ) : (
+                            <span className={`badge badge-dot ${item.done ? 'badge-green' : 'badge-slate'}`} style={{ fontSize: '0.66rem', flexShrink: 0 }}>
+                                {item.done ? 'Verified' : 'Pending'}
+                            </span>
+                        )}
+                    </div>
+                ))}
             </div>
 
-            {/* Go Live */}
-            <div style={{ marginTop: 16, textAlign: 'center' }}>
-                {pct === 100 ? (
-                    <button className="btn-primary" onClick={() => toggleStep('live', true)}>
-                        Mark as Live ✓
-                    </button>
-                ) : (
-                    <p style={{ fontSize: '0.78rem', color: '#94a3a0' }}>
-                        Complete all steps above before going live
-                    </p>
-                )}
+            <div className="glass-panel" style={{ marginTop: 16, textAlign: 'center', borderColor: canGoLive ? '#bbf7d0' : '#fed7aa' }}>
+                <p style={{ margin: '0 0 10px', fontSize: '0.82rem', color: '#6b7f76' }}>
+                    {canGoLive
+                        ? 'All required checks are complete. Enabling live status records operator approval; it does not replace a real WhatsApp smoke test.'
+                        : 'Complete all required checks before enabling this tenant for production grievance traffic.'}
+                </p>
+                <button
+                    className="btn-primary"
+                    disabled={!canGoLive || savingKey === 'live'}
+                    onClick={() => toggleManualStep('live', true)}
+                    style={{ opacity: canGoLive ? 1 : 0.55, cursor: canGoLive ? 'pointer' : 'not-allowed' }}
+                >
+                    {isLive ? 'Live Enabled' : savingKey === 'live' ? 'Enabling…' : 'Enable Production Traffic'}
+                </button>
             </div>
         </>
     );
