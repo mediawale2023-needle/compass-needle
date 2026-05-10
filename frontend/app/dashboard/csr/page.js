@@ -84,7 +84,6 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR, evidence
     const governmentRoute = opp.government_route || {};
     const schemes = governmentRoute.schemes || plan.schemes || [];
     const primaryScheme = schemes[0];
-    const schemeIntel = primaryScheme?.intelligence || {};
     const isFundingAllowed = plan.csr_suitability === 'csr_complement_allowed';
     const suitabilityLabel = plan.csr_suitability === 'government_only'
         ? 'Government-only'
@@ -208,47 +207,6 @@ function OpportunityCard({ opp, statusColor, dprLoading, onGenerateDPR, evidence
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-3">
                             {plan.csr_complement || 'Complementary CSR support after government route is verified.'}
                         </p>
-                    </div>
-                </div>
-
-                <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    <div className="rounded-lg border border-border bg-card p-3">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                            Why This Scheme Matched
-                        </p>
-                        <p className="text-sm text-foreground">
-                            {primaryScheme?.fit || 'No ranked prs_schemes match yet. Verify the government route manually.'}
-                        </p>
-                        {primaryScheme?.matched_terms?.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-1">
-                                {primaryScheme.matched_terms.slice(0, 6).map(term => (
-                                    <Badge key={term} variant="outline" className="text-[10px] bg-muted/30">
-                                        {term}
-                                    </Badge>
-                                ))}
-                            </div>
-                        )}
-                        {(schemeIntel.state_specific_fact || schemeIntel.implementation_gap || schemeIntel.fund_signal) && (
-                            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                                {schemeIntel.state_specific_fact && <p><span className="font-semibold text-foreground">State fact:</span> {schemeIntel.state_specific_fact}</p>}
-                                {schemeIntel.implementation_gap && <p><span className="font-semibold text-foreground">Gap:</span> {schemeIntel.implementation_gap}</p>}
-                                {schemeIntel.fund_signal && <p><span className="font-semibold text-foreground">Fund signal:</span> {schemeIntel.fund_signal}</p>}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="rounded-lg border border-border bg-card p-3">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                            Required Evidence
-                        </p>
-                        <ul className="space-y-1">
-                            {(plan.evidence_needed || []).slice(0, 4).map(item => (
-                                <li key={item} className="text-sm text-foreground flex items-start gap-2">
-                                    <CheckCircle2 className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
-                                    <span>{item}</span>
-                                </li>
-                            ))}
-                        </ul>
                     </div>
                 </div>
 
