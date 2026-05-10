@@ -205,6 +205,44 @@ _URBAN_TERMS = {
 _GENERIC_MATCH_TERMS = {
     "issue", "issues", "support", "community", "service", "delivery", "scheme", "mission",
 }
+_REGION_TERMS_BY_STATE = {
+    "andhra pradesh": ("andhra pradesh", "vijayawada", "visakhapatnam", "amaravati"),
+    "arunachal pradesh": ("arunachal pradesh", "itanagar"),
+    "assam": ("assam", "guwahati"),
+    "bihar": ("bihar", "patna"),
+    "chhattisgarh": ("chhattisgarh", "raipur"),
+    "delhi": ("delhi", "new delhi", "nct of delhi"),
+    "goa": ("goa", "panaji"),
+    "gujarat": ("gujarat", "ahmedabad", "surat", "vadodara", "gandhinagar"),
+    "haryana": ("haryana", "gurugram", "faridabad", "panchkula"),
+    "himachal pradesh": ("himachal pradesh", "shimla"),
+    "jharkhand": ("jharkhand", "ranchi"),
+    "karnataka": ("karnataka", "bengaluru", "bangalore", "belagavi", "belgaum", "mysuru", "mangalore"),
+    "kerala": ("kerala", "kochi", "thiruvananthapuram", "kozhikode"),
+    "madhya pradesh": ("madhya pradesh", "bhopal", "indore", "jabalpur"),
+    "maharashtra": ("maharashtra", "mumbai", "pune", "nagpur", "aurangabad", "nashik"),
+    "manipur": ("manipur", "imphal"),
+    "meghalaya": ("meghalaya", "shillong"),
+    "mizoram": ("mizoram", "aizawl"),
+    "nagaland": ("nagaland", "kohima"),
+    "odisha": ("odisha", "bhubaneswar", "cuttack"),
+    "punjab": ("punjab", "amritsar", "ludhiana", "jalandhar"),
+    "rajasthan": ("rajasthan", "jaipur", "jodhpur", "udaipur"),
+    "sikkim": ("sikkim", "gangtok"),
+    "tamil nadu": ("tamil nadu", "chennai", "coimbatore", "madurai"),
+    "telangana": ("telangana", "hyderabad", "warangal"),
+    "tripura": ("tripura", "agartala"),
+    "uttar pradesh": ("uttar pradesh", "lucknow", "kanpur", "varanasi", "ghaziabad"),
+    "uttarakhand": ("uttarakhand", "dehradun"),
+    "west bengal": ("west bengal", "kolkata", "howrah"),
+    "andaman and nicobar islands": ("andaman", "nicobar", "port blair"),
+    "chandigarh": ("chandigarh",),
+    "dadra and nagar haveli and daman and diu": ("dadra", "nagar haveli", "daman", "diu"),
+    "jammu and kashmir": ("jammu", "kashmir", "srinagar"),
+    "ladakh": ("ladakh", "leh", "kargil"),
+    "lakshadweep": ("lakshadweep",),
+    "puducherry": ("puducherry", "pondicherry"),
+}
 
 
 def is_convergence_eligible(category: str | None) -> bool:
@@ -276,6 +314,37 @@ def _scheme_haystack(row: dict) -> str:
             " ".join(aliases),
         )
     ).lower()
+
+
+def _region_terms_for_state(state: str | None) -> set[str]:
+    state_key = (state or "").strip().lower()
+    if not state_key:
+        return set()
+    terms = set(_REGION_TERMS_BY_STATE.get(state_key, ()))
+    terms.add(state_key)
+    return terms
+
+
+def _scheme_region_terms(haystack: str) -> set[str]:
+    found: set[str] = set()
+    lowered = (haystack or "").lower()
+    for terms in _REGION_TERMS_BY_STATE.values():
+        for term in terms:
+            if term and term in lowered:
+                found.add(term)
+    return found
+
+
+def _is_region_compatible(row: dict, state: str | None) -> bool:
+    """Reject schemes that explicitly belong to another state/UT or city."""
+    expected_terms = _region_terms_for_state(state)
+    if not expected_terms:
+        return True
+
+    scheme_terms = _scheme_region_terms(_scheme_haystack(row))
+    if not scheme_terms:
+        return True
+    return bool(scheme_terms & expected_terms)
 
 
 def _fit_reason(row: dict, matched_terms: list[str], answer_count: int) -> str:
@@ -431,6 +500,8 @@ def rank_prs_schemes(
 
     ranked = []
     for row in _fetch_prs_schemes():
+        if not _is_region_compatible(row, state):
+            continue
         haystack = _scheme_haystack(row)
         ministry = str(row.get("ministry") or "").lower()
         name = str(row.get("name") or "").lower()

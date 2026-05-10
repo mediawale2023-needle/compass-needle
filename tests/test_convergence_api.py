@@ -157,7 +157,12 @@ def _seed_database():
                      '2024-01-01', '2025-01-01', 8),
                     (7, 'Swachh Bharat Mission', 'Swachh Bharat Mission',
                      'Ministry of Jal Shakti', '["sanitation", "drainage", "waste"]',
-                     '2024-01-01', '2025-01-01', 10)
+                     '2024-01-01', '2025-01-01', 10),
+                    (8, 'Water Supply under Chandigarh Smart City Mission',
+                     'Water Supply under Chandigarh Smart City Mission',
+                     'Ministry of Housing and Urban Affairs',
+                     '["urban water", "smart city", "chandigarh"]',
+                     '2024-01-01', '2025-01-01', 80)
                 """
             )
         )
@@ -345,6 +350,7 @@ def test_infrastructure_scheme_ranking_uses_message_and_rural_urban_context():
 
     assert urban_water["settlement_context"] == "urban"
     assert urban_water["schemes"][0]["name"] == "AMRUT 2.0"
+    assert all("Chandigarh" not in scheme["name"] for scheme in urban_water["schemes"])
     assert rural_water["settlement_context"] == "rural"
     assert rural_water["schemes"][0]["name"] == "Jal Jeevan Mission"
     assert road["schemes"][0]["name"] == "Pradhan Mantri Gram Sadak Yojana"
