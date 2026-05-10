@@ -275,7 +275,7 @@ After a Railway deploy, run the bundled smoke test instead of checking only the 
 ```bash
 export BACKEND_URL="https://needle-backend.up.railway.app"
 export MP_URL="https://compass-needle-production.up.railway.app"
-export ADMIN_URL="https://admin-production.up.railway.app"
+export ADMIN_URL="https://needle-admin.up.railway.app"
 export MP_USERNAME="..."
 export MP_PASSWORD="..."
 export ADMIN_USERNAME="..."

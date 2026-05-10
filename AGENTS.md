@@ -214,7 +214,7 @@ Deployed on **Railway** — four services auto-deploy on push to `main`:
 |---|---|---|---|
 | Backend API | `/` | Dockerfile | `needle-backend.up.railway.app` |
 | MP Frontend | `/frontend` | Railpack (Next.js) | `compass-needle-production.up.railway.app` |
-| Admin Frontend | `/admin` | Railpack (Next.js) | `admin-production.up.railway.app` |
+| Admin Frontend | `/admin` | Railpack (Next.js) | `needle-admin.up.railway.app` |
 
 **Before deploying to production**, run through `DEPLOYMENT_GUIDE.md`:
 1. Rotate all credentials (OpenAI, Gemini, Meta, JWT secret)
