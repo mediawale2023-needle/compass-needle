@@ -1144,6 +1144,7 @@ function GlobalCorpusTab() {
     const govIntelCandidates = govIntel.candidate_groups || 0;
     const govIntelPct = govIntel.coverage_pct || 0;
     const schemeMentions = govIntel.scheme_mentions || 0;
+    const govIntelScope = govIntel.selection_scope;
     const corpusLabel = anyRunning
         ? 'Refreshing'
         : totalQuestions === 0
@@ -1257,7 +1258,7 @@ function GlobalCorpusTab() {
                                     : j.summary.classified != null
                                     ? `Issues organized: ${j.summary.classified}.`
                                     : j.summary.generated != null
-                                    ? `Government Intel prepared: ${j.summary.generated}/${j.summary.selected || 0} briefs. Failed: ${j.summary.failed || 0}. No answers: ${j.summary.no_answers || 0}. Remaining: ${j.summary.remaining || 0}.`
+                                    ? `Government Intel prepared: ${j.summary.generated}/${j.summary.selected || 0} briefs. Failed: ${j.summary.failed || 0}. No answers: ${j.summary.no_answers || 0}. Remaining: ${j.summary.remaining || 0}.${j.summary.selection_scope === 'all_answered_fallback' ? ' Used all answered issue groups.' : ''}`
                                     : j.summary.chunks_inserted != null
                                     ? `Search readiness updated with ${j.summary.chunks_inserted} entries.`
                                     : j.summary.schemes_upserted != null
@@ -1349,7 +1350,11 @@ function GlobalCorpusTab() {
                             <CoverageRow
                                 label="Government Intel"
                                 value={govIntelCandidates ? `${govIntelReady}/${govIntelCandidates} ready` : 'Needs issue data'}
-                                hint={schemeMentions ? 'Non-scheme Parliament answers converted into cached ministry issue briefs' : 'Run scheme intelligence first so scheme PQs can be separated out'}
+                                hint={govIntelScope === 'all_answered_fallback'
+                                    ? 'Scheme extraction covers most answers, so the builder is using all answered issue groups'
+                                    : schemeMentions
+                                    ? 'Non-scheme Parliament answers converted into cached ministry issue briefs'
+                                    : 'Run scheme intelligence first so scheme PQs can be separated out'}
                                 pct={govIntelCandidates ? govIntelPct : 0}
                             />
                             <CoverageRow

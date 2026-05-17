@@ -780,7 +780,7 @@ def _cache_state_by_group(state: str) -> dict[tuple[str, str], dict]:
         return {}
 
 
-def _non_scheme_issue_groups() -> list[dict]:
+def _issue_groups(exclude_scheme_mentions: bool = True) -> list[dict]:
     try:
         with engine.connect() as conn:
             rows = conn.execute(text("""
@@ -790,13 +790,18 @@ def _non_scheme_issue_groups() -> list[dict]:
                 FROM global_parliamentary_questions gpq
                 WHERE gpq.answer_text IS NOT NULL AND gpq.answer_text != ''
                   AND gpq.ministry IS NOT NULL AND gpq.ministry != ''
-                  AND NOT EXISTS (
-                      SELECT 1 FROM scheme_mentions sm
-                      WHERE sm.pq_id = gpq.id
+                  AND (
+                      :exclude_scheme_mentions = false
+                      OR NOT EXISTS (
+                          SELECT 1 FROM scheme_mentions sm
+                          WHERE sm.pq_id = gpq.id
+                      )
                   )
-            """)).mappings().all()
+            """), {
+                "exclude_scheme_mentions": exclude_scheme_mentions,
+            }).mappings().all()
     except Exception as e:
-        logger.warning("non-scheme issue group lookup failed: %s", e)
+        logger.warning("issue group lookup failed: %s", e)
         return []
 
     groups: dict[tuple[str, str], dict] = {}
@@ -833,8 +838,21 @@ def _non_scheme_issue_groups() -> list[dict]:
     )
 
 
+def _candidate_issue_groups() -> tuple[list[dict], str]:
+    groups = _issue_groups(exclude_scheme_mentions=True)
+    if groups:
+        return groups, "non_scheme"
+
+    # Scheme extraction can over-match broad government records. Government Intel
+    # should still be buildable as ministry/topic issue intelligence in that case.
+    fallback_groups = _issue_groups(exclude_scheme_mentions=False)
+    if fallback_groups:
+        return fallback_groups, "all_answered_fallback"
+    return [], "empty"
+
+
 def get_issue_intelligence_build_stats(state: str = "") -> dict:
-    groups = _non_scheme_issue_groups()
+    groups, selection_scope = _candidate_issue_groups()
     cache = _cache_state_by_group(state or "")
     scheme_mentions = 0
     try:
@@ -850,6 +868,7 @@ def get_issue_intelligence_build_stats(state: str = "") -> dict:
         "pending": 0,
         "non_scheme_pq_count": sum(int(group.get("pq_count") or 0) for group in groups),
         "scheme_mentions": scheme_mentions,
+        "selection_scope": selection_scope,
     }
     for group in groups:
         cached = cache.get((_norm(group["ministry"]), group["topic"]))
@@ -1008,7 +1027,7 @@ def build_issue_intelligence_batch(
 ) -> dict:
     limit = max(1, min(int(limit or 25), 250))
     state = _trim_text(state) or ""
-    groups = _non_scheme_issue_groups()
+    groups, selection_scope = _candidate_issue_groups()
     cache = _cache_state_by_group(state)
 
     candidates = []
@@ -1048,7 +1067,7 @@ def build_issue_intelligence_batch(
                 group["ministry"],
                 group["topic"],
                 state,
-                exclude_scheme_mentions=True,
+                exclude_scheme_mentions=(selection_scope == "non_scheme"),
                 pq_ids=group.get("pq_ids") or [],
                 answer_rows=group.get("rows") or [],
             )
@@ -1090,6 +1109,7 @@ def build_issue_intelligence_batch(
         "skipped_ready": skipped_ready,
         "remaining": max(0, len(candidates) - len(selected)),
         "state": state or None,
+        "selection_scope": selection_scope,
         "processed": processed[:20],
         "next_candidates": [_strip_group_rows(group) for group in candidates[limit:limit + 10]],
     }
