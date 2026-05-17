@@ -249,24 +249,24 @@ function IssueBrief({ ministry, topic, issueIds = [], stateLabel, onBack, color 
     );
 }
 
-function TopicList({ ministry, stateLabel, onBack, onSelectIssue }) {
+function TopicList({ ministry, stateLabel, focusState, onFocusChange, onBack, onSelectIssue }) {
     const [topics, setTopics] = useState([]);
-    const [resolvedState, setResolvedState] = useState(stateLabel || null);
+    const [resolvedState, setResolvedState] = useState(focusState || null);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
 
     useEffect(() => {
         setLoading(true);
         const params = new URLSearchParams();
-        if (stateLabel) params.set('state', stateLabel);
+        if (focusState) params.set('state', focusState);
         apiGet(`/api/sansadai/ministry/${encodeURIComponent(ministry)}/topics${params.toString() ? `?${params.toString()}` : ''}`)
             .then((data) => {
                 setTopics(data.topics || []);
-                setResolvedState(data.state || stateLabel || null);
+                setResolvedState(data.state || focusState || null);
                 setLoading(false);
             })
             .catch(() => setLoading(false));
-    }, [ministry, stateLabel]);
+    }, [ministry, focusState]);
 
     const filtered = topics.filter((item) =>
         !search ||
@@ -277,7 +277,8 @@ function TopicList({ ministry, stateLabel, onBack, onSelectIssue }) {
 
     return (
         <div className="space-y-5">
-            <div className="flex items-center gap-3">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3">
                 <Button
                     variant="ghost"
                     size="sm"
@@ -289,8 +290,27 @@ function TopicList({ ministry, stateLabel, onBack, onSelectIssue }) {
                 <div>
                     <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-0.5">Ministry</p>
                     <h1 className="text-lg font-bold text-foreground leading-tight">{ministry}</h1>
-                    {resolvedState && <p className="text-xs text-muted-foreground mt-1">State focus: {resolvedState}</p>}
+                    {resolvedState && <p className="text-xs text-muted-foreground mt-1">Focused on {resolvedState}</p>}
                 </div>
+                </div>
+                {stateLabel && (
+                    <div className="inline-flex rounded-full border border-border bg-muted/20 p-1">
+                        <button
+                            type="button"
+                            onClick={() => onFocusChange(null)}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${!focusState ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        >
+                            National
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onFocusChange(stateLabel)}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${focusState ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        >
+                            {stateLabel}
+                        </button>
+                    </div>
+                )}
             </div>
 
             <div className="relative">
@@ -312,6 +332,15 @@ function TopicList({ ministry, stateLabel, onBack, onSelectIssue }) {
             {!loading && filtered.length === 0 && (
                 <div className="text-center py-16 text-sm text-muted-foreground">
                     No issues found for this ministry.
+                    {focusState && (
+                        <button
+                            type="button"
+                            onClick={() => onFocusChange(null)}
+                            className="block mx-auto mt-3 text-primary hover:underline"
+                        >
+                            View national record
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -462,6 +491,7 @@ export function GovernmentIntelExperience({
     const initialMinistry = searchParams.get('ministry');
     const initialTopic = searchParams.get('topic');
     const initialIssueIds = searchParams.get('issue_ids');
+    const initialStateFocus = searchParams.get('state_focus');
 
     const [screen, setScreen] = useState(
         initialView === 'topic' || initialView === 'brief' ? initialView : 'overview'
@@ -471,6 +501,7 @@ export function GovernmentIntelExperience({
     const [activeIssueIds, setActiveIssueIds] = useState(
         initialIssueIds ? initialIssueIds.split(',').filter(Boolean) : []
     );
+    const [focusState, setFocusState] = useState(initialStateFocus || null);
 
     const color = user?.theme_color || '#006a4d';
 
@@ -497,9 +528,10 @@ export function GovernmentIntelExperience({
         if (activeMinistry) params.set('ministry', activeMinistry);
         if (activeTopic) params.set('topic', activeTopic);
         if (activeIssueIds.length) params.set('issue_ids', activeIssueIds.join(','));
+        if (focusState) params.set('state_focus', focusState);
         const qs = params.toString();
         router.replace(qs ? `${routeBase}?${qs}` : routeBase, { scroll: false });
-    }, [screen, activeMinistry, activeTopic, activeIssueIds, fixedParams, routeBase, router]);
+    }, [screen, activeMinistry, activeTopic, activeIssueIds, focusState, fixedParams, routeBase, router]);
 
     const goMinistry = (ministry) => {
         setActiveMinistry(ministry);
@@ -512,6 +544,13 @@ export function GovernmentIntelExperience({
         setActiveTopic(item.topic);
         setActiveIssueIds(item.issue_ids || []);
         setScreen('brief');
+    };
+
+    const changeFocusState = (state) => {
+        setFocusState(state);
+        setActiveTopic(null);
+        setActiveIssueIds([]);
+        setScreen('topic');
     };
 
     const goBack = () => {
@@ -540,6 +579,8 @@ export function GovernmentIntelExperience({
                 <TopicList
                     ministry={activeMinistry}
                     stateLabel={stateLabel}
+                    focusState={focusState}
+                    onFocusChange={changeFocusState}
                     onBack={goBack}
                     onSelectIssue={goIssue}
                 />
@@ -549,7 +590,7 @@ export function GovernmentIntelExperience({
                     ministry={activeMinistry}
                     topic={activeTopic}
                     issueIds={activeIssueIds}
-                    stateLabel={stateLabel}
+                    stateLabel={focusState}
                     onBack={goBack}
                     color={color}
                 />

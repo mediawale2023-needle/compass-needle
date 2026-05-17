@@ -594,6 +594,8 @@ def _build_ministry_issue_clusters(rows: list[dict], state: str = "") -> list[di
     clusters: dict[str, dict] = {}
     state_lc = (state or "").lower()
     for row in rows:
+        if state_lc and state_lc not in (row.get("answer_text") or "").lower():
+            continue
         cluster = _cluster_for_row(row)
         key = cluster["key"]
         entry = clusters.setdefault(key, {
@@ -1374,14 +1376,15 @@ def get_issue_ministries() -> list[dict]:
 
 def get_issue_topics(ministry: str, tenant_id: Optional[int] = None, state_override: Optional[str] = None) -> list[dict]:
     state = _resolved_state(tenant_id, state_override)
-    cache_key = f"sansadai:topics:{_norm(ministry)}::{_norm(state)}"
+    cache_state = state if state_override else ""
+    cache_key = f"sansadai:topics:{_norm(ministry)}::{_norm(cache_state)}"
     cached = _runtime_get(cache_key)
     if cached is not None:
         return cached
 
     try:
         rows = _fetch_ministry_answer_rows(ministry)
-        issue_rows = _build_ministry_issue_clusters(rows, state)
+        issue_rows = _build_ministry_issue_clusters(rows, cache_state)
         topic_names = [row["topic"] for row in issue_rows if row["topic"]]
         topic_signals: dict[str, str] = {}
         if topic_names:
@@ -1394,7 +1397,7 @@ def get_issue_topics(ministry: str, tenant_id: Optional[int] = None, state_overr
                           AND topic = ANY(:topics)
                           AND state = :state
                         ORDER BY topic, generated_at DESC NULLS LAST
-                    """), {"ministry": ministry, "topics": topic_names, "state": state}).mappings().all()
+                    """), {"ministry": ministry, "topics": topic_names, "state": cache_state}).mappings().all()
                 for item in cache_rows:
                     intel = item.get("structured_intel") or {}
                     if isinstance(intel, str):
