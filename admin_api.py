@@ -1889,7 +1889,8 @@ def tenant_health(_=Depends(get_admin_user)):
                MAX(c.created_at)  AS last_case,
                MAX(u.last_login)  AS last_login,
                COUNT(c.id)        AS total_cases,
-               SUM(CASE WHEN c.status = 'new' THEN 1 ELSE 0 END) AS open_cases
+               SUM(CASE WHEN c.status = 'new' THEN 1 ELSE 0 END) AS open_cases,
+               SUM(CASE WHEN c.created_at >= CURRENT_DATE - INTERVAL '30 days' THEN 1 ELSE 0 END) AS cases_last_30d
         FROM tenants t
         LEFT JOIN cases c  ON c.tenant_id  = t.id
         LEFT JOIN users u  ON u.tenant_id  = t.id AND u.role = 'user'
@@ -1908,6 +1909,11 @@ def tenant_health(_=Depends(get_admin_user)):
         else:
             days = (now - datetime.fromisoformat(last)).days
             r["health"] = "active" if days <= 7 else ("stale" if days <= 30 else "inactive")
+        r["tenant_id"] = r.get("id")
+        r["mp_name"] = r.get("name")
+        r["status"] = r["health"]
+        r["last_case_at"] = r.get("last_case")
+        r["last_login_at"] = r.get("last_login")
     return {"tenants": rows}
 
 
@@ -1933,6 +1939,7 @@ def usage_analytics(_=Depends(get_admin_user)):
         result.append({
             "tenant_id": tid,
             "name": t["name"],
+            "mp_name": t["name"],
             "constituency": t["constituency"],
             "cases_this_month": cases_month,
             "cases_total": cases_total,
@@ -1940,6 +1947,11 @@ def usage_analytics(_=Depends(get_admin_user)):
             "questions_drafted": questions,
             "docs_analysed": analysis,
             "letterbox_items": letterbox,
+            "cases": cases_month,
+            "letters": letters,
+            "questions": questions,
+            "docs": analysis,
+            "letterbox": letterbox,
         })
     return {"period": now.strftime("%B %Y"), "tenants": result}
 

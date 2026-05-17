@@ -111,6 +111,112 @@ function SystemHealthWidget() {
     );
 }
 
+const ALERT_STYLES = {
+    critical: { border: '#fecaca', bg: '#fff1f2', text: '#be123c', label: 'Critical' },
+    warning: { border: '#fed7aa', bg: '#fff7ed', text: '#c2410c', label: 'Warning' },
+    info: { border: '#bfdbfe', bg: '#eff6ff', text: '#1d4ed8', label: 'Info' },
+};
+
+function alertHref(alert) {
+    if (alert.tenant_id) {
+        if (alert.type === 'setup_incomplete') return `/dashboard/mps/${alert.tenant_id}/setup`;
+        if (alert.type === 'low_completeness') return `/dashboard/profiles?tenant_id=${alert.tenant_id}`;
+        return `/dashboard/mps/${alert.tenant_id}`;
+    }
+    if (alert.type === 'expiring_announcement') return '/dashboard/announcements';
+    return '/dashboard/health';
+}
+
+function ActionQueue({ alerts, loading, error }) {
+    const sortedAlerts = [...alerts].sort((a, b) => {
+        const rank = { critical: 0, warning: 1, info: 2 };
+        return (rank[a.severity] ?? 3) - (rank[b.severity] ?? 3);
+    });
+
+    return (
+        <div className="rounded-2xl border border-[#e2ebe5] bg-white p-5 shadow-sm">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <h2 className="text-base font-bold text-[#1a2e28]">Action Queue</h2>
+                    <p className="mt-1 text-sm text-[#6b7f76]">Operational items that need developer attention.</p>
+                </div>
+                <Link href="/dashboard/audit" className="btn-secondary text-sm" style={{ textDecoration: 'none' }}>
+                    Audit Log
+                </Link>
+            </div>
+
+            {error && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                    Alerts unavailable: {error}
+                </div>
+            )}
+
+            {loading ? (
+                <div className="grid gap-3 lg:grid-cols-2">
+                    {[...Array(4)].map((_, i) => (
+                        <div key={i} className="h-[86px] rounded-xl border border-[#eef2ef] bg-[#f8faf9]" />
+                    ))}
+                </div>
+            ) : !error && sortedAlerts.length === 0 ? (
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-5 text-sm font-semibold text-emerald-800">
+                    No active operational alerts.
+                </div>
+            ) : (
+                <div className="grid gap-3 lg:grid-cols-2">
+                    {sortedAlerts.slice(0, 6).map((alert, i) => {
+                        const tone = ALERT_STYLES[alert.severity] || ALERT_STYLES.info;
+                        return (
+                            <Link
+                                key={`${alert.type}-${alert.tenant_id || 'global'}-${i}`}
+                                href={alertHref(alert)}
+                                className="block rounded-xl border px-4 py-3 transition hover:-translate-y-0.5 hover:shadow-sm"
+                                style={{ borderColor: tone.border, background: tone.bg, textDecoration: 'none' }}
+                            >
+                                <div className="mb-2 flex items-center justify-between gap-3">
+                                    <span style={{ color: tone.text }} className="text-[11px] font-bold uppercase tracking-[0.14em]">
+                                        {tone.label}
+                                    </span>
+                                    {alert.tenant_id && (
+                                        <span className="text-xs font-semibold text-[#6b7f76]">Tenant #{alert.tenant_id}</span>
+                                    )}
+                                </div>
+                                <div className="text-sm font-bold text-[#1a2e28]">{alert.title}</div>
+                                <div className="mt-1 text-xs leading-5 text-[#6b7f76]">{alert.description}</div>
+                            </Link>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function OpsSummary({ alerts, stats, mps }) {
+    const blockedLaunches = alerts.filter(a => a.type === 'setup_incomplete').length;
+    const staleTenants = alerts.filter(a => a.type === 'tenant_inactive').length;
+    const lowCompleteness = alerts.filter(a => a.type === 'low_completeness').length;
+    const missingWhatsApp = mps.filter(mp => !mp.whatsapp_number || String(mp.whatsapp_number).startsWith('temp_')).length;
+    const items = [
+        { label: 'Open Alerts', value: alerts.length, color: '#dc2626' },
+        { label: 'Blocked Launches', value: blockedLaunches, color: '#d97706' },
+        { label: 'Stale Tenants', value: staleTenants, color: '#7c3aed' },
+        { label: 'Low Profiles', value: lowCompleteness, color: '#0891b2' },
+        { label: 'Missing WhatsApp', value: missingWhatsApp, color: '#be123c' },
+        { label: 'Total Cases', value: stats?.total_cases ?? '—', color: '#006a4d' },
+    ];
+
+    return (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            {items.map(item => (
+                <div key={item.label} className="rounded-2xl border border-[#e2ebe5] bg-white px-4 py-3 shadow-sm">
+                    <div className="text-2xl font-extrabold leading-none" style={{ color: item.color }}>{item.value}</div>
+                    <div className="mt-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#6b7f76]">{item.label}</div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 function StatCard({ Icon, value, label, accentClass, bgClass }) {
     return (
         <div className="rounded-2xl border border-[#e2ebe5] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
@@ -159,20 +265,34 @@ function MpCard({ mp }) {
 export default function DashboardOverview() {
     const [stats, setStats] = useState(null);
     const [mps, setMps] = useState([]);
+    const [alerts, setAlerts] = useState([]);
+    const [alertsLoading, setAlertsLoading] = useState(true);
+    const [alertsError, setAlertsError] = useState('');
     const [search, setSearch] = useState('');
+    const [quickFilter, setQuickFilter] = useState('all');
 
     useEffect(() => {
         apiGet('/api/admin/stats').then(setStats).catch(() => {});
         apiGet('/api/admin/mps').then((r) => setMps(r.mps || [])).catch(() => {});
+        apiGet('/api/admin/alerts')
+            .then((r) => setAlerts(r.alerts || []))
+            .catch((e) => setAlertsError(e.message || 'Failed to load alerts'))
+            .finally(() => setAlertsLoading(false));
     }, []);
 
-    const filteredMps = search
-        ? mps.filter((m) =>
+    const filteredMps = mps
+        .filter((m) => {
+            if (quickFilter === 'low_completeness') return (m.completeness || 0) < 70;
+            if (quickFilter === 'missing_whatsapp') return !m.whatsapp_number || String(m.whatsapp_number).startsWith('temp_');
+            if (quickFilter === 'lok_sabha') return m.house === 'Lok Sabha';
+            if (quickFilter === 'rajya_sabha') return m.house === 'Rajya Sabha';
+            return true;
+        })
+        .filter((m) => !search || (
             m.display_name.toLowerCase().includes(search.toLowerCase()) ||
             m.username.toLowerCase().includes(search.toLowerCase()) ||
             m.parliamentary_constituency.toLowerCase().includes(search.toLowerCase())
-        )
-        : mps;
+        ));
 
     const statDefs = stats ? [
         { Icon: StatIcons.mps, value: stats.total_mps, label: 'Total MPs', accentClass: 'text-[#006a4d]', bgClass: 'bg-[#f0fdf4]' },
@@ -184,6 +304,10 @@ export default function DashboardOverview() {
 
     return (
         <div className="space-y-6">
+            <ActionQueue alerts={alerts} loading={alertsLoading} error={alertsError} />
+
+            <OpsSummary alerts={alerts} stats={stats} mps={mps} />
+
             <SystemHealthWidget />
 
             {stats ? (
@@ -209,18 +333,39 @@ export default function DashboardOverview() {
             </div>
 
             <div className="rounded-2xl border border-[#e2ebe5] bg-white p-4 shadow-sm">
-                <div className="search-wrapper">
-                    <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="11" cy="11" r="8" />
-                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                    <input
-                        type="text"
-                        className="form-input"
-                        placeholder="Search by name, constituency, or username…"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                    <div className="search-wrapper flex-1">
+                        <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </svg>
+                        <input
+                            type="text"
+                            className="form-input"
+                            placeholder="Search by name, constituency, or username…"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {[
+                            ['all', 'All'],
+                            ['low_completeness', 'Low profile'],
+                            ['missing_whatsapp', 'Missing WhatsApp'],
+                            ['lok_sabha', 'Lok Sabha'],
+                            ['rajya_sabha', 'Rajya Sabha'],
+                        ].map(([key, label]) => (
+                            <button
+                                key={key}
+                                type="button"
+                                onClick={() => setQuickFilter(key)}
+                                className={quickFilter === key ? 'btn-primary' : 'btn-secondary'}
+                                style={{ padding: '7px 12px', fontSize: '0.76rem' }}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 

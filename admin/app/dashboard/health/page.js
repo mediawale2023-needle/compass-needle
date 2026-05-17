@@ -28,8 +28,20 @@ export default function TenantHealthPage() {
             .finally(() => setLoading(false));
     }, []);
 
+    const normalizedTenants = tenants.map(t => ({
+        tenant_id: t.tenant_id ?? t.id,
+        mp_name: t.mp_name ?? t.name,
+        constituency: t.constituency,
+        status: t.status ?? t.health ?? 'no_data',
+        last_case_at: t.last_case_at ?? t.last_case,
+        last_login_at: t.last_login_at ?? t.last_login,
+        cases_last_30d: t.cases_last_30d ?? t.total_cases,
+        total_cases: t.total_cases,
+        open_cases: t.open_cases,
+    }));
+
     const counts = { active: 0, stale: 0, inactive: 0, no_data: 0 };
-    tenants.forEach(t => { if (counts[t.status] !== undefined) counts[t.status]++; });
+    normalizedTenants.forEach(t => { if (counts[t.status] !== undefined) counts[t.status]++; });
 
     return (
         <>
@@ -56,7 +68,7 @@ export default function TenantHealthPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {[...Array(5)].map((_, i) => <div key={i} className="skeleton" style={{ height: 48, borderRadius: 8 }} />)}
                 </div>
-            ) : tenants.length === 0 ? (
+            ) : normalizedTenants.length === 0 ? (
                 <div className="glass-panel">
                     <div className="empty-state">
                         <div className="empty-state-title">No tenant data available</div>
@@ -77,12 +89,15 @@ export default function TenantHealthPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {tenants.map((t) => {
+                            {normalizedTenants.map((t) => {
                                 const s = STATUS_STYLES[t.status] || STATUS_STYLES.no_data;
                                 return (
                                     <tr key={t.tenant_id}>
                                         <td style={{ fontWeight: 600 }}>
                                             {t.mp_name || `Tenant #${t.tenant_id}`}
+                                            <div style={{ marginTop: 2, fontSize: '0.7rem', color: '#94a3a0', fontWeight: 500 }}>
+                                                Tenant #{t.tenant_id}
+                                            </div>
                                         </td>
                                         <td style={{ color: '#6b7f76' }}>{t.constituency || '—'}</td>
                                         <td>
@@ -96,6 +111,9 @@ export default function TenantHealthPage() {
                                         </td>
                                         <td style={{ textAlign: 'right', fontWeight: 700, color: '#1a2e28' }}>
                                             {t.cases_last_30d ?? '—'}
+                                            <div style={{ marginTop: 2, fontSize: '0.68rem', color: '#94a3a0', fontWeight: 500 }}>
+                                                {t.open_cases ?? 0} open / {t.total_cases ?? 0} total
+                                            </div>
                                         </td>
                                     </tr>
                                 );
