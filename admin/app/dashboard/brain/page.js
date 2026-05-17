@@ -1257,7 +1257,7 @@ function GlobalCorpusTab() {
                                     : j.summary.classified != null
                                     ? `Issues organized: ${j.summary.classified}.`
                                     : j.summary.generated != null
-                                    ? `Government Intel prepared: ${j.summary.generated} briefs. Remaining: ${j.summary.remaining || 0}.`
+                                    ? `Government Intel prepared: ${j.summary.generated}/${j.summary.selected || 0} briefs. Failed: ${j.summary.failed || 0}. No answers: ${j.summary.no_answers || 0}. Remaining: ${j.summary.remaining || 0}.`
                                     : j.summary.chunks_inserted != null
                                     ? `Search readiness updated with ${j.summary.chunks_inserted} entries.`
                                     : j.summary.schemes_upserted != null

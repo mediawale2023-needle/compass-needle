@@ -810,8 +810,10 @@ def _non_scheme_issue_groups() -> list[dict]:
             "topic": topic,
             "pq_count": 0,
             "latest_activity": None,
+            "pq_ids": [],
         })
         entry["pq_count"] += 1
+        entry["pq_ids"].append(int(row["id"]))
         if row.get("date_asked") and (
             entry["latest_activity"] is None or row["date_asked"] > entry["latest_activity"]
         ):
@@ -877,19 +879,67 @@ def get_issue_intelligence_build_stats(state: str = "") -> dict:
     return totals
 
 
+def _fetch_issue_answers_by_ids(pq_ids: list[int], state: str) -> dict:
+    if not pq_ids:
+        return {"state_answers": [], "issue_answers": []}
+
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT id, subject, answer_text, date_asked, question_type,
+                       session_name, question_number, mp_name, prs_url,
+                       topic, topic_tags, TRIM(ministry) AS ministry
+                FROM global_parliamentary_questions
+                WHERE id = ANY(:ids)
+                  AND answer_text IS NOT NULL AND answer_text != ''
+                ORDER BY date_asked DESC NULLS LAST
+            """), {"ids": pq_ids}).mappings().all()
+        rows = [dict(row) for row in rows]
+    except Exception as e:
+        logger.error("_fetch_issue_answers_by_ids failed: %s", e)
+        return {"state_answers": [], "issue_answers": []}
+
+    state_answers: list[dict] = []
+    seen_state: set[int] = set()
+    if state:
+        state_lc = state.lower()
+        state_rows = [
+            row for row in rows
+            if state_lc in (row.get("answer_text") or "").lower()
+        ][:6]
+        state_answers = _rows_to_answer_dicts(state_rows, seen_state)
+
+    seen_issue: set[int] = set()
+    issue_answers = _rows_to_answer_dicts(rows[:14], seen_issue)
+    if len(issue_answers) < min(14, len(rows)):
+        longest_rows = sorted(rows, key=lambda row: len(row.get("answer_text") or ""), reverse=True)
+        issue_answers.extend(_rows_to_answer_dicts(longest_rows[:14], seen_issue))
+
+    issue_answers = sorted(
+        issue_answers,
+        key=lambda row: row.get("date_asked") or "",
+        reverse=True,
+    )[:14]
+    return {"state_answers": state_answers, "issue_answers": issue_answers}
+
+
 def generate_issue_intelligence_now(
     ministry: str,
     topic: str,
     state: str = "",
     *,
     exclude_scheme_mentions: bool = True,
+    pq_ids: Optional[list[int]] = None,
 ) -> dict:
-    bundle = _fetch_issue_answers(
-        ministry,
-        topic,
-        state,
-        exclude_scheme_mentions=exclude_scheme_mentions,
-    )
+    if pq_ids:
+        bundle = _fetch_issue_answers_by_ids(pq_ids, state)
+    else:
+        bundle = _fetch_issue_answers(
+            ministry,
+            topic,
+            state,
+            exclude_scheme_mentions=exclude_scheme_mentions,
+        )
     state_answers = bundle["state_answers"]
     issue_answers = bundle["issue_answers"]
     if not issue_answers:
@@ -900,6 +950,19 @@ def generate_issue_intelligence_now(
     raw = _call_gpt(ministry, topic, state, issue_answers, state_answers, deterministic)
     validated = _validate_payload(raw, issue_answers)
     intel = _validate_payload(_merge_intel(deterministic, validated), issue_answers)
+    if not intel:
+        summary, latest_date = _extract_position_summary(issue_answers)
+        intel = _normalize_payload({
+            "current_government_position": {
+                "summary": summary,
+                "latest_update": summary,
+                "latest_date": latest_date,
+            },
+            "key_numbers_on_record": deterministic.get("key_numbers_on_record") or [],
+            "implementation_gaps": deterministic.get("implementation_gaps") or [],
+            "state_specific_mentions": deterministic.get("state_specific_mentions") or [],
+            "deltas_on_record": deterministic.get("deltas_on_record") or {},
+        }) or {}
     cache_error = None if intel else "validation_failed"
     _write_cache(ministry, topic, state, intel, len(issue_answers), cache_error)
     _runtime_cache.pop(f"sansadai:intel:{_generation_key(ministry, topic, state)}", None)
@@ -960,6 +1023,7 @@ def build_issue_intelligence_batch(
                 group["topic"],
                 state,
                 exclude_scheme_mentions=True,
+                pq_ids=group.get("pq_ids") or [],
             )
             if result["status"] == "generated":
                 generated += 1
