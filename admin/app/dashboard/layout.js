@@ -18,6 +18,7 @@ const PAGE_TITLES = {
     '/dashboard/settings': { title: 'Settings', desc: 'Admin account and editor access management' },
     '/dashboard/mps/new': { title: 'Add New MP', desc: 'Create a new Member of Parliament account and profile' },
     '/dashboard/audit': { title: 'Audit Log', desc: 'Track all administrative actions across the platform' },
+    '/dashboard/knowledge': { title: 'Knowledge Sync', desc: 'Unified control plane for constituency profiles, parliament records, answer coverage, and brain indexing' },
     '/dashboard/constituency': { title: 'Constituency Intelligence', desc: 'Deep political, demographic, economic and cultural profiles for each constituency' },
     '/dashboard/parliament-sync': { title: 'Parliament Sync', desc: 'Map subscribed MPs to their sansad.in member ID and manage 18th Lok Sabha data sync' },
     '/dashboard/brain': { title: 'Brain Playground', desc: 'Test semantic retrieval over memory_chunks — exactly what Copilot and Drafter see' },

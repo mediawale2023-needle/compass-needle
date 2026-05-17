@@ -123,7 +123,7 @@ const NAV_GROUPS = [
             { href: '/dashboard', label: 'Overview', Icon: Icons.Overview },
             { href: '/dashboard/health', label: 'Tenant Health', Icon: Icons.Health },
             { href: '/dashboard/intelligence', label: 'Case Intelligence', Icon: Icons.Intelligence },
-            { href: '/dashboard/constituency', label: 'Constituency Intel', Icon: Icons.Constituency },
+            { href: '/dashboard/knowledge', label: 'Knowledge Sync', Icon: Icons.Constituency },
         ],
     },
     {
@@ -133,7 +133,6 @@ const NAV_GROUPS = [
             { href: '/dashboard/geography', label: 'Geography Upload', Icon: Icons.Geography },
             { href: '/dashboard/rules', label: 'Geography Rules', Icon: Icons.Rules },
             { href: '/dashboard/staff', label: 'Staff Management', Icon: Icons.Staff },
-            { href: '/dashboard/parliament-sync', label: 'Parliament Sync', Icon: Icons.Parliament },
         ],
     },
     {
