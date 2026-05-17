@@ -109,6 +109,7 @@ function IssueBrief({ ministry, topic, issueIds = [], stateLabel, onBack, color 
         try {
             const params = new URLSearchParams({ ministry, topic });
             if (stateLabel) params.set('state', stateLabel);
+            if (issueIds.length) params.set('issue_ids', issueIds.join(','));
             await apiPost(`/api/sansadai/intelligence/refresh?${params.toString()}`, {});
             await loadBrief();
         } catch (e) {
@@ -256,16 +257,25 @@ function TopicList({ ministry, stateLabel, focusState, onFocusChange, onBack, on
     const [search, setSearch] = useState('');
 
     useEffect(() => {
+        let active = true;
         setLoading(true);
+        setTopics([]);
+        setResolvedState(focusState || null);
         const params = new URLSearchParams();
         if (focusState) params.set('state', focusState);
         apiGet(`/api/sansadai/ministry/${encodeURIComponent(ministry)}/topics${params.toString() ? `?${params.toString()}` : ''}`)
             .then((data) => {
+                if (!active) return;
                 setTopics(data.topics || []);
                 setResolvedState(data.state || focusState || null);
                 setLoading(false);
             })
-            .catch(() => setLoading(false));
+            .catch(() => {
+                if (active) setLoading(false);
+            });
+        return () => {
+            active = false;
+        };
     }, [ministry, focusState]);
 
     const filtered = topics.filter((item) =>
@@ -541,6 +551,7 @@ export function GovernmentIntelExperience({
     };
 
     const goIssue = (item) => {
+        if (item.ministry && item.ministry !== activeMinistry) return;
         setActiveTopic(item.topic);
         setActiveIssueIds(item.issue_ids || []);
         setScreen('brief');

@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import re
+import hashlib
 import threading
 import time
 from typing import Optional
@@ -182,6 +183,16 @@ def _runtime_set(key: str, data):
 
 def _generation_key(ministry: str, topic: str, state: str) -> str:
     return f"{_norm(ministry)}::{_norm(topic)}::{_norm(state)}"
+
+
+def _issue_cache_topic(topic: str, issue_ids: Optional[list[int]] = None) -> str:
+    if not issue_ids:
+        return topic
+    normalized_ids = sorted({int(value) for value in issue_ids if str(value).isdigit()})
+    if not normalized_ids:
+        return topic
+    signature = hashlib.sha1(",".join(str(value) for value in normalized_ids).encode("utf-8")).hexdigest()[:12]
+    return f"{topic} [cluster:{signature}]"
 
 
 def _begin_generation(key: str) -> bool:
@@ -739,6 +750,7 @@ def _build_ministry_issue_clusters(rows: list[dict], state: str = "") -> list[di
             numbers = deterministic.get("key_numbers_on_record") or []
             signal = _trim_text((gaps or numbers or [""])[0])
         out.append({
+            "ministry": _trim_text(ordered_rows[0].get("ministry")) if ordered_rows else None,
             "topic": entry["topic"],
             "latest_activity": entry["latest_activity"].isoformat() if entry["latest_activity"] else None,
             "state_has_mentions": entry["state_has_mentions"],
@@ -1187,7 +1199,7 @@ def _answer_bundle_from_rows(rows: list[dict], state: str) -> dict:
     return {"state_answers": state_answers, "issue_answers": issue_answers}
 
 
-def _fetch_issue_answers_by_ids(pq_ids: list[int], state: str) -> dict:
+def _fetch_issue_answers_by_ids(pq_ids: list[int], state: str, ministry: str = "") -> dict:
     if not pq_ids:
         return {"state_answers": [], "issue_answers": []}
 
@@ -1200,15 +1212,34 @@ def _fetch_issue_answers_by_ids(pq_ids: list[int], state: str) -> dict:
                        topic, topic_tags, TRIM(ministry) AS ministry
                 FROM global_parliamentary_questions
                 WHERE id = ANY(:ids)
+                  AND (:ministry = '' OR TRIM(ministry) = :ministry)
                   AND answer_text IS NOT NULL AND answer_text != ''
                 ORDER BY date_asked DESC NULLS LAST
-            """), {"ids": pq_ids}).mappings().all()
+            """), {"ids": pq_ids, "ministry": ministry or ""}).mappings().all()
         rows = [dict(row) for row in rows]
     except Exception as e:
         logger.error("_fetch_issue_answers_by_ids failed: %s", e)
         return {"state_answers": [], "issue_answers": []}
 
     return _answer_bundle_from_rows(rows, state)
+
+
+def _count_issue_answers_by_ids(pq_ids: list[int], ministry: str = "") -> int:
+    if not pq_ids:
+        return 0
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(text("""
+                SELECT COUNT(*) AS count
+                FROM global_parliamentary_questions
+                WHERE id = ANY(:ids)
+                  AND (:ministry = '' OR TRIM(ministry) = :ministry)
+                  AND answer_text IS NOT NULL AND answer_text != ''
+            """), {"ids": pq_ids, "ministry": ministry or ""}).mappings().first()
+        return int(row["count"] or 0) if row else 0
+    except Exception as e:
+        logger.error("_count_issue_answers_by_ids failed: %s", e)
+        return 0
 
 
 def _strip_group_rows(group: dict) -> dict:
@@ -1227,11 +1258,13 @@ def generate_issue_intelligence_now(
     exclude_scheme_mentions: bool = True,
     pq_ids: Optional[list[int]] = None,
     answer_rows: Optional[list[dict]] = None,
+    cache_topic: Optional[str] = None,
 ) -> dict:
+    storage_topic = cache_topic or topic
     if answer_rows:
         bundle = _answer_bundle_from_rows(answer_rows, state)
     elif pq_ids:
-        bundle = _fetch_issue_answers_by_ids(pq_ids, state)
+        bundle = _fetch_issue_answers_by_ids(pq_ids, state, ministry)
     else:
         bundle = _fetch_issue_answers(
             ministry,
@@ -1242,7 +1275,7 @@ def generate_issue_intelligence_now(
     state_answers = bundle["state_answers"]
     issue_answers = bundle["issue_answers"]
     if not issue_answers:
-        _write_cache(ministry, topic, state, {}, 0, "no_answers")
+        _write_cache(ministry, storage_topic, state, {}, 0, "no_answers")
         return {"status": "no_answers", "pq_count": 0}
 
     deterministic = _derive_deterministic_intel(state, issue_answers, state_answers)
@@ -1259,8 +1292,8 @@ def generate_issue_intelligence_now(
         )
         intel = _fallback_intel(topic, state, issue_answers, deterministic)
     cache_error = None if intel else "validation_failed"
-    _write_cache(ministry, topic, state, intel, len(issue_answers), cache_error)
-    _runtime_cache.pop(f"sansadai:intel:{_generation_key(ministry, topic, state)}", None)
+    _write_cache(ministry, storage_topic, state, intel, len(issue_answers), cache_error)
+    _runtime_cache.pop(f"sansadai:intel:{_generation_key(ministry, storage_topic, state)}", None)
     return {
         "status": "generated" if intel else "failed",
         "pq_count": len(issue_answers),
@@ -1381,13 +1414,15 @@ def _schedule_regeneration(
     topic: str,
     state: str,
     pq_ids: Optional[list[int]] = None,
+    cache_topic: Optional[str] = None,
 ) -> bool:
-    key = _generation_key(ministry, topic, state)
+    storage_topic = cache_topic or topic
+    key = _generation_key(ministry, storage_topic, state)
     if not _begin_generation(key):
         return False
     threading.Thread(
         target=_regenerate_in_background,
-        args=(ministry, topic, state, key, pq_ids or []),
+        args=(ministry, topic, state, key, pq_ids or [], storage_topic),
         daemon=True,
     ).start()
     return True
@@ -1399,6 +1434,7 @@ def _regenerate_in_background(
     state: str,
     generation_key: str,
     pq_ids: Optional[list[int]] = None,
+    cache_topic: Optional[str] = None,
 ):
     try:
         generate_issue_intelligence_now(
@@ -1407,10 +1443,11 @@ def _regenerate_in_background(
             state,
             exclude_scheme_mentions=False,
             pq_ids=pq_ids or None,
+            cache_topic=cache_topic,
         )
     except Exception as e:
         logger.error("SansadAI background regeneration failed for %s / %s / %s: %s", ministry, topic, state, e)
-        _write_cache(ministry, topic, state, {}, 0, "generation_failed")
+        _write_cache(ministry, cache_topic or topic, state, {}, 0, "generation_failed")
     finally:
         _end_generation(generation_key)
 
@@ -1544,13 +1581,15 @@ def get_issue_intelligence(
     issue_ids: Optional[list[int]] = None,
 ) -> dict:
     state = _resolved_state(tenant_id, state_override)
-    rt_key = f"sansadai:intel:{_generation_key(ministry, topic, state)}"
+    issue_ids = sorted({int(value) for value in (issue_ids or []) if str(value).isdigit()})
+    cache_topic = _issue_cache_topic(topic, issue_ids)
+    rt_key = f"sansadai:intel:{_generation_key(ministry, cache_topic, state)}"
 
     cached = _runtime_get(rt_key)
     if cached is not None:
         return cached
 
-    db_cache = _load_db_cache(ministry, topic, state)
+    db_cache = _load_db_cache(ministry, cache_topic, state)
 
     def _result(intel, is_stale=False, generated_at=None, no_data=False, pending=False):
         return {
@@ -1570,17 +1609,17 @@ def get_issue_intelligence(
         return result
 
     if db_cache and db_cache.get("structured_intel") and db_cache.get("is_stale"):
-        _schedule_regeneration(ministry, topic, state)
+        _schedule_regeneration(ministry, topic, state, pq_ids=issue_ids or None, cache_topic=cache_topic)
         return _result(db_cache["structured_intel"], True, db_cache.get("generated_at"))
 
     if issue_ids:
-        answer_count = len(issue_ids)
+        answer_count = _count_issue_answers_by_ids(issue_ids, ministry)
     else:
         answer_count = _count_issue_answers(ministry, topic)
     if answer_count < 1:
         return _result(None, False, None, True, False)
 
-    _schedule_regeneration(ministry, topic, state, pq_ids=issue_ids or None)
+    _schedule_regeneration(ministry, topic, state, pq_ids=issue_ids or None, cache_topic=cache_topic)
     result = _result(None, False, None, False, True)
     _runtime_set(rt_key, result)
     return result

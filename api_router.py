@@ -2379,18 +2379,27 @@ def refresh_sansadai_intelligence(
     ministry: str = Query(...),
     topic: str = Query(...),
     state: Optional[str] = Query(None),
+    issue_ids: Optional[str] = Query(None),
     user=Depends(get_current_user),
 ):
     """Delete the cached SansadAI brief for this ministry/topic/state so it regenerates fresh."""
-    from modules.sansadai_api import _generation_key, _resolved_state, _runtime_cache
+    from modules.sansadai_api import _generation_key, _issue_cache_topic, _resolved_state, _runtime_cache
     resolved_state = _resolved_state(user.get("tenant_id"), state)
+    parsed_issue_ids = []
+    if issue_ids:
+        parsed_issue_ids = [
+            int(value)
+            for value in issue_ids.split(",")
+            if value.strip().isdigit()
+        ][:80]
+    cache_topic = _issue_cache_topic(topic, parsed_issue_ids or None)
     try:
         with engine.begin() as conn:
             conn.execute(text("""
                 DELETE FROM issue_intelligence_cache
                 WHERE ministry = :ministry AND topic = :topic AND state = :state
-            """), {"ministry": ministry, "topic": topic, "state": resolved_state})
-        _runtime_cache.pop(f"sansadai:intel:{_generation_key(ministry, topic, resolved_state)}", None)
+            """), {"ministry": ministry, "topic": cache_topic, "state": resolved_state})
+        _runtime_cache.pop(f"sansadai:intel:{_generation_key(ministry, cache_topic, resolved_state)}", None)
     except Exception as e:
         logger.warning("refresh_sansadai_intelligence failed: %s", e)
     return {
