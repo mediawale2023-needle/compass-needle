@@ -268,7 +268,10 @@ function TopicList({ ministry, stateLabel, onBack, onSelectTopic }) {
     }, [ministry, stateLabel]);
 
     const filtered = topics.filter((item) =>
-        !search || (item.topic || '').toLowerCase().includes(search.toLowerCase())
+        !search ||
+        (item.topic || '').toLowerCase().includes(search.toLowerCase()) ||
+        (item.signal || '').toLowerCase().includes(search.toLowerCase()) ||
+        (item.tags || []).some((tag) => (tag || '').toLowerCase().includes(search.toLowerCase()))
     );
 
     return (
@@ -307,45 +310,42 @@ function TopicList({ ministry, stateLabel, onBack, onSelectTopic }) {
 
             {!loading && filtered.length === 0 && (
                 <div className="text-center py-16 text-sm text-muted-foreground">
-                    No issue topics found for this ministry.
+                    No issues found for this ministry.
                 </div>
             )}
 
             {!loading && filtered.length > 0 && (
-                <div className="space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {filtered.map((item) => (
                         <button
                             key={item.topic}
                             onClick={() => onSelectTopic(item.topic)}
-                            className="w-full text-left rounded-xl border border-border/60 bg-card hover:bg-muted/20 hover:border-border transition-all duration-150 p-4 group"
+                            className="w-full text-left rounded-xl border border-border/60 bg-card hover:bg-muted/20 hover:border-border hover:shadow-sm transition-all duration-150 p-4 group"
                         >
-                            <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start justify-between gap-3 h-full">
                                 <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap mb-2">
-                                        <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors leading-snug">
-                                            {item.topic}
+                                    <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors leading-snug">
+                                        {item.topic}
+                                    </p>
+                                    {item.latest_activity && (
+                                        <p className="text-xs text-muted-foreground/60 mt-2">
+                                            Updated {formatDate(item.latest_activity)}
                                         </p>
-                                        {item.intel_status === 'ready' && (
-                                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-medium">
-                                                Ready
-                                            </span>
-                                        )}
-                                        {item.intel_status === 'stale' && (
-                                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 font-medium">
-                                                Updating
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                                            {item.state_has_mentions && resolvedState ? `Mentions ${resolvedState}` : 'National record'}
-                                        </span>
-                                        {item.latest_activity && (
-                                            <span className="text-xs text-muted-foreground/50">
-                                                Latest answer {formatDate(item.latest_activity)}
-                                            </span>
-                                        )}
-                                    </div>
+                                    )}
+                                    {item.signal && (
+                                        <p className="text-sm text-muted-foreground mt-3 leading-relaxed line-clamp-3">
+                                            <span className="font-semibold text-foreground/80">Signal:</span> {item.signal}
+                                        </p>
+                                    )}
+                                    {(item.tags || []).length > 0 && (
+                                        <div className="flex items-center gap-1.5 flex-wrap mt-3">
+                                            {(item.tags || []).slice(0, 4).map((tag) => (
+                                                <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                                                    {tag}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                                 <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors shrink-0 mt-0.5" />
                             </div>

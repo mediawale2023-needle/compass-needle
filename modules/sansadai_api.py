@@ -1250,11 +1250,12 @@ def get_issue_topics(ministry: str, tenant_id: Optional[int] = None, state_overr
         topic_names = [row["topic"] for row in topic_rows if row["topic"]]
         cached_topics: set[str] = set()
         stale_topics: set[str] = set()
+        topic_signals: dict[str, str] = {}
         if topic_names:
             try:
                 with engine.connect() as conn:
                     cache_rows = conn.execute(text("""
-                        SELECT DISTINCT ON (topic) topic, is_stale
+                        SELECT DISTINCT ON (topic) topic, is_stale, structured_intel
                         FROM issue_intelligence_cache
                         WHERE ministry = :ministry
                           AND topic = ANY(:topics)
@@ -1266,6 +1267,16 @@ def get_issue_topics(ministry: str, tenant_id: Optional[int] = None, state_overr
                         stale_topics.add(item["topic"])
                     else:
                         cached_topics.add(item["topic"])
+                    intel = item.get("structured_intel") or {}
+                    if isinstance(intel, str):
+                        try:
+                            intel = json.loads(intel)
+                        except Exception:
+                            intel = {}
+                    position = intel.get("current_government_position") if isinstance(intel, dict) else {}
+                    signal = _trim_text((position or {}).get("summary"))
+                    if signal:
+                        topic_signals[item["topic"]] = signal
             except Exception as e:
                 logger.warning(
                     "get_issue_topics cache lookup failed for %s / %s: %s",
@@ -1288,6 +1299,12 @@ def get_issue_topics(ministry: str, tenant_id: Optional[int] = None, state_overr
                 "latest_activity": row["latest_activity"].isoformat() if row["latest_activity"] else None,
                 "state_has_mentions": bool(int(row.get("state_count") or 0)) if state else False,
                 "intel_status": intel_status,
+                "signal": topic_signals.get(topic),
+                "tags": [
+                    _trim_text(part)
+                    for part in re.split(r"\s*&\s*|\s*/\s*", topic)
+                    if _trim_text(part)
+                ],
             })
 
         _runtime_set(cache_key, result)
