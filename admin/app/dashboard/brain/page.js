@@ -218,56 +218,107 @@ function ReindexPanel({ tenants, onDone }) {
         return () => clearInterval(t);
     }, [jobId, onDone]);
 
+    const selectedTenant = tenantId
+        ? (tenants || []).find(t => String(t.tenant_id) === String(tenantId))?.mp_name || 'Selected tenant'
+        : 'All MPs and shared sources';
+    const summary = status?.summary || {};
+    const updatedCount = summary.chunks_inserted ?? summary.rows_updated ?? summary.indexed ?? summary.total ?? null;
+
     return (
-        <div style={{ background: '#111827', border: '1px solid #1f2937', borderRadius: 8, padding: 16 }}>
-            <div style={{ color: '#9ca3af', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
-                Re-index Brain
+        <div style={{
+            background: '#fff', border: '1px solid #e2ebe5',
+            borderRadius: 14, padding: 22, boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        }}>
+            <div style={{
+                display: 'flex', justifyContent: 'space-between', gap: 18,
+                alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 18,
+            }}>
+                <div style={{ maxWidth: 620 }}>
+                    <div style={{
+                        color: '#006a4d', fontSize: '0.72rem', fontWeight: 850,
+                        textTransform: 'uppercase', letterSpacing: '0.12em',
+                    }}>
+                        Knowledge Refresh
+                    </div>
+                    <h2 style={{ margin: '7px 0 0', color: '#1a2e28', fontSize: '1.35rem', fontWeight: 900 }}>
+                        Update the searchable knowledge base
+                    </h2>
+                    <p style={{ margin: '7px 0 0', color: '#6b7f76', fontSize: '0.86rem', lineHeight: 1.55 }}>
+                        Refresh what Copilot and Drafter can retrieve from Parliament work, constituency profiles, cases, and schemes.
+                    </p>
+                </div>
+                <div style={{
+                    minWidth: 190, background: '#f8faf9', border: '1px solid #e2ebe5',
+                    borderRadius: 12, padding: '12px 14px',
+                }}>
+                    <div style={{ color: '#6b7f76', fontSize: '0.72rem', fontWeight: 800 }}>Scope</div>
+                    <div style={{ color: '#1a2e28', fontSize: '0.92rem', fontWeight: 850, marginTop: 5 }}>
+                        {selectedTenant}
+                    </div>
+                </div>
             </div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                <select
-                    value={tenantId}
-                    onChange={e => setTenantId(e.target.value)}
-                    style={{
-                        background: '#1f2937', border: '1px solid #374151', color: '#e5e7eb',
-                        borderRadius: 6, padding: '6px 10px', fontSize: 13,
-                    }}
-                >
-                    <option value=''>All tenants</option>
-                    {(tenants || []).map(t => (
-                        <option key={t.tenant_id} value={t.tenant_id}>{t.mp_name}</option>
-                    ))}
-                </select>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9ca3af', fontSize: 12, cursor: 'pointer' }}>
+
+            <div style={{
+                display: 'flex', gap: 12, alignItems: 'end', flexWrap: 'wrap',
+            }}>
+                <label style={{ display: 'grid', gap: 6, flex: '1 1 260px' }}>
+                    <span style={{ color: '#4a635a', fontSize: '0.74rem', fontWeight: 750 }}>Refresh scope</span>
+                    <select
+                        value={tenantId}
+                        onChange={e => setTenantId(e.target.value)}
+                        className="form-input"
+                        style={{ minHeight: 38 }}
+                    >
+                        <option value=''>All tenants</option>
+                        {(tenants || []).map(t => (
+                            <option key={t.tenant_id} value={t.tenant_id}>{t.mp_name}</option>
+                        ))}
+                    </select>
+                </label>
+                <label style={{
+                    display: 'flex', alignItems: 'center', gap: 8, color: '#4a635a',
+                    fontSize: '0.8rem', cursor: 'pointer', minHeight: 38,
+                    padding: '0 4px', whiteSpace: 'nowrap',
+                }}>
                     <input
                         type='checkbox'
                         checked={rebuild}
                         onChange={e => setRebuild(e.target.checked)}
-                        style={{ accentColor: '#3b82f6' }}
+                        style={{ accentColor: '#006a4d' }}
                     />
-                    Full rebuild (delete existing)
+                    Full rebuild
                 </label>
                 <button
                     onClick={start}
                     disabled={running}
-                    style={{
-                        background: running ? '#374151' : '#1d4ed8',
-                        color: '#fff', border: 'none', borderRadius: 6,
-                        padding: '7px 16px', fontSize: 13, cursor: running ? 'not-allowed' : 'pointer',
-                    }}
+                    className="btn-primary"
+                    style={{ minHeight: 38, padding: '9px 18px' }}
                 >
-                    {running ? '⟳ Indexing…' : 'Start Re-index'}
+                    {running ? 'Refreshing...' : 'Start Refresh'}
                 </button>
             </div>
+
+            <div style={{
+                marginTop: 12, color: '#6b7f76', fontSize: '0.76rem',
+                lineHeight: 1.5,
+            }}>
+                By default, refresh only updates content that changed. Use full rebuild when source formatting or extraction logic was repaired.
+            </div>
+
             {status && (
                 <div style={{
-                    marginTop: 12, padding: '8px 12px',
-                    background: status.error ? '#2d1f1f' : '#1f2d1f',
-                    borderRadius: 6, fontSize: 12,
-                    color: status.error ? '#ef4444' : '#22c55e',
+                    marginTop: 14, padding: '11px 14px',
+                    background: status.error ? '#fff1f2' : '#f0fdf4',
+                    border: `1px solid ${status.error ? '#fecdd3' : '#bbf7d0'}`,
+                    borderRadius: 10, fontSize: '0.82rem',
+                    color: status.error ? '#be123c' : '#15803d',
+                    fontWeight: 650,
                 }}>
                     {status.error
-                        ? `Error: ${status.error}`
-                        : `Done — ${JSON.stringify(status.summary || {}).slice(0, 200)}`}
+                        ? `Refresh could not start: ${status.error}`
+                        : updatedCount != null
+                        ? `Refresh complete. ${Number(updatedCount).toLocaleString()} records updated.`
+                        : 'Refresh complete.'}
                 </div>
             )}
         </div>
@@ -616,21 +667,48 @@ export default function BrainPlaygroundPage() {
                 <div>
                     <ReindexPanel tenants={tenants} onDone={loadStats} />
                     <div style={{
-                        marginTop: 20, background: '#111827',
-                        border: '1px solid #1f2937', borderRadius: 8, padding: 16,
+                        marginTop: 18, background: '#fff',
+                        border: '1px solid #e2ebe5', borderRadius: 14, padding: 18,
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
                     }}>
-                        <div style={{ color: '#6b7280', fontSize: 12, marginBottom: 8 }}>WHAT GETS INDEXED</div>
-                        <ul style={{ color: '#9ca3af', fontSize: 13, margin: 0, paddingLeft: 20, lineHeight: 1.8 }}>
-                            <li><strong style={{ color: '#e5e7eb' }}>PQ Q&A</strong> — parliamentary questions + ministry answers from <code>parliamentary_questions</code></li>
-                            <li><strong style={{ color: '#e5e7eb' }}>Debates</strong> — debate speeches from <code>parliamentary_debates</code></li>
-                            <li><strong style={{ color: '#e5e7eb' }}>Zero Hour</strong> — zero-hour submissions from <code>zero_hour_submissions</code></li>
-                            <li><strong style={{ color: '#e5e7eb' }}>Constituency Profile</strong> — all 13 sections chunked individually (challenges, priorities, economy, …)</li>
-                            <li><strong style={{ color: '#e5e7eb' }}>Cases / Grievances</strong> — resolved and active WhatsApp cases</li>
-                            <li><strong style={{ color: '#e5e7eb' }}>Schemes</strong> — 1500+ government schemes from <code>schemes_db.json</code> (global, shared across tenants)</li>
-                        </ul>
-                        <div style={{ color: '#4b5563', fontSize: 12, marginTop: 12 }}>
-                            Indexing is idempotent — only re-embeds chunks whose content changed (content_hash comparison).
-                            Use "Full rebuild" to delete and re-create all chunks for a tenant.
+                        <div style={{
+                            display: 'flex', justifyContent: 'space-between', gap: 16,
+                            alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 14,
+                        }}>
+                            <div>
+                                <h3 style={{ margin: 0, color: '#1a2e28', fontSize: '0.98rem', fontWeight: 900 }}>
+                                    Sources Included
+                                </h3>
+                                <p style={{ margin: '5px 0 0', color: '#6b7f76', fontSize: '0.8rem', lineHeight: 1.45 }}>
+                                    These records become available to search, Copilot, and drafting workflows after refresh.
+                                </p>
+                            </div>
+                            <span className="badge badge-green">Changed content only</span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+                            {[
+                                ['Parliament Q&A', 'Questions and ministry answers used for evidence-backed drafting.'],
+                                ['Debates', 'Debate speeches and relevant parliamentary interventions.'],
+                                ['Zero Hour', 'Zero-hour submissions and constituency-linked matters.'],
+                                ['Constituency Profile', 'Key facts, challenges, priorities, economy, culture, and assembly context.'],
+                                ['Cases and Grievances', 'Resolved and active WhatsApp cases for local issue memory.'],
+                                ['Government Schemes', 'Shared scheme knowledge available across all tenants.'],
+                            ].map(([title, detail]) => (
+                                <div key={title} style={{
+                                    border: '1px solid #e2ebe5', background: '#f8faf9',
+                                    borderRadius: 10, padding: '12px 13px',
+                                }}>
+                                    <div style={{ color: '#1a2e28', fontSize: '0.83rem', fontWeight: 850 }}>
+                                        {title}
+                                    </div>
+                                    <div style={{ color: '#6b7f76', fontSize: '0.74rem', lineHeight: 1.45, marginTop: 4 }}>
+                                        {detail}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div style={{ color: '#6b7f76', fontSize: '0.76rem', marginTop: 12, lineHeight: 1.5 }}>
+                            Rebuild mode regenerates the selected scope when source formatting or extraction logic has changed.
                         </div>
                     </div>
                 </div>
