@@ -3881,6 +3881,13 @@ class GlobalCrawlRequest(BaseModel):
     allow_ocr:         bool           = False
 
 
+class GovernmentIntelBuildRequest(BaseModel):
+    limit:      int            = 25
+    stale_only: bool           = False
+    rebuild:    bool           = False
+    state:      Optional[str]  = None
+
+
 @router.post("/brain/global-discover")
 def trigger_global_discover(
     background_tasks: BackgroundTasks = None,
@@ -4091,6 +4098,68 @@ def brain_global_stats(user=Depends(get_admin_user)):
     except Exception as e:
         logger.exception("global stats failed: %s", e)
         raise HTTPException(500, f"Global stats failed: {e}")
+
+
+@router.get("/brain/government-intel/stats")
+def government_intel_stats(
+    state: Optional[str] = Query(None),
+    user=Depends(get_admin_user),
+):
+    """Readiness stats for cached non-scheme Government Intel issue briefs."""
+    try:
+        from modules.sansadai_api import get_issue_intelligence_build_stats
+        return get_issue_intelligence_build_stats(state or "")
+    except Exception as e:
+        logger.exception("government_intel stats failed: %s", e)
+        raise HTTPException(500, "Government Intel stats failed")
+
+
+@router.post("/brain/government-intel/build")
+def trigger_government_intel_build(
+    body: GovernmentIntelBuildRequest = GovernmentIntelBuildRequest(),
+    background_tasks: BackgroundTasks = None,
+    user=Depends(get_admin_user),
+):
+    """
+    Generate cached Government Intel briefs from non-scheme Parliament answers.
+    This prepares issue_intelligence_cache before MPs open the frontend tab.
+    """
+    job_id = f"government_intel_{uuid.uuid4().hex[:10]}"
+    _global_crawl_jobs[job_id] = {
+        "type": "government_intel", "status": "running",
+        "started_at": datetime.utcnow().isoformat() + "Z",
+        "finished_at": None, "summary": None, "error": None,
+        "progress": {"done": 0, "total": 0, "label": "briefs"},
+    }
+
+    def _run():
+        try:
+            from modules.sansadai_api import build_issue_intelligence_batch
+            summary = build_issue_intelligence_batch(
+                limit=body.limit,
+                stale_only=body.stale_only,
+                rebuild=body.rebuild,
+                state=body.state or "",
+                _progress=_global_crawl_jobs[job_id]["progress"],
+            )
+            _global_crawl_jobs[job_id]["status"] = "done"
+            _global_crawl_jobs[job_id]["summary"] = summary
+        except Exception as e:
+            logger.exception("government_intel build failed: %s", e)
+            _global_crawl_jobs[job_id]["status"] = "error"
+            _global_crawl_jobs[job_id]["error"] = str(e)
+        _global_crawl_jobs[job_id]["finished_at"] = datetime.utcnow().isoformat() + "Z"
+
+    if background_tasks:
+        background_tasks.add_task(_run)
+    else:
+        threading.Thread(target=_run, daemon=True).start()
+
+    return {
+        "ok": True,
+        "job_id": job_id,
+        "message": f"Preparing up to {body.limit} Government Intel briefs...",
+    }
 
 
 @router.post("/brain/global-rematch")

@@ -516,8 +516,8 @@ def _effective_topic_for_row(row: dict) -> str:
     )
 
 
-def _fetch_ministry_answer_rows(ministry: str) -> list[dict]:
-    cache_key = f"sansadai:ministry-rows:{_norm(ministry)}"
+def _fetch_ministry_answer_rows(ministry: str, exclude_scheme_mentions: bool = False) -> list[dict]:
+    cache_key = f"sansadai:ministry-rows:{_norm(ministry)}::schemes:{int(exclude_scheme_mentions)}"
     cached = _runtime_get(cache_key)
     if cached is not None:
         return cached
@@ -532,7 +532,17 @@ def _fetch_ministry_answer_rows(ministry: str) -> list[dict]:
                 WHERE answer_text IS NOT NULL AND answer_text != ''
                   AND ministry IS NOT NULL AND ministry != ''
                   AND LOWER(TRIM(ministry)) = LOWER(TRIM(:ministry))
-            """), {"ministry": ministry}).mappings().all()
+                  AND (
+                      :exclude_scheme_mentions = false
+                      OR NOT EXISTS (
+                          SELECT 1 FROM scheme_mentions sm
+                          WHERE sm.pq_id = global_parliamentary_questions.id
+                      )
+                  )
+            """), {
+                "ministry": ministry,
+                "exclude_scheme_mentions": exclude_scheme_mentions,
+            }).mappings().all()
         result = [dict(row) for row in rows]
         _runtime_set(cache_key, result)
         return result
@@ -541,14 +551,19 @@ def _fetch_ministry_answer_rows(ministry: str) -> list[dict]:
         return []
 
 
-def _fetch_issue_answers(ministry: str, topic: str, state: str) -> dict:
+def _fetch_issue_answers(
+    ministry: str,
+    topic: str,
+    state: str,
+    exclude_scheme_mentions: bool = False,
+) -> dict:
     state_answers: list[dict] = []
     issue_answers: list[dict] = []
     seen_state: set[int] = set()
     seen_issue: set[int] = set()
     try:
         rows = [
-            row for row in _fetch_ministry_answer_rows(ministry)
+            row for row in _fetch_ministry_answer_rows(ministry, exclude_scheme_mentions=exclude_scheme_mentions)
             if _effective_topic_for_row(row) == topic
         ]
         if state:
@@ -747,6 +762,247 @@ def _load_db_cache(ministry: str, topic: str, state: str) -> Optional[dict]:
         return None
 
 
+def _cache_state_by_group(state: str) -> dict[tuple[str, str], dict]:
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT ministry, topic, structured_intel, generated_at,
+                       pq_count_at_gen, is_stale, error
+                FROM issue_intelligence_cache
+                WHERE state = :state
+            """), {"state": state}).mappings().all()
+        return {
+            (_norm(row["ministry"]), row["topic"]): dict(row)
+            for row in rows
+        }
+    except Exception as e:
+        logger.warning("issue intelligence cache state lookup failed: %s", e)
+        return {}
+
+
+def _non_scheme_issue_groups() -> list[dict]:
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT id, TRIM(ministry) AS ministry, subject, topic,
+                       topic_tags, date_asked
+                FROM global_parliamentary_questions gpq
+                WHERE gpq.answer_text IS NOT NULL AND gpq.answer_text != ''
+                  AND gpq.ministry IS NOT NULL AND gpq.ministry != ''
+                  AND NOT EXISTS (
+                      SELECT 1 FROM scheme_mentions sm
+                      WHERE sm.pq_id = gpq.id
+                  )
+            """)).mappings().all()
+    except Exception as e:
+        logger.warning("non-scheme issue group lookup failed: %s", e)
+        return []
+
+    groups: dict[tuple[str, str], dict] = {}
+    for row in rows:
+        ministry = _trim_text(row.get("ministry"))
+        if not ministry:
+            continue
+        topic = _effective_topic_for_row(dict(row))
+        key = (_norm(ministry), topic)
+        entry = groups.setdefault(key, {
+            "ministry": ministry,
+            "topic": topic,
+            "pq_count": 0,
+            "latest_activity": None,
+        })
+        entry["pq_count"] += 1
+        if row.get("date_asked") and (
+            entry["latest_activity"] is None or row["date_asked"] > entry["latest_activity"]
+        ):
+            entry["latest_activity"] = row["date_asked"]
+
+    return sorted(
+        groups.values(),
+        key=lambda item: (
+            -(item["latest_activity"].toordinal() if item["latest_activity"] else 0),
+            -item["pq_count"],
+            item["ministry"].lower(),
+            item["topic"],
+        ),
+    )
+
+
+def get_issue_intelligence_build_stats(state: str = "") -> dict:
+    groups = _non_scheme_issue_groups()
+    cache = _cache_state_by_group(state or "")
+    scheme_mentions = 0
+    try:
+        with engine.connect() as conn:
+            scheme_mentions = int(conn.execute(text("SELECT COUNT(*) FROM scheme_mentions")).scalar() or 0)
+    except Exception:
+        scheme_mentions = 0
+    totals = {
+        "candidate_groups": len(groups),
+        "ready": 0,
+        "stale": 0,
+        "failed": 0,
+        "pending": 0,
+        "non_scheme_pq_count": sum(int(group.get("pq_count") or 0) for group in groups),
+        "scheme_mentions": scheme_mentions,
+    }
+    for group in groups:
+        cached = cache.get((_norm(group["ministry"]), group["topic"]))
+        if cached and cached.get("structured_intel") and not cached.get("is_stale") and not cached.get("error"):
+            totals["ready"] += 1
+        elif cached and cached.get("is_stale"):
+            totals["stale"] += 1
+        elif cached and cached.get("error"):
+            totals["failed"] += 1
+        else:
+            totals["pending"] += 1
+
+    totals["coverage_pct"] = round((totals["ready"] / totals["candidate_groups"]) * 100) if totals["candidate_groups"] else 0
+    totals["state"] = state or None
+    totals["sample_pending"] = [
+        {
+            "ministry": group["ministry"],
+            "topic": group["topic"],
+            "pq_count": group["pq_count"],
+            "latest_activity": group["latest_activity"].isoformat() if group["latest_activity"] else None,
+        }
+        for group in groups
+        if not (
+            (cached := cache.get((_norm(group["ministry"]), group["topic"])))
+            and cached.get("structured_intel")
+            and not cached.get("is_stale")
+            and not cached.get("error")
+        )
+    ][:10]
+    return totals
+
+
+def generate_issue_intelligence_now(
+    ministry: str,
+    topic: str,
+    state: str = "",
+    *,
+    exclude_scheme_mentions: bool = True,
+) -> dict:
+    bundle = _fetch_issue_answers(
+        ministry,
+        topic,
+        state,
+        exclude_scheme_mentions=exclude_scheme_mentions,
+    )
+    state_answers = bundle["state_answers"]
+    issue_answers = bundle["issue_answers"]
+    if not issue_answers:
+        _write_cache(ministry, topic, state, {}, 0, "no_answers")
+        return {"status": "no_answers", "pq_count": 0}
+
+    deterministic = _derive_deterministic_intel(state, issue_answers, state_answers)
+    raw = _call_gpt(ministry, topic, state, issue_answers, state_answers, deterministic)
+    validated = _validate_payload(raw, issue_answers)
+    intel = _validate_payload(_merge_intel(deterministic, validated), issue_answers)
+    cache_error = None if intel else "validation_failed"
+    _write_cache(ministry, topic, state, intel, len(issue_answers), cache_error)
+    _runtime_cache.pop(f"sansadai:intel:{_generation_key(ministry, topic, state)}", None)
+    return {
+        "status": "generated" if intel else "failed",
+        "pq_count": len(issue_answers),
+        "error": cache_error,
+    }
+
+
+def build_issue_intelligence_batch(
+    limit: int = 25,
+    stale_only: bool = False,
+    rebuild: bool = False,
+    state: str = "",
+    _progress: Optional[dict] = None,
+) -> dict:
+    limit = max(1, min(int(limit or 25), 250))
+    state = _trim_text(state) or ""
+    groups = _non_scheme_issue_groups()
+    cache = _cache_state_by_group(state)
+
+    candidates = []
+    skipped_ready = 0
+    for group in groups:
+        cached = cache.get((_norm(group["ministry"]), group["topic"]))
+        is_ready = bool(
+            cached and cached.get("structured_intel")
+            and not cached.get("is_stale")
+            and not cached.get("error")
+        )
+        is_stale = bool(cached and cached.get("is_stale"))
+        if stale_only and not is_stale:
+            continue
+        if not rebuild and is_ready:
+            skipped_ready += 1
+            continue
+        candidates.append(group)
+
+    selected = candidates[:limit]
+    if _progress is not None:
+        _progress.update({"done": 0, "total": len(selected), "label": "briefs"})
+
+    generated = 0
+    failed = 0
+    no_answers = 0
+    processed = []
+    for index, group in enumerate(selected, 1):
+        if _progress is not None:
+            _progress.update({
+                "done": index - 1,
+                "total": len(selected),
+                "label": f"{group['ministry']} / {group['topic']}",
+            })
+        try:
+            result = generate_issue_intelligence_now(
+                group["ministry"],
+                group["topic"],
+                state,
+                exclude_scheme_mentions=True,
+            )
+            if result["status"] == "generated":
+                generated += 1
+            elif result["status"] == "no_answers":
+                no_answers += 1
+            else:
+                failed += 1
+            processed.append({
+                "ministry": group["ministry"],
+                "topic": group["topic"],
+                **result,
+            })
+        except Exception as e:
+            failed += 1
+            logger.exception(
+                "Government Intel build failed for %s / %s: %s",
+                group["ministry"],
+                group["topic"],
+                e,
+            )
+            _write_cache(group["ministry"], group["topic"], state, {}, 0, "generation_failed")
+            processed.append({
+                "ministry": group["ministry"],
+                "topic": group["topic"],
+                "status": "failed",
+                "error": "generation_failed",
+            })
+        if _progress is not None:
+            _progress.update({"done": index, "total": len(selected)})
+
+    return {
+        "candidate_groups": len(groups),
+        "selected": len(selected),
+        "generated": generated,
+        "failed": failed,
+        "no_answers": no_answers,
+        "skipped_ready": skipped_ready,
+        "remaining": max(0, len(candidates) - len(selected)),
+        "state": state or None,
+        "processed": processed[:20],
+    }
+
+
 def _count_issue_answers(ministry: str, topic: str) -> int:
     try:
         return sum(
@@ -772,20 +1028,12 @@ def _schedule_regeneration(ministry: str, topic: str, state: str) -> bool:
 
 def _regenerate_in_background(ministry: str, topic: str, state: str, generation_key: str):
     try:
-        bundle = _fetch_issue_answers(ministry, topic, state)
-        state_answers = bundle["state_answers"]
-        issue_answers = bundle["issue_answers"]
-        if not issue_answers:
-            _write_cache(ministry, topic, state, {}, 0, "no_answers")
-            return
-
-        deterministic = _derive_deterministic_intel(state, issue_answers, state_answers)
-        raw = _call_gpt(ministry, topic, state, issue_answers, state_answers, deterministic)
-        validated = _validate_payload(raw, issue_answers)
-        intel = _validate_payload(_merge_intel(deterministic, validated), issue_answers)
-        cache_error = None if intel else "validation_failed"
-        _write_cache(ministry, topic, state, intel, len(issue_answers), cache_error)
-        _runtime_cache.pop(f"sansadai:intel:{_generation_key(ministry, topic, state)}", None)
+        generate_issue_intelligence_now(
+            ministry,
+            topic,
+            state,
+            exclude_scheme_mentions=False,
+        )
     except Exception as e:
         logger.error("SansadAI background regeneration failed for %s / %s / %s: %s", ministry, topic, state, e)
         _write_cache(ministry, topic, state, {}, 0, "generation_failed")

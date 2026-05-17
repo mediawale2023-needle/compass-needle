@@ -1005,12 +1005,16 @@ function DedupPanel({ disabled }) {
 function GlobalCorpusTab() {
     const [globalStats, setGlobalStats] = useState(null);
     const [topicStats, setTopicStats] = useState(null);
+    const [governmentIntelStats, setGovernmentIntelStats] = useState(null);
     const [statsLoading, setStatsLoading] = useState(true);
     const [jobs, setJobs] = useState({});  // jobId → job state
     const [crawlLimit, setCrawlLimit] = useState(50);
     const [includeFailedCrawl, setIncludeFailedCrawl] = useState(false);
     const [tagLimit, setTagLimit] = useState(500);
     const [classifyLimit, setClassifyLimit] = useState(2000);
+    const [governmentIntelLimit, setGovernmentIntelLimit] = useState(25);
+    const [governmentIntelStaleOnly, setGovernmentIntelStaleOnly] = useState(false);
+    const [governmentIntelRebuild, setGovernmentIntelRebuild] = useState(false);
     const [indexAnswersOnly, setIndexAnswersOnly] = useState(false);
     const [indexRebuild, setIndexRebuild] = useState(false);
     const [allowOcr, setAllowOcr] = useState(false);
@@ -1031,10 +1035,17 @@ function GlobalCorpusTab() {
             .catch(() => setTopicStats(null));
     }, []);
 
+    const loadGovernmentIntelStats = useCallback(() => {
+        apiGet('/api/admin/brain/government-intel/stats')
+            .then(d => setGovernmentIntelStats(d))
+            .catch(() => setGovernmentIntelStats(null));
+    }, []);
+
     const refreshOverview = useCallback(() => {
         loadStats();
         loadTopicStats();
-    }, [loadStats, loadTopicStats]);
+        loadGovernmentIntelStats();
+    }, [loadStats, loadTopicStats, loadGovernmentIntelStats]);
 
     useEffect(() => { refreshOverview(); }, [refreshOverview]);
 
@@ -1123,11 +1134,19 @@ function GlobalCorpusTab() {
     const topicPct = totalTopicRows ? Math.round((classifiedTopics / totalTopicRows) * 100) : 0;
     const answerPct = coverage.pct_covered || 0;
     const totalQuestions = pqs.total_questions || 0;
+    const govIntel = governmentIntelStats || {};
+    const govIntelReady = govIntel.ready || 0;
+    const govIntelPending = govIntel.pending || 0;
+    const govIntelStale = govIntel.stale || 0;
+    const govIntelFailed = govIntel.failed || 0;
+    const govIntelCandidates = govIntel.candidate_groups || 0;
+    const govIntelPct = govIntel.coverage_pct || 0;
+    const schemeMentions = govIntel.scheme_mentions || 0;
     const corpusLabel = anyRunning
         ? 'Refreshing'
         : totalQuestions === 0
         ? 'Needs Setup'
-        : answerPct < 50 || topicPct < 50
+        : answerPct < 50 || topicPct < 50 || (govIntelCandidates > 0 && govIntelPct < 50)
         ? 'Needs Refresh'
         : 'Ready';
     const corpusTone = corpusLabel === 'Ready' ? '#006a4d' : corpusLabel === 'Refreshing' ? '#2563eb' : '#d97706';
@@ -1235,6 +1254,8 @@ function GlobalCorpusTab() {
                                     ? `National questions refreshed for ${j.summary.crawled} MPs. New questions: ${j.summary.inserted_total || 0}.`
                                     : j.summary.classified != null
                                     ? `Issues organized: ${j.summary.classified}.`
+                                    : j.summary.generated != null
+                                    ? `Government Intel prepared: ${j.summary.generated} briefs. Remaining: ${j.summary.remaining || 0}.`
                                     : j.summary.chunks_inserted != null
                                     ? `Search readiness updated with ${j.summary.chunks_inserted} entries.`
                                     : j.summary.schemes_upserted != null
@@ -1306,10 +1327,11 @@ function GlobalCorpusTab() {
                         </div>
                     )}
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
                         <SoftCard title="Parliament Questions" value={(totalQuestions || 0).toLocaleString()} detail={`${reg.done || 0} MPs refreshed, ${reg.pending || 0} pending`} tone="#006a4d" />
                         <SoftCard title="Ministry Answers" value={`${answerPct}%`} detail={`${(coverage.with_answers || 0).toLocaleString()} of ${(coverage.total || 0).toLocaleString()} questions have replies`} tone={answerPct >= 60 ? '#006a4d' : '#d97706'} />
                         <SoftCard title="Issue Categories" value={`${topicPct}%`} detail={`${classifiedTopics.toLocaleString()} questions organized for issue intelligence`} tone={topicPct >= 70 ? '#006a4d' : '#d97706'} />
+                        <SoftCard title="Government Intel" value={`${govIntelPct}%`} detail={`${govIntelReady.toLocaleString()} ready, ${(govIntelPending + govIntelStale + govIntelFailed).toLocaleString()} need work`} tone={govIntelPct >= 70 ? '#006a4d' : '#d97706'} />
                         <SoftCard title="Active Ministries" value={pqs.ministries || 0} detail="Ministries represented in national question data" tone="#2563eb" />
                     </div>
 
@@ -1322,6 +1344,12 @@ function GlobalCorpusTab() {
                             <CoverageRow label="Parliament Questions" value={totalQuestions ? 'Available' : 'Not loaded'} hint="National question base across MPs" pct={totalQuestions ? 100 : 0} />
                             <CoverageRow label="Ministry Answers" value={`${answerPct}%`} hint="Full ministry replies available for question drafting and comparison" pct={answerPct} />
                             <CoverageRow label="Issue Categories" value={`${topicPct}%`} hint="Questions organized into useful public issue areas" pct={topicPct} />
+                            <CoverageRow
+                                label="Government Intel"
+                                value={govIntelCandidates ? `${govIntelReady}/${govIntelCandidates} ready` : 'Needs issue data'}
+                                hint={schemeMentions ? 'Non-scheme Parliament answers converted into cached ministry issue briefs' : 'Run scheme intelligence first so scheme PQs can be separated out'}
+                                pct={govIntelCandidates ? govIntelPct : 0}
+                            />
                             <CoverageRow
                                 label="Scheme Intelligence"
                                 value={totalQuestions ? 'Ready to update' : 'Needs questions first'}
@@ -1366,6 +1394,14 @@ function GlobalCorpusTab() {
                                     tone="#b45309"
                                     onClick={() => trigger('/api/admin/brain/scheme-extract', {}, 'Scheme intelligence update')}
                                     disabled={anyRunning || !totalQuestions}
+                                />
+                                <ActionCard
+                                    title="Prepare Government Intel"
+                                    detail="Generate ministry issue briefs from non-scheme Parliament answers before MPs open the tab."
+                                    button="Prepare"
+                                    tone="#7c3aed"
+                                    onClick={() => trigger('/api/admin/brain/government-intel/build', { limit: governmentIntelLimit, stale_only: false, rebuild: false }, 'Government Intel preparation')}
+                                    disabled={anyRunning || !totalQuestions || !classifiedTopics}
                                 />
                             </div>
                         </div>
@@ -1510,6 +1546,53 @@ function GlobalCorpusTab() {
                                     accent="#b45309"
                                     disabled={anyRunning}
                                 />
+                                <div style={{
+                                    background: '#0d1117', border: '1px solid #1f2937',
+                                    borderRadius: 8, padding: '10px 14px', marginBottom: 10,
+                                }}>
+                                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                                        <label style={{ color: '#9ca3af', fontSize: 12 }}>
+                                            Government Intel batch:&nbsp;
+                                            <input
+                                                type="number" min={1} max={250} value={governmentIntelLimit}
+                                                onChange={e => setGovernmentIntelLimit(Math.max(1, parseInt(e.target.value) || 25))}
+                                                style={{
+                                                    background: '#1f2937', border: '1px solid #374151', color: '#e5e7eb',
+                                                    borderRadius: 4, padding: '3px 8px', fontSize: 12, width: 72,
+                                                }}
+                                            />
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#9ca3af', fontSize: 12, cursor: 'pointer' }}>
+                                            <input type="checkbox" checked={governmentIntelStaleOnly} onChange={e => setGovernmentIntelStaleOnly(e.target.checked)} style={{ accentColor: '#7c3aed' }} />
+                                            Only stale briefs
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#9ca3af', fontSize: 12, cursor: 'pointer' }}>
+                                            <input type="checkbox" checked={governmentIntelRebuild} onChange={e => setGovernmentIntelRebuild(e.target.checked)} style={{ accentColor: '#ef4444' }} />
+                                            Rebuild ready briefs
+                                        </label>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                                        <div style={{ color: '#6b7280', fontSize: 11 }}>
+                                            Reads non-scheme PQ answers and writes cached ministry issue briefs.
+                                        </div>
+                                        <button
+                                            onClick={() => trigger('/api/admin/brain/government-intel/build', {
+                                                limit: governmentIntelLimit,
+                                                stale_only: governmentIntelStaleOnly,
+                                                rebuild: governmentIntelRebuild,
+                                            }, 'Government Intel preparation')}
+                                            disabled={anyRunning || !totalQuestions}
+                                            style={{
+                                                background: anyRunning || !totalQuestions ? '#374151' : '#7c3aed',
+                                                color: '#fff', border: 'none', borderRadius: 6,
+                                                padding: '7px 18px', fontSize: 12,
+                                                cursor: anyRunning || !totalQuestions ? 'not-allowed' : 'pointer',
+                                            }}
+                                        >
+                                            Prepare Government Intel
+                                        </button>
+                                    </div>
+                                </div>
                                 <NormalizeMinistryBtn disabled={anyRunning} />
                                 <DedupPanel disabled={anyRunning} />
 
