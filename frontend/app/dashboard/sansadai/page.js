@@ -228,7 +228,7 @@ function IssueBrief({ ministry, topic, issueIds = [], stateLabel, onBack, color 
                                 </p>
                                 {intel.current_government_position.latest_date && (
                                     <p className="text-xs text-muted-foreground">
-                                        Latest answer on record: {formatDate(intel.current_government_position.latest_date)}
+                                        Updated {formatDate(intel.current_government_position.latest_date)}
                                     </p>
                                 )}
                             </div>
@@ -236,7 +236,7 @@ function IssueBrief({ ministry, topic, issueIds = [], stateLabel, onBack, color 
                     )}
 
                     <ListSection title="Key Numbers On Record" items={intel.key_numbers_on_record} />
-                    <ListSection title="Implementation Gaps And Pending Issues" items={intel.implementation_gaps} />
+                    <ListSection title="Gaps And Limits" items={intel.implementation_gaps} />
                     <ListSection title={`State-Specific Mentions${data?.state ? ` — ${data.state}` : ''}`} items={intel.state_specific_mentions} />
                     <DeltaSection deltas={intel.deltas_on_record} />
 

@@ -45,6 +45,13 @@ _POSITION_TERMS = [
     "stated", "informed", "reported", "clarified", "submitted", "approved",
     "sanctioned", "implemented", "launched", "under consideration", "proposal",
 ]
+_BAD_BRIEF_PATTERNS = [
+    "(cid:",
+    "statement is laid on the table",
+    "statement referred to",
+    "minister of ",
+    " lok sabha",
+]
 _STOPWORDS = {
     "the", "and", "for", "with", "from", "that", "this", "have", "has", "had",
     "been", "were", "was", "will", "shall", "their", "there", "about", "under",
@@ -253,6 +260,8 @@ def _trim_text(value) -> Optional[str]:
 
 def _clean_parliament_answer(value: str) -> str:
     text_value = re.sub(r"\s+", " ", value or "").strip()
+    text_value = re.sub(r"\S*\(cid:\d+\)\S*", " ", text_value)
+    text_value = re.sub(r"[\u0c80-\u0cff]{1,}", " ", text_value)
     text_value = re.sub(
         r"^MINISTER OF .{0,700}?\([^)]+\)\s*",
         "",
@@ -260,12 +269,44 @@ def _clean_parliament_answer(value: str) -> str:
         flags=re.IGNORECASE,
     )
     text_value = re.sub(
+        r"STATEMENT REFERRED TO(?:\s+PARTS?)?\s*\([a-z]\)\s*(?:TO|&)\s*\([a-z]\)\s+OF\s+LOK\s+SABHA",
+        " ",
+        text_value,
+        flags=re.IGNORECASE,
+    )
+    text_value = re.sub(r"\bSTATEMENT REFERRED TO\b", " ", text_value, flags=re.IGNORECASE)
+    text_value = re.sub(
+        r"\bA statement is laid on the Table of the House\.?",
+        " ",
+        text_value,
+        flags=re.IGNORECASE,
+    )
+    text_value = re.sub(r"\(\s*SHRI [^)]+\)", " ", text_value, flags=re.IGNORECASE)
+    text_value = re.sub(r"\(\s*SMT\.? [^)]+\)", " ", text_value, flags=re.IGNORECASE)
+    text_value = re.sub(r"\(\s*DR\.? [^)]+\)", " ", text_value, flags=re.IGNORECASE)
+    text_value = re.sub(r"\s+", " ", text_value).strip()
+    text_value = re.sub(r"^\([a-z]\)\s*(?:to|&)\s*\([a-z]\)\s*[:.-]?\s*", "", text_value, flags=re.IGNORECASE)
+    text_value = re.sub(r"^\(?[a-z]\)?\s*(?:to|&)\s*\(?[a-z]\)?\s*[:.-]?\s*$", " ", text_value, flags=re.IGNORECASE)
+    text_value = re.sub(
         r"^\(?[a-z]\)?\s*(?:to|&)\s*\(?[a-z]\)?\s*[:.-]\s*",
         "",
         text_value,
         flags=re.IGNORECASE,
     )
-    return text_value.strip()
+    text_value = re.sub(r"\s+", " ", text_value)
+    return text_value.strip(" -*•")
+
+
+def _clean_fact_line(value, limit: int = 360) -> Optional[str]:
+    cleaned = _trim_text(_clean_parliament_answer(str(value or "")))
+    if not cleaned:
+        return None
+    lowered = cleaned.lower()
+    if any(pattern in lowered for pattern in _BAD_BRIEF_PATTERNS):
+        return None
+    if len(cleaned) > limit:
+        cleaned = cleaned[:limit].rsplit(" ", 1)[0].rstrip(" ,;:.") + "."
+    return cleaned
 
 
 def _normalize_payload(value):
@@ -289,7 +330,7 @@ def _normalize_payload(value):
             seen.add(marker)
             out.append(normalized)
         return out or None
-    return _trim_text(value)
+    return _clean_fact_line(value)
 
 
 def _split_sentences(text_value: str) -> list[str]:
@@ -297,7 +338,7 @@ def _split_sentences(text_value: str) -> list[str]:
     if not text_value:
         return []
     parts = re.split(r"(?<=[\.\?!;])\s+", text_value)
-    return [_trim_text(part) for part in parts if _trim_text(part)]
+    return [cleaned for part in parts if (cleaned := _clean_fact_line(part))]
 
 
 def _stance_bucket(sentence: str) -> str:
@@ -374,7 +415,7 @@ def _extract_position_summary(answers: list[dict]) -> tuple[Optional[str], Optio
         lowered = sentence.lower()
         if any(term in lowered for term in _POSITION_TERMS):
             return sentence[:320], latest.get("date_asked")
-    return _trim_text((latest.get("answer_text") or "")[:320]), latest.get("date_asked")
+    return _clean_fact_line(latest.get("answer_text") or "", 320), latest.get("date_asked")
 
 
 def _detect_deltas(answers: list[dict]) -> dict:
@@ -512,6 +553,60 @@ def _merge_intel(primary, secondary):
     if isinstance(primary, list):
         return primary or secondary
     return primary if primary not in (None, "", [], {}) else secondary
+
+
+def _quality_issues(payload: dict) -> list[str]:
+    issues = []
+    raw = json.dumps(payload or {}, ensure_ascii=False).lower()
+    for pattern in _BAD_BRIEF_PATTERNS:
+        if pattern in raw:
+            issues.append(pattern)
+    summary = ((payload or {}).get("current_government_position") or {}).get("summary") or ""
+    if summary and len(summary) < 30:
+        issues.append("thin_summary")
+    if not summary:
+        issues.append("missing_summary")
+    return issues
+
+
+def _fallback_intel(topic: str, state: str, issue_answers: list[dict], deterministic: dict) -> dict:
+    latest_date = None
+    if issue_answers:
+        latest = sorted(issue_answers, key=lambda row: row.get("date_asked") or "", reverse=True)[0]
+        latest_date = latest.get("date_asked")
+
+    numbers = [
+        item for item in (deterministic.get("key_numbers_on_record") or [])
+        if _clean_fact_line(item)
+    ][:6]
+    gaps = [
+        item for item in (deterministic.get("implementation_gaps") or [])
+        if _clean_fact_line(item)
+    ][:5]
+    state_mentions = [
+        item for item in (deterministic.get("state_specific_mentions") or [])
+        if _clean_fact_line(item)
+    ][:5]
+
+    summary_parts = [f"The government record contains official replies on {topic}."]
+    if numbers:
+        summary_parts.append(f"Key figures on record include: {numbers[0]}")
+    if gaps:
+        summary_parts.append(f"The main gap or limit on record is: {gaps[0]}")
+    elif state:
+        summary_parts.append(f"State-focused material is limited to explicit mentions of {state} in ministry replies.")
+
+    return _normalize_payload({
+        "current_government_position": {
+            "summary": " ".join(summary_parts),
+            "latest_update": " ".join(summary_parts),
+            "latest_date": latest_date,
+        },
+        "key_numbers_on_record": numbers,
+        "implementation_gaps": gaps,
+        "state_specific_mentions": state_mentions if state else [],
+        "deltas_on_record": deterministic.get("deltas_on_record") or {},
+    }) or {}
 
 
 def _rows_to_answer_dicts(rows, seen: set[int]) -> list[dict]:
@@ -850,6 +945,9 @@ Return valid JSON with exactly these keys:
 
 Rules:
 - Use only facts explicitly present in the answers or deterministic fact sheet.
+- Synthesize. Do not paste raw answer fragments.
+- Never include PDF/OCR artifacts, "(cid:...)", minister-name boilerplate, Lok Sabha headers, or "statement is laid on the Table" text.
+- Separate data/accountability limitations from execution failures when describing gaps.
 - Do not add any advice, pressure angles, or suggested follow-up questions/letters/speeches.
 - Keep each list item concise and factual.
 - If evidence is missing, return null or [] for that field."""
@@ -906,7 +1004,12 @@ def _load_db_cache(ministry: str, topic: str, state: str) -> Optional[dict]:
                 FROM issue_intelligence_cache
                 WHERE ministry = :ministry AND topic = :topic AND state = :state
             """), {"ministry": ministry, "topic": topic, "state": state}).mappings().fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        payload = dict(row)
+        if payload.get("structured_intel") and _quality_issues(payload["structured_intel"]):
+            payload["is_stale"] = True
+        return payload
     except Exception:
         return None
 
@@ -1145,20 +1248,16 @@ def generate_issue_intelligence_now(
     deterministic = _derive_deterministic_intel(state, issue_answers, state_answers)
     raw = _call_gpt(ministry, topic, state, issue_answers, state_answers, deterministic)
     validated = _validate_payload(raw, issue_answers)
-    intel = _validate_payload(_merge_intel(deterministic, validated), issue_answers)
-    if not intel:
-        summary, latest_date = _extract_position_summary(issue_answers)
-        intel = _normalize_payload({
-            "current_government_position": {
-                "summary": summary,
-                "latest_update": summary,
-                "latest_date": latest_date,
-            },
-            "key_numbers_on_record": deterministic.get("key_numbers_on_record") or [],
-            "implementation_gaps": deterministic.get("implementation_gaps") or [],
-            "state_specific_mentions": deterministic.get("state_specific_mentions") or [],
-            "deltas_on_record": deterministic.get("deltas_on_record") or {},
-        }) or {}
+    intel = _validate_payload(_merge_intel(validated, deterministic), issue_answers)
+    quality_issues = _quality_issues(intel)
+    if quality_issues:
+        logger.warning(
+            "SansadAI quality gate using fallback for %s / %s: %s",
+            ministry,
+            topic,
+            ", ".join(quality_issues),
+        )
+        intel = _fallback_intel(topic, state, issue_answers, deterministic)
     cache_error = None if intel else "validation_failed"
     _write_cache(ministry, topic, state, intel, len(issue_answers), cache_error)
     _runtime_cache.pop(f"sansadai:intel:{_generation_key(ministry, topic, state)}", None)
