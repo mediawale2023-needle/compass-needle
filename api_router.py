@@ -2353,11 +2353,25 @@ def sansadai_intelligence(
     ministry: str = Query(...),
     topic: str = Query(...),
     state: Optional[str] = Query(None),
+    issue_ids: Optional[str] = Query(None),
     user=Depends(get_current_user),
 ):
     """Cached issue brief for ministry + topic + state."""
     from modules.sansadai_api import get_issue_intelligence
-    return get_issue_intelligence(ministry, topic, tenant_id=user.get("tenant_id"), state_override=state)
+    parsed_issue_ids = []
+    if issue_ids:
+        parsed_issue_ids = [
+            int(value)
+            for value in issue_ids.split(",")
+            if value.strip().isdigit()
+        ][:80]
+    return get_issue_intelligence(
+        ministry,
+        topic,
+        tenant_id=user.get("tenant_id"),
+        state_override=state,
+        issue_ids=parsed_issue_ids or None,
+    )
 
 
 @router.post("/sansadai/intelligence/refresh")

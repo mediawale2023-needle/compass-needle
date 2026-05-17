@@ -67,7 +67,7 @@ function DeltaSection({ deltas }) {
     );
 }
 
-function IssueBrief({ ministry, topic, stateLabel, onBack, color }) {
+function IssueBrief({ ministry, topic, issueIds = [], stateLabel, onBack, color }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -82,6 +82,7 @@ function IssueBrief({ ministry, topic, stateLabel, onBack, color }) {
         try {
             const params = new URLSearchParams({ ministry, topic });
             if (stateLabel) params.set('state', stateLabel);
+            if (issueIds.length) params.set('issue_ids', issueIds.join(','));
             const result = await apiGet(`/api/sansadai/intelligence?${params.toString()}`, { timeout: AI_TIMEOUT });
             setData(result);
             setError(null);
@@ -91,7 +92,7 @@ function IssueBrief({ ministry, topic, stateLabel, onBack, color }) {
             if (!silent) setLoading(false);
             setRefreshing(false);
         }
-    }, [ministry, topic, stateLabel]);
+    }, [ministry, topic, issueIds, stateLabel]);
 
     useEffect(() => {
         loadBrief();
@@ -248,7 +249,7 @@ function IssueBrief({ ministry, topic, stateLabel, onBack, color }) {
     );
 }
 
-function TopicList({ ministry, stateLabel, onBack, onSelectTopic }) {
+function TopicList({ ministry, stateLabel, onBack, onSelectIssue }) {
     const [topics, setTopics] = useState([]);
     const [resolvedState, setResolvedState] = useState(stateLabel || null);
     const [loading, setLoading] = useState(true);
@@ -319,7 +320,7 @@ function TopicList({ ministry, stateLabel, onBack, onSelectTopic }) {
                     {filtered.map((item) => (
                         <button
                             key={item.topic}
-                            onClick={() => onSelectTopic(item.topic)}
+                            onClick={() => onSelectIssue(item)}
                             className="w-full text-left rounded-xl border border-border/60 bg-card hover:bg-muted/20 hover:border-border hover:shadow-sm transition-all duration-150 p-4 group"
                         >
                             <div className="flex items-start justify-between gap-3 h-full">
@@ -460,12 +461,16 @@ export function GovernmentIntelExperience({
     const initialView = searchParams.get('view');
     const initialMinistry = searchParams.get('ministry');
     const initialTopic = searchParams.get('topic');
+    const initialIssueIds = searchParams.get('issue_ids');
 
     const [screen, setScreen] = useState(
         initialView === 'topic' || initialView === 'brief' ? initialView : 'overview'
     );
     const [activeMinistry, setActiveMinistry] = useState(initialMinistry || null);
     const [activeTopic, setActiveTopic] = useState(initialTopic || null);
+    const [activeIssueIds, setActiveIssueIds] = useState(
+        initialIssueIds ? initialIssueIds.split(',').filter(Boolean) : []
+    );
 
     const color = user?.theme_color || '#006a4d';
 
@@ -491,28 +496,33 @@ export function GovernmentIntelExperience({
         if (screen !== 'overview') params.set('view', screen);
         if (activeMinistry) params.set('ministry', activeMinistry);
         if (activeTopic) params.set('topic', activeTopic);
+        if (activeIssueIds.length) params.set('issue_ids', activeIssueIds.join(','));
         const qs = params.toString();
         router.replace(qs ? `${routeBase}?${qs}` : routeBase, { scroll: false });
-    }, [screen, activeMinistry, activeTopic, fixedParams, routeBase, router]);
+    }, [screen, activeMinistry, activeTopic, activeIssueIds, fixedParams, routeBase, router]);
 
     const goMinistry = (ministry) => {
         setActiveMinistry(ministry);
         setActiveTopic(null);
+        setActiveIssueIds([]);
         setScreen('topic');
     };
 
-    const goTopic = (topic) => {
-        setActiveTopic(topic);
+    const goIssue = (item) => {
+        setActiveTopic(item.topic);
+        setActiveIssueIds(item.issue_ids || []);
         setScreen('brief');
     };
 
     const goBack = () => {
         if (screen === 'brief') {
             setActiveTopic(null);
+            setActiveIssueIds([]);
             setScreen('topic');
             return;
         }
         setActiveMinistry(null);
+        setActiveIssueIds([]);
         setScreen('overview');
     };
 
@@ -531,13 +541,14 @@ export function GovernmentIntelExperience({
                     ministry={activeMinistry}
                     stateLabel={stateLabel}
                     onBack={goBack}
-                    onSelectTopic={goTopic}
+                    onSelectIssue={goIssue}
                 />
             )}
             {screen === 'brief' && activeMinistry && activeTopic && (
                 <IssueBrief
                     ministry={activeMinistry}
                     topic={activeTopic}
+                    issueIds={activeIssueIds}
                     stateLabel={stateLabel}
                     onBack={goBack}
                     color={color}

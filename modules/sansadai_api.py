@@ -52,6 +52,27 @@ _STOPWORDS = {
     "government", "ministry", "question", "answer", "regarding", "subject",
 }
 
+_CLUSTER_RULES: list[tuple[str, tuple[str, ...], tuple[str, ...]]] = [
+    ("Kavach safety rollout", ("kavach", "anti collision", "anti-collision"), ("Safety", "Infrastructure", "Implementation")),
+    ("Railway safety and accident prevention", ("accident", "derail", "collision", "safety", "fire safety"), ("Safety", "Implementation")),
+    ("Station redevelopment and passenger amenities", ("station redevelopment", "amrit bharat station", "station development", "passenger amenit", "platform", "waiting room"), ("Infrastructure", "Implementation")),
+    ("New lines, doubling and gauge conversion", ("new line", "doubling", "gauge conversion", "broad gauge", "railway line", "rail line"), ("Infrastructure", "Budget", "Implementation")),
+    ("Pending railway projects and approvals", ("pending", "delay", "delayed", "not completed", "land acquisition", "cost sharing", "dpr", "sanction"), ("Delays", "Implementation", "Budget")),
+    ("ROB, RUB and level crossing works", ("rob", "rub", "road over bridge", "road under bridge", "level crossing", "underpass", "overbridge"), ("Infrastructure", "Safety", "Implementation")),
+    ("Train services, stoppages and route demands", ("train stoppage", "stoppage", "new train", "train service", "route", "extension of train", "frequency"), ("Services", "Constituency Demand")),
+    ("Railway recruitment and vacancies", ("vacancy", "vacancies", "recruitment", "recruited", "posts", "staff shortage"), ("Administration", "Employment")),
+    ("Railway freight and logistics", ("freight", "logistics", "goods train", "cargo", "dedicated freight", "rail logistics"), ("Economy", "Infrastructure")),
+    ("Metro and suburban rail expansion", ("metro", "suburban", "rapid rail", "mrt"), ("Urban Mobility", "Infrastructure")),
+    ("Electrification and clean railway operations", ("electrification", "electric loco", "renewable", "solar", "green railway", "carbon"), ("Environment", "Infrastructure")),
+    ("Budget allocation and project funding", ("budget", "allocation", "fund", "funds", "expenditure", "cost", "crore", "financial"), ("Budget", "Implementation")),
+    ("Implementation gaps and pending work", ("delay", "delayed", "pending", "shortfall", "backlog", "incomplete", "not functional", "not completed"), ("Delays", "Implementation")),
+    ("Vacancies, recruitment and staffing", ("vacancy", "vacancies", "recruitment", "posts", "staff", "shortage"), ("Administration", "Employment")),
+    ("Beneficiary coverage and welfare delivery", ("beneficiary", "beneficiaries", "welfare", "pension", "scholarship", "ration", "insurance"), ("Welfare", "Implementation")),
+    ("Policy changes and regulatory decisions", ("policy", "bill", "act", "amendment", "guideline", "regulation", "rules"), ("Policy", "Regulation")),
+    ("Infrastructure projects and approvals", ("infrastructure", "project", "construction", "road", "bridge", "airport", "port", "building"), ("Infrastructure", "Implementation")),
+    ("Data, targets and official statistics", ("data", "statistics", "state-wise", "district-wise", "year-wise", "number of", "target"), ("Data", "Monitoring")),
+]
+
 ISSUE_TOPICS = [
     "Infrastructure & Projects",
     "Budget & Finance",
@@ -230,6 +251,23 @@ def _trim_text(value) -> Optional[str]:
     return value
 
 
+def _clean_parliament_answer(value: str) -> str:
+    text_value = re.sub(r"\s+", " ", value or "").strip()
+    text_value = re.sub(
+        r"^MINISTER OF .{0,700}?\([^)]+\)\s*",
+        "",
+        text_value,
+        flags=re.IGNORECASE,
+    )
+    text_value = re.sub(
+        r"^\(?[a-z]\)?\s*(?:to|&)\s*\(?[a-z]\)?\s*[:.-]\s*",
+        "",
+        text_value,
+        flags=re.IGNORECASE,
+    )
+    return text_value.strip()
+
+
 def _normalize_payload(value):
     if isinstance(value, dict):
         out = {}
@@ -255,7 +293,7 @@ def _normalize_payload(value):
 
 
 def _split_sentences(text_value: str) -> list[str]:
-    text_value = re.sub(r"\s+", " ", text_value or "").strip()
+    text_value = _clean_parliament_answer(text_value)
     if not text_value:
         return []
     parts = re.split(r"(?<=[\.\?!;])\s+", text_value)
@@ -486,7 +524,7 @@ def _rows_to_answer_dicts(rows, seen: set[int]) -> list[dict]:
         out.append({
             "pq_id": pq_id,
             "subject": row["subject"],
-            "answer_text": (row["answer_text"] or "")[:1600],
+            "answer_text": _clean_parliament_answer(row["answer_text"] or "")[:1600],
             "date_asked": row["date_asked"].isoformat() if row["date_asked"] else None,
             "question_type": row["question_type"],
             "session_name": row["session_name"],
@@ -513,6 +551,114 @@ def _effective_topic_for_row(row: dict) -> str:
         row.get("subject") or "",
         row.get("ministry") or "",
         topic_tags,
+    )
+
+
+def _cluster_for_row(row: dict) -> dict:
+    subject = _trim_text(row.get("subject")) or "Government record"
+    text_value = _norm(" ".join([subject, row.get("ministry") or ""]))
+    base_topic = _effective_topic_for_row(row)
+
+    for title, keywords, tags in _CLUSTER_RULES:
+        if any(keyword in text_value for keyword in keywords):
+            all_tags = list(dict.fromkeys([*tags, *[
+                _trim_text(part)
+                for part in re.split(r"\s*&\s*|\s*/\s*", base_topic)
+                if _trim_text(part)
+            ]]))
+            return {
+                "title": title,
+                "key": _norm(title),
+                "tags": all_tags[:5],
+                "source_topic": base_topic,
+                "keywords": list(keywords),
+            }
+
+    cleaned = re.sub(r"\b(regarding|details of|status of|steps taken for|need to|proposal for)\b", "", subject, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" -:;,.")
+    title = cleaned[:90] if cleaned else base_topic
+    return {
+        "title": title,
+        "key": _norm(title),
+        "tags": [
+            _trim_text(part)
+            for part in re.split(r"\s*&\s*|\s*/\s*", base_topic)
+            if _trim_text(part)
+        ][:4],
+        "source_topic": base_topic,
+        "keywords": [subject],
+    }
+
+
+def _build_ministry_issue_clusters(rows: list[dict], state: str = "") -> list[dict]:
+    clusters: dict[str, dict] = {}
+    state_lc = (state or "").lower()
+    for row in rows:
+        cluster = _cluster_for_row(row)
+        key = cluster["key"]
+        entry = clusters.setdefault(key, {
+            "topic": cluster["title"],
+            "tags": cluster["tags"],
+            "source_topics": set(),
+            "keywords": set(),
+            "latest_activity": None,
+            "state_has_mentions": False,
+            "pq_ids": [],
+            "rows": [],
+        })
+        entry["source_topics"].add(cluster["source_topic"])
+        entry["keywords"].update(cluster.get("keywords") or [])
+        entry["pq_ids"].append(int(row["id"]))
+        entry["rows"].append(row)
+        for tag in cluster["tags"]:
+            if tag not in entry["tags"]:
+                entry["tags"].append(tag)
+        if row.get("date_asked") and (
+            entry["latest_activity"] is None or row["date_asked"] > entry["latest_activity"]
+        ):
+            entry["latest_activity"] = row["date_asked"]
+        if state_lc and state_lc in (row.get("answer_text") or "").lower():
+            entry["state_has_mentions"] = True
+
+    out = []
+    for entry in clusters.values():
+        ordered_rows = sorted(
+            entry["rows"],
+            key=lambda item: _date_sort_value(item.get("date_asked")),
+            reverse=True,
+        )
+        bundle = _answer_bundle_from_rows(ordered_rows[:18], state)
+        deterministic = _derive_deterministic_intel(state, bundle["issue_answers"], bundle["state_answers"])
+        focused_signal = _collect_sentences(
+            bundle["issue_answers"],
+            include_terms=[term for term in entry["keywords"] if len(term) > 3],
+            limit=1,
+        )
+        signal = _trim_text(focused_signal[0] if focused_signal else None)
+        if not signal:
+            signal = _trim_text((deterministic.get("current_government_position") or {}).get("summary"))
+        if not signal:
+            gaps = deterministic.get("implementation_gaps") or []
+            numbers = deterministic.get("key_numbers_on_record") or []
+            signal = _trim_text((gaps or numbers or [""])[0])
+        out.append({
+            "topic": entry["topic"],
+            "latest_activity": entry["latest_activity"].isoformat() if entry["latest_activity"] else None,
+            "state_has_mentions": entry["state_has_mentions"],
+            "signal": signal,
+            "tags": entry["tags"][:5],
+            "issue_ids": [str(row["id"]) for row in ordered_rows[:80]],
+            "source_topics": sorted(entry["source_topics"]),
+        })
+
+    return sorted(
+        out,
+        key=lambda item: (
+            -(_date_sort_value(item.get("latest_activity")) != ""),
+            item.get("latest_activity") or "",
+            item["topic"],
+        ),
+        reverse=True,
     )
 
 
@@ -1129,25 +1275,37 @@ def _count_issue_answers(ministry: str, topic: str) -> int:
         return 0
 
 
-def _schedule_regeneration(ministry: str, topic: str, state: str) -> bool:
+def _schedule_regeneration(
+    ministry: str,
+    topic: str,
+    state: str,
+    pq_ids: Optional[list[int]] = None,
+) -> bool:
     key = _generation_key(ministry, topic, state)
     if not _begin_generation(key):
         return False
     threading.Thread(
         target=_regenerate_in_background,
-        args=(ministry, topic, state, key),
+        args=(ministry, topic, state, key, pq_ids or []),
         daemon=True,
     ).start()
     return True
 
 
-def _regenerate_in_background(ministry: str, topic: str, state: str, generation_key: str):
+def _regenerate_in_background(
+    ministry: str,
+    topic: str,
+    state: str,
+    generation_key: str,
+    pq_ids: Optional[list[int]] = None,
+):
     try:
         generate_issue_intelligence_now(
             ministry,
             topic,
             state,
             exclude_scheme_mentions=False,
+            pq_ids=pq_ids or None,
         )
     except Exception as e:
         logger.error("SansadAI background regeneration failed for %s / %s / %s: %s", ministry, topic, state, e)
@@ -1223,50 +1381,21 @@ def get_issue_topics(ministry: str, tenant_id: Optional[int] = None, state_overr
 
     try:
         rows = _fetch_ministry_answer_rows(ministry)
-        aggregates: dict[str, dict] = {}
-        state_lc = (state or "").lower()
-        for row in rows:
-            topic = _effective_topic_for_row(row)
-            entry = aggregates.setdefault(topic, {
-                "topic": topic,
-                "total_count": 0,
-                "latest_activity": None,
-                "state_count": 0,
-            })
-            entry["total_count"] += 1
-            if row.get("date_asked") and (entry["latest_activity"] is None or row["date_asked"] > entry["latest_activity"]):
-                entry["latest_activity"] = row["date_asked"]
-            if state_lc and state_lc in (row.get("answer_text") or "").lower():
-                entry["state_count"] += 1
-
-        topic_rows = sorted(
-            aggregates.values(),
-            key=lambda row: (
-                -row["total_count"],
-                -(row["latest_activity"].toordinal() if row["latest_activity"] else 0),
-                row["topic"],
-            ),
-        )
-        topic_names = [row["topic"] for row in topic_rows if row["topic"]]
-        cached_topics: set[str] = set()
-        stale_topics: set[str] = set()
+        issue_rows = _build_ministry_issue_clusters(rows, state)
+        topic_names = [row["topic"] for row in issue_rows if row["topic"]]
         topic_signals: dict[str, str] = {}
         if topic_names:
             try:
                 with engine.connect() as conn:
                     cache_rows = conn.execute(text("""
-                        SELECT DISTINCT ON (topic) topic, is_stale, structured_intel
+                        SELECT DISTINCT ON (topic) topic, structured_intel
                         FROM issue_intelligence_cache
                         WHERE ministry = :ministry
                           AND topic = ANY(:topics)
                           AND state = :state
-                        ORDER BY topic, is_stale ASC
+                        ORDER BY topic, generated_at DESC NULLS LAST
                     """), {"ministry": ministry, "topics": topic_names, "state": state}).mappings().all()
                 for item in cache_rows:
-                    if item["is_stale"]:
-                        stale_topics.add(item["topic"])
-                    else:
-                        cached_topics.add(item["topic"])
                     intel = item.get("structured_intel") or {}
                     if isinstance(intel, str):
                         try:
@@ -1279,32 +1408,23 @@ def get_issue_topics(ministry: str, tenant_id: Optional[int] = None, state_overr
                         topic_signals[item["topic"]] = signal
             except Exception as e:
                 logger.warning(
-                    "get_issue_topics cache lookup failed for %s / %s: %s",
+                    "get_issue_topics signal lookup failed for %s / %s: %s",
                     ministry,
                     state or "national",
                     e,
                 )
 
         result = []
-        for row in topic_rows:
+        for row in issue_rows:
             topic = row["topic"]
-            if topic in cached_topics:
-                intel_status = "ready"
-            elif topic in stale_topics:
-                intel_status = "stale"
-            else:
-                intel_status = "pending"
             result.append({
                 "topic": topic,
-                "latest_activity": row["latest_activity"].isoformat() if row["latest_activity"] else None,
-                "state_has_mentions": bool(int(row.get("state_count") or 0)) if state else False,
-                "intel_status": intel_status,
-                "signal": topic_signals.get(topic),
-                "tags": [
-                    _trim_text(part)
-                    for part in re.split(r"\s*&\s*|\s*/\s*", topic)
-                    if _trim_text(part)
-                ],
+                "latest_activity": row.get("latest_activity"),
+                "state_has_mentions": bool(row.get("state_has_mentions")),
+                "signal": topic_signals.get(topic) or row.get("signal"),
+                "tags": row.get("tags") or [],
+                "issue_ids": row.get("issue_ids") or [],
+                "source_topics": row.get("source_topics") or [],
             })
 
         _runtime_set(cache_key, result)
@@ -1319,6 +1439,7 @@ def get_issue_intelligence(
     topic: str,
     tenant_id: Optional[int] = None,
     state_override: Optional[str] = None,
+    issue_ids: Optional[list[int]] = None,
 ) -> dict:
     state = _resolved_state(tenant_id, state_override)
     rt_key = f"sansadai:intel:{_generation_key(ministry, topic, state)}"
@@ -1350,10 +1471,14 @@ def get_issue_intelligence(
         _schedule_regeneration(ministry, topic, state)
         return _result(db_cache["structured_intel"], True, db_cache.get("generated_at"))
 
-    if _count_issue_answers(ministry, topic) < 1:
+    if issue_ids:
+        answer_count = len(issue_ids)
+    else:
+        answer_count = _count_issue_answers(ministry, topic)
+    if answer_count < 1:
         return _result(None, False, None, True, False)
 
-    _schedule_regeneration(ministry, topic, state)
+    _schedule_regeneration(ministry, topic, state, pq_ids=issue_ids or None)
     result = _result(None, False, None, False, True)
     _runtime_set(rt_key, result)
     return result
