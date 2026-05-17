@@ -1015,6 +1015,7 @@ function GlobalCorpusTab() {
     const [indexRebuild, setIndexRebuild] = useState(false);
     const [allowOcr, setAllowOcr] = useState(false);
     const [advancedOpen, setAdvancedOpen] = useState(false);
+    const [actionNotice, setActionNotice] = useState(null);
 
     const loadStats = useCallback(() => {
         setStatsLoading(true);
@@ -1056,12 +1057,32 @@ function GlobalCorpusTab() {
         return () => clearInterval(t);
     }, [jobs, refreshOverview]);
 
-    const trigger = async (url, body = {}) => {
+    const trigger = async (url, body = {}, label = 'Update') => {
+        setActionNotice({ type: 'info', text: `${label} is starting...` });
         try {
             const r = await apiPost(url, body);
-            setJobs(prev => ({ ...prev, [r.job_id]: { status: 'running', type: r.job_id?.split('_')[1] } }));
+            if (r.job_id) {
+                const jobType = r.job_id
+                    .replace(/^global_/, '')
+                    .replace(/^scheme_/, 'scheme_')
+                    .replace(/^classify_/, 'classify_')
+                    .split('_')
+                    .slice(0, 2)
+                    .join(' ');
+                setJobs(prev => ({
+                    ...prev,
+                    [r.job_id]: {
+                        status: 'running',
+                        type: jobType || label,
+                    },
+                }));
+                setActionNotice({ type: 'success', text: `${label} started. Progress will appear under Refresh Activity.` });
+            } else {
+                setActionNotice({ type: 'success', text: `${label} completed.` });
+                refreshOverview();
+            }
         } catch (e) {
-            alert(e.message || 'Failed to start job');
+            setActionNotice({ type: 'error', text: e.message || `Failed to start ${label.toLowerCase()}` });
         }
     };
 
@@ -1253,7 +1274,7 @@ function GlobalCorpusTab() {
                         {anyRunning ? 'A refresh is currently running.' : totalQuestions ? `${totalQuestions.toLocaleString()} questions available` : 'No national questions loaded yet'}
                     </div>
                     <button
-                        onClick={() => trigger('/api/admin/brain/global-crawl', { limit: crawlLimit, include_failed: false })}
+                        onClick={() => trigger('/api/admin/brain/global-crawl', { limit: crawlLimit, include_failed: false }, 'National intelligence refresh')}
                         disabled={anyRunning}
                         style={{
                             marginTop: 12, background: anyRunning ? '#d9e3de' : '#006a4d',
@@ -1271,6 +1292,20 @@ function GlobalCorpusTab() {
                 <div className="glass-panel" style={{ color: '#6b7f76' }}>Loading national intelligence...</div>
             ) : (
                 <>
+                    {actionNotice && (
+                        <div style={{
+                            border: `1px solid ${actionNotice.type === 'error' ? '#fecaca' : actionNotice.type === 'success' ? '#bbf7d0' : '#bfdbfe'}`,
+                            background: actionNotice.type === 'error' ? '#fef2f2' : actionNotice.type === 'success' ? '#f0fdf4' : '#eff6ff',
+                            color: actionNotice.type === 'error' ? '#991b1b' : actionNotice.type === 'success' ? '#166534' : '#1d4ed8',
+                            borderRadius: 12,
+                            padding: '10px 14px',
+                            fontSize: '0.82rem',
+                            fontWeight: 750,
+                        }}>
+                            {actionNotice.text}
+                        </div>
+                    )}
+
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
                         <SoftCard title="Parliament Questions" value={(totalQuestions || 0).toLocaleString()} detail={`${reg.done || 0} MPs refreshed, ${reg.pending || 0} pending`} tone="#006a4d" />
                         <SoftCard title="Ministry Answers" value={`${answerPct}%`} detail={`${(coverage.with_answers || 0).toLocaleString()} of ${(coverage.total || 0).toLocaleString()} questions have replies`} tone={answerPct >= 60 ? '#006a4d' : '#d97706'} />
@@ -1287,7 +1322,12 @@ function GlobalCorpusTab() {
                             <CoverageRow label="Parliament Questions" value={totalQuestions ? 'Available' : 'Not loaded'} hint="National question base across MPs" pct={totalQuestions ? 100 : 0} />
                             <CoverageRow label="Ministry Answers" value={`${answerPct}%`} hint="Full ministry replies available for question drafting and comparison" pct={answerPct} />
                             <CoverageRow label="Issue Categories" value={`${topicPct}%`} hint="Questions organized into useful public issue areas" pct={topicPct} />
-                            <CoverageRow label="Scheme Intelligence" value="Ready to update" hint="Scheme mentions can be refreshed from national question answers" pct={totalQuestions ? 65 : 0} />
+                            <CoverageRow
+                                label="Scheme Intelligence"
+                                value={totalQuestions ? 'Ready to update' : 'Needs questions first'}
+                                hint={totalQuestions ? 'Scheme mentions can be refreshed from national question answers' : 'Refresh national questions before updating scheme intelligence'}
+                                pct={totalQuestions ? 65 : 0}
+                            />
                         </div>
 
                         <div style={{
@@ -1300,7 +1340,7 @@ function GlobalCorpusTab() {
                                     title="Refresh national questions"
                                     detail="Bring in newer Parliament questions for MPs that have not been refreshed."
                                     button="Refresh"
-                                    onClick={() => trigger('/api/admin/brain/global-crawl', { limit: crawlLimit, include_failed: false })}
+                                    onClick={() => trigger('/api/admin/brain/global-crawl', { limit: crawlLimit, include_failed: false }, 'National questions refresh')}
                                     disabled={anyRunning}
                                 />
                                 <ActionCard
@@ -1308,7 +1348,7 @@ function GlobalCorpusTab() {
                                     detail="Fill missing ministry replies so recommendations and PQ drafts have stronger evidence."
                                     button="Complete"
                                     tone="#059669"
-                                    onClick={() => trigger('/api/admin/brain/global-fetch-answers', { limit: answerLimit, allow_ocr: false })}
+                                    onClick={() => trigger('/api/admin/brain/global-fetch-answers', { limit: answerLimit, allow_ocr: false }, 'Ministry answer completion')}
                                     disabled={anyRunning || !totalQuestions}
                                 />
                                 <ActionCard
@@ -1316,7 +1356,7 @@ function GlobalCorpusTab() {
                                     detail="Classify unanswered issue areas into a clean map of public concerns."
                                     button="Organize"
                                     tone="#2563eb"
-                                    onClick={() => trigger('/api/admin/brain/classify-topics', { limit: classifyLimit })}
+                                    onClick={() => trigger('/api/admin/brain/classify-topics', { limit: classifyLimit }, 'Issue organization')}
                                     disabled={anyRunning || !totalQuestions}
                                 />
                                 <ActionCard
@@ -1324,7 +1364,7 @@ function GlobalCorpusTab() {
                                     detail="Refresh scheme mentions discovered in Parliament answers."
                                     button="Update"
                                     tone="#b45309"
-                                    onClick={() => trigger('/api/admin/brain/scheme-extract', {})}
+                                    onClick={() => trigger('/api/admin/brain/scheme-extract', {}, 'Scheme intelligence update')}
                                     disabled={anyRunning || !totalQuestions}
                                 />
                             </div>
@@ -1388,7 +1428,7 @@ function GlobalCorpusTab() {
                                 <BtnRow
                                     label="Discover all MPs"
                                     desc="Refresh the national MP registry from source listings"
-                                    onClick={() => trigger('/api/admin/brain/global-discover')}
+                                    onClick={() => trigger('/api/admin/brain/global-discover', {}, 'MP registry refresh')}
                                     disabled={anyRunning}
                                 />
                                 <SeedPanel />
@@ -1413,7 +1453,7 @@ function GlobalCorpusTab() {
                                 <BtnRow
                                     label="Refresh national questions"
                                     desc="Bring in question records for MPs that need updates"
-                                    onClick={() => trigger('/api/admin/brain/global-crawl', { limit: crawlLimit, include_failed: includeFailedCrawl })}
+                                    onClick={() => trigger('/api/admin/brain/global-crawl', { limit: crawlLimit, include_failed: includeFailedCrawl }, 'National questions refresh')}
                                     accent="#7c3aed"
                                     disabled={anyRunning}
                                 />
@@ -1442,7 +1482,7 @@ function GlobalCorpusTab() {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                                         <RematchButton onDone={loadStats} />
                                         <button
-                                            onClick={() => trigger('/api/admin/brain/global-fetch-answers', { limit: answerLimit, allow_ocr: allowOcr })}
+                                            onClick={() => trigger('/api/admin/brain/global-fetch-answers', { limit: answerLimit, allow_ocr: allowOcr }, 'Ministry answer completion')}
                                             disabled={anyRunning}
                                             style={{
                                                 background: anyRunning ? '#374151' : '#059669',
@@ -1459,14 +1499,14 @@ function GlobalCorpusTab() {
                                 <BtnRow
                                     label="Organize issue categories"
                                     desc="Classify national questions into issue areas"
-                                    onClick={() => trigger('/api/admin/brain/classify-topics', { limit: classifyLimit })}
+                                    onClick={() => trigger('/api/admin/brain/classify-topics', { limit: classifyLimit }, 'Issue organization')}
                                     accent="#2563eb"
                                     disabled={anyRunning}
                                 />
                                 <BtnRow
                                     label="Update scheme intelligence"
                                     desc="Extract scheme mentions from national question answers"
-                                    onClick={() => trigger('/api/admin/brain/scheme-extract', {})}
+                                    onClick={() => trigger('/api/admin/brain/scheme-extract', {}, 'Scheme intelligence update')}
                                     accent="#b45309"
                                     disabled={anyRunning}
                                 />
@@ -1476,7 +1516,7 @@ function GlobalCorpusTab() {
                                 <BtnRow
                                     label="Improve search labels"
                                     desc="Generate richer issue tags for retrieval"
-                                    onClick={() => trigger('/api/admin/brain/global-tag', { limit: tagLimit })}
+                                    onClick={() => trigger('/api/admin/brain/global-tag', { limit: tagLimit }, 'Search label improvement')}
                                     accent="#0891b2"
                                     disabled={anyRunning}
                                 />
@@ -1493,7 +1533,7 @@ function GlobalCorpusTab() {
                                 <BtnRow
                                     label="Update search readiness"
                                     desc="Make refreshed national intelligence available to Copilot and Drafter"
-                                    onClick={() => trigger('/api/admin/brain/global-index', { only_with_answers: indexAnswersOnly, rebuild: indexRebuild })}
+                                    onClick={() => trigger('/api/admin/brain/global-index', { only_with_answers: indexAnswersOnly, rebuild: indexRebuild }, 'Search readiness update')}
                                     accent="#166534"
                                     disabled={anyRunning}
                                 />
