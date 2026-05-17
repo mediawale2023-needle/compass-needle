@@ -30,6 +30,7 @@ JWT_REFRESH_EXPIRE_DAYS = 7
 _KNOWN_FRONTENDS = [
     "https://compass-needle-production.up.railway.app",
     "https://admin-production.up.railway.app",
+    "https://needle-admin.up.railway.app",
 ]
 
 raw_origins = os.getenv("ALLOWED_ORIGINS", "")
