@@ -4162,6 +4162,14 @@ def trigger_government_intel_build(
     }
 
 
+@router.get("/brain/government-intel/status/{job_id}")
+def get_government_intel_status(job_id: str, user=Depends(get_admin_user)):
+    job = _global_crawl_jobs.get(job_id)
+    if not job or job.get("type") != "government_intel":
+        raise HTTPException(404, "Job not found or expired")
+    return job
+
+
 @router.post("/brain/global-rematch")
 def trigger_global_rematch(user=Depends(get_admin_user)):
     """

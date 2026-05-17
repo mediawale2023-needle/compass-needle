@@ -1058,6 +1058,8 @@ function GlobalCorpusTab() {
                 try {
                     const statusPath = jid.startsWith('classify_topics_')
                         ? `/api/admin/brain/classify-topics/status/${jid}`
+                        : jid.startsWith('government_intel_')
+                        ? `/api/admin/brain/government-intel/status/${jid}`
                         : `/api/admin/brain/global-crawl/status/${jid}`;
                     const j = await apiGet(statusPath);
                     setJobs(prev => ({ ...prev, [jid]: j }));
@@ -1401,7 +1403,7 @@ function GlobalCorpusTab() {
                                     button="Prepare"
                                     tone="#7c3aed"
                                     onClick={() => trigger('/api/admin/brain/government-intel/build', { limit: governmentIntelLimit, stale_only: false, rebuild: false }, 'Government Intel preparation')}
-                                    disabled={anyRunning || !totalQuestions || !classifiedTopics}
+                                    disabled={anyRunning || !totalQuestions}
                                 />
                             </div>
                         </div>
