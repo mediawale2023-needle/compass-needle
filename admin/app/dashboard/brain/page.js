@@ -363,19 +363,19 @@ export default function BrainPlaygroundPage() {
             {/* Header */}
             <div style={{ marginBottom: 28 }}>
                 <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0 }}>
-                    🧠 Brain Playground
+                    Intelligence Engine
                 </h1>
                 <p style={{ color: '#6b7280', fontSize: 13, margin: '6px 0 0' }}>
-                    Test semantic retrieval over memory_chunks — exactly what the Copilot and Drafter see.
+                    National intelligence, knowledge readiness, and AI diagnostics for Copilot and Drafter.
                 </p>
             </div>
 
             {/* Tabs */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
-                {TAB('playground', '🔍 Retrieval Playground')}
-                {TAB('stats', '📊 Memory Stats')}
-                {TAB('reindex', '⚙️ Re-index')}
-                {TAB('global', '🌐 Global Corpus')}
+                {TAB('playground', 'Retrieval Diagnostics')}
+                {TAB('stats', 'Memory Health')}
+                {TAB('reindex', 'Knowledge Refresh')}
+                {TAB('global', 'National Intelligence')}
             </div>
 
             {/* ── PLAYGROUND TAB ── */}
@@ -1014,6 +1014,7 @@ function GlobalCorpusTab() {
     const [indexAnswersOnly, setIndexAnswersOnly] = useState(false);
     const [indexRebuild, setIndexRebuild] = useState(false);
     const [allowOcr, setAllowOcr] = useState(false);
+    const [advancedOpen, setAdvancedOpen] = useState(false);
 
     const loadStats = useCallback(() => {
         setStatsLoading(true);
@@ -1099,469 +1100,409 @@ function GlobalCorpusTab() {
     const classifiedTopics = topicCoverage.classified || 0;
     const totalTopicRows = topicCoverage.total || 0;
     const topicPct = totalTopicRows ? Math.round((classifiedTopics / totalTopicRows) * 100) : 0;
+    const answerPct = coverage.pct_covered || 0;
+    const totalQuestions = pqs.total_questions || 0;
+    const corpusLabel = anyRunning
+        ? 'Refreshing'
+        : totalQuestions === 0
+        ? 'Needs Setup'
+        : answerPct < 50 || topicPct < 50
+        ? 'Needs Refresh'
+        : 'Ready';
+    const corpusTone = corpusLabel === 'Ready' ? '#006a4d' : corpusLabel === 'Refreshing' ? '#2563eb' : '#d97706';
 
-    return (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-
-            {/* Left: stats */}
-            <div>
-                <div style={{ color: '#6b7280', fontSize: 11, marginBottom: 10 }}>GLOBAL CORPUS STATUS</div>
-                {statsLoading ? (
-                    <div style={{ color: '#6b7280', fontSize: 13 }}>Loading…</div>
-                ) : (
-                    <>
-                        {/* Registry summary */}
-                        <div style={{
-                            background: '#111827', border: '1px solid #1f2937',
-                            borderRadius: 8, padding: 14, marginBottom: 12,
-                        }}>
-                            <div style={{ color: '#9ca3af', fontSize: 11, marginBottom: 8 }}>MP REGISTRY</div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
-                                {[
-                                    ['Total MPs', reg.total_mps ?? '—', '#e5e7eb'],
-                                    ['Crawled', reg.done ?? 0, '#22c55e'],
-                                    ['Pending', reg.pending ?? 0, '#f59e0b'],
-                                    ['Failed', reg.failed ?? 0, '#ef4444'],
-                                    ['Running', reg.running ?? 0, '#60a5fa'],
-                                ].map(([l, v, c]) => (
-                                    <div key={l} style={{
-                                        background: '#0d1117', borderRadius: 6,
-                                        padding: '8px 10px', textAlign: 'center',
-                                    }}>
-                                        <div style={{ color: c, fontSize: 20, fontWeight: 700 }}>{v}</div>
-                                        <div style={{ color: '#6b7280', fontSize: 10 }}>{l}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* PQ summary */}
-                        <div style={{
-                            background: '#111827', border: '1px solid #1f2937',
-                            borderRadius: 8, padding: 14, marginBottom: 12,
-                        }}>
-                            <div style={{ color: '#9ca3af', fontSize: 11, marginBottom: 8 }}>GLOBAL QUESTIONS</div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 10 }}>
-                                {[
-                                    ['Total PQs', (pqs.total_questions ?? 0).toLocaleString(), '#e5e7eb'],
-                                    ['Ministries', pqs.ministries ?? 0, '#60a5fa'],
-                                    ['LLM Tagged', (pqs.llm_tagged ?? 0).toLocaleString(), '#818cf8'],
-                                    ['Rule Tagged', (pqs.rule_tagged ?? 0).toLocaleString(), '#6b7280'],
-                                ].map(([l, v, c]) => (
-                                    <div key={l} style={{
-                                        background: '#0d1117', borderRadius: 6,
-                                        padding: '8px 10px', textAlign: 'center',
-                                    }}>
-                                        <div style={{ color: c, fontSize: 18, fontWeight: 700 }}>{v}</div>
-                                        <div style={{ color: '#6b7280', fontSize: 10 }}>{l}</div>
-                                    </div>
-                                ))}
-                            </div>
-                            {/* Answer coverage progress bar */}
-                            {(() => {
-                                const total   = coverage.total || 0;
-                                const withAns = coverage.with_answers || 0;
-                                const pct     = coverage.pct_covered || 0;
-                                const noMatch = coverage.no_match || 0;
-                                const failed  = coverage.failed || 0;
-                                const barW    = Math.round(pct);
-                                return (
-                                    <div style={{ padding: '4px 0' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                                            <span style={{ color: '#9ca3af', fontSize: 11 }}>Answer Coverage</span>
-                                            <span style={{ color: pct > 50 ? '#22c55e' : pct > 20 ? '#f59e0b' : '#ef4444', fontSize: 11, fontWeight: 700 }}>
-                                                {withAns.toLocaleString()} / {total.toLocaleString()} ({pct}%)
-                                            </span>
-                                        </div>
-                                        <div style={{ height: 6, background: '#1f2937', borderRadius: 3, overflow: 'hidden' }}>
-                                            <div style={{ width: `${barW}%`, height: '100%', background: pct > 50 ? '#22c55e' : pct > 20 ? '#f59e0b' : '#3b82f6', borderRadius: 3, transition: 'width 0.5s' }} />
-                                        </div>
-                                        {(noMatch > 0 || failed > 0) && (
-                                            <div style={{ color: '#6b7280', fontSize: 10, marginTop: 4 }}>
-                                                no_match: {noMatch.toLocaleString()}  |  failed: {failed.toLocaleString()}  |  with_pdf: {(coverage.with_pdf_url || 0).toLocaleString()}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })()}
-                        </div>
-
-                        <div style={{
-                            background: '#111827', border: '1px solid #1f2937',
-                            borderRadius: 8, padding: 14, marginBottom: 12,
-                        }}>
-                            <div style={{ color: '#9ca3af', fontSize: 11, marginBottom: 8 }}>SANSADAI DERIVATIVES</div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 10 }}>
-                                {[
-                                    ['Topics Classified', classifiedTopics.toLocaleString(), '#60a5fa'],
-                                    ['Pending Topic Classification', (topicCoverage.unclassified || 0).toLocaleString(), '#f59e0b'],
-                                    ['Distinct Topics In Use', (topicStats?.distinct_topics || 0).toLocaleString(), '#818cf8'],
-                                ].map(([l, v, c]) => (
-                                    <div key={l} style={{
-                                        background: '#0d1117', borderRadius: 6,
-                                        padding: '8px 10px', textAlign: 'center',
-                                    }}>
-                                        <div style={{ color: c, fontSize: 18, fontWeight: 700 }}>{v}</div>
-                                        <div style={{ color: '#6b7280', fontSize: 10 }}>{l}</div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div style={{ padding: '4px 0' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                                    <span style={{ color: '#9ca3af', fontSize: 11 }}>Government Intel Topic Coverage</span>
-                                    <span style={{ color: topicPct > 75 ? '#22c55e' : topicPct > 35 ? '#f59e0b' : '#ef4444', fontSize: 11, fontWeight: 700 }}>
-                                        {classifiedTopics.toLocaleString()} / {totalTopicRows.toLocaleString()} ({topicPct}%)
-                                    </span>
-                                </div>
-                                <div style={{ height: 6, background: '#1f2937', borderRadius: 3, overflow: 'hidden' }}>
-                                    <div style={{
-                                        width: `${topicPct}%`,
-                                        height: '100%',
-                                        background: topicPct > 75 ? '#22c55e' : topicPct > 35 ? '#f59e0b' : '#3b82f6',
-                                        borderRadius: 3,
-                                        transition: 'width 0.5s',
-                                    }} />
-                                </div>
-                                <div style={{ color: '#6b7280', fontSize: 10, marginTop: 4 }}>
-                                    Shared corpus powers both tabs: topic classification feeds Government Intel, scheme extraction feeds Schemes.
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Ministry breakdown */}
-                        {mins.length > 0 && (
-                            <div style={{
-                                background: '#111827', border: '1px solid #1f2937',
-                                borderRadius: 8, padding: 14,
-                            }}>
-                                <div style={{ color: '#9ca3af', fontSize: 11, marginBottom: 8 }}>TOP MINISTRIES</div>
-                                {mins.slice(0, 10).map((m, i) => {
-                                    const pct = pqs.total_questions
-                                        ? Math.round((m.total / pqs.total_questions) * 100) : 0;
-                                    return (
-                                        <div key={i} style={{ marginBottom: 6 }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                                                <span style={{ color: '#d1d5db', fontSize: 11 }}>
-                                                    {(m.ministry || '').slice(0, 35)}
-                                                </span>
-                                                <span style={{ color: '#6b7280', fontSize: 11 }}>
-                                                    {m.total} ({m.with_answers} ans)
-                                                </span>
-                                            </div>
-                                            <div style={{ height: 3, background: '#1f2937', borderRadius: 2 }}>
-                                                <div style={{
-                                                    width: `${pct}%`, height: '100%',
-                                                    background: '#3b82f6', borderRadius: 2,
-                                                }} />
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        <button
-                            onClick={refreshOverview}
-                            style={{
-                                marginTop: 12, background: 'none',
-                                border: '1px solid #374151', color: '#9ca3af',
-                                borderRadius: 6, padding: '6px 14px',
-                                fontSize: 12, cursor: 'pointer',
-                            }}
-                        >
-                            ↻ Refresh
-                        </button>
-                    </>
-                )}
-
-                {/* Running jobs */}
-                {Object.entries(jobs).length > 0 && (
-                    <div style={{ marginTop: 16 }}>
-                        <div style={{ color: '#6b7280', fontSize: 11, marginBottom: 8 }}>JOBS</div>
-                        {Object.entries(jobs).map(([jid, j]) => {
-                            const isWarning = j.status === 'warning';
-                            const bg    = j.status === 'done' ? '#1a2e1f'
-                                        : j.status === 'error' ? '#2d1f1f'
-                                        : isWarning ? '#2d2810'
-                                        : '#1f2937';
-                            const bdr   = j.status === 'done' ? '#22c55e44'
-                                        : j.status === 'error' ? '#ef444444'
-                                        : isWarning ? '#f59e0b44'
-                                        : '#374151';
-                            const clr   = j.status === 'done' ? '#22c55e'
-                                        : j.status === 'error' ? '#ef4444'
-                                        : isWarning ? '#f59e0b'
-                                        : '#60a5fa';
-                            const icon  = j.status === 'running' ? '⟳'
-                                        : j.status === 'done' ? '✓'
-                                        : isWarning ? '⚠' : '✗';
-                            return (
-                                <div key={jid} style={{
-                                    padding: '8px 12px', borderRadius: 6, marginBottom: 6,
-                                    background: bg, border: `1px solid ${bdr}`, fontSize: 12,
-                                }}>
-                                    <div style={{ color: clr, fontWeight: 600 }}>
-                                        {icon} {j.type || jid.split('_')[1]} — {j.status}
-                                        {j.status === 'running' && j.progress && j.progress.total > 0 && (
-                                            <span style={{ color: '#6b7280', fontWeight: 400, fontSize: 11, marginLeft: 8 }}>
-                                                {j.progress.done}/{j.progress.total} {j.progress.label}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {j.status === 'running' && j.progress && j.progress.total > 0 && (
-                                        <div style={{ margin: '5px 0 3px', height: 4, background: '#1f2937', borderRadius: 2, overflow: 'hidden' }}>
-                                            <div style={{
-                                                width: `${Math.round((j.progress.done / j.progress.total) * 100)}%`,
-                                                height: '100%', borderRadius: 2,
-                                                background: '#3b82f6',
-                                                transition: 'width 0.4s ease',
-                                            }} />
-                                        </div>
-                                    )}
-                                    {j.summary && (
-                                        <div style={{ color: '#9ca3af', marginTop: 4, fontSize: 11 }}>
-                                            {j.summary.discovered != null
-                                                ? `discovered: ${j.summary.discovered} MPs, new: ${j.summary.new}, pages: ${j.summary.pages_scanned}`
-                                                : j.summary.rows_updated != null
-                                                ? `PDFs: ${(j.summary.pdfs_processed||0) + (j.summary.pdfs_from_cache||0)} (${j.summary.pdfs_from_cache||0} cached) · rows updated: ${j.summary.rows_updated} · unmatched: ${j.summary.rows_unmatched} · failed: ${j.summary.pdfs_failed}`
-                                                : j.summary.crawled != null
-                                                ? `crawled: ${j.summary.crawled} MPs, Qs inserted: ${j.summary.inserted_total}`
-                                                : j.summary.chunks_inserted != null
-                                                ? `${j.summary.chunks_inserted} chunks inserted · ${j.summary.embeddings_made} embeddings · ${j.summary.chunks_new} new (${j.summary.chunks_proposed} proposed)`
-                                                : j.summary.classified != null
-                                                ? `classified: ${j.summary.classified} · skipped: ${j.summary.skipped ?? 0} · batches: ${j.summary.batches ?? 0}`
-                                                : j.summary.tagged != null
-                                                ? `tagged: ${j.summary.tagged} · batches: ${j.summary.batches} · skipped: ${j.summary.skipped}`
-                                                : j.summary.schemes_upserted != null
-                                                ? `${j.summary.mode || 'run'} · schemes upserted: ${j.summary.schemes_upserted} · subjects: ${j.summary.subjects_processed ?? 0} · rule: ${j.summary.rule_matched ?? 0} · gpt calls: ${j.summary.gpt_calls ?? 0}${j.summary.prs_schemes_stats?.total_schemes != null ? ` · total in DB: ${j.summary.prs_schemes_stats.total_schemes} (${j.summary.prs_schemes_stats.ministries} ministries)` : ''}`
-                                                : JSON.stringify(j.summary).slice(0, 120)
-                                            }
-                                        </div>
-                                    )}
-                                    {j.error && (
-                                        <div style={{
-                                            color: isWarning ? '#f59e0b' : '#ef4444',
-                                            marginTop: 4, lineHeight: 1.5,
-                                        }}>{j.error}</div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
+    const SoftCard = ({ title, value, detail, tone = '#006a4d' }) => (
+        <div style={{
+            background: '#fff', border: '1px solid #e2ebe5',
+            borderRadius: 12, padding: 16, boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+        }}>
+            <div style={{ color: '#6b7f76', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                {title}
             </div>
-
-            {/* Right: controls */}
-            <div>
-                <div style={{ color: '#6b7280', fontSize: 11, marginBottom: 10 }}>PIPELINE CONTROLS</div>
-                <div style={{
-                    marginBottom: 14, background: '#0d1117',
-                    border: '1px solid #1f2937', borderRadius: 8, padding: 14,
-                    fontSize: 12, color: '#9ca3af', lineHeight: 1.7,
-                }}>
-                    Populate the global parliamentary corpus once, then derive both SansadAI tabs from it.
-                    <br />
-                    <span style={{ color: '#6b7280' }}>
-                        Shared base: discover MPs → crawl PQs → fetch answers. Derived products: classify topics for Government Intel, extract schemes for Schemes.
-                    </span>
-                </div>
-
-                {/* Step 1 */}
-                <div style={{ color: '#4b5563', fontSize: 10, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>
-                    Step 1 — Discover MPs
-                </div>
-                <BtnRow
-                    label="Discover all MPs"
-                    desc="Crawl PRS listing pages to find all ~543 18th Lok Sabha MPs"
-                    onClick={() => trigger('/api/admin/brain/global-discover')}
-                    disabled={anyRunning}
-                />
-
-                {/* Fallback: seed from JSON if PRS requires JS rendering */}
-                <SeedPanel />
-
-                {/* Step 2 */}
-                <div style={{ color: '#4b5563', fontSize: 10, margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 1 }}>
-                    Step 2 — Crawl PQs
-                </div>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
-                    <label style={{ color: '#9ca3af', fontSize: 12 }}>
-                        Limit:&nbsp;
-                        <input
-                            type="number" min={1} max={543} value={crawlLimit}
-                            onChange={e => setCrawlLimit(Math.max(1, parseInt(e.target.value) || 50))}
-                            style={{
-                                background: '#1f2937', border: '1px solid #374151', color: '#e5e7eb',
-                                borderRadius: 4, padding: '3px 8px', fontSize: 12, width: 64,
-                            }}
-                        />
-                        &nbsp;MPs
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#9ca3af', fontSize: 12, cursor: 'pointer' }}>
-                        <input type="checkbox" checked={includeFailedCrawl} onChange={e => setIncludeFailedCrawl(e.target.checked)} style={{ accentColor: '#3b82f6' }} />
-                        Retry failed
-                    </label>
-                </div>
-                <BtnRow
-                    label="Crawl pending MPs"
-                    desc="Fetch PQs from PRS India for MPs not yet crawled"
-                    onClick={() => trigger('/api/admin/brain/global-crawl', { limit: crawlLimit, include_failed: includeFailedCrawl })}
-                    accent="#7c3aed"
-                    disabled={anyRunning}
-                />
-
-                {/* Step 2.5 — Fetch Answers */}
-                <div style={{ color: '#4b5563', fontSize: 10, margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 1 }}>
-                    Step 2.5 — Fetch Ministry Answers
-                </div>
-                <div style={{
-                    background: '#0d1117', border: '1px solid #1f2937',
-                    borderRadius: 8, padding: '10px 14px', marginBottom: 10,
-                }}>
-                    <div style={{ color: '#9ca3af', fontSize: 11, marginBottom: 8, lineHeight: 1.5 }}>
-                        Downloads ministry Q&amp;A PDFs from PRS India and extracts full question + answer text.
-                        Uses <strong style={{ color: '#e5e7eb' }}>shared PDF cache</strong> — PDFs already
-                        fetched for your MP's questions are served instantly without re-downloading.
-                        Runs pdfplumber (primary) + Gemini OCR fallback for scanned/Hindi PDFs.
-                    </div>
-                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
-                        <label style={{ color: '#9ca3af', fontSize: 12 }}>
-                            Batch:&nbsp;
-                            <input
-                                type="number" min={10} max={5000} value={answerLimit}
-                                onChange={e => setAnswerLimit(Math.max(10, parseInt(e.target.value) || 100))}
-                                style={{
-                                    background: '#1f2937', border: '1px solid #374151', color: '#e5e7eb',
-                                    borderRadius: 4, padding: '3px 8px', fontSize: 12, width: 72,
-                                }}
-                            />
-                            &nbsp;PDFs
-                        </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#9ca3af', fontSize: 12, cursor: 'pointer' }}>
-                            <input type="checkbox" checked={allowOcr} onChange={e => setAllowOcr(e.target.checked)} style={{ accentColor: '#f59e0b' }} />
-                            Gemini OCR&nbsp;<span style={{ color: '#6b7280', fontSize: 11 }}>(slow — for scanned PDFs)</span>
-                        </label>
-                        <span style={{ color: '#4b5563', fontSize: 11 }}>
-                            ~49K PQs → ~2K unique PDFs (session bundles)
-                        </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                        <RematchButton onDone={loadStats} />
-                        <button
-                            onClick={() => trigger('/api/admin/brain/global-fetch-answers', { limit: answerLimit, allow_ocr: allowOcr })}
-                            disabled={anyRunning}
-                            style={{
-                                background: anyRunning ? '#374151' : '#059669',
-                                color: '#fff', border: 'none', borderRadius: 6,
-                                padding: '7px 18px', fontSize: 12,
-                                cursor: anyRunning ? 'not-allowed' : 'pointer',
-                            }}
-                        >
-                            Fetch Answers
-                        </button>
-                    </div>
-                </div>
-
-                {/* Step 3 */}
-                <div style={{ color: '#4b5563', fontSize: 10, margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 1 }}>
-                    Step 3 — Derive Government Intel
-                </div>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
-                    <label style={{ color: '#9ca3af', fontSize: 12 }}>
-                        Limit:&nbsp;
-                        <input
-                            type="number" min={1} value={classifyLimit}
-                            onChange={e => setClassifyLimit(Math.max(1, parseInt(e.target.value) || 2000))}
-                            style={{
-                                background: '#1f2937', border: '1px solid #374151', color: '#e5e7eb',
-                                borderRadius: 4, padding: '3px 8px', fontSize: 12, width: 84,
-                            }}
-                        />
-                        &nbsp;questions
-                    </label>
-                </div>
-                <BtnRow
-                    label="Classify Topics"
-                    desc="Assign fixed issue topics to answered PQs so SansadAI Government Intel can group ministries by issue"
-                    onClick={() => trigger('/api/admin/brain/classify-topics', { limit: classifyLimit })}
-                    accent="#2563eb"
-                    disabled={anyRunning}
-                />
-
-                {/* Step 4 */}
-                <div style={{ color: '#4b5563', fontSize: 10, margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 1 }}>
-                    Step 4 — Derive Schemes
-                </div>
-                <BtnRow
-                    label="Build Scheme Index"
-                    desc="Extract government schemes from the same answered PQ corpus and power the SansadAI Schemes tab"
-                    onClick={() => trigger('/api/admin/brain/scheme-extract', {})}
-                    accent="#b45309"
-                    disabled={anyRunning}
-                />
-                <NormalizeMinistryBtn disabled={anyRunning} />
-                <DedupPanel disabled={anyRunning} />
-
-                {/* Step 5 */}
-                <div style={{ color: '#4b5563', fontSize: 10, margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 1 }}>
-                    Step 5 — Retrieval Enrichment (optional)
-                </div>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
-                    <label style={{ color: '#9ca3af', fontSize: 12 }}>
-                        Limit:&nbsp;
-                        <input
-                            type="number" min={1} value={tagLimit}
-                            onChange={e => setTagLimit(Math.max(1, parseInt(e.target.value) || 500))}
-                            style={{
-                                background: '#1f2937', border: '1px solid #374151', color: '#e5e7eb',
-                                borderRadius: 4, padding: '3px 8px', fontSize: 12, width: 72,
-                            }}
-                        />
-                        &nbsp;questions
-                    </label>
-                </div>
-                <BtnRow
-                    label="LLM tag questions"
-                    desc="Use GPT-4o-mini to generate richer topic tags for retrieval"
-                    onClick={() => trigger('/api/admin/brain/global-tag', { limit: tagLimit })}
-                    accent="#0891b2"
-                    disabled={anyRunning}
-                />
-
-                <div style={{ color: '#4b5563', fontSize: 10, margin: '14px 0 6px', textTransform: 'uppercase', letterSpacing: 1 }}>
-                    Step 5.5 — Embed into Brain
-                </div>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#9ca3af', fontSize: 12, cursor: 'pointer' }}>
-                        <input type="checkbox" checked={indexAnswersOnly} onChange={e => setIndexAnswersOnly(e.target.checked)} style={{ accentColor: '#3b82f6' }} />
-                        Only Q&amp;A with answers
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#9ca3af', fontSize: 12, cursor: 'pointer' }}>
-                        <input type="checkbox" checked={indexRebuild} onChange={e => setIndexRebuild(e.target.checked)} style={{ accentColor: '#ef4444' }} />
-                        Full rebuild
-                    </label>
-                </div>
-                <BtnRow
-                    label="Embed global PQs"
-                    desc="Index global_pq_qa chunks into memory_chunks for retrieval"
-                    onClick={() => trigger('/api/admin/brain/global-index', { only_with_answers: indexAnswersOnly, rebuild: indexRebuild })}
-                    accent="#166534"
-                    disabled={anyRunning}
-                />
-
-                <div style={{
-                    marginTop: 20, background: '#0d1117',
-                    border: '1px solid #1f2937', borderRadius: 8, padding: 14,
-                    fontSize: 12, color: '#6b7280', lineHeight: 1.7,
-                }}>
-                    <strong style={{ color: '#9ca3af' }}>How cross-MP retrieval works:</strong><br />
-                    After Step 4, any Copilot or Drafter query with <code>include_cross_mp=True</code> will retrieve
-                    global_pq_qa chunks alongside the tenant&apos;s own PQs. Each chunk is clearly attributed:
-                    <em style={{ color: '#818cf8' }}> &quot;[asked by Shri X (Party, Constituency)]&quot;</em>.<br /><br />
-                    The Drafter (PQ mode) automatically enables cross-MP retrieval to show the MP
-                    what has already been asked — and what the Ministry replied — before drafting a new question.
-                </div>
+            <div style={{ color: tone, fontSize: '1.45rem', fontWeight: 850, marginTop: 8, lineHeight: 1 }}>
+                {value}
+            </div>
+            <div style={{ color: '#6b7f76', fontSize: '0.76rem', marginTop: 8, lineHeight: 1.45 }}>
+                {detail}
             </div>
         </div>
     );
+
+    const CoverageRow = ({ label, value, hint, pct }) => {
+        const tone = pct >= 75 ? '#006a4d' : pct >= 40 ? '#d97706' : '#dc2626';
+        return (
+            <div style={{ padding: '12px 0', borderBottom: '1px solid #eef2ef' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
+                    <div>
+                        <div style={{ color: '#1a2e28', fontSize: '0.86rem', fontWeight: 800 }}>{label}</div>
+                        <div style={{ color: '#6b7f76', fontSize: '0.74rem', marginTop: 2 }}>{hint}</div>
+                    </div>
+                    <div style={{ color: tone, fontWeight: 850, fontSize: '0.9rem', whiteSpace: 'nowrap' }}>{value}</div>
+                </div>
+                {pct !== null && pct !== undefined && (
+                    <div style={{ height: 6, background: '#edf3ef', borderRadius: 99, overflow: 'hidden', marginTop: 10 }}>
+                        <div style={{ width: `${Math.min(100, Math.max(0, pct))}%`, height: '100%', background: tone, borderRadius: 99 }} />
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const ActionCard = ({ title, detail, button, onClick, tone = '#006a4d', disabled }) => (
+        <div style={{
+            background: '#fff', border: '1px solid #e2ebe5',
+            borderRadius: 12, padding: 14,
+            display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center',
+        }}>
+            <div>
+                <div style={{ color: '#1a2e28', fontWeight: 850, fontSize: '0.86rem' }}>{title}</div>
+                <div style={{ color: '#6b7f76', fontSize: '0.75rem', marginTop: 3, lineHeight: 1.45 }}>{detail}</div>
+            </div>
+            <button
+                onClick={onClick}
+                disabled={disabled}
+                style={{
+                    background: disabled ? '#d9e3de' : tone,
+                    color: '#fff', border: 'none', borderRadius: 9,
+                    padding: '8px 14px', fontSize: '0.76rem', fontWeight: 800,
+                    cursor: disabled ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
+                }}
+            >
+                {button}
+            </button>
+        </div>
+    );
+
+    const JobsPanel = () => Object.entries(jobs).length > 0 && (
+        <div style={{
+            background: '#fff', border: '1px solid #e2ebe5',
+            borderRadius: 12, padding: 16, boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+        }}>
+            <div style={{ color: '#1a2e28', fontSize: '0.9rem', fontWeight: 850, marginBottom: 10 }}>Refresh Activity</div>
+            {Object.entries(jobs).map(([jid, j]) => {
+                const isWarning = j.status === 'warning';
+                const color = j.status === 'done' ? '#006a4d'
+                    : j.status === 'error' ? '#dc2626'
+                    : isWarning ? '#d97706'
+                    : '#2563eb';
+                return (
+                    <div key={jid} style={{
+                        padding: '9px 0', borderTop: '1px solid #eef2ef',
+                        color: '#6b7f76', fontSize: '0.76rem',
+                    }}>
+                        <div style={{ color, fontWeight: 850, textTransform: 'capitalize' }}>
+                            {(j.type || jid.split('_')[1] || 'refresh').replace('_', ' ')} - {j.status}
+                            {j.status === 'running' && j.progress && j.progress.total > 0 && (
+                                <span style={{ color: '#6b7f76', fontWeight: 500, marginLeft: 8 }}>
+                                    {j.progress.done}/{j.progress.total} {j.progress.label}
+                                </span>
+                            )}
+                        </div>
+                        {j.status === 'running' && j.progress && j.progress.total > 0 && (
+                            <div style={{ marginTop: 6, height: 5, background: '#edf3ef', borderRadius: 99, overflow: 'hidden' }}>
+                                <div style={{
+                                    width: `${Math.round((j.progress.done / j.progress.total) * 100)}%`,
+                                    height: '100%', background: '#2563eb', borderRadius: 99,
+                                }} />
+                            </div>
+                        )}
+                        {j.summary && (
+                            <div style={{ marginTop: 4, lineHeight: 1.5 }}>
+                                {j.summary.rows_updated != null
+                                    ? `Ministry answers updated: ${j.summary.rows_updated}. PDFs processed: ${(j.summary.pdfs_processed || 0) + (j.summary.pdfs_from_cache || 0)}.`
+                                    : j.summary.crawled != null
+                                    ? `National questions refreshed for ${j.summary.crawled} MPs. New questions: ${j.summary.inserted_total || 0}.`
+                                    : j.summary.classified != null
+                                    ? `Issues organized: ${j.summary.classified}.`
+                                    : j.summary.chunks_inserted != null
+                                    ? `Search readiness updated with ${j.summary.chunks_inserted} entries.`
+                                    : j.summary.schemes_upserted != null
+                                    ? `Scheme intelligence updated: ${j.summary.schemes_upserted} schemes.`
+                                    : 'Refresh completed.'}
+                            </div>
+                        )}
+                        {j.error && <div style={{ marginTop: 4, color }}>{j.error}</div>}
+                    </div>
+                );
+            })}
+        </div>
+    );
+
+    return (
+        <div style={{ display: 'grid', gap: 18, color: '#1a2e28' }}>
+            <div style={{
+                background: '#fff', border: '1px solid #e2ebe5',
+                borderRadius: 14, padding: 22,
+                display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+            }}>
+                <div>
+                    <div style={{ color: '#006a4d', fontSize: '0.72rem', fontWeight: 850, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                        National Intelligence
+                    </div>
+                    <h2 style={{ margin: '7px 0 0', color: '#1a2e28', fontSize: '1.35rem', fontWeight: 900 }}>
+                        Shared Parliament and scheme intelligence
+                    </h2>
+                    <p style={{ margin: '7px 0 0', color: '#6b7f76', fontSize: '0.86rem', lineHeight: 1.55, maxWidth: 720 }}>
+                        The system tracks national Parliament questions, ministry replies, issue categories, and scheme signals so MPs can act with broader context.
+                    </p>
+                </div>
+                <div style={{ textAlign: 'right', minWidth: 180 }}>
+                    <div style={{ color: corpusTone, fontSize: '1.1rem', fontWeight: 900 }}>{corpusLabel}</div>
+                    <div style={{ marginTop: 5, color: '#6b7f76', fontSize: '0.74rem' }}>
+                        {anyRunning ? 'A refresh is currently running.' : totalQuestions ? `${totalQuestions.toLocaleString()} questions available` : 'No national questions loaded yet'}
+                    </div>
+                    <button
+                        onClick={() => trigger('/api/admin/brain/global-crawl', { limit: crawlLimit, include_failed: false })}
+                        disabled={anyRunning}
+                        style={{
+                            marginTop: 12, background: anyRunning ? '#d9e3de' : '#006a4d',
+                            color: '#fff', border: 'none', borderRadius: 10,
+                            padding: '9px 16px', fontSize: '0.82rem', fontWeight: 850,
+                            cursor: anyRunning ? 'not-allowed' : 'pointer',
+                        }}
+                    >
+                        Refresh Intelligence
+                    </button>
+                </div>
+            </div>
+
+            {statsLoading ? (
+                <div className="glass-panel" style={{ color: '#6b7f76' }}>Loading national intelligence...</div>
+            ) : (
+                <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+                        <SoftCard title="Parliament Questions" value={(totalQuestions || 0).toLocaleString()} detail={`${reg.done || 0} MPs refreshed, ${reg.pending || 0} pending`} tone="#006a4d" />
+                        <SoftCard title="Ministry Answers" value={`${answerPct}%`} detail={`${(coverage.with_answers || 0).toLocaleString()} of ${(coverage.total || 0).toLocaleString()} questions have replies`} tone={answerPct >= 60 ? '#006a4d' : '#d97706'} />
+                        <SoftCard title="Issue Categories" value={`${topicPct}%`} detail={`${classifiedTopics.toLocaleString()} questions organized for issue intelligence`} tone={topicPct >= 70 ? '#006a4d' : '#d97706'} />
+                        <SoftCard title="Active Ministries" value={pqs.ministries || 0} detail="Ministries represented in national question data" tone="#2563eb" />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                        <div style={{
+                            background: '#fff', border: '1px solid #e2ebe5',
+                            borderRadius: 12, padding: 18, boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                        }}>
+                            <h3 style={{ margin: 0, color: '#1a2e28', fontSize: '0.98rem', fontWeight: 900 }}>Intelligence Coverage</h3>
+                            <CoverageRow label="Parliament Questions" value={totalQuestions ? 'Available' : 'Not loaded'} hint="National question base across MPs" pct={totalQuestions ? 100 : 0} />
+                            <CoverageRow label="Ministry Answers" value={`${answerPct}%`} hint="Full ministry replies available for question drafting and comparison" pct={answerPct} />
+                            <CoverageRow label="Issue Categories" value={`${topicPct}%`} hint="Questions organized into useful public issue areas" pct={topicPct} />
+                            <CoverageRow label="Scheme Intelligence" value="Ready to update" hint="Scheme mentions can be refreshed from national question answers" pct={totalQuestions ? 65 : 0} />
+                        </div>
+
+                        <div style={{
+                            background: '#fff', border: '1px solid #e2ebe5',
+                            borderRadius: 12, padding: 18, boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                        }}>
+                            <h3 style={{ margin: 0, color: '#1a2e28', fontSize: '0.98rem', fontWeight: 900 }}>Recommended Actions</h3>
+                            <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+                                <ActionCard
+                                    title="Refresh national questions"
+                                    detail="Bring in newer Parliament questions for MPs that have not been refreshed."
+                                    button="Refresh"
+                                    onClick={() => trigger('/api/admin/brain/global-crawl', { limit: crawlLimit, include_failed: false })}
+                                    disabled={anyRunning}
+                                />
+                                <ActionCard
+                                    title="Complete ministry answers"
+                                    detail="Fill missing ministry replies so recommendations and PQ drafts have stronger evidence."
+                                    button="Complete"
+                                    tone="#059669"
+                                    onClick={() => trigger('/api/admin/brain/global-fetch-answers', { limit: answerLimit, allow_ocr: false })}
+                                    disabled={anyRunning || !totalQuestions}
+                                />
+                                <ActionCard
+                                    title="Organize national issues"
+                                    detail="Classify unanswered issue areas into a clean map of public concerns."
+                                    button="Organize"
+                                    tone="#2563eb"
+                                    onClick={() => trigger('/api/admin/brain/classify-topics', { limit: classifyLimit })}
+                                    disabled={anyRunning || !totalQuestions}
+                                />
+                                <ActionCard
+                                    title="Update scheme intelligence"
+                                    detail="Refresh scheme mentions discovered in Parliament answers."
+                                    button="Update"
+                                    tone="#b45309"
+                                    onClick={() => trigger('/api/admin/brain/scheme-extract', {})}
+                                    disabled={anyRunning || !totalQuestions}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: mins.length ? '1fr 1fr' : '1fr', gap: 16 }}>
+                        <JobsPanel />
+                        {mins.length > 0 && (
+                            <div style={{
+                                background: '#fff', border: '1px solid #e2ebe5',
+                                borderRadius: 12, padding: 18, boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                            }}>
+                                <h3 style={{ margin: 0, color: '#1a2e28', fontSize: '0.98rem', fontWeight: 900 }}>Ministry Signals</h3>
+                                <div style={{ marginTop: 12 }}>
+                                    {mins.slice(0, 8).map((m, i) => {
+                                        const pct = totalQuestions ? Math.round((m.total / totalQuestions) * 100) : 0;
+                                        return (
+                                            <div key={i} style={{ marginBottom: 10 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, marginBottom: 4 }}>
+                                                    <span style={{ color: '#1a2e28', fontSize: '0.78rem', fontWeight: 750 }}>{m.ministry || 'Unknown ministry'}</span>
+                                                    <span style={{ color: '#6b7f76', fontSize: '0.74rem' }}>{m.total} questions</span>
+                                                </div>
+                                                <div style={{ height: 5, background: '#edf3ef', borderRadius: 99, overflow: 'hidden' }}>
+                                                    <div style={{ width: `${pct}%`, height: '100%', background: '#006a4d', borderRadius: 99 }} />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div style={{
+                        background: '#fff', border: '1px solid #e2ebe5',
+                        borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                    }}>
+                        <button
+                            onClick={() => setAdvancedOpen(open => !open)}
+                            style={{
+                                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                background: '#f8faf9', border: 'none', borderBottom: advancedOpen ? '1px solid #e2ebe5' : 'none',
+                                padding: '13px 16px', cursor: 'pointer', color: '#1a2e28',
+                                fontWeight: 900, fontSize: '0.86rem',
+                            }}
+                        >
+                            Advanced Maintenance
+                            <span style={{ color: '#6b7f76', fontWeight: 700 }}>{advancedOpen ? 'Hide' : 'Show'}</span>
+                        </button>
+                        {advancedOpen && (
+                            <div style={{ padding: 16, background: '#111827' }}>
+                                <div style={{
+                                    marginBottom: 14, background: '#0d1117',
+                                    border: '1px solid #1f2937', borderRadius: 8, padding: 14,
+                                    fontSize: 12, color: '#9ca3af', lineHeight: 1.7,
+                                }}>
+                                    These controls operate the underlying data maintenance jobs. Use them when the simple actions above are not enough.
+                                </div>
+
+                                <BtnRow
+                                    label="Discover all MPs"
+                                    desc="Refresh the national MP registry from source listings"
+                                    onClick={() => trigger('/api/admin/brain/global-discover')}
+                                    disabled={anyRunning}
+                                />
+                                <SeedPanel />
+
+                                <div style={{ display: 'flex', gap: 12, alignItems: 'center', margin: '14px 0 8px', flexWrap: 'wrap' }}>
+                                    <label style={{ color: '#9ca3af', fontSize: 12 }}>
+                                        Question refresh limit:&nbsp;
+                                        <input
+                                            type="number" min={1} max={543} value={crawlLimit}
+                                            onChange={e => setCrawlLimit(Math.max(1, parseInt(e.target.value) || 50))}
+                                            style={{
+                                                background: '#1f2937', border: '1px solid #374151', color: '#e5e7eb',
+                                                borderRadius: 4, padding: '3px 8px', fontSize: 12, width: 64,
+                                            }}
+                                        />
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#9ca3af', fontSize: 12, cursor: 'pointer' }}>
+                                        <input type="checkbox" checked={includeFailedCrawl} onChange={e => setIncludeFailedCrawl(e.target.checked)} style={{ accentColor: '#3b82f6' }} />
+                                        Include failed records
+                                    </label>
+                                </div>
+                                <BtnRow
+                                    label="Refresh national questions"
+                                    desc="Bring in question records for MPs that need updates"
+                                    onClick={() => trigger('/api/admin/brain/global-crawl', { limit: crawlLimit, include_failed: includeFailedCrawl })}
+                                    accent="#7c3aed"
+                                    disabled={anyRunning}
+                                />
+
+                                <div style={{
+                                    background: '#0d1117', border: '1px solid #1f2937',
+                                    borderRadius: 8, padding: '10px 14px', marginBottom: 10,
+                                }}>
+                                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                                        <label style={{ color: '#9ca3af', fontSize: 12 }}>
+                                            Answer batch:&nbsp;
+                                            <input
+                                                type="number" min={10} max={5000} value={answerLimit}
+                                                onChange={e => setAnswerLimit(Math.max(10, parseInt(e.target.value) || 100))}
+                                                style={{
+                                                    background: '#1f2937', border: '1px solid #374151', color: '#e5e7eb',
+                                                    borderRadius: 4, padding: '3px 8px', fontSize: 12, width: 72,
+                                                }}
+                                            />
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#9ca3af', fontSize: 12, cursor: 'pointer' }}>
+                                            <input type="checkbox" checked={allowOcr} onChange={e => setAllowOcr(e.target.checked)} style={{ accentColor: '#f59e0b' }} />
+                                            Use OCR for scanned PDFs
+                                        </label>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                                        <RematchButton onDone={loadStats} />
+                                        <button
+                                            onClick={() => trigger('/api/admin/brain/global-fetch-answers', { limit: answerLimit, allow_ocr: allowOcr })}
+                                            disabled={anyRunning}
+                                            style={{
+                                                background: anyRunning ? '#374151' : '#059669',
+                                                color: '#fff', border: 'none', borderRadius: 6,
+                                                padding: '7px 18px', fontSize: 12,
+                                                cursor: anyRunning ? 'not-allowed' : 'pointer',
+                                            }}
+                                        >
+                                            Complete Ministry Answers
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <BtnRow
+                                    label="Organize issue categories"
+                                    desc="Classify national questions into issue areas"
+                                    onClick={() => trigger('/api/admin/brain/classify-topics', { limit: classifyLimit })}
+                                    accent="#2563eb"
+                                    disabled={anyRunning}
+                                />
+                                <BtnRow
+                                    label="Update scheme intelligence"
+                                    desc="Extract scheme mentions from national question answers"
+                                    onClick={() => trigger('/api/admin/brain/scheme-extract', {})}
+                                    accent="#b45309"
+                                    disabled={anyRunning}
+                                />
+                                <NormalizeMinistryBtn disabled={anyRunning} />
+                                <DedupPanel disabled={anyRunning} />
+
+                                <BtnRow
+                                    label="Improve search labels"
+                                    desc="Generate richer issue tags for retrieval"
+                                    onClick={() => trigger('/api/admin/brain/global-tag', { limit: tagLimit })}
+                                    accent="#0891b2"
+                                    disabled={anyRunning}
+                                />
+                                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#9ca3af', fontSize: 12, cursor: 'pointer' }}>
+                                        <input type="checkbox" checked={indexAnswersOnly} onChange={e => setIndexAnswersOnly(e.target.checked)} style={{ accentColor: '#3b82f6' }} />
+                                        Only records with answers
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#9ca3af', fontSize: 12, cursor: 'pointer' }}>
+                                        <input type="checkbox" checked={indexRebuild} onChange={e => setIndexRebuild(e.target.checked)} style={{ accentColor: '#ef4444' }} />
+                                        Repair from scratch
+                                    </label>
+                                </div>
+                                <BtnRow
+                                    label="Update search readiness"
+                                    desc="Make refreshed national intelligence available to Copilot and Drafter"
+                                    onClick={() => trigger('/api/admin/brain/global-index', { only_with_answers: indexAnswersOnly, rebuild: indexRebuild })}
+                                    accent="#166534"
+                                    disabled={anyRunning}
+                                />
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+
 }

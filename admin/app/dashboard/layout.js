@@ -21,7 +21,7 @@ const PAGE_TITLES = {
     '/dashboard/knowledge': { title: 'Knowledge Sync', desc: 'Unified control plane for constituency profiles, parliament records, answer coverage, and brain indexing' },
     '/dashboard/constituency': { title: 'Constituency Intelligence', desc: 'Deep political, demographic, economic and cultural profiles for each constituency' },
     '/dashboard/parliament-sync': { title: 'Parliament Sync', desc: 'Map subscribed MPs to their sansad.in member ID and manage 18th Lok Sabha data sync' },
-    '/dashboard/brain': { title: 'Brain Playground', desc: 'Test semantic retrieval over memory_chunks — exactly what Copilot and Drafter see' },
+    '/dashboard/brain': { title: 'Intelligence Engine', desc: 'National intelligence, knowledge readiness, and AI diagnostics' },
 };
 
 export default function DashboardLayout({ children }) {

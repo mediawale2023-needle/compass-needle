@@ -144,7 +144,7 @@ const NAV_GROUPS = [
     {
         label: 'AI Brain',
         items: [
-            { href: '/dashboard/brain', label: 'Brain Playground', Icon: Icons.Brain },
+            { href: '/dashboard/brain', label: 'Intelligence Engine', Icon: Icons.Brain },
         ],
     },
     {
