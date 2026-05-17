@@ -345,7 +345,8 @@ export default function BrainPlaygroundPage() {
     const [searching, setSearching] = useState(false);
     const [error, setError] = useState('');
 
-    const [activeTab, setActiveTab] = useState('playground'); // playground | stats | reindex
+    const [activeTab, setActiveTab] = useState('reindex'); // reindex | global | diagnostics
+    const [diagnosticsTab, setDiagnosticsTab] = useState('playground'); // playground | stats
 
     const loadStats = useCallback(() => {
         setStatsLoading(true);
@@ -398,11 +399,28 @@ export default function BrainPlaygroundPage() {
             key={id}
             onClick={() => setActiveTab(id)}
             style={{
-                background: activeTab === id ? '#1e40af' : 'transparent',
-                color: activeTab === id ? '#fff' : '#9ca3af',
-                border: activeTab === id ? '1px solid #3b82f6' : '1px solid transparent',
-                borderRadius: 6, padding: '6px 16px', fontSize: 13,
-                cursor: 'pointer', fontWeight: activeTab === id ? 600 : 400,
+                background: activeTab === id ? '#fff' : 'transparent',
+                color: activeTab === id ? '#006a4d' : '#6b7f76',
+                border: activeTab === id ? '1px solid #e2ebe5' : '1px solid transparent',
+                boxShadow: activeTab === id ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                borderRadius: 8, padding: '8px 16px', fontSize: 13,
+                cursor: 'pointer', fontWeight: activeTab === id ? 750 : 600,
+            }}
+        >
+            {label}
+        </button>
+    );
+
+    const DIAG_TAB = (id, label) => (
+        <button
+            key={id}
+            onClick={() => setDiagnosticsTab(id)}
+            style={{
+                background: diagnosticsTab === id ? '#1a2e28' : '#f0f4f2',
+                color: diagnosticsTab === id ? '#fff' : '#4a635a',
+                border: diagnosticsTab === id ? '1px solid #1a2e28' : '1px solid #e2ebe5',
+                borderRadius: 8, padding: '7px 13px', fontSize: 12,
+                cursor: 'pointer', fontWeight: 750,
             }}
         >
             {label}
@@ -412,26 +430,61 @@ export default function BrainPlaygroundPage() {
     return (
         <div style={{ padding: 32, maxWidth: 1100, margin: '0 auto', fontFamily: 'system-ui, sans-serif' }}>
             {/* Header */}
-            <div style={{ marginBottom: 28 }}>
-                <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0 }}>
+            <div style={{ marginBottom: 24 }}>
+                <h1 style={{ color: '#1a2e28', fontSize: 22, fontWeight: 750, margin: 0 }}>
                     Intelligence Engine
                 </h1>
-                <p style={{ color: '#6b7280', fontSize: 13, margin: '6px 0 0' }}>
-                    National intelligence, knowledge readiness, and AI diagnostics for Copilot and Drafter.
+                <p style={{ color: '#6b7f76', fontSize: 13, margin: '6px 0 0' }}>
+                    Keep shared knowledge fresh for Copilot, Drafter, and national intelligence workflows.
                 </p>
             </div>
 
             {/* Tabs */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
-                {TAB('playground', 'Retrieval Diagnostics')}
-                {TAB('stats', 'Memory Health')}
+            <div style={{
+                display: 'flex', gap: 4, marginBottom: 24, flexWrap: 'wrap',
+                background: '#f0f4f2', border: '1px solid #e2ebe5',
+                borderRadius: 10, padding: 4, width: 'fit-content',
+            }}>
                 {TAB('reindex', 'Knowledge Refresh')}
                 {TAB('global', 'National Intelligence')}
+                {TAB('diagnostics', 'Diagnostics')}
             </div>
 
             {/* ── PLAYGROUND TAB ── */}
-            {activeTab === 'playground' && (
+            {activeTab === 'diagnostics' && (
                 <div>
+                    <div style={{
+                        background: '#fff', border: '1px solid #e2ebe5',
+                        borderRadius: 14, padding: 18, marginBottom: 18,
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                    }}>
+                        <div style={{
+                            display: 'flex', justifyContent: 'space-between', gap: 14,
+                            alignItems: 'flex-start', flexWrap: 'wrap',
+                        }}>
+                            <div>
+                                <div style={{
+                                    color: '#4a635a', fontSize: '0.7rem', fontWeight: 850,
+                                    textTransform: 'uppercase', letterSpacing: '0.12em',
+                                }}>
+                                    Advanced Tools
+                                </div>
+                                <h2 style={{ margin: '6px 0 0', color: '#1a2e28', fontSize: '1.12rem', fontWeight: 900 }}>
+                                    Diagnostics
+                                </h2>
+                                <p style={{ margin: '5px 0 0', color: '#6b7f76', fontSize: '0.82rem', lineHeight: 1.5, maxWidth: 650 }}>
+                                    Use these when answers look weak, sources seem missing, or a refresh needs verification.
+                                </p>
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                {DIAG_TAB('playground', 'Retrieval Test')}
+                                {DIAG_TAB('stats', 'Memory Health')}
+                            </div>
+                        </div>
+                    </div>
+
+                    {diagnosticsTab === 'playground' && (
+                    <>
                     {/* Query input */}
                     <div style={{
                         background: '#111827', border: '1px solid #1f2937',
@@ -610,11 +663,11 @@ export default function BrainPlaygroundPage() {
                             ))}
                         </div>
                     )}
-                </div>
-            )}
+                    </>
+                    )}
 
             {/* ── STATS TAB ── */}
-            {activeTab === 'stats' && (
+            {diagnosticsTab === 'stats' && (
                 <div>
                     <StatsPanel stats={stats} loading={statsLoading} />
                     {stats && stats.per_tenant && stats.per_tenant.length > 0 && (
@@ -659,6 +712,8 @@ export default function BrainPlaygroundPage() {
                     >
                         ↻ Refresh
                     </button>
+                </div>
+            )}
                 </div>
             )}
 
