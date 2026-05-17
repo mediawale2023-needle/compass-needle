@@ -526,7 +526,8 @@ def _fetch_ministry_answer_rows(ministry: str, exclude_scheme_mentions: bool = F
         with engine.connect() as conn:
             rows = conn.execute(text("""
                 SELECT id, subject, answer_text, date_asked, question_type,
-                       session_name, question_number, mp_name, prs_url,
+                       session_name, question_number, NULL::text AS mp_name,
+                       prs_slug AS prs_url,
                        topic, topic_tags, TRIM(ministry) AS ministry
                 FROM global_parliamentary_questions
                 WHERE answer_text IS NOT NULL AND answer_text != ''
@@ -785,7 +786,8 @@ def _issue_groups(exclude_scheme_mentions: bool = True) -> list[dict]:
         with engine.connect() as conn:
             rows = conn.execute(text("""
                 SELECT id, subject, answer_text, date_asked, question_type,
-                       session_name, question_number, mp_name, prs_url,
+                       session_name, question_number, NULL::text AS mp_name,
+                       prs_slug AS prs_url,
                        topic, topic_tags, TRIM(ministry) AS ministry
                 FROM global_parliamentary_questions gpq
                 WHERE gpq.answer_text IS NOT NULL AND gpq.answer_text != ''
@@ -942,7 +944,8 @@ def _fetch_issue_answers_by_ids(pq_ids: list[int], state: str) -> dict:
         with engine.connect() as conn:
             rows = conn.execute(text("""
                 SELECT id, subject, answer_text, date_asked, question_type,
-                       session_name, question_number, mp_name, prs_url,
+                       session_name, question_number, NULL::text AS mp_name,
+                       prs_slug AS prs_url,
                        topic, topic_tags, TRIM(ministry) AS ministry
                 FROM global_parliamentary_questions
                 WHERE id = ANY(:ids)
