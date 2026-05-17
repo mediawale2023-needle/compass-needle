@@ -784,8 +784,9 @@ def _non_scheme_issue_groups() -> list[dict]:
     try:
         with engine.connect() as conn:
             rows = conn.execute(text("""
-                SELECT id, TRIM(ministry) AS ministry, subject, topic,
-                       topic_tags, date_asked
+                SELECT id, subject, answer_text, date_asked, question_type,
+                       session_name, question_number, mp_name, prs_url,
+                       topic, topic_tags, TRIM(ministry) AS ministry
                 FROM global_parliamentary_questions gpq
                 WHERE gpq.answer_text IS NOT NULL AND gpq.answer_text != ''
                   AND gpq.ministry IS NOT NULL AND gpq.ministry != ''
@@ -811,9 +812,11 @@ def _non_scheme_issue_groups() -> list[dict]:
             "pq_count": 0,
             "latest_activity": None,
             "pq_ids": [],
+            "rows": [],
         })
         entry["pq_count"] += 1
         entry["pq_ids"].append(int(row["id"]))
+        entry["rows"].append(dict(row))
         if row.get("date_asked") and (
             entry["latest_activity"] is None or row["date_asked"] > entry["latest_activity"]
         ):
@@ -879,6 +882,39 @@ def get_issue_intelligence_build_stats(state: str = "") -> dict:
     return totals
 
 
+def _answer_bundle_from_rows(rows: list[dict], state: str) -> dict:
+    if not rows:
+        return {"state_answers": [], "issue_answers": []}
+
+    ordered = sorted(
+        rows,
+        key=lambda row: _date_sort_value(row.get("date_asked")),
+        reverse=True,
+    )
+    state_answers: list[dict] = []
+    seen_state: set[int] = set()
+    if state:
+        state_lc = state.lower()
+        state_rows = [
+            row for row in ordered
+            if state_lc in (row.get("answer_text") or "").lower()
+        ][:6]
+        state_answers = _rows_to_answer_dicts(state_rows, seen_state)
+
+    seen_issue: set[int] = set()
+    issue_answers = _rows_to_answer_dicts(ordered[:14], seen_issue)
+    if len(issue_answers) < min(14, len(ordered)):
+        longest_rows = sorted(ordered, key=lambda row: len(row.get("answer_text") or ""), reverse=True)
+        issue_answers.extend(_rows_to_answer_dicts(longest_rows[:14], seen_issue))
+
+    issue_answers = sorted(
+        issue_answers,
+        key=lambda row: row.get("date_asked") or "",
+        reverse=True,
+    )[:14]
+    return {"state_answers": state_answers, "issue_answers": issue_answers}
+
+
 def _fetch_issue_answers_by_ids(pq_ids: list[int], state: str) -> dict:
     if not pq_ids:
         return {"state_answers": [], "issue_answers": []}
@@ -899,28 +935,15 @@ def _fetch_issue_answers_by_ids(pq_ids: list[int], state: str) -> dict:
         logger.error("_fetch_issue_answers_by_ids failed: %s", e)
         return {"state_answers": [], "issue_answers": []}
 
-    state_answers: list[dict] = []
-    seen_state: set[int] = set()
-    if state:
-        state_lc = state.lower()
-        state_rows = [
-            row for row in rows
-            if state_lc in (row.get("answer_text") or "").lower()
-        ][:6]
-        state_answers = _rows_to_answer_dicts(state_rows, seen_state)
+    return _answer_bundle_from_rows(rows, state)
 
-    seen_issue: set[int] = set()
-    issue_answers = _rows_to_answer_dicts(rows[:14], seen_issue)
-    if len(issue_answers) < min(14, len(rows)):
-        longest_rows = sorted(rows, key=lambda row: len(row.get("answer_text") or ""), reverse=True)
-        issue_answers.extend(_rows_to_answer_dicts(longest_rows[:14], seen_issue))
 
-    issue_answers = sorted(
-        issue_answers,
-        key=lambda row: row.get("date_asked") or "",
-        reverse=True,
-    )[:14]
-    return {"state_answers": state_answers, "issue_answers": issue_answers}
+def _strip_group_rows(group: dict) -> dict:
+    return {
+        key: value
+        for key, value in group.items()
+        if key not in {"rows", "pq_ids"}
+    }
 
 
 def generate_issue_intelligence_now(
@@ -930,8 +953,11 @@ def generate_issue_intelligence_now(
     *,
     exclude_scheme_mentions: bool = True,
     pq_ids: Optional[list[int]] = None,
+    answer_rows: Optional[list[dict]] = None,
 ) -> dict:
-    if pq_ids:
+    if answer_rows:
+        bundle = _answer_bundle_from_rows(answer_rows, state)
+    elif pq_ids:
         bundle = _fetch_issue_answers_by_ids(pq_ids, state)
     else:
         bundle = _fetch_issue_answers(
@@ -1024,6 +1050,7 @@ def build_issue_intelligence_batch(
                 state,
                 exclude_scheme_mentions=True,
                 pq_ids=group.get("pq_ids") or [],
+                answer_rows=group.get("rows") or [],
             )
             if result["status"] == "generated":
                 generated += 1
@@ -1064,6 +1091,7 @@ def build_issue_intelligence_batch(
         "remaining": max(0, len(candidates) - len(selected)),
         "state": state or None,
         "processed": processed[:20],
+        "next_candidates": [_strip_group_rows(group) for group in candidates[limit:limit + 10]],
     }
 
 
