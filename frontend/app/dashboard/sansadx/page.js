@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { apiGet, apiPost, apiPatch, apiDelete, apiBlob } from '@/lib/api';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/toast';
-import { X, Loader2, AlertTriangle, CheckCircle, Download, User, Tag, FileText, Send, Mail, Shield } from 'lucide-react';
+import { X, Loader2, AlertTriangle, CheckCircle, Download, User, Tag, FileText, Send, Shield } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -213,7 +213,6 @@ function EscalationModal({ caseItem, color, open, onClose, toast }) {
     const [letterContent, setLetterContent] = useState('');
     const [escalations, setEscalations] = useState([]);
     const [submitting, setSubmitting] = useState(false);
-    const [sendingEmail, setSendingEmail] = useState(null);
     const [loadingOfficers, setLoadingOfficers] = useState(false);
 
     useEffect(() => {
@@ -274,20 +273,6 @@ MP Office`);
             toast.error('Failed to escalate: ' + (err.message || 'Unknown error'));
         } finally {
             setSubmitting(false);
-        }
-    };
-
-    const handleSendEmail = async (escalationId) => {
-        setSendingEmail(escalationId);
-        try {
-            await apiPost(`/api/escalations/${escalationId}/send`);
-            toast.success('Email sent to officer');
-            const eData = await apiGet(`/api/escalations?case_id=${caseItem.id}`).catch(() => ({ escalations: [] }));
-            setEscalations(eData.escalations || []);
-        } catch (err) {
-            toast.error('Failed to send email: ' + (err.message || 'Unknown error'));
-        } finally {
-            setSendingEmail(null);
         }
     };
 
@@ -360,27 +345,17 @@ MP Office`);
                                                     <span className="text-sm font-medium">{esc.officer_name || 'Officer'}</span>
                                                     {esc.designation && <span className="text-xs text-muted-foreground ml-2">{esc.designation}</span>}
                                                 </div>
-                                                <Badge variant={esc.email_sent ? 'default' : 'outline'} className="text-[10px]">
-                                                    {esc.email_sent ? '✓ Email Sent' : 'Not Sent'}
+                                                <Badge variant="outline" className="text-[10px]">
+                                                    Escalated
                                                 </Badge>
                                             </div>
                                             {esc.deadline && (
                                                 <p className="text-xs text-muted-foreground">Deadline: {new Date(esc.deadline).toLocaleDateString('en-IN')}</p>
                                             )}
-                                            {!esc.email_sent && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="border-blue-200 text-blue-700 hover:bg-blue-50"
-                                                    disabled={sendingEmail === esc.id}
-                                                    onClick={() => handleSendEmail(esc.id)}
-                                                >
-                                                    {sendingEmail === esc.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Mail className="h-3 w-3 mr-1" />}
-                                                    Send Email to Officer
-                                                </Button>
-                                            )}
-                                            {esc.email_sent && esc.email_sent_at && (
-                                                <p className="text-xs text-emerald-600">Sent on {new Date(esc.email_sent_at).toLocaleString('en-IN')}</p>
+                                            {esc.created_at && (
+                                                <p className="text-xs text-muted-foreground">
+                                                    Recorded on {new Date(esc.created_at).toLocaleString('en-IN')}
+                                                </p>
                                             )}
                                         </div>
                                     ))}

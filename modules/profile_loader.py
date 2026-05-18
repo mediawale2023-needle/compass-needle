@@ -6,34 +6,53 @@ load_tenant_profile(tenant_id) instead of reading tenant_profile.json directly.
 """
 import json
 import os
-import streamlit as st
+
+
+class _SessionState:
+    @staticmethod
+    def get(_key, default=None):
+        return default
+
+
+st = type("_StubSt", (), {"session_state": _SessionState()})()
 
 
 def _load_from_db(tenant_id):
     """Query tenant_profiles table for the given tenant_id."""
     try:
-        from db import SessionLocal, TenantProfile
-        db = SessionLocal()
-        try:
-            row = db.query(TenantProfile).filter(
-                TenantProfile.tenant_id == tenant_id
-            ).first()
-            if row:
-                extra = row.profile_data or {}
-                return {
-                    "mp_name": row.mp_name or "",
-                    "constituency": row.constituency or "",
-                    "state": row.state or "",
-                    "house": row.house or "Lok Sabha",
-                    "party": row.party or "Independent",
-                    "key_facts": extra.get("key_facts", []),
-                    "languages": extra.get("languages", ["English", "Hindi"]),
-                    "vocabulary_guide": extra.get("vocabulary_guide", {}),
-                    "sovereignty_rules": extra.get("sovereignty_rules", ""),
-                    "alt_names": extra.get("alt_names", []),
-                }
-        finally:
-            db.close()
+        from core.db_helpers import _q_one, _parse_meta
+
+        row = _q_one(
+            """
+            SELECT
+                t.name AS tenant_name,
+                t.constituency AS tenant_constituency,
+                tp.mp_name,
+                tp.constituency,
+                tp.state,
+                tp.house,
+                tp.party,
+                tp.profile_data
+            FROM tenants t
+            LEFT JOIN tenant_profiles tp ON tp.tenant_id = t.id
+            WHERE t.id = :tid
+            """,
+            {"tid": tenant_id},
+        )
+        if row:
+            extra = _parse_meta(row.get("profile_data")) or {}
+            return {
+                "mp_name": row.get("mp_name") or row.get("tenant_name") or "",
+                "constituency": row.get("constituency") or row.get("tenant_constituency") or "",
+                "state": row.get("state") or "",
+                "house": row.get("house") or "Lok Sabha",
+                "party": row.get("party") or "Independent",
+                "key_facts": extra.get("key_facts", []),
+                "languages": extra.get("languages", ["English", "Hindi"]),
+                "vocabulary_guide": extra.get("vocabulary_guide", {}),
+                "sovereignty_rules": extra.get("sovereignty_rules", ""),
+                "alt_names": extra.get("alt_names", []),
+            }
     except Exception:
         pass
     return None

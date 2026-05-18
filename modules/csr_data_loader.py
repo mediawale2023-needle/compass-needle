@@ -8,9 +8,13 @@ Called once from main.py on startup — safe to run repeatedly (upsert logic).
 import json
 import re
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger("needle.csr_data_loader")
+
+
+def _utcnow():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 # ─────────────────────────────────────────
@@ -156,7 +160,7 @@ def seed_csr_companies():
             records.append(r)
 
     logger.info(f"Seeding {len(records)} CSR companies (from {len(all_raw)} raw records)…")
-    now = datetime.utcnow()
+    now = _utcnow()
     inserted = updated = skipped = 0
 
     for r in records:

@@ -11,12 +11,17 @@ import hashlib
 import logging
 import threading
 import sentry_sdk
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, PlainTextResponse
 from sqlalchemy import text
 import requests as http_requests
+
+
+def _utcnow():
+    """Naive UTC timestamp for DB compatibility without deprecated utcnow()."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 # ─────────────────────────────────────────
 # SECURITY CONFIG (optional — soft import)
@@ -325,7 +330,7 @@ except Exception as e:
 # Meta never retries messages older than a few hours; 30 days is very conservative.
 try:
     with engine.begin() as conn:
-        _dedup_cutoff = datetime.utcnow() - timedelta(days=30)
+        _dedup_cutoff = _utcnow() - timedelta(days=30)
         _dedup_del = conn.execute(
             text("DELETE FROM wa_message_dedup WHERE processed_at < :cutoff"),
             {"cutoff": _dedup_cutoff},
@@ -2897,7 +2902,7 @@ except Exception as _contact_exc:
 # deletes rows that are guaranteed to have expired JWTs by now.
 try:
     with engine.begin() as conn:
-        cutoff = datetime.utcnow() - timedelta(hours=9)  # 1h buffer beyond JWT_EXPIRE_HOURS=8
+        cutoff = _utcnow() - timedelta(hours=9)  # 1h buffer beyond JWT_EXPIRE_HOURS=8
         result = conn.execute(
             text("DELETE FROM token_blocklist WHERE revoked_at < :cutoff"),
             {"cutoff": cutoff},

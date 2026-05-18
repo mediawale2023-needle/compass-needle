@@ -7,17 +7,19 @@ to the MP's constituency, state, and key issues.
 import feedparser
 import time
 import socket
-try:
-    import streamlit as st
-except ImportError:
-    # Running outside Streamlit (FastAPI backend) — stub the cache decorator
-    class _StubSt:
-        @staticmethod
-        def cache_data(ttl=0):
-            def decorator(func):
-                return func
-            return decorator
-    st = _StubSt()
+
+
+class _StubSt:
+    @staticmethod
+    def cache_data(ttl=0):
+        def decorator(func):
+            return func
+        return decorator
+
+
+# This module is used by FastAPI. Keep caching a no-op here to avoid Streamlit
+# runtime warnings in the backend process.
+st = _StubSt()
 
 from datetime import datetime
 from email.utils import parsedate_to_datetime
@@ -27,6 +29,52 @@ import os
 import re
 
 from modules.profile_loader import load_tenant_profile
+
+
+NATIONAL_MEDIA_TERMS = [
+    "ANI",
+    "PTI",
+    "NDTV",
+    "India Today",
+    "The Hindu",
+    "Indian Express",
+    "Hindustan Times",
+    "Times of India",
+    "News18",
+]
+
+LOCAL_MEDIA_BY_STATE = {
+    "karnataka": [
+        "Public TV",
+        "TV9 Kannada",
+        "Vijay Karnataka",
+        "Prajavani",
+        "Udayavani",
+        "Kannada Prabha",
+        "Deccan Herald",
+    ],
+    "maharashtra": [
+        "ABP Majha",
+        "TV9 Marathi",
+        "Lokmat",
+        "Sakal",
+        "Loksatta",
+        "Maharashtra Times",
+    ],
+    "uttar pradesh": [
+        "Amar Ujala",
+        "Dainik Jagran",
+        "Hindustan",
+        "News18 Uttar Pradesh",
+        "ABP Ganga",
+    ],
+    "delhi": [
+        "Delhi",
+        "Hindustan Times Delhi",
+        "Indian Express Delhi",
+        "Times of India Delhi",
+    ],
+}
 
 
 # ============================================================
@@ -80,6 +128,26 @@ def _load_constituency_context(tenant_id=None):
         "fact_keywords": fact_keywords,
         "alt_names": profile.get("alt_names", []),
     }
+
+
+def _state_media_terms(state):
+    return LOCAL_MEDIA_BY_STATE.get((state or "").strip().lower(), [])
+
+
+def _dedupe_and_rank(items, context, limit):
+    seen_titles = set()
+    ranked = []
+    for item in items:
+        title_key = re.sub(r"\s+", " ", item.get("title", "").lower()).strip()[:90]
+        if not title_key or title_key in seen_titles:
+            continue
+        seen_titles.add(title_key)
+        item["relevance"] = _score_relevance(item.get("title", ""), context)
+        item["sentiment"] = analyze_sentiment(item.get("title", ""))
+        ranked.append(item)
+
+    ranked.sort(key=lambda x: (x.get("relevance", 0), x.get("published")), reverse=True)
+    return ranked[:limit]
 
 
 def get_language_code(lang_name):
@@ -193,6 +261,57 @@ def fetch_news(query, language="English", limit=5):
     Backward-compatible fetch. Used by dashboard for general queries.
     """
     return _fetch_rss(query, language, limit)
+
+
+@st.cache_data(ttl=900)
+def fetch_tenant_media_news(tenant_id=None, news_type="national", language="English", limit=8):
+    """
+    Tenant-scoped media feed.
+
+    national: national channels/newspapers mentioning the MP or constituency.
+    local: local/regional channels/newspapers mentioning the constituency/MP.
+    """
+    context = _load_constituency_context(tenant_id)
+    constituency = context["constituency"]
+    state = context["state"]
+    mp_name = context["mp_name"]
+    alt_names = [constituency] + [a for a in context.get("alt_names", []) if a]
+    alt_names = [a for i, a in enumerate(alt_names) if a and a.lower() not in {x.lower() for x in alt_names[:i]}]
+
+    if not constituency and not mp_name:
+        return []
+
+    media_terms = NATIONAL_MEDIA_TERMS if news_type == "national" else _state_media_terms(state)
+    if not media_terms and news_type == "local":
+        media_terms = [state] if state else []
+
+    place_query = " OR ".join(f'"{name}"' for name in alt_names[:3])
+    media_query = " OR ".join(f'"{term}"' for term in media_terms[:7] if term)
+
+    queries = []
+    if mp_name:
+        if media_query:
+            queries.append(f'"{mp_name}" ({media_query})')
+        queries.append(f'"{mp_name}" "{constituency}"')
+    if place_query:
+        if media_query:
+            queries.append(f'({place_query}) ({media_query})')
+        queries.append(f'({place_query}) "{state}" news')
+
+    all_items = []
+    start_time = time.time()
+    for q in queries[:4]:
+        if time.time() - start_time > 7:
+            break
+        all_items.extend(_fetch_rss(q, language, limit=6))
+
+    # For local feeds, try one regional language if available.
+    if news_type == "local":
+        local_langs = [l for l in context.get("languages", []) if l != "English"]
+        if local_langs and time.time() - start_time <= 7:
+            all_items.extend(_fetch_rss(constituency, local_langs[0], limit=5))
+
+    return _dedupe_and_rank(all_items, context, limit)
 
 
 @st.cache_data(ttl=900)

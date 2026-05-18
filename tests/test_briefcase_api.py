@@ -1,7 +1,7 @@
 import json
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import jwt
 from fastapi.testclient import TestClient
@@ -19,6 +19,10 @@ os.environ["ENV"] = "test"
 os.environ["OPENAI_API_KEY"] = "sk-test-fake-key-for-testing"
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def _utcnow():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 @event.listens_for(Engine, "connect")
@@ -65,7 +69,7 @@ def _seed_database():
         ):
             conn.execute(text(f"DELETE FROM {table_name}"))  # nosec B608
 
-        now = datetime.utcnow()
+        now = _utcnow()
 
         conn.execute(
             text(
@@ -375,8 +379,8 @@ def _auth_headers(username: str) -> dict[str, str]:
     token = jwt.encode(
         {
             "sub": username,
-            "exp": datetime.utcnow() + timedelta(hours=8),
-            "iat": datetime.utcnow().timestamp(),
+            "exp": _utcnow() + timedelta(hours=8),
+            "iat": _utcnow().timestamp(),
         },
         TEST_JWT_SECRET,
         algorithm="HS256",
@@ -566,3 +570,84 @@ def test_briefcase_escalation_creates_record_and_updates_case_status():
     activity_resp = client.get("/api/cases/101/activity", headers=headers)
     assert activity_resp.status_code == 200, activity_resp.text
     assert activity_resp.json()["activities"][0]["action"] == "escalated"
+
+
+def test_briefcase_pilot_flow_assign_note_escalate_notify_resolves(monkeypatch):
+    _seed_database()
+    headers = _auth_headers("mp_arun")
+    outbound = []
+
+    # Safe E2E: prove the WhatsApp path without sending a real external message.
+    monkeypatch.setattr(api_router, "get_tenant_phone_number_id", lambda _tid: "15551636821")
+    monkeypatch.setattr(
+        "modules.whatsapp.send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound.append((phone, message, phone_number_id)),
+    )
+
+    created_resp = client.get("/api/cases/101", headers=headers)
+    assert created_resp.status_code == 200, created_resp.text
+    assert created_resp.json()["status"] == "new"
+
+    assign_note_resp = client.patch(
+        "/api/cases/101",
+        headers=headers,
+        json={
+            "assigned_to": "pr_meera",
+            "notes_for_staff": "Pilot E2E: assigned to PR and officer escalation prepared.",
+            "response_to_citizen": "Pilot E2E update: your water supply grievance has been escalated and is being resolved.",
+        },
+    )
+    assert assign_note_resp.status_code == 200, assign_note_resp.text
+    assert assign_note_resp.json()["success"] is True
+
+    after_assign = client.get("/api/cases/101", headers=headers).json()
+    assert after_assign["assigned_to"] == "pr_meera"
+    assert after_assign["notes_for_staff"] == "Pilot E2E: assigned to PR and officer escalation prepared."
+
+    escalation_resp = client.post(
+        "/api/escalations",
+        headers=headers,
+        json={
+            "case_id": 101,
+            "officer_id": 1,
+            "letter_content": "Pilot E2E: please resolve the Whitefield water supply complaint urgently.",
+            "deadline": "2026-05-20T10:00:00",
+        },
+    )
+    assert escalation_resp.status_code == 200, escalation_resp.text
+    assert escalation_resp.json()["success"] is True
+
+    after_escalation = client.get("/api/cases/101", headers=headers).json()
+    assert after_escalation["status"] == "escalated"
+
+    notify_resp = client.post(
+        "/api/cases/101/notify/send",
+        headers=headers,
+        json={"message": "Pilot E2E update: your complaint has been resolved by the MP office."},
+    )
+    assert notify_resp.status_code == 200, notify_resp.text
+    assert notify_resp.json()["success"] is True
+    assert outbound == [
+        (
+            "919810000101",
+            "Pilot E2E update: your complaint has been resolved by the MP office.",
+            "15551636821",
+        )
+    ]
+
+    final_detail = client.get("/api/cases/101", headers=headers).json()
+    assert final_detail["status"] == "resolved"
+    assert final_detail["assigned_to"] == "pr_meera"
+    assert final_detail["response_to_citizen"] == "Pilot E2E update: your complaint has been resolved by the MP office."
+
+    escalation_history = client.get("/api/escalations?case_id=101", headers=headers).json()["escalations"]
+    assert len(escalation_history) == 1
+    assert escalation_history[0]["officer_name"] == "Asha Rao"
+
+    activity_actions = [
+        activity["action"]
+        for activity in client.get("/api/cases/101/activity", headers=headers).json()["activities"]
+    ]
+    assert "case_updated" in activity_actions
+    assert "escalated" in activity_actions
+    assert "citizen_notified" in activity_actions

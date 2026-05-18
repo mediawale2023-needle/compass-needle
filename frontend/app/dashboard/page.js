@@ -421,17 +421,17 @@ export default function DashboardPage() {
                         </div>
                     </div>
 
-                    {/* Media Monitoring */}
+                    {/* Media Centre */}
                     <Card>
                         <CardHeader className="cursor-pointer" onClick={() => setShowNews(v => !v)}>
                             <div className="flex items-center justify-between">
                                 <div>
                                     <CardTitle className="flex items-center gap-2">
                                         <FileText className="h-5 w-5 text-primary" />
-                                        Media Monitoring
+                                        Media Centre
                                     </CardTitle>
                                     <CardDescription className="mt-1">
-                                        Your name in the press · Critical issues in your constituency
+                                        Tenant-specific coverage from national and local news channels
                                     </CardDescription>
                                 </div>
                                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0">
@@ -443,14 +443,14 @@ export default function DashboardPage() {
                             <CardContent className="pt-0">
                                 <Tabs value={newsTab} onValueChange={setNewsTab}>
                                     <TabsList className="mb-4">
-                                        <TabsTrigger value="national">In the News</TabsTrigger>
-                                        <TabsTrigger value="local">Constituency</TabsTrigger>
+                                        <TabsTrigger value="national">National Channels</TabsTrigger>
+                                        <TabsTrigger value="local">Local Channels</TabsTrigger>
                                     </TabsList>
                                     <TabsContent value="national" className="mt-0">
-                                        <NewsList articles={news.national} emptyText="No press coverage found today" />
+                                        <NewsList articles={news.national} emptyText="No national channel coverage found today" />
                                     </TabsContent>
                                     <TabsContent value="local" className="mt-0">
-                                        <NewsList articles={news.local} emptyText="No local coverage found today" />
+                                        <NewsList articles={news.local} emptyText="No local channel coverage found today" />
                                     </TabsContent>
                                 </Tabs>
                             </CardContent>

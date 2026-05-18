@@ -8,7 +8,7 @@ import csv
 import io
 import bcrypt
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Request, Response, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -42,6 +42,11 @@ except ImportError:
 
 logger = logging.getLogger("needle.api")
 
+
+def _utcnow():
+    """Naive UTC timestamp for DB compatibility without deprecated utcnow()."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 # ─── Rate limiting (optional) ───
 try:
     from core.rate_limiter import limiter, RATE_AI, RATE_LOGIN
@@ -70,7 +75,7 @@ router = APIRouter()
 # JWT HELPERS
 # ─────────────────────────────────────────
 def create_token(data: dict) -> str:
-    payload = {**data, "iat": datetime.utcnow().timestamp(), "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)}
+    payload = {**data, "iat": _utcnow().timestamp(), "exp": _utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -97,7 +102,7 @@ def revoke_user_tokens(username: str):
         with engine.begin() as conn:
             conn.execute(
                 text("INSERT INTO token_blocklist (username, revoked_at) VALUES (:u, :now)"),
-                {"u": username, "now": datetime.utcnow()}
+                {"u": username, "now": _utcnow()}
             )
         logger.info(f"Revoked all tokens for user: {username}")
     except Exception as e:
@@ -178,7 +183,7 @@ def login(req: LoginRequest, request: Request):
         with engine.begin() as conn:
             conn.execute(
                 text("UPDATE users SET last_login = :now WHERE username = :u"),
-                {"now": datetime.utcnow(), "u": req.username}
+                {"now": _utcnow(), "u": req.username}
             )
     except Exception:
         logger.warning("Failed to update last_login for %s", req.username)
@@ -281,7 +286,7 @@ def dashboard_summary(user=Depends(get_current_user)):
 # ─────────────────────────────────────────
 def _generate_case_ref(tenant_id):
     """Generate a human-readable case reference like NDL-2024-00042."""
-    year = datetime.utcnow().year
+    year = _utcnow().year
     count = _q_one(
         "SELECT COUNT(*) as cnt FROM cases WHERE tenant_id = :tid AND EXTRACT(YEAR FROM created_at) = :yr",
         {"tid": tenant_id, "yr": year}
@@ -426,7 +431,7 @@ def get_summary(
     Useful for dashboard widgets and the WhatsApp query engine bonus endpoint.
     """
     tid = get_tenant_or_fail(user)
-    since = datetime.utcnow() - timedelta(days=days)
+    since = _utcnow() - timedelta(days=days)
     base_where = """
         c.tenant_id = :tid
         AND (c.is_deleted = false OR c.is_deleted IS NULL)
@@ -501,7 +506,7 @@ def get_deleted_cases_mp(user=Depends(get_current_user)):
     role = user.get("role", "user")
     if role not in ("mp", "pr", "admin"):
         raise HTTPException(403, "Only MP/PR accounts can view deleted cases")
-    seven_days_ago = datetime.utcnow() - timedelta(days=7)
+    seven_days_ago = _utcnow() - timedelta(days=7)
     cases = _q(
         "SELECT * FROM cases WHERE tenant_id = :tid AND is_deleted = true AND deleted_at >= :since ORDER BY deleted_at DESC",
         {"tid": tid, "since": seven_days_ago}
@@ -546,7 +551,7 @@ def _log_case_activity(tenant_id, case_id, username, action, old_value=None, new
                 "INSERT INTO case_activity_log (tenant_id, case_id, username, action, old_value, new_value, details, created_at) "
                 "VALUES (:tid, :cid, :user, :action, :old, :new, :details, :now)"
             ), {"tid": tenant_id, "cid": case_id, "user": username, "action": action,
-                "old": old_value, "new": new_value, "details": details, "now": datetime.utcnow()})
+                "old": old_value, "new": new_value, "details": details, "now": _utcnow()})
     except Exception:
         pass  # nosec B110
 
@@ -560,7 +565,7 @@ def update_case_status(case_id: int, body: StatusUpdate, user=Depends(get_curren
     with engine.begin() as conn:
         result = conn.execute(text(
             "UPDATE cases SET status = :st, updated_at = :now WHERE id = :cid AND tenant_id = :tid"
-        ), {"st": body.status, "now": datetime.utcnow(), "cid": case_id, "tid": tid})
+        ), {"st": body.status, "now": _utcnow(), "cid": case_id, "tid": tid})
     if result.rowcount == 0:
         raise HTTPException(404, "Case not found")
 
@@ -608,7 +613,7 @@ def _resolve_citizen_notification_message(case: dict, requested_message: str = "
 def update_case(case_id: int, body: CaseNotesUpdate, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
     updates = []
-    params = {"cid": case_id, "tid": tid, "now": datetime.utcnow()}
+    params = {"cid": case_id, "tid": tid, "now": _utcnow()}
 
     if body.notes_for_staff is not None:
         updates.append("notes_for_staff = :notes")
@@ -702,7 +707,7 @@ def delete_case(case_id: int, user=Depends(get_current_user)):
         result = conn.execute(text(
             "UPDATE cases SET is_deleted = true, deleted_at = :now, deleted_by = :by, updated_at = :now "
             "WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)"
-        ), {"now": datetime.utcnow(), "by": user.get("username", ""), "cid": case_id, "tid": tid})
+        ), {"now": _utcnow(), "by": user.get("username", ""), "cid": case_id, "tid": tid})
 
     if result.rowcount == 0:
         raise HTTPException(404, "Case not found or already deleted")
@@ -727,7 +732,7 @@ def restore_case(case_id: int, user=Depends(get_current_user)):
         result = conn.execute(text(
             "UPDATE cases SET is_deleted = false, deleted_at = NULL, deleted_by = NULL, updated_at = :now "
             "WHERE id = :cid AND tenant_id = :tid AND is_deleted = true"
-        ), {"now": datetime.utcnow(), "cid": case_id, "tid": tid})
+        ), {"now": _utcnow(), "cid": case_id, "tid": tid})
 
     if result.rowcount == 0:
         raise HTTPException(404, "Case not found or not deleted")
@@ -751,7 +756,7 @@ def get_similar_cases(case_id: int, user=Depends(get_current_user)):
     if not source:
         raise HTTPException(404, "Case not found")
 
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    thirty_days_ago = _utcnow() - timedelta(days=30)
     phone = source.get("user_phone")
     category = source.get("category")
     location = source.get("location") or ""
@@ -829,7 +834,7 @@ async def notify_citizen(case_id: int, request: Request, body: Optional[CitizenN
                 ),
                 {
                     "response": requested_message,
-                    "now": datetime.utcnow(),
+                    "now": _utcnow(),
                     "cid": case_id,
                     "tid": tid,
                 },
@@ -850,7 +855,7 @@ async def notify_citizen(case_id: int, request: Request, body: Optional[CitizenN
     with engine.begin() as conn:
         conn.execute(
             text("UPDATE cases SET status = 'resolved', updated_at = :now WHERE id = :cid AND tenant_id = :tid"),
-            {"now": datetime.utcnow(), "cid": case_id, "tid": tid},
+            {"now": _utcnow(), "cid": case_id, "tid": tid},
         )
     try:
         _log_case_activity(tid, case_id, user.get("username", ""), "citizen_notified", new_value="resolved")
@@ -876,7 +881,7 @@ def backfill_case_refs(user=Depends(get_current_user)):
     updated = 0
     for c in cases_without_ref:
         created = c.get("created_at")
-        year = created.year if created else datetime.utcnow().year
+        year = created.year if created else _utcnow().year
         # Count cases before this one in the same year
         count = _q_one(
             "SELECT COUNT(*) as cnt FROM cases WHERE tenant_id = :tid AND EXTRACT(YEAR FROM created_at) = :yr AND id < :cid",
@@ -975,7 +980,7 @@ def create_team_member(body: TeamMemberCreate, user=Depends(get_current_user)):
                     "role":  body.role,
                     "name":  body.display_name.strip(),
                     "phone": body.phone.strip() or None,
-                    "now":   datetime.utcnow(),
+                    "now":   _utcnow(),
                 },
             )
             new_id = result.fetchone()[0]
@@ -1065,7 +1070,7 @@ def create_officer(body: OfficerCreate, user=Depends(get_current_user)):
             "VALUES (:tid, :name, :desg, :dept, :email, :phone, :juris, :cats, true, :now) RETURNING id"
         ), {"tid": tid, "name": body.name, "desg": body.designation, "dept": body.department,
             "email": body.email, "phone": body.phone, "juris": body.jurisdiction,
-            "cats": json.dumps(body.categories), "now": datetime.utcnow()})
+            "cats": json.dumps(body.categories), "now": _utcnow()})
         officer_id = result.fetchone()[0]
     return {"success": True, "id": officer_id}
 
@@ -1106,13 +1111,13 @@ def create_escalation(body: EscalationCreate, user=Depends(get_current_user)):
             "INSERT INTO escalations (tenant_id, case_id, officer_id, letter_content, deadline, created_by, created_at) "
             "VALUES (:tid, :cid, :oid, :letter, :deadline, :by, :now) RETURNING id"
         ), {"tid": tid, "cid": body.case_id, "oid": body.officer_id, "letter": body.letter_content,
-            "deadline": deadline_dt, "by": user.get("username", ""), "now": datetime.utcnow()})
+            "deadline": deadline_dt, "by": user.get("username", ""), "now": _utcnow()})
         esc_id = result.fetchone()[0]
 
     with engine.begin() as conn:
         conn.execute(text(
             "UPDATE cases SET status = 'escalated', updated_at = :now WHERE id = :cid AND tenant_id = :tid"
-        ), {"now": datetime.utcnow(), "cid": body.case_id, "tid": tid})
+        ), {"now": _utcnow(), "cid": body.case_id, "tid": tid})
 
     try:
         _log_case_activity(tid, body.case_id, user.get("username", ""), "escalated", new_value=str(body.officer_id))
@@ -1145,55 +1150,6 @@ def get_escalations(case_id: Optional[int] = None, user=Depends(get_current_user
             if val and hasattr(val, "isoformat"):
                 e[field] = val.isoformat()
     return {"escalations": escalations}
-
-
-@router.post("/escalations/{escalation_id}/send")
-def send_escalation_email_endpoint(escalation_id: int, user=Depends(get_current_user)):
-    """Send the escalation letter via email to the officer."""
-    tid = get_tenant_or_fail(user)
-
-    esc = _q_one(
-        "SELECT e.*, o.name as officer_name, o.designation, o.email as officer_email "
-        "FROM escalations e LEFT JOIN officers o ON e.officer_id = o.id "
-        "WHERE e.id = :eid AND e.tenant_id = :tid",
-        {"eid": escalation_id, "tid": tid}
-    )
-    if not esc:
-        raise HTTPException(404, "Escalation not found")
-
-    if esc.get("email_sent"):
-        raise HTTPException(400, "Email already sent for this escalation")
-
-    # Get MP profile for the letter header
-    profile = _q_one("SELECT mp_name, constituency FROM tenant_profiles WHERE tenant_id = :tid", {"tid": tid})
-    mp_name = profile.get("mp_name", "Member of Parliament") if profile else "Member of Parliament"
-    constituency = profile.get("constituency", "") if profile else ""
-
-    # Get case ref — tenant_id included as defence-in-depth even though esc is already tenant-scoped
-    case = _q_one("SELECT case_ref FROM cases WHERE id = :cid AND tenant_id = :tid", {"cid": esc["case_id"], "tid": tid})
-    case_ref = case.get("case_ref", "") if case else ""
-
-    from modules.email_dispatch import send_escalation_email
-    success, message_id, error = send_escalation_email(
-        officer_email=esc.get("officer_email", ""),
-        officer_name=esc.get("officer_name", ""),
-        officer_designation=esc.get("designation", ""),
-        mp_name=mp_name,
-        constituency=constituency,
-        case_ref=case_ref,
-        letter_content=esc.get("letter_content", ""),
-    )
-
-    if success:
-        with engine.begin() as conn:
-            conn.execute(text(
-                "UPDATE escalations SET email_sent = true, email_sent_at = :now, email_message_id = :mid, updated_at = :now "
-                "WHERE id = :eid AND tenant_id = :tid"  # tenant guard: prevents cross-tenant update
-            ), {"now": datetime.utcnow(), "mid": message_id, "eid": escalation_id, "tid": tid})
-        return {"success": True, "message_id": message_id}
-    else:
-        logger.error("Escalation email failed for eid=%s tid=%s: %s", escalation_id, tid, error)
-        raise HTTPException(500, "Failed to send email. Check officer email address and email configuration.")
 
 
 class EscalationDraftRequest(BaseModel):
@@ -1234,7 +1190,7 @@ def generate_escalation_draft(body: EscalationDraftRequest, request: Request, us
     designation  = officer.get("designation") or "Officer"
     department   = officer.get("department") or ""
     from datetime import timedelta
-    deadline_str = (datetime.utcnow() + timedelta(days=7)).strftime("%d %B %Y")
+    deadline_str = (_utcnow() + timedelta(days=7)).strftime("%d %B %Y")
     is_hindi = body.language == "Hindi"
 
     lang_instruction = """
@@ -1348,15 +1304,14 @@ def update_own_profile(req: UpdateOwnProfileRequest, user=Depends(get_current_us
 @router.get("/news")
 def get_news(news_type: str = "national", user=Depends(get_current_user)):
     try:
-        if news_type == "national":
-            from modules.news_intel import fetch_news
-            display_name = user.get("display_name") or user.get("username", "")
-            articles = fetch_news(query=f'"{display_name}"', limit=8)
-        else:
-            from modules.news_intel import fetch_constituency_news
-            articles = fetch_constituency_news(tenant_id=user.get("tenant_id"), limit=8)
+        tid = get_tenant_or_fail(user)
+        from modules.news_intel import fetch_tenant_media_news
+
+        feed_type = "local" if news_type in ("local", "constituency") else "national"
+        articles = fetch_tenant_media_news(tenant_id=tid, news_type=feed_type, limit=8)
         return {"articles": articles or []}
     except Exception:
+        logger.exception("Failed to load tenant media news")
         return {"articles": []}
 
 
@@ -1530,7 +1485,7 @@ def _create_research_session(db, tenant_id: int, username: str, title: str = "")
         tenant_id=tenant_id,
         username=username,
         title=_suggest_research_title(title) if title else "Research Session",
-        last_activity_at=datetime.utcnow(),
+        last_activity_at=_utcnow(),
     )
     db.add(session)
     db.flush()
@@ -1553,7 +1508,7 @@ def _set_research_session_title(session: ResearchSession, seed: str):
 
 
 def _touch_research_session(session: ResearchSession):
-    now = datetime.utcnow()
+    now = _utcnow()
     session.last_activity_at = now
     session.updated_at = now
 
@@ -2159,8 +2114,8 @@ REFERENCE: <user_input>{s_reference}</user_input>
 {lang_note}
 LETTER FORMAT:
 - Government of India letter format
-- File Reference: MP/GEN/{datetime.utcnow().year}/[SEQ]
-- Date: {datetime.utcnow().strftime("%d %B %Y")}
+- File Reference: MP/GEN/{_utcnow().year}/[SEQ]
+- Date: {_utcnow().strftime("%d %B %Y")}
 - From: {mp_name}, Member of Parliament, {constituency} ({house})
 - Salutation: {tone_config['salutation']}
 - Closing: {tone_config['close']}
@@ -2419,7 +2374,7 @@ _parliament_cache = {"data": None, "ts": None}
 
 def _cached_load(key: str, loader, ttl_seconds: int = 1800):
     """Simple in-process cache for relatively static reference data."""
-    now = datetime.utcnow()
+    now = _utcnow()
     entry = _cache.get(key)
     if entry and entry.get("ts") and (now - entry["ts"]).total_seconds() < ttl_seconds:
         return entry.get("data")
@@ -2434,7 +2389,7 @@ def get_parliament_status(user=Depends(get_current_user)):
     from datetime import date
     import requests as http_requests
 
-    now = datetime.utcnow()
+    now = _utcnow()
     if _parliament_cache["data"] and _parliament_cache["ts"] and (now - _parliament_cache["ts"]).total_seconds() < 1800:
         return _parliament_cache["data"]
 
@@ -3143,7 +3098,7 @@ def update_company_profile(company_id: int, req: CSRCompanyUpdateRequest, user=D
     if not updates:
         return {"message": "Nothing to update."}
 
-    updates["updated_at"] = datetime.utcnow()
+    updates["updated_at"] = _utcnow()
     updates["id"] = company_id
     set_clause = ", ".join(f"{k} = :{k}" for k in updates if k != "id")
     try:
@@ -3535,7 +3490,7 @@ def _compute_opportunity_score(volume: int, velocity_7d: int, matched_companies:
 
 def _get_velocity(tenant_id: int, category: str, days: int) -> int:
     """Count complaints for a category in the last N days (constituency-wide)."""
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = _utcnow() - timedelta(days=days)
     try:
         row = _q_one("""
             SELECT COUNT(*) as cnt FROM cases
@@ -3700,7 +3655,7 @@ def create_pipeline_entry(req: CSRPipelineCreateRequest, user=Depends(get_curren
                 "amount": req.estimated_amount,
                 "notes": req.notes,
                 "opp_id": req.opportunity_id,
-                "now": datetime.utcnow(),
+                "now": _utcnow(),
             })
             new_id = result.lastrowid
         return {"id": new_id, "message": "Pipeline entry created."}
@@ -3764,7 +3719,7 @@ def update_pipeline_entry(entry_id: int, req: CSRPipelineUpdateRequest, user=Dep
     if not updates:
         return {"message": "Nothing to update."}
 
-    updates["updated_at"] = datetime.utcnow()
+    updates["updated_at"] = _utcnow()
     updates["id"] = entry_id
     set_clause = ", ".join(f"{k} = :{k}" for k in updates if k != "id")
     try:
@@ -3828,7 +3783,7 @@ def log_pipeline_interaction(
                     last_interaction_at   = :now,
                     updated_at            = :now
                 WHERE id = :id
-            """), {"note": req.note, "now": datetime.utcnow(), "id": entry_id})
+            """), {"note": req.note, "now": _utcnow(), "id": entry_id})
         return {"message": "Interaction note saved."}
     except Exception:
         logger.exception("Log pipeline interaction failed")
@@ -3931,7 +3886,7 @@ def sync_opportunities(user=Depends(get_current_user)):
         from modules.csr_matching_engine import rank_companies_for_opportunity, persist_matches
 
         import json as _json
-        now = datetime.utcnow()
+        now = _utcnow()
         tenant_row = _q_one("SELECT constituency FROM tenants WHERE id = :tid", {"tid": tid})
         constituency = (tenant_row.get("constituency") or "") if tenant_row else ""
 
@@ -4195,7 +4150,7 @@ def get_weekly_report(user=Depends(get_current_user)):
 def get_report_card(user=Depends(get_current_user)):
     """Returns this-month activity counts for the current tenant."""
     tid = get_tenant_or_fail(user)
-    now = datetime.utcnow()
+    now = _utcnow()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     type_rows = _q("""
@@ -4305,7 +4260,7 @@ def download_grievance_report(
     body = style("Normal", fontSize=9, textColor=colors.HexColor("#111827"), leading=13)
     caption = style("Normal", fontSize=8, textColor=MUTED, spaceAfter=8)
 
-    generated_on = datetime.utcnow().strftime("%d %B %Y, %H:%M UTC")
+    generated_on = _utcnow().strftime("%d %B %Y, %H:%M UTC")
     filter_desc = []
     if status and status.lower() != "all":
         filter_desc.append(f"Status: {status.replace('_', ' ').title()}")
@@ -4424,7 +4379,7 @@ def download_grievance_report(
     buf.seek(0)
 
     safe_name = (constituency or "report").replace(" ", "_").replace("/", "-")
-    filename = f"grievance_report_{safe_name}_{datetime.utcnow().strftime('%Y%m%d')}.pdf"
+    filename = f"grievance_report_{safe_name}_{_utcnow().strftime('%Y%m%d')}.pdf"
     return StreamingResponse(
         buf,
         media_type="application/pdf",
@@ -4792,7 +4747,7 @@ def export_letterbox_items(
                 row.get("linked_diary_number") or "",
             ])
 
-        filename = f"letterbox_{direction}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+        filename = f"letterbox_{direction}_{_utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
         return StreamingResponse(
             iter([output.getvalue()]),
             media_type="text/csv",
@@ -4967,7 +4922,7 @@ def save_outbox_draft(body: SaveOutboxDraftRequest, user=Depends(get_current_use
                     "date_of_letter": body.date_of_letter or None,
                     "notes": "\n".join(metadata_notes) if metadata_notes else None,
                     "linked_letterbox_id": linked_letterbox_id,
-                    "created_at": datetime.utcnow(),
+                    "created_at": _utcnow(),
                 },
             )
             new_id = result.fetchone()[0]
@@ -5173,7 +5128,7 @@ async def letterbox_upload(
                 "category": extracted.get("category", "General / Other") if extracted else "General / Other",
                 "page_count": page_count,
                 "status":   default_status,
-                "now":      datetime.utcnow(),
+                "now":      _utcnow(),
             })
             new_id = result.fetchone()[0]
             diary = generate_diary_number(new_id)
@@ -5267,7 +5222,7 @@ def get_contact(phone: str, user=Depends(get_current_user)):
 def upsert_contact(phone: str, req: ContactUpsert, user=Depends(get_current_user)):
     """Create or update a contact record for a phone number."""
     tid = get_tenant_or_fail(user)
-    now = datetime.utcnow()
+    now = _utcnow()
     existing = _q_one(
         "SELECT id FROM contacts WHERE tenant_id = :tid AND phone = :phone",
         {"tid": tid, "phone": phone},
