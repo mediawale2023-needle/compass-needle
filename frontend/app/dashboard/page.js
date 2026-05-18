@@ -481,10 +481,26 @@ function NewsList({ articles, emptyText = 'No coverage found today' }) {
                         className="group flex items-start gap-2 text-sm text-foreground hover:text-primary transition-colors"
                     >
                         <ExternalLink className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground group-hover:text-primary" />
-                        <span className="leading-snug">{a.title}</span>
+                        <span className="min-w-0">
+                            <span className="leading-snug block">{a.title}</span>
+                            <span className="text-xs text-muted-foreground mt-1 block">
+                                {[a.source, formatNewsDate(a.published)].filter(Boolean).join(' · ')}
+                            </span>
+                        </span>
                     </a>
                 </li>
             ))}
         </ul>
     );
+}
+
+function formatNewsDate(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+    });
 }

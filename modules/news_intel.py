@@ -21,7 +21,7 @@ class _StubSt:
 # runtime warnings in the backend process.
 st = _StubSt()
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 import urllib.parse
 import json
@@ -74,6 +74,27 @@ LOCAL_MEDIA_BY_STATE = {
         "Indian Express Delhi",
         "Times of India Delhi",
     ],
+}
+
+LOCAL_LANGUAGES_BY_STATE = {
+    "andhra pradesh": ["English", "Telugu", "Hindi"],
+    "assam": ["English", "Assamese", "Hindi"],
+    "bihar": ["English", "Hindi"],
+    "delhi": ["English", "Hindi"],
+    "gujarat": ["English", "Gujarati", "Hindi"],
+    "haryana": ["English", "Hindi", "Punjabi"],
+    "jammu and kashmir": ["English", "Hindi", "Urdu"],
+    "karnataka": ["English", "Kannada", "Marathi", "Hindi"],
+    "kerala": ["English", "Malayalam"],
+    "madhya pradesh": ["English", "Hindi"],
+    "maharashtra": ["English", "Marathi", "Hindi"],
+    "odisha": ["English", "Odia", "Hindi"],
+    "punjab": ["English", "Punjabi", "Hindi"],
+    "rajasthan": ["English", "Hindi"],
+    "tamil nadu": ["English", "Tamil"],
+    "telangana": ["English", "Telugu", "Urdu", "Hindi"],
+    "uttar pradesh": ["English", "Hindi", "Urdu"],
+    "west bengal": ["English", "Bengali", "Hindi"],
 }
 
 
@@ -134,20 +155,52 @@ def _state_media_terms(state):
     return LOCAL_MEDIA_BY_STATE.get((state or "").strip().lower(), [])
 
 
-def _dedupe_and_rank(items, context, limit):
+def _local_feed_languages(context):
+    profile_languages = [lang for lang in context.get("languages", []) if lang]
+    fallback_languages = LOCAL_LANGUAGES_BY_STATE.get((context.get("state") or "").strip().lower(), ["English", "Hindi"])
+
+    languages = []
+    for lang in [*profile_languages, *fallback_languages]:
+        if lang not in languages:
+            languages.append(lang)
+    return languages[:4]
+
+
+def _as_naive_utc(value):
+    if value is None:
+        return datetime.now(timezone.utc).replace(tzinfo=None)
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _serialize_article_dates(items):
+    for item in items:
+        published = item.get("published")
+        if hasattr(published, "isoformat"):
+            item["published"] = _as_naive_utc(published).isoformat()
+    return items
+
+
+def _dedupe_and_rank(items, context, limit, max_age_days=None):
     seen_titles = set()
     ranked = []
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=max_age_days) if max_age_days else None
     for item in items:
         title_key = re.sub(r"\s+", " ", item.get("title", "").lower()).strip()[:90]
         if not title_key or title_key in seen_titles:
             continue
+        published = _as_naive_utc(item.get("published"))
+        if cutoff and published < cutoff:
+            continue
+        item["published"] = published
         seen_titles.add(title_key)
         item["relevance"] = _score_relevance(item.get("title", ""), context)
         item["sentiment"] = analyze_sentiment(item.get("title", ""))
         ranked.append(item)
 
-    ranked.sort(key=lambda x: (x.get("relevance", 0), x.get("published")), reverse=True)
-    return ranked[:limit]
+    ranked.sort(key=lambda x: x.get("published"), reverse=True)
+    return _serialize_article_dates(ranked[:limit])
 
 
 def get_language_code(lang_name):
@@ -184,9 +237,9 @@ def _fetch_rss(query, language="English", limit=10):
         items = []
         for entry in feed.entries[:limit]:
             try:
-                pub_date = parsedate_to_datetime(entry.published)
+                pub_date = _as_naive_utc(parsedate_to_datetime(entry.published))
             except Exception:
-                pub_date = datetime.now()
+                pub_date = datetime.now(timezone.utc).replace(tzinfo=None)
 
             items.append({
                 "title": entry.title,
@@ -305,13 +358,20 @@ def fetch_tenant_media_news(tenant_id=None, news_type="national", language="Engl
             break
         all_items.extend(_fetch_rss(q, language, limit=6))
 
-    # For local feeds, try one regional language if available.
     if news_type == "local":
-        local_langs = [l for l in context.get("languages", []) if l != "English"]
-        if local_langs and time.time() - start_time <= 7:
-            all_items.extend(_fetch_rss(constituency, local_langs[0], limit=5))
+        local_queries = [f'"{constituency}" latest']
+        if mp_name:
+            local_queries.append(f'"{mp_name}" "{constituency}"')
+        for lang in _local_feed_languages(context):
+            for q in local_queries:
+                if time.time() - start_time > 10:
+                    break
+                all_items.extend(_fetch_rss(q, lang, limit=5))
+            if time.time() - start_time > 10:
+                break
 
-    return _dedupe_and_rank(all_items, context, limit)
+    max_age_days = 10 if news_type == "local" else None
+    return _dedupe_and_rank(all_items, context, limit, max_age_days=max_age_days)
 
 
 @st.cache_data(ttl=900)
