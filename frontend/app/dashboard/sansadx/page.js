@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import DashboardControlBar from '@/components/DashboardControlBar';
 import { cn } from '@/lib/utils';
 
 const TABS = [
@@ -880,6 +881,12 @@ function BriefcaseInner() {
     const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
     const [pageSize, setPageSize] = useState(50);
+    const [assignedFilter, setAssignedFilter] = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
+    const [criticalOnly, setCriticalOnly] = useState(false);
+    const [sortOrder, setSortOrder] = useState('newest');
+    const [refreshToken, setRefreshToken] = useState(0);
     const [hasNewCases, setHasNewCases] = useState(false);
     const [clusters, setClusters] = useState([]);
     const [loadingClusters, setLoadingClusters] = useState(false);
@@ -977,6 +984,11 @@ function BriefcaseInner() {
 
                 if (categoryFilter) params.set('category', categoryFilter);
                 if (search) params.set('search', search);
+                if (assignedFilter) params.set('assigned_to', assignedFilter);
+                if (dateFrom) params.set('date_from', dateFrom);
+                if (dateTo) params.set('date_to', dateTo);
+                if (criticalOnly) params.set('critical', 'true');
+                if (sortOrder) params.set('sort', sortOrder);
 
                 const data = await apiGet(`/api/cases?${params}`);
                 if (!cancelled) {
@@ -998,7 +1010,7 @@ function BriefcaseInner() {
 
         fetchCases();
         return () => { cancelled = true; };
-    }, [statusFilter, categoryFilter, page, user?.username, search, pageSize]);
+    }, [statusFilter, categoryFilter, page, user?.username, search, pageSize, assignedFilter, dateFrom, dateTo, criticalOnly, sortOrder, refreshToken]);
 
     // Poll every 30s for new cases (only on visible tabs with live data)
     useEffect(() => {
@@ -1015,12 +1027,16 @@ function BriefcaseInner() {
                 }
                 else params.set('status', statusFilter);
                 if (search) params.set('search', search);
+                if (assignedFilter) params.set('assigned_to', assignedFilter);
+                if (dateFrom) params.set('date_from', dateFrom);
+                if (dateTo) params.set('date_to', dateTo);
+                if (criticalOnly) params.set('critical', 'true');
                 const data = await apiGet(`/api/cases?${params}`);
                 if ((data.total || 0) > totalCases) setHasNewCases(true);
             } catch { /* silent */ }
         }, 30000);
         return () => clearInterval(interval);
-    }, [statusFilter, totalCases, user?.username, search]);
+    }, [statusFilter, totalCases, user?.username, search, assignedFilter, dateFrom, dateTo, criticalOnly]);
 
     // Auto-open a specific case when case_id is present in the URL
     useEffect(() => {
@@ -1039,6 +1055,24 @@ function BriefcaseInner() {
         if (key === 'All') url.searchParams.delete('status');
         else url.searchParams.set('status', key);
         window.history.replaceState({}, '', url.toString());
+    }
+
+    function refreshCases() {
+        setHasNewCases(false);
+        setPage(1);
+        setRefreshToken(v => v + 1);
+    }
+
+    function clearAdvancedFilters() {
+        setAssignedFilter('');
+        setDateFrom('');
+        setDateTo('');
+        setCriticalOnly(false);
+        setSortOrder('newest');
+        setSearchInput('');
+        setSearch('');
+        setPage(1);
+        setRefreshToken(v => v + 1);
     }
 
     const handleRestore = async (caseId) => {
@@ -1104,6 +1138,37 @@ function BriefcaseInner() {
         }
     }
 
+    async function exportCasesCsv() {
+        try {
+            const params = new URLSearchParams();
+            if (statusFilter === 'All') {
+                params.set('exclude_status', ['resolved', 'closed', ...OTHER_STATUSES].join(','));
+                params.set('exclude_categories', OTHER_CATEGORIES.join(','));
+            } else if (statusFilter === 'other') {
+                params.set('bucket', 'other');
+            } else if (statusFilter !== 'other') {
+                params.set('status', statusFilter);
+            }
+            if (categoryFilter) params.set('category', categoryFilter);
+            if (search) params.set('search', search);
+            if (assignedFilter) params.set('assigned_to', assignedFilter);
+            if (dateFrom) params.set('date_from', dateFrom);
+            if (dateTo) params.set('date_to', dateTo);
+            if (criticalOnly) params.set('critical', 'true');
+            const qs = params.toString() ? `?${params.toString()}` : '';
+            const blob = await apiBlob(`/api/cases/export${qs}`);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `briefcase_cases_${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            toast.success('Cases exported');
+        } catch (err) {
+            toast.error(err.message || 'Failed to export cases');
+        }
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex items-start justify-between gap-4">
@@ -1165,20 +1230,59 @@ function BriefcaseInner() {
                     </div>
 
                     {statusFilter !== 'clusters' && statusFilter !== 'deleted' && (
-                        <div className="flex items-center gap-2 mt-3">
-                            <div className="relative flex-1 max-w-sm">
-                                <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                                </svg>
-                                <Input
-                                    className="pl-8 h-8 text-sm"
-                                    placeholder="Search by phone, message, ref, location…"
-                                    value={searchInput}
-                                    onChange={e => setSearchInput(e.target.value)}
-                                />
-                            </div>
+                        <DashboardControlBar
+                            className="mt-3"
+                            search={searchInput}
+                            onSearchChange={setSearchInput}
+                            searchPlaceholder="Search by phone, message, ref, location..."
+                            onRefresh={refreshCases}
+                            onExport={exportCasesCsv}
+                            exportLabel="Export CSV"
+                        >
                             <select
-                                className="text-sm border rounded px-2 py-1 h-8"
+                                className="h-9 rounded border bg-background px-2 text-sm"
+                                value={assignedFilter}
+                                onChange={e => { setAssignedFilter(e.target.value); setPage(1); }}
+                            >
+                                <option value="">All assignees</option>
+                                {staff.map(s => (
+                                    <option key={s.username} value={s.username}>{s.display_name || s.username}</option>
+                                ))}
+                            </select>
+                            <Input
+                                type="date"
+                                className="h-9 w-[150px] text-sm"
+                                value={dateFrom}
+                                onChange={e => { setDateFrom(e.target.value); setPage(1); }}
+                                aria-label="From date"
+                            />
+                            <Input
+                                type="date"
+                                className="h-9 w-[150px] text-sm"
+                                value={dateTo}
+                                onChange={e => { setDateTo(e.target.value); setPage(1); }}
+                                aria-label="To date"
+                            />
+                            <select
+                                className="h-9 rounded border bg-background px-2 text-sm"
+                                value={sortOrder}
+                                onChange={e => { setSortOrder(e.target.value); setPage(1); }}
+                            >
+                                <option value="newest">Newest first</option>
+                                <option value="oldest">Oldest first</option>
+                                <option value="updated">Recently updated</option>
+                                <option value="critical">Critical first</option>
+                            </select>
+                            <label className="flex h-9 items-center gap-2 rounded border bg-background px-2 text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked={criticalOnly}
+                                    onChange={e => { setCriticalOnly(e.target.checked); setPage(1); }}
+                                />
+                                Critical only
+                            </label>
+                            <select
+                                className="h-9 rounded border bg-background px-2 text-sm"
                                 value={pageSize}
                                 onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
                             >
@@ -1186,7 +1290,8 @@ function BriefcaseInner() {
                                     <option key={n} value={n}>{n} / page</option>
                                 ))}
                             </select>
-                        </div>
+                            <Button variant="ghost" size="sm" onClick={clearAdvancedFilters}>Clear</Button>
+                        </DashboardControlBar>
                     )}
                 </CardHeader>
 

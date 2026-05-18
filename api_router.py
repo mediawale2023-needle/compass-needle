@@ -306,6 +306,10 @@ def get_cases(
     bucket: Optional[str] = None,
     search: Optional[str] = None,
     assigned_to: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    critical: Optional[bool] = None,
+    sort: str = Query("newest", pattern="^(newest|oldest|updated|critical)$"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
 ):
@@ -367,9 +371,24 @@ def get_cases(
     if assigned_to:
         conditions.append("c.assigned_to = :assigned_to")
         params["assigned_to"] = assigned_to
+    if date_from:
+        conditions.append("DATE(c.created_at) >= :date_from")
+        params["date_from"] = date_from
+    if date_to:
+        conditions.append("DATE(c.created_at) <= :date_to")
+        params["date_to"] = date_to
+    if critical is not None:
+        conditions.append("c.is_critical = :critical")
+        params["critical"] = critical
 
     where = " AND ".join(conditions)
     offset = (page - 1) * limit
+    order_by = {
+        "newest": "c.created_at DESC",
+        "oldest": "c.created_at ASC",
+        "updated": "c.updated_at DESC NULLS LAST, c.created_at DESC",
+        "critical": "c.is_critical DESC, c.created_at DESC",
+    }.get(sort, "c.created_at DESC")
 
     count_row = _q_one(f"SELECT COUNT(*) as cnt FROM cases c WHERE {where}", params)  # nosec B608 — where is built from hardcoded predicates; all user input is parameterised
     total = count_row["cnt"] if count_row else 0
@@ -382,7 +401,7 @@ def get_cases(
                c.case_metadata, c.is_critical, c.created_at, c.updated_at,
                c.response_to_citizen, c.notes_for_staff, c.assigned_to
         FROM cases c WHERE {where}
-        ORDER BY c.created_at DESC
+        ORDER BY {order_by}
         LIMIT :lim OFFSET :off
         """,
         {**params, "lim": limit, "off": offset}
@@ -517,6 +536,128 @@ def get_deleted_cases_mp(user=Depends(get_current_user)):
             if val and hasattr(val, "isoformat"):
                 c[field] = val.isoformat()
     return {"cases": cases}
+
+
+@router.get("/cases/export")
+def export_cases(
+    user=Depends(get_current_user),
+    status: Optional[str] = None,
+    exclude_status: Optional[str] = None,
+    category: Optional[str] = None,
+    categories: Optional[str] = None,
+    exclude_categories: Optional[str] = None,
+    bucket: Optional[str] = None,
+    search: Optional[str] = None,
+    assigned_to: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    critical: Optional[bool] = None,
+):
+    tid = get_tenant_or_fail(user)
+    conditions = ["tenant_id = :tid", "(is_deleted = false OR is_deleted IS NULL)"]
+    params = {"tid": tid}
+
+    if bucket == "other":
+        other_statuses = ["offensive", "irrelevant"]
+        other_categories = ["Request", "Greetings", "Spam", "Spam (Offensive)"]
+        status_placeholders = ", ".join(f":bucket_status_{i}" for i in range(len(other_statuses)))
+        category_placeholders = ", ".join(f":bucket_cat_{i}" for i in range(len(other_categories)))
+        conditions.append(
+            f"(status IN ({status_placeholders}) OR category IN ({category_placeholders}))"
+        )
+        for i, value in enumerate(other_statuses):
+            params[f"bucket_status_{i}"] = value
+        for i, value in enumerate(other_categories):
+            params[f"bucket_cat_{i}"] = value
+
+    if status and status != "All":
+        conditions.append("status = :status")
+        params["status"] = status
+    if exclude_status:
+        statuses = [s.strip() for s in exclude_status.split(",") if s.strip()]
+        if statuses:
+            placeholders = ", ".join(f":exs_{i}" for i in range(len(statuses)))
+            conditions.append(f"status NOT IN ({placeholders})")
+            for i, value in enumerate(statuses):
+                params[f"exs_{i}"] = value
+    if category:
+        conditions.append("category = :category")
+        params["category"] = category
+    if categories:
+        cat_list = [c.strip() for c in categories.split(",") if c.strip()]
+        if cat_list:
+            placeholders = ", ".join(f":cat_{i}" for i in range(len(cat_list)))
+            conditions.append(f"category IN ({placeholders})")
+            for i, value in enumerate(cat_list):
+                params[f"cat_{i}"] = value
+    if exclude_categories:
+        category_list = [c.strip() for c in exclude_categories.split(",") if c.strip()]
+        if category_list:
+            placeholders = ", ".join(f":exc_{i}" for i in range(len(category_list)))
+            conditions.append(f"category NOT IN ({placeholders})")
+            for i, value in enumerate(category_list):
+                params[f"exc_{i}"] = value
+    if search:
+        conditions.append(
+            "("
+            "LOWER(COALESCE(user_phone, '')) LIKE LOWER(:search) OR "
+            "LOWER(COALESCE(raw_message, '')) LIKE LOWER(:search) OR "
+            "LOWER(COALESCE(case_ref, '')) LIKE LOWER(:search) OR "
+            "LOWER(COALESCE(location, '')) LIKE LOWER(:search) OR "
+            "LOWER(COALESCE(CAST(case_metadata AS TEXT), '')) LIKE LOWER(:search)"
+            ")"
+        )
+        params["search"] = f"%{search}%"
+    if assigned_to:
+        conditions.append("assigned_to = :assigned_to")
+        params["assigned_to"] = assigned_to
+    if date_from:
+        conditions.append("DATE(created_at) >= :date_from")
+        params["date_from"] = date_from
+    if date_to:
+        conditions.append("DATE(created_at) <= :date_to")
+        params["date_to"] = date_to
+    if critical is not None:
+        conditions.append("is_critical = :critical")
+        params["critical"] = critical
+
+    where = " AND ".join(conditions)
+    rows = _q(f"""
+        SELECT id, case_ref, user_phone, category, status,
+               COALESCE(location, case_metadata->>'matched_value') AS location,
+               COALESCE(assembly, case_metadata->>'assembly_constituency') AS assembly,
+               is_critical, assigned_to, created_at, updated_at, raw_message
+        FROM cases
+        WHERE {where}
+        ORDER BY created_at DESC
+        LIMIT 1000
+    """, params)  # nosec B608 — where is built from hardcoded predicates; all user input is parameterised
+
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(["id", "case_ref", "phone", "category", "status", "location", "assembly", "critical", "assigned_to", "created_at", "updated_at", "message"])
+    for row in rows:
+        writer.writerow([
+            row.get("id"),
+            row.get("case_ref") or "",
+            row.get("user_phone") or "",
+            row.get("category") or "",
+            row.get("status") or "",
+            row.get("location") or "",
+            row.get("assembly") or "",
+            "yes" if row.get("is_critical") else "no",
+            row.get("assigned_to") or "",
+            row.get("created_at").isoformat() if hasattr(row.get("created_at"), "isoformat") else row.get("created_at") or "",
+            row.get("updated_at").isoformat() if hasattr(row.get("updated_at"), "isoformat") else row.get("updated_at") or "",
+            row.get("raw_message") or "",
+        ])
+
+    filename = f"briefcase_cases_{_utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+    return StreamingResponse(
+        iter([out.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/cases/{case_id}")

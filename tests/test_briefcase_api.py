@@ -417,6 +417,11 @@ def test_briefcase_cases_list_supports_filters_search_pagination_and_metadata_fa
     assert bucket_resp.status_code == 200, bucket_resp.text
     assert {case["id"] for case in bucket_resp.json()["cases"]} == {103}
 
+    export_resp = client.get("/api/cases/export?search=Whitefield", headers=headers)
+    assert export_resp.status_code == 200, export_resp.text
+    assert export_resp.headers["content-type"].startswith("text/csv")
+    assert "NDL-2026-00101" in export_resp.text
+
 
 def test_briefcase_status_notes_and_assignment_updates_are_logged():
     _seed_database()

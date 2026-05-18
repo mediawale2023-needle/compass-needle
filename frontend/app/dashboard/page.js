@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import DashboardControlBar from '@/components/DashboardControlBar';
 import {
     AlertTriangle,
     CheckCircle2,
@@ -66,6 +67,8 @@ export default function DashboardPage() {
     const [news, setNews] = useState({ national: [], local: [] });
     const [newsTab, setNewsTab] = useState('national');
     const [showNews, setShowNews] = useState(true);
+    const [mediaSearch, setMediaSearch] = useState('');
+    const [mediaSource, setMediaSource] = useState('');
     const [staleCases, setStaleCases] = useState([]);
     const [allCases, setAllCases] = useState([]);
 
@@ -108,6 +111,23 @@ export default function DashboardPage() {
 
         return () => { cancelled = true; };
     }, []);
+
+    const activeNews = news[newsTab] || [];
+    const mediaSources = [...new Set(activeNews.map(a => a.source).filter(Boolean))].sort();
+    const filteredNews = activeNews.filter(article => {
+        const q = mediaSearch.trim().toLowerCase();
+        const matchesSearch = !q || [article.title, article.source].some(v => (v || '').toLowerCase().includes(q));
+        const matchesSource = !mediaSource || article.source === mediaSource;
+        return matchesSearch && matchesSource;
+    });
+
+    const refreshNews = async () => {
+        const [nat, loc] = await Promise.all([
+            apiGet('/api/news?news_type=national').catch(() => ({ articles: [] })),
+            apiGet('/api/news?news_type=local').catch(() => ({ articles: [] })),
+        ]);
+        setNews({ national: nat.articles || [], local: loc.articles || [] });
+    };
 
     const cats = summary?.category_breakdown || {};
     const statuses = summary?.status_breakdown || {};
@@ -441,16 +461,39 @@ export default function DashboardPage() {
                         </CardHeader>
                         {showNews && (
                             <CardContent className="pt-0">
-                                <Tabs value={newsTab} onValueChange={setNewsTab}>
+                                <Tabs value={newsTab} onValueChange={value => { setNewsTab(value); setMediaSource(''); }}>
                                     <TabsList className="mb-4">
                                         <TabsTrigger value="national">National Media</TabsTrigger>
                                         <TabsTrigger value="local">Local & Digital Media</TabsTrigger>
                                     </TabsList>
+                                    <DashboardControlBar
+                                        className="mb-4"
+                                        search={mediaSearch}
+                                        onSearchChange={setMediaSearch}
+                                        searchPlaceholder="Search headline or source..."
+                                        onRefresh={refreshNews}
+                                    >
+                                        <select
+                                            className="h-9 rounded border bg-background px-2 text-sm"
+                                            value={mediaSource}
+                                            onChange={e => setMediaSource(e.target.value)}
+                                        >
+                                            <option value="">All sources</option>
+                                            {mediaSources.map(source => (
+                                                <option key={source} value={source}>{source}</option>
+                                            ))}
+                                        </select>
+                                        {(mediaSearch || mediaSource) && (
+                                            <Button variant="ghost" size="sm" onClick={() => { setMediaSearch(''); setMediaSource(''); }}>
+                                                Clear
+                                            </Button>
+                                        )}
+                                    </DashboardControlBar>
                                     <TabsContent value="national" className="mt-0">
-                                        <NewsList articles={news.national} emptyText="No national media coverage found today" />
+                                        <NewsList articles={filteredNews} emptyText="No national media coverage found today" />
                                     </TabsContent>
                                     <TabsContent value="local" className="mt-0">
-                                        <NewsList articles={news.local} emptyText="No local or digital media coverage found today" />
+                                        <NewsList articles={filteredNews} emptyText="No local or digital media coverage found today" />
                                     </TabsContent>
                                 </Tabs>
                             </CardContent>
