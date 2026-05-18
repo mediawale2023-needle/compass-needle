@@ -431,7 +431,7 @@ export default function DashboardPage() {
                                         Media Centre
                                     </CardTitle>
                                     <CardDescription className="mt-1">
-                                        Tenant-specific coverage from national and local news channels
+                                        Tenant-specific coverage from TV, newspapers, and digital news outlets
                                     </CardDescription>
                                 </div>
                                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0">
@@ -443,14 +443,14 @@ export default function DashboardPage() {
                             <CardContent className="pt-0">
                                 <Tabs value={newsTab} onValueChange={setNewsTab}>
                                     <TabsList className="mb-4">
-                                        <TabsTrigger value="national">National Channels</TabsTrigger>
-                                        <TabsTrigger value="local">Local Channels</TabsTrigger>
+                                        <TabsTrigger value="national">National Media</TabsTrigger>
+                                        <TabsTrigger value="local">Local & Digital Media</TabsTrigger>
                                     </TabsList>
                                     <TabsContent value="national" className="mt-0">
-                                        <NewsList articles={news.national} emptyText="No national channel coverage found today" />
+                                        <NewsList articles={news.national} emptyText="No national media coverage found today" />
                                     </TabsContent>
                                     <TabsContent value="local" className="mt-0">
-                                        <NewsList articles={news.local} emptyText="No local channel coverage found today" />
+                                        <NewsList articles={news.local} emptyText="No local or digital media coverage found today" />
                                     </TabsContent>
                                 </Tabs>
                             </CardContent>
