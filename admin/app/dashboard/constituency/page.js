@@ -31,6 +31,10 @@ function pretty(v) {
     return String(v);
 }
 
+function asArray(value) {
+    return Array.isArray(value) ? value : [];
+}
+
 function sectionPayload(tab, profile) {
     if (!profile || typeof profile !== 'object') return {};
     switch (tab) {
@@ -110,14 +114,14 @@ function computeCompleteness(profile) {
         ['Electors', isPresent(meta.total_electors_2024), 'Latest voter base for context.'],
         ['Geography', isPresent(profile.geography), 'Terrain, districts, talukas, rivers, climate.'],
         ['Demographics', isPresent(profile.demographics), 'Population, literacy, language, community context.'],
-        ['Assembly segments', (profile.assembly_segments || []).length >= 1, 'Assembly list with MLA/party where available.'],
+        ['Assembly segments', asArray(profile.assembly_segments).length >= 1, 'Assembly list with MLA/party where available.'],
         ['Political history', isPresent(profile.political_history), 'Current MP, past MPs, political character.'],
         ['Economy and infrastructure', isPresent(profile.economy) || isPresent(profile.infrastructure), 'Local economy, connectivity, institutions.'],
         ['Social indicators', isPresent(profile.social_indicators), 'Schemes and development indicators.'],
         ['Culture and heritage', isPresent(profile.cultural_profile), 'Local identity, festivals, heritage, personalities.'],
-        ['Challenges', (profile.key_challenges || []).length >= 3, 'Issue anchors for letters/research.'],
-        ['Priorities', (profile.development_priorities || []).length >= 3, 'Development asks for drafting.'],
-        ['Notable facts', (profile.notable_facts || []).length >= 3, 'Useful constituency references.'],
+        ['Challenges', asArray(profile.key_challenges).length >= 3, 'Issue anchors for letters/research.'],
+        ['Priorities', asArray(profile.development_priorities).length >= 3, 'Development asks for drafting.'],
+        ['Notable facts', asArray(profile.notable_facts).length >= 3, 'Useful constituency references.'],
     ].map(([label, done, hint]) => ({ label, done: Boolean(done), hint }));
     const done = checks.filter(c => c.done).length;
     return { score: Math.round((done / checks.length) * 100), done, total: checks.length, checks };
@@ -130,7 +134,7 @@ function getPrimaryLanguage(profile) {
         .filter(([k, v]) => k.endsWith('_percent') && typeof v === 'number')
         .sort((a, b) => b[1] - a[1]);
     if (!pctEntries.length) return '';
-    return pctEntries[0][0].replace('_percent', '').replaceAll('_', ' ');
+    return pctEntries[0][0].replace('_percent', '').replace(/_/g, ' ');
 }
 
 function ReadinessCard({ label, value, detail, tone = 'green' }) {
@@ -145,12 +149,14 @@ function ReadinessCard({ label, value, detail, tone = 'green' }) {
 }
 
 function ValueList({ items }) {
-    if (!items || !items.length) return <div style={{ color: '#6b7f76', fontSize: '0.82rem' }}>No entries yet.</div>;
+    const rows = asArray(items);
+    if (!rows.length) return <div style={{ color: '#6b7f76', fontSize: '0.82rem' }}>No entries yet.</div>;
     return (
         <div style={{ display: 'grid', gap: 8 }}>
-            {items.map((item, i) => {
-                const title = typeof item === 'object' ? (item.title || item.name || item.sector || item.year || `Item ${i + 1}`) : item;
-                const detail = typeof item === 'object'
+            {rows.map((item, i) => {
+                const obj = item && typeof item === 'object' ? item : null;
+                const title = obj ? (obj.title || obj.name || obj.sector || obj.year || `Item ${i + 1}`) : item;
+                const detail = obj
                     ? (item.detail || item.note || item.significance || item.details || item.party || '')
                     : '';
                 return (
@@ -171,7 +177,7 @@ function KeyValueGrid({ data }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
             {entries.map(([k, v]) => (
                 <div key={k} style={{ background: '#fff', border: '1px solid #e2ebe5', borderRadius: 10, padding: '10px 12px' }}>
-                    <div className="form-label">{k.replaceAll('_', ' ')}</div>
+                    <div className="form-label">{k.replace(/_/g, ' ')}</div>
                     <div style={{ color: '#1a2e28', fontSize: '0.86rem', lineHeight: 1.45 }}>
                         {typeof v === 'object' ? JSON.stringify(v, null, 2) : pretty(v)}
                     </div>
@@ -217,7 +223,7 @@ function SectionView({ tab, profile }) {
                     <table className="data-table">
                         <thead><tr><th>Segment</th><th>MLA</th><th>Party</th><th>Margin</th><th>Note</th></tr></thead>
                         <tbody>
-                            {(profile.assembly_segments || []).map((s, i) => (
+                            {asArray(profile.assembly_segments).map((s, i) => (
                                 <tr key={i}>
                                     <td>{pretty(s.name)}</td>
                                     <td>{pretty(s.mla)}</td>
