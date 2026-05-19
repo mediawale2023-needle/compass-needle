@@ -870,6 +870,9 @@ function BriefcaseInner() {
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'All');
     const [categoryFilter, setCategoryFilter] = useState(() => searchParams.get('category') || '');
+    const [locationFilter, setLocationFilter] = useState(() => searchParams.get('location') || '');
+    const [assemblyFilter, setAssemblyFilter] = useState(() => searchParams.get('assembly') || '');
+    const [filterOptions, setFilterOptions] = useState({ statuses: [], categories: [], locations: [], assemblies: [] });
     const [selected, setSelected] = useState(null);
     const [downloading, setDownloading] = useState(false);
     const [contactPhone, setContactPhone] = useState(null);
@@ -899,6 +902,8 @@ function BriefcaseInner() {
             const params = new URLSearchParams();
             if (statusFilter !== 'All') params.set('status', statusFilter);
             if (categoryFilter) params.set('category', categoryFilter);
+            if (locationFilter) params.set('location', locationFilter);
+            if (assemblyFilter) params.set('assembly', assemblyFilter);
             const qs = params.toString() ? `?${params}` : '';
             const blob = await apiBlob(`/api/reports/grievance${qs}`);
             const url = URL.createObjectURL(blob);
@@ -920,8 +925,12 @@ function BriefcaseInner() {
     useEffect(() => {
         const status = searchParams.get('status') || 'All';
         const cat = searchParams.get('category') || '';
+        const location = searchParams.get('location') || '';
+        const assembly = searchParams.get('assembly') || '';
         setStatusFilter(status);
         setCategoryFilter(cat);
+        setLocationFilter(location);
+        setAssemblyFilter(assembly);
         setPage(1);
     }, [searchParams]);
 
@@ -937,6 +946,49 @@ function BriefcaseInner() {
             .then(d => setStaff(d.staff || []))
             .catch(() => { console.error('Failed to fetch staff'); });
     }, []);
+
+    useEffect(() => {
+        apiGet('/api/cases/filter-options')
+            .then(d => setFilterOptions({
+                statuses: d.statuses || [],
+                categories: d.categories || [],
+                locations: d.locations || [],
+                assemblies: d.assemblies || [],
+            }))
+            .catch(() => setFilterOptions({ statuses: [], categories: [], locations: [], assemblies: [] }));
+    }, [refreshToken]);
+
+    function setUrlFilter(key, value) {
+        const url = new URL(window.location.href);
+        if (value) url.searchParams.set(key, value);
+        else url.searchParams.delete(key);
+        window.history.replaceState({}, '', url.toString());
+    }
+
+    function optionLabel(option) {
+        return `${option.value}${option.count ? ` (${option.count})` : ''}`;
+    }
+
+    function applyCaseFilters(params) {
+        if (statusFilter === 'All') {
+            params.set('exclude_status', ['resolved', 'closed', ...OTHER_STATUSES].join(','));
+            params.set('exclude_categories', OTHER_CATEGORIES.join(','));
+        } else if (statusFilter === 'other') {
+            params.set('bucket', 'other');
+        } else {
+            params.set('status', statusFilter);
+        }
+
+        if (categoryFilter) params.set('category', categoryFilter);
+        if (locationFilter) params.set('location', locationFilter);
+        if (assemblyFilter) params.set('assembly', assemblyFilter);
+        if (search) params.set('search', search);
+        if (assignedFilter) params.set('assigned_to', assignedFilter);
+        if (dateFrom) params.set('date_from', dateFrom);
+        if (dateTo) params.set('date_to', dateTo);
+        if (criticalOnly) params.set('critical', 'true');
+        if (sortOrder) params.set('sort', sortOrder);
+    }
 
     // Fetch clusters when that tab is active
     const fetchClusters = async () => {
@@ -973,22 +1025,7 @@ function BriefcaseInner() {
                     limit: String(pageSize),
                 });
 
-                if (statusFilter === 'All') {
-                    params.set('exclude_status', ['resolved', 'closed', ...OTHER_STATUSES].join(','));
-                    params.set('exclude_categories', OTHER_CATEGORIES.join(','));
-                } else if (statusFilter === 'other') {
-                    params.set('bucket', 'other');
-                } else {
-                    params.set('status', statusFilter);
-                }
-
-                if (categoryFilter) params.set('category', categoryFilter);
-                if (search) params.set('search', search);
-                if (assignedFilter) params.set('assigned_to', assignedFilter);
-                if (dateFrom) params.set('date_from', dateFrom);
-                if (dateTo) params.set('date_to', dateTo);
-                if (criticalOnly) params.set('critical', 'true');
-                if (sortOrder) params.set('sort', sortOrder);
+                applyCaseFilters(params);
 
                 const data = await apiGet(`/api/cases?${params}`);
                 if (!cancelled) {
@@ -1010,7 +1047,7 @@ function BriefcaseInner() {
 
         fetchCases();
         return () => { cancelled = true; };
-    }, [statusFilter, categoryFilter, page, user?.username, search, pageSize, assignedFilter, dateFrom, dateTo, criticalOnly, sortOrder, refreshToken]);
+    }, [statusFilter, categoryFilter, locationFilter, assemblyFilter, page, user?.username, search, pageSize, assignedFilter, dateFrom, dateTo, criticalOnly, sortOrder, refreshToken]);
 
     // Poll every 30s for new cases (only on visible tabs with live data)
     useEffect(() => {
@@ -1019,24 +1056,13 @@ function BriefcaseInner() {
             if (document.visibilityState !== 'visible') return;
             try {
                 const params = new URLSearchParams({ page: '1', limit: '1' });
-                if (statusFilter === 'All') {
-                    params.set('exclude_status', ['resolved', 'closed', ...OTHER_STATUSES].join(','));
-                    params.set('exclude_categories', OTHER_CATEGORIES.join(','));
-                } else if (statusFilter === 'other') {
-                    params.set('bucket', 'other');
-                }
-                else params.set('status', statusFilter);
-                if (search) params.set('search', search);
-                if (assignedFilter) params.set('assigned_to', assignedFilter);
-                if (dateFrom) params.set('date_from', dateFrom);
-                if (dateTo) params.set('date_to', dateTo);
-                if (criticalOnly) params.set('critical', 'true');
+                applyCaseFilters(params);
                 const data = await apiGet(`/api/cases?${params}`);
                 if ((data.total || 0) > totalCases) setHasNewCases(true);
             } catch { /* silent */ }
         }, 30000);
         return () => clearInterval(interval);
-    }, [statusFilter, totalCases, user?.username, search, assignedFilter, dateFrom, dateTo, criticalOnly]);
+    }, [statusFilter, categoryFilter, locationFilter, assemblyFilter, totalCases, user?.username, search, assignedFilter, dateFrom, dateTo, criticalOnly, sortOrder]);
 
     // Auto-open a specific case when case_id is present in the URL
     useEffect(() => {
@@ -1069,8 +1095,14 @@ function BriefcaseInner() {
         setDateTo('');
         setCriticalOnly(false);
         setSortOrder('newest');
+        setCategoryFilter('');
+        setLocationFilter('');
+        setAssemblyFilter('');
         setSearchInput('');
         setSearch('');
+        const url = new URL(window.location.href);
+        ['category', 'location', 'assembly'].forEach(key => url.searchParams.delete(key));
+        window.history.replaceState({}, '', url.toString());
         setPage(1);
         setRefreshToken(v => v + 1);
     }
@@ -1088,9 +1120,19 @@ function BriefcaseInner() {
     function clearCategoryFilter() {
         setCategoryFilter('');
         setPage(1);
-        const url = new URL(window.location.href);
-        url.searchParams.delete('category');
-        window.history.replaceState({}, '', url.toString());
+        setUrlFilter('category', '');
+    }
+
+    function clearLocationFilter() {
+        setLocationFilter('');
+        setPage(1);
+        setUrlFilter('location', '');
+    }
+
+    function clearAssemblyFilter() {
+        setAssemblyFilter('');
+        setPage(1);
+        setUrlFilter('assembly', '');
     }
 
     const handleStatusChange = (caseId, newStatus) => {
@@ -1141,20 +1183,7 @@ function BriefcaseInner() {
     async function exportCasesCsv() {
         try {
             const params = new URLSearchParams();
-            if (statusFilter === 'All') {
-                params.set('exclude_status', ['resolved', 'closed', ...OTHER_STATUSES].join(','));
-                params.set('exclude_categories', OTHER_CATEGORIES.join(','));
-            } else if (statusFilter === 'other') {
-                params.set('bucket', 'other');
-            } else if (statusFilter !== 'other') {
-                params.set('status', statusFilter);
-            }
-            if (categoryFilter) params.set('category', categoryFilter);
-            if (search) params.set('search', search);
-            if (assignedFilter) params.set('assigned_to', assignedFilter);
-            if (dateFrom) params.set('date_from', dateFrom);
-            if (dateTo) params.set('date_to', dateTo);
-            if (criticalOnly) params.set('critical', 'true');
+            applyCaseFilters(params);
             const qs = params.toString() ? `?${params.toString()}` : '';
             const blob = await apiBlob(`/api/cases/export${qs}`);
             const url = URL.createObjectURL(blob);
@@ -1240,6 +1269,51 @@ function BriefcaseInner() {
                             exportLabel="Export CSV"
                         >
                             <select
+                                className="h-9 max-w-[180px] rounded border bg-background px-2 text-sm"
+                                value={categoryFilter}
+                                onChange={e => {
+                                    setCategoryFilter(e.target.value);
+                                    setUrlFilter('category', e.target.value);
+                                    setPage(1);
+                                }}
+                                aria-label="Filter by category"
+                            >
+                                <option value="">All categories</option>
+                                {filterOptions.categories.map(option => (
+                                    <option key={option.value} value={option.value}>{optionLabel(option)}</option>
+                                ))}
+                            </select>
+                            <select
+                                className="h-9 max-w-[180px] rounded border bg-background px-2 text-sm"
+                                value={locationFilter}
+                                onChange={e => {
+                                    setLocationFilter(e.target.value);
+                                    setUrlFilter('location', e.target.value);
+                                    setPage(1);
+                                }}
+                                aria-label="Filter by location"
+                            >
+                                <option value="">All locations</option>
+                                {filterOptions.locations.map(option => (
+                                    <option key={option.value} value={option.value}>{optionLabel(option)}</option>
+                                ))}
+                            </select>
+                            <select
+                                className="h-9 max-w-[190px] rounded border bg-background px-2 text-sm"
+                                value={assemblyFilter}
+                                onChange={e => {
+                                    setAssemblyFilter(e.target.value);
+                                    setUrlFilter('assembly', e.target.value);
+                                    setPage(1);
+                                }}
+                                aria-label="Filter by constituency"
+                            >
+                                <option value="">All constituencies</option>
+                                {filterOptions.assemblies.map(option => (
+                                    <option key={option.value} value={option.value}>{optionLabel(option)}</option>
+                                ))}
+                            </select>
+                            <select
                                 className="h-9 rounded border bg-background px-2 text-sm"
                                 value={assignedFilter}
                                 onChange={e => { setAssignedFilter(e.target.value); setPage(1); }}
@@ -1295,15 +1369,41 @@ function BriefcaseInner() {
                     )}
                 </CardHeader>
 
-                {categoryFilter && (
+                {(categoryFilter || locationFilter || assemblyFilter || statusFilter !== 'All') && statusFilter !== 'clusters' && statusFilter !== 'deleted' && (
                     <div className="px-6 py-3 border-b flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Filtered by category:</span>
-                        <Badge variant="default" className="gap-1" style={{ background: color }}>
-                            {categoryFilter}
-                            <button onClick={clearCategoryFilter} className="ml-1 hover:opacity-80">
-                                <X className="h-3 w-3" />
-                            </button>
-                        </Badge>
+                        <span className="text-xs text-muted-foreground">Active filters:</span>
+                        {statusFilter !== 'All' && (
+                            <Badge variant="secondary" className="gap-1">
+                                Status: {TABS.find(t => t.key === statusFilter)?.label || statusFilter}
+                                <button onClick={() => switchTab('All')} className="ml-1 hover:opacity-80">
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </Badge>
+                        )}
+                        {categoryFilter && (
+                            <Badge variant="default" className="gap-1" style={{ background: color }}>
+                                Category: {categoryFilter}
+                                <button onClick={clearCategoryFilter} className="ml-1 hover:opacity-80">
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </Badge>
+                        )}
+                        {locationFilter && (
+                            <Badge variant="default" className="gap-1" style={{ background: color }}>
+                                Location: {locationFilter}
+                                <button onClick={clearLocationFilter} className="ml-1 hover:opacity-80">
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </Badge>
+                        )}
+                        {assemblyFilter && (
+                            <Badge variant="default" className="gap-1" style={{ background: color }}>
+                                Constituency: {assemblyFilter}
+                                <button onClick={clearAssemblyFilter} className="ml-1 hover:opacity-80">
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </Badge>
+                        )}
                         <span className="text-xs text-muted-foreground ml-1">
                             {loading ? '...' : `${cases.length} case${cases.length !== 1 ? 's' : ''}`}
                         </span>

@@ -301,6 +301,8 @@ def get_cases(
     status: Optional[str] = None,
     exclude_status: Optional[str] = None,
     category: Optional[str] = None,
+    location: Optional[str] = None,
+    assembly: Optional[str] = None,
     categories: Optional[str] = None,
     exclude_categories: Optional[str] = None,
     bucket: Optional[str] = None,
@@ -343,6 +345,12 @@ def get_cases(
     if category:
         conditions.append("c.category = :cat")
         params["cat"] = category
+    if location:
+        conditions.append("COALESCE(c.location, c.case_metadata->>'matched_value') = :location")
+        params["location"] = location
+    if assembly:
+        conditions.append("COALESCE(c.assembly, c.case_metadata->>'assembly_constituency') = :assembly")
+        params["assembly"] = assembly
     if categories:
         cat_list = [c.strip() for c in categories.split(",") if c.strip()]
         if cat_list:
@@ -398,6 +406,8 @@ def get_cases(
         f"""
         SELECT c.id, c.case_ref, c.user_phone, c.category, c.problem_domain,
                c.problem_subdomain, c.convergence_program_type, c.status, c.raw_message,
+               COALESCE(c.location, c.case_metadata->>'matched_value') AS location,
+               COALESCE(c.assembly, c.case_metadata->>'assembly_constituency') AS assembly,
                c.case_metadata, c.is_critical, c.created_at, c.updated_at,
                c.response_to_citizen, c.notes_for_staff, c.assigned_to
         FROM cases c WHERE {where}
@@ -409,20 +419,18 @@ def get_cases(
 
     for c in cases:
         meta = c.get("case_metadata")
-        if meta and isinstance(meta, dict):
-            c["location"] = meta.get("matched_value", "")
-            c["assembly"] = meta.get("assembly_constituency", "")
-        elif meta and isinstance(meta, str):
+        c["location"] = c.get("location") or ""
+        c["assembly"] = c.get("assembly") or ""
+        if (not c.get("location") or not c.get("assembly")) and meta and isinstance(meta, dict):
+            c["location"] = c.get("location") or meta.get("matched_value", "")
+            c["assembly"] = c.get("assembly") or meta.get("assembly_constituency", "")
+        elif (not c.get("location") or not c.get("assembly")) and meta and isinstance(meta, str):
             try:
                 m = json.loads(meta)
-                c["location"] = m.get("matched_value", "")
-                c["assembly"] = m.get("assembly_constituency", "")
+                c["location"] = c.get("location") or m.get("matched_value", "")
+                c["assembly"] = c.get("assembly") or m.get("assembly_constituency", "")
             except Exception:
-                c["location"] = ""
-                c["assembly"] = ""
-        else:
-            c["location"] = ""
-            c["assembly"] = ""
+                pass
 
         parsed_meta = _parse_meta(meta)
         if not c.get("problem_domain"):
@@ -438,6 +446,52 @@ def get_cases(
                 c[field] = val.isoformat()
 
     return {"cases": cases, "total": total, "page": page, "limit": limit, "pages": pages}
+
+
+@router.get("/cases/filter-options")
+def get_case_filter_options(user=Depends(get_current_user)):
+    """Tenant-scoped distinct values used by the Briefcase filters."""
+    tid = get_tenant_or_fail(user)
+    base_where = "tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)"
+    params = {"tid": tid}
+
+    def rows_for(expression: str, limit: int = 200):
+        return _q(  # nosec B608 — expression is supplied by local hardcoded callers only.
+            f"""
+            SELECT {expression} AS value, COUNT(*) AS count
+            FROM cases
+            WHERE {base_where}
+              AND NULLIF(TRIM({expression}), '') IS NOT NULL
+            GROUP BY value
+            ORDER BY count DESC, value ASC
+            LIMIT :limit
+            """,
+            {**params, "limit": limit},
+        )
+
+    status_rows = _q(
+        f"""
+        SELECT COALESCE(status, 'new') AS value, COUNT(*) AS count
+        FROM cases
+        WHERE {base_where}
+        GROUP BY value
+        ORDER BY count DESC, value ASC
+        """,
+        params,
+    )
+    category_rows = rows_for("COALESCE(category, 'General')", 200)
+    location_rows = rows_for("COALESCE(location, case_metadata->>'matched_value')", 300)
+    assembly_rows = rows_for("COALESCE(assembly, case_metadata->>'assembly_constituency')", 200)
+
+    def format_rows(rows):
+        return [{"value": r["value"], "count": r["count"]} for r in rows if r.get("value")]
+
+    return {
+        "statuses": format_rows(status_rows),
+        "categories": format_rows(category_rows),
+        "locations": format_rows(location_rows),
+        "assemblies": format_rows(assembly_rows),
+    }
 
 
 @router.get("/summary")
@@ -544,6 +598,8 @@ def export_cases(
     status: Optional[str] = None,
     exclude_status: Optional[str] = None,
     category: Optional[str] = None,
+    location: Optional[str] = None,
+    assembly: Optional[str] = None,
     categories: Optional[str] = None,
     exclude_categories: Optional[str] = None,
     bucket: Optional[str] = None,
@@ -583,6 +639,12 @@ def export_cases(
     if category:
         conditions.append("category = :category")
         params["category"] = category
+    if location:
+        conditions.append("COALESCE(location, case_metadata->>'matched_value') = :location")
+        params["location"] = location
+    if assembly:
+        conditions.append("COALESCE(assembly, case_metadata->>'assembly_constituency') = :assembly")
+        params["assembly"] = assembly
     if categories:
         cat_list = [c.strip() for c in categories.split(",") if c.strip()]
         if cat_list:
@@ -4323,6 +4385,8 @@ def get_report_card(user=Depends(get_current_user)):
 def download_grievance_report(
     status: Optional[str] = None,
     category: Optional[str] = None,
+    location: Optional[str] = None,
+    assembly: Optional[str] = None,
     user=Depends(get_current_user),
 ):
     """Generate and stream a PDF grievance summary report for the current tenant."""
@@ -4352,10 +4416,18 @@ def download_grievance_report(
     if category:
         conditions.append("category = :category")
         params["category"] = category
+    if location:
+        conditions.append("COALESCE(location, case_metadata->>'matched_value') = :location")
+        params["location"] = location
+    if assembly:
+        conditions.append("COALESCE(assembly, case_metadata->>'assembly_constituency') = :assembly")
+        params["assembly"] = assembly
 
     where = " AND ".join(conditions)
     cases = _q(f"""  # nosec B608
-        SELECT id, user_phone, category, status, location, assembly,
+        SELECT id, user_phone, category, status,
+               COALESCE(location, case_metadata->>'matched_value') AS location,
+               COALESCE(assembly, case_metadata->>'assembly_constituency') AS assembly,
                is_critical, created_at, updated_at
         FROM cases WHERE {where}
         ORDER BY created_at DESC
@@ -4407,6 +4479,10 @@ def download_grievance_report(
         filter_desc.append(f"Status: {status.replace('_', ' ').title()}")
     if category:
         filter_desc.append(f"Category: {category}")
+    if location:
+        filter_desc.append(f"Location: {location}")
+    if assembly:
+        filter_desc.append(f"Constituency: {assembly}")
     filter_line = "  ·  ".join(filter_desc) if filter_desc else "All cases"
 
     total = sum(status_counts.values())
