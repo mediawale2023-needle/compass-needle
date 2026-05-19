@@ -2125,6 +2125,8 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
     _wa_phone_id = get_tenant_phone_number_id(current_tenant)
 
     logger.info(f"Incoming from {sender} → Tenant {current_tenant}")
+    sender_digits = re.sub(r"\D", "", sender or "")
+    sender_bare = sender_digits[2:] if sender_digits.startswith("91") and len(sender_digits) == 12 else sender_digits
 
     # ── Staff query routing (check BEFORE spam / citizen flow) ───────────────
     # If the sender's phone is a registered staff user for this tenant,
@@ -2132,15 +2134,19 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
     # Uses the same users.phone lookup as the PA letter intake system.
     try:
         with engine.connect() as conn:
-            # Match on both bare number and with country-code prefix (91XXXXXXXXXX vs XXXXXXXXXX)
-            sender_bare = sender[2:] if sender.startswith("91") and len(sender) == 12 else sender
             staff_row = conn.execute(
                 text("""
                     SELECT id, display_name FROM users
-                    WHERE (phone = :phone OR phone = :bare) AND tenant_id = :tid AND is_active = true
+                    WHERE tenant_id = :tid
+                      AND is_active = true
+                      AND (
+                        phone = :phone
+                        OR phone = :bare
+                        OR regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') IN (:phone_digits, :bare)
+                      )
                     LIMIT 1
                 """),
-                {"phone": sender, "bare": sender_bare, "tid": current_tenant},
+                {"phone": sender, "phone_digits": sender_digits, "bare": sender_bare, "tid": current_tenant},
             ).fetchone()
     except Exception as _staff_exc:
         logger.warning("Staff lookup failed: %s", _staff_exc)

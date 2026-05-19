@@ -106,6 +106,33 @@ _DAY_PATTERNS = [
 ]
 
 
+def _extract_days(text: str) -> int:
+    days = 7
+    for pattern, extractor in _DAY_PATTERNS:
+        m = re.search(pattern, text)
+        if m:
+            try:
+                days = extractor(m)
+            except (ValueError, AttributeError):
+                days = 7
+            break
+    return max(1, min(days, 365))
+
+
+def _is_generic_case_list_query(message: str) -> bool:
+    """Fast path for common staff commands that should list recent cases."""
+    text = message.lower().strip()
+    has_case_word = re.search(r"\b(cases?|complaints?|grievances?|issues?)\b", text)
+    has_list_intent = re.search(r"\b(list|show|send|give|get|dikhao|batao)\b", text)
+    has_specific_filter = re.search(
+        r"\b(in|from|at|ward|assembly|pending|resolved|closed|done|open|active|"
+        r"in\s*progress|water|road|electricity|light|sanitation|drainage|health|"
+        r"housing|land|education|school|toilet)\b",
+        text,
+    )
+    return bool(has_case_word and has_list_intent and not has_specific_filter)
+
+
 def _regex_fallback(message: str) -> dict:
     """Rule-based fallback parser — fast, zero cost, handles common patterns."""
     text = message.lower()
@@ -124,25 +151,15 @@ def _regex_fallback(message: str) -> dict:
             issue_type = val
             break
 
-    # Days
-    days = 7
-    for pattern, extractor in _DAY_PATTERNS:
-        m = re.search(pattern, text)
-        if m:
-            try:
-                days = extractor(m)
-            except (ValueError, AttributeError):
-                days = 7
-            break
-    # FIX P0: Clamp days to a safe range (mirrors the GPT path clamp — prevents DB full-table scans)
-    days = max(1, min(days, 365))
+    days = _extract_days(text)
 
     # Location: strip known keywords, take remaining capitalised token
     # This is a best-effort extraction — GPT path is preferred
     stripped = re.sub(
         r"\b(cases?|complaints?|issues?|grievances?|in|from|at|last|week|"
-        r"month|days?|assembly|ward|pending|resolved|water|road|electricity|"
-        r"health|sanitation|housing|land|education|today|aaj)\b",
+        r"month|days?|assembly|ward|pending|resolved|closed|done|open|active|"
+        r"list|show|send|give|get|all|me|of|please|water|road|electricity|"
+        r"health|sanitation|housing|land|education|today|aaj|dikhao|batao)\b",
         " ", text
     )
     tokens = [t.strip() for t in stripped.split() if len(t.strip()) >= 3]
@@ -164,6 +181,20 @@ def parse_query(message: str, tenant_id: int = 1) -> dict:
     Returns a dict with keys: location, constituency, days, issue_type, status.
     Never raises — falls back to regex on any error.
     """
+    if _is_generic_case_list_query(message):
+        result = {
+            "location": "",
+            "constituency": "",
+            "days": _extract_days(message.lower()),
+            "issue_type": "",
+            "status": "",
+        }
+        logger.info(
+            "Query parsed via generic list fast path: tenant=%s message=%r → %s",
+            tenant_id, message[:80], result
+        )
+        return result
+
     client = _get_client()
 
     if client:
