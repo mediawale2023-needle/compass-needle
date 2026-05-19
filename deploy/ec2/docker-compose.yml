@@ -1,4 +1,17 @@
 services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    env_file:
+      - /opt/compass-needle/postgres.env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: /opt/compass-needle/app
@@ -12,6 +25,9 @@ services:
       WEB_CONCURRENCY: "2"
     expose:
       - "8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   caddy:
     image: caddy:2-alpine
@@ -27,5 +43,6 @@ services:
       - caddy_config:/config
 
 volumes:
+  postgres_data:
   caddy_data:
   caddy_config:
