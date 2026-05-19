@@ -60,24 +60,34 @@ export default function DashboardLayout({ children }) {
 
     useEffect(() => {
         if (!user) return;
+        let cancelled = false;
         apiGet('/api/dashboard/summary')
             .then(data => {
+                if (cancelled) return;
                 const statuses = data?.status_breakdown || {};
                 const newCount = statuses['new'] || 0;
                 setBadges(b => ({ ...b, briefcase: newCount }));
             })
-            .catch(() => {});
-        apiGet('/api/letterbox?direction=inbox&status=new&limit=1&offset=0')
-            .then(r => setBadges(b => ({ ...b, letterbox: r?.total || 0 })))
             .catch(() => {});
         // Load dismissed announcement IDs from localStorage
         try {
             const stored = JSON.parse(localStorage.getItem('dismissed_announcements') || '[]');
             setDismissedIds(stored);
         } catch { setDismissedIds([]); }
-        apiGet('/api/announcements/active')
-            .then(d => setAnnouncements(d.announcements || []))
-            .catch(() => {});
+
+        const secondaryTimer = setTimeout(() => {
+            apiGet('/api/letterbox?direction=inbox&status=new&limit=1&offset=0')
+                .then(r => { if (!cancelled) setBadges(b => ({ ...b, letterbox: r?.total || 0 })); })
+                .catch(() => {});
+            apiGet('/api/announcements/active')
+                .then(d => { if (!cancelled) setAnnouncements(d.announcements || []); })
+                .catch(() => {});
+        }, 900);
+
+        return () => {
+            cancelled = true;
+            clearTimeout(secondaryTimer);
+        };
     }, [user]);
 
     const dismissAnnouncement = (id) => {

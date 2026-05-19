@@ -84,19 +84,6 @@ export default function DashboardPage() {
         })();
 
         (async () => {
-            const rc = await apiGet('/api/activity/report-card').catch(() => null);
-            safeSet(() => setReportCard(rc));
-        })();
-
-        (async () => {
-            const [nat, loc] = await Promise.all([
-                apiGet('/api/news?news_type=national').catch(() => ({ articles: [] })),
-                apiGet('/api/news?news_type=local').catch(() => ({ articles: [] })),
-            ]);
-            safeSet(() => setNews({ national: nat.articles || [], local: loc.articles || [] }));
-        })();
-
-        (async () => {
             const cases = await apiGet('/api/cases?page=1&limit=50').catch(() => ({ cases: [] }));
             const fetchedCases = cases.cases || cases.items || [];
             const pending = fetchedCases
@@ -109,7 +96,25 @@ export default function DashboardPage() {
             });
         })();
 
-        return () => { cancelled = true; };
+        const secondaryTimer = setTimeout(() => {
+            (async () => {
+                const rc = await apiGet('/api/activity/report-card').catch(() => null);
+                safeSet(() => setReportCard(rc));
+            })();
+
+            (async () => {
+                const [nat, loc] = await Promise.all([
+                    apiGet('/api/news?news_type=national').catch(() => ({ articles: [] })),
+                    apiGet('/api/news?news_type=local').catch(() => ({ articles: [] })),
+                ]);
+                safeSet(() => setNews({ national: nat.articles || [], local: loc.articles || [] }));
+            })();
+        }, 900);
+
+        return () => {
+            cancelled = true;
+            clearTimeout(secondaryTimer);
+        };
     }, []);
 
     const activeNews = news[newsTab] || [];

@@ -9,6 +9,7 @@ services:
     environment:
       PORT: "8000"
       ENV: production
+      WEB_CONCURRENCY: "2"
     expose:
       - "8000"
 
