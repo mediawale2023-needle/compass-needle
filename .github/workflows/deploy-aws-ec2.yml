@@ -1,0 +1,82 @@
+name: Deploy Backend To AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/deploy-aws-ec2.yml"
+      - "Dockerfile"
+      - "requirements.txt"
+      - "main.py"
+      - "api_router.py"
+      - "admin_api.py"
+      - "core/**"
+      - "modules/**"
+      - "sansadx_backend/**"
+      - "jobs/**"
+      - "scripts/**"
+      - "data/**"
+      - "deploy/ec2/**"
+      - "tenant_overrides.json"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+concurrency:
+  group: aws-ec2-backend-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Pull Latest Code And Restart Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions deploy'}]"
+
+      - name: Deploy Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 20m
+          script: |
+            set -e
+            cd /opt/compass-needle/app
+            git fetch origin main
+            git reset --hard origin/main
+            docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --build backend
+            docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml ps
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]"
