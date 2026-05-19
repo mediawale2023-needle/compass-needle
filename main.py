@@ -28,10 +28,11 @@ def _utcnow():
 # ─────────────────────────────────────────
 try:
     from core.security_config import (
-        ALLOWED_ORIGINS, SECURITY_HEADERS,
+        ALLOWED_ORIGINS, CORS_ORIGIN_REGEX, SECURITY_HEADERS,
     )
 except Exception:
     ALLOWED_ORIGINS = ["*"]
+    CORS_ORIGIN_REGEX = None
     SECURITY_HEADERS = {}
 
 # ─────────────────────────────────────────
@@ -114,6 +115,7 @@ if _rate_limiting_enabled:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=CORS_ORIGIN_REGEX,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -780,10 +782,11 @@ try:
             END$$
         """))
     logger.info("Migration: scheme_intelligence_cache state column ready")
-    # Mark all existing cache entries stale so they regenerate with the new 3-layer format
-    with engine.begin() as conn:
-        conn.execute(text("UPDATE scheme_intelligence_cache SET is_stale = true WHERE structured_intel IS NOT NULL AND is_stale = false"))
-    logger.info("Migration: existing scheme briefs marked stale for regeneration")
+    if os.getenv("MARK_SCHEME_BRIEFS_STALE_ON_STARTUP", "").lower() in {"1", "true", "yes"}:
+        # One-off maintenance switch for regenerating scheme briefs after format changes.
+        with engine.begin() as conn:
+            conn.execute(text("UPDATE scheme_intelligence_cache SET is_stale = true WHERE structured_intel IS NOT NULL AND is_stale = false"))
+        logger.info("Migration: existing scheme briefs marked stale for regeneration")
 except Exception as e:
     logger.warning(f"scheme_intelligence_cache state migration skipped: {e}")
 

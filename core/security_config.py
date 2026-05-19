@@ -33,6 +33,8 @@ _KNOWN_FRONTENDS = [
     "https://needle-admin.up.railway.app",
 ]
 
+CORS_ORIGIN_REGEX = os.getenv("ALLOWED_ORIGIN_REGEX", r"https://.*\.vercel\.app")
+
 raw_origins = os.getenv("ALLOWED_ORIGINS", "")
 if raw_origins:
     ALLOWED_ORIGINS = [o.strip() for o in raw_origins.split(",") if o.strip()]
