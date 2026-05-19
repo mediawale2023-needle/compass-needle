@@ -231,10 +231,16 @@ except Exception as _e:
     logger.warning("Brain schema setup skipped: %s", _e)
 
 # On startup: seed DB from JSON files if present, then sync geo_overrides from
-# persisted geography_data rows. Runtime must not rewrite tracked repository
-# files because Railway/container filesystems may be read-only and local boots
-# should not dirty git state.
+# persisted geography_data rows. This is useful for first boot and maintenance,
+# but expensive enough that production skips it unless explicitly enabled.
+_run_geo_startup_sync = os.getenv("RUN_GEO_STARTUP_SYNC", "").lower() in {"1", "true", "yes"}
+if os.getenv("ENV", "development") != "production":
+    _run_geo_startup_sync = os.getenv("RUN_GEO_STARTUP_SYNC", "1").lower() in {"1", "true", "yes"}
 try:
+    if not _run_geo_startup_sync:
+        logger.info("Geography startup sync skipped (set RUN_GEO_STARTUP_SYNC=true to enable).")
+        raise RuntimeError("__skip_geo_startup_sync__")
+
     import pathlib as _pl
     from sansadx_backend.db import SessionLocal as _startup_SL, TenantOverride as _startup_TO, Tenant as _startup_T
 
@@ -289,7 +295,8 @@ try:
     logger.info(f"Geography overrides synced to DB: {_sync_result}")
 
 except Exception as e:
-    logger.warning(f"Geography startup sync failed (non-critical): {e}")
+    if str(e) != "__skip_geo_startup_sync__":
+        logger.warning(f"Geography startup sync failed (non-critical): {e}")
 
 # ─── Migration: add tenant_id to archives table (idempotent) ───
 try:
@@ -844,10 +851,16 @@ try:
 except Exception as e:
     logger.warning(f"global_parliamentary_questions topic migration skipped: {e}")
 
-# Seed CSR company profiles from static JSON files on startup
+# Seed CSR company profiles from static JSON files when explicitly requested.
 try:
-    from modules.csr_data_loader import seed_csr_companies
-    seed_csr_companies()
+    _seed_csr_on_startup = os.getenv("SEED_CSR_ON_STARTUP", "").lower() in {"1", "true", "yes"}
+    if os.getenv("ENV", "development") != "production":
+        _seed_csr_on_startup = os.getenv("SEED_CSR_ON_STARTUP", "1").lower() in {"1", "true", "yes"}
+    if _seed_csr_on_startup:
+        from modules.csr_data_loader import seed_csr_companies
+        seed_csr_companies()
+    else:
+        logger.info("CSR company seed skipped (set SEED_CSR_ON_STARTUP=true to enable).")
 except Exception as _csr_seed_err:
     logger.warning(f"CSR company seed failed (non-fatal): {_csr_seed_err}")
 
