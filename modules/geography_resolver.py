@@ -210,6 +210,40 @@ def _build_match_forms(*texts: str) -> Set[str]:
     return {form for form in forms if form}
 
 
+def _derive_locality_aliases(locality: str, parliamentary_constituency: Optional[str] = None) -> Set[str]:
+    """Create safe short aliases from EC roll localities such as "Shahapur Belagavi"."""
+    raw = (locality or "").replace("\n", " ").strip()
+    if not raw:
+        return set()
+
+    parl = normalize(parliamentary_constituency or "")
+    candidates = {raw}
+    candidates.update(part.strip() for part in re.split(r"[,;/]", raw) if part.strip())
+
+    aliases: Set[str] = set()
+    for candidate in candidates:
+        value = normalize(candidate)
+        if not value or _is_meta_locality(value):
+            continue
+
+        if parl and value.endswith(f" {parl}"):
+            stripped = value[: -len(parl)].strip()
+            if stripped:
+                value = stripped
+
+        words = value.split()
+        if parl:
+            parl_words = parl.split()
+            while words and words[-1] in parl_words:
+                words = words[:-1]
+            value = " ".join(words)
+
+        if len(value) >= 5 and value not in {"east", "west", "north", "south", "ward", "room", "hall"}:
+            aliases.add(value)
+
+    return aliases
+
+
 def _spaceless_forms(forms: Iterable[str]) -> Set[str]:
     return {form.replace(" ", "") for form in forms if form}
 
@@ -419,7 +453,8 @@ def load_geography_index() -> bool:
             if not norm_loc or _is_meta_locality(raw_loc):
                 continue
 
-            match_forms = _build_match_forms(raw_loc, raw_loc_en)
+            locality_aliases = _derive_locality_aliases(raw_loc, parl_name)
+            match_forms = _build_match_forms(raw_loc, raw_loc_en, *locality_aliases)
             spaceless_match_forms = _spaceless_forms(match_forms)
             keywords = set()
             for form in match_forms:
@@ -555,7 +590,7 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
     if not candidates:
         return {"location_resolved": False}
 
-    candidates.sort(key=lambda x: x["score"], reverse=True)
+    candidates.sort(key=lambda x: (-x["score"], len(x["name"])))
     winner = candidates[0]
     top_score = winner["score"]
     top_candidates = [c for c in candidates if c["score"] == top_score]
@@ -720,19 +755,18 @@ def auto_generate_overrides():
                 locality = station.get("locality", "").replace("\n", " ").strip()
                 if not locality or len(locality) < 3 or _is_meta_locality(locality):
                     continue
-                key = locality.lower().strip()
-                key = re.sub(r'\s+', ' ', key)
-                if key in {"east", "west", "north", "south", "ward", "room", "hall"}:
-                    continue
-                if key in overrides_map and overrides_map[key] != assembly_name:
-                    ambiguous_localities.setdefault(key, {overrides_map[key]}).add(assembly_name)
-                    overrides_map.pop(key, None)
-                    continue
-                if key in ambiguous_localities:
-                    ambiguous_localities[key].add(assembly_name)
-                    continue
-                if key not in overrides_map:
-                    overrides_map[key] = assembly_name
+                for key in sorted(_derive_locality_aliases(locality, parl_name) or {normalize(locality)}):
+                    if not key:
+                        continue
+                    if key in overrides_map and overrides_map[key] != assembly_name:
+                        ambiguous_localities.setdefault(key, {overrides_map[key]}).add(assembly_name)
+                        overrides_map.pop(key, None)
+                        continue
+                    if key in ambiguous_localities:
+                        ambiguous_localities[key].add(assembly_name)
+                        continue
+                    if key not in overrides_map:
+                        overrides_map[key] = assembly_name
 
         try:
             from sansadx_backend.db import SessionLocal as SL, TenantOverride

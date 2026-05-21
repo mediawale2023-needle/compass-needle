@@ -71,10 +71,12 @@ from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_ge
 # GEOGRAPHY RESOLVER
 # ─────────────────────────────────────────
 try:
-    from modules.geography_resolver import resolve_constituency
+    from modules.geography_resolver import resolve_constituency, resolve_location
 except ImportError:
     def resolve_constituency(text, tenant_id):
         return None, None
+    def resolve_location(text, scope_parliamentary=None, tenant_id=None):
+        return {"location_resolved": False}
 
 # ─────────────────────────────────────────
 # SENTRY (optional monitoring)
@@ -2435,8 +2437,35 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         location_name = grievance.get("location")
         final_constituency = None
 
+        # Deterministic geography is the source of truth. Run it on the raw
+        # WhatsApp text before deciding that AI missed the location.
+        raw_message_geo = {"location_resolved": False}
+        try:
+            tenant_const = None
+            try:
+                from sansadx_backend.db import get_tenant_constituency
+                tenant_const = get_tenant_constituency(current_tenant)
+            except Exception:
+                tenant_const = None
+            raw_message_geo = resolve_location(
+                message_body,
+                scope_parliamentary=tenant_const,
+                tenant_id=current_tenant,
+            )
+        except Exception as exc:
+            logger.warning("Raw message geography resolution failed: %s", exc)
+
+        if raw_message_geo.get("location_resolved"):
+            location_name = raw_message_geo.get("matched_value") or location_name
+            final_constituency = raw_message_geo.get("assembly_constituency")
+            grievance["location"] = location_name
+            grievance["assembly_constituency"] = final_constituency
+            grievance["_match_confidence"] = f"raw_message_{raw_message_geo.get('confidence', 'high')}"
+            if status not in ("emergency", "offensive", "irrelevant"):
+                status = "new"
+
         # Geo mapping — DB overrides + geography JSON files
-        if location_name:
+        if location_name and not final_constituency:
             lookup_key = str(location_name).lower().strip()
             # Build combined rules: geo_overrides + geography JSON files
             combined_geo = {}

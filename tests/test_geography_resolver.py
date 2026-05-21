@@ -47,6 +47,14 @@ def stub_geography_index(monkeypatch):
                 {"station_number": "1", "locality": "Shahu Nagar", "building_name": ""},
             ],
         },
+        {
+            "tenant_id": 3,
+            "parliamentary_constituency": "Belagavi",
+            "assembly": "Belgaum Dakshin",
+            "stations": [
+                {"station_number": "1", "locality": "Shahapur Belagavi", "building_name": ""},
+            ],
+        },
     ]
 
     monkeypatch.setattr(dbmod, "get_all_geography_data", lambda: rows)
@@ -89,6 +97,16 @@ def test_resolve_location_supports_spaceless_aliases(stub_geography_index):
     assert result["location_resolved"] is True
     assert result["assembly_constituency"] == "Belgaum Uttar"
     assert result["matched_value"] == "Shahu Nagar"
+
+
+def test_resolve_location_supports_city_suffix_aliases(stub_geography_index):
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location("Shahapur madhe light nhi", scope_parliamentary="Belagavi")
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Dakshin"
+    assert result["matched_value"] == "Shahapur Belagavi"
 
 
 def test_resolve_location_supports_hindi_input_via_transliteration(stub_geography_index):
