@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { apiGet, apiPost, apiPatch, apiDelete, apiBlob } from '@/lib/api';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/toast';
-import { X, Loader2, AlertTriangle, CheckCircle, Download, User, Tag, FileText, Send, Shield } from 'lucide-react';
+import { X, Loader2, AlertTriangle, CheckCircle, Download, User, Tag, FileText, Send, Shield, Paperclip, Image as ImageIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +35,7 @@ const TABS = [
 const STATUS_OPTIONS = [
     { value: 'new', label: 'New', className: 'bg-blue-100 text-blue-700' },
     { value: 'awaiting_location', label: 'Needs Location', className: 'bg-orange-100 text-orange-700' },
+    { value: 'pending_review', label: 'Needs Review', className: 'bg-purple-100 text-purple-700' },
     { value: 'in_progress', label: 'In Progress', className: 'bg-amber-100 text-amber-700' },
     { value: 'resolved', label: 'Resolved', className: 'bg-green-100 text-green-700' },
     { value: 'escalated', label: 'Escalated', className: 'bg-red-100 text-red-700' },
@@ -374,6 +375,109 @@ MP Office`);
     );
 }
 
+function SourceMediaViewer({ caseId, media = [] }) {
+    const [activeId, setActiveId] = useState(media[0]?.id || null);
+    const [objectUrl, setObjectUrl] = useState('');
+    const [loading, setLoading] = useState(false);
+    const active = media.find(m => m.id === activeId) || media[0];
+
+    useEffect(() => {
+        setActiveId(media[0]?.id || null);
+    }, [caseId, media?.length]);
+
+    useEffect(() => {
+        if (!caseId || !active?.id) {
+            setObjectUrl('');
+            return;
+        }
+        let cancelled = false;
+        let url = '';
+        setLoading(true);
+        apiBlob(`/api/cases/${caseId}/media/${active.id}`)
+            .then(blob => {
+                if (cancelled) return;
+                url = URL.createObjectURL(blob);
+                setObjectUrl(url);
+            })
+            .catch(() => setObjectUrl(''))
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => {
+            cancelled = true;
+            if (url) URL.revokeObjectURL(url);
+        };
+    }, [caseId, active?.id]);
+
+    if (!media || media.length === 0) return null;
+
+    const isImage = (active?.mime_type || '').startsWith('image/');
+    const isPdf = active?.mime_type === 'application/pdf';
+
+    return (
+        <div>
+            <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="text-xs text-muted-foreground uppercase font-medium flex items-center gap-1.5">
+                    <Paperclip className="h-3.5 w-3.5" />
+                    Source Attachment
+                </div>
+                {media.length > 1 && (
+                    <div className="flex gap-1">
+                        {media.map((m, idx) => (
+                            <Button
+                                key={m.id}
+                                variant={m.id === active?.id ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => setActiveId(m.id)}
+                            >
+                                {idx + 1}
+                            </Button>
+                        ))}
+                    </div>
+                )}
+            </div>
+            <div className="border rounded-lg bg-muted/30 overflow-hidden">
+                {loading ? (
+                    <div className="h-64 flex items-center justify-center text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                        Loading source
+                    </div>
+                ) : !objectUrl ? (
+                    <div className="h-40 flex items-center justify-center text-sm text-muted-foreground">
+                        Source file could not be loaded
+                    </div>
+                ) : isImage ? (
+                    <img
+                        src={objectUrl}
+                        alt="Original complaint source"
+                        className="max-h-[520px] w-full object-contain bg-background"
+                    />
+                ) : isPdf ? (
+                    <iframe
+                        src={objectUrl}
+                        title="Original complaint PDF"
+                        className="h-[520px] w-full bg-background"
+                    />
+                ) : (
+                    <div className="p-4 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-sm">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            {active?.mime_type || 'Attachment'}
+                        </div>
+                        <Button variant="outline" size="sm" asChild>
+                            <a href={objectUrl} target="_blank" rel="noopener noreferrer">Open</a>
+                        </Button>
+                    </div>
+                )}
+            </div>
+            {active?.caption && (
+                <p className="text-xs text-muted-foreground mt-2">
+                    Caption: {active.caption}
+                </p>
+            )}
+        </div>
+    );
+}
+
 function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
     const toast = useToast();
     const [updating, setUpdating] = useState(null);
@@ -389,10 +493,15 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
     const [notifyOpen, setNotifyOpen] = useState(false);
     const [notifyInput, setNotifyInput] = useState('');
     const [notifySending, setNotifySending] = useState(false);
+    const [fullCase, setFullCase] = useState(null);
 
     // Load from localStorage or server values when case opens
     useEffect(() => {
         if (!caseItem) return;
+        setFullCase(caseItem);
+        apiGet(`/api/cases/${caseItem.id}`)
+            .then(d => setFullCase({ ...caseItem, ...d }))
+            .catch(() => setFullCase(caseItem));
         const savedNotes = localStorage.getItem(`draft_notes_${caseItem.id}`);
         const savedResponse = localStorage.getItem(`draft_response_${caseItem.id}`);
         setNotes(savedNotes !== null ? savedNotes : (caseItem.notes_for_staff || ''));
@@ -420,7 +529,7 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
 
     if (!caseItem) return null;
 
-    const c = caseItem;
+    const c = fullCase || caseItem;
     const meta = c.case_metadata || {};
     const createdAt = c.created_at ? new Date(c.created_at) : null;
     const updatedAt = c.updated_at ? new Date(c.updated_at) : null;
@@ -548,6 +657,7 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
                                 {c.raw_message || 'No content available.'}
                             </div>
                         </div>
+                        <SourceMediaViewer caseId={c.id} media={c.media || []} />
                         <div>
                             <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Resolution Message Sent to Citizen</div>
                             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed min-h-[60px]">
@@ -627,6 +737,8 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
                             {c.raw_message || 'No content available.'}
                         </div>
                     </div>
+
+                    <SourceMediaViewer caseId={c.id} media={c.media || []} />
 
                     {meta.summary && (
                         <div>
@@ -1623,8 +1735,13 @@ function BriefcaseInner() {
                                             </TableCell>
                                             <TableCell>{getStatusBadge(c.status)}</TableCell>
                                             <TableCell className="max-w-[200px]">
-                                                <span className="truncate block text-muted-foreground" title={c.raw_message}>
-                                                    {c.raw_message || '-'}
+                                                <span className="flex items-center gap-1.5 text-muted-foreground">
+                                                    {(c.media_count || c.case_metadata?.source_media) ? (
+                                                        <ImageIcon className="h-3.5 w-3.5 shrink-0 text-primary" />
+                                                    ) : null}
+                                                    <span className="truncate block" title={c.raw_message}>
+                                                        {c.raw_message || '-'}
+                                                    </span>
                                                 </span>
                                             </TableCell>
                                         </TableRow>

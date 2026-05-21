@@ -351,6 +351,31 @@ try:
 except Exception as _dedup_prune_exc:
     logger.warning("wa_message_dedup prune failed (non-critical): %s", _dedup_prune_exc)
 
+# ─── Migration: source media attachments for citizen WhatsApp cases ───
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS case_media (
+                id SERIAL PRIMARY KEY,
+                tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+                case_id INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+                source VARCHAR NOT NULL DEFAULT 'whatsapp',
+                media_type VARCHAR NOT NULL,
+                mime_type VARCHAR NOT NULL,
+                file_name VARCHAR,
+                media_data BYTEA NOT NULL,
+                caption TEXT,
+                extracted_text TEXT,
+                meta_message_id VARCHAR,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_case_media_case ON case_media (tenant_id, case_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_case_media_type ON case_media (media_type)"))
+        logger.info("Migration: case_media table ready")
+except Exception as _case_media_exc:
+    logger.warning("case_media migration skipped: %s", _case_media_exc)
+
 # ─── Migration: backfill is_deleted NULL → false on cases table ───
 # Cases created before the is_deleted column existed have NULL, which causes
 # is_deleted = false filters to miss them.  This one-time backfill is idempotent.
@@ -2126,6 +2151,71 @@ def _process_citizen_media_complaint(
             media_type,
             normalized.error,
         )
+        if media_type in {"image", "document"}:
+            fallback_text = (
+                caption.strip()
+                or f"WhatsApp {media_type} complaint received. Text could not be extracted automatically."
+            )
+            try:
+                with engine.begin() as conn:
+                    result = conn.execute(
+                        text("""
+                            INSERT INTO cases (
+                                tenant_id, user_phone, category, raw_message, status,
+                                case_metadata, is_critical, created_at
+                            ) VALUES (
+                                :tid, :phone, 'Uncategorised', :msg, 'pending_review',
+                                :meta, false, :now
+                            ) RETURNING id
+                        """),
+                        {
+                            "tid": current_tenant,
+                            "phone": sender,
+                            "msg": fallback_text,
+                            "meta": json.dumps({
+                                "summary": fallback_text[:200],
+                                "wa_msg_id": msg_id,
+                                "source_media": True,
+                                "source_media_type": media_type,
+                                "media_extraction_failed": True,
+                                "media_extraction_error": normalized.error,
+                            }),
+                            "now": datetime.utcnow(),
+                        },
+                    )
+                    case_id = result.fetchone()[0]
+                    conn.execute(
+                        text("""
+                            INSERT INTO case_media (
+                                tenant_id, case_id, source, media_type, mime_type,
+                                file_name, media_data, caption, extracted_text,
+                                meta_message_id, created_at
+                            ) VALUES (
+                                :tid, :cid, 'whatsapp', :media_type, :mime_type,
+                                :file_name, :media_data, :caption, '',
+                                :meta_message_id, :now
+                            )
+                        """),
+                        {
+                            "tid": current_tenant,
+                            "cid": case_id,
+                            "media_type": media_type,
+                            "mime_type": resolved_mime or mime_type or "application/octet-stream",
+                            "file_name": f"whatsapp-{media_type}-{msg_id or case_id}",
+                            "media_data": media_bytes,
+                            "caption": caption,
+                            "meta_message_id": msg_id,
+                            "now": datetime.utcnow(),
+                        },
+                    )
+                send_whatsapp_message(sender, get_review_ack_reply("English", fallback_text), _wa_phone_id)
+            except Exception as exc:
+                logger.error("Failed to save unreadable citizen media case: %s", exc)
+                try:
+                    send_whatsapp_message(sender, get_unsupported_message_reply("English"), _wa_phone_id)
+                except Exception:
+                    pass
+            return
         try:
             send_whatsapp_message(sender, get_unsupported_message_reply("English"), _wa_phone_id)
         except Exception:
@@ -2143,7 +2233,17 @@ def _process_citizen_media_complaint(
         media_type,
         len(message_body),
     )
-    _process_incoming_message(sender, message_body, receiver_number, msg_id)
+    media_source = None
+    if media_type in {"image", "document"}:
+        media_source = {
+            "media_bytes": media_bytes,
+            "mime_type": resolved_mime or mime_type or "application/octet-stream",
+            "media_type": media_type,
+            "caption": caption,
+            "extracted_text": normalized.text,
+            "meta_message_id": msg_id,
+        }
+    _process_incoming_message(sender, message_body, receiver_number, msg_id, media_source=media_source)
 
 
 # Categories that require human PA review before the AI reply is sent to citizen.
@@ -2243,7 +2343,13 @@ def _get_tenant_daily_limit(tenant_id: int) -> int:
     return limit
 
 
-def _process_incoming_message(sender: str, message_body: str, receiver_number: str = "", msg_id: str = ""):
+def _process_incoming_message(
+    sender: str,
+    message_body: str,
+    receiver_number: str = "",
+    msg_id: str = "",
+    media_source: dict | None = None,
+):
     """Background task: AI processing + DB save + reply. Runs after 200 is returned to Meta."""
     if not receiver_number:
         receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
@@ -2505,13 +2611,45 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
                     "tid": current_tenant,
                     "phone": sender,
                     "msg": message_body,
-                    "meta": json.dumps({"summary": message_body[:200], "wa_msg_id": msg_id}),
+                    "meta": json.dumps({
+                        "summary": message_body[:200],
+                        "wa_msg_id": msg_id,
+                        "source_media": bool(media_source),
+                        "source_media_type": media_source.get("media_type") if media_source else "",
+                    }),
                     "now": datetime.utcnow(),
                 }
             )
             row = result.fetchone()
             case_id = row[0] if row else None
             logger.info(f"Saved raw grievance: case_id={case_id} tenant={current_tenant}")
+            if case_id and media_source:
+                conn.execute(
+                    text("""
+                        INSERT INTO case_media (
+                            tenant_id, case_id, source, media_type, mime_type,
+                            file_name, media_data, caption, extracted_text,
+                            meta_message_id, created_at
+                        ) VALUES (
+                            :tid, :cid, 'whatsapp', :media_type, :mime_type,
+                            :file_name, :media_data, :caption, :extracted_text,
+                            :meta_message_id, :now
+                        )
+                    """),
+                    {
+                        "tid": current_tenant,
+                        "cid": case_id,
+                        "media_type": media_source.get("media_type", "media"),
+                        "mime_type": media_source.get("mime_type", "application/octet-stream"),
+                        "file_name": f"whatsapp-{media_source.get('media_type', 'media')}-{msg_id or case_id}",
+                        "media_data": media_source.get("media_bytes", b""),
+                        "caption": media_source.get("caption", ""),
+                        "extracted_text": media_source.get("extracted_text", ""),
+                        "meta_message_id": media_source.get("meta_message_id") or msg_id,
+                        "now": datetime.utcnow(),
+                    },
+                )
+                logger.info("Saved source media for case_id=%s type=%s", case_id, media_source.get("media_type"))
     except Exception as e:
         logger.error(f"CRITICAL: DB save failed for raw grievance: {e}")
         # Even if DB fails, still try to acknowledge the citizen
@@ -2707,6 +2845,9 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             "person": grievance.get("person"),
             "department": grievance.get("department"),
             "scheme": grievance.get("scheme"),
+            "source_media": bool(media_source),
+            "source_media_type": media_source.get("media_type") if media_source else "",
+            "source_media_caption": media_source.get("caption", "") if media_source else "",
         }
 
         # ── STEP 3: Update the saved case with AI results ──

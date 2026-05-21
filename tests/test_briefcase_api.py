@@ -61,6 +61,7 @@ def _seed_database():
             "escalations",
             "officers",
             "case_activity_log",
+            "case_media",
             "cases",
             "token_blocklist",
             "users",
@@ -656,3 +657,38 @@ def test_briefcase_pilot_flow_assign_note_escalate_notify_resolves(monkeypatch):
     assert "case_updated" in activity_actions
     assert "escalated" in activity_actions
     assert "citizen_notified" in activity_actions
+
+
+def test_case_source_media_metadata_and_download():
+    _seed_database()
+    headers = _auth_headers("mp_arun")
+
+    with test_engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO case_media (
+                    tenant_id, case_id, source, media_type, mime_type,
+                    file_name, media_data, caption, extracted_text, created_at
+                ) VALUES (
+                    1, 101, 'whatsapp', 'image', 'image/png',
+                    'source.png', :data, 'road photo', 'Whitefield road issue', :now
+                )
+                """
+            ),
+            {"data": b"\x89PNG\r\nsource", "now": _utcnow()},
+        )
+
+    detail_resp = client.get("/api/cases/101", headers=headers)
+    assert detail_resp.status_code == 200, detail_resp.text
+    detail = detail_resp.json()
+    assert detail["media_count"] == 1
+    assert detail["media"][0]["media_type"] == "image"
+    assert detail["media"][0]["mime_type"] == "image/png"
+    assert detail["media"][0]["caption"] == "road photo"
+
+    media_id = detail["media"][0]["id"]
+    media_resp = client.get(f"/api/cases/101/media/{media_id}", headers=headers)
+    assert media_resp.status_code == 200, media_resp.text
+    assert media_resp.headers["content-type"] == "image/png"
+    assert media_resp.content == b"\x89PNG\r\nsource"

@@ -169,6 +169,26 @@ class CaseActivityLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class CaseMedia(Base):
+    """Original WhatsApp source media attached to a citizen grievance."""
+    __tablename__ = "case_media"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=False)
+    case_id = Column(Integer, ForeignKey("cases.id"), index=True, nullable=False)
+    source = Column(String, default="whatsapp")
+    media_type = Column(String, nullable=False)
+    mime_type = Column(String, nullable=False)
+    file_name = Column(String, nullable=True)
+    media_data = Column(LargeBinary, nullable=False)
+    caption = Column(Text, nullable=True)
+    extracted_text = Column(Text, nullable=True)
+    meta_message_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    tenant = relationship("Tenant")
+    case = relationship("Case")
+
+
 class Officer(Base):
     __tablename__ = "officers"
     id = Column(Integer, primary_key=True, index=True)

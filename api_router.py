@@ -409,7 +409,11 @@ def get_cases(
                COALESCE(c.location, c.case_metadata->>'matched_value') AS location,
                COALESCE(c.assembly, c.case_metadata->>'assembly_constituency') AS assembly,
                c.case_metadata, c.is_critical, c.created_at, c.updated_at,
-               c.response_to_citizen, c.notes_for_staff, c.assigned_to
+               c.response_to_citizen, c.notes_for_staff, c.assigned_to,
+               COALESCE((
+                   SELECT COUNT(*) FROM case_media cm
+                   WHERE cm.tenant_id = c.tenant_id AND cm.case_id = c.id
+               ), 0) AS media_count
         FROM cases c WHERE {where}
         ORDER BY {order_by}
         LIMIT :lim OFFSET :off
@@ -739,7 +743,45 @@ def get_case(case_id: int, user=Depends(get_current_user)):
         if val and hasattr(val, "isoformat"):
             case[field] = val.isoformat()
 
+    try:
+        media_rows = _q("""
+            SELECT id, media_type, mime_type, file_name, caption, extracted_text, created_at
+            FROM case_media
+            WHERE tenant_id = :tid AND case_id = :cid
+            ORDER BY id ASC
+        """, {"tid": tid, "cid": case_id})
+        for media in media_rows:
+            val = media.get("created_at")
+            if val and hasattr(val, "isoformat"):
+                media["created_at"] = val.isoformat()
+        case["media"] = media_rows
+        case["media_count"] = len(media_rows)
+    except Exception:
+        logger.exception("Failed to load case media metadata")
+        case["media"] = []
+        case["media_count"] = 0
+
     return case
+
+
+@router.get("/cases/{case_id}/media/{media_id}")
+def get_case_media(case_id: int, media_id: int, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    row = _q_one("""
+        SELECT media_data, mime_type, file_name
+        FROM case_media
+        WHERE id = :mid AND case_id = :cid AND tenant_id = :tid
+    """, {"mid": media_id, "cid": case_id, "tid": tid})
+    if not row or not row.get("media_data"):
+        raise HTTPException(404, "Source media not found")
+    headers = {}
+    if row.get("file_name"):
+        headers["Content-Disposition"] = f'inline; filename="{row.get("file_name")}"'
+    return Response(
+        content=bytes(row["media_data"]),
+        media_type=row.get("mime_type") or "application/octet-stream",
+        headers=headers,
+    )
 
 
 class StatusUpdate(BaseModel):
