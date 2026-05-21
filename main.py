@@ -1045,6 +1045,8 @@ def _save_spam_flag(tenant_id: int, phone: str, flag_type: str, reason: str, mes
 # META CLOUD API HELPER (shared module)
 # ─────────────────────────────────────────
 from modules.whatsapp import send_whatsapp_message  # noqa: E402
+from modules.letterbox import download_meta_media  # noqa: E402
+from modules.whatsapp_media_intake import normalize_media_complaint  # noqa: E402
 from modules.case_query_parser import parse_query
 from modules.case_query_engine import query_cases
 from modules.whatsapp_geography import finalize_geography_decision
@@ -1197,6 +1199,32 @@ def _resolve_tenant(receiver_number: str) -> int | None:
         receiver_number,
     )
     return None
+
+
+def _is_registered_staff_sender(sender: str, tenant_id: int) -> bool:
+    """Return True when a WhatsApp sender is an active staff/PA user."""
+    sender_digits = re.sub(r"\D", "", sender or "")
+    sender_bare = sender_digits[2:] if sender_digits.startswith("91") and len(sender_digits) == 12 else sender_digits
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text("""
+                    SELECT id, phone FROM users
+                    WHERE tenant_id = :tid
+                      AND is_active = true
+                      AND phone IS NOT NULL
+                """),
+                {"tid": tenant_id},
+            ).fetchall()
+        for _id, phone in rows:
+            staff_digits = re.sub(r"\D", "", phone or "")
+            staff_bare = staff_digits[2:] if staff_digits.startswith("91") and len(staff_digits) == 12 else staff_digits
+            if sender in {phone, staff_digits, staff_bare} or sender_digits in {staff_digits, staff_bare} or sender_bare == staff_bare:
+                return True
+        return False
+    except Exception as exc:
+        logger.warning("Staff sender lookup failed: %s", exc)
+        return False
 
 
 def _finalize_whatsapp_geography_decision(
@@ -2049,6 +2077,75 @@ def _handle_unsupported_message_type(sender: str, msg_type: str, receiver_number
         logger.warning("Could not send unsupported-type reply to %s: %s", sender, exc)
 
 
+def _process_citizen_media_complaint(
+    sender: str,
+    media_id: str,
+    mime_type: str,
+    receiver_number: str = "",
+    caption: str = "",
+    media_type: str = "media",
+    msg_id: str = "",
+):
+    """
+    Citizen sent image/PDF/audio. Download, normalize to grievance text, then
+    hand off to the exact same text pipeline used by normal WhatsApp complaints.
+    """
+    if not receiver_number:
+        receiver_number = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
+    current_tenant = _resolve_tenant(receiver_number)
+    if current_tenant is None:
+        logger.error(
+            "_process_citizen_media_complaint: tenant resolution failed receiver=%s sender=%s",
+            receiver_number,
+            sender,
+        )
+        return
+
+    _wa_phone_id = get_tenant_phone_number_id(current_tenant)
+    try:
+        media_bytes, resolved_mime = download_meta_media(media_id)
+    except Exception as exc:
+        logger.error("Citizen %s download failed for %s media %s: %s", sender, media_type, media_id, exc)
+        try:
+            send_whatsapp_message(sender, get_unsupported_message_reply("English"), _wa_phone_id)
+        except Exception:
+            pass
+        return
+
+    normalized = normalize_media_complaint(
+        media_bytes,
+        resolved_mime or mime_type or "application/octet-stream",
+        tenant_id=current_tenant,
+        media_type=media_type,
+        caption=caption,
+    )
+    if not normalized.ok or not normalized.text:
+        logger.warning(
+            "Citizen media could not be normalized: sender=%s type=%s error=%s",
+            sender,
+            media_type,
+            normalized.error,
+        )
+        try:
+            send_whatsapp_message(sender, get_unsupported_message_reply("English"), _wa_phone_id)
+        except Exception:
+            pass
+        return
+
+    message_body = normalized.text
+    if caption.strip() and caption.strip().lower() not in message_body.lower():
+        message_body = f"{message_body}\n\nCaption: {caption.strip()}"
+
+    logger.info(
+        "Citizen media routed to grievance pipeline: sender=%s tenant=%s type=%s chars=%s",
+        sender,
+        current_tenant,
+        media_type,
+        len(message_body),
+    )
+    _process_incoming_message(sender, message_body, receiver_number, msg_id)
+
+
 # Categories that require human PA review before the AI reply is sent to citizen.
 # Cases in these categories are saved with status='pending_review'; the AI-generated
 # reply is stored in case_metadata but NOT sent automatically.
@@ -2858,27 +2955,61 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         return {"status": "received"}
 
     elif msg_type == "image":
-        # PA letter intake — staff photographs a physical letter and sends via WhatsApp
+        current_tenant = _resolve_tenant(display_number)
         media_id = msg.get("image", {}).get("id")
         resolved_mime = msg.get("image", {}).get("mime_type", "image/jpeg")
         caption = msg.get("image", {}).get("caption", "") or ""
-        if media_id:
+        if media_id and current_tenant is not None and _is_registered_staff_sender(sender, current_tenant):
+            # PA/office Briefcase intake — staff photographs a physical letter.
             background_tasks.add_task(_process_pa_letter, sender, media_id, resolved_mime, display_number, caption)
+        elif media_id:
+            # Citizen grievance media — OCR/vision first, then normal grievance pipeline.
+            background_tasks.add_task(
+                _process_citizen_media_complaint,
+                sender, media_id, resolved_mime, display_number, caption, "image", msg_id
+            )
         return {"status": "received"}
 
     elif msg_type == "document":
+        current_tenant = _resolve_tenant(display_number)
         document = msg.get("document", {}) or {}
         media_id = document.get("id")
         resolved_mime = document.get("mime_type", "application/octet-stream")
         caption = document.get("caption", "") or ""
-        if media_id and resolved_mime == "application/pdf":
+        if (
+            media_id
+            and resolved_mime == "application/pdf"
+            and current_tenant is not None
+            and _is_registered_staff_sender(sender, current_tenant)
+        ):
+            # PA/office PDF goes to Briefcase/Letterbox.
             background_tasks.add_task(_process_pa_letter_pdf, sender, media_id, resolved_mime, display_number, caption)
+            return {"status": "received"}
+        if media_id and resolved_mime == "application/pdf":
+            # Citizen PDF/document complaint goes through OCR, then the grievance pipeline.
+            background_tasks.add_task(
+                _process_citizen_media_complaint,
+                sender, media_id, resolved_mime, display_number, caption, "document", msg_id
+            )
+            return {"status": "received"}
+        background_tasks.add_task(_handle_unsupported_message_type, sender, msg_type, display_number)
+        return {"status": "received"}
+
+    elif msg_type == "audio":
+        audio = msg.get("audio", {}) or {}
+        media_id = audio.get("id")
+        resolved_mime = audio.get("mime_type", "audio/ogg")
+        if media_id:
+            background_tasks.add_task(
+                _process_citizen_media_complaint,
+                sender, media_id, resolved_mime, display_number, "", "audio", msg_id
+            )
             return {"status": "received"}
         background_tasks.add_task(_handle_unsupported_message_type, sender, msg_type, display_number)
         return {"status": "received"}
 
     else:
-        # ── Non-text/image message (audio, video, sticker, document, etc.) ──
+        # ── Non-text/image/PDF/audio message (video, sticker, etc.) ──
         # Previously these were silently ignored — citizens got no response.
         # Now we send a polite prompt to re-send as text so they're not lost.
         background_tasks.add_task(_handle_unsupported_message_type, sender, msg_type, display_number)
