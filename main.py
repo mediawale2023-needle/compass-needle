@@ -1050,6 +1050,7 @@ from modules.case_query_engine import query_cases
 from modules.whatsapp_geography import finalize_geography_decision
 from modules.localized_replies import (
     DETAILS_REQUEST_STATUSES,
+    ensure_ji_prefix,
     get_awaiting_location_reply,
     get_details_request_reply,
     get_generic_ack_reply,
@@ -2722,7 +2723,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             return  # Done — do not fall through to the regular send below
 
         try:
-            send_whatsapp_message(sender, political_reply, _wa_phone_id)
+            send_whatsapp_message(sender, ensure_ji_prefix(political_reply), _wa_phone_id)
         except Exception as send_exc:
             logger.error(
                 "WHATSAPP_SEND_FAILED: could not reply to %s (case=%s) — %s. "

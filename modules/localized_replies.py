@@ -26,6 +26,15 @@ def _pick_template(native_templates: dict[str, str], latin_templates: dict[str, 
         return latin_templates[normalized]
     return native_templates.get(normalized, native_templates.get("Hindi", ""))
 
+
+def ensure_ji_prefix(reply: str) -> str:
+    text = str(reply or "").strip()
+    if not text:
+        return "Ji,"
+    if text.lower().startswith("ji,") or text.lower().startswith("ji "):
+        return text
+    return f"Ji, {text}"
+
 # ── Awaiting Location ────────────────────────────────────────────────────────
 # Sent when the AI sets status='awaiting_location' because the mentioned
 # location couldn't be matched to a known constituency.
@@ -484,7 +493,7 @@ def get_details_request_reply(detected_language: str = "", original_text: str = 
     Returns:
         A formatted WhatsApp-ready string in the citizen's language.
     """
-    return _pick_template(_DETAILS_REQUEST, {}, detected_language, original_text) or _DEFAULT_DETAILS_REQUEST
+    return ensure_ji_prefix(_pick_template(_DETAILS_REQUEST, {}, detected_language, original_text) or _DEFAULT_DETAILS_REQUEST)
 
 # Normalize incoming detected_language values to our keys
 _LANG_ALIASES: dict[str, str] = {
@@ -522,7 +531,7 @@ def get_awaiting_location_reply(location: str, detected_language: str = "", orig
     # injection attacks via crafted location strings (e.g. "{0.__class__.__mro__[1]}").
     # .replace() treats the substitution value as a literal string — no format parsing occurs.
     safe_location = str(location) if location else ""
-    return template.replace("{location}", safe_location)
+    return ensure_ji_prefix(template.replace("{location}", safe_location))
 
 
 _MISSING_LOCATION: dict[str, str] = {
@@ -565,25 +574,25 @@ _MISSING_LOCATION_LATIN: dict[str, str] = {
 
 
 def get_missing_location_reply(detected_language: str = "", original_text: str = "") -> str:
-    return _pick_template(_MISSING_LOCATION, _MISSING_LOCATION_LATIN, detected_language, original_text) or _MISSING_LOCATION["English"]
+    return ensure_ji_prefix(_pick_template(_MISSING_LOCATION, _MISSING_LOCATION_LATIN, detected_language, original_text) or _MISSING_LOCATION["English"])
 
 
 def get_generic_ack_reply(detected_language: str = "", original_text: str = "") -> str:
-    return _pick_template(_GENERIC_ACK, _GENERIC_ACK_LATIN, detected_language, original_text) or _GENERIC_ACK["English"]
+    return ensure_ji_prefix(_pick_template(_GENERIC_ACK, _GENERIC_ACK_LATIN, detected_language, original_text) or _GENERIC_ACK["English"])
 
 
 def get_review_ack_reply(detected_language: str = "", original_text: str = "") -> str:
-    return _pick_template(_REVIEW_ACK, _REVIEW_ACK_LATIN, detected_language, original_text) or _REVIEW_ACK["English"]
+    return ensure_ji_prefix(_pick_template(_REVIEW_ACK, _REVIEW_ACK_LATIN, detected_language, original_text) or _REVIEW_ACK["English"])
 
 
 def get_unsupported_message_reply(detected_language: str = "", original_text: str = "") -> str:
-    return _pick_template(_UNSUPPORTED_MESSAGE_REPLY, _UNSUPPORTED_MESSAGE_REPLY_LATIN, detected_language, original_text) or _UNSUPPORTED_MESSAGE_REPLY["English"]
+    return ensure_ji_prefix(_pick_template(_UNSUPPORTED_MESSAGE_REPLY, _UNSUPPORTED_MESSAGE_REPLY_LATIN, detected_language, original_text) or _UNSUPPORTED_MESSAGE_REPLY["English"])
 
 
 def get_rate_limit_reply(detected_language: str = "", original_text: str = "") -> str:
-    return _pick_template(_RATE_LIMIT_REPLY, _RATE_LIMIT_REPLY_LATIN, detected_language, original_text) or _RATE_LIMIT_REPLY["English"]
+    return ensure_ji_prefix(_pick_template(_RATE_LIMIT_REPLY, _RATE_LIMIT_REPLY_LATIN, detected_language, original_text) or _RATE_LIMIT_REPLY["English"])
 
 
 def get_location_update_reply(location: str, detected_language: str = "", original_text: str = "") -> str:
     template = _pick_template(_LOCATION_UPDATE_ACK, _LOCATION_UPDATE_ACK_LATIN, detected_language, original_text) or _LOCATION_UPDATE_ACK["English"]
-    return template.replace("{location}", str(location or ""))
+    return ensure_ji_prefix(template.replace("{location}", str(location or "")))
