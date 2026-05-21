@@ -96,6 +96,7 @@ _META_LOCALITY_VALUES = {
 
 _META_LOCALITY_PATTERNS = [
     re.compile(r"^\d+\s*\.\s*average number of voters per polling station$", re.IGNORECASE),
+    re.compile(r"^\d+\s*average number of voters per polling station$", re.IGNORECASE),
     re.compile(r"^average number of voters per polling station$", re.IGNORECASE),
     re.compile(r"^(sl|serial)\.?\s*(no|number)\.?\s*$", re.IGNORECASE),
     re.compile(r"^polling station$", re.IGNORECASE),
@@ -240,8 +241,29 @@ def _derive_locality_aliases(locality: str, parliamentary_constituency: Optional
 
         if len(value) >= 5 and value not in {"east", "west", "north", "south", "ward", "room", "hall"}:
             aliases.add(value)
+            words = value.split()
+            generic_prefixes = {
+                "bazar", "bazaar", "peth", "pet", "galli", "gali", "wadi", "wada",
+                "nagar", "road", "marg", "maharaj", "depot", "circle", "school",
+                "college", "primary", "high", "govt", "government",
+            }
+            for index in range(1, len(words)):
+                suffix_words = words[index:]
+                suffix = " ".join(suffix_words)
+                if len(suffix) < 5:
+                    continue
+                if suffix_words[0] in generic_prefixes:
+                    continue
+                aliases.add(suffix)
 
     return aliases
+
+
+def _display_location_name(value: str) -> str:
+    normalized = normalize(value)
+    if not normalized:
+        return value or ""
+    return " ".join(word.capitalize() for word in normalized.split())
 
 
 def _spaceless_forms(forms: Iterable[str]) -> Set[str]:
@@ -509,6 +531,7 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
         for entry in data["entries"]:
             score = 0
             match_type = "none"
+            matched_name = entry["orig_name"]
             entry_forms = entry.get("match_forms", set())
             entry_spaceless_forms = entry.get("spaceless_match_forms", set())
             entry_name = max(entry_forms, key=len) if entry_forms else ""
@@ -516,48 +539,59 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
             # A. EXACT MATCH — highest priority (full string match)
             exact_forms = entry_forms & query_forms
             if exact_forms:
-                score = 150 + max(len(form) for form in exact_forms)
+                matched_form = max(exact_forms, key=len)
+                score = 150 + len(matched_form)
                 match_type = "exact_full"
+                matched_name = matched_form
 
             # B. WORD BOUNDARY MATCH — entry name appears as complete word(s) in user text
             # Prevents "hosur" matching "gilihosur" or "chandanhosur"
             elif entry_forms:
-                boundary_lengths = []
+                boundary_matches = []
                 for entry_form in entry_forms:
                     if len(entry_form) < 4:
                         continue
                     word_pattern = r'\b' + re.escape(entry_form) + r'\b'
                     if any(re.search(word_pattern, query_form) for query_form in query_forms):
-                        boundary_lengths.append(len(entry_form))
-                if boundary_lengths:
-                    score = 120 + max(boundary_lengths)
+                        boundary_matches.append(entry_form)
+                if boundary_matches:
+                    matched_form = max(boundary_matches, key=len)
+                    score = 120 + len(matched_form)
                     match_type = "word_boundary"
+                    matched_name = matched_form
 
             # C. EXACT SUBSTRING — entry name contained in user text (min 5 chars)
             # Score based on length to prefer longer/more specific matches
             if score == 0 and entry_forms:
-                substring_lengths = []
+                substring_matches = []
                 for entry_form in entry_forms:
                     if len(entry_form) < 5:
                         continue
                     if any(entry_form in query_form for query_form in query_forms):
-                        substring_lengths.append(len(entry_form))
-                if substring_lengths:
-                    score = 100 + max(substring_lengths)
+                        substring_matches.append(entry_form)
+                if substring_matches:
+                    matched_form = max(substring_matches, key=len)
+                    score = 100 + len(matched_form)
                     match_type = "exact_substring"
+                    matched_name = matched_form
 
             # E. SPACELESS MATCH — original (Fixes "Shahunagar" vs "Shahu Nagar")
             # Only if the spaceless version is significantly long (avoid false positives)
             if score == 0 and entry_spaceless_forms:
-                spaceless_lengths = []
+                spaceless_matches = []
                 for entry_form in entry_spaceless_forms:
                     if len(entry_form) < 6:
                         continue
                     if any(entry_form in query_form for query_form in spaceless_query_forms):
-                        spaceless_lengths.append(len(entry_form))
-                if spaceless_lengths:
-                    score = 90 + max(spaceless_lengths)
+                        spaceless_matches.append(entry_form)
+                if spaceless_matches:
+                    matched_form = max(spaceless_matches, key=len)
+                    score = 90 + len(matched_form)
                     match_type = "spaceless"
+                    for form in entry_forms:
+                        if form.replace(" ", "") == matched_form:
+                            matched_name = form
+                            break
 
             # G. FUZZY KEYWORD MATCH — STRICT (95% similarity, min 6 char keywords)
             # Only used as last resort to catch typos like "Tilkwadi" vs "Tilakwadi"
@@ -573,6 +607,7 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
                         if sim > 95:  # Increased from 92 to 95
                             score = sim
                             match_type = f"fuzzy_strict ({uk}~{dk})"
+                            matched_name = dk
                             break
                     if score > 0:
                         break
@@ -583,6 +618,7 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
                     "assembly": assembly,
                     "parl": data["parl"],
                     "name": entry["orig_name"],
+                    "matched_name": _display_location_name(matched_name),
                     "score": score,
                     "type": match_type
                 })
@@ -600,7 +636,7 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
             "location_resolved": False,
             "reason": "ambiguous_match",
             "ambiguous_assemblies": top_assemblies,
-            "matched_value": winner["name"],
+            "matched_value": winner["matched_name"],
             "parliamentary_constituency": winner["parl"],
         }
 
@@ -610,7 +646,7 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
         "location_resolved": True,
         "assembly_constituency": winner["assembly"],
         "parliamentary_constituency": winner["parl"],
-        "matched_value": winner["name"],
+        "matched_value": winner["matched_name"],
         "confidence": "high"
     }
 

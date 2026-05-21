@@ -53,6 +53,8 @@ def stub_geography_index(monkeypatch):
             "assembly": "Belgaum Dakshin",
             "stations": [
                 {"station_number": "1", "locality": "Shahapur Belagavi", "building_name": ""},
+                {"station_number": "2", "locality": "Meerapur Galli, Shahapur Belagavi", "building_name": ""},
+                {"station_number": "3", "locality": "Somawar Peth Tilakwadi, Belagavi", "building_name": ""},
             ],
         },
     ]
@@ -106,7 +108,30 @@ def test_resolve_location_supports_city_suffix_aliases(stub_geography_index):
 
     assert result["location_resolved"] is True
     assert result["assembly_constituency"] == "Belgaum Dakshin"
-    assert result["matched_value"] == "Shahapur Belagavi"
+    assert result["matched_value"] == "Shahapur"
+
+
+def test_resolve_location_preserves_user_level_detail(stub_geography_index):
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "Meerapur Galli Shahapur madhe light nhi",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Dakshin"
+    assert result["matched_value"] == "Meerapur Galli Shahapur"
+
+
+def test_resolve_location_uses_short_user_location_not_polling_detail(stub_geography_index):
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location("Tilakwadi madhe rasta kharab aahe", scope_parliamentary="Belagavi")
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Dakshin"
+    assert result["matched_value"] == "Tilakwadi"
 
 
 def test_resolve_location_supports_hindi_input_via_transliteration(stub_geography_index):
