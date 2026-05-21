@@ -57,6 +57,20 @@ def test_raw_geography_overrides_stale_missing_location_reply():
     assert "ward" not in result["political_reply"].lower()
 
 
+def test_resolved_marathi_message_gets_marathi_ack_even_if_ai_claims_hindi():
+    result = _decision(
+        "Tilakwadi madhe rasta kharab aahe",
+        ai_payload={"detected_language": "Hindi", "grievance_data": {}},
+        status="awaiting_location",
+        reply="Ji, maine Tilakwadi mein paani ki samasya note ki hai.",
+    )
+
+    assert result["status"] == "new"
+    assert result["location_name"] == "Tilakwadi"
+    assert "Tumcha sandesh" in result["political_reply"]
+    assert "Ji, maine" not in result["political_reply"]
+
+
 def test_location_is_saved_at_user_level_not_polling_detail():
     result = _decision("Shahapur madhe rasta kharab aahe")
 

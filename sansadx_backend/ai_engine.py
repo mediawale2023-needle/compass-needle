@@ -491,13 +491,14 @@ def detect_input_language(message: str) -> str:
 
     # If mostly ASCII with no Indic markers, likely English
     if all(ord(c) < 128 or c in ' \t\n' for c in message):
+        # Single Marathi marker should win before Hindi/Hinglish markers for
+        # short Roman Marathi complaints like "Tilakwadi madhe pani nahi".
+        if marathi_hits >= 1:
+            return "Marathi"
         # Check for common Hindi/Hinglish words
         hindi_markers = {"hai", "hain", "kya", "mein", "nahi", "bahut", "karo", "kijiye", "sahab"}
         if words & hindi_markers:
             return "Hinglish"
-        # Single Marathi marker might be enough if no Hindi markers
-        if marathi_hits >= 1:
-            return "Marathi"
         return "English"
 
     # Devanagari / non-ASCII → let GPT handle

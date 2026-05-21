@@ -11,6 +11,11 @@ def test_detect_input_language_identifies_roman_marathi_complaint():
     assert detect_input_language(msg) == "Marathi"
 
 
+def test_detect_input_language_identifies_short_roman_marathi_complaint():
+    msg = "Tilakwadi madhe pani nahi"
+    assert detect_input_language(msg) == "Marathi"
+
+
 def test_review_ack_uses_marathi_for_roman_marathi_input():
     msg = "Kangrali madhe khup chori hot aahe"
     reply = get_review_ack_reply("Marathi", msg)

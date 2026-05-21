@@ -2436,7 +2436,10 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
         # Parse AI result
         grievance = ai_result.get("grievance_data", {}) or {}
         status = str(ai_result.get("status", "new")).lower()
-        detected_language = ai_result.get("detected_language", "") or detect_input_language(message_body)
+        # Reply language must be based on the citizen's actual message, not on
+        # OpenAI's self-reported detected_language. This prevents Marathi/Hinglish
+        # inputs like "Tilakwadi madhe pani nahi" from receiving Hindi replies.
+        detected_language = detect_input_language(message_body) or ai_result.get("detected_language", "")
         problem_domain = grievance.get("problem_domain")
         problem_subdomain = grievance.get("problem_subdomain")
         convergence_program_type = grievance.get("convergence_program_type")
