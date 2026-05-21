@@ -55,7 +55,8 @@ jobs:
           aws ec2 authorize-security-group-ingress \
             --region "$AWS_REGION" \
             --group-id "$EC2_SECURITY_GROUP_ID" \
-            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions deploy'}]"
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions deploy'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
 
       - name: Ensure EC2 SSH Is Reachable
         shell: bash
@@ -66,7 +67,7 @@ jobs:
 
           check_ssh() {
             for attempt in {1..6}; do
-              if nc -z -w 5 "$EC2_HOST" 22; then
+              if timeout 5 bash -c "cat < /dev/null > /dev/tcp/${EC2_HOST}/22" 2>/dev/null; then
                 return 0
               fi
               echo "SSH not reachable yet (attempt ${attempt}/6); waiting..."
@@ -86,7 +87,7 @@ jobs:
 
           echo "Instance checks passed after reboot; waiting for SSH..."
           for attempt in {1..12}; do
-            if nc -z -w 5 "$EC2_HOST" 22; then
+            if timeout 5 bash -c "cat < /dev/null > /dev/tcp/${EC2_HOST}/22" 2>/dev/null; then
               echo "SSH is reachable after reboot."
               exit 0
             fi
@@ -109,9 +110,25 @@ jobs:
             set -e
             cd /opt/compass-needle/app
             git fetch origin main
-            git reset --hard origin/main
+            git reset --hard ${{ github.sha }}
             docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --build backend
             docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml ps
+
+      - name: Verify Backend Health
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..12}; do
+            if curl -fsS https://backend.coinmedia.co.in/health; then
+              echo
+              echo "Backend health check passed."
+              exit 0
+            fi
+            echo "Backend health check not ready (attempt ${attempt}/12); waiting..."
+            sleep 10
+          done
+          echo "Backend did not pass health check after deploy." >&2
+          exit 1
 
       - name: Remove GitHub Runner SSH Access
         if: always() && steps.ssh_ip.outputs.runner_ip != ''
@@ -120,4 +137,5 @@ jobs:
           aws ec2 revoke-security-group-ingress \
             --region "$AWS_REGION" \
             --group-id "$EC2_SECURITY_GROUP_ID" \
-            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]"
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true

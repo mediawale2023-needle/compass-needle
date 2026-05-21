@@ -21,16 +21,16 @@ Target: AWS EC2 in Mumbai (`ap-south-1`) running the FastAPI backend with Docker
 
 ## Deploy
 
-```bash
-cd /opt/compass-needle/app
-git pull origin main
-docker compose -f deploy/ec2/docker-compose.yml up -d --build
-docker compose -f deploy/ec2/docker-compose.yml logs -f --tail=100
-```
+Deployments are GitHub-Actions-only. Push to `main`, or run **Deploy Backend To AWS EC2** manually from the GitHub Actions tab. Do not SSH from a laptop for normal deploys.
 
-## GitHub Actions Deploy
+The workflow at `.github/workflows/deploy-aws-ec2.yml`:
 
-The workflow at `.github/workflows/deploy-aws-ec2.yml` deploys the backend on pushes to `main`.
+1. Temporarily opens SSH only from the GitHub runner IP.
+2. Reboots the instance if SSH is not reachable.
+3. Resets `/opt/compass-needle/app` to the exact pushed commit.
+4. Rebuilds/restarts only the backend service.
+5. Verifies `https://backend.coinmedia.co.in/health`.
+6. Removes the temporary SSH ingress rule.
 
 Add these repository secrets in GitHub:
 
@@ -66,8 +66,4 @@ Set both Vercel projects to:
 NEXT_PUBLIC_API_URL=https://YOUR_API_DOMAIN
 ```
 
-Then update backend `ALLOWED_ORIGINS` to include both Vercel URLs and restart:
-
-```bash
-docker compose -f deploy/ec2/docker-compose.yml up -d --build
-```
+Then update backend `ALLOWED_ORIGINS` to include both Vercel URLs and deploy through GitHub Actions.

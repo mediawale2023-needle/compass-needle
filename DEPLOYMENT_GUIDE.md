@@ -108,25 +108,21 @@ docker run -d \
   needle:latest
 ```
 
-### Option B: EC2 Docker Compose Deployment
+### Option B: EC2 Deployment Through GitHub Actions
 
 ```bash
-# SSH into EC2
-ssh -i ~/.ssh/compass-needle-mumbai.pem ubuntu@3.6.228.105
+# Deploy by pushing to main, or run the workflow manually:
+# GitHub → Actions → Deploy Backend To AWS EC2 → Run workflow
+git push origin main
 
-# Pull and restart backend
-cd /opt/compass-needle/app
-git pull origin main
-docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --build backend
-
-# Verify deployment
+# Verify after the workflow finishes
 curl https://backend.coinmedia.co.in/health
 ```
 
-### Option C: Manual Server Deployment
+### Option C: Emergency Manual Server Deployment
 
 ```bash
-# SSH into server
+# Break-glass only. Normal deploys must use GitHub Actions.
 ssh user@server.com
 
 # Clone repository
