@@ -19,6 +19,7 @@ on:
       - "tenant_overrides.json"
       - "package.json"
       - "package-lock.json"
+      - ".github/workflows/deploy-aws-ec2.yml"
   workflow_dispatch:
 
 concurrency:
@@ -33,6 +34,7 @@ jobs:
     env:
       AWS_REGION: ap-south-1
       EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+      EC2_INSTANCE_ID: i-0224cc2edb8c7dc2b
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
@@ -54,6 +56,46 @@ jobs:
             --region "$AWS_REGION" \
             --group-id "$EC2_SECURITY_GROUP_ID" \
             --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions deploy'}]"
+
+      - name: Ensure EC2 SSH Is Reachable
+        shell: bash
+        env:
+          EC2_HOST: ${{ secrets.AWS_EC2_HOST }}
+        run: |
+          set -euo pipefail
+
+          check_ssh() {
+            for attempt in {1..6}; do
+              if nc -z -w 5 "$EC2_HOST" 22; then
+                return 0
+              fi
+              echo "SSH not reachable yet (attempt ${attempt}/6); waiting..."
+              sleep 10
+            done
+            return 1
+          }
+
+          if check_ssh; then
+            echo "SSH is reachable."
+            exit 0
+          fi
+
+          echo "SSH is not reachable; rebooting EC2 instance ${EC2_INSTANCE_ID}..."
+          aws ec2 reboot-instances --region "$AWS_REGION" --instance-ids "$EC2_INSTANCE_ID"
+          aws ec2 wait instance-status-ok --region "$AWS_REGION" --instance-ids "$EC2_INSTANCE_ID"
+
+          echo "Instance checks passed after reboot; waiting for SSH..."
+          for attempt in {1..12}; do
+            if nc -z -w 5 "$EC2_HOST" 22; then
+              echo "SSH is reachable after reboot."
+              exit 0
+            fi
+            echo "SSH still unavailable after reboot (attempt ${attempt}/12); waiting..."
+            sleep 10
+          done
+
+          echo "SSH did not become reachable after reboot." >&2
+          exit 1
 
       - name: Deploy Over SSH
         uses: appleboy/ssh-action@v1.2.0
