@@ -10,7 +10,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # NEXT_PUBLIC_* vars must be present at build time for Next.js to inline them.
-# Railway can override via its env var; this default ensures it's never empty.
+# Vercel/CI must set this at build time; fallback keeps local builds usable.
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npm run build
@@ -26,6 +26,6 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/public ./public
 
-# Railway injects $PORT at runtime
+# Runtime platforms inject $PORT when needed
 EXPOSE 3000
 CMD ["sh", "-c", "node_modules/.bin/next start -p ${PORT:-3000}"]

@@ -108,18 +108,19 @@ docker run -d \
   needle:latest
 ```
 
-### Option B: Railway Deployment
+### Option B: EC2 Docker Compose Deployment
 
 ```bash
-# Set environment variables in Railway dashboard
-# Settings > Variables
+# SSH into EC2
+ssh -i ~/.ssh/compass-needle-mumbai.pem ubuntu@3.6.228.105
 
-# Deploy
-git push origin main
-# Railway will auto-deploy
+# Pull and restart backend
+cd /opt/compass-needle/app
+git pull origin main
+docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --build backend
 
 # Verify deployment
-curl https://your-railway-app.up.railway.app/health
+curl https://backend.coinmedia.co.in/health
 ```
 
 ### Option C: Manual Server Deployment
@@ -148,12 +149,12 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 
 ## Post-Deployment Verification
 
-Run the full Railway smoke test once the deploy is live:
+Run the full smoke test once the deploy is live:
 
 ```bash
-export BACKEND_URL="https://needle-backend.up.railway.app"
-export MP_URL="https://compass-needle-production.up.railway.app"
-export ADMIN_URL="https://needle-admin.up.railway.app"
+export BACKEND_URL="https://backend.coinmedia.co.in"
+export MP_URL="https://<mp-vercel-domain>"
+export ADMIN_URL="https://<admin-vercel-domain>"
 export MP_USERNAME="..."
 export MP_PASSWORD="..."
 export ADMIN_USERNAME="..."

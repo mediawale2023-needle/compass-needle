@@ -68,6 +68,22 @@ def _sanitize_path_param(value: str) -> str:
     return value
 
 
+def _production_db_only_geography() -> bool:
+    """Production geography is DB-backed; JSON files are dev/seed fallback only."""
+    return os.getenv("ENV", "development").lower() == "production"
+
+
+def _refresh_geography_runtime() -> None:
+    """Regenerate live lookup rows and reload this worker's in-memory index."""
+    try:
+        from modules.geography_resolver import auto_generate_overrides, reload_index
+
+        auto_generate_overrides()
+        reload_index()
+    except Exception as exc:
+        logger.warning("Geography override regeneration / index reload failed: %s", exc)
+
+
 # ─────────────────────────────────────────
 # AUTH HELPERS
 # ─────────────────────────────────────────
@@ -719,8 +735,8 @@ def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(g
     """Add a single locality → assembly mapping for this MP's constituency.
 
     If the assembly JSON already exists in the DB, the locality is appended.
-    If not, a new entry is created. Changes take effect immediately via the
-    geo_override lookup; geography files are rebuilt on next startup.
+    If not, a new entry is created. Changes take effect via DB-backed
+    geo_override lookup and a resolver index refresh.
     """
     from sansadx_backend.db import TenantOverride, Tenant
     db = SessionLocal()
@@ -732,6 +748,7 @@ def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(g
         db_key = f"{parl}/{req.assembly_constituency}"
 
         existing = db.query(TenantOverride).filter(
+            TenantOverride.tenant_id == tenant_id,
             TenantOverride.override_type == "geography_data",
             TenantOverride.key == db_key,
         ).first()
@@ -771,21 +788,7 @@ def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(g
             ))
         db.commit()
 
-        # Also update the live geo_override row so it takes effect without restart
-        geo_key = locality_clean.lower()
-        geo_existing = db.query(TenantOverride).filter(
-            TenantOverride.tenant_id == tenant_id,
-            TenantOverride.override_type == "geo_override",
-            TenantOverride.key == geo_key,
-        ).first()
-        if not geo_existing:
-            db.add(TenantOverride(
-                tenant_id=tenant_id,
-                override_type="geo_override",
-                key=geo_key,
-                value=req.assembly_constituency,
-            ))
-            db.commit()
+        _refresh_geography_runtime()
 
         return {"success": True, "locality": locality_clean, "assembly": req.assembly_constituency, "validation": validation}
     except HTTPException:
@@ -822,6 +825,7 @@ def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, _=Depends(get_ad
             other_rows=get_all_geography_data(),
         )
         existing = db.query(TenantOverride).filter(
+            TenantOverride.tenant_id == tenant_id,
             TenantOverride.override_type == "geography_data",
             TenantOverride.key == db_key,
         ).first()
@@ -838,38 +842,7 @@ def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, _=Depends(get_ad
             ))
         db.commit()
 
-        # Upsert live geo_override rows for each locality
-        for station in stations:
-            geo_key = station["locality"].strip().lower()
-            if not geo_key:
-                continue
-            if geo_key in {
-                locality.lower()
-                for locality in validation["ambiguous_localities_against_constituency"].keys()
-            }:
-                continue
-            geo_row = db.query(TenantOverride).filter(
-                TenantOverride.tenant_id == tenant_id,
-                TenantOverride.override_type == "geo_override",
-                TenantOverride.key == geo_key,
-            ).first()
-            if geo_row:
-                geo_row.value = req.assembly_constituency
-            else:
-                db.add(TenantOverride(
-                    tenant_id=tenant_id,
-                    override_type="geo_override",
-                    key=geo_key,
-                    value=req.assembly_constituency,
-                ))
-        db.commit()
-
-        # Reload live index so changes take effect immediately
-        try:
-            from modules.geography_resolver import reload_index
-            reload_index()
-        except Exception as _re:
-            logger.warning("Geography index reload failed: %s", _re)
+        _refresh_geography_runtime()
 
         return {
             "success": True,
@@ -899,10 +872,13 @@ def delete_mp_geography_assembly(tenant_id: int, assembly: str, _=Depends(get_ad
         parl = tenant.constituency or "Unknown"
         db_key = f"{parl}/{assembly}"
         deleted = db.query(TenantOverride).filter(
+            TenantOverride.tenant_id == tenant_id,
             TenantOverride.override_type == "geography_data",
             TenantOverride.key == db_key,
         ).delete()
         db.commit()
+        if deleted:
+            _refresh_geography_runtime()
         return {"success": True, "deleted": deleted}
     finally:
         db.close()
@@ -1026,14 +1002,45 @@ def list_constituencies(_=Depends(get_admin_user)):
 
 @router.get("/geography/parliamentary")
 def list_parliamentary(_=Depends(get_admin_user)):
-    GEOGRAPHY_BASE_PATH.mkdir(parents=True, exist_ok=True)
-    pcs = [d.name for d in GEOGRAPHY_BASE_PATH.iterdir() if d.is_dir()]
-    return {"parliamentary_constituencies": pcs}
+    from sansadx_backend.db import TenantOverride
+
+    db = SessionLocal()
+    try:
+        pcs = {
+            (row.key or "").split("/", 1)[0]
+            for row in db.query(TenantOverride).filter(
+                TenantOverride.override_type == "geography_data",
+            ).all()
+            if "/" in (row.key or "")
+        }
+    finally:
+        db.close()
+
+    if not pcs and GEOGRAPHY_BASE_PATH.exists():
+        pcs = {d.name for d in GEOGRAPHY_BASE_PATH.iterdir() if d.is_dir()}
+    return {"parliamentary_constituencies": sorted(pcs)}
 
 
 @router.get("/geography/{pc}/assemblies")
 def list_assemblies(pc: str, _=Depends(get_admin_user)):
     pc = _sanitize_path_param(pc)
+    from sansadx_backend.db import TenantOverride
+
+    db = SessionLocal()
+    try:
+        assemblies = sorted({
+            (row.key or "").split("/", 1)[1]
+            for row in db.query(TenantOverride).filter(
+                TenantOverride.override_type == "geography_data",
+                TenantOverride.key.ilike(f"{pc}/%"),
+            ).all()
+            if "/" in (row.key or "")
+        })
+        if assemblies:
+            return {"assemblies": assemblies}
+    finally:
+        db.close()
+
     path = GEOGRAPHY_BASE_PATH / pc
     if not path.exists():
         return {"assemblies": []}
@@ -1045,6 +1052,23 @@ def list_assemblies(pc: str, _=Depends(get_admin_user)):
 def load_geography(pc: str, ac: str, _=Depends(get_admin_user)):
     pc = _sanitize_path_param(pc)
     ac = _sanitize_path_param(ac)
+    from sansadx_backend.db import TenantOverride
+
+    db = SessionLocal()
+    try:
+        row = db.query(TenantOverride).filter(
+            TenantOverride.override_type == "geography_data",
+            TenantOverride.key == f"{pc}/{ac}",
+        ).first()
+        if row:
+            try:
+                data = json.loads(row.value) if isinstance(row.value, str) else row.value
+            except Exception:
+                data = []
+            return {"data": data if isinstance(data, list) else []}
+    finally:
+        db.close()
+
     filepath = GEOGRAPHY_BASE_PATH / pc / f"{ac}.json"
     if not filepath.exists():
         return {"data": []}
@@ -1057,7 +1081,7 @@ def save_geography(pc: str, ac: str, req: SaveGeographyRequest, _=Depends(get_ad
     pc = _sanitize_path_param(pc)
     ac = _sanitize_path_param(ac)
     try:
-        from sansadx_backend.db import get_all_geography_data
+        from sansadx_backend.db import TenantOverride, get_all_geography_data
         from modules.geography_resolver import sanitize_and_validate_stations
 
         cleaned_data, validation = sanitize_and_validate_stations(
@@ -1066,52 +1090,45 @@ def save_geography(pc: str, ac: str, req: SaveGeographyRequest, _=Depends(get_ad
             assembly=ac,
             other_rows=get_all_geography_data(),
         )
-        # Save to filesystem
-        path = GEOGRAPHY_BASE_PATH / pc
-        path.mkdir(parents=True, exist_ok=True)
-        with open(path / f"{ac}.json", "w", encoding="utf-8") as f:
-            json.dump(cleaned_data, f, indent=2, ensure_ascii=False)
 
-        # Persist to DB so it survives Railway ephemeral filesystem resets
+        db = SessionLocal()
         try:
-            from sansadx_backend.db import SessionLocal, TenantOverride, Tenant
-            from sqlalchemy import text as sa_text
-            db = SessionLocal()
-            try:
-                # Look up tenant_id by constituency name
-                tenant = db.query(Tenant).filter(Tenant.constituency == pc).first()
-                tid = tenant.id if tenant else None
-                if tid:
-                    db_key = f"{pc}/{ac}"
-                    # Upsert: delete old, insert new
-                    db.execute(
-                        sa_text("DELETE FROM tenant_overrides WHERE tenant_id = :tid AND override_type = 'geography_data' AND key = :k"),
-                        {"tid": tid, "k": db_key}
-                    )
-                    override = TenantOverride(
-                        tenant_id=tid,
-                        override_type="geography_data",
-                        key=db_key,
-                        value=json.dumps(cleaned_data, ensure_ascii=False),
-                    )
-                    db.add(override)
-                    db.commit()
-                    logger.info(f"Geography {db_key} persisted to DB for tenant {tid}")
-            finally:
-                db.close()
-        except Exception as e:
-            logger.warning(f"Geography DB persist failed (non-critical): {e}")
+            tenant = db.query(Tenant).filter(Tenant.constituency == pc).first()
+            if not tenant:
+                raise HTTPException(404, "Tenant not found for parliamentary constituency")
 
-        # Regenerate overrides and reload the live in-memory index
-        # so new PDF data takes effect immediately without a server restart
-        try:
-            from modules.geography_resolver import auto_generate_overrides, reload_index
-            auto_generate_overrides()
-            reload_index()
-            logger.info(f"Geography index reloaded after save: {pc}/{ac}")
-        except Exception as e:
-            logger.warning(f"Override auto-gen / index reload: {e}")
+            db_key = f"{pc}/{ac}"
+            existing = db.query(TenantOverride).filter(
+                TenantOverride.tenant_id == tenant.id,
+                TenantOverride.override_type == "geography_data",
+                TenantOverride.key == db_key,
+            ).first()
+            payload = json.dumps(cleaned_data, ensure_ascii=False)
+            if existing:
+                existing.value = payload
+                flag_modified(existing, "value")
+            else:
+                db.add(TenantOverride(
+                    tenant_id=tenant.id,
+                    override_type="geography_data",
+                    key=db_key,
+                    value=payload,
+                ))
+            db.commit()
+            logger.info("Geography %s persisted to DB for tenant %s", db_key, tenant.id)
+        finally:
+            db.close()
+
+        if not _production_db_only_geography():
+            path = GEOGRAPHY_BASE_PATH / pc
+            path.mkdir(parents=True, exist_ok=True)
+            with open(path / f"{ac}.json", "w", encoding="utf-8") as f:
+                json.dump(cleaned_data, f, indent=2, ensure_ascii=False)
+
+        _refresh_geography_runtime()
         return {"success": True, "stations_saved": len(cleaned_data), "validation": validation}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Admin operation failed")
         raise HTTPException(500, "Internal server error")
@@ -1121,28 +1138,34 @@ def save_geography(pc: str, ac: str, req: SaveGeographyRequest, _=Depends(get_ad
 def delete_geography(pc: str, ac: str, _=Depends(get_admin_user)):
     pc = _sanitize_path_param(pc)
     ac = _sanitize_path_param(ac)
-    filepath = GEOGRAPHY_BASE_PATH / pc / f"{ac}.json"
-    if filepath.exists():
-        filepath.unlink()
-        # Also remove from DB
+    deleted = 0
+    if not _production_db_only_geography():
+        filepath = GEOGRAPHY_BASE_PATH / pc / f"{ac}.json"
+        if filepath.exists():
+            filepath.unlink()
+            deleted += 1
+
+    try:
+        from sansadx_backend.db import TenantOverride, Tenant
+        db = SessionLocal()
         try:
-            from sansadx_backend.db import SessionLocal, TenantOverride, Tenant
-            from sqlalchemy import text as sa_text
-            db = SessionLocal()
-            try:
-                tenant = db.query(Tenant).filter(Tenant.constituency == pc).first()
-                if tenant:
-                    db.execute(
-                        sa_text("DELETE FROM tenant_overrides WHERE tenant_id = :tid AND override_type = 'geography_data' AND key = :k"),
-                        {"tid": tenant.id, "k": f"{pc}/{ac}"}
-                    )
-                    db.commit()
-            finally:
-                db.close()
-        except Exception as e:
-            logger.warning(f"Geography DB delete failed: {e}")
-        return {"success": True}
-    raise HTTPException(404, "File not found")
+            tenant = db.query(Tenant).filter(Tenant.constituency == pc).first()
+            if tenant:
+                deleted += db.query(TenantOverride).filter(
+                    TenantOverride.tenant_id == tenant.id,
+                    TenantOverride.override_type == "geography_data",
+                    TenantOverride.key == f"{pc}/{ac}",
+                ).delete()
+                db.commit()
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"Geography DB delete failed: {e}")
+
+    if deleted:
+        _refresh_geography_runtime()
+        return {"success": True, "deleted": deleted}
+    raise HTTPException(404, "Geography data not found")
 
 
 from fastapi import BackgroundTasks

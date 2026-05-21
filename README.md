@@ -16,16 +16,16 @@ Citizens send grievances via WhatsApp → AI categorises & routes them → MPs m
                                      │                            ▲
                               ┌──────▼──────────┐        ┌───────┴──────────┐
                               │  PostgreSQL      │        │  Admin Dashboard  │
-                              │  (Railway)       │        │  (Next.js 15)     │
+                              │  (EC2 Docker)    │        │  (Next.js 15)     │
                               └─────────────────┘        └──────────────────┘
 ```
 
 | Service | Tech | Deployment |
 |---------|------|------------|
-| Backend API | FastAPI + Uvicorn | Railway (Dockerfile) |
-| MP Dashboard | Next.js 15 + Tailwind | Railway (Railpack) |
-| Admin Dashboard | Next.js 15 + Tailwind | Railway (Railpack) |
-| Database | PostgreSQL 15 | Railway managed |
+| Backend API | FastAPI + Uvicorn | AWS EC2 Docker Compose |
+| MP Dashboard | Next.js 15 + Tailwind | Vercel |
+| Admin Dashboard | Next.js 15 + Tailwind | Vercel |
+| Database | PostgreSQL 17 + pgvector | EC2 Docker Compose |
 | WhatsApp | Meta Cloud API v21.0 | Webhook at `/whatsapp/webhook` |
 | AI — Grievance Engine | OpenAI GPT-4o-mini | JSON mode, multi-language |
 | AI — Research & Drafting | Google Gemini | Document analysis, letter drafting |
@@ -119,7 +119,7 @@ compass-needle/
 
 ## Environment Variables
 
-### Backend (Railway)
+### Backend (EC2)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -133,11 +133,11 @@ compass-needle/
 | `META_APP_SECRET` | ✅ | Meta App Secret (for webhook signature validation) |
 | `SENTRY_DSN` | Optional | Error monitoring |
 
-### Frontends (Railway)
+### Frontends (Vercel)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `NEXT_PUBLIC_API_URL` | ✅ | Backend URL (e.g. `https://needle-backend.up.railway.app`) |
+| `NEXT_PUBLIC_API_URL` | ✅ | Backend URL (e.g. `https://backend.coinmedia.co.in`) |
 
 ---
 
@@ -258,24 +258,25 @@ CI runs `npm run test:all`, `npm run build:mp`, and `npm run build:admin` on pus
 
 ---
 
-## Deployment (Railway)
+## Deployment (EC2 + Vercel)
 
-Three services from the same GitHub repo, auto-deploy on push to `main`:
+The backend and production PostgreSQL run on AWS EC2. The MP and Admin dashboards run on Vercel and must point `NEXT_PUBLIC_API_URL` at the EC2 backend.
 
-| Service | Root Directory | Builder |
-|---------|---------------|---------|
-| Backend | `/` | Dockerfile |
-| MP Frontend | `/frontend` | Railpack |
-| Admin Frontend | `/admin` | Railpack |
+| Service | Deployment | Production URL |
+|---------|------------|----------------|
+| Backend | EC2 Docker Compose | `https://backend.coinmedia.co.in` |
+| PostgreSQL | EC2 Docker Compose | internal `postgres:5432/needle` |
+| MP Frontend | Vercel | set `NEXT_PUBLIC_API_URL=https://backend.coinmedia.co.in` |
+| Admin Frontend | Vercel | set `NEXT_PUBLIC_API_URL=https://backend.coinmedia.co.in` |
 
 ### Production Smoke Test
 
-After a Railway deploy, run the bundled smoke test instead of checking only the home page:
+After an EC2 deploy, run the bundled smoke test instead of checking only the home page:
 
 ```bash
-export BACKEND_URL="https://needle-backend.up.railway.app"
-export MP_URL="https://compass-needle-production.up.railway.app"
-export ADMIN_URL="https://needle-admin.up.railway.app"
+export BACKEND_URL="https://backend.coinmedia.co.in"
+export MP_URL="https://<mp-vercel-domain>"
+export ADMIN_URL="https://<admin-vercel-domain>"
 export MP_USERNAME="..."
 export MP_PASSWORD="..."
 export ADMIN_USERNAME="..."

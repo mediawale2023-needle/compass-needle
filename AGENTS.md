@@ -9,7 +9,7 @@
 - AI-powered research, CSR matching, and constituency intelligence
 - Mobile-responsive UI with AstroNex dark theme styling across all dashboards
 
-**Monorepo structure:** Four Railway-deployed services sharing one PostgreSQL database.
+**Monorepo structure:** EC2-hosted backend and PostgreSQL with Vercel-hosted MP/Admin frontends.
 
 ---
 
@@ -20,7 +20,7 @@
 | Backend API | Python 3.11 + FastAPI | `/` (root) |
 | MP Dashboard | Next.js 15 + React 19 + Tailwind | `/frontend` |
 | Admin Dashboard | Next.js 15 + React 19 + Tailwind | `/admin` |
-| Database | PostgreSQL 15 | Railway managed |
+| Database | PostgreSQL 17 + pgvector | EC2 Docker Compose |
 | AI (classification) | OpenAI GPT-4o-mini | `sansadx_backend/ai_engine.py` |
 | AI (drafting/OCR) | Google Gemini | `core/gemini_client.py` |
 | WhatsApp outbound | Meta Cloud API v21.0 | `modules/whatsapp.py` |
@@ -208,13 +208,14 @@ Defined in `sansadx_backend/db.py`:
 
 ## Deployment
 
-Deployed on **Railway** — four services auto-deploy on push to `main`:
+Production source of truth is **AWS EC2**. The backend and PostgreSQL run via Docker Compose on EC2; MP/Admin frontends run on Vercel and must point to the EC2 backend.
 
-| Service | Root Dir | Builder | URL |
-|---|---|---|---|
-| Backend API | `/` | Dockerfile | `needle-backend.up.railway.app` |
-| MP Frontend | `/frontend` | Railpack (Next.js) | `compass-needle-production.up.railway.app` |
-| Admin Frontend | `/admin` | Railpack (Next.js) | `needle-admin.up.railway.app` |
+| Service | Location | URL |
+|---|---|---|
+| Backend API | EC2 Docker Compose | `backend.coinmedia.co.in` |
+| PostgreSQL | EC2 Docker Compose | internal `postgres:5432/needle` |
+| MP Frontend | Vercel | configured with `NEXT_PUBLIC_API_URL=https://backend.coinmedia.co.in` |
+| Admin Frontend | Vercel | configured with `NEXT_PUBLIC_API_URL=https://backend.coinmedia.co.in` |
 
 **Before deploying to production**, run through `DEPLOYMENT_GUIDE.md`:
 1. Rotate all credentials (OpenAI, Gemini, Meta, JWT secret)
@@ -280,7 +281,7 @@ Supported languages: Hindi, Hinglish, Marathi, Tamil, Telugu, Kannada, Malayalam
 
 ## Branch & Git Notes
 
-- Production deploys from `main` (Railway watches this branch)
+- Production deploys from `main` via `.github/workflows/deploy-aws-ec2.yml` for the backend
 - Development branch convention: `Codex/<feature>-<id>`
 - Git user configured as `Codex (noreply@anthropic.com)` in this environment
 

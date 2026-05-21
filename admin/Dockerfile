@@ -8,7 +8,7 @@ RUN npm install
 COPY . .
 
 # NEXT_PUBLIC_* vars must be set at BUILD TIME for Next.js to bake them in.
-# Railway sets this via service env vars; fallback ensures it always works.
+# Vercel/CI must set this at build time; fallback keeps local builds usable.
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
