@@ -1047,6 +1047,7 @@ def _save_spam_flag(tenant_id: int, phone: str, flag_type: str, reason: str, mes
 from modules.whatsapp import send_whatsapp_message  # noqa: E402
 from modules.case_query_parser import parse_query
 from modules.case_query_engine import query_cases
+from modules.whatsapp_geography import finalize_geography_decision
 from modules.localized_replies import (
     DETAILS_REQUEST_STATUSES,
     get_awaiting_location_reply,
@@ -1195,6 +1196,37 @@ def _resolve_tenant(receiver_number: str) -> int | None:
         receiver_number,
     )
     return None
+
+
+def _finalize_whatsapp_geography_decision(
+    *,
+    grievance: dict,
+    ai_result: dict,
+    status: str,
+    political_reply: str,
+    detected_language: str,
+    message_body: str,
+    current_tenant: int,
+    is_emergency_complaint: bool,
+) -> dict:
+    try:
+        from sansadx_backend.db import get_tenant_constituency
+    except Exception:
+        get_tenant_constituency = lambda _tenant_id: None
+
+    return finalize_geography_decision(
+        grievance=grievance,
+        ai_result=ai_result,
+        status=status,
+        political_reply=political_reply,
+        detected_language=detected_language,
+        message_body=message_body,
+        current_tenant=current_tenant,
+        is_emergency_complaint=is_emergency_complaint,
+        resolve_location_fn=resolve_location,
+        resolve_constituency_fn=resolve_constituency,
+        get_tenant_constituency_fn=get_tenant_constituency,
+    )
 
 
 # ─────────────────────────────────────────
@@ -2434,36 +2466,21 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
                 categories = ["Emergency"]
         political_reply = ai_result.get("political_response", get_generic_ack_reply(detected_language, message_body))
 
-        location_name = grievance.get("location")
-        final_constituency = None
-
-        # Deterministic geography is the source of truth. Run it on the raw
-        # WhatsApp text before deciding that AI missed the location.
-        raw_message_geo = {"location_resolved": False}
-        try:
-            tenant_const = None
-            try:
-                from sansadx_backend.db import get_tenant_constituency
-                tenant_const = get_tenant_constituency(current_tenant)
-            except Exception:
-                tenant_const = None
-            raw_message_geo = resolve_location(
-                message_body,
-                scope_parliamentary=tenant_const,
-                tenant_id=current_tenant,
-            )
-        except Exception as exc:
-            logger.warning("Raw message geography resolution failed: %s", exc)
-
-        if raw_message_geo.get("location_resolved"):
-            location_name = raw_message_geo.get("matched_value") or location_name
-            final_constituency = raw_message_geo.get("assembly_constituency")
-            grievance["location"] = location_name
-            grievance["assembly_constituency"] = final_constituency
-            grievance["_match_confidence"] = f"raw_message_{raw_message_geo.get('confidence', 'high')}"
-            if status not in ("emergency", "offensive", "irrelevant"):
-                status = "new"
-                political_reply = get_generic_ack_reply(detected_language, message_body)
+        geo_decision = _finalize_whatsapp_geography_decision(
+            grievance=grievance,
+            ai_result=ai_result,
+            status=status,
+            political_reply=political_reply,
+            detected_language=detected_language,
+            message_body=message_body,
+            current_tenant=current_tenant,
+            is_emergency_complaint=_is_emergency_complaint,
+        )
+        grievance = geo_decision["grievance"]
+        status = geo_decision["status"]
+        political_reply = geo_decision["political_reply"]
+        location_name = geo_decision["location_name"]
+        final_constituency = geo_decision["final_constituency"]
 
         # Geo mapping — DB overrides + geography JSON files
         if location_name and not final_constituency:
@@ -2575,30 +2592,6 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
                     if matches:
                         final_constituency = combined_lower[matches[0]]
                         logger.info(f"Geo fuzzy match (85%): '{lookup_key}' ≈ '{matches[0]}' → {final_constituency}")
-
-        # Fallback geo resolution
-        if not final_constituency:
-            final_constituency = (
-                grievance.get("assembly_constituency") or
-                grievance.get("constituency") or
-                ai_result.get("constituency") or
-                ai_result.get("assembly_constituency")
-            )
-            if (not final_constituency or final_constituency == "Unknown") and location_name:
-                _, resolved = resolve_constituency(location_name, current_tenant)
-                final_constituency = resolved if resolved and resolved != "Unknown" else None
-
-        if not final_constituency:
-            final_constituency = "Unknown"
-
-        # If location couldn't be verified against geography list, hold the case
-        # and replace the AI's "noted" reply with a localized clarification request
-        _requires_silent_emergency_hold = bool(
-            _is_emergency_complaint
-        )
-        if final_constituency == "Unknown" and location_name and not _requires_silent_emergency_hold:
-            status = "awaiting_location"
-            political_reply = get_awaiting_location_reply(location_name, detected_language, message_body)
 
         meta_data = {
             "user_intent": status,
