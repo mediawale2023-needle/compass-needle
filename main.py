@@ -2463,6 +2463,7 @@ def _process_incoming_message(sender: str, message_body: str, receiver_number: s
             grievance["_match_confidence"] = f"raw_message_{raw_message_geo.get('confidence', 'high')}"
             if status not in ("emergency", "offensive", "irrelevant"):
                 status = "new"
+                political_reply = get_generic_ack_reply(detected_language, message_body)
 
         # Geo mapping — DB overrides + geography JSON files
         if location_name and not final_constituency:
