@@ -5,7 +5,13 @@ from modules.whatsapp_media_intake import normalize_media_complaint
 
 
 class _FakeResponse:
-    text = '{"complaint_text":"Tilakwadi madhe paani nahi","detected_language":"Marathi","confidence":"high"}'
+    text = (
+        '{"complaint_text":"Tilakwadi madhe paani nahi",'
+        '"detected_language":"Marathi",'
+        '"mentioned_location_original":"Tilakwadi",'
+        '"mentioned_location_roman":"Tilakwadi",'
+        '"confidence":"high"}'
+    )
 
 
 class _FakeModels:
@@ -50,6 +56,8 @@ def test_normalize_media_complaint_returns_grievance_text(monkeypatch):
     assert result.ok is True
     assert result.text == "Tilakwadi madhe paani nahi"
     assert result.extracted_language == "Marathi"
+    assert result.mentioned_location_original == "Tilakwadi"
+    assert result.mentioned_location_roman == "Tilakwadi"
     assert result.confidence == "high"
     assert fake_client.models.last_kwargs["model"] == "gemini-2.5-flash"
 

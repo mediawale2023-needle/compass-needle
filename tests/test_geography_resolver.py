@@ -165,6 +165,31 @@ def test_resolve_location_supports_kannada_voice_transcript_for_balekundri(stub_
     assert result["matched_value"] == "Balekundri"
 
 
+def test_resolve_location_uses_db_backed_geo_aliases(monkeypatch, stub_geography_index):
+    geography_resolver.reload_index()
+    monkeypatch.setattr(
+        geography_resolver,
+        "_load_tenant_geo_aliases",
+        lambda tenant_id: {
+            "ಬಾಳೆಗುಂದ್ರಿ": {
+                "assembly": "Belgaum Rural",
+                "display": "Balekundri",
+            }
+        },
+    )
+
+    result = geography_resolver.resolve_location(
+        "ಬಾಳೆಗುಂದ್ರಿಯಲ್ಲಿ ಕಸ ಇದೆ",
+        scope_parliamentary="Belagavi",
+        tenant_id=3,
+    )
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Rural"
+    assert result["matched_value"] == "Balekundri"
+    assert result["confidence"] == "db_alias_boundary"
+
+
 def test_resolve_location_fails_closed_on_ambiguous_locality(stub_geography_index):
     geography_resolver.reload_index()
 

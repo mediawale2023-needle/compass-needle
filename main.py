@@ -2226,6 +2226,14 @@ def _process_citizen_media_complaint(
     message_body = normalized.text
     if caption.strip() and caption.strip().lower() not in message_body.lower():
         message_body = f"{message_body}\n\nCaption: {caption.strip()}"
+    location_hint_parts = [
+        part.strip()
+        for part in [normalized.mentioned_location_roman, normalized.mentioned_location_original]
+        if part and part.strip()
+    ]
+    location_hint = " / ".join(dict.fromkeys(location_hint_parts))
+    if location_hint and location_hint.lower() not in message_body.lower():
+        message_body = f"{message_body}\n\nLocation: {location_hint}"
 
     logger.info(
         "Citizen media routed to grievance pipeline: sender=%s tenant=%s type=%s chars=%s",
@@ -2242,6 +2250,8 @@ def _process_citizen_media_complaint(
             "media_type": media_type,
             "caption": caption,
             "extracted_text": normalized.text,
+            "mentioned_location_original": normalized.mentioned_location_original,
+            "mentioned_location_roman": normalized.mentioned_location_roman,
             "meta_message_id": msg_id,
         }
     _process_incoming_message(

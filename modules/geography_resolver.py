@@ -190,6 +190,40 @@ def _load_tenant_overrides(tenant_id):
     return {}
 
 
+def _load_tenant_geo_aliases(tenant_id: int) -> dict[str, dict[str, str]]:
+    """Load DB-backed generated geography aliases for a tenant."""
+    try:
+        from sansadx_backend.db import SessionLocal, TenantOverride
+        _db = SessionLocal()
+        try:
+            rows = _db.query(TenantOverride).filter(
+                TenantOverride.override_type == "geo_alias",
+                TenantOverride.tenant_id == tenant_id,
+            ).all()
+            aliases: dict[str, dict[str, str]] = {}
+            for row in rows:
+                try:
+                    payload = json.loads(row.value) if isinstance(row.value, str) else row.value
+                except Exception:
+                    payload = {}
+                if isinstance(payload, dict):
+                    assembly = str(payload.get("assembly") or "").strip()
+                    display = str(payload.get("display") or row.key or "").strip()
+                else:
+                    assembly = str(row.value or "").strip()
+                    display = str(row.key or "").strip()
+                if assembly:
+                    aliases[str(row.key or "").strip()] = {
+                        "assembly": assembly,
+                        "display": display or str(row.key or "").strip(),
+                    }
+            return aliases
+        finally:
+            _db.close()
+    except Exception:
+        return {}
+
+
 _geography_index = {
     "assemblies": {},
     "ambiguities": {},
@@ -268,6 +302,34 @@ def _build_match_forms(*texts: str) -> Set[str]:
                 forms.update(_build_location_token_variants(transliterated))
                 forms.update(_build_location_token_variants(canonical))
     return {form for form in forms if form}
+
+
+def _station_seed_aliases(station: Dict[str, Any], parliamentary_constituency: Optional[str] = None) -> Set[str]:
+    seeds: Set[str] = set()
+    for field in ("locality", "locality_en", "mentioned_location_roman", "mentioned_location_original"):
+        value = str(station.get(field) or "").replace("\n", " ").strip()
+        if value:
+            seeds.add(value)
+
+    raw_aliases = station.get("aliases") or station.get("alias") or []
+    if isinstance(raw_aliases, str):
+        raw_aliases = re.split(r"[,;|]", raw_aliases)
+    if isinstance(raw_aliases, (list, tuple, set)):
+        for alias in raw_aliases:
+            value = str(alias or "").replace("\n", " ").strip()
+            if value:
+                seeds.add(value)
+
+    for seed in list(seeds):
+        seeds.update(_derive_locality_aliases(seed, parliamentary_constituency))
+    return {seed for seed in seeds if seed and not _is_meta_locality(seed)}
+
+
+def _generated_alias_forms(station: Dict[str, Any], parliamentary_constituency: Optional[str] = None) -> Set[str]:
+    forms: Set[str] = set()
+    for seed in _station_seed_aliases(station, parliamentary_constituency):
+        forms.update(_build_match_forms(seed))
+    return {form for form in forms if len(form) >= 4 and not _is_meta_locality(form)}
 
 
 def _derive_locality_aliases(locality: str, parliamentary_constituency: Optional[str] = None) -> Set[str]:
@@ -538,8 +600,7 @@ def load_geography_index() -> bool:
             if not norm_loc or _is_meta_locality(raw_loc):
                 continue
 
-            locality_aliases = _derive_locality_aliases(raw_loc, parl_name)
-            match_forms = _build_match_forms(raw_loc, raw_loc_en, *locality_aliases)
+            match_forms = _generated_alias_forms(s, parl_name)
             spaceless_match_forms = _spaceless_forms(match_forms)
             keywords = set()
             for form in match_forms:
@@ -580,6 +641,27 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
 
     # 1. TENANT-SPECIFIC OVERRIDES (from tenant_overrides.json)
     if tenant_id is not None:
+        tenant_aliases = _load_tenant_geo_aliases(int(tenant_id))
+        for alias_key, payload in tenant_aliases.items():
+            alias_forms = _build_match_forms(alias_key)
+            if not alias_forms:
+                continue
+            if alias_forms & query_forms:
+                return {
+                    "location_resolved": True,
+                    "assembly_constituency": payload["assembly"],
+                    "matched_value": _display_location_name(payload["display"]),
+                    "confidence": "db_alias_exact",
+                }
+            for alias_form in alias_forms:
+                if len(alias_form) >= 5 and any(re.search(r'\b' + re.escape(alias_form) + r'\b', qf) for qf in query_forms):
+                    return {
+                        "location_resolved": True,
+                        "assembly_constituency": payload["assembly"],
+                        "matched_value": _display_location_name(payload["display"]),
+                        "confidence": "db_alias_boundary",
+                    }
+
         tenant_overrides = _load_tenant_overrides(tenant_id)
         for k, v in tenant_overrides.items():
             if k.lower() in clean_text:
@@ -846,6 +928,7 @@ def auto_generate_overrides():
 
     for (parl_name, tenant_id), rows in grouped_rows.items():
         overrides_map = {}
+        alias_payloads = {}
         ambiguous_localities: Dict[str, Set[str]] = {}
         for row in rows:
             assembly_name = row["assembly"]
@@ -854,18 +937,27 @@ def auto_generate_overrides():
                 locality = station.get("locality", "").replace("\n", " ").strip()
                 if not locality or len(locality) < 3 or _is_meta_locality(locality):
                     continue
-                for key in sorted(_derive_locality_aliases(locality, parl_name) or {normalize(locality)}):
+                display = _display_location_name(locality)
+                station_alias_forms = _generated_alias_forms(station, parl_name)
+                for key in sorted(station_alias_forms or {normalize(locality)}):
                     if not key:
                         continue
                     if key in overrides_map and overrides_map[key] != assembly_name:
                         ambiguous_localities.setdefault(key, {overrides_map[key]}).add(assembly_name)
                         overrides_map.pop(key, None)
+                        alias_payloads.pop(key, None)
                         continue
                     if key in ambiguous_localities:
                         ambiguous_localities[key].add(assembly_name)
                         continue
                     if key not in overrides_map:
                         overrides_map[key] = assembly_name
+                        alias_payloads[key] = {
+                            "assembly": assembly_name,
+                            "display": display,
+                            "canonical_locality": locality,
+                            "source": "geography_data",
+                        }
 
         try:
             from sansadx_backend.db import SessionLocal as SL, TenantOverride
@@ -873,7 +965,7 @@ def auto_generate_overrides():
             db = SL()
             try:
                 db.execute(
-                    sa_text("DELETE FROM tenant_overrides WHERE tenant_id = :tid AND override_type = 'geo_override'"),
+                    sa_text("DELETE FROM tenant_overrides WHERE tenant_id = :tid AND override_type IN ('geo_override', 'geo_alias')"),
                     {"tid": tenant_id}
                 )
                 db.commit()
@@ -885,6 +977,16 @@ def auto_generate_overrides():
                         value=assembly_val,
                     )
                     db.add(override)
+                    db.add(TenantOverride(
+                        tenant_id=tenant_id,
+                        override_type="geo_alias",
+                        key=loc_key,
+                        value=json.dumps(alias_payloads.get(loc_key) or {
+                            "assembly": assembly_val,
+                            "display": loc_key,
+                            "source": "geography_data",
+                        }),
+                    ))
                 
                 db.commit()
                 total_written += len(overrides_map)
