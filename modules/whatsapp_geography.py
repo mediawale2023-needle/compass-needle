@@ -19,6 +19,7 @@ def finalize_geography_decision(
     resolve_location_fn: Callable[..., dict[str, Any]],
     resolve_constituency_fn: Callable[..., tuple[Any, Any]],
     get_tenant_constituency_fn: Callable[[int], str | None] | None = None,
+    resolver_message_body: str | None = None,
 ) -> dict[str, Any]:
     """
     Final authority for citizen-grievance geography and reply state.
@@ -34,7 +35,7 @@ def finalize_geography_decision(
     try:
         tenant_const = get_tenant_constituency_fn(current_tenant) if get_tenant_constituency_fn else None
         raw_message_geo = resolve_location_fn(
-            message_body,
+            resolver_message_body or message_body,
             scope_parliamentary=tenant_const,
             tenant_id=current_tenant,
         )

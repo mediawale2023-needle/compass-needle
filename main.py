@@ -1263,6 +1263,7 @@ def _finalize_whatsapp_geography_decision(
     message_body: str,
     current_tenant: int,
     is_emergency_complaint: bool,
+    resolver_message_body: str | None = None,
 ) -> dict:
     try:
         from sansadx_backend.db import get_tenant_constituency
@@ -1276,6 +1277,7 @@ def _finalize_whatsapp_geography_decision(
         political_reply=political_reply,
         detected_language=detected_language,
         message_body=message_body,
+        resolver_message_body=resolver_message_body,
         current_tenant=current_tenant,
         is_emergency_complaint=is_emergency_complaint,
         resolve_location_fn=resolve_location,
@@ -2232,8 +2234,9 @@ def _process_citizen_media_complaint(
         if part and part.strip()
     ]
     location_hint = " / ".join(dict.fromkeys(location_hint_parts))
+    resolver_message_body = message_body
     if location_hint and location_hint.lower() not in message_body.lower():
-        message_body = f"{message_body}\n\nLocation: {location_hint}"
+        resolver_message_body = f"{message_body}\n\nLocation: {location_hint}"
 
     logger.info(
         "Citizen media routed to grievance pipeline: sender=%s tenant=%s type=%s chars=%s",
@@ -2261,6 +2264,7 @@ def _process_citizen_media_complaint(
         msg_id,
         media_source=media_source,
         language_hint=normalized.extracted_language,
+        resolver_message_body=resolver_message_body,
     )
 
 
@@ -2378,6 +2382,7 @@ def _process_incoming_message(
     msg_id: str = "",
     media_source: dict | None = None,
     language_hint: str = "",
+    resolver_message_body: str | None = None,
 ):
     """Background task: AI processing + DB save + reply. Runs after 200 is returned to Meta."""
     if not receiver_number:
@@ -2390,6 +2395,8 @@ def _process_incoming_message(
         )
         return
     _wa_phone_id = get_tenant_phone_number_id(current_tenant)
+
+    resolver_message_body = resolver_message_body or message_body
 
     logger.info(f"Incoming from {sender} → Tenant {current_tenant}")
     sender_digits = re.sub(r"\D", "", sender or "")
@@ -2587,16 +2594,20 @@ def _process_incoming_message(
     _pending = get_pending_incomplete_case(sender, current_tenant)
     if _pending:
         _loc_text = message_body.strip()
+        _resolver_loc_text = resolver_message_body.strip()
         _resolved_const = None
+        _matched_location = _loc_text
         try:
-            _, _resolved_const = resolve_constituency(_loc_text, current_tenant)
+            _matched, _resolved_const = resolve_constituency(_resolver_loc_text, current_tenant)
+            if _matched:
+                _matched_location = _matched
             if _resolved_const == "Unknown":
                 _resolved_const = None
         except Exception:
             pass
 
         _upd_meta = dict(_pending["meta"])
-        _upd_meta["matched_value"] = _loc_text
+        _upd_meta["matched_value"] = _matched_location
         _upd_meta["location_resolved"] = bool(_resolved_const)
         _upd_meta["assembly_constituency"] = _resolved_const or "Unknown"
         _upd_meta["location_follow_up"] = True
@@ -2613,14 +2624,14 @@ def _process_incoming_message(
                 )
             logger.info(
                 "Location follow-up: updated case %s with location '%s' → '%s'",
-                _pending["id"], _loc_text, _resolved_const,
+                _pending["id"], _matched_location, _resolved_const,
             )
         except Exception as _loc_exc:
             logger.error("Failed to update pending case with location: %s", _loc_exc)
 
         _cat = _pending.get("category") or "shikayat"
-        _detected_lang = detect_input_language(_loc_text)
-        _loc_ack = get_location_update_reply(_loc_text, _detected_lang, _loc_text)
+        _detected_lang = _resolve_citizen_reply_language(_loc_text, language_hint=language_hint)
+        _loc_ack = get_location_update_reply(_matched_location, _detected_lang, _loc_text)
         send_whatsapp_message(sender, _loc_ack, _wa_phone_id)
         return
 
@@ -2744,6 +2755,7 @@ def _process_incoming_message(
             political_reply=political_reply,
             detected_language=detected_language,
             message_body=message_body,
+            resolver_message_body=resolver_message_body,
             current_tenant=current_tenant,
             is_emergency_complaint=_is_emergency_complaint,
         )

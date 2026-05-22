@@ -233,9 +233,9 @@ _GENERIC_ACK: dict[str, str] = {
         "Amhi lokerach tumchyashi sampark karu."
     ),
     "Kannada": (
-        "Nimma sandesha siggide 🙏\n\n"
-        "Nimma samasyeyannu namoodiside mattu adannu parishilisalaguttide. "
-        "Naavu bega nimmanu samparkisutteve."
+        "ನಿಮ್ಮ ಸಂದೇಶ ಬಂದಿದೆ 🙏\n\n"
+        "ನಿಮ್ಮ ಸಮಸ್ಯೆಯನ್ನು ದಾಖಲಿಸಲಾಗಿದೆ ಮತ್ತು ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ. "
+        "ನಾವು ಶೀಘ್ರದಲ್ಲೇ ನಿಮ್ಮನ್ನು ಸಂಪರ್ಕಿಸುತ್ತೇವೆ."
     ),
     "Tamil": (
         "Ungal seidhi engalukku vandulladhu 🙏\n\n"
@@ -266,7 +266,11 @@ _GENERIC_ACK_LATIN: dict[str, str] = {
     ),
     "Hinglish": _GENERIC_ACK["Hinglish"],
     "Marathi": _GENERIC_ACK["Marathi"],
-    "Kannada": _GENERIC_ACK["Kannada"],
+    "Kannada": (
+        "Nimma sandesha siggide 🙏\n\n"
+        "Nimma samasyeyannu namoodiside mattu adannu parishilisalaguttide. "
+        "Naavu bega nimmanu samparkisutteve."
+    ),
     "Tamil": _GENERIC_ACK["Tamil"],
     "Telugu": _GENERIC_ACK["Telugu"],
     "Bengali": _GENERIC_ACK["Bengali"],
@@ -288,13 +292,25 @@ _REVIEW_ACK: dict[str, str] = {
         "Tumcha mudda amhala milala aahe ani aamchi team tyachi tapasani karat aahe. "
         "Amhi lokerach tumchyashi follow up karu."
     ),
+    "Kannada": (
+        "ನಿಮ್ಮ ಸಂದೇಶ ಬಂದಿದೆ 🙏\n\n"
+        "ನಿಮ್ಮ ವಿಷಯ ನಮ್ಮಿಗೆ ಬಂದಿದೆ ಮತ್ತು ನಮ್ಮ ತಂಡ ಪರಿಶೀಲಿಸುತ್ತಿದೆ. "
+        "ನಾವು ಶೀಘ್ರದಲ್ಲೇ ನಿಮ್ಮನ್ನು ಸಂಪರ್ಕಿಸುತ್ತೇವೆ."
+    ),
     "English": (
         "Thank you for reaching out 🙏\n\n"
         "Your issue has been received and is being reviewed by our team. We will follow up with you shortly."
     ),
 }
 
-_REVIEW_ACK_LATIN = _REVIEW_ACK
+_REVIEW_ACK_LATIN = {
+    **_REVIEW_ACK,
+    "Kannada": (
+        "Nimma sandesha siggide 🙏\n\n"
+        "Nimma vishaya namage bandide mattu namma team adannu review maduttide. "
+        "Naavu bega nimmanu samparkisutteve."
+    ),
+}
 
 _UNSUPPORTED_MESSAGE_REPLY: dict[str, str] = {
     "Hindi": (
@@ -353,12 +369,22 @@ _LOCATION_UPDATE_ACK: dict[str, str] = {
         "Tumchi *{location}* babatichi samasya nondi keli aahe. "
         "Amhi tumhala lokerach update deu. 🙏"
     ),
+    "Kannada": (
+        "*{location}* ಸಂಬಂಧಿತ ನಿಮ್ಮ ಸಮಸ್ಯೆಯನ್ನು ದಾಖಲಿಸಲಾಗಿದೆ. "
+        "ನಾವು ಶೀಘ್ರದಲ್ಲೇ ನಿಮಗೆ ಮಾಹಿತಿ ನೀಡುತ್ತೇವೆ. 🙏"
+    ),
     "English": (
         "Your issue regarding *{location}* has been noted. We will update you shortly. 🙏"
     ),
 }
 
-_LOCATION_UPDATE_ACK_LATIN = _LOCATION_UPDATE_ACK
+_LOCATION_UPDATE_ACK_LATIN = {
+    **_LOCATION_UPDATE_ACK,
+    "Kannada": (
+        "*{location}* sambandhita nimma samasyeyannu namoodiside. "
+        "Naavu bega nimge mahiti needutteve. 🙏"
+    ),
+}
 
 
 # ── Details Request ───────────────────────────────────────────────────────────
