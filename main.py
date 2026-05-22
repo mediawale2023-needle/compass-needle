@@ -1085,6 +1085,7 @@ from modules.localized_replies import (
     get_rate_limit_reply,
     get_review_ack_reply,
     get_unsupported_message_reply,
+    normalize_language_name,
 )
 from modules.case_query_formatter import format_cases_for_whatsapp, format_clarification_request
 
@@ -2243,7 +2244,14 @@ def _process_citizen_media_complaint(
             "extracted_text": normalized.text,
             "meta_message_id": msg_id,
         }
-    _process_incoming_message(sender, message_body, receiver_number, msg_id, media_source=media_source)
+    _process_incoming_message(
+        sender,
+        message_body,
+        receiver_number,
+        msg_id,
+        media_source=media_source,
+        language_hint=normalized.extracted_language,
+    )
 
 
 # Categories that require human PA review before the AI reply is sent to citizen.
@@ -2343,12 +2351,23 @@ def _get_tenant_daily_limit(tenant_id: int) -> int:
     return limit
 
 
+def _resolve_citizen_reply_language(message_body: str, ai_result: dict | None = None, language_hint: str = "") -> str:
+    hinted_language = normalize_language_name(language_hint, "")
+    if hinted_language:
+        return hinted_language
+    detected = detect_input_language(message_body)
+    if detected:
+        return detected
+    return normalize_language_name((ai_result or {}).get("detected_language", ""), "Hindi")
+
+
 def _process_incoming_message(
     sender: str,
     message_body: str,
     receiver_number: str = "",
     msg_id: str = "",
     media_source: dict | None = None,
+    language_hint: str = "",
 ):
     """Background task: AI processing + DB save + reply. Runs after 200 is returned to Meta."""
     if not receiver_number:
@@ -2675,7 +2694,7 @@ def _process_incoming_message(
         # Reply language must be based on the citizen's actual message, not on
         # OpenAI's self-reported detected_language. This prevents Marathi/Hinglish
         # inputs like "Tilakwadi madhe pani nahi" from receiving Hindi replies.
-        detected_language = detect_input_language(message_body) or ai_result.get("detected_language", "")
+        detected_language = _resolve_citizen_reply_language(message_body, ai_result, language_hint)
         problem_domain = grievance.get("problem_domain")
         problem_subdomain = grievance.get("problem_subdomain")
         convergence_program_type = grievance.get("convergence_program_type")
@@ -2704,6 +2723,9 @@ def _process_incoming_message(
             else:
                 categories = ["Emergency"]
         political_reply = ai_result.get("political_response", get_generic_ack_reply(detected_language, message_body))
+        ai_language = normalize_language_name(ai_result.get("detected_language", ""), "")
+        if language_hint and ai_language and ai_language != detected_language:
+            political_reply = get_generic_ack_reply(detected_language, message_body)
 
         geo_decision = _finalize_whatsapp_geography_decision(
             grievance=grievance,
@@ -2970,7 +2992,7 @@ def _process_incoming_message(
             )
 
         # ── Second message: politely ask citizen for their details ────────────
-        # Only sent for valid grievance cases (new/pending/incomplete).
+        # Only sent when the grievance is explicitly incomplete.
         # Skipped for: awaiting_location, offensive, irrelevant, emergency,
         # pending_review (those have separate flows).
         if status in DETAILS_REQUEST_STATUSES:

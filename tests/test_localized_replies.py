@@ -1,8 +1,10 @@
 from modules.localized_replies import (
+    DETAILS_REQUEST_STATUSES,
     ensure_ji_prefix,
     get_generic_ack_reply,
     get_location_update_reply,
     get_review_ack_reply,
+    normalize_language_name,
 )
 from sansadx_backend.ai_engine import detect_input_language
 
@@ -45,3 +47,12 @@ def test_location_update_reply_uses_requested_language():
 def test_ensure_ji_prefix_is_idempotent():
     assert ensure_ji_prefix("Ji, Tumcha sandesh milala") == "Ji, Tumcha sandesh milala"
     assert ensure_ji_prefix("Tumcha sandesh milala") == "Ji, Tumcha sandesh milala"
+
+
+def test_details_request_only_for_incomplete_cases():
+    assert DETAILS_REQUEST_STATUSES == {"incomplete"}
+
+
+def test_normalize_language_name_does_not_invent_hindi_for_unknown_hint():
+    assert normalize_language_name("marathi", "") == "Marathi"
+    assert normalize_language_name("unknown", "") == ""

@@ -16,8 +16,13 @@ def _mostly_ascii(text: str) -> bool:
     return (ascii_count / len(stripped)) >= 0.90
 
 
+def normalize_language_name(detected_language: str = "", default: str = "") -> str:
+    """Return a canonical supported language name without inventing Hindi."""
+    return _LANG_ALIASES.get((detected_language or "").lower().strip(), default)
+
+
 def _normalize_language(detected_language: str = "") -> str:
-    return _LANG_ALIASES.get((detected_language or "").lower().strip(), "Hindi")
+    return normalize_language_name(detected_language, "Hindi")
 
 
 def _pick_template(native_templates: dict[str, str], latin_templates: dict[str, str], detected_language: str = "", original_text: str = "") -> str:
@@ -478,7 +483,7 @@ _DETAILS_REQUEST: dict[str, str] = {
 _DEFAULT_DETAILS_REQUEST = _DETAILS_REQUEST["Hindi"]
 
 # Statuses that should receive the follow-up details request
-DETAILS_REQUEST_STATUSES = {"new", "pending", "incomplete"}
+DETAILS_REQUEST_STATUSES = {"incomplete"}
 
 
 def get_details_request_reply(detected_language: str = "", original_text: str = "") -> str:
