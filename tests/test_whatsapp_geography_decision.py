@@ -118,6 +118,26 @@ def test_resolver_hint_does_not_leak_into_reply_or_saved_location():
     assert "ನಿಮ್ಮ" in result["political_reply"]
 
 
+def test_ai_location_blob_is_cleaned_before_dashboard_metadata():
+    result = finalize_geography_decision(
+        grievance={"location": "ಸದಾಶಿವ ನಗರದಲ್ಲಿ ನೀರಿಲ್ಲ ಸ್ವಲ್ಪ ನೋಡಬೇಕು\n\nLocation: Sadashivanagar / ಸದಾಶಿವ ನಗರ"},
+        ai_result={},
+        status="new",
+        political_reply="noted",
+        detected_language="Kannada",
+        message_body="ಸದಾಶಿವ ನಗರದಲ್ಲಿ ನೀರಿಲ್ಲ ಸ್ವಲ್ಪ ನೋಡಬೇಕು",
+        current_tenant=2,
+        is_emergency_complaint=False,
+        resolve_location_fn=lambda *_args, **_kwargs: {"location_resolved": False},
+        resolve_constituency_fn=lambda location, _tenant_id: (location, "Belgaum Uttar"),
+        get_tenant_constituency_fn=lambda _tenant_id: "Belagavi",
+    )
+
+    assert result["location_name"] == "Sadashivanagar"
+    assert result["grievance"]["location"] == "Sadashivanagar"
+    assert result["final_constituency"] == "Belgaum Uttar"
+
+
 def test_unresolved_ai_location_stays_awaiting_location():
     result = finalize_geography_decision(
         grievance={"location": "Unknown Place"},
