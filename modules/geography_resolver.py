@@ -17,7 +17,7 @@ import string
 from difflib import SequenceMatcher
 
 # ==========================================
-# DEVANAGARI TRANSLITERATION
+# INDIC TRANSLITERATION
 # ==========================================
 
 # Simplified Devanagari → Roman map sufficient for Indian location names.
@@ -49,22 +49,55 @@ _DEVA_MAP = {
 # Devanagari Unicode range: U+0900–U+097F
 _DEVA_RE = re.compile(r'[\u0900-\u097F]')
 
+# Simplified Kannada → Roman map for locality names. This is intentionally
+# conservative: it exists to ground geography, not to produce pretty language.
+_KANNADA_MAP = {
+    # Independent vowels
+    'ಅ': 'a', 'ಆ': 'aa', 'ಇ': 'i', 'ಈ': 'ee', 'ಉ': 'u', 'ಊ': 'oo',
+    'ಋ': 'ri', 'ಎ': 'e', 'ಏ': 'e', 'ಐ': 'ai', 'ಒ': 'o', 'ಓ': 'o', 'ಔ': 'au',
+    # Consonants
+    'ಕ': 'k', 'ಖ': 'kh', 'ಗ': 'g', 'ಘ': 'gh', 'ಙ': 'ng',
+    'ಚ': 'ch', 'ಛ': 'chh', 'ಜ': 'j', 'ಝ': 'jh', 'ಞ': 'ny',
+    'ಟ': 't', 'ಠ': 'th', 'ಡ': 'd', 'ಢ': 'dh', 'ಣ': 'n',
+    'ತ': 't', 'ಥ': 'th', 'ದ': 'd', 'ಧ': 'dh', 'ನ': 'n',
+    'ಪ': 'p', 'ಫ': 'ph', 'ಬ': 'b', 'ಭ': 'bh', 'ಮ': 'm',
+    'ಯ': 'y', 'ರ': 'r', 'ಱ': 'r', 'ಲ': 'l', 'ಳ': 'l', 'ವ': 'v',
+    'ಶ': 'sh', 'ಷ': 'sh', 'ಸ': 's', 'ಹ': 'h',
+    # Vowel signs
+    'ಾ': 'a', 'ಿ': 'i', 'ೀ': 'ee', 'ು': 'u', 'ೂ': 'oo', 'ೃ': 'ri',
+    'ೆ': 'e', 'ೇ': 'e', 'ೈ': 'ai', 'ೊ': 'o', 'ೋ': 'o', 'ೌ': 'au',
+    # Marks / virama
+    'ಂ': 'n', 'ಃ': 'h', '್': '',
+    # Digits
+    '೦': '0', '೧': '1', '೨': '2', '೩': '3', '೪': '4',
+    '೫': '5', '೬': '6', '೭': '7', '೮': '8', '೯': '9',
+}
+
+_KANNADA_RE = re.compile(r'[\u0C80-\u0CFF]')
+
 
 def _is_devanagari(text: str) -> bool:
     return bool(_DEVA_RE.search(text))
 
 
+def _has_indic_script(text: str) -> bool:
+    return bool(_DEVA_RE.search(text) or _KANNADA_RE.search(text))
+
+
 def _transliterate(text: str) -> str:
     """
-    Convert Devanagari text to a simplified Roman form suitable for
+    Convert supported Indic scripts to a simplified Roman form suitable for
     fuzzy matching against casual English spellings of Indian place names.
-    Non-Devanagari characters pass through unchanged.
+    Unsupported Indic characters pass through unchanged.
     """
     # Multi-char sequences first (nukta composites, conjuncts)
     for deva, roman in sorted(_DEVA_MAP.items(), key=lambda x: -len(x[0])):
         text = text.replace(deva, roman)
-    # Remove any remaining Devanagari characters not in the map
+    for kannada, roman in sorted(_KANNADA_MAP.items(), key=lambda x: -len(x[0])):
+        text = text.replace(kannada, roman)
+    # Remove any remaining supported-script characters not in the map
     text = _DEVA_RE.sub('', text)
+    text = _KANNADA_RE.sub('', text)
     return text.strip()
 
 # --- CONFIG & PATHS ---
@@ -108,6 +141,12 @@ _WORD_ALIAS_REPLACEMENTS = {
     "rd": "road",
     "rod": "road",
 }
+
+_ROMAN_LOCATION_SUFFIXES = (
+    "inlli", "nlli",
+    "nalli", "inalli", "dalli", "alli", "yalli",
+    "madhe", "madhye",
+)
 
 # ==========================================
 # TENANT-AWARE OVERRIDES (loaded from tenant_overrides.json)
@@ -190,6 +229,24 @@ def _canonicalize_alias(text: str) -> str:
     return value
 
 
+def _build_location_token_variants(value: str) -> Set[str]:
+    variants: Set[str] = set()
+    for token in normalize(value).split():
+        if len(token) < 5:
+            continue
+        candidates = {token}
+        for suffix in _ROMAN_LOCATION_SUFFIXES:
+            if token.endswith(suffix) and len(token) - len(suffix) >= 5:
+                candidates.add(token[: -len(suffix)])
+
+        expanded = set(candidates)
+        for candidate in candidates:
+            expanded.add(candidate.replace("gundri", "kundri"))
+            expanded.add(candidate.replace("kundri", "gundri"))
+        variants.update(v for v in expanded if len(v) >= 5)
+    return variants
+
+
 def _build_match_forms(*texts: str) -> Set[str]:
     forms: Set[str] = set()
     for text in texts:
@@ -201,13 +258,15 @@ def _build_match_forms(*texts: str) -> Set[str]:
             canonical = _canonicalize_alias(text)
             if canonical:
                 forms.add(canonical)
-        if _is_devanagari(text):
+        if _has_indic_script(text):
             transliterated = normalize(_transliterate(text))
             if transliterated:
                 forms.add(transliterated)
                 canonical = _canonicalize_alias(transliterated)
                 if canonical:
                     forms.add(canonical)
+                forms.update(_build_location_token_variants(transliterated))
+                forms.update(_build_location_token_variants(canonical))
     return {form for form in forms if form}
 
 
@@ -242,6 +301,10 @@ def _derive_locality_aliases(locality: str, parliamentary_constituency: Optional
         if len(value) >= 5 and value not in {"east", "west", "north", "south", "ward", "room", "hall"}:
             aliases.add(value)
             words = value.split()
+            if len(words) > 1 and words[-1] in {"kh", "bk", "k", "b"}:
+                code_stripped = " ".join(words[:-1]).strip()
+                if len(code_stripped) >= 5:
+                    aliases.add(code_stripped)
             generic_prefixes = {
                 "bazar", "bazaar", "peth", "pet", "galli", "gali", "wadi", "wada",
                 "nagar", "road", "marg", "maharaj", "depot", "circle", "school",

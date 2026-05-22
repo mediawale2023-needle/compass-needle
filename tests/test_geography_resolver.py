@@ -57,6 +57,14 @@ def stub_geography_index(monkeypatch):
                 {"station_number": "3", "locality": "Somawar Peth Tilakwadi, Belagavi", "building_name": ""},
             ],
         },
+        {
+            "tenant_id": 3,
+            "parliamentary_constituency": "Belagavi",
+            "assembly": "Belgaum Rural",
+            "stations": [
+                {"station_number": "1", "locality": "Balekundri KH", "building_name": ""},
+            ],
+        },
     ]
 
     monkeypatch.setattr(dbmod, "get_all_geography_data", lambda: rows)
@@ -142,6 +150,19 @@ def test_resolve_location_supports_hindi_input_via_transliteration(stub_geograph
     assert result["location_resolved"] is True
     assert result["assembly_constituency"] == "Koil"
     assert result["matched_value"] == "Ramghat Road"
+
+
+def test_resolve_location_supports_kannada_voice_transcript_for_balekundri(stub_geography_index):
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "ಬಾಳೆಗುಂದ್ರಿನಲ್ಲಿ ಬಹಳ ಕಚ್ಚರ ಆಗಿದೆ ಸ್ವಲ್ಪ ಕ್ಲಿಯರ್ ಮಾಡಬೇಕು",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Rural"
+    assert result["matched_value"] == "Balekundri"
 
 
 def test_resolve_location_fails_closed_on_ambiguous_locality(stub_geography_index):
