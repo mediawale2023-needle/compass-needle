@@ -72,7 +72,7 @@ export async function api(path, options = {}) {
         try {
             const res = await fetchWithTimeout(
                 `${API_BASE}${path}`,
-                { ...options, headers },
+                { ...options, headers, cache: 'no-store' },
                 timeout,
             );
 

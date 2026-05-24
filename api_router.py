@@ -4682,7 +4682,7 @@ def get_history(user=Depends(get_current_user), activity_type: Optional[str] = N
         conditions.append("activity_type = :atype")
         params["atype"] = activity_type
     where = " AND ".join(conditions)
-    rows = _q(f"""  # nosec B608
+    rows = _q(f"""
         SELECT id, activity_type, title, content, metadata, created_at
         FROM activity_history WHERE {where}
         ORDER BY created_at DESC LIMIT :lim

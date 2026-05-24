@@ -65,6 +65,7 @@ def _seed_database():
         for table_name in (
             "incident_clusters",
             "wa_message_dedup",
+            "activity_history",
             "case_activity_log",
             "contacts",
             "cases",
@@ -298,6 +299,32 @@ def test_citizen_webhook_to_notify_and_resolve_flow(monkeypatch):
     assert activity is not None
     assert activity["action"] == "citizen_notified"
     assert activity["new_value"] == "resolved"
+
+
+def test_history_save_then_list_returns_saved_draft():
+    _seed_database()
+    auth_headers = {"Authorization": f"Bearer {_make_token('mp_arun', 1)}"}
+
+    save_resp = client.post(
+        "/api/history/save",
+        headers=auth_headers,
+        json={
+            "activity_type": "draft_letter",
+            "title": "Archive visibility test letter",
+            "content": "This letter should be visible in Archives.",
+            "metadata": {"recipient": "Collector"},
+        },
+    )
+    assert save_resp.status_code == 200, save_resp.text
+    assert save_resp.json()["success"] is True
+
+    list_resp = client.get("/api/history?activity_type=draft_letter", headers=auth_headers)
+    assert list_resp.status_code == 200, list_resp.text
+    items = list_resp.json()["items"]
+    assert len(items) == 1
+    assert items[0]["title"] == "Archive visibility test letter"
+    assert items[0]["content"] == "This letter should be visible in Archives."
+    assert items[0]["metadata"] == {"recipient": "Collector"}
 
 
 def test_emergency_webhook_creates_cluster_and_sends_no_ack(monkeypatch):
