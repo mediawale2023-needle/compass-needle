@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { apiGet } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
 import { AlertCircle, FileText, Search, Download, Eye, Archive } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,14 +25,35 @@ const TABS = [
     { key: 'analysis', label: 'Research' },
 ];
 
+const DEFAULT_COLOR = '#006a4d';
+
+const safeText = (value, fallback = '') => {
+    if (value === null || value === undefined) return fallback;
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    return fallback;
+};
+
+const normalizeHistoryItems = (items) => {
+    if (!Array.isArray(items)) return [];
+    return items
+        .filter(item => item && typeof item === 'object')
+        .map((item, index) => ({
+            ...item,
+            id: safeText(item.id, `archive-${index}`),
+            activity_type: safeText(item.activity_type, 'analysis'),
+            title: safeText(item.title, 'Untitled'),
+            content: safeText(item.content, ''),
+            created_at: safeText(item.created_at, ''),
+        }));
+};
+
 export default function ArchivesPage() {
-    const { user } = useAuth();
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [filter, setFilter] = useState('all');
     const [selected, setSelected] = useState(null);
-    const color = user?.theme_color || '#006a4d';
 
     const fetchItems = async () => {
         setLoading(true);
@@ -41,7 +61,7 @@ export default function ArchivesPage() {
         try {
             const params = filter !== 'all' ? `?activity_type=${filter}` : '';
             const data = await apiGet(`/api/history${params}`);
-            setItems(data.items || []);
+            setItems(normalizeHistoryItems(data?.items));
         } catch (err) {
             console.error(err);
             setItems([]);
@@ -167,7 +187,7 @@ export default function ArchivesPage() {
                                                             e.stopPropagation();
                                                             setSelected(item);
                                                         }}
-                                                        style={{ color }}
+                                                        style={{ color: DEFAULT_COLOR }}
                                                     >
                                                         <Eye className="h-4 w-4" />
                                                         View
@@ -188,7 +208,7 @@ export default function ArchivesPage() {
                 {selected && (
                     <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                         <DialogHeader className="p-0 -m-6 mb-0">
-                            <div className="p-6 text-white rounded-t-xl" style={{ background: color }}>
+                            <div className="p-6 text-white rounded-t-xl" style={{ background: DEFAULT_COLOR }}>
                                 <DialogDescription className="text-white/80 text-xs uppercase tracking-widest font-semibold mb-1">
                                     {getTypeConfig(selected.activity_type).label}
                                 </DialogDescription>
@@ -216,7 +236,7 @@ export default function ArchivesPage() {
                             <Button variant="outline" onClick={() => setSelected(null)}>
                                 Close
                             </Button>
-                            <Button onClick={() => downloadItem(selected)} style={{ background: color }}>
+                            <Button onClick={() => downloadItem(selected)} style={{ background: DEFAULT_COLOR }}>
                                 <Download className="h-4 w-4" />
                                 Download
                             </Button>
