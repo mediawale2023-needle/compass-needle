@@ -254,6 +254,14 @@ def _canonicalize_alias(text: str) -> str:
 
     words = [_WORD_ALIAS_REPLACEMENTS.get(word, word) for word in value.split()]
     value = " ".join(words)
+    # Speech-to-text and transliteration often drift on Indian place names:
+    # "Shanti" may become "Santi", and "Bastwad/Bastawad" may become "Baswad".
+    # Keep these only as extra canonical forms; the original forms remain indexed.
+    value = re.sub(r"\bsh", "s", value)
+    value = value.replace("bastawad", "baswad")
+    value = value.replace("bastwad", "baswad")
+    value = value.replace("basawad", "baswad")
+    value = value.replace("bsvad", "baswad")
     value = re.sub(r"(aa|ae)", "a", value)
     value = re.sub(r"(ee|ii)", "i", value)
     value = re.sub(r"(oo|uu)", "u", value)
@@ -393,6 +401,21 @@ def _display_location_name(value: str) -> str:
 
 def _spaceless_forms(forms: Iterable[str]) -> Set[str]:
     return {form.replace(" ", "") for form in forms if form}
+
+
+def _spaceless_phrase_forms(forms: Iterable[str], min_chars: int = 8) -> Set[str]:
+    """Build adjacent 2-3 word location phrase forms for voice-note fuzzy matching."""
+    phrases: Set[str] = set()
+    for form in forms:
+        words = [word for word in normalize(form).split() if len(word) >= 3]
+        for size in (2, 3):
+            if len(words) < size:
+                continue
+            for index in range(0, len(words) - size + 1):
+                phrase = "".join(words[index:index + size])
+                if len(phrase) >= min_chars:
+                    phrases.add(phrase)
+    return phrases
 
 
 def _init_empty_index() -> None:
@@ -633,6 +656,7 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
 
     clean_text = max(query_forms, key=len)
     spaceless_query_forms = _spaceless_forms(query_forms)
+    spaceless_query_phrase_forms = _spaceless_phrase_forms(query_forms)
     user_keywords = set()
     for form in query_forms:
         user_keywords |= get_keywords(form)
@@ -731,12 +755,38 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
                         spaceless_matches.append(entry_form)
                 if spaceless_matches:
                     matched_form = max(spaceless_matches, key=len)
-                    score = 90 + len(matched_form)
+                    score = 112 + len(matched_form)
                     match_type = "spaceless"
                     for form in entry_forms:
                         if form.replace(" ", "") == matched_form:
                             matched_name = form
                             break
+
+            # F. FUZZY SPACELESS PHRASE MATCH — for voice-note drift such as
+            # "shanti baswad" vs indexed "Santibastawad". This is restricted
+            # to adjacent multi-word user phrases and longer indexed names.
+            if entry_spaceless_forms and spaceless_query_phrase_forms:
+                best_phrase_match = None
+                best_phrase_score = 0.0
+                for query_phrase in spaceless_query_phrase_forms:
+                    for entry_form in entry_spaceless_forms:
+                        if len(entry_form) < 8:
+                            continue
+                        if not (0.75 <= len(query_phrase) / len(entry_form) <= 1.25):
+                            continue
+                        sim = similarity_score(query_phrase, entry_form)
+                        if sim >= 94 and sim > best_phrase_score:
+                            best_phrase_score = sim
+                            best_phrase_match = entry_form
+                if best_phrase_match:
+                    phrase_score = 130 + best_phrase_score / 10
+                    if phrase_score > score:
+                        score = phrase_score
+                        match_type = f"fuzzy_phrase ({best_phrase_score:.1f})"
+                        for form in entry_forms:
+                            if form.replace(" ", "") == best_phrase_match:
+                                matched_name = form
+                                break
 
             # G. FUZZY KEYWORD MATCH — STRICT (95% similarity, min 6 char keywords)
             # Only used as last resort to catch typos like "Tilkwadi" vs "Tilakwadi"
@@ -852,7 +902,8 @@ def resolve_constituency(text: str, tenant_id: Optional[int] = None):
     Wrapper used by main.py WhatsApp webhook.
     Returns (matched_value, assembly_constituency) or (None, None).
     """
-    result = resolve_location(text, tenant_id=tenant_id)
+    scope = _get_tenant_constituency(tenant_id) if tenant_id else None
+    result = resolve_location(text, scope_parliamentary=scope, tenant_id=tenant_id)
     if result.get("location_resolved"):
         return result.get("matched_value"), result.get("assembly_constituency")
     return None, None

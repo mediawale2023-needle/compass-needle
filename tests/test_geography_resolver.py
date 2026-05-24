@@ -63,6 +63,7 @@ def stub_geography_index(monkeypatch):
             "assembly": "Belgaum Rural",
             "stations": [
                 {"station_number": "1", "locality": "Balekundri KH", "building_name": ""},
+                {"station_number": "2", "locality": "Santibastawad", "building_name": ""},
             ],
         },
     ]
@@ -163,6 +164,29 @@ def test_resolve_location_supports_kannada_voice_transcript_for_balekundri(stub_
     assert result["location_resolved"] is True
     assert result["assembly_constituency"] == "Belgaum Rural"
     assert result["matched_value"] == "Balekundri"
+
+
+def test_resolve_location_supports_voice_note_spelling_drift_for_santibastawad(stub_geography_index):
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "shanti baswad madhe rasta kharab aahe",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Rural"
+    assert result["matched_value"] in {"Santibaswad", "Santi Baswad"}
+
+
+def test_resolve_constituency_scopes_lookup_by_tenant(monkeypatch, stub_geography_index):
+    geography_resolver.reload_index()
+    monkeypatch.setattr(geography_resolver, "_get_tenant_constituency", lambda tenant_id: "Belagavi")
+
+    matched, assembly = geography_resolver.resolve_constituency("shanti baswad road issue", tenant_id=3)
+
+    assert matched in {"Santibaswad", "Santi Baswad"}
+    assert assembly == "Belgaum Rural"
 
 
 def test_resolve_location_uses_db_backed_geo_aliases(monkeypatch, stub_geography_index):
