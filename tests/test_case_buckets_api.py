@@ -48,6 +48,7 @@ def _seed_database():
     db_helpers.engine = test_engine
     main.engine = test_engine
     api_router.engine = test_engine
+    api_router.JWT_SECRET = TEST_JWT_SECRET
 
     Base.metadata.create_all(bind=test_engine)
 

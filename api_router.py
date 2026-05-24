@@ -36,10 +36,16 @@ from modules.parliament_context import build_parliament_context
 from google.genai import types as genai_types
 
 try:
-    from modules.geography_resolver import assembly_belongs_to_parliamentary, resolve_location
+    from modules.geography_resolver import (
+        assembly_belongs_to_parliamentary,
+        get_assembly_parliamentary_constituency,
+        resolve_location,
+    )
 except Exception:
     def assembly_belongs_to_parliamentary(assembly=None, parliamentary_constituency=None):
         return False
+    def get_assembly_parliamentary_constituency(assembly=None):
+        return None
     def resolve_location(text, scope_parliamentary=None, tenant_id=None):
         return {"location_resolved": False}
 
@@ -321,6 +327,7 @@ def _apply_tenant_safe_case_geography(case: dict, tenant_constituency: str | Non
         return case
     if assembly_belongs_to_parliamentary(raw_assembly, tenant_constituency):
         return case
+    indexed_parliamentary = get_assembly_parliamentary_constituency(raw_assembly)
 
     resolved = {}
     try:
@@ -335,8 +342,12 @@ def _apply_tenant_safe_case_geography(case: dict, tenant_constituency: str | Non
     if resolved.get("location_resolved"):
         raw_location = resolved.get("matched_value") or raw_location
         raw_assembly = resolved.get("assembly_constituency") or "Unknown"
-    else:
+    elif indexed_parliamentary and indexed_parliamentary != tenant_constituency:
         raw_assembly = "Unknown"
+    else:
+        # If the stored assembly is not present in the indexed geography at all,
+        # preserve it rather than blanking valid operational data in Briefcase.
+        raw_assembly = str(case.get("assembly") or meta.get("assembly_constituency") or "").strip() or "Unknown"
 
     meta["matched_value"] = raw_location
     meta["assembly_constituency"] = raw_assembly

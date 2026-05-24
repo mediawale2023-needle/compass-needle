@@ -13,6 +13,11 @@ def test_case_display_geography_repairs_cross_tenant_ai_assembly(monkeypatch):
     )
     monkeypatch.setattr(
         api_router,
+        "get_assembly_parliamentary_constituency",
+        lambda assembly: "Kalyan" if assembly == "Ulhasnagar" else None,
+    )
+    monkeypatch.setattr(
+        api_router,
         "resolve_location",
         lambda *_args, **_kwargs: {
             "location_resolved": True,
@@ -41,6 +46,11 @@ def test_case_display_geography_repairs_cross_tenant_ai_assembly(monkeypatch):
 
 def test_case_display_geography_hides_unresolvable_cross_tenant_ai_assembly(monkeypatch):
     monkeypatch.setattr(api_router, "assembly_belongs_to_parliamentary", lambda *_args: False)
+    monkeypatch.setattr(
+        api_router,
+        "get_assembly_parliamentary_constituency",
+        lambda assembly: "Kalyan" if assembly == "Ulhasnagar" else None,
+    )
     monkeypatch.setattr(api_router, "resolve_location", lambda *_args, **_kwargs: {"location_resolved": False})
     case = {
         "raw_message": "Unknown location road issue",
@@ -59,3 +69,26 @@ def test_case_display_geography_hides_unresolvable_cross_tenant_ai_assembly(monk
     assert result["assembly"] == "Unknown"
     assert result["case_metadata"]["assembly_constituency"] == "Unknown"
     assert result["case_metadata"]["location_resolved"] is False
+
+
+def test_case_display_geography_preserves_unindexed_stored_assembly(monkeypatch):
+    monkeypatch.setattr(api_router, "assembly_belongs_to_parliamentary", lambda *_args: False)
+    monkeypatch.setattr(api_router, "get_assembly_parliamentary_constituency", lambda _assembly: None)
+    monkeypatch.setattr(api_router, "resolve_location", lambda *_args, **_kwargs: {"location_resolved": False})
+    case = {
+        "raw_message": "No water supply in Whitefield for 3 days",
+        "location": "Whitefield",
+        "assembly": "Mahadevapura",
+        "case_metadata": {
+            "matched_value": "Whitefield",
+            "assembly_constituency": "Mahadevapura",
+            "location_resolved": True,
+        },
+    }
+
+    result = api_router._apply_tenant_safe_case_geography(case, "Bangalore North", 1)
+
+    assert result["location"] == "Whitefield"
+    assert result["assembly"] == "Mahadevapura"
+    assert result["case_metadata"]["assembly_constituency"] == "Mahadevapura"
+    assert result["case_metadata"]["location_resolved"] is True

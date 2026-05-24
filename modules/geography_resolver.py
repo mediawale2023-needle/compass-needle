@@ -991,6 +991,24 @@ def assembly_belongs_to_parliamentary(
     return False
 
 
+def get_assembly_parliamentary_constituency(assembly: str | None) -> str | None:
+    """Return the indexed parliamentary constituency for an assembly, if known."""
+    if not assembly:
+        return None
+    if not _geography_index["loaded"]:
+        load_geography_index()
+
+    assembly_norm = normalize(assembly)
+    matches = {
+        str(data.get("parl") or "").strip()
+        for indexed_assembly, data in _geography_index["assemblies"].items()
+        if normalize(indexed_assembly) == assembly_norm and str(data.get("parl") or "").strip()
+    }
+    if len(matches) == 1:
+        return next(iter(matches))
+    return None
+
+
 def get_index_stats() -> Dict[str, int]:
     ambiguity_count = sum(
         1 for parl_map in _geography_index.get("ambiguities", {}).values()
