@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { apiGet } from '@/lib/api';
-import { FileText, Search, Download, Eye, X, Archive } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
+import { AlertCircle, FileText, Search, Download, Eye, Archive } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,18 +27,26 @@ const TABS = [
 ];
 
 export default function ArchivesPage() {
+    const { user } = useAuth();
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
     const [filter, setFilter] = useState('all');
     const [selected, setSelected] = useState(null);
+    const color = user?.theme_color || '#006a4d';
 
     const fetchItems = async () => {
         setLoading(true);
+        setError('');
         try {
             const params = filter !== 'all' ? `?activity_type=${filter}` : '';
             const data = await apiGet(`/api/history${params}`);
             setItems(data.items || []);
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            console.error(err);
+            setItems([]);
+            setError(err.message || 'Could not load archives.');
+        }
         finally { setLoading(false); }
     };
 
@@ -92,6 +101,15 @@ export default function ArchivesPage() {
                                     <Skeleton className="h-8 w-16" />
                                 </div>
                             ))}
+                        </div>
+                    ) : error ? (
+                        <div className="text-center py-16">
+                            <AlertCircle className="h-12 w-12 mx-auto text-destructive/70 mb-4" />
+                            <p className="text-foreground font-medium">Could not load archives.</p>
+                            <p className="text-sm text-muted-foreground mt-1">{error}</p>
+                            <Button variant="outline" className="mt-4" onClick={fetchItems}>
+                                Try Again
+                            </Button>
                         </div>
                     ) : items.length === 0 ? (
                         <div className="text-center py-16">
