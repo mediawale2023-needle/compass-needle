@@ -41,150 +41,80 @@ def ensure_ji_prefix(reply: str) -> str:
     return f"Ji, {text}"
 
 # ── Awaiting Location ────────────────────────────────────────────────────────
-# Sent when the AI sets status='awaiting_location' because the mentioned
-# location couldn't be matched to a known constituency.
-# Placeholder: {location}
+# Sent when the case needs more citizen details before routing.
+# Keep this neutral: do not say AI failed, do not say the system could not
+# identify the place, and do not repeat a possibly misheard location.
 
 _AWAITING_LOCATION: dict[str, str] = {
     "Hindi": (
         "Aapka sandesh mila, shukriya 🙏\n\n"
-        "Aapne *{location}* ka zikr kiya — lekin hum ise poori tarah pehchan nahi paaye. "
-        "Kya aap thoda aur bata sakte hain?\n\n"
-        "Jaise ki:\n"
-        "• Gaon ya mohalle ka naam\n"
-        "• Nagar panchayat / ward number\n"
-        "• Koi paas ka landmark\n\n"
-        "Jaise hi location clear hogi, hum turant aapki baat aage badhayenge. 🙏"
+        "Kripya apna naam, exact location/area, ward number ya paas ka landmark jaise thode aur details bhej dijiye.\n\n"
+        "Details milte hi hum aapki baat sahi tarah aage badhayenge. 🙏"
     ),
     "Hinglish": (
         "Aapka message mil gaya, thank you 🙏\n\n"
-        "Aapne *{location}* mention kiya — but hum exact location identify nahi kar paaye. "
-        "Kya aap thoda aur detail de sakte hain?\n\n"
-        "For example:\n"
-        "• Village / Mohalla name\n"
-        "• Ward number\n"
-        "• Nearest landmark\n\n"
-        "Location confirm hote hi hum aapka issue sahi team tak pahucha denge. 🙏"
+        "Kripya apna name, exact location/area, ward number ya nearby landmark jaise thode aur details bhej dijiye.\n\n"
+        "Details milte hi hum aapka issue sahi tarah aage badhayenge. 🙏"
     ),
     "Marathi": (
         "तुमचा संदेश मिळाला, धन्यवाद 🙏\n\n"
-        "तुम्ही *{location}* चा उल्लेख केला — पण आम्हाला नक्की ठिकाण ओळखता आलं नाही. "
-        "थोडं अधिक सांगू शकता का?\n\n"
-        "उदाहरणार्थ:\n"
-        "• गाव किंवा मोहल्ल्याचे नाव\n"
-        "• नगर पंचायत / वार्ड नंबर\n"
-        "• जवळचा कोणता landmark\n\n"
-        "location स्पष्ट झाल्यावर आम्ही लगेच पुढची कार्यवाही करू. 🙏"
+        "कृपया तुमचे नाव, अचूक ठिकाण/परिसर, वॉर्ड नंबर किंवा जवळची ओळख पटणारी खूण असे थोडे अधिक तपशील पाठवा.\n\n"
+        "तपशील मिळताच आम्ही तुमची तक्रार योग्य प्रकारे पुढे नेऊ. 🙏"
     ),
     "Tamil": (
         "உங்கள் செய்தி கிடைத்தது, நன்றி 🙏\n\n"
-        "நீங்கள் *{location}* பற்றி கூறினீர்கள் — ஆனால் சரியான இடத்தை கண்டறிய முடியவில்லை. "
-        "கொஞ்சம் விரிவாக சொல்ல முடியுமா?\n\n"
-        "எடுத்துக்காட்டாக:\n"
-        "• கிராமம் அல்லது பகுதியின் பெயர்\n"
-        "• வார்டு எண்\n"
-        "• அருகிலுள்ள landmark\n\n"
-        "இடம் தெளிவானதும் உடனே நடவடிக்கை எடுப்போம். 🙏"
+        "தயவு செய்து உங்கள் பெயர், சரியான இடம்/பகுதி, வார்டு எண் அல்லது அருகிலுள்ள அடையாள இடம் போன்ற சில கூடுதல் விவரங்களை அனுப்புங்கள்.\n\n"
+        "விவரங்கள் கிடைத்தவுடன் உங்கள் புகாரை சரியாக முன்னெடுப்போம். 🙏"
     ),
     "Telugu": (
         "మీ సందేశం అందింది, ధన్యవాదాలు 🙏\n\n"
-        "మీరు *{location}* గురించి చెప్పారు — కానీ సరిగ్గా ఆ ప్రదేశాన్ని గుర్తించలేకపోయాం. "
-        "కొంచెం వివరంగా చెప్పగలరా?\n\n"
-        "ఉదాహరణకు:\n"
-        "• గ్రామం లేదా మొహల్లా పేరు\n"
-        "• వార్డు నంబర్\n"
-        "• దగ్గరలో ఉన్న landmark\n\n"
-        "స్థలం నిర్ధారణ అయిన వెంటనే చర్యలు తీసుకుంటాం. 🙏"
+        "దయచేసి మీ పేరు, ఖచ్చితమైన ప్రదేశం/ప్రాంతం, వార్డు నంబర్ లేదా దగ్గరలోని గుర్తించదగిన స్థలం వంటి కొన్ని మరిన్ని వివరాలు పంపండి.\n\n"
+        "వివరాలు అందిన వెంటనే మీ ఫిర్యాదును సరైన విధంగా ముందుకు తీసుకెళ్తాము. 🙏"
     ),
     "Kannada": (
         "ನಿಮ್ಮ ಸಂದೇಶ ಬಂದಿದೆ, ಧನ್ಯವಾದಗಳು 🙏\n\n"
-        "ನೀವು *{location}* ಬಗ್ಗೆ ತಿಳಿಸಿದ್ದೀರಿ — ಆದರೆ ನಿಖರವಾದ ಸ್ಥಳವನ್ನು ಗುರುತಿಸಲು ಆಗಲಿಲ್ಲ. "
-        "ಸ್ವಲ್ಪ ಹೆಚ್ಚು ವಿವರ ಹೇಳಬಹುದೇ?\n\n"
-        "ಉದಾಹರಣೆಗೆ:\n"
-        "• ಗ್ರಾಮ ಅಥವಾ ಮೊಹಲ್ಲಾ ಹೆಸರು\n"
-        "• ವಾರ್ಡ್ ಸಂಖ್ಯೆ\n"
-        "• ಹತ್ತಿರದ landmark\n\n"
-        "ಸ್ಥಳ ಖಚಿತವಾದ ತಕ್ಷಣ ಮುಂದಿನ ಕ್ರಮ ತೆಗೆದುಕೊಳ್ಳುತ್ತೇವೆ. 🙏"
+        "ದಯವಿಟ್ಟು ನಿಮ್ಮ ಹೆಸರು, ನಿಖರವಾದ ಸ್ಥಳ/ಪ್ರದೇಶ, ವಾರ್ಡ್ ಸಂಖ್ಯೆ ಅಥವಾ ಹತ್ತಿರದ ಗುರುತು ಸಿಗುವ ಸ್ಥಳದಂತಹ ಇನ್ನಷ್ಟು ವಿವರಗಳನ್ನು ಕಳುಹಿಸಿ.\n\n"
+        "ವಿವರಗಳು ಸಿಕ್ಕ ತಕ್ಷಣ ನಿಮ್ಮ ದೂರನ್ನು ಸರಿಯಾಗಿ ಮುಂದಕ್ಕೆ ಕಳುಹಿಸುತ್ತೇವೆ. 🙏"
     ),
     "Malayalam": (
         "നിങ്ങളുടെ സന്ദേശം ലഭിച്ചു, നന്ദി 🙏\n\n"
-        "നിങ്ങൾ *{location}* പ്പറ്റി പറഞ്ഞു — എന്നാൽ ആ സ്ഥലം കൃത്യമായി തിരിച്ചറിയാൻ കഴിഞ്ഞില്ല. "
-        "അൽപം കൂടി വിശദമായി പറയാമോ?\n\n"
-        "ഉദാഹരണം:\n"
-        "• ഗ്രാമം അല്ലെങ്കിൽ മൊഹല്ലയുടെ പേര്\n"
-        "• വാർഡ് നമ്പർ\n"
-        "• അടുത്തുള്ള landmark\n\n"
-        "സ്ഥലം വ്യക്തമായാൽ ഉടൻ നടപടി എടുക്കാം. 🙏"
+        "ദയവായി നിങ്ങളുടെ പേര്, കൃത്യമായ സ്ഥലം/പ്രദേശം, വാർഡ് നമ്പർ അല്ലെങ്കിൽ അടുത്തുള്ള തിരിച്ചറിയാൻ കഴിയുന്ന അടയാളം പോലുള്ള കുറച്ച് കൂടുതൽ വിവരങ്ങൾ അയയ്ക്കുക.\n\n"
+        "വിവരങ്ങൾ ലഭിച്ചാൽ നിങ്ങളുടെ പരാതി ശരിയായി മുന്നോട്ട് കൊണ്ടുപോകാം. 🙏"
     ),
     "Bengali": (
         "আপনার বার্তা পেয়েছি, ধন্যবাদ 🙏\n\n"
-        "আপনি *{location}*-এর কথা উল্লেখ করেছেন — কিন্তু সঠিক এলাকাটি চিহ্নিত করা যাচ্ছে না। "
-        "একটু বিস্তারিত বলতে পারবেন কি?\n\n"
-        "যেমন:\n"
-        "• গ্রাম বা মহল্লার নাম\n"
-        "• ওয়ার্ড নম্বর\n"
-        "• কাছাকাছি কোনো landmark\n\n"
-        "সঠিক জায়গা জানলেই আমরা দ্রুত ব্যবস্থা নেব। 🙏"
+        "দয়া করে আপনার নাম, সঠিক স্থান/এলাকা, ওয়ার্ড নম্বর বা কাছাকাছি কোনো পরিচিত landmark-এর মতো আরও কিছু তথ্য পাঠান।\n\n"
+        "তথ্য পেলেই আমরা আপনার অভিযোগ সঠিকভাবে এগিয়ে দেব। 🙏"
     ),
     "Gujarati": (
         "તમારો સંદેશ મળ્યો, આભાર 🙏\n\n"
-        "તમે *{location}* નો ઉલ્લેખ કર્યો — પરંતુ ચોક્કસ સ્થળ ઓળખી શકાયું નહીં. "
-        "શું થોડી વધુ માહિતી આપી શકો?\n\n"
-        "જેમ કે:\n"
-        "• ગામ અથવા મહોલ્લાનું નામ\n"
-        "• વોર્ડ નંબર\n"
-        "• નજીકનો landmark\n\n"
-        "સ્થળ સ્પષ્ટ થાય કે તરત જ આગળની કાર્યવાહી કરીશું. 🙏"
+        "કૃપા કરીને તમારું નામ, ચોક્કસ સ્થળ/વિસ્તાર, વોર્ડ નંબર અથવા નજીકનો ઓળખી શકાય એવો landmark જેવી થોડી વધુ વિગતો મોકલો.\n\n"
+        "વિગતો મળતાં જ અમે તમારી ફરિયાદ યોગ્ય રીતે આગળ વધારીશું. 🙏"
     ),
     "Punjabi": (
         "ਤੁਹਾਡਾ ਸੁਨੇਹਾ ਮਿਲਿਆ, ਧੰਨਵਾਦ 🙏\n\n"
-        "ਤੁਸੀਂ *{location}* ਦਾ ਜ਼ਿਕਰ ਕੀਤਾ — ਪਰ ਅਸੀਂ ਸਹੀ ਥਾਂ ਪਛਾਣ ਨਹੀਂ ਸਕੇ। "
-        "ਕੀ ਤੁਸੀਂ ਥੋੜਾ ਹੋਰ ਦੱਸ ਸਕਦੇ ਹੋ?\n\n"
-        "ਜਿਵੇਂ:\n"
-        "• ਪਿੰਡ ਜਾਂ ਮੁਹੱਲੇ ਦਾ ਨਾਂ\n"
-        "• ਵਾਰਡ ਨੰਬਰ\n"
-        "• ਨੇੜੇ ਦਾ landmark\n\n"
-        "ਥਾਂ ਪੱਕੀ ਹੁੰਦੀ ਸਾਰ ਅਸੀਂ ਅੱਗੇ ਕਾਰਵਾਈ ਕਰਾਂਗੇ। 🙏"
+        "ਕਿਰਪਾ ਕਰਕੇ ਆਪਣਾ ਨਾਮ, ਸਹੀ ਥਾਂ/ਇਲਾਕਾ, ਵਾਰਡ ਨੰਬਰ ਜਾਂ ਨੇੜੇ ਦਾ ਕੋਈ ਪਛਾਣਯੋਗ landmark ਵਰਗੀਆਂ ਕੁਝ ਹੋਰ ਜਾਣਕਾਰੀਆਂ ਭੇਜੋ।\n\n"
+        "ਜਾਣਕਾਰੀ ਮਿਲਦੇ ਹੀ ਅਸੀਂ ਤੁਹਾਡੀ ਸ਼ਿਕਾਇਤ ਠੀਕ ਤਰੀਕੇ ਨਾਲ ਅੱਗੇ ਭੇਜਾਂਗੇ। 🙏"
     ),
     "Odia": (
         "ଆପଣଙ୍କ ବାର୍ତ୍ତା ମିଳିଲା, ଧନ୍ୟବାଦ 🙏\n\n"
-        "ଆପଣ *{location}* ବିଷୟରେ କହିଥିଲେ — କିନ୍ତୁ ସଠିକ ଜାଗା ଚିହ୍ନଟ ହୋଇ ପାରିଲା ନାହିଁ। "
-        "ଆଉ ଟିକିଏ ବିସ୍ତୃତ ଭାବରେ କହିବେ କି?\n\n"
-        "ଯଥା:\n"
-        "• ଗ୍ରାମ ବା ମୁହଲ୍ଲାର ନାମ\n"
-        "• ୱାର୍ଡ ନମ୍ବର\n"
-        "• ନିକଟ landmark\n\n"
-        "ସ୍ଥାନ ସ୍ପଷ୍ଟ ହେବା ମାତ୍ରେ ଆମେ ତୁରନ୍ତ ପଦକ୍ଷେପ ନେବୁ। 🙏"
+        "ଦୟାକରି ଆପଣଙ୍କ ନାମ, ସଠିକ ସ୍ଥାନ/ଅଞ୍ଚଳ, ୱାର୍ଡ ନମ୍ବର କିମ୍ବା ନିକଟର କୌଣସି landmark ପରି କିଛି ଅଧିକ ବିବରଣୀ ପଠାନ୍ତୁ।\n\n"
+        "ବିବରଣୀ ମିଳିଲେ ଆମେ ଆପଣଙ୍କ ଅଭିଯୋଗକୁ ଠିକ୍ ଭାବରେ ଆଗକୁ ନେବୁ। 🙏"
     ),
     "Assamese": (
         "আপোনাৰ বার্তা পালোঁ, ধন্যবাদ 🙏\n\n"
-        "আপুনি *{location}*-ৰ কথা উল্লেখ কৰিলে — কিন্তু সঠিক ঠাইটো চিনাক্ত কৰিব পৰা নগ'ল। "
-        "অলপ বিস্তাৰিতকৈ ক'ব পাৰিবনে?\n\n"
-        "যেনে:\n"
-        "• গাঁও বা মহল্লাৰ নাম\n"
-        "• ৱাৰ্ড নম্বৰ\n"
-        "• ওচৰৰ কোনো landmark\n\n"
-        "ঠাই নিশ্চিত হ'লেই আমি তৎক্ষণাৎ ব্যৱস্থা ল'ম। 🙏"
+        "অনুগ্ৰহ কৰি আপোনাৰ নাম, সঠিক ঠাই/এলেকা, ৱাৰ্ড নম্বৰ বা ওচৰৰ কোনো চিনাকি landmark আদি কিছু অধিক তথ্য পঠিয়াওক।\n\n"
+        "তথ্য পালে আমি আপোনাৰ অভিযোগটো সঠিকভাৱে আগলৈ লৈ যাম। 🙏"
     ),
     "Urdu": (
         "آپ کا پیغام مل گیا، شکریہ 🙏\n\n"
-        "آپ نے *{location}* کا ذکر کیا — لیکن ہم بالکل صحیح جگہ پہچان نہیں سکے۔ "
-        "کیا آپ تھوڑا اور بتا سکتے ہیں؟\n\n"
-        "مثلاً:\n"
-        "• گاؤں یا محلے کا نام\n"
-        "• وارڈ نمبر\n"
-        "• قریب کا کوئی مشہور مقام\n\n"
-        "جگہ واضح ہوتے ہی ہم فوری کارروائی کریں گے۔ 🙏"
+        "براہ کرم اپنا نام، صحیح مقام/علاقہ، وارڈ نمبر یا قریب کی کوئی پہچان والی جگہ جیسی کچھ مزید تفصیلات بھیج دیں۔\n\n"
+        "تفصیلات ملتے ہی ہم آپ کی شکایت کو مناسب طریقے سے آگے بڑھائیں گے۔ 🙏"
     ),
     "English": (
         "Thank you for reaching out 🙏\n\n"
-        "You mentioned *{location}* — but we weren't able to identify the exact area. "
-        "Could you share a bit more detail?\n\n"
-        "For example:\n"
-        "• Village or neighbourhood name\n"
-        "• Ward number\n"
-        "• Nearest landmark\n\n"
-        "Once we have the location, we'll make sure your issue reaches the right team right away."
+        "Could you please share a few more details such as your name, exact location/area, ward number, or nearby landmark?\n\n"
+        "Once we have these details, we will take your complaint forward properly."
     ),
 }
 
@@ -194,24 +124,14 @@ _DEFAULT_AWAITING_LOCATION = _AWAITING_LOCATION["Hindi"]
 _AWAITING_LOCATION_LATIN: dict[str, str] = {
     "Hindi": (
         "Aapka sandesh mila, dhanyavaad 🙏\n\n"
-        "Aapne *{location}* ka zikr kiya, lekin humein exact jagah samajh nahi aayi. "
-        "Kripya thoda aur vivaran bhejiye.\n\n"
-        "Jaise:\n"
-        "• Gaon ya mohalla ka naam\n"
-        "• Ward number\n"
-        "• Koi paas ka landmark\n\n"
-        "Location clear hote hi hum turant aage ki karvayi karenge. 🙏"
+        "Kripya apna naam, exact location/area, ward number ya paas ka landmark jaise thode aur details bhej dijiye.\n\n"
+        "Details milte hi hum aapki baat sahi tarah aage badhayenge. 🙏"
     ),
     "Hinglish": _AWAITING_LOCATION["Hinglish"],
     "Marathi": (
         "Tumcha sandesh milala, dhanyavaad 🙏\n\n"
-        "Tumhi *{location}* cha ullekh kela, pan amhala exact thikan olakhata ala nahi. "
-        "Krupaya thoda adhik mahiti pathva.\n\n"
-        "Udaharanarth:\n"
-        "• Gaav kiwa mohalla che naav\n"
-        "• Ward number\n"
-        "• Javalcha landmark\n\n"
-        "Location spashta zalyavar amhi turant pudhil karvayi karu. 🙏"
+        "Krupaya tumcha naav, exact location/area, ward number kiwa javalcha landmark ashi thodi adhik mahiti pathva.\n\n"
+        "Details milalyavar amhi tumchi takrar yogya prakare pudhe neu. 🙏"
     ),
 }
 

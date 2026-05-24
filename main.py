@@ -71,12 +71,14 @@ from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_ge
 # GEOGRAPHY RESOLVER
 # ─────────────────────────────────────────
 try:
-    from modules.geography_resolver import resolve_constituency, resolve_location
+    from modules.geography_resolver import assembly_belongs_to_parliamentary, resolve_constituency, resolve_location
 except ImportError:
     def resolve_constituency(text, tenant_id):
         return None, None
     def resolve_location(text, scope_parliamentary=None, tenant_id=None):
         return {"location_resolved": False}
+    def assembly_belongs_to_parliamentary(assembly=None, parliamentary_constituency=None):
+        return False
 
 # ─────────────────────────────────────────
 # SENTRY (optional monitoring)
@@ -1283,6 +1285,7 @@ def _finalize_whatsapp_geography_decision(
         resolve_location_fn=resolve_location,
         resolve_constituency_fn=resolve_constituency,
         get_tenant_constituency_fn=get_tenant_constituency,
+        assembly_belongs_to_parliamentary_fn=assembly_belongs_to_parliamentary,
     )
 
 

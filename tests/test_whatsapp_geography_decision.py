@@ -45,6 +45,11 @@ def _decision(message, ai_payload=None, status="awaiting_location", reply="pleas
         }),
         resolve_constituency_fn=_resolve_constituency,
         get_tenant_constituency_fn=lambda _tenant_id: "Belagavi",
+        assembly_belongs_to_parliamentary_fn=lambda assembly, constituency: assembly in {
+            "Belgaum Dakshin",
+            "Belgaum Uttar",
+            "Belgaum Rural",
+        } and constituency == "Belagavi",
     )
 
 
@@ -151,6 +156,53 @@ def test_unresolved_ai_location_stays_awaiting_location():
         resolve_location_fn=lambda *_args, **_kwargs: {"location_resolved": False},
         resolve_constituency_fn=lambda *_args, **_kwargs: (None, None),
         get_tenant_constituency_fn=lambda _tenant_id: "Belagavi",
+    )
+
+    assert result["status"] == "awaiting_location"
+    assert result["final_constituency"] == "Unknown"
+    assert "location" in result["political_reply"].lower()
+
+
+def test_rejects_ai_assembly_outside_tenant_constituency():
+    result = finalize_geography_decision(
+        grievance={"location": "Shanti Baswad", "assembly_constituency": "Ulhasnagar"},
+        ai_result={"assembly_constituency": "Ulhasnagar"},
+        status="new",
+        political_reply="Your complaint is noted",
+        detected_language="Marathi",
+        message_body="शांती बसवाड मध्ये रस्ता खराब आहे.",
+        current_tenant=2,
+        is_emergency_complaint=False,
+        resolve_location_fn=lambda *_args, **_kwargs: {"location_resolved": False},
+        resolve_constituency_fn=lambda location, _tenant_id: ("Santibastawad", "Belgaum Rural"),
+        get_tenant_constituency_fn=lambda _tenant_id: "Belagavi",
+        assembly_belongs_to_parliamentary_fn=lambda assembly, constituency: (
+            assembly == "Belgaum Rural" and constituency == "Belagavi"
+        ),
+    )
+
+    assert result["status"] == "new"
+    assert result["location_name"] == "Shanti Baswad"
+    assert result["final_constituency"] == "Belgaum Rural"
+    assert result["grievance"]["assembly_constituency"] == "Belgaum Rural"
+
+
+def test_invalid_ai_assembly_becomes_awaiting_location_when_location_cannot_resolve():
+    result = finalize_geography_decision(
+        grievance={"location": "Shanti Baswad", "assembly_constituency": "Ulhasnagar"},
+        ai_result={"assembly_constituency": "Ulhasnagar"},
+        status="new",
+        political_reply="Your complaint is noted",
+        detected_language="English",
+        message_body="Shanti Baswad road issue",
+        current_tenant=2,
+        is_emergency_complaint=False,
+        resolve_location_fn=lambda *_args, **_kwargs: {"location_resolved": False},
+        resolve_constituency_fn=lambda *_args, **_kwargs: (None, None),
+        get_tenant_constituency_fn=lambda _tenant_id: "Belagavi",
+        assembly_belongs_to_parliamentary_fn=lambda assembly, constituency: (
+            assembly == "Belgaum Rural" and constituency == "Belagavi"
+        ),
     )
 
     assert result["status"] == "awaiting_location"

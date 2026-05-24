@@ -42,6 +42,7 @@ def finalize_geography_decision(
     resolve_location_fn: Callable[..., dict[str, Any]],
     resolve_constituency_fn: Callable[..., tuple[Any, Any]],
     get_tenant_constituency_fn: Callable[[int], str | None] | None = None,
+    assembly_belongs_to_parliamentary_fn: Callable[[str | None, str | None], bool] | None = None,
     resolver_message_body: str | None = None,
 ) -> dict[str, Any]:
     """
@@ -55,6 +56,7 @@ def finalize_geography_decision(
     final_constituency = None
     raw_message_geo = {"location_resolved": False}
 
+    tenant_const = None
     try:
         tenant_const = get_tenant_constituency_fn(current_tenant) if get_tenant_constituency_fn else None
         raw_message_geo = resolve_location_fn(
@@ -76,18 +78,36 @@ def finalize_geography_decision(
             political_reply = get_generic_ack_reply(detected_language, message_body)
 
     if not final_constituency:
-        final_constituency = (
+        ai_constituency = (
             grievance.get("assembly_constituency") or
             grievance.get("constituency") or
             ai_result.get("constituency") or
             ai_result.get("assembly_constituency")
         )
+        if ai_constituency and assembly_belongs_to_parliamentary_fn and tenant_const:
+            if assembly_belongs_to_parliamentary_fn(ai_constituency, tenant_const):
+                final_constituency = ai_constituency
+            else:
+                logger.warning(
+                    "Rejected AI assembly outside tenant constituency: assembly=%s tenant_constituency=%s tenant=%s",
+                    ai_constituency,
+                    tenant_const,
+                    current_tenant,
+                )
+                final_constituency = None
+                grievance.pop("assembly_constituency", None)
+                grievance.pop("constituency", None)
+        else:
+            final_constituency = ai_constituency
+
         location_name = _clean_location_candidate(location_name)
         if location_name:
             grievance["location"] = location_name
         if (not final_constituency or final_constituency == "Unknown") and location_name:
             _, resolved = resolve_constituency_fn(location_name, current_tenant)
             final_constituency = resolved if resolved and resolved != "Unknown" else None
+            if final_constituency:
+                grievance["assembly_constituency"] = final_constituency
 
     if not final_constituency:
         final_constituency = "Unknown"

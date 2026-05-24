@@ -909,6 +909,24 @@ def resolve_constituency(text: str, tenant_id: Optional[int] = None):
     return None, None
 
 
+def assembly_belongs_to_parliamentary(
+    assembly: str | None,
+    parliamentary_constituency: str | None,
+) -> bool:
+    """Return True only when an assembly is indexed under the given parliamentary constituency."""
+    if not assembly or not parliamentary_constituency:
+        return False
+    if not _geography_index["loaded"]:
+        load_geography_index()
+
+    assembly_norm = normalize(assembly)
+    parliament_norm = normalize(parliamentary_constituency)
+    for indexed_assembly, data in _geography_index["assemblies"].items():
+        if normalize(indexed_assembly) == assembly_norm and normalize(data.get("parl", "")) == parliament_norm:
+            return True
+    return False
+
+
 def get_index_stats() -> Dict[str, int]:
     ambiguity_count = sum(
         1 for parl_map in _geography_index.get("ambiguities", {}).values()

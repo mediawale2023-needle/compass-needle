@@ -35,6 +35,14 @@ from core.gemini_client import get_gemini_client
 from modules.parliament_context import build_parliament_context
 from google.genai import types as genai_types
 
+try:
+    from modules.geography_resolver import assembly_belongs_to_parliamentary, resolve_location
+except Exception:
+    def assembly_belongs_to_parliamentary(assembly=None, parliamentary_constituency=None):
+        return False
+    def resolve_location(text, scope_parliamentary=None, tenant_id=None):
+        return {"location_resolved": False}
+
 # Security event logger (soft-import)
 try:
     from core.security_logger import log_security_event
@@ -296,6 +304,49 @@ def _generate_case_ref(tenant_id):
     return f"NDL-{year}-{seq:05d}"
 
 
+def _apply_tenant_safe_case_geography(case: dict, tenant_constituency: str | None, tenant_id: int) -> dict:
+    """
+    Prevent stale or AI-hallucinated assemblies from leaking into the dashboard.
+    Deterministic, tenant-scoped geography can correct display metadata; invalid
+    AI assemblies are shown as Unknown instead of another MP's constituency.
+    """
+    if not case or not tenant_constituency:
+        return case
+
+    meta = _parse_meta(case.get("case_metadata"))
+    raw_assembly = str(meta.get("assembly_constituency") or case.get("assembly") or "").strip()
+    raw_location = str(meta.get("matched_value") or case.get("location") or "").strip()
+
+    if not raw_assembly or raw_assembly == "Unknown":
+        return case
+    if assembly_belongs_to_parliamentary(raw_assembly, tenant_constituency):
+        return case
+
+    resolved = {}
+    try:
+        resolved = resolve_location(
+            case.get("raw_message") or raw_location,
+            scope_parliamentary=tenant_constituency,
+            tenant_id=tenant_id,
+        )
+    except Exception:
+        resolved = {}
+
+    if resolved.get("location_resolved"):
+        raw_location = resolved.get("matched_value") or raw_location
+        raw_assembly = resolved.get("assembly_constituency") or "Unknown"
+    else:
+        raw_assembly = "Unknown"
+
+    meta["matched_value"] = raw_location
+    meta["assembly_constituency"] = raw_assembly
+    meta["location_resolved"] = bool(raw_location and raw_assembly != "Unknown")
+    case["location"] = raw_location
+    case["assembly"] = raw_assembly
+    case["case_metadata"] = meta
+    return case
+
+
 @router.get("/cases")
 def get_cases(
     user=Depends(get_current_user),
@@ -317,6 +368,8 @@ def get_cases(
     limit: int = Query(50, ge=1, le=200),
 ):
     tid = get_tenant_or_fail(user)
+    tenant_row = _q_one("SELECT constituency FROM tenants WHERE id = :tid", {"tid": tid}) or {}
+    tenant_constituency = tenant_row.get("constituency")
     conditions = ["c.tenant_id = :tid", "(c.is_deleted = false OR c.is_deleted IS NULL)"]
     params = {"tid": tid}
 
@@ -444,6 +497,7 @@ def get_cases(
             c["problem_subdomain"] = parsed_meta.get("problem_subdomain")
         if not c.get("convergence_program_type"):
             c["convergence_program_type"] = parsed_meta.get("convergence_program_type")
+        _apply_tenant_safe_case_geography(c, tenant_constituency, tid)
 
         for field in ["created_at", "updated_at"]:
             val = c.get(field)
@@ -738,6 +792,8 @@ def get_case(case_id: int, user=Depends(get_current_user)):
 
     if not case:
         raise HTTPException(404, "Case not found")
+
+    _apply_tenant_safe_case_geography(case, case.get("mp_constituency"), tid)
 
     for field in ["created_at", "updated_at", "resolved_at"]:
         val = case.get(field)

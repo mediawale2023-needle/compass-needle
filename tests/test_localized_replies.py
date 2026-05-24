@@ -1,6 +1,7 @@
 from modules.localized_replies import (
     DETAILS_REQUEST_STATUSES,
     ensure_ji_prefix,
+    get_awaiting_location_reply,
     get_generic_ack_reply,
     get_location_update_reply,
     get_review_ack_reply,
@@ -42,6 +43,32 @@ def test_location_update_reply_uses_requested_language():
     assert reply.startswith("Ji,")
     assert "Kangrali" in reply
     assert "Tumchi" in reply
+
+
+def test_awaiting_location_reply_asks_for_more_details_without_failure_language():
+    reply = get_awaiting_location_reply("Shanti Baswad", "English", "Shanti Baswad road issue")
+
+    assert reply.startswith("Ji,")
+    assert "name" in reply.lower()
+    assert "exact location/area" in reply
+    assert "ward" in reply.lower()
+    assert "landmark" in reply.lower()
+    assert "Shanti Baswad" not in reply
+    assert "could not" not in reply.lower()
+    assert "identify" not in reply.lower()
+    assert "not able" not in reply.lower()
+
+
+def test_awaiting_location_reply_uses_neutral_roman_marathi_wording():
+    reply = get_awaiting_location_reply("Shanti Baswad", "Marathi", "Shanti Baswad madhe rasta kharab aahe")
+
+    assert reply.startswith("Ji,")
+    assert "tumcha naav" in reply.lower()
+    assert "ward number" in reply.lower()
+    assert "landmark" in reply.lower()
+    assert "Shanti Baswad" not in reply
+    assert "olakh" not in reply.lower()
+    assert "samajh nahi" not in reply.lower()
 
 
 def test_ensure_ji_prefix_is_idempotent():
