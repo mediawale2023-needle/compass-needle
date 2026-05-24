@@ -235,6 +235,11 @@ def test_citizen_webhook_to_notify_and_resolve_flow(monkeypatch):
     assert webhook_resp.status_code == 200, webhook_resp.text
     assert webhook_resp.json()["status"] == "received"
     assert _wait_for(lambda: list(intake_messages)), "Normal grievance intake should acknowledge the citizen immediately"
+    assert intake_messages[-1][1] == (
+        "Ji, Thank you for reaching out 🙏\n\n"
+        "Your issue has been received and is being reviewed. We will contact you shortly."
+    )
+    assert intake_messages[-1][1] != "Your grievance has been noted and will be reviewed."
 
     created_case = _wait_for(lambda: _fetch_case_by_phone(sender))
     assert created_case is not None, "Webhook intake should create a case"

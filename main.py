@@ -2375,6 +2375,35 @@ def _resolve_citizen_reply_language(message_body: str, ai_result: dict | None = 
     return normalize_language_name((ai_result or {}).get("detected_language", ""), "Hindi")
 
 
+def _resolve_citizen_ack_message(
+    *,
+    status: str,
+    detected_language: str,
+    message_body: str,
+    location_name: str | None = None,
+) -> str:
+    """
+    Return the exact WhatsApp text citizens should receive for intake.
+
+    AI is useful for classification/extraction, but citizen acknowledgments must
+    stay deterministic so repeated complaints do not receive different wording.
+    """
+    normalized_status = str(status or "").lower().strip()
+
+    if normalized_status == "offensive":
+        return get_offensive_warning_reply(detected_language, message_body)
+
+    if normalized_status == "awaiting_location":
+        if location_name:
+            return get_awaiting_location_reply(location_name, detected_language, message_body)
+        return get_generic_ack_reply(detected_language, message_body)
+
+    if normalized_status == "irrelevant":
+        return get_review_ack_reply(detected_language, message_body)
+
+    return get_generic_ack_reply(detected_language, message_body)
+
+
 def _process_incoming_message(
     sender: str,
     message_body: str,
@@ -2764,6 +2793,12 @@ def _process_incoming_message(
         political_reply = geo_decision["political_reply"]
         location_name = geo_decision["location_name"]
         final_constituency = geo_decision["final_constituency"]
+        citizen_ack_message = _resolve_citizen_ack_message(
+            status=status,
+            detected_language=detected_language,
+            message_body=message_body,
+            location_name=location_name,
+        )
 
         # Geo mapping — DB overrides + geography JSON files
         if location_name and not final_constituency:
@@ -3005,7 +3040,7 @@ def _process_incoming_message(
             return  # Done — do not fall through to the regular send below
 
         try:
-            send_whatsapp_message(sender, ensure_ji_prefix(political_reply), _wa_phone_id)
+            send_whatsapp_message(sender, citizen_ack_message, _wa_phone_id)
         except Exception as send_exc:
             logger.error(
                 "WHATSAPP_SEND_FAILED: could not reply to %s (case=%s) — %s. "
