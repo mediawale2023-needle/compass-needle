@@ -146,6 +146,7 @@ _ROMAN_LOCATION_SUFFIXES = (
     "inlli", "nlli",
     "nalli", "inalli", "dalli", "alli", "yalli",
     "madhe", "madhye",
+    "chya", "cha", "chi", "che",
 )
 
 # ==========================================
@@ -283,10 +284,53 @@ def _build_location_token_variants(value: str) -> Set[str]:
 
         expanded = set(candidates)
         for candidate in candidates:
+            canonical = _canonicalize_alias(candidate)
+            if canonical:
+                expanded.add(canonical)
             expanded.add(candidate.replace("gundri", "kundri"))
             expanded.add(candidate.replace("kundri", "gundri"))
         variants.update(v for v in expanded if len(v) >= 5)
     return variants
+
+
+def _speech_location_key(token: str) -> str:
+    """
+    Build a broad phonetic key for locality tokens, scoped later by tenant data.
+
+    This deliberately avoids location-specific aliases. It handles common ASR
+    drift in Indian locality names, especially village names ending in
+    gaon/gav, where labials and retroflex/liquid sounds are often confused.
+    """
+    value = normalize(_transliterate(token))
+    if not value:
+        return ""
+    value = _canonicalize_alias(value)
+    for suffix in _ROMAN_LOCATION_SUFFIXES:
+        if value.endswith(suffix) and len(value) - len(suffix) >= 5:
+            value = value[: -len(suffix)]
+            break
+    value = value.replace("gaon", "gav")
+    if not re.search(r"(gav|gao|gaw)$", value):
+        return ""
+    value = re.sub(r"(gav|gao|gaw)$", "g", value)
+    value = re.sub(r"ph", "f", value)
+    value = re.sub(r"[fvwmbp]", "b", value)
+    value = re.sub(r"[tdrl]", "r", value)
+    value = re.sub(r"[aeiou]", "", value)
+    value = re.sub(r"(.)\1+", r"\1", value)
+    return value if len(value) >= 3 else ""
+
+
+def _speech_location_keys(forms: Iterable[str]) -> Set[str]:
+    keys: Set[str] = set()
+    for form in forms:
+        for token in normalize(form).split():
+            if len(token) < 5:
+                continue
+            key = _speech_location_key(token)
+            if key:
+                keys.add(key)
+    return keys
 
 
 def _build_match_forms(*texts: str) -> Set[str]:
@@ -625,15 +669,18 @@ def load_geography_index() -> bool:
 
             match_forms = _generated_alias_forms(s, parl_name)
             spaceless_match_forms = _spaceless_forms(match_forms)
+            speech_match_forms = _speech_location_keys(match_forms)
             keywords = set()
             for form in match_forms:
                 keywords |= get_keywords(form)
             keywords |= get_keywords(raw_bldg)
+            speech_match_forms.update(_speech_location_keys(keywords))
 
             _geography_index["assemblies"][assembly]["entries"].append({
                 "orig_name": raw_loc,
                 "match_forms": match_forms,
                 "spaceless_match_forms": spaceless_match_forms,
+                "speech_match_forms": speech_match_forms,
                 "station": station,
                 "keywords": keywords,
             })
@@ -657,6 +704,7 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
     clean_text = max(query_forms, key=len)
     spaceless_query_forms = _spaceless_forms(query_forms)
     spaceless_query_phrase_forms = _spaceless_phrase_forms(query_forms)
+    speech_query_forms = _speech_location_keys(query_forms)
     user_keywords = set()
     for form in query_forms:
         user_keywords |= get_keywords(form)
@@ -703,6 +751,7 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
             matched_name = entry["orig_name"]
             entry_forms = entry.get("match_forms", set())
             entry_spaceless_forms = entry.get("spaceless_match_forms", set())
+            entry_speech_forms = entry.get("speech_match_forms", set())
             entry_name = max(entry_forms, key=len) if entry_forms else ""
 
             # A. EXACT MATCH — highest priority (full string match)
@@ -788,6 +837,21 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
                                 matched_name = form
                                 break
 
+            # F2. SPEECH PHONETIC MATCH — tenant-scoped and accepted only
+            # through normal candidate ambiguity checks. Handles ASR drift like
+            # "फळगावच्या" when the known locality is a *gaon/*gav village.
+            if score == 0 and entry_speech_forms and speech_query_forms:
+                speech_matches = entry_speech_forms & speech_query_forms
+                if speech_matches:
+                    matched_form = max(speech_matches, key=len)
+                    score = 86 + len(matched_form)
+                    match_type = "speech_phonetic"
+                    matching_names = [
+                        form for form in entry_forms
+                        if _speech_location_key(form) == matched_form
+                    ]
+                    matched_name = min(matching_names, key=len) if matching_names else entry["orig_name"]
+
             # G. FUZZY KEYWORD MATCH — STRICT (95% similarity, min 6 char keywords)
             # Only used as last resort to catch typos like "Tilkwadi" vs "Tilakwadi"
             if score == 0:
@@ -821,7 +885,7 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
     if not candidates:
         return {"location_resolved": False}
 
-    candidates.sort(key=lambda x: (-x["score"], len(x["name"])))
+    candidates.sort(key=lambda x: (-x["score"], len(x.get("matched_name") or ""), len(x["name"])))
     winner = candidates[0]
     top_score = winner["score"]
     top_candidates = [c for c in candidates if c["score"] == top_score]

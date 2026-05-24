@@ -55,6 +55,7 @@ def stub_geography_index(monkeypatch):
                 {"station_number": "1", "locality": "Shahapur Belagavi", "building_name": ""},
                 {"station_number": "2", "locality": "Meerapur Galli, Shahapur Belagavi", "building_name": ""},
                 {"station_number": "3", "locality": "Somawar Peth Tilakwadi, Belagavi", "building_name": ""},
+                {"station_number": "4", "locality": "Vadagaon Belagavi", "building_name": ""},
             ],
         },
         {
@@ -141,6 +142,32 @@ def test_resolve_location_uses_short_user_location_not_polling_detail(stub_geogr
     assert result["location_resolved"] is True
     assert result["assembly_constituency"] == "Belgaum Dakshin"
     assert result["matched_value"] == "Tilakwadi"
+
+
+def test_resolve_location_supports_marathi_voice_drift_for_vadgaon(stub_geography_index):
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "फळगावच्या सरकारी शाळेमध्ये पाणी भरला आहे",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Dakshin"
+    assert result["matched_value"] in {"Vadagaon Belagavi", "Vadagaon", "Vadgaon"}
+
+
+def test_resolve_location_supports_marathi_vadgaon_suffix(stub_geography_index):
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "वडगावच्या सरकारी शाळेमध्ये पाणी भरला आहे",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Dakshin"
+    assert result["matched_value"] in {"Vadagaon Belagavi", "Vadagaon", "Vadgaon"}
 
 
 def test_resolve_location_supports_hindi_input_via_transliteration(stub_geography_index):
