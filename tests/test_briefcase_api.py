@@ -750,3 +750,53 @@ def test_manual_geography_update_locks_case_metadata():
     assert detail["case_metadata"]["assembly_constituency"] == "Belgaum Rural"
     assert detail["case_metadata"]["geography_confidence"] == "manual"
     assert detail["case_metadata"]["geography_locked"] is True
+
+
+def test_audio_media_intake_passes_voice_note_as_source_media(monkeypatch):
+    captured = {}
+
+    monkeypatch.setattr(main, "_resolve_tenant", lambda _receiver_number: 1)
+    monkeypatch.setattr(main, "get_tenant_phone_number_id", lambda _tenant_id: "15550001111")
+    monkeypatch.setattr(main, "download_meta_media", lambda _media_id: (b"OggSvoice", "audio/ogg"))
+    monkeypatch.setattr(
+        main,
+        "normalize_media_complaint",
+        lambda *_args, **_kwargs: type(
+            "Normalized",
+            (),
+            {
+                "ok": True,
+                "text": "Shanti Baswad road issue",
+                "error": "",
+                "mentioned_location_roman": "Shanti Baswad",
+                "mentioned_location_original": "शांती बसवाड",
+                "extracted_language": "Marathi",
+            },
+        )(),
+    )
+
+    def _capture_process(sender, message_body, receiver_number, msg_id, media_source=None, language_hint=None, resolver_message_body=None):
+        captured["sender"] = sender
+        captured["message_body"] = message_body
+        captured["receiver_number"] = receiver_number
+        captured["msg_id"] = msg_id
+        captured["media_source"] = media_source
+        captured["language_hint"] = language_hint
+        captured["resolver_message_body"] = resolver_message_body
+
+    monkeypatch.setattr(main, "_process_incoming_message", _capture_process)
+
+    main._process_citizen_media_complaint(
+        sender="919999999999",
+        media_id="wamid.audio.1",
+        mime_type="audio/ogg",
+        receiver_number="+919000000001",
+        caption="",
+        media_type="audio",
+        msg_id="wamid-msg-1",
+    )
+
+    assert captured["media_source"]["media_type"] == "audio"
+    assert captured["media_source"]["mime_type"] == "audio/ogg"
+    assert captured["media_source"]["media_bytes"] == b"OggSvoice"
+    assert captured["media_source"]["extracted_text"] == "Shanti Baswad road issue"

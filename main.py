@@ -2249,7 +2249,7 @@ def _process_citizen_media_complaint(
         len(message_body),
     )
     media_source = None
-    if media_type in {"image", "document"}:
+    if media_type in {"image", "document", "audio"}:
         media_source = {
             "media_bytes": media_bytes,
             "mime_type": resolved_mime or mime_type or "application/octet-stream",
