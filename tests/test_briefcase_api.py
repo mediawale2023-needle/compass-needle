@@ -693,3 +693,60 @@ def test_case_source_media_metadata_and_download():
     assert media_resp.status_code == 200, media_resp.text
     assert media_resp.headers["content-type"] == "image/png"
     assert media_resp.content == b"\x89PNG\r\nsource"
+
+
+def test_case_audio_source_media_metadata_and_download():
+    _seed_database()
+    headers = _auth_headers("mp_arun")
+
+    with test_engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO case_media (
+                    tenant_id, case_id, source, media_type, mime_type,
+                    file_name, media_data, caption, extracted_text, created_at
+                ) VALUES (
+                    1, 101, 'whatsapp', 'audio', 'audio/ogg',
+                    'voice-note.ogg', :data, '', 'voice transcript', :now
+                )
+                """
+            ),
+            {"data": b"OggSvoice", "now": _utcnow()},
+        )
+
+    detail_resp = client.get("/api/cases/101", headers=headers)
+    assert detail_resp.status_code == 200, detail_resp.text
+    detail = detail_resp.json()
+    assert detail["media_count"] == 1
+    assert detail["media"][0]["media_type"] == "audio"
+    assert detail["media"][0]["mime_type"] == "audio/ogg"
+
+    media_id = detail["media"][0]["id"]
+    media_resp = client.get(f"/api/cases/101/media/{media_id}", headers=headers)
+    assert media_resp.status_code == 200, media_resp.text
+    assert media_resp.headers["content-type"] == "audio/ogg"
+    assert media_resp.content == b"OggSvoice"
+
+
+def test_manual_geography_update_locks_case_metadata():
+    _seed_database()
+    headers = _auth_headers("mp_arun")
+
+    update_resp = client.patch(
+        "/api/cases/101",
+        headers=headers,
+        json={"location": "Santibastawad", "assembly": "Belgaum Rural"},
+    )
+    assert update_resp.status_code == 200, update_resp.text
+    assert update_resp.json()["success"] is True
+
+    detail_resp = client.get("/api/cases/101", headers=headers)
+    assert detail_resp.status_code == 200, detail_resp.text
+    detail = detail_resp.json()
+    assert detail["location"] == "Santibastawad"
+    assert detail["assembly"] == "Belgaum Rural"
+    assert detail["case_metadata"]["matched_value"] == "Santibastawad"
+    assert detail["case_metadata"]["assembly_constituency"] == "Belgaum Rural"
+    assert detail["case_metadata"]["geography_confidence"] == "manual"
+    assert detail["case_metadata"]["geography_locked"] is True

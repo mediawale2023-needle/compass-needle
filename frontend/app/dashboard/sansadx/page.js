@@ -24,6 +24,7 @@ const TABS = [
     { key: 'All', label: 'All Cases' },
     { key: 'new', label: 'New' },
     { key: 'awaiting_location', label: 'Needs Location' },
+    { key: 'pending_review', label: 'Needs Review' },
     { key: 'in_progress', label: 'In Progress' },
     { key: 'resolved', label: 'Resolved' },
     { key: 'escalated', label: 'Escalated' },
@@ -411,6 +412,7 @@ function SourceMediaViewer({ caseId, media = [] }) {
 
     const isImage = (active?.mime_type || '').startsWith('image/');
     const isPdf = active?.mime_type === 'application/pdf';
+    const isAudio = (active?.mime_type || '').startsWith('audio/') || active?.media_type === 'audio';
 
     return (
         <div>
@@ -457,6 +459,19 @@ function SourceMediaViewer({ caseId, media = [] }) {
                         title="Original complaint PDF"
                         className="h-[520px] w-full bg-background"
                     />
+                ) : isAudio ? (
+                    <div className="p-4 space-y-3">
+                        <div className="flex items-center gap-2 text-sm">
+                            <Paperclip className="h-4 w-4 text-muted-foreground" />
+                            Voice note
+                        </div>
+                        <audio controls className="w-full" src={objectUrl}>
+                            Your browser does not support audio playback.
+                        </audio>
+                        <div className="text-xs text-muted-foreground">
+                            {active?.file_name || active?.mime_type || 'Audio attachment'}
+                        </div>
+                    </div>
                 ) : (
                     <div className="p-4 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-sm">
@@ -494,13 +509,20 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
     const [notifyInput, setNotifyInput] = useState('');
     const [notifySending, setNotifySending] = useState(false);
     const [fullCase, setFullCase] = useState(null);
+    const [geoLocation, setGeoLocation] = useState('');
+    const [geoAssembly, setGeoAssembly] = useState('');
+    const [savingGeo, setSavingGeo] = useState(false);
 
     // Load from localStorage or server values when case opens
     useEffect(() => {
         if (!caseItem) return;
         setFullCase(caseItem);
         apiGet(`/api/cases/${caseItem.id}`)
-            .then(d => setFullCase({ ...caseItem, ...d }))
+            .then(d => {
+                setFullCase({ ...caseItem, ...d });
+                setGeoLocation(d.case_metadata?.matched_value || d.location || '');
+                setGeoAssembly(d.case_metadata?.assembly_constituency || d.assembly || '');
+            })
             .catch(() => setFullCase(caseItem));
         const savedNotes = localStorage.getItem(`draft_notes_${caseItem.id}`);
         const savedResponse = localStorage.getItem(`draft_response_${caseItem.id}`);
@@ -508,6 +530,8 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
         setResponse(savedResponse !== null ? savedResponse : (caseItem.response_to_citizen || ''));
         setAssignee(caseItem.assigned_to || '');
         setDraftSaved(savedNotes !== null || savedResponse !== null);
+        setGeoLocation(caseItem.case_metadata?.matched_value || caseItem.location || '');
+        setGeoAssembly(caseItem.case_metadata?.assembly_constituency || caseItem.assembly || '');
 
         setLoadingActivity(true);
         apiGet(`/api/cases/${caseItem.id}/activity`)
@@ -565,6 +589,27 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
             toast.error('Failed to save notes');
         } finally {
             setSavingNotes(false);
+        }
+    };
+
+    const saveGeography = async () => {
+        setSavingGeo(true);
+        try {
+            await apiPatch(`/api/cases/${c.id}`, {
+                location: geoLocation || null,
+                assembly: geoAssembly || null,
+            });
+            const refreshed = await apiGet(`/api/cases/${c.id}`);
+            setFullCase({ ...c, ...refreshed });
+            setGeoLocation(refreshed.case_metadata?.matched_value || refreshed.location || '');
+            setGeoAssembly(refreshed.case_metadata?.assembly_constituency || refreshed.assembly || '');
+            onStatusChange(c.id, refreshed.status || currentStatus);
+            toast.success('Geography updated and locked');
+        } catch (err) {
+            console.error('Failed to save geography:', err);
+            toast.error('Failed to save geography');
+        } finally {
+            setSavingGeo(false);
         }
     };
 
@@ -640,6 +685,7 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
                                 ['Category', c.category || 'General'],
                                 ['Location', meta.matched_value || c.location || '-'],
                                 ['Assembly', meta.assembly_constituency || c.assembly || '-'],
+                                ['Geo Confidence', meta.geography_confidence || '-'],
                                 ['Date Filed', createdAt ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'],
                                 ['Time Filed', createdAt ? createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'],
                                 ['Date Resolved', notifiedAt ? notifiedAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'],
@@ -719,6 +765,7 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
                             ['Status', currentStatus],
                             ['Location', meta.matched_value || c.location || '-'],
                             ['Assembly', meta.assembly_constituency || c.assembly || '-'],
+                            ['Geo Confidence', meta.geography_confidence || '-'],
                             ['Date', createdAt ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'],
                             ['Time', createdAt ? createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'],
                             ['Critical', c.is_critical ? 'Yes' : 'No'],
@@ -748,6 +795,58 @@ function CaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
                             </div>
                         </div>
                     )}
+
+                    {meta.needs_geography_review && (
+                        <div className="rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-800">
+                            Geography match needs staff review before routing decisions rely on it.
+                        </div>
+                    )}
+
+                    <Separator />
+
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="text-xs text-muted-foreground uppercase font-medium">Geography</div>
+                            {meta.geography_locked && (
+                                <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
+                                    Manual Lock
+                                </Badge>
+                            )}
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                                <Label htmlFor={`geo-location-${c.id}`} className="text-xs text-muted-foreground uppercase font-medium mb-2 block">
+                                    Location
+                                </Label>
+                                <Input
+                                    id={`geo-location-${c.id}`}
+                                    value={geoLocation}
+                                    onChange={e => setGeoLocation(e.target.value)}
+                                    placeholder="Village / area / ward"
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor={`geo-assembly-${c.id}`} className="text-xs text-muted-foreground uppercase font-medium mb-2 block">
+                                    Assembly
+                                </Label>
+                                <Input
+                                    id={`geo-assembly-${c.id}`}
+                                    value={geoAssembly}
+                                    onChange={e => setGeoAssembly(e.target.value)}
+                                    placeholder="Assembly constituency"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <Button onClick={saveGeography} disabled={savingGeo}>
+                                {savingGeo ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                                Save Geography
+                            </Button>
+                            <span className="text-xs text-muted-foreground">
+                                Saving here marks this case as a manual geography correction.
+                            </span>
+                        </div>
+                    </div>
 
                     <Separator />
 

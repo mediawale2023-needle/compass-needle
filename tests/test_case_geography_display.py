@@ -92,3 +92,27 @@ def test_case_display_geography_preserves_unindexed_stored_assembly(monkeypatch)
     assert result["assembly"] == "Mahadevapura"
     assert result["case_metadata"]["assembly_constituency"] == "Mahadevapura"
     assert result["case_metadata"]["location_resolved"] is True
+
+
+def test_case_display_geography_preserves_manual_lock(monkeypatch):
+    monkeypatch.setattr(api_router, "assembly_belongs_to_parliamentary", lambda *_args: False)
+    monkeypatch.setattr(api_router, "get_assembly_parliamentary_constituency", lambda _assembly: "Kalyan")
+    monkeypatch.setattr(api_router, "resolve_location", lambda *_args, **_kwargs: {"location_resolved": True, "matched_value": "Somewhere Else", "assembly_constituency": "Wrong Assembly"})
+    case = {
+        "raw_message": "Manual correction from staff",
+        "location": "Santibastawad",
+        "assembly": "Belgaum Rural",
+        "case_metadata": {
+            "matched_value": "Santibastawad",
+            "assembly_constituency": "Belgaum Rural",
+            "geography_confidence": "manual",
+            "geography_locked": True,
+            "location_resolved": True,
+        },
+    }
+
+    result = api_router._apply_tenant_safe_case_geography(case, "Belagavi", 2)
+
+    assert result["location"] == "Santibastawad"
+    assert result["assembly"] == "Belgaum Rural"
+    assert result["case_metadata"]["geography_confidence"] == "manual"

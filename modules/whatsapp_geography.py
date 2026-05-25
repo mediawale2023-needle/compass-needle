@@ -6,6 +6,9 @@ from modules.localized_replies import get_awaiting_location_reply, get_generic_a
 
 logger = logging.getLogger(__name__)
 
+_LOW_CONFIDENCE_LEVELS = {"fuzzy", "speech_phonetic"}
+_PROTECTED_STATUSES = {"emergency", "offensive", "irrelevant"}
+
 
 def _clean_location_candidate(value: Any) -> str | None:
     """Keep only a human place name, never an internal OCR/location hint blob."""
@@ -27,6 +30,68 @@ def _clean_location_candidate(value: Any) -> str | None:
     if not text:
         return None
     return text
+
+
+def _normalize_confidence_level(resolution: dict[str, Any] | None) -> str:
+    if not resolution:
+        return "unknown"
+    value = str(resolution.get("confidence_level") or "").strip().lower()
+    if value in {"exact", "boundary", "fuzzy", "speech_phonetic", "manual"}:
+        return value
+
+    match_type = str(resolution.get("match_type") or "").strip().lower()
+    if match_type == "speech_phonetic":
+        return "speech_phonetic"
+    if match_type in {"exact_full", "exact_substring", "db_alias_exact", "god_mode"}:
+        return "exact"
+    if match_type in {"word_boundary", "spaceless", "db_alias_boundary"}:
+        return "boundary"
+    if match_type.startswith("fuzzy_") or match_type.startswith("fuzzy_phrase"):
+        return "fuzzy"
+
+    confidence = str(resolution.get("confidence") or "").strip().lower()
+    if confidence == "db_alias_boundary":
+        return "boundary"
+    if confidence in {"db_alias_exact", "god_mode", "high"}:
+        return "exact"
+    return "unknown"
+
+
+def _apply_resolved_geography(
+    *,
+    grievance: dict[str, Any],
+    resolution: dict[str, Any],
+    location_name: str | None,
+    source: str,
+    status: str,
+    political_reply: str,
+    detected_language: str,
+    message_body: str,
+) -> tuple[str | None, str | None, str, str]:
+    final_constituency = str(resolution.get("assembly_constituency") or "").strip() or None
+    location_name = _clean_location_candidate(resolution.get("matched_value")) or location_name
+    confidence_level = _normalize_confidence_level(resolution)
+
+    if location_name:
+        grievance["location"] = location_name
+    if final_constituency:
+        grievance["assembly_constituency"] = final_constituency
+
+    grievance["_match_confidence"] = f"{source}_{confidence_level}"
+    grievance["geography_confidence"] = confidence_level
+    grievance["geography_source"] = source
+    grievance["location_resolved"] = bool(location_name and final_constituency)
+    grievance["needs_geography_review"] = confidence_level in _LOW_CONFIDENCE_LEVELS
+    grievance.pop("geography_review_reason", None)
+
+    if grievance["needs_geography_review"]:
+        grievance["geography_review_reason"] = "low_confidence_match"
+
+    if status not in _PROTECTED_STATUSES:
+        status = "pending_review" if grievance["needs_geography_review"] else "new"
+        political_reply = get_generic_ack_reply(detected_language, message_body)
+
+    return location_name, final_constituency, status, political_reply
 
 
 def finalize_geography_decision(
@@ -68,14 +133,16 @@ def finalize_geography_decision(
         logger.warning("Raw message geography resolution failed: %s", exc)
 
     if raw_message_geo.get("location_resolved"):
-        location_name = _clean_location_candidate(raw_message_geo.get("matched_value")) or location_name
-        final_constituency = raw_message_geo.get("assembly_constituency")
-        grievance["location"] = location_name
-        grievance["assembly_constituency"] = final_constituency
-        grievance["_match_confidence"] = f"raw_message_{raw_message_geo.get('confidence', 'high')}"
-        if status not in ("emergency", "offensive", "irrelevant"):
-            status = "new"
-            political_reply = get_generic_ack_reply(detected_language, message_body)
+        location_name, final_constituency, status, political_reply = _apply_resolved_geography(
+            grievance=grievance,
+            resolution=raw_message_geo,
+            location_name=location_name,
+            source="raw_message",
+            status=status,
+            political_reply=political_reply,
+            detected_language=detected_language,
+            message_body=message_body,
+        )
 
     if not final_constituency:
         ai_constituency = (
@@ -85,9 +152,7 @@ def finalize_geography_decision(
             ai_result.get("assembly_constituency")
         )
         if ai_constituency and assembly_belongs_to_parliamentary_fn and tenant_const:
-            if assembly_belongs_to_parliamentary_fn(ai_constituency, tenant_const):
-                final_constituency = ai_constituency
-            else:
+            if not assembly_belongs_to_parliamentary_fn(ai_constituency, tenant_const):
                 logger.warning(
                     "Rejected AI assembly outside tenant constituency: assembly=%s tenant_constituency=%s tenant=%s",
                     ai_constituency,
@@ -97,20 +162,53 @@ def finalize_geography_decision(
                 final_constituency = None
                 grievance.pop("assembly_constituency", None)
                 grievance.pop("constituency", None)
-        else:
-            final_constituency = ai_constituency
 
         location_name = _clean_location_candidate(location_name)
         if location_name:
             grievance["location"] = location_name
-        if (not final_constituency or final_constituency == "Unknown") and location_name:
-            _, resolved = resolve_constituency_fn(location_name, current_tenant)
-            final_constituency = resolved if resolved and resolved != "Unknown" else None
-            if final_constituency:
-                grievance["assembly_constituency"] = final_constituency
+        if location_name:
+            location_hint_geo = {"location_resolved": False}
+            try:
+                location_hint_geo = resolve_location_fn(
+                    location_name,
+                    scope_parliamentary=tenant_const,
+                    tenant_id=current_tenant,
+                )
+            except Exception as exc:
+                logger.warning("Location-hint geography resolution failed: %s", exc)
+
+            if location_hint_geo.get("location_resolved"):
+                location_name, final_constituency, status, political_reply = _apply_resolved_geography(
+                    grievance=grievance,
+                    resolution=location_hint_geo,
+                    location_name=location_name,
+                    source="location_hint",
+                    status=status,
+                    political_reply=political_reply,
+                    detected_language=detected_language,
+                    message_body=message_body,
+                )
+            else:
+                _, resolved = resolve_constituency_fn(location_name, current_tenant)
+                final_constituency = resolved if resolved and resolved != "Unknown" else None
+                if final_constituency:
+                    grievance["assembly_constituency"] = final_constituency
+                    grievance["_match_confidence"] = "location_hint_boundary"
+                    grievance["geography_confidence"] = "boundary"
+                    grievance["geography_source"] = "location_hint"
+                    grievance["location_resolved"] = True
+                    grievance["needs_geography_review"] = False
+                    if status not in _PROTECTED_STATUSES:
+                        status = "new"
+                        political_reply = get_generic_ack_reply(detected_language, message_body)
 
     if not final_constituency:
         final_constituency = "Unknown"
+        grievance["assembly_constituency"] = "Unknown"
+        grievance["geography_confidence"] = "unknown"
+        grievance["geography_source"] = grievance.get("geography_source") or "unknown"
+        grievance["location_resolved"] = False
+        grievance["needs_geography_review"] = False
 
     if final_constituency == "Unknown" and location_name and not is_emergency_complaint:
         status = "awaiting_location"

@@ -356,6 +356,19 @@ def _build_match_forms(*texts: str) -> Set[str]:
     return {form for form in forms if form}
 
 
+def _confidence_level_for_match_type(match_type: str) -> str:
+    value = str(match_type or "").lower()
+    if value in {"exact_full", "exact_substring", "db_alias_exact", "god_mode"}:
+        return "exact"
+    if value in {"word_boundary", "spaceless", "db_alias_boundary"}:
+        return "boundary"
+    if value == "speech_phonetic":
+        return "speech_phonetic"
+    if value.startswith("fuzzy_") or value.startswith("fuzzy_phrase"):
+        return "fuzzy"
+    return "unknown"
+
+
 def _station_seed_aliases(station: Dict[str, Any], parliamentary_constituency: Optional[str] = None) -> Set[str]:
     seeds: Set[str] = set()
     for field in ("locality", "locality_en", "mentioned_location_roman", "mentioned_location_original"):
@@ -724,6 +737,8 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
                     "assembly_constituency": payload["assembly"],
                     "matched_value": _display_location_name(payload["display"]),
                     "confidence": "db_alias_exact",
+                    "confidence_level": "exact",
+                    "match_type": "db_alias_exact",
                 }
             for alias_form in alias_forms:
                 if len(alias_form) >= 5 and any(re.search(r'\b' + re.escape(alias_form) + r'\b', qf) for qf in query_forms):
@@ -732,13 +747,22 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
                         "assembly_constituency": payload["assembly"],
                         "matched_value": _display_location_name(payload["display"]),
                         "confidence": "db_alias_boundary",
+                        "confidence_level": "boundary",
+                        "match_type": "db_alias_boundary",
                     }
 
         tenant_overrides = _load_tenant_overrides(tenant_id)
         for k, v in tenant_overrides.items():
             if k.lower() in clean_text:
                 logger.debug(f"   OVERRIDE (tenant {tenant_id}): {k} -> {v}")
-                return {"location_resolved": True, "assembly_constituency": v, "matched_value": k.title(), "confidence": "god_mode"}
+                return {
+                    "location_resolved": True,
+                    "assembly_constituency": v,
+                    "matched_value": k.title(),
+                    "confidence": "god_mode",
+                    "confidence_level": "exact",
+                    "match_type": "god_mode",
+                }
 
     candidates = []
 
@@ -897,6 +921,7 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
             "ambiguous_assemblies": top_assemblies,
             "matched_value": winner["matched_name"],
             "parliamentary_constituency": winner["parl"],
+            "confidence_level": "unknown",
         }
 
     logger.debug(f"   WINNER: {winner['name']} ({winner['assembly']}) - Score: {winner['score']:.1f} [{winner['type']}]")
@@ -906,7 +931,9 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
         "assembly_constituency": winner["assembly"],
         "parliamentary_constituency": winner["parl"],
         "matched_value": winner["matched_name"],
-        "confidence": "high"
+        "confidence": "high",
+        "confidence_level": _confidence_level_for_match_type(winner["type"]),
+        "match_type": winner["type"],
     }
 
 # --- WRAPPERS ---

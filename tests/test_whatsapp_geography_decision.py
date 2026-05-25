@@ -59,6 +59,8 @@ def test_raw_geography_overrides_stale_missing_location_reply():
     assert result["status"] == "new"
     assert result["location_name"] == "Tilakwadi"
     assert result["final_constituency"] == "Belgaum Dakshin"
+    assert result["grievance"]["geography_confidence"] == "exact"
+    assert result["grievance"]["geography_source"] == "raw_message"
     assert result["political_reply"].startswith("Ji,")
     assert "ward" not in result["political_reply"].lower()
 
@@ -118,6 +120,7 @@ def test_resolver_hint_does_not_leak_into_reply_or_saved_location():
     assert result["status"] == "new"
     assert result["location_name"] == "Sadashiv Nagar"
     assert result["final_constituency"] == "Belgaum Uttar"
+    assert result["grievance"]["geography_confidence"] == "boundary"
     assert "Location:" not in result["political_reply"]
     assert "ಸದಾಶಿವ ನಗರ" not in result["political_reply"]
     assert "ನಿಮ್ಮ" in result["political_reply"]
@@ -208,3 +211,52 @@ def test_invalid_ai_assembly_becomes_awaiting_location_when_location_cannot_reso
     assert result["status"] == "awaiting_location"
     assert result["final_constituency"] == "Unknown"
     assert "location" in result["political_reply"].lower()
+
+
+def test_low_confidence_speech_match_goes_to_pending_review():
+    result = finalize_geography_decision(
+        grievance={},
+        ai_result={},
+        status="new",
+        political_reply="Your complaint is noted",
+        detected_language="Marathi",
+        message_body="फळगावच्या सरकारी शाळेमध्ये पाणी भरला आहे",
+        current_tenant=2,
+        is_emergency_complaint=False,
+        resolve_location_fn=lambda *_args, **_kwargs: {
+            "location_resolved": True,
+            "matched_value": "Vadgaon",
+            "assembly_constituency": "Belgaum Dakshin",
+            "confidence_level": "speech_phonetic",
+            "match_type": "speech_phonetic",
+        },
+        resolve_constituency_fn=lambda *_args, **_kwargs: (None, None),
+        get_tenant_constituency_fn=lambda _tenant_id: "Belagavi",
+    )
+
+    assert result["status"] == "pending_review"
+    assert result["final_constituency"] == "Belgaum Dakshin"
+    assert result["grievance"]["geography_confidence"] == "speech_phonetic"
+    assert result["grievance"]["needs_geography_review"] is True
+
+
+def test_ai_assembly_alone_does_not_become_final_truth():
+    result = finalize_geography_decision(
+        grievance={"assembly_constituency": "Belgaum Rural"},
+        ai_result={"assembly_constituency": "Belgaum Rural"},
+        status="new",
+        political_reply="Your complaint is noted",
+        detected_language="English",
+        message_body="Please help",
+        current_tenant=2,
+        is_emergency_complaint=False,
+        resolve_location_fn=lambda *_args, **_kwargs: {"location_resolved": False},
+        resolve_constituency_fn=lambda *_args, **_kwargs: (None, None),
+        get_tenant_constituency_fn=lambda _tenant_id: "Belagavi",
+        assembly_belongs_to_parliamentary_fn=lambda assembly, constituency: (
+            assembly == "Belgaum Rural" and constituency == "Belagavi"
+        ),
+    )
+
+    assert result["status"] == "new"
+    assert result["final_constituency"] == "Unknown"

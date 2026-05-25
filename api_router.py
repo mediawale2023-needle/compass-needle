@@ -310,6 +310,27 @@ def _generate_case_ref(tenant_id):
     return f"NDL-{year}-{seq:05d}"
 
 
+def _normalize_geography_confidence(meta: dict | None = None, resolution: dict | None = None) -> str:
+    meta = meta or {}
+    resolution = resolution or {}
+
+    value = str(meta.get("geography_confidence") or resolution.get("confidence_level") or "").strip().lower()
+    if value in {"exact", "boundary", "fuzzy", "speech_phonetic", "manual", "unknown"}:
+        return value
+
+    match_type = str(resolution.get("match_type") or "").strip().lower()
+    if match_type == "speech_phonetic":
+        return "speech_phonetic"
+    if match_type in {"exact_full", "exact_substring", "db_alias_exact", "god_mode"}:
+        return "exact"
+    if match_type in {"word_boundary", "spaceless", "db_alias_boundary"}:
+        return "boundary"
+    if match_type.startswith("fuzzy_") or match_type.startswith("fuzzy_phrase"):
+        return "fuzzy"
+
+    return "unknown"
+
+
 def _apply_tenant_safe_case_geography(case: dict, tenant_constituency: str | None, tenant_id: int) -> dict:
     """
     Prevent stale or AI-hallucinated assemblies from leaking into the dashboard.
@@ -320,6 +341,12 @@ def _apply_tenant_safe_case_geography(case: dict, tenant_constituency: str | Non
         return case
 
     meta = _parse_meta(case.get("case_metadata"))
+    if meta.get("geography_locked") or str(meta.get("geography_confidence") or "").lower() == "manual":
+        case["location"] = str(meta.get("matched_value") or case.get("location") or "").strip()
+        case["assembly"] = str(meta.get("assembly_constituency") or case.get("assembly") or "").strip()
+        case["case_metadata"] = meta
+        return case
+
     raw_assembly = str(meta.get("assembly_constituency") or case.get("assembly") or "").strip()
     raw_location = str(meta.get("matched_value") or case.get("location") or "").strip()
 
@@ -342,8 +369,14 @@ def _apply_tenant_safe_case_geography(case: dict, tenant_constituency: str | Non
     if resolved.get("location_resolved"):
         raw_location = resolved.get("matched_value") or raw_location
         raw_assembly = resolved.get("assembly_constituency") or "Unknown"
+        meta["geography_confidence"] = _normalize_geography_confidence({}, resolved)
+        meta["geography_source"] = "raw_message"
+        meta["needs_geography_review"] = meta["geography_confidence"] in {"fuzzy", "speech_phonetic"}
     elif indexed_parliamentary and indexed_parliamentary != tenant_constituency:
         raw_assembly = "Unknown"
+        meta["geography_confidence"] = "unknown"
+        meta["geography_source"] = meta.get("geography_source") or "unknown"
+        meta["needs_geography_review"] = False
     else:
         # If the stored assembly is not present in the indexed geography at all,
         # preserve it rather than blanking valid operational data in Briefcase.
@@ -894,6 +927,8 @@ class CaseNotesUpdate(BaseModel):
     notes_for_staff: Optional[str] = None
     response_to_citizen: Optional[str] = None
     assigned_to: Optional[str] = None
+    location: Optional[str] = None
+    assembly: Optional[str] = None
 
 
 class CitizenNotifyRequest(BaseModel):
@@ -925,8 +960,16 @@ def _resolve_citizen_notification_message(case: dict, requested_message: str = "
 @router.patch("/cases/{case_id}")
 def update_case(case_id: int, body: CaseNotesUpdate, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
+    current_case = _q_one(
+        "SELECT location, assembly, case_metadata FROM cases WHERE id = :cid AND tenant_id = :tid",
+        {"cid": case_id, "tid": tid},
+    )
+    if not current_case:
+        raise HTTPException(404, "Case not found")
+
     updates = []
     params = {"cid": case_id, "tid": tid, "now": _utcnow()}
+    meta = _parse_meta(current_case.get("case_metadata"))
 
     if body.notes_for_staff is not None:
         updates.append("notes_for_staff = :notes")
@@ -937,6 +980,34 @@ def update_case(case_id: int, body: CaseNotesUpdate, user=Depends(get_current_us
     if body.assigned_to is not None:
         updates.append("assigned_to = :assigned")
         params["assigned"] = body.assigned_to
+    if body.location is not None or body.assembly is not None:
+        manual_location = (
+            body.location.strip()
+            if body.location is not None
+            else str(current_case.get("location") or meta.get("matched_value") or "").strip()
+        )
+        manual_assembly = (
+            body.assembly.strip()
+            if body.assembly is not None
+            else str(current_case.get("assembly") or meta.get("assembly_constituency") or "").strip()
+        )
+        if body.location is not None:
+            updates.append("location = :location")
+            params["location"] = manual_location or None
+        if body.assembly is not None:
+            updates.append("assembly = :assembly")
+            params["assembly"] = manual_assembly or None
+
+        meta["matched_value"] = manual_location
+        meta["assembly_constituency"] = manual_assembly or "Unknown"
+        meta["location_resolved"] = bool(manual_location and manual_assembly and manual_assembly != "Unknown")
+        meta["geography_confidence"] = "manual"
+        meta["geography_source"] = "manual"
+        meta["geography_locked"] = True
+        meta["needs_geography_review"] = False
+        meta.pop("geography_review_reason", None)
+        updates.append("case_metadata = :meta")
+        params["meta"] = json.dumps(meta)
 
     if not updates:
         raise HTTPException(400, "No fields to update")
@@ -948,9 +1019,6 @@ def update_case(case_id: int, body: CaseNotesUpdate, user=Depends(get_current_us
         result = conn.execute(text(
             f"UPDATE cases SET {set_clause} WHERE id = :cid AND tenant_id = :tid"  # nosec B608 — set_clause built from hardcoded column names only
         ), params)
-
-    if result.rowcount == 0:
-        raise HTTPException(404, "Case not found")
 
     try:
         _log_case_activity(tid, case_id, user.get("username", ""), "case_updated", details=str({k: v for k, v in params.items() if k not in ("cid", "tid", "now")}))
