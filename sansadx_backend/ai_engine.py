@@ -23,6 +23,7 @@ from .unified_taxonomy import (
     build_taxonomy_fields,
 )
 from modules.localized_replies import get_generic_ack_reply, get_missing_location_reply
+from modules.geography_policy import location_required_for_grievance
 
 # ==========================================
 # 1. CONFIGURATION
@@ -197,6 +198,26 @@ def _build_grounding_forms(text: str) -> set[str]:
     return {normalized, normalized.replace(" ", "")}
 
 
+def _looks_like_message_excerpt(candidate_location: str, raw_message: str) -> bool:
+    candidate_forms = _build_grounding_forms(candidate_location)
+    message_forms = _build_grounding_forms(raw_message)
+    if not candidate_forms or not message_forms:
+        return False
+
+    candidate = max(candidate_forms, key=len)
+    message = max(message_forms, key=len)
+    candidate_words = candidate.split()
+    message_words = message.split()
+
+    if len(candidate_words) >= 5 and candidate == message:
+        return True
+    if len(candidate_words) >= 5 and candidate in message and len(candidate) >= max(20, int(len(message) * 0.65)):
+        return True
+    if len(candidate_words) >= max(5, len(message_words) - 1) and len(message_words) >= 5:
+        return True
+    return False
+
+
 def _location_is_grounded_in_message(candidate_location: str, raw_message: str) -> bool:
     """
     Return True only when the candidate location is actually supported by the
@@ -205,6 +226,8 @@ def _location_is_grounded_in_message(candidate_location: str, raw_message: str) 
     location_forms = _build_grounding_forms(candidate_location)
     message_forms = _build_grounding_forms(raw_message)
     if not location_forms or not message_forms:
+        return False
+    if _looks_like_message_excerpt(candidate_location, raw_message):
         return False
 
     message_spaceless = {form.replace(" ", "") for form in message_forms if form}
@@ -224,6 +247,10 @@ def _location_is_grounded_in_message(candidate_location: str, raw_message: str) 
             return True
 
     return False
+
+
+def _should_require_location(data: dict) -> bool:
+    return location_required_for_grievance(data.get("grievance_data") or {})
 
 _OFFENSIVE_WARNING_NATIVE = {
     "Hindi": STATIC_RESPONSES["__WARN_HINDI__"],
@@ -796,9 +823,15 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                     data["_match_confidence"] = "ungrounded_cleared"
 
                     original_status = data.get("status", "").lower()
-                    if original_status not in ("emergency", "offensive", "irrelevant"):
+                    if original_status not in ("emergency", "offensive", "irrelevant") and _should_require_location(data):
                         data["status"] = "awaiting_location"
                         data["political_response"] = get_missing_location_reply(
+                            detected_lang,
+                            effective_user_message,
+                        )
+                    elif original_status not in ("emergency", "offensive", "irrelevant"):
+                        data["status"] = "new"
+                        data["political_response"] = get_generic_ack_reply(
                             detected_lang,
                             effective_user_message,
                         )
@@ -912,7 +945,25 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                     else:
                         # No confident match — mark for manual review
                         data["assembly_constituency"] = "Unknown"
-                        data["_match_confidence"] = "unmatched"
+                        data["constituency"] = "Unknown"
+                        data["_match_confidence"] = "unmatched_cleared"
+                        original_status = data.get("status", "").lower()
+                        if original_status not in ("emergency", "offensive", "irrelevant") and _should_require_location(data):
+                            data["status"] = "awaiting_location"
+                            data["political_response"] = get_missing_location_reply(
+                                detected_lang,
+                                effective_user_message,
+                            )
+                        elif original_status not in ("emergency", "offensive", "irrelevant"):
+                            data["status"] = "new"
+                            data["political_response"] = get_generic_ack_reply(
+                                detected_lang,
+                                effective_user_message,
+                            )
+                        if "grievance_data" in data:
+                            data["grievance_data"]["location"] = None
+                            data["grievance_data"]["assembly_constituency"] = "Unknown"
+                            data["grievance_data"]["_match_confidence"] = "unmatched_cleared"
                         logger.info(f"Location UNMATCHED (needs manual review): '{ai_loc_clean}'")
                         
             except Exception as e:

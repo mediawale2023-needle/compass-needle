@@ -32,6 +32,24 @@ def _clean_location_candidate(value: Any) -> str | None:
     return text
 
 
+def _looks_like_full_message_location(location: str | None, message_body: str) -> bool:
+    if not location:
+        return False
+    normalized_location = re.sub(r"\s+", " ", str(location).strip(" .,:;!?")).lower()
+    normalized_message = re.sub(r"\s+", " ", str(message_body or "").strip(" .,:;!?")).lower()
+    if not normalized_location or not normalized_message:
+        return False
+    location_words = normalized_location.split()
+    message_words = normalized_message.split()
+    if len(location_words) >= 5 and normalized_location == normalized_message:
+        return True
+    if len(location_words) >= 5 and normalized_location in normalized_message and len(normalized_location) >= max(20, int(len(normalized_message) * 0.65)):
+        return True
+    if len(location_words) >= max(5, len(message_words) - 1) and len(message_words) >= 5:
+        return True
+    return False
+
+
 def _normalize_confidence_level(resolution: dict[str, Any] | None) -> str:
     if not resolution:
         return "unknown"
@@ -104,6 +122,7 @@ def finalize_geography_decision(
     message_body: str,
     current_tenant: int,
     is_emergency_complaint: bool,
+    location_required: bool = True,
     resolve_location_fn: Callable[..., dict[str, Any]],
     resolve_constituency_fn: Callable[..., tuple[Any, Any]],
     get_tenant_constituency_fn: Callable[[int], str | None] | None = None,
@@ -118,6 +137,9 @@ def finalize_geography_decision(
     "need location" reply after deterministic geography succeeds.
     """
     location_name = _clean_location_candidate(grievance.get("location"))
+    if _looks_like_full_message_location(location_name, message_body):
+        location_name = None
+        grievance["location"] = None
     final_constituency = None
     raw_message_geo = {"location_resolved": False}
 
@@ -210,7 +232,7 @@ def finalize_geography_decision(
         grievance["location_resolved"] = False
         grievance["needs_geography_review"] = False
 
-    if final_constituency == "Unknown" and location_name and not is_emergency_complaint:
+    if final_constituency == "Unknown" and location_required and location_name and not is_emergency_complaint:
         status = "awaiting_location"
         political_reply = get_awaiting_location_reply(location_name, detected_language, message_body)
 

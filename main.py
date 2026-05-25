@@ -1077,6 +1077,7 @@ from modules.whatsapp_media_intake import normalize_media_complaint  # noqa: E40
 from modules.case_query_parser import parse_query
 from modules.case_query_engine import query_cases
 from modules.whatsapp_geography import finalize_geography_decision
+from modules.geography_policy import location_required_for_domain
 from modules.localized_replies import (
     DETAILS_REQUEST_STATUSES,
     ensure_ji_prefix,
@@ -2790,6 +2791,7 @@ def _process_incoming_message(
             resolver_message_body=resolver_message_body,
             current_tenant=current_tenant,
             is_emergency_complaint=_is_emergency_complaint,
+            location_required=location_required_for_domain(category),
         )
         grievance = geo_decision["grievance"]
         status = geo_decision["status"]

@@ -213,6 +213,66 @@ def test_invalid_ai_assembly_becomes_awaiting_location_when_location_cannot_reso
     assert "location" in result["political_reply"].lower()
 
 
+def test_sentence_like_ai_location_does_not_leak_into_saved_location():
+    result = finalize_geography_decision(
+        grievance={"location": "तलाठी पैसे मागत आहे माझं काम होत नाही आहे"},
+        ai_result={},
+        status="new",
+        political_reply="Your complaint is noted",
+        detected_language="Marathi",
+        message_body="तलाठी पैसे मागत आहे, माझं काम होत नाही आहे.",
+        current_tenant=2,
+        is_emergency_complaint=False,
+        resolve_location_fn=lambda *_args, **_kwargs: {"location_resolved": False},
+        resolve_constituency_fn=lambda *_args, **_kwargs: (None, None),
+        get_tenant_constituency_fn=lambda _tenant_id: "Belagavi",
+    )
+
+    assert result["location_name"] is None
+    assert result["final_constituency"] == "Unknown"
+    assert result["grievance"]["location"] is None
+
+
+def test_optional_category_without_location_stays_new():
+    result = finalize_geography_decision(
+        grievance={},
+        ai_result={},
+        status="new",
+        political_reply="Your complaint is noted",
+        detected_language="Marathi",
+        message_body="तलाठी पैसे मागत आहे, माझं काम होत नाही आहे.",
+        current_tenant=2,
+        is_emergency_complaint=False,
+        location_required=False,
+        resolve_location_fn=lambda *_args, **_kwargs: {"location_resolved": False},
+        resolve_constituency_fn=lambda *_args, **_kwargs: (None, None),
+        get_tenant_constituency_fn=lambda _tenant_id: "Belagavi",
+    )
+
+    assert result["status"] == "new"
+    assert result["final_constituency"] == "Unknown"
+
+
+def test_required_category_without_location_stays_awaiting_location():
+    result = finalize_geography_decision(
+        grievance={"location": "Unknown locality"},
+        ai_result={},
+        status="new",
+        political_reply="Your complaint is noted",
+        detected_language="Marathi",
+        message_body="Unknown locality madhe paani nahi",
+        current_tenant=2,
+        is_emergency_complaint=False,
+        location_required=True,
+        resolve_location_fn=lambda *_args, **_kwargs: {"location_resolved": False},
+        resolve_constituency_fn=lambda *_args, **_kwargs: (None, None),
+        get_tenant_constituency_fn=lambda _tenant_id: "Belagavi",
+    )
+
+    assert result["status"] == "awaiting_location"
+    assert result["final_constituency"] == "Unknown"
+
+
 def test_low_confidence_speech_match_goes_to_pending_review():
     result = finalize_geography_decision(
         grievance={},
