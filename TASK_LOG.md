@@ -23,3 +23,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Updated the repo protocol so `PROJECT_MEMORY.md` and `TASK_LOG.md` must be maintained after every completed change and every GitHub push.
 - Files touched: `AGENTS.md`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: The process is only effective if every future task closes by updating these files before or alongside the push.
+
+- Date: 2026-05-26
+- Request: Push the repo memory workflow to GitHub.
+- Summary: Pushed commit `afcda31f` (`Add repo memory workflow`) to `origin/main` so the new discuss-first and memory-maintenance process is now shared in GitHub.
+- Files touched: `AGENTS.md`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Future pushes should continue adding a short push record here to preserve deployment and workflow history.
