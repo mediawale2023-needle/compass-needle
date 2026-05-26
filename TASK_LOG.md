@@ -101,3 +101,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Added truncation plus a vertical divider to the `Category` cell and extra left padding on `Subject` so long category values no longer visually merge into the subject text.
 - Files touched: `frontend/components/dashboard/DashboardGrievanceQueue.jsx`, `TASK_LOG.md`
 - Risks or follow-ups: This is still a desktop dashboard-queue adjustment only; if tighter spacing appears elsewhere, those tables will need their own spacing pass.
+
+- Date: 2026-05-26
+- Request: Push the dashboard queue spacing fix to GitHub.
+- Summary: Pushed commit `84778752` (`Adjust dashboard queue column spacing`) to `origin/main`, including the category/subject spacing fix and the task log update.
+- Files touched: `frontend/components/dashboard/DashboardGrievanceQueue.jsx`, `TASK_LOG.md`
+- Risks or follow-ups: This remains scoped to the dashboard overview queue; any similar spacing issues elsewhere will need separate changes.
