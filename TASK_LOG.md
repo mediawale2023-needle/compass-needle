@@ -125,3 +125,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Reverted commit `f1839330` (`Log Briefcase mobile push`) and commit `ee0be990` (`Make Briefcase mobile friendly`). The clarified direction is that mobile responsiveness should keep the desktop structure aligned as closely as possible instead of switching to alternate mobile-specific layouts.
 - Files touched: `frontend/app/dashboard/layout.js`, `frontend/components/briefcase/BriefcaseHeader.jsx`, `frontend/components/briefcase/BriefcaseTriageStrip.jsx`, `frontend/components/briefcase/BriefcaseClustersBanner.jsx`, `frontend/components/briefcase/BriefcaseFiltersBar.jsx`, `frontend/components/briefcase/BriefcaseBulkActions.jsx`, `frontend/components/briefcase/BriefcaseCasesTable.jsx`, `frontend/components/briefcase/BriefcaseDeletedCasesView.jsx`, `frontend/components/briefcase/BriefcaseClustersView.jsx`, `frontend/components/briefcase/BriefcasePagination.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: The next mobile pass should focus on alignment-preserving responsive refinement rather than separate phone-only structures.
+
+- Date: 2026-05-26
+- Request: Push the Briefcase mobile rollback to GitHub.
+- Summary: Pushed the rollback sequence to `origin/main`: `72b1491f` (`Revert "Log Briefcase mobile push"`), `514076c7` (`Revert "Make Briefcase mobile friendly"`), and `7b861b15` (`Document Briefcase mobile rollback`).
+- Files touched: `frontend/app/dashboard/layout.js`, `frontend/components/briefcase/*`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Future MP mobile responsiveness work should preserve desktop structure and alignment first, then apply only minimal responsive adaptations.
