@@ -4,30 +4,53 @@
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 224 71% 4%;
-    --card: 0 0% 100%;
-    --card-foreground: 224 71% 4%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 71% 4%;
-    --primary: 160 84% 24%;
+    /* ── Compass Needle · Console palette ── */
+    --cn-paper:        #F2EBD9;
+    --cn-paper-deep:   #E8E0CB;
+    --cn-surface:      #FBF6E7;
+    --cn-surface-warm: #F7F0DC;
+    --cn-ink:          #1A1812;
+    --cn-ink2:         #4A453A;
+    --cn-ink3:         #7A7263;
+    --cn-hair:         rgba(26,24,18,0.14);
+    --cn-hair-strong:  rgba(26,24,18,0.32);
+    --cn-green:        #006A4D;
+    --cn-green-deep:   #003B2A;
+    --cn-green-ink:    #024A36;
+    --cn-green-tint:   #DFE9E2;
+    --cn-green-wash:   #EAF1EC;
+    --cn-saffron:      #C76A1A;
+    --cn-saffron-tint: #F4E3CE;
+    --cn-red:          #8B2E1F;
+    --cn-red-tint:     #F2DAD3;
+    --cn-blue:         #23496B;
+    --cn-blue-tint:    #DDE5EE;
+
+    /* ── Shadcn / Tailwind tokens (mapped to CN palette) ── */
+    --background: 39 43% 91%;
+    --foreground: 33 18% 9%;
+    --card: 43 55% 96%;
+    --card-foreground: 33 18% 9%;
+    --popover: 43 55% 97%;
+    --popover-foreground: 33 18% 9%;
+    --primary: 161 100% 21%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 9% 46%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    --accent: 160 84% 95%;
-    --accent-foreground: 160 84% 24%;
-    --destructive: 0 84% 60%;
+    --secondary: 40 28% 86%;
+    --secondary-foreground: 33 18% 9%;
+    --muted: 40 28% 88%;
+    --muted-foreground: 31 9% 47%;
+    --accent: 150 17% 87%;
+    --accent-foreground: 161 100% 15%;
+    --destructive: 9 64% 33%;
     --destructive-foreground: 0 0% 98%;
-    --success: 142 76% 36%;
+    --success: 161 100% 21%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
+    --warning: 25 75% 44%;
     --warning-foreground: 0 0% 100%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 160 84% 24%;
-    --radius: 0.625rem;
+    --border: 40 15% 82%;
+    --input: 40 28% 86%;
+    --ring: 161 100% 21%;
+    --radius: 0rem;
 
     /* Lok Sabha - refined emerald */
     --color-ls: #047857;
@@ -85,6 +108,14 @@
   h1, h2, h3, h4, h5, h6 {
     @apply text-balance font-semibold tracking-tight;
   }
+}
+
+/* CN font utilities */
+.font-serif-cn {
+  font-family: "Source Serif 4", Georgia, serif;
+}
+.font-mono-cn {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
 }
 
 /* Modern scrollbar */

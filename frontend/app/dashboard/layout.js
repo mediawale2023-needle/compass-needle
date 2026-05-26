@@ -9,18 +9,17 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
     Menu,
     Clock,
-    Calendar,
     FileText,
     MessageSquare,
     FileEdit,
     Search,
     X,
     Loader2,
-    Bell
+    Bell,
+    Sparkles,
 } from 'lucide-react';
 
 const TYPE_LABELS = {
@@ -50,9 +49,7 @@ export default function DashboardLayout({ children }) {
     const [announcements, setAnnouncements] = useState([]);
     const [dismissedIds, setDismissedIds] = useState([]);
 
-    useEffect(() => {
-        setIsMobileMenuOpen(false);
-    }, [pathname]);
+    useEffect(() => { setIsMobileMenuOpen(false); }, [pathname]);
 
     useEffect(() => {
         if (!loading && !user) router.push('/');
@@ -61,21 +58,21 @@ export default function DashboardLayout({ children }) {
     useEffect(() => {
         if (!user) return;
         let cancelled = false;
+
         apiGet('/api/dashboard/summary')
             .then(data => {
                 if (cancelled) return;
                 const statuses = data?.status_breakdown || {};
-                const newCount = statuses['new'] || 0;
-                setBadges(b => ({ ...b, briefcase: newCount }));
+                setBadges(b => ({ ...b, briefcase: statuses['new'] || 0 }));
             })
             .catch(() => {});
-        // Load dismissed announcement IDs from localStorage
+
         try {
             const stored = JSON.parse(localStorage.getItem('dismissed_announcements') || '[]');
             setDismissedIds(stored);
         } catch { setDismissedIds([]); }
 
-        const secondaryTimer = setTimeout(() => {
+        const timer = setTimeout(() => {
             apiGet('/api/letterbox?direction=inbox&status=new&limit=1&offset=0')
                 .then(r => { if (!cancelled) setBadges(b => ({ ...b, letterbox: r?.total || 0 })); })
                 .catch(() => {});
@@ -84,10 +81,7 @@ export default function DashboardLayout({ children }) {
                 .catch(() => {});
         }, 900);
 
-        return () => {
-            cancelled = true;
-            clearTimeout(secondaryTimer);
-        };
+        return () => { cancelled = true; clearTimeout(timer); };
     }, [user]);
 
     const dismissAnnouncement = (id) => {
@@ -103,7 +97,6 @@ export default function DashboardLayout({ children }) {
         if (typeof meta === 'string') return '/dashboard/archives';
         const direct = meta.href || meta.url || meta.path;
         if (typeof direct === 'string' && direct.startsWith('/')) return direct;
-
         if (item?.activity_type === 'draft_letter') {
             const draftId = meta.draft_id || meta.letter_id || meta.id;
             return draftId ? `/dashboard/drafter?mode=letter&draft_id=${encodeURIComponent(draftId)}` : '/dashboard/drafter?mode=letter';
@@ -131,109 +124,241 @@ export default function DashboardLayout({ children }) {
     };
 
     if (loading) return (
-        <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="min-h-screen flex items-center justify-center" style={{ background: '#F2EBD9' }}>
             <div className="flex flex-col items-center gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <span className="text-sm text-muted-foreground">Loading...</span>
+                <Loader2 className="h-8 w-8 animate-spin" style={{ color: '#006A4D' }} />
+                <span
+                    className="text-sm tracking-[0.12em] uppercase"
+                    style={{ color: '#7A7263', fontFamily: '"JetBrains Mono", monospace' }}
+                >
+                    Loading…
+                </span>
             </div>
         </div>
     );
-    
+
     if (!user) return null;
 
+    const today = new Date().toLocaleDateString('en-IN', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    });
+
     return (
-        <div className="min-h-screen bg-background">
-            {/* Mobile Header */}
-            <header className="md:hidden flex items-center justify-between bg-card border-b border-border px-4 h-14 sticky top-0 z-40">
+        <div className="min-h-screen" style={{ background: 'var(--cn-paper)' }}>
+            {/* ── Mobile Header ── */}
+            <header
+                className="md:hidden flex items-center justify-between px-4 h-14 sticky top-0 z-40"
+                style={{
+                    background: 'var(--cn-paper)',
+                    borderBottom: '1px solid var(--cn-hair)',
+                }}
+            >
                 <div className="flex items-center gap-3">
                     <Button
                         variant="ghost"
                         size="icon"
                         className="h-9 w-9"
+                        style={{ color: 'var(--cn-ink)' }}
                         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                        aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
                     >
                         {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                     </Button>
-                    <span className="font-bold text-foreground">Compass Needle</span>
+                    <span
+                        className="font-semibold text-sm"
+                        style={{ fontFamily: '"Source Serif 4", serif', color: 'var(--cn-ink)' }}
+                    >
+                        Compass Needle
+                    </span>
                 </div>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9"
+                <button
+                    className="h-9 w-9 flex items-center justify-center"
+                    style={{ color: 'var(--cn-ink3)' }}
                     onClick={openHistory}
-                    aria-label="Open activity history"
                 >
-                    <Clock className="h-5 w-5 text-muted-foreground" />
-                </Button>
+                    <Clock className="h-5 w-5" />
+                </button>
             </header>
 
-            <Sidebar 
-                user={user} 
-                onLogout={() => { logout(); router.push('/'); }} 
-                isOpen={isMobileMenuOpen} 
-                setIsOpen={setIsMobileMenuOpen} 
+            <Sidebar
+                user={user}
+                onLogout={() => { logout(); router.push('/'); }}
+                isOpen={isMobileMenuOpen}
+                setIsOpen={setIsMobileMenuOpen}
                 badges={badges}
                 collapsed={sidebarCollapsed}
                 setCollapsed={setSidebarCollapsed}
             />
 
             <main className={cn(
-                "min-h-screen flex flex-col transition-all duration-300",
-                sidebarCollapsed ? "md:ml-[72px]" : "md:ml-64"
+                'min-h-screen flex flex-col transition-all duration-300',
+                sidebarCollapsed ? 'md:ml-[60px]' : 'md:ml-[220px]',
             )}>
-                {/* Desktop Header */}
-                <header className="hidden md:flex items-center justify-between bg-card border-b border-border px-6 h-14 sticky top-0 z-30">
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2 text-sm">
-                            <span className="font-semibold text-foreground">{user.display_name}</span>
-                            <Separator orientation="vertical" className="h-4" />
-                            <span className="text-muted-foreground">
-                                {user.constituency} · {user.house}
+                {/* ── Desktop Header ── */}
+                <header
+                    className="hidden md:grid sticky top-0 z-30"
+                    style={{
+                        background: 'var(--cn-paper)',
+                        borderBottom: '1px solid var(--cn-hair)',
+                        gridTemplateColumns: 'auto 1fr auto auto auto auto',
+                        alignItems: 'center',
+                        gap: '18px',
+                        padding: '12px 24px',
+                    }}
+                >
+                    {/* Title */}
+                    <div>
+                        <div className="flex items-center gap-2.5">
+                            <span
+                                className="font-semibold tracking-tight"
+                                style={{
+                                    fontFamily: '"Source Serif 4", serif',
+                                    fontSize: '18px',
+                                    color: 'var(--cn-ink)',
+                                    letterSpacing: '-0.01em',
+                                }}
+                            >
+                                Operations Dashboard
+                            </span>
+                            <span
+                                className="px-1.5 py-0.5 text-[9.5px] font-bold tracking-[0.12em] uppercase"
+                                style={{
+                                    background: 'var(--cn-green-tint)',
+                                    color: 'var(--cn-green-ink)',
+                                }}
+                            >
+                                Live
                             </span>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Calendar className="h-3.5 w-3.5" />
-                            {new Date().toLocaleDateString('en-IN', { 
-                                weekday: 'long', 
-                                day: 'numeric', 
-                                month: 'long', 
-                                year: 'numeric' 
-                            })}
-                        </div>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 gap-2"
-                            onClick={openHistory}
+                        <div
+                            className="mt-0.5 text-[10px] tracking-[0.12em] uppercase"
+                            style={{
+                                fontFamily: '"JetBrains Mono", monospace',
+                                color: 'var(--cn-ink3)',
+                            }}
                         >
-                            <Clock className="h-3.5 w-3.5" />
-                            <span className="hidden lg:inline">Activity</span>
-                        </Button>
+                            {user?.constituency} · {user?.house} · {today}
+                        </div>
+                    </div>
+
+                    {/* Search bar */}
+                    <div
+                        className="flex items-center gap-2 px-3 py-2 w-full max-w-sm justify-self-center"
+                        style={{
+                            background: 'var(--cn-surface)',
+                            border: '1px solid var(--cn-hair)',
+                        }}
+                    >
+                        <Search className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--cn-ink3)' }} />
+                        <input
+                            placeholder="Search grievance ref, citizen ID, letter ref…"
+                            className="flex-1 bg-transparent outline-none text-[12.5px]"
+                            style={{ color: 'var(--cn-ink)', fontFamily: 'inherit' }}
+                        />
+                        <span
+                            className="text-[10px] px-1 py-0.5 border"
+                            style={{
+                                fontFamily: '"JetBrains Mono", monospace',
+                                color: 'var(--cn-ink3)',
+                                borderColor: 'var(--cn-hair)',
+                            }}
+                        >
+                            ⌘K
+                        </span>
+                    </div>
+
+                    {/* Sansad AI button */}
+                    <button
+                        className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold tracking-[0.08em] uppercase transition-opacity hover:opacity-90"
+                        style={{
+                            background: 'var(--cn-green)',
+                            color: '#F5EFE0',
+                            fontFamily: 'inherit',
+                        }}
+                        onClick={() => router.push('/dashboard/sansadai')}
+                    >
+                        <Sparkles className="h-3 w-3" />
+                        Sansad AI
+                    </button>
+
+                    {/* Bell */}
+                    <button
+                        className="relative h-[34px] w-[34px] flex items-center justify-center"
+                        style={{
+                            background: 'var(--cn-surface)',
+                            border: '1px solid var(--cn-hair)',
+                            color: 'var(--cn-ink)',
+                        }}
+                        onClick={openHistory}
+                    >
+                        <Bell className="h-[14px] w-[14px]" />
+                        {(badges.briefcase > 0 || badges.letterbox > 0) && (
+                            <span
+                                className="absolute top-[3px] right-[3px] text-[8px] font-bold px-[3px] leading-5 min-w-[14px] text-center"
+                                style={{
+                                    background: 'var(--cn-saffron)',
+                                    color: '#fff',
+                                    fontFamily: '"JetBrains Mono", monospace',
+                                }}
+                            >
+                                {(badges.briefcase || 0) + (badges.letterbox || 0)}
+                            </span>
+                        )}
+                    </button>
+
+                    {/* User */}
+                    <div className="flex items-center gap-2.5">
+                        <div
+                            className="h-[34px] w-[34px] flex items-center justify-center text-[13px] font-semibold shrink-0"
+                            style={{
+                                background: 'var(--cn-green)',
+                                color: '#F5EFE0',
+                                fontFamily: '"Source Serif 4", serif',
+                            }}
+                        >
+                            {user?.display_name?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'MP'}
+                        </div>
+                        <div>
+                            <div
+                                className="text-[12.5px] font-semibold leading-none"
+                                style={{ color: 'var(--cn-ink)' }}
+                            >
+                                {user?.display_name}
+                            </div>
+                            <div
+                                className="text-[10px] mt-0.5 tracking-[0.08em]"
+                                style={{
+                                    color: 'var(--cn-ink3)',
+                                    fontFamily: '"JetBrains Mono", monospace',
+                                }}
+                            >
+                                {user?.role === 'mp' ? 'MP' : user?.role === 'admin' ? 'Admin' : 'Staff'}
+                                {user?.house?.includes('Lok') ? ' · LS' : ' · RS'}
+                            </div>
+                        </div>
                     </div>
                 </header>
 
-                {/* Announcement Banners */}
+                {/* Announcements */}
                 {visibleAnnouncements.length > 0 && (
                     <div className="px-4 md:px-6 pt-4 space-y-2">
                         {visibleAnnouncements.map(a => (
                             <div
                                 key={a.id}
-                                className="flex items-start gap-3 bg-primary/10 border border-primary/20 rounded-lg px-4 py-3"
+                                className="flex items-start gap-3 px-4 py-3"
+                                style={{
+                                    background: 'var(--cn-saffron-tint)',
+                                    border: '1px solid rgba(199,106,26,0.3)',
+                                }}
                             >
-                                <Bell className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                <Bell className="h-4 w-4 shrink-0 mt-0.5" style={{ color: 'var(--cn-saffron)' }} />
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-foreground">{a.title}</p>
-                                    {a.body && (
-                                        <p className="text-xs text-muted-foreground mt-0.5">{a.body}</p>
-                                    )}
+                                    <p className="text-sm font-semibold" style={{ color: 'var(--cn-ink)' }}>{a.title}</p>
+                                    {a.body && <p className="text-xs mt-0.5" style={{ color: 'var(--cn-ink2)' }}>{a.body}</p>}
                                 </div>
                                 <button
                                     onClick={() => dismissAnnouncement(a.id)}
-                                    className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                                    aria-label="Dismiss"
+                                    className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+                                    style={{ color: 'var(--cn-ink2)' }}
                                 >
                                     <X className="h-4 w-4" />
                                 </button>
@@ -243,70 +368,76 @@ export default function DashboardLayout({ children }) {
                 )}
 
                 {/* Content */}
-                <div className="flex-1 p-4 md:p-6 animate-fade-in">
+                <div className="flex-1 p-4 md:p-[14px] animate-fade-in">
                     {children}
                 </div>
             </main>
 
-            {/* History Sheet */}
+            {/* Activity History Sheet */}
             <Sheet open={showHistory} onOpenChange={setShowHistory}>
-                <SheetContent className="w-full sm:max-w-md p-0">
-                    <SheetHeader className="px-6 py-4 border-b border-border">
-                        <SheetTitle className="flex items-center justify-between">
+                <SheetContent className="w-full sm:max-w-md p-0" style={{ background: 'var(--cn-surface)' }}>
+                    <SheetHeader
+                        className="px-6 py-4"
+                        style={{ borderBottom: '1px solid var(--cn-hair)' }}
+                    >
+                        <SheetTitle
+                            className="flex items-center justify-between"
+                            style={{ fontFamily: '"Source Serif 4", serif', color: 'var(--cn-ink)' }}
+                        >
                             <span>Activity History</span>
-                            <span className="text-xs font-normal text-muted-foreground">
+                            <span
+                                className="text-[10px] font-normal tracking-[0.12em] uppercase"
+                                style={{ color: 'var(--cn-ink3)', fontFamily: '"JetBrains Mono", monospace' }}
+                            >
                                 Last 30 days
                             </span>
                         </SheetTitle>
                     </SheetHeader>
-                    
+
                     <ScrollArea className="h-[calc(100vh-140px)]">
                         {historyLoading ? (
                             <div className="flex items-center justify-center py-16">
-                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                <Loader2 className="h-6 w-6 animate-spin" style={{ color: 'var(--cn-ink3)' }} />
                             </div>
                         ) : history.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                                <Clock className="h-12 w-12 text-muted-foreground/30 mb-4" />
-                                <p className="text-sm text-muted-foreground">No activity yet</p>
-                                <p className="text-xs text-muted-foreground/70 mt-1">
-                                    Your recent actions will appear here
-                                </p>
+                                <Clock className="h-12 w-12 mb-4" style={{ color: 'var(--cn-hair-strong)' }} />
+                                <p className="text-sm" style={{ color: 'var(--cn-ink3)' }}>No activity yet</p>
                             </div>
                         ) : (
-                            <div className="divide-y divide-border">
+                            <div style={{ borderBottom: '1px solid var(--cn-hair)' }}>
                                 {history.map(item => {
                                     const Icon = TYPE_ICONS[item.activity_type] || FileText;
                                     return (
                                         <button
                                             key={item.id}
-                                            className="w-full px-6 py-4 hover:bg-accent/50 transition-colors text-left"
-                                            onClick={() => { 
-                                                setShowHistory(false); 
-                                                router.push(historyItemHref(item)); 
-                                            }}
+                                            className="w-full px-6 py-4 hover:opacity-80 transition-opacity text-left"
+                                            style={{ borderBottom: '1px solid var(--cn-hair)' }}
+                                            onClick={() => { setShowHistory(false); router.push(historyItemHref(item)); }}
                                         >
                                             <div className="flex items-start gap-3">
-                                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                                                    <Icon className="h-4 w-4 text-primary" />
+                                                <div
+                                                    className="h-8 w-8 flex items-center justify-center shrink-0"
+                                                    style={{ background: 'var(--cn-green-tint)' }}
+                                                >
+                                                    <Icon className="h-4 w-4" style={{ color: 'var(--cn-green)' }} />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 mb-0.5">
-                                                        <span className="text-xs font-semibold text-primary uppercase">
-                                                            {TYPE_LABELS[item.activity_type] || item.activity_type}
-                                                        </span>
+                                                    <div
+                                                        className="text-[10px] font-bold uppercase tracking-[0.1em] mb-0.5"
+                                                        style={{ color: 'var(--cn-green)', fontFamily: '"JetBrains Mono", monospace' }}
+                                                    >
+                                                        {TYPE_LABELS[item.activity_type] || item.activity_type}
                                                     </div>
-                                                    <p className="text-sm font-medium text-foreground truncate">
+                                                    <p className="text-sm font-medium truncate" style={{ color: 'var(--cn-ink)' }}>
                                                         {item.title}
                                                     </p>
-                                                    <p className="text-xs text-muted-foreground mt-0.5">
-                                                        {item.created_at 
-                                                            ? new Date(item.created_at).toLocaleString('en-IN', {
-                                                                day: '2-digit', 
-                                                                month: 'short', 
-                                                                hour: '2-digit', 
-                                                                minute: '2-digit'
-                                                            }) 
+                                                    <p
+                                                        className="text-xs mt-0.5"
+                                                        style={{ color: 'var(--cn-ink3)', fontFamily: '"JetBrains Mono", monospace' }}
+                                                    >
+                                                        {item.created_at
+                                                            ? new Date(item.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
                                                             : '–'}
                                                     </p>
                                                 </div>
@@ -318,16 +449,17 @@ export default function DashboardLayout({ children }) {
                         )}
                     </ScrollArea>
 
-                    <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border bg-card">
-                        <Button
-                            className="w-full"
-                            onClick={() => { 
-                                setShowHistory(false); 
-                                router.push('/dashboard/archives'); 
-                            }}
+                    <div
+                        className="absolute bottom-0 left-0 right-0 p-4"
+                        style={{ borderTop: '1px solid var(--cn-hair)', background: 'var(--cn-surface)' }}
+                    >
+                        <button
+                            className="w-full py-2.5 text-[11px] font-bold tracking-[0.08em] uppercase transition-opacity hover:opacity-90"
+                            style={{ background: 'var(--cn-green)', color: '#F5EFE0', fontFamily: 'inherit' }}
+                            onClick={() => { setShowHistory(false); router.push('/dashboard/archives'); }}
                         >
                             View All in Archives
-                        </Button>
+                        </button>
                     </div>
                 </SheetContent>
             </Sheet>
