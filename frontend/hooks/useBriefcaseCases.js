@@ -10,10 +10,10 @@ export function getBriefcaseRowHighlight(status, category) {
     const normalizedStatus = (status || '').toLowerCase();
     const normalizedCategory = (category || '').toLowerCase();
     if (normalizedStatus === 'new' || normalizedStatus === 'escalated' || normalizedCategory === 'emergency') {
-        return 'border-l-4 border-l-red-500 bg-red-50/50';
+        return 'border-l-4 border-l-[#C76A1A] bg-[#f9efe0]';
     }
-    if (normalizedStatus === 'resolved' || normalizedStatus === 'in_progress') {
-        return 'border-l-4 border-l-green-500 bg-green-50/30';
+    if (normalizedStatus === 'resolved') {
+        return 'border-l-4 border-l-[#006A4D] bg-[#eef5f1]';
     }
     return '';
 }
@@ -21,10 +21,18 @@ export function getBriefcaseRowHighlight(status, category) {
 export default function useBriefcaseCases(user) {
     const toast = useToast();
     const searchParams = useSearchParams();
+    const now = new Date();
+    const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayLabel = now.toLocaleDateString('en-IN', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+    });
 
     const [cases, setCases] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'All');
+    const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'needs');
     const [categoryFilter, setCategoryFilter] = useState(() => searchParams.get('category') || '');
     const [locationFilter, setLocationFilter] = useState(() => searchParams.get('location') || '');
     const [assemblyFilter, setAssemblyFilter] = useState(() => searchParams.get('assembly') || '');
@@ -39,7 +47,7 @@ export default function useBriefcaseCases(user) {
     const [staff, setStaff] = useState([]);
     const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
-    const [pageSize, setPageSize] = useState(50);
+    const [pageSize, setPageSize] = useState(25);
     const [assignedFilter, setAssignedFilter] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
@@ -53,14 +61,11 @@ export default function useBriefcaseCases(user) {
     const [loadingDeleted, setLoadingDeleted] = useState(false);
 
     useEffect(() => {
-        const status = searchParams.get('status') || 'All';
-        const category = searchParams.get('category') || '';
-        const location = searchParams.get('location') || '';
-        const assembly = searchParams.get('assembly') || '';
-        setStatusFilter(status);
-        setCategoryFilter(category);
-        setLocationFilter(location);
-        setAssemblyFilter(assembly);
+        const status = searchParams.get('status') || 'needs';
+        setStatusFilter(status === 'All' ? 'needs' : status);
+        setCategoryFilter(searchParams.get('category') || '');
+        setLocationFilter(searchParams.get('location') || '');
+        setAssemblyFilter(searchParams.get('assembly') || '');
         setPage(1);
     }, [searchParams]);
 
@@ -68,7 +73,7 @@ export default function useBriefcaseCases(user) {
         const timeout = setTimeout(() => {
             setSearch(searchInput);
             setPage(1);
-        }, 400);
+        }, 350);
         return () => clearTimeout(timeout);
     }, [searchInput]);
 
@@ -89,6 +94,10 @@ export default function useBriefcaseCases(user) {
             .catch(() => setFilterOptions({ statuses: [], categories: [], locations: [], assemblies: [] }));
     }, [refreshToken]);
 
+    useEffect(() => {
+        fetchClusters();
+    }, [refreshToken]);
+
     function setUrlFilter(key, value) {
         const url = new URL(window.location.href);
         if (value) {
@@ -104,11 +113,12 @@ export default function useBriefcaseCases(user) {
     }
 
     function applyCaseFilters(params) {
-        if (statusFilter === 'All') {
+        if (statusFilter === 'needs') {
             params.set('exclude_status', ['resolved', 'closed', ...OTHER_STATUSES].join(','));
             params.set('exclude_categories', OTHER_CATEGORIES.join(','));
-        } else if (statusFilter === 'other') {
-            params.set('bucket', 'other');
+        } else if (statusFilter === 'all_cases') {
+            params.delete('exclude_status');
+            params.delete('exclude_categories');
         } else {
             params.set('status', statusFilter);
         }
@@ -149,10 +159,6 @@ export default function useBriefcaseCases(user) {
     }
 
     useEffect(() => {
-        if (statusFilter === 'clusters') {
-            fetchClusters();
-            return;
-        }
         if (statusFilter === 'deleted') {
             fetchDeleted();
             return;
@@ -195,7 +201,7 @@ export default function useBriefcaseCases(user) {
     }, [statusFilter, categoryFilter, locationFilter, assemblyFilter, page, user?.username, search, pageSize, assignedFilter, dateFrom, dateTo, criticalOnly, sortOrder, refreshToken, toast]);
 
     useEffect(() => {
-        if (statusFilter === 'clusters' || statusFilter === 'deleted') {
+        if (statusFilter === 'deleted') {
             return;
         }
         const interval = setInterval(async () => {
@@ -214,7 +220,7 @@ export default function useBriefcaseCases(user) {
             }
         }, 30000);
         return () => clearInterval(interval);
-    }, [statusFilter, categoryFilter, locationFilter, assemblyFilter, totalCases, user?.username, search, assignedFilter, dateFrom, dateTo, criticalOnly, sortOrder]);
+    }, [statusFilter, categoryFilter, locationFilter, assemblyFilter, totalCases, search, assignedFilter, dateFrom, dateTo, criticalOnly, sortOrder]);
 
     useEffect(() => {
         const caseId = searchParams.get('case_id');
@@ -233,7 +239,7 @@ export default function useBriefcaseCases(user) {
         setSearch('');
         setSearchInput('');
         const url = new URL(window.location.href);
-        if (key === 'All') {
+        if (key === 'needs') {
             url.searchParams.delete('status');
         } else {
             url.searchParams.set('status', key);
@@ -352,7 +358,7 @@ export default function useBriefcaseCases(user) {
         setDownloading(true);
         try {
             const params = new URLSearchParams();
-            if (statusFilter !== 'All') params.set('status', statusFilter);
+            if (statusFilter !== 'needs') params.set('status', statusFilter);
             if (categoryFilter) params.set('category', categoryFilter);
             if (locationFilter) params.set('location', locationFilter);
             if (assemblyFilter) params.set('assembly', assemblyFilter);
@@ -372,6 +378,48 @@ export default function useBriefcaseCases(user) {
             setDownloading(false);
         }
     }
+
+    const statusEntries = Array.isArray(filterOptions.statuses) ? filterOptions.statuses : [];
+    const categoryEntries = Array.isArray(filterOptions.categories) ? filterOptions.categories : [];
+    const countFrom = (entries, matcher) => {
+        const found = entries.find((entry) => matcher(String(entry.value || '').toLowerCase()));
+        return found?.count || 0;
+    };
+    const newCount = countFrom(statusEntries, (value) => value === 'new');
+    const pendingReviewCount = countFrom(statusEntries, (value) => value === 'pending_review');
+    const awaitingLocationCount = countFrom(statusEntries, (value) => value === 'awaiting_location');
+    const inProgressCount = countFrom(statusEntries, (value) => value === 'in_progress');
+    const resolvedCount = countFrom(statusEntries, (value) => value === 'resolved');
+    const escalatedCount = countFrom(statusEntries, (value) => value === 'escalated');
+    const activeCaseTotal = statusEntries.length > 0
+        ? statusEntries.reduce((sum, entry) => sum + (entry.count || 0), 0)
+        : Math.max(totalCases, cases.length);
+    const uncategorisedCount =
+        countFrom(categoryEntries, (value) => value === 'uncategorised' || value === 'general' || value === 'general grievance') ||
+        cases.filter((item) => !item.category || /general|uncategor/i.test(String(item.category))).length;
+    const slaRiskCount = cases.filter((item) => {
+        if (item.is_critical || ['pending_review', 'escalated'].includes((item.status || '').toLowerCase())) {
+            return true;
+        }
+        if (!item.created_at) {
+            return false;
+        }
+        return (Date.now() - new Date(item.created_at).getTime()) / 3600000 >= 18;
+    }).length;
+    const tabCounts = {
+        needs: newCount + pendingReviewCount + awaitingLocationCount + escalatedCount,
+        new: newCount,
+        in_progress: inProgressCount,
+        resolved: resolvedCount,
+        all_cases: activeCaseTotal,
+    };
+    const triage = {
+        needsYou: tabCounts.needs || cases.filter((item) => ['new', 'pending_review', 'awaiting_location', 'escalated'].includes((item.status || '').toLowerCase())).length,
+        newToday: newCount || cases.filter((item) => String(item.created_at || '').startsWith(todayIso)).length,
+        uncategorised: uncategorisedCount,
+        slaRisk: slaRiskCount,
+    };
+    const subtitle = `${activeCaseTotal.toLocaleString()} active cases · ${triage.needsYou} need your attention · ${user?.constituency || 'Constituency'} · ${todayLabel}`;
 
     return {
         assemblyFilter,
@@ -429,8 +477,12 @@ export default function useBriefcaseCases(user) {
         sortOrder,
         staff,
         statusFilter,
+        subtitle,
         switchTab,
+        tabCounts,
+        todayLabel,
         totalCases,
         totalPages,
+        triage,
     };
 }

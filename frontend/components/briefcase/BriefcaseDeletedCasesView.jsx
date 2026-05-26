@@ -1,50 +1,73 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { briefcaseFonts, briefcasePalette as P } from '@/components/briefcase/briefcase-shared';
+
+const { mono: MONO } = briefcaseFonts;
 
 export default function BriefcaseDeletedCasesView({ deletedCases, loading, onRestore }) {
     if (loading) {
-        return <div className="space-y-3 py-6">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}</div>;
+        return <div className="space-y-3 py-6">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full rounded-none" />)}</div>;
     }
 
     if (deletedCases.length === 0) {
-        return <div className="text-center py-16 text-muted-foreground">No deleted cases in the last 7 days.</div>;
+        return <div style={{ textAlign: 'center', padding: '64px 0', color: P.ink3 }}>No deleted cases in the last 7 days.</div>;
     }
 
     return (
-        <div className="overflow-x-auto -mx-6">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead className="pl-6">#</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Deleted At</TableHead>
-                        <TableHead>Deleted By</TableHead>
-                        <TableHead className="text-right pr-6">Action</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
+        <div style={{ padding: '0 22px 22px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                    <tr style={{ background: P.surfaceWarm }}>
+                        {['Ref', 'Contact', 'Category', 'Deleted at', 'Deleted by', 'Action'].map((heading) => (
+                            <th
+                                key={heading}
+                                style={{
+                                    textAlign: heading === 'Action' ? 'right' : 'left',
+                                    padding: '10px 12px',
+                                    fontFamily: MONO,
+                                    fontSize: 9.5,
+                                    letterSpacing: '0.14em',
+                                    color: P.ink3,
+                                    textTransform: 'uppercase',
+                                    borderBottom: `1px solid ${P.hair}`,
+                                }}
+                            >
+                                {heading}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
                     {deletedCases.map((item) => (
-                        <TableRow key={item.id} className="opacity-60">
-                            <TableCell className="pl-6 font-mono text-xs text-muted-foreground">{item.id}</TableCell>
-                            <TableCell className="font-mono text-xs">{item.user_phone || '-'}</TableCell>
-                            <TableCell>{item.category || 'General'}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
+                        <tr key={item.id} style={{ borderBottom: `1px solid ${P.hair}` }}>
+                            <td style={{ padding: '12px', fontFamily: MONO, fontSize: 11, color: P.ink3 }}>#{item.id}</td>
+                            <td style={{ padding: '12px', fontFamily: MONO, fontSize: 11, color: P.ink2 }}>{item.user_phone || '-'}</td>
+                            <td style={{ padding: '12px', fontSize: 12.5, color: P.ink }}>{item.category || 'General'}</td>
+                            <td style={{ padding: '12px', fontSize: 11.5, color: P.ink2 }}>
                                 {item.deleted_at ? new Date(item.deleted_at).toLocaleString('en-IN') : '-'}
-                            </TableCell>
-                            <TableCell className="text-xs">{item.deleted_by || '-'}</TableCell>
-                            <TableCell className="text-right pr-6">
-                                <Button size="sm" variant="outline" onClick={() => onRestore(item.id)}>
+                            </td>
+                            <td style={{ padding: '12px', fontSize: 11.5, color: P.ink2 }}>{item.deleted_by || '-'}</td>
+                            <td style={{ padding: '12px', textAlign: 'right' }}>
+                                <button
+                                    onClick={() => onRestore(item.id)}
+                                    style={{
+                                        border: `1px solid ${P.hairStrong}`,
+                                        background: P.surface,
+                                        color: P.ink,
+                                        padding: '6px 10px',
+                                        fontSize: 11.5,
+                                        cursor: 'pointer',
+                                        fontFamily: 'inherit',
+                                    }}
+                                >
                                     Restore
-                                </Button>
-                            </TableCell>
-                        </TableRow>
+                                </button>
+                            </td>
+                        </tr>
                     ))}
-                </TableBody>
-            </Table>
+                </tbody>
+            </table>
         </div>
     );
 }

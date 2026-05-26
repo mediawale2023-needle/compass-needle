@@ -107,3 +107,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Pushed commit `84778752` (`Adjust dashboard queue column spacing`) to `origin/main`, including the category/subject spacing fix and the task log update.
 - Files touched: `frontend/components/dashboard/DashboardGrievanceQueue.jsx`, `TASK_LOG.md`
 - Risks or follow-ups: This remains scoped to the dashboard overview queue; any similar spacing issues elsewhere will need separate changes.
+
+- Date: 2026-05-26
+- Request: Rebuild Briefcase to match the `Needle-2.zip` prototype as closely as possible while preserving the live workflows.
+- Summary: Translated the prototype into the live Briefcase route by shifting the default state to `Needs you`, adding a triage KPI strip and promoted-clusters banner, redesigning the filters/bulk action shell, restyling the clusters and deleted views, and wiring the route composition to the new prototype-based Briefcase surface.
+- Files touched: `frontend/app/dashboard/sansadx/page.js`, `frontend/hooks/useBriefcaseCases.js`, `frontend/components/briefcase/briefcase-shared.jsx`, `frontend/components/briefcase/BriefcaseHeader.jsx`, `frontend/components/briefcase/BriefcaseFiltersBar.jsx`, `frontend/components/briefcase/BriefcaseBulkActions.jsx`, `frontend/components/briefcase/BriefcaseActiveFilters.jsx`, `frontend/components/briefcase/BriefcaseClustersView.jsx`, `frontend/components/briefcase/BriefcaseDeletedCasesView.jsx`, `frontend/components/briefcase/BriefcaseNewCasesNotice.jsx`, `frontend/components/briefcase/BriefcaseTriageStrip.jsx`, `frontend/components/briefcase/BriefcaseClustersBanner.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The visual translation is now in place, but the remaining gap to the prototype is mostly fine-grain polish in table density and modal/detail surfaces rather than core layout or architecture.

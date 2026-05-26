@@ -1,8 +1,8 @@
 'use client';
 
-import { X } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { TABS } from '@/components/briefcase/briefcase-shared';
+import { briefcaseFonts, briefcasePalette as P, BriefcaseIcon, TABS } from '@/components/briefcase/briefcase-shared';
+
+const { mono: MONO } = briefcaseFonts;
 
 export default function BriefcaseActiveFilters({
     assemblyFilter,
@@ -17,48 +17,89 @@ export default function BriefcaseActiveFilters({
     onResetStatus,
     statusFilter,
 }) {
-    if ((!categoryFilter && !locationFilter && !assemblyFilter && statusFilter === 'All') || statusFilter === 'clusters' || statusFilter === 'deleted') {
+    if ((!categoryFilter && !locationFilter && !assemblyFilter && statusFilter === 'needs') || statusFilter === 'clusters' || statusFilter === 'deleted') {
         return null;
     }
 
+    const chipStyle = {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '5px 8px',
+        border: `1px solid ${P.hair}`,
+        background: P.surface,
+        color: P.ink2,
+        fontSize: 11,
+    };
+
     return (
-        <div className="px-6 py-3 border-b flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Active filters:</span>
-            {statusFilter !== 'All' && (
-                <Badge variant="secondary" className="gap-1">
+        <div
+            style={{
+                padding: '10px 22px',
+                borderBottom: `1px solid ${P.hair}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+                background: P.surfaceWarm,
+            }}
+        >
+            <span
+                style={{
+                    fontFamily: MONO,
+                    fontSize: 9.5,
+                    color: P.ink3,
+                    letterSpacing: '0.14em',
+                    textTransform: 'uppercase',
+                }}
+            >
+                Active filters
+            </span>
+            {statusFilter !== 'needs' && (
+                <span style={chipStyle}>
                     Status: {TABS.find((tab) => tab.key === statusFilter)?.label || statusFilter}
-                    <button onClick={onResetStatus} className="ml-1 hover:opacity-80">
-                        <X className="h-3 w-3" />
+                    <button onClick={onResetStatus} style={dismissStyle}>
+                        <BriefcaseIcon name="x" size={10} color={P.ink2} />
                     </button>
-                </Badge>
+                </span>
             )}
             {categoryFilter && (
-                <Badge variant="default" className="gap-1" style={{ background: color }}>
+                <span style={{ ...chipStyle, background: color, borderColor: color, color: '#fff' }}>
                     Category: {categoryFilter}
-                    <button onClick={onClearCategory} className="ml-1 hover:opacity-80">
-                        <X className="h-3 w-3" />
+                    <button onClick={onClearCategory} style={dismissStyle}>
+                        <BriefcaseIcon name="x" size={10} color="#fff" />
                     </button>
-                </Badge>
+                </span>
             )}
             {locationFilter && (
-                <Badge variant="default" className="gap-1" style={{ background: color }}>
+                <span style={{ ...chipStyle, background: color, borderColor: color, color: '#fff' }}>
                     Location: {locationFilter}
-                    <button onClick={onClearLocation} className="ml-1 hover:opacity-80">
-                        <X className="h-3 w-3" />
+                    <button onClick={onClearLocation} style={dismissStyle}>
+                        <BriefcaseIcon name="x" size={10} color="#fff" />
                     </button>
-                </Badge>
+                </span>
             )}
             {assemblyFilter && (
-                <Badge variant="default" className="gap-1" style={{ background: color }}>
+                <span style={{ ...chipStyle, background: color, borderColor: color, color: '#fff' }}>
                     Constituency: {assemblyFilter}
-                    <button onClick={onClearAssembly} className="ml-1 hover:opacity-80">
-                        <X className="h-3 w-3" />
+                    <button onClick={onClearAssembly} style={dismissStyle}>
+                        <BriefcaseIcon name="x" size={10} color="#fff" />
                     </button>
-                </Badge>
+                </span>
             )}
-            <span className="text-xs text-muted-foreground ml-1">
+            <span style={{ fontSize: 11, color: P.ink3, marginLeft: 4 }}>
                 {loading ? '...' : `${casesCount} case${casesCount !== 1 ? 's' : ''}`}
             </span>
         </div>
     );
 }
+
+const dismissStyle = {
+    border: 'none',
+    background: 'transparent',
+    padding: 0,
+    marginLeft: 2,
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+};
