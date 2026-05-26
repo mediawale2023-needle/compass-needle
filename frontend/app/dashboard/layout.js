@@ -9,17 +9,18 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import {
-    Bell,
-    Calendar,
-    Clock,
-    FileEdit,
-    FileText,
-    Loader2,
     Menu,
+    Clock,
+    Calendar,
+    FileText,
     MessageSquare,
+    FileEdit,
     Search,
     X,
+    Loader2,
+    Bell
 } from 'lucide-react';
 
 const TYPE_LABELS = {
@@ -60,34 +61,26 @@ export default function DashboardLayout({ children }) {
     useEffect(() => {
         if (!user) return;
         let cancelled = false;
-
         apiGet('/api/dashboard/summary')
             .then(data => {
                 if (cancelled) return;
                 const statuses = data?.status_breakdown || {};
-                const newCount = statuses.new || 0;
+                const newCount = statuses['new'] || 0;
                 setBadges(b => ({ ...b, briefcase: newCount }));
             })
             .catch(() => {});
-
+        // Load dismissed announcement IDs from localStorage
         try {
             const stored = JSON.parse(localStorage.getItem('dismissed_announcements') || '[]');
             setDismissedIds(stored);
-        } catch {
-            setDismissedIds([]);
-        }
+        } catch { setDismissedIds([]); }
 
         const secondaryTimer = setTimeout(() => {
             apiGet('/api/letterbox?direction=inbox&status=new&limit=1&offset=0')
-                .then(r => {
-                    if (!cancelled) setBadges(b => ({ ...b, letterbox: r?.total || 0 }));
-                })
+                .then(r => { if (!cancelled) setBadges(b => ({ ...b, letterbox: r?.total || 0 })); })
                 .catch(() => {});
-
             apiGet('/api/announcements/active')
-                .then(d => {
-                    if (!cancelled) setAnnouncements(d.announcements || []);
-                })
+                .then(d => { if (!cancelled) setAnnouncements(d.announcements || []); })
                 .catch(() => {});
         }, 900);
 
@@ -100,9 +93,7 @@ export default function DashboardLayout({ children }) {
     const dismissAnnouncement = (id) => {
         const next = [...dismissedIds, id];
         setDismissedIds(next);
-        try {
-            localStorage.setItem('dismissed_announcements', JSON.stringify(next));
-        } catch {}
+        try { localStorage.setItem('dismissed_announcements', JSON.stringify(next)); } catch {}
     };
 
     const visibleAnnouncements = announcements.filter(a => !dismissedIds.includes(a.id));
@@ -135,147 +126,113 @@ export default function DashboardLayout({ children }) {
         try {
             const data = await apiGet('/api/history?limit=30');
             setHistory(data.items || []);
-        } catch {
-            setHistory([]);
-        } finally {
-            setHistoryLoading(false);
-        }
+        } catch { setHistory([]); }
+        finally { setHistoryLoading(false); }
     };
 
-    if (loading) {
-        return (
-            <div className="dashboard-canvas flex min-h-screen items-center justify-center">
-                <div className="dashboard-panel flex flex-col items-center gap-3 px-8 py-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-[#0d6a4d]" />
-                    <span className="text-sm text-[#4a453a]">Loading constituency workspace...</span>
-                </div>
+    if (loading) return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+            <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">Loading...</span>
             </div>
-        );
-    }
-
+        </div>
+    );
+    
     if (!user) return null;
 
     return (
-        <div className="dashboard-canvas min-h-screen text-[#1a1812]">
-            <header className="sticky top-0 z-40 border-b border-[var(--hairline)] bg-[rgba(251,246,231,0.96)] backdrop-blur md:hidden">
-                <div className="flex h-1">
-                    <div className="flex-1 bg-[#c76a1a]" />
-                    <div className="flex-1 bg-[#f2ebd9]" />
-                    <div className="flex-1 bg-[#0d6a4d]" />
-                </div>
-                <div className="flex items-center justify-between px-4 py-3">
-                    <div className="flex items-center gap-3">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-10 w-10 rounded-none border border-[var(--hairline)] bg-white/40"
-                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                            aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
-                        >
-                            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-                        </Button>
-                        <div>
-                            <p className="font-editorial text-lg font-semibold text-[#1a1812]">Compass Needle</p>
-                            <p className="font-mono-ui text-[10px] uppercase tracking-[0.18em] text-[#7a7263]">
-                                Constituency Desk
-                            </p>
-                        </div>
-                    </div>
+        <div className="min-h-screen bg-background">
+            {/* Mobile Header */}
+            <header className="md:hidden flex items-center justify-between bg-card border-b border-border px-4 h-14 sticky top-0 z-40">
+                <div className="flex items-center gap-3">
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-10 w-10 rounded-none border border-[var(--hairline)] bg-white/40"
-                        onClick={openHistory}
-                        aria-label="Open activity history"
+                        className="h-9 w-9"
+                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                        aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
                     >
-                        <Clock className="h-5 w-5 text-[#4a453a]" />
+                        {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                     </Button>
+                    <span className="font-bold text-foreground">Compass Needle</span>
                 </div>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={openHistory}
+                    aria-label="Open activity history"
+                >
+                    <Clock className="h-5 w-5 text-muted-foreground" />
+                </Button>
             </header>
 
-            <Sidebar
-                user={user}
-                onLogout={() => {
-                    logout();
-                    router.push('/');
-                }}
-                isOpen={isMobileMenuOpen}
-                setIsOpen={setIsMobileMenuOpen}
+            <Sidebar 
+                user={user} 
+                onLogout={() => { logout(); router.push('/'); }} 
+                isOpen={isMobileMenuOpen} 
+                setIsOpen={setIsMobileMenuOpen} 
                 badges={badges}
                 collapsed={sidebarCollapsed}
                 setCollapsed={setSidebarCollapsed}
             />
 
-            <main
-                className={cn(
-                    'min-h-screen transition-all duration-300',
-                    sidebarCollapsed ? 'md:ml-[88px]' : 'md:ml-[280px]'
-                )}
-            >
-                <header className="hidden border-b border-[var(--hairline)] bg-[rgba(251,246,231,0.92)] backdrop-blur md:block">
-                    <div className="flex h-1">
-                        <div className="flex-1 bg-[#c76a1a]" />
-                        <div className="flex-1 bg-[#f2ebd9]" />
-                        <div className="flex-1 bg-[#0d6a4d]" />
+            <main className={cn(
+                "min-h-screen flex flex-col transition-all duration-300",
+                sidebarCollapsed ? "md:ml-[72px]" : "md:ml-64"
+            )}>
+                {/* Desktop Header */}
+                <header className="hidden md:flex items-center justify-between bg-card border-b border-border px-6 h-14 sticky top-0 z-30">
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 text-sm">
+                            <span className="font-semibold text-foreground">{user.display_name}</span>
+                            <Separator orientation="vertical" className="h-4" />
+                            <span className="text-muted-foreground">
+                                {user.constituency} · {user.house}
+                            </span>
+                        </div>
                     </div>
-                    <div className="grid grid-cols-[1fr_auto] items-center gap-6 px-6 py-4">
-                        <div>
-                            <div className="flex items-center gap-3">
-                                <h1 className="font-editorial text-[1.65rem] font-semibold tracking-[-0.02em] text-[#1a1812]">
-                                    Operations Dashboard
-                                </h1>
-                                <span className="font-mono-ui dashboard-pill px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]">
-                                    Live
-                                </span>
-                            </div>
-                            <p className="font-mono-ui mt-1 text-[11px] uppercase tracking-[0.18em] text-[#7a7263]">
-                                {user.constituency} · {user.house} · {new Date().toLocaleDateString('en-IN', {
-                                    weekday: 'long',
-                                    day: 'numeric',
-                                    month: 'long',
-                                    year: 'numeric',
-                                })}
-                            </p>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Calendar className="h-3.5 w-3.5" />
+                            {new Date().toLocaleDateString('en-IN', { 
+                                weekday: 'long', 
+                                day: 'numeric', 
+                                month: 'long', 
+                                year: 'numeric' 
+                            })}
                         </div>
-
-                        <div className="flex items-center gap-3">
-                            <div className="dashboard-panel flex items-center gap-3 px-4 py-2 text-sm">
-                                <Calendar className="h-4 w-4 text-[#0d6a4d]" />
-                                <div>
-                                    <p className="font-medium text-[#1a1812]">{user.display_name}</p>
-                                    <p className="text-xs text-[#7a7263]">Office of the MP</p>
-                                </div>
-                            </div>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-10 rounded-none border-[var(--hairline-strong)] bg-transparent px-4 text-[#1a1812] hover:bg-[#efe6d2]"
-                                onClick={openHistory}
-                            >
-                                <Clock className="mr-2 h-4 w-4" />
-                                Activity
-                            </Button>
-                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 gap-2"
+                            onClick={openHistory}
+                        >
+                            <Clock className="h-3.5 w-3.5" />
+                            <span className="hidden lg:inline">Activity</span>
+                        </Button>
                     </div>
                 </header>
 
+                {/* Announcement Banners */}
                 {visibleAnnouncements.length > 0 && (
-                    <div className="space-y-3 px-4 pt-4 md:px-6">
+                    <div className="px-4 md:px-6 pt-4 space-y-2">
                         {visibleAnnouncements.map(a => (
                             <div
                                 key={a.id}
-                                className="dashboard-panel flex items-start gap-3 rounded-none border-l-4 border-l-[#c76a1a] px-4 py-3"
+                                className="flex items-start gap-3 bg-primary/10 border border-primary/20 rounded-lg px-4 py-3"
                             >
-                                <Bell className="mt-0.5 h-4 w-4 shrink-0 text-[#0d6a4d]" />
-                                <div className="min-w-0 flex-1">
-                                    <p className="font-medium text-[#1a1812]">{a.title}</p>
+                                <Bell className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-foreground">{a.title}</p>
                                     {a.body && (
-                                        <p className="mt-1 text-sm text-[#4a453a]">{a.body}</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">{a.body}</p>
                                     )}
                                 </div>
                                 <button
                                     onClick={() => dismissAnnouncement(a.id)}
-                                    className="text-[#7a7263] transition-colors hover:text-[#1a1812]"
+                                    className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
                                     aria-label="Dismiss"
                                 >
                                     <X className="h-4 w-4" />
@@ -285,69 +242,93 @@ export default function DashboardLayout({ children }) {
                     </div>
                 )}
 
-                <div className="px-4 py-5 md:px-6 md:py-6">
+                {/* Content */}
+                <div className="flex-1 p-4 md:p-6 animate-fade-in">
                     {children}
                 </div>
             </main>
 
+            {/* History Sheet */}
             <Sheet open={showHistory} onOpenChange={setShowHistory}>
-                <SheetContent className="w-full max-w-none rounded-none border-l border-[var(--hairline)] bg-[#fbf6e7] p-0 sm:max-w-md">
-                    <SheetHeader className="border-b border-[var(--hairline)] px-6 py-4">
+                <SheetContent className="w-full sm:max-w-md p-0">
+                    <SheetHeader className="px-6 py-4 border-b border-border">
                         <SheetTitle className="flex items-center justify-between">
-                            <span className="font-editorial text-2xl font-semibold">Activity Ledger</span>
-                            <span className="font-mono-ui text-[11px] font-normal uppercase tracking-[0.18em] text-[#7a7263]">
+                            <span>Activity History</span>
+                            <span className="text-xs font-normal text-muted-foreground">
                                 Last 30 days
                             </span>
                         </SheetTitle>
                     </SheetHeader>
-
-                    <ScrollArea className="h-full">
-                        <div className="px-6 py-5">
-                            {historyLoading ? (
-                                <div className="flex items-center gap-3 py-6 text-sm text-[#4a453a]">
-                                    <Loader2 className="h-4 w-4 animate-spin text-[#0d6a4d]" />
-                                    Loading recent activity...
-                                </div>
-                            ) : history.length === 0 ? (
-                                <div className="dashboard-panel rounded-none px-4 py-5 text-sm text-[#4a453a]">
-                                    No recent activity found.
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {history.map(item => {
-                                        const Icon = TYPE_ICONS[item.activity_type] || Clock;
-                                        return (
-                                            <button
-                                                key={item.id}
-                                                className="dashboard-panel flex w-full items-start gap-3 rounded-none px-4 py-4 text-left transition-transform duration-200 hover:-translate-y-0.5"
-                                                onClick={() => {
-                                                    setShowHistory(false);
-                                                    router.push(historyItemHref(item));
-                                                }}
-                                            >
-                                                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-none bg-[#efe6d2] text-[#0d6a4d]">
-                                                    <Icon className="h-4 w-4" />
+                    
+                    <ScrollArea className="h-[calc(100vh-140px)]">
+                        {historyLoading ? (
+                            <div className="flex items-center justify-center py-16">
+                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                            </div>
+                        ) : history.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                                <Clock className="h-12 w-12 text-muted-foreground/30 mb-4" />
+                                <p className="text-sm text-muted-foreground">No activity yet</p>
+                                <p className="text-xs text-muted-foreground/70 mt-1">
+                                    Your recent actions will appear here
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-border">
+                                {history.map(item => {
+                                    const Icon = TYPE_ICONS[item.activity_type] || FileText;
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            className="w-full px-6 py-4 hover:bg-accent/50 transition-colors text-left"
+                                            onClick={() => { 
+                                                setShowHistory(false); 
+                                                router.push(historyItemHref(item)); 
+                                            }}
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                                    <Icon className="h-4 w-4 text-primary" />
                                                 </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-medium text-[#1a1812]">
-                                                            {TYPE_LABELS[item.activity_type] || 'Activity'}
-                                                        </span>
-                                                        <span className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-[#7a7263]">
-                                                            {new Date(item.created_at).toLocaleDateString('en-IN')}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                        <span className="text-xs font-semibold text-primary uppercase">
+                                                            {TYPE_LABELS[item.activity_type] || item.activity_type}
                                                         </span>
                                                     </div>
-                                                    <p className="mt-1 text-sm text-[#4a453a]">
-                                                        {item.title || item.summary || 'Open archived item'}
+                                                    <p className="text-sm font-medium text-foreground truncate">
+                                                        {item.title}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                                        {item.created_at 
+                                                            ? new Date(item.created_at).toLocaleString('en-IN', {
+                                                                day: '2-digit', 
+                                                                month: 'short', 
+                                                                hour: '2-digit', 
+                                                                minute: '2-digit'
+                                                            }) 
+                                                            : '–'}
                                                     </p>
                                                 </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </ScrollArea>
+
+                    <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border bg-card">
+                        <Button
+                            className="w-full"
+                            onClick={() => { 
+                                setShowHistory(false); 
+                                router.push('/dashboard/archives'); 
+                            }}
+                        >
+                            View All in Archives
+                        </Button>
+                    </div>
                 </SheetContent>
             </Sheet>
         </div>

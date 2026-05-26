@@ -45,18 +45,6 @@
     --chart-3: 197 71% 52%;
     --chart-4: 43 96% 56%;
     --chart-5: 27 96% 61%;
-    --paper: #f2ebd9;
-    --paper-deep: #e7deca;
-    --paper-surface: #fbf6e7;
-    --paper-muted: #efe6d2;
-    --ink-strong: #1a1812;
-    --ink-soft: #4a453a;
-    --ink-faint: #7a7263;
-    --ashoka: #006a4d;
-    --ashoka-deep: #083728;
-    --saffron: #c76a1a;
-    --hairline: rgba(26, 24, 18, 0.12);
-    --hairline-strong: rgba(26, 24, 18, 0.26);
   }
 
   .dark {
@@ -93,7 +81,6 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
-    font-family: "Inter", system-ui, sans-serif;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply text-balance font-semibold tracking-tight;
@@ -225,43 +212,6 @@
 /* Card hover effect */
 .card-hover {
   @apply transition-all duration-200 hover:shadow-md hover:border-border/80 hover:-translate-y-0.5;
-}
-
-.font-editorial {
-  font-family: "Source Serif 4", Georgia, serif;
-}
-
-.font-mono-ui {
-  font-family: "JetBrains Mono", monospace;
-}
-
-.dashboard-canvas {
-  background:
-    radial-gradient(circle at top right, rgba(199, 106, 26, 0.08), transparent 28%),
-    linear-gradient(180deg, #f5eedf 0%, #efe5d0 100%);
-}
-
-.dashboard-panel {
-  background: rgba(251, 246, 231, 0.92);
-  border: 1px solid var(--hairline);
-  box-shadow: 0 1px 0 rgba(26, 24, 18, 0.04), 0 10px 30px rgba(26, 24, 18, 0.04);
-}
-
-.dashboard-rule {
-  border-color: var(--hairline);
-}
-
-.dashboard-kpi {
-  background:
-    linear-gradient(180deg, rgba(251, 246, 231, 0.98), rgba(242, 235, 217, 0.9));
-  border: 1px solid var(--hairline);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
-}
-
-.dashboard-pill {
-  background: rgba(0, 106, 77, 0.08);
-  color: var(--ashoka);
-  border: 1px solid rgba(0, 106, 77, 0.14);
 }
 
 /* Stagger children animation */

@@ -31,13 +31,7 @@ Chronological log of completed repository work. Read before making changes to un
 - Risks or follow-ups: Future pushes should continue adding a short push record here to preserve deployment and workflow history.
 
 - Date: 2026-05-26
-- Request: Implement the Claude prototype redesign on the MP frontend.
-- Summary: Reworked the MP dashboard shell and overview page to a console-first editorial design inspired by the `Needle.zip` prototype, while preserving the existing dashboard APIs, quick actions, case summary behavior, and media/research workflows.
-- Files touched: `frontend/app/layout.js`, `frontend/app/globals.css`, `frontend/components/Sidebar.js`, `frontend/app/dashboard/layout.js`, `frontend/app/dashboard/page.js`
-- Risks or follow-ups: This first pass does not yet restyle the deeper MP modules such as Briefcase, Letterbox, Drafter, and SansadAI; those pages should be brought onto the same visual system in follow-up work.
-
-- Date: 2026-05-26
-- Request: Push the MP dashboard redesign to GitHub.
-- Summary: Prepared the redesign and memory updates for a single push on `main`, including the console-first editorial dashboard shell, overview redesign, and persistent repo-memory updates.
+- Request: Revert the MP dashboard redesign and push the rollback.
+- Summary: Reverted commit `5c031838` (`Redesign MP dashboard experience`) after the user judged the redesign not ready, restoring the prior MP dashboard implementation and documenting the rollback in repo memory.
 - Files touched: `frontend/app/layout.js`, `frontend/app/globals.css`, `frontend/components/Sidebar.js`, `frontend/app/dashboard/layout.js`, `frontend/app/dashboard/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
-- Risks or follow-ups: After this push, the remaining MP frontend modules should be evaluated for visual consistency with the new dashboard chrome.
+- Risks or follow-ups: Any future redesign should be applied in smaller slices and visually verified before pushing to `main`.
