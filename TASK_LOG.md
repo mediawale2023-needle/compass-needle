@@ -119,3 +119,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Pushed commit `8ae4f3c8` (`Redesign Briefcase to match prototype`) to `origin/main`, including the triage-first Briefcase layout, promoted cluster banner, redesigned filters and bulk actions, and the supporting Briefcase hook/state updates.
 - Files touched: `frontend/app/dashboard/sansadx/page.js`, `frontend/hooks/useBriefcaseCases.js`, `frontend/components/briefcase/*`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: The core prototype translation is now live in Git history; any future iteration should focus on smaller visual polish passes rather than another large structural shift.
+
+- Date: 2026-05-26
+- Request: Revert commits `ee0be990` and `f1839330` because the mobile pass changed the Briefcase structure too much.
+- Summary: Reverted commit `f1839330` (`Log Briefcase mobile push`) and commit `ee0be990` (`Make Briefcase mobile friendly`). The clarified direction is that mobile responsiveness should keep the desktop structure aligned as closely as possible instead of switching to alternate mobile-specific layouts.
+- Files touched: `frontend/app/dashboard/layout.js`, `frontend/components/briefcase/BriefcaseHeader.jsx`, `frontend/components/briefcase/BriefcaseTriageStrip.jsx`, `frontend/components/briefcase/BriefcaseClustersBanner.jsx`, `frontend/components/briefcase/BriefcaseFiltersBar.jsx`, `frontend/components/briefcase/BriefcaseBulkActions.jsx`, `frontend/components/briefcase/BriefcaseCasesTable.jsx`, `frontend/components/briefcase/BriefcaseDeletedCasesView.jsx`, `frontend/components/briefcase/BriefcaseClustersView.jsx`, `frontend/components/briefcase/BriefcasePagination.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The next mobile pass should focus on alignment-preserving responsive refinement rather than separate phone-only structures.
