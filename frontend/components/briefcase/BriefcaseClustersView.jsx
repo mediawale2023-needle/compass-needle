@@ -15,7 +15,7 @@ export default function BriefcaseClustersView({ clusters, loading, onSelectCase 
     }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 14, padding: '18px 14px 22px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14, padding: '18px 22px 22px' }}>
             {clusters.map((cluster, index) => (
                 <article key={index} style={{ border: `1px solid ${P.hair}`, background: P.surface }}>
                     <div style={{ padding: '14px 16px', borderBottom: `1px solid ${P.hair}`, background: P.surfaceWarm }}>
