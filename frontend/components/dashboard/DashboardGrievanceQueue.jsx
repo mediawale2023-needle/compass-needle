@@ -81,7 +81,7 @@ export default function DashboardGrievanceQueue({ cases, onCaseClick }) {
                     </colgroup>
                     <thead>
                         <tr style={{ background: P.surfaceWarm }}>
-                            {['#', 'Cat', 'Subject', 'Phone / ID', 'Age', 'Status'].map((heading) => (
+                            {['#', 'Cat', 'Subject', 'Phone / ID', 'Age', 'Status'].map((heading, index) => (
                                 <th
                                     key={heading}
                                     style={{
@@ -94,6 +94,7 @@ export default function DashboardGrievanceQueue({ cases, onCaseClick }) {
                                         textTransform: 'uppercase',
                                         fontWeight: 500,
                                         borderBottom: `1px solid ${P.hair}`,
+                                        borderRight: index === 1 ? `1px solid ${P.hair}` : 'none',
                                     }}
                                 >
                                     {heading}
@@ -122,10 +123,20 @@ export default function DashboardGrievanceQueue({ cases, onCaseClick }) {
                                     <td style={{ padding: '7px 10px', fontFamily: MONO, fontSize: 10, color: P.ink3 }}>
                                         {(index + 1).toString().padStart(2, '0')}
                                     </td>
-                                    <td style={{ padding: '7px 10px', fontSize: 11.5, color: P.ink2 }}>
+                                    <td
+                                        style={{
+                                            padding: '7px 12px 7px 10px',
+                                            fontSize: 11.5,
+                                            color: P.ink2,
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                            borderRight: `1px solid ${P.hair}`,
+                                        }}
+                                    >
                                         {caseItem.category || '—'}
                                     </td>
-                                    <td style={{ padding: '7px 10px', fontSize: 11.5, color: P.ink, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <td style={{ padding: '7px 10px 7px 14px', fontSize: 11.5, color: P.ink, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {caseItem.raw_message
                                             ? caseItem.raw_message.slice(0, 80) + (caseItem.raw_message.length > 80 ? '…' : '')
                                             : caseItem.category || '—'}

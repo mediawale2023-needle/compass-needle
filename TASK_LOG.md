@@ -95,3 +95,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Pushed commit `4293f1a3` (`Remove owner column from dashboard queue`) to `origin/main`, including the desktop grievance queue column removal and the task log update.
 - Files touched: `frontend/components/dashboard/DashboardGrievanceQueue.jsx`, `TASK_LOG.md`
 - Risks or follow-ups: This only changes the dashboard overview queue; other queue/table surfaces still retain their current columns unless changed separately.
+
+- Date: 2026-05-26
+- Request: Add clearer separation between the dashboard queue `Category` and `Subject` columns on desktop.
+- Summary: Added truncation plus a vertical divider to the `Category` cell and extra left padding on `Subject` so long category values no longer visually merge into the subject text.
+- Files touched: `frontend/components/dashboard/DashboardGrievanceQueue.jsx`, `TASK_LOG.md`
+- Risks or follow-ups: This is still a desktop dashboard-queue adjustment only; if tighter spacing appears elsewhere, those tables will need their own spacing pass.
