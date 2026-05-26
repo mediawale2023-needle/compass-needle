@@ -42,6 +42,12 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - This repository now follows a discuss-first workflow: inspect, summarize, confirm, then edit.
 - This repository also follows a memory-maintenance workflow: after each completed change and each GitHub push, update the repo memory files.
 
+## Frontend Design Memory
+
+- The MP dashboard redesign direction now uses a console-first editorial style inspired by the Claude prototype in `Needle.zip`.
+- The first implementation pass intentionally changes only the shared MP dashboard chrome and `/dashboard` overview page, while preserving existing API wiring and page behavior.
+- The visual language introduced in the MP frontend uses warm ivory paper surfaces, Ashoka green primary accents, saffron highlights, serif display typography, and mono metadata labels.
+
 ## Open Memory Items
 
 - Add durable architecture or module-specific lessons here as we learn them.
