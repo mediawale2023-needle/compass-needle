@@ -368,7 +368,7 @@ export default function DashboardLayout({ children }) {
                 )}
 
                 {/* Content */}
-                <div className="flex-1 p-4 md:p-[14px] animate-fade-in">
+                <div className="flex-1 p-3 sm:p-4 md:p-[14px] animate-fade-in overflow-x-hidden">
                     {children}
                 </div>
             </main>

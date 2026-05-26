@@ -24,10 +24,9 @@ export default function BriefcaseBulkActions({ selectedCount, onStatusChange, on
 
     return (
         <div
+            className="flex flex-col md:flex-row md:items-center"
             style={{
                 padding: '10px 22px',
-                display: 'flex',
-                alignItems: 'center',
                 gap: 12,
                 background: P.greenDeep,
                 color: '#F5EFE0',
@@ -53,51 +52,51 @@ export default function BriefcaseBulkActions({ selectedCount, onStatusChange, on
                 </span>
                 cases selected
             </div>
-            <span style={{ width: 1, height: 18, background: 'rgba(245,239,224,0.2)' }} />
+            <span className="hidden md:block" style={{ width: 1, height: 18, background: 'rgba(245,239,224,0.2)' }} />
 
-            <select
-                defaultValue=""
-                onChange={(event) => {
-                    if (event.target.value) {
-                        onAssign(event.target.value);
-                        event.target.value = '';
-                    }
-                }}
-                style={{ ...buttonStyle, background: P.saffron, border: 'none' }}
-            >
-                <option value="">Assign owner</option>
-                {staff.map((member) => (
-                    <option key={member.username} value={member.username}>{member.display_name || member.username}</option>
-                ))}
-            </select>
+            <div className="grid grid-cols-1 gap-2 md:flex md:flex-1 md:flex-wrap" style={{ flex: 1 }}>
+                <select
+                    defaultValue=""
+                    onChange={(event) => {
+                        if (event.target.value) {
+                            onAssign(event.target.value);
+                            event.target.value = '';
+                        }
+                    }}
+                    style={{ ...buttonStyle, background: P.saffron, border: 'none', color: P.greenDeep }}
+                >
+                    <option value="">Assign owner</option>
+                    {staff.map((member) => (
+                        <option key={member.username} value={member.username}>{member.display_name || member.username}</option>
+                    ))}
+                </select>
 
-            <select
-                defaultValue=""
-                onChange={(event) => {
-                    if (event.target.value) {
-                        onStatusChange(event.target.value);
-                        event.target.value = '';
-                    }
-                }}
-                style={buttonStyle}
-            >
-                <option value="">Set status</option>
-                {STATUS_OPTIONS.map((status) => (
-                    <option key={status.value} value={status.value}>{status.label}</option>
-                ))}
-            </select>
+                <select
+                    defaultValue=""
+                    onChange={(event) => {
+                        if (event.target.value) {
+                            onStatusChange(event.target.value);
+                            event.target.value = '';
+                        }
+                    }}
+                    style={buttonStyle}
+                >
+                    <option value="">Set status</option>
+                    {STATUS_OPTIONS.map((status) => (
+                        <option key={status.value} value={status.value}>{status.label}</option>
+                    ))}
+                </select>
 
-            <button style={buttonStyle} type="button">
-                <BriefcaseIcon name="briefcase" size={12} color="#F5EFE0" /> Categorise
-            </button>
-            <button style={buttonStyle} type="button">
-                <BriefcaseIcon name="drafter" size={12} color="#F5EFE0" /> Add to letter draft
-            </button>
-            <button style={buttonStyle} type="button">
-                <BriefcaseIcon name="cluster" size={12} color="#F5EFE0" /> Group as cluster
-            </button>
-
-            <div style={{ flex: 1 }} />
+                <button style={buttonStyle} type="button">
+                    <BriefcaseIcon name="briefcase" size={12} color="#F5EFE0" /> Categorise
+                </button>
+                <button style={buttonStyle} type="button">
+                    <BriefcaseIcon name="drafter" size={12} color="#F5EFE0" /> Add to letter draft
+                </button>
+                <button style={buttonStyle} type="button">
+                    <BriefcaseIcon name="cluster" size={12} color="#F5EFE0" /> Group as cluster
+                </button>
+            </div>
             <button
                 onClick={onClear}
                 style={{
