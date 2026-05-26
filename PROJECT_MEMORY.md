@@ -43,6 +43,17 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - This repository also follows a memory-maintenance workflow: after each completed change and each GitHub push, update the repo memory files.
 - A console-first editorial redesign for the MP dashboard was attempted and then reverted on 2026-05-26; future redesign work should be staged more incrementally and visually verified before push.
 
+## Dashboard Refactor Memory
+
+- The current dashboard refactor started by extracting shared dashboard tokens into `frontend/lib/dashboard-theme.js`.
+- Reusable dashboard primitives now live under `frontend/components/dashboard/`, starting with `DashboardMiniBars`, `DashboardDonut`, `DashboardSectionFrame`, and `DashboardStatusBadge`.
+- The current `frontend/app/dashboard/page.js` still contains major feature sections, but it now consumes shared theme/primitives instead of owning all chart and status rendering directly.
+- The second refactor batch extracted the dashboard feature sections into dedicated components: KPI tiles, grievance queue, workload card, engagements card, letters card, press card, activity feed, constituency map, and empty state.
+- `frontend/app/dashboard/page.js` is now primarily a data-fetching and composition layer for the overview screen.
+- The third refactor batch moved overview request orchestration into `frontend/hooks/useDashboardOverview.js` and raw response normalization into `frontend/lib/dashboard-mappers.js`.
+- The dashboard overview page is now mostly a thin container for auth checks, navigation handlers, and component composition.
+- Final review fixes removed nondeterministic KPI chart rendering and hardened initial loading state so the overview no longer risks hydration drift or a false empty-state flash while cases are still loading.
+
 ## Open Memory Items
 
 - Add durable architecture or module-specific lessons here as we learn them.

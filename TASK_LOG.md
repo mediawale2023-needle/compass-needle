@@ -35,3 +35,27 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Reverted commit `5c031838` (`Redesign MP dashboard experience`) after the user judged the redesign not ready, restoring the prior MP dashboard implementation and documenting the rollback in repo memory.
 - Files touched: `frontend/app/layout.js`, `frontend/app/globals.css`, `frontend/components/Sidebar.js`, `frontend/app/dashboard/layout.js`, `frontend/app/dashboard/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: Any future redesign should be applied in smaller slices and visually verified before pushing to `main`.
+
+- Date: 2026-05-26
+- Request: Start refactoring the current Claude-built dashboard into reusable structure without changing the design.
+- Summary: Completed the first refactor batch by extracting dashboard theme tokens and shared visual primitives, wiring the live dashboard page to use them, and updating the dashboard test to match the current console dashboard copy.
+- Files touched: `frontend/lib/dashboard-theme.js`, `frontend/components/dashboard/DashboardMiniBars.jsx`, `frontend/components/dashboard/DashboardDonut.jsx`, `frontend/components/dashboard/DashboardSectionFrame.jsx`, `frontend/components/dashboard/DashboardStatusBadge.jsx`, `frontend/app/dashboard/page.js`, `frontend/tests/dashboard.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The dashboard page is still structurally large; the next batch should extract feature sections like KPI tiles, grievance queue, workload, letters, press, and activity feed into `frontend/components/dashboard/`.
+
+- Date: 2026-05-26
+- Request: Implement Batch 2 of the dashboard refactor by extracting feature sections into reusable components.
+- Summary: Moved the major dashboard sections out of `frontend/app/dashboard/page.js` into dedicated `frontend/components/dashboard/` modules, leaving the page as an overview composer with fetching and routing logic.
+- Files touched: `frontend/components/dashboard/DashboardKpiTiles.jsx`, `frontend/components/dashboard/DashboardGrievanceQueue.jsx`, `frontend/components/dashboard/DashboardWorkloadCard.jsx`, `frontend/components/dashboard/DashboardEngagementsCard.jsx`, `frontend/components/dashboard/DashboardLettersCard.jsx`, `frontend/components/dashboard/DashboardPressCard.jsx`, `frontend/components/dashboard/DashboardActivityFeed.jsx`, `frontend/components/dashboard/DashboardConstituencyMap.jsx`, `frontend/components/dashboard/DashboardEmptyState.jsx`, `frontend/app/dashboard/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The next batch should separate data shaping and request orchestration into a dashboard hook and mapper layer so the page no longer owns fetch timing or response normalization.
+
+- Date: 2026-05-26
+- Request: Implement Batch 3 of the dashboard refactor by moving fetch orchestration and response shaping out of the page.
+- Summary: Added `frontend/hooks/useDashboardOverview.js` for overview data loading and `frontend/lib/dashboard-mappers.js` for response normalization and derived state, then refactored `frontend/app/dashboard/page.js` to consume the hook as a composition-only screen.
+- Files touched: `frontend/hooks/useDashboardOverview.js`, `frontend/lib/dashboard-mappers.js`, `frontend/app/dashboard/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The current dashboard structure is now much healthier; the next improvements would be smaller polish items such as moving remaining inline layout styles into reusable wrappers or extending the extracted dashboard system into other MP frontend pages.
+
+- Date: 2026-05-26
+- Request: Review the dashboard refactor and push it if clean.
+- Summary: Reviewed the refactor, fixed two issues before push: nondeterministic KPI chart rendering in `DashboardKpiTiles` and a false empty-state flash risk in `useDashboardOverview` when summary loaded before cases.
+- Files touched: `frontend/components/dashboard/DashboardKpiTiles.jsx`, `frontend/hooks/useDashboardOverview.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The dashboard refactor is now structurally sound enough to push; future work can focus on broader reuse and smaller visual cleanup rather than core architecture.

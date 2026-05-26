@@ -67,11 +67,12 @@ describe('MP dashboard overview', () => {
         });
     });
 
-    it('renders urgent summary state and MP-only quick actions', async () => {
+    it('renders the console dashboard overview with MP-facing sections', async () => {
         render(<DashboardPage />);
 
-        expect(await screen.findByText(/1 new grievance needs attention/i)).toBeInTheDocument();
-        expect(screen.getByText('Research Desk')).toBeInTheDocument();
+        expect(await screen.findByText('Grievances open')).toBeInTheDocument();
+        expect(screen.getByText('Workload by category')).toBeInTheDocument();
+        expect(screen.getByText('Letters & drafts')).toBeInTheDocument();
         expect(apiGetMock).toHaveBeenCalledWith('/api/dashboard/summary');
     });
 });
