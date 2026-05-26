@@ -125,3 +125,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Added responsive behavior to the shared dashboard content shell and reworked Briefcase for phones with dedicated mobile header, responsive KPI strip, stacked cluster banner, mobile-first filter controls, mobile case cards, stacked bulk actions, mobile deleted-case cards, and stacked pagination while preserving the desktop design and live workflows.
 - Files touched: `frontend/app/dashboard/layout.js`, `frontend/components/briefcase/BriefcaseHeader.jsx`, `frontend/components/briefcase/BriefcaseTriageStrip.jsx`, `frontend/components/briefcase/BriefcaseClustersBanner.jsx`, `frontend/components/briefcase/BriefcaseFiltersBar.jsx`, `frontend/components/briefcase/BriefcaseBulkActions.jsx`, `frontend/components/briefcase/BriefcaseCasesTable.jsx`, `frontend/components/briefcase/BriefcaseDeletedCasesView.jsx`, `frontend/components/briefcase/BriefcaseClustersView.jsx`, `frontend/components/briefcase/BriefcasePagination.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: Briefcase now has a proper mobile shape, but Letterbox, Drafter, and other MP pages still need their own responsive passes if you want the whole app to feel consistently mobile-ready.
+
+- Date: 2026-05-26
+- Request: Push the Briefcase mobile-friendly update to GitHub.
+- Summary: Pushed commit `ee0be990` (`Make Briefcase mobile friendly`) to `origin/main`, including the responsive shared-shell polish and the new mobile-specific Briefcase layouts for header, filters, case list, bulk actions, clusters, deleted cases, and pagination.
+- Files touched: `frontend/app/dashboard/layout.js`, `frontend/components/briefcase/*`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Briefcase is now materially better on phones, but other MP pages still need dedicated responsive passes if the whole frontend should feel consistently mobile-ready.
