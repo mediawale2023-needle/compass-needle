@@ -59,3 +59,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Reviewed the refactor, fixed two issues before push: nondeterministic KPI chart rendering in `DashboardKpiTiles` and a false empty-state flash risk in `useDashboardOverview` when summary loaded before cases.
 - Files touched: `frontend/components/dashboard/DashboardKpiTiles.jsx`, `frontend/hooks/useDashboardOverview.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: The dashboard refactor is now structurally sound enough to push; future work can focus on broader reuse and smaller visual cleanup rather than core architecture.
+
+- Date: 2026-05-26
+- Request: Push the dashboard refactor to GitHub.
+- Summary: Pushed commit `79a43a5d` (`Refactor dashboard into reusable modules`) to `origin/main`, including the extracted dashboard component system, theme tokens, mapper layer, overview hook, updated tests, and final review fixes.
+- Files touched: `frontend/app/dashboard/page.js`, `frontend/hooks/useDashboardOverview.js`, `frontend/lib/dashboard-mappers.js`, `frontend/lib/dashboard-theme.js`, `frontend/components/dashboard/*`, `frontend/tests/dashboard.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Future work can now focus on reusing the dashboard system in other MP pages or doing targeted polish, rather than untangling overview-page architecture.
