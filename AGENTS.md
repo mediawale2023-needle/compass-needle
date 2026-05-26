@@ -290,3 +290,34 @@ Supported languages: Hindi, Hinglish, Marathi, Tamil, Telugu, Kannada, Malayalam
 ## MP Dashboard
 
 The MP dashboard in `/frontend` remains the primary user-facing web app for grievance workflows, research, drafting, and constituency operations.
+
+---
+
+## Pre-Change Protocol
+
+Before making any code change in this repository, follow this workflow:
+
+1. Read `AGENTS.md`.
+2. Read `PROJECT_MEMORY.md`.
+3. Read `TASK_LOG.md`.
+4. Inspect the relevant files for the requested area.
+5. Share a short pre-change note with the user covering:
+   - what exists now
+   - what is likely to change
+   - risks, assumptions, and files likely to be touched
+6. Wait for explicit user confirmation before editing code.
+7. After every completed code or documentation change, update `PROJECT_MEMORY.md` if any durable project knowledge changed.
+8. After every completed code or documentation change, add a concise entry to `TASK_LOG.md`.
+9. After every push to GitHub, record the push in `TASK_LOG.md` and update `PROJECT_MEMORY.md` if the push reflects a durable workflow or architecture decision.
+
+### Scope Notes
+
+- This protocol applies to code changes, refactors, migrations, and structural edits.
+- Pure inspection, debugging, or answer-only requests can proceed without confirmation unless they would modify files.
+- If production risk, tenant isolation, auth, billing, or data integrity is involved, pause and confirm even if the request seems small.
+
+### Memory Files
+
+- `PROJECT_MEMORY.md` stores durable project memory: architecture decisions, fragile areas, conventions, and important lessons.
+- `TASK_LOG.md` stores a running history of completed tasks, touched areas, follow-up notes, and pushes to GitHub.
+- Treat both files as mandatory context before implementation.
