@@ -22,8 +22,8 @@ import {
 
 const NAV_ITEMS = [
     { name: 'Overview',    path: '/dashboard',            icon: LayoutDashboard },
-    { name: 'Grievances',  path: '/dashboard/sansadx',    icon: Briefcase,   badgeKey: 'briefcase' },
-    { name: 'Letters',     path: '/dashboard/letterbox',  icon: Mail,        badgeKey: 'letterbox' },
+    { name: 'Briefcase',   path: '/dashboard/sansadx',    icon: Briefcase,   badgeKey: 'briefcase' },
+    { name: 'Letterbox',   path: '/dashboard/letterbox',  icon: Mail,        badgeKey: 'letterbox' },
     { name: 'Drafter',     path: '/dashboard/drafter',    icon: PenTool },
     { name: 'Sansad AI',   path: '/dashboard/sansadai',   icon: Bot,         mpOnly: true },
     { name: 'Convergence', path: '/dashboard/csr',        icon: Users,       mpOnly: true },

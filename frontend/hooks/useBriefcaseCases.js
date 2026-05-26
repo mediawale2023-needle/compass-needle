@@ -1,0 +1,436 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useToast } from '@/components/ui/toast';
+import { apiBlob, apiGet, apiPatch } from '@/lib/api';
+import { OTHER_CATEGORIES, OTHER_STATUSES } from '@/components/briefcase/briefcase-shared';
+
+export function getBriefcaseRowHighlight(status, category) {
+    const normalizedStatus = (status || '').toLowerCase();
+    const normalizedCategory = (category || '').toLowerCase();
+    if (normalizedStatus === 'new' || normalizedStatus === 'escalated' || normalizedCategory === 'emergency') {
+        return 'border-l-4 border-l-red-500 bg-red-50/50';
+    }
+    if (normalizedStatus === 'resolved' || normalizedStatus === 'in_progress') {
+        return 'border-l-4 border-l-green-500 bg-green-50/30';
+    }
+    return '';
+}
+
+export default function useBriefcaseCases(user) {
+    const toast = useToast();
+    const searchParams = useSearchParams();
+
+    const [cases, setCases] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'All');
+    const [categoryFilter, setCategoryFilter] = useState(() => searchParams.get('category') || '');
+    const [locationFilter, setLocationFilter] = useState(() => searchParams.get('location') || '');
+    const [assemblyFilter, setAssemblyFilter] = useState(() => searchParams.get('assembly') || '');
+    const [filterOptions, setFilterOptions] = useState({ statuses: [], categories: [], locations: [], assemblies: [] });
+    const [selected, setSelected] = useState(null);
+    const [downloading, setDownloading] = useState(false);
+    const [contactPhone, setContactPhone] = useState(null);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalCases, setTotalCases] = useState(0);
+    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [staff, setStaff] = useState([]);
+    const [searchInput, setSearchInput] = useState('');
+    const [search, setSearch] = useState('');
+    const [pageSize, setPageSize] = useState(50);
+    const [assignedFilter, setAssignedFilter] = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
+    const [criticalOnly, setCriticalOnly] = useState(false);
+    const [sortOrder, setSortOrder] = useState('newest');
+    const [refreshToken, setRefreshToken] = useState(0);
+    const [hasNewCases, setHasNewCases] = useState(false);
+    const [clusters, setClusters] = useState([]);
+    const [loadingClusters, setLoadingClusters] = useState(false);
+    const [deletedCases, setDeletedCases] = useState([]);
+    const [loadingDeleted, setLoadingDeleted] = useState(false);
+
+    useEffect(() => {
+        const status = searchParams.get('status') || 'All';
+        const category = searchParams.get('category') || '';
+        const location = searchParams.get('location') || '';
+        const assembly = searchParams.get('assembly') || '';
+        setStatusFilter(status);
+        setCategoryFilter(category);
+        setLocationFilter(location);
+        setAssemblyFilter(assembly);
+        setPage(1);
+    }, [searchParams]);
+
+    useEffect(() => {
+        const timeout = setTimeout(() => {
+            setSearch(searchInput);
+            setPage(1);
+        }, 400);
+        return () => clearTimeout(timeout);
+    }, [searchInput]);
+
+    useEffect(() => {
+        apiGet('/api/staff')
+            .then((result) => setStaff(result.staff || []))
+            .catch(() => { console.error('Failed to fetch staff'); });
+    }, []);
+
+    useEffect(() => {
+        apiGet('/api/cases/filter-options')
+            .then((result) => setFilterOptions({
+                statuses: result.statuses || [],
+                categories: result.categories || [],
+                locations: result.locations || [],
+                assemblies: result.assemblies || [],
+            }))
+            .catch(() => setFilterOptions({ statuses: [], categories: [], locations: [], assemblies: [] }));
+    }, [refreshToken]);
+
+    function setUrlFilter(key, value) {
+        const url = new URL(window.location.href);
+        if (value) {
+            url.searchParams.set(key, value);
+        } else {
+            url.searchParams.delete(key);
+        }
+        window.history.replaceState({}, '', url.toString());
+    }
+
+    function optionLabel(option) {
+        return `${option.value}${option.count ? ` (${option.count})` : ''}`;
+    }
+
+    function applyCaseFilters(params) {
+        if (statusFilter === 'All') {
+            params.set('exclude_status', ['resolved', 'closed', ...OTHER_STATUSES].join(','));
+            params.set('exclude_categories', OTHER_CATEGORIES.join(','));
+        } else if (statusFilter === 'other') {
+            params.set('bucket', 'other');
+        } else {
+            params.set('status', statusFilter);
+        }
+
+        if (categoryFilter) params.set('category', categoryFilter);
+        if (locationFilter) params.set('location', locationFilter);
+        if (assemblyFilter) params.set('assembly', assemblyFilter);
+        if (search) params.set('search', search);
+        if (assignedFilter) params.set('assigned_to', assignedFilter);
+        if (dateFrom) params.set('date_from', dateFrom);
+        if (dateTo) params.set('date_to', dateTo);
+        if (criticalOnly) params.set('critical', 'true');
+        if (sortOrder) params.set('sort', sortOrder);
+    }
+
+    async function fetchClusters() {
+        setLoadingClusters(true);
+        try {
+            const result = await apiGet('/api/clusters');
+            setClusters(result.clusters || []);
+        } catch {
+            setClusters([]);
+        } finally {
+            setLoadingClusters(false);
+        }
+    }
+
+    async function fetchDeleted() {
+        setLoadingDeleted(true);
+        try {
+            const result = await apiGet('/api/cases/deleted');
+            setDeletedCases(result.cases || []);
+        } catch {
+            setDeletedCases([]);
+        } finally {
+            setLoadingDeleted(false);
+        }
+    }
+
+    useEffect(() => {
+        if (statusFilter === 'clusters') {
+            fetchClusters();
+            return;
+        }
+        if (statusFilter === 'deleted') {
+            fetchDeleted();
+            return;
+        }
+
+        let cancelled = false;
+
+        async function fetchCases() {
+            setLoading(true);
+            try {
+                const params = new URLSearchParams({
+                    page: String(page),
+                    limit: String(pageSize),
+                });
+                applyCaseFilters(params);
+                const result = await apiGet(`/api/cases?${params}`);
+                if (!cancelled) {
+                    setCases(result.cases || []);
+                    setTotalPages(result.pages || 1);
+                    setTotalCases(result.total || 0);
+                    setSelectedIds(new Set());
+                    setHasNewCases(false);
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    console.error(error);
+                    toast.error('Failed to load cases');
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
+        }
+
+        fetchCases();
+        return () => {
+            cancelled = true;
+        };
+    }, [statusFilter, categoryFilter, locationFilter, assemblyFilter, page, user?.username, search, pageSize, assignedFilter, dateFrom, dateTo, criticalOnly, sortOrder, refreshToken, toast]);
+
+    useEffect(() => {
+        if (statusFilter === 'clusters' || statusFilter === 'deleted') {
+            return;
+        }
+        const interval = setInterval(async () => {
+            if (document.visibilityState !== 'visible') {
+                return;
+            }
+            try {
+                const params = new URLSearchParams({ page: '1', limit: '1' });
+                applyCaseFilters(params);
+                const result = await apiGet(`/api/cases?${params}`);
+                if ((result.total || 0) > totalCases) {
+                    setHasNewCases(true);
+                }
+            } catch {
+                // silent polling
+            }
+        }, 30000);
+        return () => clearInterval(interval);
+    }, [statusFilter, categoryFilter, locationFilter, assemblyFilter, totalCases, user?.username, search, assignedFilter, dateFrom, dateTo, criticalOnly, sortOrder]);
+
+    useEffect(() => {
+        const caseId = searchParams.get('case_id');
+        if (!caseId || cases.length === 0) {
+            return;
+        }
+        const match = cases.find((item) => String(item.id) === caseId);
+        if (match) {
+            setSelected(match);
+        }
+    }, [cases, searchParams]);
+
+    function switchTab(key) {
+        setStatusFilter(key);
+        setPage(1);
+        setSearch('');
+        setSearchInput('');
+        const url = new URL(window.location.href);
+        if (key === 'All') {
+            url.searchParams.delete('status');
+        } else {
+            url.searchParams.set('status', key);
+        }
+        window.history.replaceState({}, '', url.toString());
+    }
+
+    function refreshCases() {
+        setHasNewCases(false);
+        setPage(1);
+        setRefreshToken((value) => value + 1);
+    }
+
+    function clearAdvancedFilters() {
+        setAssignedFilter('');
+        setDateFrom('');
+        setDateTo('');
+        setCriticalOnly(false);
+        setSortOrder('newest');
+        setCategoryFilter('');
+        setLocationFilter('');
+        setAssemblyFilter('');
+        setSearchInput('');
+        setSearch('');
+        const url = new URL(window.location.href);
+        ['category', 'location', 'assembly'].forEach((key) => url.searchParams.delete(key));
+        window.history.replaceState({}, '', url.toString());
+        setPage(1);
+        setRefreshToken((value) => value + 1);
+    }
+
+    async function handleRestore(caseId) {
+        try {
+            await apiPatch(`/api/cases/${caseId}/restore`, {});
+            setDeletedCases((current) => current.filter((item) => item.id !== caseId));
+            toast.success('Case restored successfully');
+        } catch (error) {
+            toast.error(error.message || 'Failed to restore case');
+        }
+    }
+
+    function clearCategoryFilter() {
+        setCategoryFilter('');
+        setPage(1);
+        setUrlFilter('category', '');
+    }
+
+    function clearLocationFilter() {
+        setLocationFilter('');
+        setPage(1);
+        setUrlFilter('location', '');
+    }
+
+    function clearAssemblyFilter() {
+        setAssemblyFilter('');
+        setPage(1);
+        setUrlFilter('assembly', '');
+    }
+
+    function handleStatusChange(caseId, newStatus) {
+        setCases((current) => current.map((item) => item.id === caseId ? { ...item, status: newStatus } : item));
+        setSelected((current) => current && current.id === caseId ? { ...current, status: newStatus } : current);
+    }
+
+    async function bulkStatusChange(newStatus) {
+        const ids = [...selectedIds];
+        if (ids.length === 0) {
+            return;
+        }
+        try {
+            await Promise.all(ids.map((id) => apiPatch(`/api/cases/${id}/status`, { status: newStatus })));
+            setCases((current) => current.map((item) => ids.includes(item.id) ? { ...item, status: newStatus } : item));
+            setSelectedIds(new Set());
+            toast.success(`Updated ${ids.length} case${ids.length !== 1 ? 's' : ''} to ${newStatus}`);
+        } catch (error) {
+            console.error(error);
+            toast.error('Bulk update failed');
+        }
+    }
+
+    async function bulkAssign(username) {
+        const ids = [...selectedIds];
+        if (ids.length === 0) {
+            return;
+        }
+        try {
+            await Promise.all(ids.map((id) => apiPatch(`/api/cases/${id}`, { assigned_to: username || null })));
+            setCases((current) => current.map((item) => ids.includes(item.id) ? { ...item, assigned_to: username } : item));
+            setSelectedIds(new Set());
+            toast.success(`Assigned ${ids.length} case${ids.length !== 1 ? 's' : ''} to ${username || 'unassigned'}`);
+        } catch (error) {
+            console.error(error);
+            toast.error('Bulk assign failed');
+        }
+    }
+
+    async function exportCasesCsv() {
+        try {
+            const params = new URLSearchParams();
+            applyCaseFilters(params);
+            const qs = params.toString() ? `?${params.toString()}` : '';
+            const blob = await apiBlob(`/api/cases/export${qs}`);
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `briefcase_cases_${new Date().toISOString().slice(0, 10)}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+            toast.success('Cases exported');
+        } catch (error) {
+            toast.error(error.message || 'Failed to export cases');
+        }
+    }
+
+    async function downloadReport() {
+        setDownloading(true);
+        try {
+            const params = new URLSearchParams();
+            if (statusFilter !== 'All') params.set('status', statusFilter);
+            if (categoryFilter) params.set('category', categoryFilter);
+            if (locationFilter) params.set('location', locationFilter);
+            if (assemblyFilter) params.set('assembly', assemblyFilter);
+            const qs = params.toString() ? `?${params}` : '';
+            const blob = await apiBlob(`/api/reports/grievance${qs}`);
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `grievance_report_${new Date().toISOString().slice(0, 10)}.pdf`;
+            link.click();
+            URL.revokeObjectURL(url);
+            toast.success('Report downloaded successfully');
+        } catch (error) {
+            console.error('Report download failed:', error);
+            toast.error('Failed to download report');
+        } finally {
+            setDownloading(false);
+        }
+    }
+
+    return {
+        assemblyFilter,
+        assignedFilter,
+        bulkAssign,
+        bulkStatusChange,
+        cases,
+        categoryFilter,
+        clearAdvancedFilters,
+        clearAssemblyFilter,
+        clearCategoryFilter,
+        clearLocationFilter,
+        clusters,
+        color: user?.theme_color || '#006a4d',
+        contactPhone,
+        criticalOnly,
+        dateFrom,
+        dateTo,
+        deletedCases,
+        downloading,
+        downloadReport,
+        exportCasesCsv,
+        filterOptions,
+        handleRestore,
+        handleStatusChange,
+        hasNewCases,
+        loading,
+        loadingClusters,
+        loadingDeleted,
+        locationFilter,
+        optionLabel,
+        page,
+        pageSize,
+        refreshCases,
+        search,
+        searchInput,
+        selected,
+        selectedIds,
+        setAssemblyFilter,
+        setAssignedFilter,
+        setCategoryFilter,
+        setContactPhone,
+        setCriticalOnly,
+        setDateFrom,
+        setDateTo,
+        setHasNewCases,
+        setLocationFilter,
+        setPage,
+        setPageSize,
+        setSearchInput,
+        setSelected,
+        setSelectedIds,
+        setSortOrder,
+        setUrlFilter,
+        sortOrder,
+        staff,
+        statusFilter,
+        switchTab,
+        totalCases,
+        totalPages,
+    };
+}

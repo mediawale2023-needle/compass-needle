@@ -54,6 +54,14 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - The dashboard overview page is now mostly a thin container for auth checks, navigation handlers, and component composition.
 - Final review fixes removed nondeterministic KPI chart rendering and hardened initial loading state so the overview no longer risks hydration drift or a false empty-state flash while cases are still loading.
 
+## Briefcase Refactor Memory
+
+- The Briefcase page lives at `frontend/app/dashboard/sansadx/page.js` and remains behavior-heavy, with live case editing, escalation, contact management, polling, and URL-synced filters.
+- The first Briefcase structural extraction moved the embedded modal/viewer stack into `frontend/components/briefcase/`: shared tabs/status helpers, contact panel, escalation modal, source media viewer, and case modal.
+- The next Briefcase refactor pass moved fetch, polling, filter, pagination, and bulk-action orchestration into `frontend/hooks/useBriefcaseCases.js`, leaving the route page primarily as a composition layer.
+- Reusable Briefcase view sections now live under `frontend/components/briefcase/` for the header, filters, active-filter chips, bulk actions, clusters view, deleted cases view, cases table, and pagination.
+- Sidebar naming now treats `/dashboard/sansadx` as `Briefcase` and `/dashboard/letterbox` as `Letterbox`, so future copy changes should preserve that naming across the MP frontend.
+
 ## Open Memory Items
 
 - Add durable architecture or module-specific lessons here as we learn them.
