@@ -83,3 +83,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Pushed commit `d35fd3de` (`Refactor Briefcase into reusable modules`) to `origin/main`, including the Briefcase hook/component extraction, sidebar naming updates, and repo memory updates.
 - Files touched: `frontend/app/dashboard/sansadx/page.js`, `frontend/hooks/useBriefcaseCases.js`, `frontend/components/briefcase/*`, `frontend/components/Sidebar.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: The Briefcase page is now structurally ready for future visual-system work; the next reuse target can move to Letterbox or another MP module without carrying the old monolith shape forward.
+
+- Date: 2026-05-26
+- Request: Remove the desktop `Owner` column from the dashboard grievance queue so `Category` and `Subject` have more room.
+- Summary: Removed the `Owner` column from the desktop grievance queue table in the dashboard overview and updated the empty-state column span so the queue layout can give more space to the remaining columns.
+- Files touched: `frontend/components/dashboard/DashboardGrievanceQueue.jsx`, `TASK_LOG.md`
+- Risks or follow-ups: This is a dashboard-overview-only change; if the same column should disappear elsewhere, Briefcase and other queue-style tables would need separate updates.

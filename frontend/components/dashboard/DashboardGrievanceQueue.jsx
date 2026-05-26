@@ -78,11 +78,10 @@ export default function DashboardGrievanceQueue({ cases, onCaseClick }) {
                         <col style={{ width: 90 }} />
                         <col style={{ width: 46 }} />
                         <col style={{ width: 100 }} />
-                        <col style={{ width: 120 }} />
                     </colgroup>
                     <thead>
                         <tr style={{ background: P.surfaceWarm }}>
-                            {['#', 'Cat', 'Subject', 'Phone / ID', 'Age', 'Status', 'Owner'].map((heading) => (
+                            {['#', 'Cat', 'Subject', 'Phone / ID', 'Age', 'Status'].map((heading) => (
                                 <th
                                     key={heading}
                                     style={{
@@ -105,7 +104,7 @@ export default function DashboardGrievanceQueue({ cases, onCaseClick }) {
                     <tbody>
                         {filtered.length === 0 ? (
                             <tr>
-                                <td colSpan={7} style={{ padding: '24px 16px', textAlign: 'center', color: P.ink3, fontSize: 12 }}>
+                                <td colSpan={6} style={{ padding: '24px 16px', textAlign: 'center', color: P.ink3, fontSize: 12 }}>
                                     No cases found
                                 </td>
                             </tr>
@@ -139,9 +138,6 @@ export default function DashboardGrievanceQueue({ cases, onCaseClick }) {
                                     </td>
                                     <td style={{ padding: '7px 10px' }}>
                                         <DashboardStatusBadge status={caseItem.status} />
-                                    </td>
-                                    <td style={{ padding: '7px 10px', fontSize: 11, color: P.ink2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {caseItem.assigned_to || <span style={{ color: P.ink3, fontStyle: 'italic' }}>unassigned</span>}
                                     </td>
                                 </tr>
                             ))
