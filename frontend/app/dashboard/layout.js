@@ -48,6 +48,7 @@ export default function DashboardLayout({ children }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [announcements, setAnnouncements] = useState([]);
     const [dismissedIds, setDismissedIds] = useState([]);
+    const isBriefcaseRoute = pathname?.startsWith('/dashboard/sansadx');
 
     useEffect(() => { setIsMobileMenuOpen(false); }, [pathname]);
 
@@ -146,38 +147,40 @@ export default function DashboardLayout({ children }) {
     return (
         <div className="min-h-screen" style={{ background: 'var(--cn-paper)' }}>
             {/* ── Mobile Header ── */}
-            <header
-                className="md:hidden flex items-center justify-between px-4 h-14 sticky top-0 z-40"
-                style={{
-                    background: 'var(--cn-paper)',
-                    borderBottom: '1px solid var(--cn-hair)',
-                }}
-            >
-                <div className="flex items-center gap-3">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
-                        style={{ color: 'var(--cn-ink)' }}
-                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                    >
-                        {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-                    </Button>
-                    <span
-                        className="font-semibold text-sm"
-                        style={{ fontFamily: '"Source Serif 4", serif', color: 'var(--cn-ink)' }}
-                    >
-                        Compass Needle
-                    </span>
-                </div>
-                <button
-                    className="h-9 w-9 flex items-center justify-center"
-                    style={{ color: 'var(--cn-ink3)' }}
-                    onClick={openHistory}
+            {!isBriefcaseRoute && (
+                <header
+                    className="md:hidden flex items-center justify-between px-4 h-14 sticky top-0 z-40"
+                    style={{
+                        background: 'var(--cn-paper)',
+                        borderBottom: '1px solid var(--cn-hair)',
+                    }}
                 >
-                    <Clock className="h-5 w-5" />
-                </button>
-            </header>
+                    <div className="flex items-center gap-3">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9"
+                            style={{ color: 'var(--cn-ink)' }}
+                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                        >
+                            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                        </Button>
+                        <span
+                            className="font-semibold text-sm"
+                            style={{ fontFamily: '"Source Serif 4", serif', color: 'var(--cn-ink)' }}
+                        >
+                            Compass Needle
+                        </span>
+                    </div>
+                    <button
+                        className="h-9 w-9 flex items-center justify-center"
+                        style={{ color: 'var(--cn-ink3)' }}
+                        onClick={openHistory}
+                    >
+                        <Clock className="h-5 w-5" />
+                    </button>
+                </header>
+            )}
 
             <Sidebar
                 user={user}
@@ -194,149 +197,151 @@ export default function DashboardLayout({ children }) {
                 sidebarCollapsed ? 'md:ml-[60px]' : 'md:ml-[220px]',
             )}>
                 {/* ── Desktop Header ── */}
-                <header
-                    className="hidden md:grid sticky top-0 z-30"
-                    style={{
-                        background: 'var(--cn-paper)',
-                        borderBottom: '1px solid var(--cn-hair)',
-                        gridTemplateColumns: 'auto 1fr auto auto auto auto',
-                        alignItems: 'center',
-                        gap: '18px',
-                        padding: '12px 24px',
-                    }}
-                >
-                    {/* Title */}
-                    <div>
-                        <div className="flex items-center gap-2.5">
-                            <span
-                                className="font-semibold tracking-tight"
-                                style={{
-                                    fontFamily: '"Source Serif 4", serif',
-                                    fontSize: '18px',
-                                    color: 'var(--cn-ink)',
-                                    letterSpacing: '-0.01em',
-                                }}
-                            >
-                                Operations Dashboard
-                            </span>
-                            <span
-                                className="px-1.5 py-0.5 text-[9.5px] font-bold tracking-[0.12em] uppercase"
-                                style={{
-                                    background: 'var(--cn-green-tint)',
-                                    color: 'var(--cn-green-ink)',
-                                }}
-                            >
-                                Live
-                            </span>
-                        </div>
-                        <div
-                            className="mt-0.5 text-[10px] tracking-[0.12em] uppercase"
-                            style={{
-                                fontFamily: '"JetBrains Mono", monospace',
-                                color: 'var(--cn-ink3)',
-                            }}
-                        >
-                            {user?.constituency} · {user?.house} · {today}
-                        </div>
-                    </div>
-
-                    {/* Search bar */}
-                    <div
-                        className="flex items-center gap-2 px-3 py-2 w-full max-w-sm justify-self-center"
+                {!isBriefcaseRoute && (
+                    <header
+                        className="hidden md:grid sticky top-0 z-30"
                         style={{
-                            background: 'var(--cn-surface)',
-                            border: '1px solid var(--cn-hair)',
+                            background: 'var(--cn-paper)',
+                            borderBottom: '1px solid var(--cn-hair)',
+                            gridTemplateColumns: 'auto 1fr auto auto auto auto',
+                            alignItems: 'center',
+                            gap: '18px',
+                            padding: '12px 24px',
                         }}
                     >
-                        <Search className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--cn-ink3)' }} />
-                        <input
-                            placeholder="Search grievance ref, citizen ID, letter ref…"
-                            className="flex-1 bg-transparent outline-none text-[12.5px]"
-                            style={{ color: 'var(--cn-ink)', fontFamily: 'inherit' }}
-                        />
-                        <span
-                            className="text-[10px] px-1 py-0.5 border"
-                            style={{
-                                fontFamily: '"JetBrains Mono", monospace',
-                                color: 'var(--cn-ink3)',
-                                borderColor: 'var(--cn-hair)',
-                            }}
-                        >
-                            ⌘K
-                        </span>
-                    </div>
-
-                    {/* Sansad AI button */}
-                    <button
-                        className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold tracking-[0.08em] uppercase transition-opacity hover:opacity-90"
-                        style={{
-                            background: 'var(--cn-green)',
-                            color: '#F5EFE0',
-                            fontFamily: 'inherit',
-                        }}
-                        onClick={() => router.push('/dashboard/sansadai')}
-                    >
-                        <Sparkles className="h-3 w-3" />
-                        Sansad AI
-                    </button>
-
-                    {/* Bell */}
-                    <button
-                        className="relative h-[34px] w-[34px] flex items-center justify-center"
-                        style={{
-                            background: 'var(--cn-surface)',
-                            border: '1px solid var(--cn-hair)',
-                            color: 'var(--cn-ink)',
-                        }}
-                        onClick={openHistory}
-                    >
-                        <Bell className="h-[14px] w-[14px]" />
-                        {(badges.briefcase > 0 || badges.letterbox > 0) && (
-                            <span
-                                className="absolute top-[3px] right-[3px] text-[8px] font-bold px-[3px] leading-5 min-w-[14px] text-center"
+                        {/* Title */}
+                        <div>
+                            <div className="flex items-center gap-2.5">
+                                <span
+                                    className="font-semibold tracking-tight"
+                                    style={{
+                                        fontFamily: '"Source Serif 4", serif',
+                                        fontSize: '18px',
+                                        color: 'var(--cn-ink)',
+                                        letterSpacing: '-0.01em',
+                                    }}
+                                >
+                                    Operations Dashboard
+                                </span>
+                                <span
+                                    className="px-1.5 py-0.5 text-[9.5px] font-bold tracking-[0.12em] uppercase"
+                                    style={{
+                                        background: 'var(--cn-green-tint)',
+                                        color: 'var(--cn-green-ink)',
+                                    }}
+                                >
+                                    Live
+                                </span>
+                            </div>
+                            <div
+                                className="mt-0.5 text-[10px] tracking-[0.12em] uppercase"
                                 style={{
-                                    background: 'var(--cn-saffron)',
-                                    color: '#fff',
                                     fontFamily: '"JetBrains Mono", monospace',
+                                    color: 'var(--cn-ink3)',
                                 }}
                             >
-                                {(badges.briefcase || 0) + (badges.letterbox || 0)}
-                            </span>
-                        )}
-                    </button>
+                                {user?.constituency} · {user?.house} · {today}
+                            </div>
+                        </div>
 
-                    {/* User */}
-                    <div className="flex items-center gap-2.5">
+                        {/* Search bar */}
                         <div
-                            className="h-[34px] w-[34px] flex items-center justify-center text-[13px] font-semibold shrink-0"
+                            className="flex items-center gap-2 px-3 py-2 w-full max-w-sm justify-self-center"
+                            style={{
+                                background: 'var(--cn-surface)',
+                                border: '1px solid var(--cn-hair)',
+                            }}
+                        >
+                            <Search className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--cn-ink3)' }} />
+                            <input
+                                placeholder="Search grievance ref, citizen ID, letter ref…"
+                                className="flex-1 bg-transparent outline-none text-[12.5px]"
+                                style={{ color: 'var(--cn-ink)', fontFamily: 'inherit' }}
+                            />
+                            <span
+                                className="text-[10px] px-1 py-0.5 border"
+                                style={{
+                                    fontFamily: '"JetBrains Mono", monospace',
+                                    color: 'var(--cn-ink3)',
+                                    borderColor: 'var(--cn-hair)',
+                                }}
+                            >
+                                ⌘K
+                            </span>
+                        </div>
+
+                        {/* Sansad AI button */}
+                        <button
+                            className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold tracking-[0.08em] uppercase transition-opacity hover:opacity-90"
                             style={{
                                 background: 'var(--cn-green)',
                                 color: '#F5EFE0',
-                                fontFamily: '"Source Serif 4", serif',
+                                fontFamily: 'inherit',
                             }}
+                            onClick={() => router.push('/dashboard/sansadai')}
                         >
-                            {user?.display_name?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'MP'}
-                        </div>
-                        <div>
+                            <Sparkles className="h-3 w-3" />
+                            Sansad AI
+                        </button>
+
+                        {/* Bell */}
+                        <button
+                            className="relative h-[34px] w-[34px] flex items-center justify-center"
+                            style={{
+                                background: 'var(--cn-surface)',
+                                border: '1px solid var(--cn-hair)',
+                                color: 'var(--cn-ink)',
+                            }}
+                            onClick={openHistory}
+                        >
+                            <Bell className="h-[14px] w-[14px]" />
+                            {(badges.briefcase > 0 || badges.letterbox > 0) && (
+                                <span
+                                    className="absolute top-[3px] right-[3px] text-[8px] font-bold px-[3px] leading-5 min-w-[14px] text-center"
+                                    style={{
+                                        background: 'var(--cn-saffron)',
+                                        color: '#fff',
+                                        fontFamily: '"JetBrains Mono", monospace',
+                                    }}
+                                >
+                                    {(badges.briefcase || 0) + (badges.letterbox || 0)}
+                                </span>
+                            )}
+                        </button>
+
+                        {/* User */}
+                        <div className="flex items-center gap-2.5">
                             <div
-                                className="text-[12.5px] font-semibold leading-none"
-                                style={{ color: 'var(--cn-ink)' }}
-                            >
-                                {user?.display_name}
-                            </div>
-                            <div
-                                className="text-[10px] mt-0.5 tracking-[0.08em]"
+                                className="h-[34px] w-[34px] flex items-center justify-center text-[13px] font-semibold shrink-0"
                                 style={{
-                                    color: 'var(--cn-ink3)',
-                                    fontFamily: '"JetBrains Mono", monospace',
+                                    background: 'var(--cn-green)',
+                                    color: '#F5EFE0',
+                                    fontFamily: '"Source Serif 4", serif',
                                 }}
                             >
-                                {user?.role === 'mp' ? 'MP' : user?.role === 'admin' ? 'Admin' : 'Staff'}
-                                {user?.house?.includes('Lok') ? ' · LS' : ' · RS'}
+                                {user?.display_name?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'MP'}
+                            </div>
+                            <div>
+                                <div
+                                    className="text-[12.5px] font-semibold leading-none"
+                                    style={{ color: 'var(--cn-ink)' }}
+                                >
+                                    {user?.display_name}
+                                </div>
+                                <div
+                                    className="text-[10px] mt-0.5 tracking-[0.08em]"
+                                    style={{
+                                        color: 'var(--cn-ink3)',
+                                        fontFamily: '"JetBrains Mono", monospace',
+                                    }}
+                                >
+                                    {user?.role === 'mp' ? 'MP' : user?.role === 'admin' ? 'Admin' : 'Staff'}
+                                    {user?.house?.includes('Lok') ? ' · LS' : ' · RS'}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </header>
+                    </header>
+                )}
 
                 {/* Announcements */}
                 {visibleAnnouncements.length > 0 && (
