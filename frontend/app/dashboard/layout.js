@@ -146,41 +146,39 @@ export default function DashboardLayout({ children }) {
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--cn-paper)' }}>
-            {/* ── Mobile Header ── */}
-            {!isBriefcaseRoute && (
-                <header
-                    className="md:hidden flex items-center justify-between px-4 h-14 sticky top-0 z-40"
-                    style={{
-                        background: 'var(--cn-paper)',
-                        borderBottom: '1px solid var(--cn-hair)',
-                    }}
-                >
-                    <div className="flex items-center gap-3">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-9 w-9"
-                            style={{ color: 'var(--cn-ink)' }}
-                            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                        >
-                            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-                        </Button>
-                        <span
-                            className="font-semibold text-sm"
-                            style={{ fontFamily: '"Source Serif 4", serif', color: 'var(--cn-ink)' }}
-                        >
-                            Compass Needle
-                        </span>
-                    </div>
-                    <button
-                        className="h-9 w-9 flex items-center justify-center"
-                        style={{ color: 'var(--cn-ink3)' }}
-                        onClick={openHistory}
+            {/* ── Mobile Header (shown on all routes so nav stays reachable) ── */}
+            <header
+                className="md:hidden flex items-center justify-between px-4 h-14 sticky top-0 z-40"
+                style={{
+                    background: 'var(--cn-paper)',
+                    borderBottom: '1px solid var(--cn-hair)',
+                }}
+            >
+                <div className="flex items-center gap-3">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9"
+                        style={{ color: 'var(--cn-ink)' }}
+                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                     >
-                        <Clock className="h-5 w-5" />
-                    </button>
-                </header>
-            )}
+                        {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                    </Button>
+                    <span
+                        className="font-semibold text-sm"
+                        style={{ fontFamily: '"Source Serif 4", serif', color: 'var(--cn-ink)' }}
+                    >
+                        Compass Needle
+                    </span>
+                </div>
+                <button
+                    className="h-9 w-9 flex items-center justify-center"
+                    style={{ color: 'var(--cn-ink3)' }}
+                    onClick={openHistory}
+                >
+                    <Clock className="h-5 w-5" />
+                </button>
+            </header>
 
             <Sidebar
                 user={user}

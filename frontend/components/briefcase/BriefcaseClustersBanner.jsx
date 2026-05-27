@@ -13,13 +13,11 @@ export default function BriefcaseClustersBanner({ clusters = [], onOpenClusters 
 
     return (
         <section
+            className="flex flex-col gap-4 md:flex-row md:items-center md:gap-4"
             style={{
                 border: `1px solid ${P.hair}`,
                 background: `linear-gradient(135deg, ${P.surfaceWarm} 0%, ${P.paper} 100%)`,
                 padding: '16px 18px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 16,
             }}
         >
             <div style={{ minWidth: 0, flex: 1 }}>
@@ -87,7 +85,7 @@ export default function BriefcaseClustersBanner({ clusters = [], onOpenClusters 
                     ))}
                 </div>
             </div>
-            <div style={{ textAlign: 'right' }}>
+            <div className="w-full text-left md:w-auto md:text-right">
                 <div style={{ fontFamily: SERIF, fontSize: 20, color: P.ink, lineHeight: 1.1 }}>
                     Similar grievances are surfacing in waves.
                 </div>

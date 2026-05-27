@@ -29,6 +29,7 @@ export default function BriefcaseBulkActions({ selectedCount, onStatusChange, on
                 display: 'flex',
                 alignItems: 'center',
                 gap: 12,
+                flexWrap: 'wrap',
                 background: P.greenDeep,
                 color: '#F5EFE0',
                 borderBottom: `1px solid ${P.hair}`,

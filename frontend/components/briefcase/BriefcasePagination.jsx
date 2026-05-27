@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 
 export default function BriefcasePagination({ page, totalPages, totalCases, search, onPrevious, onNext }) {
     return (
-        <div className="px-6 py-3 border-t flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">
+        <div className="px-4 md:px-6 py-3 border-t flex flex-wrap items-center justify-between gap-3">
+            <span className="text-xs md:text-sm text-muted-foreground">
                 Page {page} of {totalPages} · <strong>{totalCases}</strong> total cases
                 {search && <span> · filtered by "{search}"</span>}
             </span>

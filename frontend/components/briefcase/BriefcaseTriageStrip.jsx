@@ -88,13 +88,7 @@ export default function BriefcaseTriageStrip({ triage }) {
     ];
 
     return (
-        <section
-            style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-                gap: 12,
-            }}
-        >
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {stats.map((stat) => (
                 <StatCard key={stat.label} {...stat} />
             ))}

@@ -51,88 +51,86 @@ export default function BriefcaseCasesTable({
     }
 
     return (
-        <div className="overflow-x-auto -mx-6">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead className="w-10 pl-6">
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead className="w-10">
+                        <input
+                            type="checkbox"
+                            checked={selectedIds.size === cases.length && cases.length > 0}
+                            onChange={(event) => {
+                                if (event.target.checked) {
+                                    setSelectedIds(new Set(cases.map((item) => item.id)));
+                                } else {
+                                    setSelectedIds(new Set());
+                                }
+                            }}
+                            className="rounded border-border"
+                        />
+                    </TableHead>
+                    <TableHead className="w-16">#</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Assembly</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="max-w-[200px]">Message</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {cases.map((item) => (
+                    <TableRow key={item.id} className={cn('cursor-pointer', getBriefcaseRowHighlight(item.status, item.category))} onClick={() => onSelectCase(item)}>
+                        <TableCell>
                             <input
                                 type="checkbox"
-                                checked={selectedIds.size === cases.length && cases.length > 0}
+                                checked={selectedIds.has(item.id)}
                                 onChange={(event) => {
-                                    if (event.target.checked) {
-                                        setSelectedIds(new Set(cases.map((item) => item.id)));
-                                    } else {
-                                        setSelectedIds(new Set());
-                                    }
+                                    event.stopPropagation();
+                                    setSelectedIds((current) => {
+                                        const next = new Set(current);
+                                        if (event.target.checked) {
+                                            next.add(item.id);
+                                        } else {
+                                            next.delete(item.id);
+                                        }
+                                        return next;
+                                    });
                                 }}
+                                onClick={(event) => event.stopPropagation()}
                                 className="rounded border-border"
                             />
-                        </TableHead>
-                        <TableHead className="w-16">#</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Location</TableHead>
-                        <TableHead>Assembly</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="max-w-[200px]">Message</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {cases.map((item) => (
-                        <TableRow key={item.id} className={cn('cursor-pointer', getBriefcaseRowHighlight(item.status, item.category))} onClick={() => onSelectCase(item)}>
-                            <TableCell className="pl-6">
-                                <input
-                                    type="checkbox"
-                                    checked={selectedIds.has(item.id)}
-                                    onChange={(event) => {
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{item.id}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                            {item.user_phone ? (
+                                <button
+                                    className="hover:underline text-primary font-mono text-xs"
+                                    onClick={(event) => {
                                         event.stopPropagation();
-                                        setSelectedIds((current) => {
-                                            const next = new Set(current);
-                                            if (event.target.checked) {
-                                                next.add(item.id);
-                                            } else {
-                                                next.delete(item.id);
-                                            }
-                                            return next;
-                                        });
+                                        onOpenContact(item.user_phone);
                                     }}
-                                    onClick={(event) => event.stopPropagation()}
-                                    className="rounded border-border"
-                                />
-                            </TableCell>
-                            <TableCell className="font-mono text-xs text-muted-foreground">{item.id}</TableCell>
-                            <TableCell className="font-mono text-xs">
-                                {item.user_phone ? (
-                                    <button
-                                        className="hover:underline text-primary font-mono text-xs"
-                                        onClick={(event) => {
-                                            event.stopPropagation();
-                                            onOpenContact(item.user_phone);
-                                        }}
-                                    >
-                                        {item.user_phone}
-                                    </button>
-                                ) : '-'}
-                            </TableCell>
-                            <TableCell className="font-medium">{item.category || 'General'}</TableCell>
-                            <TableCell className="text-muted-foreground">{item.location || '-'}</TableCell>
-                            <TableCell className="text-muted-foreground">{item.assembly || '-'}</TableCell>
-                            <TableCell>{getStatusBadge(item.status)}</TableCell>
-                            <TableCell className="max-w-[200px]">
-                                <span className="flex items-center gap-1.5 text-muted-foreground">
-                                    {(item.media_count || item.case_metadata?.source_media) ? (
-                                        <ImageIcon className="h-3.5 w-3.5 shrink-0 text-primary" />
-                                    ) : null}
-                                    <span className="truncate block" title={item.raw_message}>
-                                        {item.raw_message || '-'}
-                                    </span>
+                                >
+                                    {item.user_phone}
+                                </button>
+                            ) : '-'}
+                        </TableCell>
+                        <TableCell className="font-medium">{item.category || 'General'}</TableCell>
+                        <TableCell className="text-muted-foreground">{item.location || '-'}</TableCell>
+                        <TableCell className="text-muted-foreground">{item.assembly || '-'}</TableCell>
+                        <TableCell>{getStatusBadge(item.status)}</TableCell>
+                        <TableCell className="max-w-[200px]">
+                            <span className="flex items-center gap-1.5 text-muted-foreground">
+                                {(item.media_count || item.case_metadata?.source_media) ? (
+                                    <ImageIcon className="h-3.5 w-3.5 shrink-0 text-primary" />
+                                ) : null}
+                                <span className="truncate block" title={item.raw_message}>
+                                    {item.raw_message || '-'}
                                 </span>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </div>
+                            </span>
+                        </TableCell>
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
     );
 }
