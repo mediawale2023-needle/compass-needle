@@ -137,3 +137,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Reordered the Briefcase tabs so `All cases` is first and becomes the default when no status query param is present, restored `Others` as a real tab, and wired it to the backend-supported `bucket=other` filter path instead of a custom frontend-only parameter.
 - Files touched: `frontend/components/briefcase/briefcase-shared.jsx`, `frontend/hooks/useBriefcaseCases.js`, `frontend/app/dashboard/sansadx/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: `Others` currently follows the backend's `other` bucket definitions plus the shared frontend labels; if you want to refine exactly which categories count as “personal request,” we should align the backend bucket list too.
+
+- Date: 2026-05-27
+- Request: Push the Briefcase default-tab and `Others` restoration to GitHub.
+- Summary: Pushed commit `9915251c` (`Restore Briefcase all-cases default`) to `origin/main`, including the `All cases` default/tab order change and the restored `Others` bucket using the backend-supported `bucket=other` filter.
+- Files touched: `frontend/components/briefcase/briefcase-shared.jsx`, `frontend/hooks/useBriefcaseCases.js`, `frontend/app/dashboard/sansadx/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: If `Others` needs a more exact “personal request” definition, the backend bucket list should be tuned alongside the frontend labels.
