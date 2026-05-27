@@ -173,3 +173,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Replaced the simplified single-feed press card with a dual-tab `Media Centre`, updated the overview hook and mappers to fetch and normalize both `national` and `local` news feeds in parallel, and expanded the tenant-aware local news query strategy in `modules/news_intel.py` to use profile languages, constituency aliases, and broader digital-media search terms without hardcoding any single constituency.
 - Files touched: `frontend/components/dashboard/DashboardPressCard.jsx`, `frontend/hooks/useDashboardOverview.js`, `frontend/lib/dashboard-mappers.js`, `modules/news_intel.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: The local feed is now broader and more multilingual, but it still depends on Google News-indexed sources; true direct social-handle/page monitoring would need a separate ingestion layer later.
+
+- Date: 2026-05-27
+- Request: Push the restored tenant-aware Media Centre to GitHub.
+- Summary: Pushed commit `1d0e4dc7` (`Restore tenant-aware dashboard media centre`) to `origin/main`, restoring separate dashboard media tabs for national and local coverage while keeping the feed logic tenant-driven through the existing profile-based backend model.
+- Files touched: `frontend/components/dashboard/DashboardPressCard.jsx`, `frontend/hooks/useDashboardOverview.js`, `frontend/lib/dashboard-mappers.js`, `modules/news_intel.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The dashboard now again exposes both feed types, but local social/page coverage is still limited to sources discoverable through the current Google News-based ingestion path.
