@@ -15,8 +15,8 @@ export default function BriefcaseDeletedCasesView({ deletedCases, loading, onRes
     }
 
     return (
-        <div style={{ padding: '0 22px 22px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ padding: '0 22px 22px', overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
                 <thead>
                     <tr style={{ background: P.surfaceWarm }}>
                         {['Ref', 'Contact', 'Category', 'Deleted at', 'Deleted by', 'Action'].map((heading) => (

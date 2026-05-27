@@ -48,6 +48,8 @@ export default function BriefcaseFiltersBar(props) {
                     padding: '0 22px',
                     borderBottom: `1px solid ${P.hair}`,
                     background: P.paper,
+                    overflowX: 'auto',
+                    whiteSpace: 'nowrap',
                 }}
             >
                 {primaryTabs.map((tab) => {
@@ -64,6 +66,7 @@ export default function BriefcaseFiltersBar(props) {
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: 7,
+                                flexShrink: 0,
                                 fontFamily: 'inherit',
                                 color: isActive ? P.ink : P.ink2,
                                 borderBottom: isActive ? `2px solid ${tab.accent || P.green}` : '2px solid transparent',
@@ -88,8 +91,8 @@ export default function BriefcaseFiltersBar(props) {
                         </button>
                     );
                 })}
-                <div style={{ flex: 1 }} />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0' }}>
+                <div style={{ flex: 1, minWidth: 12 }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', flexShrink: 0 }}>
                     {auxiliaryTabs.map((tab) => (
                         <button
                             key={tab.key}
@@ -105,6 +108,7 @@ export default function BriefcaseFiltersBar(props) {
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: 5,
+                                flexShrink: 0,
                             }}
                         >
                             <BriefcaseIcon name={tab.key === 'clusters' ? 'cluster' : 'eye'} size={11} color={statusFilter === tab.key ? P.paper : P.ink2} />
