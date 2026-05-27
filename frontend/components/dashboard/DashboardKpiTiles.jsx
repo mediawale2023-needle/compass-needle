@@ -59,14 +59,14 @@ export default function DashboardKpiTiles({ summary }) {
     ];
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5 md:gap-[14px]">
             {tiles.map((tile) => (
                 <Link key={tile.label} href={tile.href} style={{ textDecoration: 'none' }}>
                     <div
                         style={{
                             background: P.surface,
                             border: `1px solid ${P.hair}`,
-                            padding: '14px 16px 12px',
+                            padding: '14px 14px 12px',
                             display: 'flex',
                             flexDirection: 'column',
                             cursor: 'pointer',

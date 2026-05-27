@@ -54,6 +54,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - The dashboard overview page is now mostly a thin container for auth checks, navigation handlers, and component composition.
 - Final review fixes removed nondeterministic KPI chart rendering and hardened initial loading state so the overview no longer risks hydration drift or a false empty-state flash while cases are still loading.
 - The dashboard's press widget should preserve the older tenant-aware `Media Centre` behavior: separate `National` and `Local` feeds, both fetched in parallel from `/api/news`, with the local feed remaining driven by the current tenant's profile (`tenant_id`, languages, state, and constituency aliases) rather than any hardcoded constituency.
+- Dashboard mobile responsiveness should preserve the same desktop information architecture as much as possible. Preferred tactics are grid collapse, wrapped controls, tighter spacing, and horizontal overflow for dense tables rather than separate phone-only alternate layouts.
 
 ## Briefcase Refactor Memory
 

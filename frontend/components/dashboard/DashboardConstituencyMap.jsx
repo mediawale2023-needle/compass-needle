@@ -30,7 +30,7 @@ export default function DashboardConstituencyMap({ summary, user }) {
         : positions.slice(0, 6).map((pos, index) => ({ pos, name: `Zone ${index + 1}`, count: 0 }));
 
     return (
-        <section style={{ background: P.surface, border: `1px solid ${P.hair}`, padding: 16, display: 'flex', flexDirection: 'column' }}>
+        <section className="min-w-0" style={{ background: P.surface, border: `1px solid ${P.hair}`, padding: 16, display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div>
                     <div style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 15, color: P.ink }}>
@@ -75,7 +75,7 @@ export default function DashboardConstituencyMap({ summary, user }) {
             </div>
 
             {topCategories.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 10 }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-2.5">
                     {topCategories.map(([category, count]) => (
                         <Link key={category} href={`/dashboard/sansadx?category=${encodeURIComponent(category)}`} style={{ textDecoration: 'none' }}>
                             <div style={{ padding: '6px 8px', background: P.paper, border: `1px solid ${P.hair}` }}>

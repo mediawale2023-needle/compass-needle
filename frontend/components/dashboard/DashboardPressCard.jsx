@@ -67,7 +67,7 @@ export default function DashboardPressCard({ news }) {
                     </button>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 120px', gap: 8 }}>
+                <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_120px] gap-2">
                     <input
                         value={search}
                         onChange={(event) => setSearch(event.target.value)}

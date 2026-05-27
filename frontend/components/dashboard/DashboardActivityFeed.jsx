@@ -38,7 +38,7 @@ export default function DashboardActivityFeed({ cases, letters }) {
     const tagColor = { grievance: P.saffron, letter: P.blue, press: P.red, engagement: P.green };
 
     return (
-        <section style={{ background: P.surface, border: `1px solid ${P.hair}`, padding: 14, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <section className="min-w-0" style={{ background: P.surface, border: `1px solid ${P.hair}`, padding: 14, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
                 <div style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 15, color: P.ink }}>Activity · recent</div>
                 <span style={{ fontFamily: MONO, fontSize: 9.5, color: P.green, letterSpacing: '0.1em', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5 }}>

@@ -14,6 +14,7 @@ export default function DashboardSectionFrame({
 }) {
     return (
         <section
+            className="min-w-0"
             style={{
                 background: dashboardPalette.surface,
                 border: `1px solid ${dashboardPalette.hair}`,
@@ -23,6 +24,7 @@ export default function DashboardSectionFrame({
             }}
         >
             <div
+                className="flex-wrap sm:flex-nowrap"
                 style={{
                     display: 'flex',
                     alignItems: 'center',

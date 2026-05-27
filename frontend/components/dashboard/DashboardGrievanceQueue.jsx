@@ -30,8 +30,9 @@ export default function DashboardGrievanceQueue({ cases, onCaseClick }) {
         .slice(0, 10);
 
     return (
-        <section style={{ background: P.surface, border: `1px solid ${P.hair}`, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <section className="min-w-0" style={{ background: P.surface, border: `1px solid ${P.hair}`, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <div
+                className="flex-wrap"
                 style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -45,7 +46,7 @@ export default function DashboardGrievanceQueue({ cases, onCaseClick }) {
                     auto-prioritised by SLA + age
                 </span>
                 <div style={{ flex: 1 }} />
-                <div style={{ display: 'flex', border: `1px solid ${P.hair}` }}>
+                <div style={{ display: 'flex', border: `1px solid ${P.hair}`, flexWrap: 'wrap', width: '100%', maxWidth: '100%' }}>
                     {tabs.map((tab, index) => (
                         <button
                             key={tab}
@@ -61,6 +62,7 @@ export default function DashboardGrievanceQueue({ cases, onCaseClick }) {
                                 cursor: 'pointer',
                                 fontFamily: SANS,
                                 borderRight: index < tabs.length - 1 ? `1px solid ${P.hair}` : 'none',
+                                flex: '1 1 auto',
                             }}
                         >
                             {tab}
@@ -70,7 +72,7 @@ export default function DashboardGrievanceQueue({ cases, onCaseClick }) {
             </div>
 
             <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                     <colgroup>
                         <col style={{ width: 28 }} />
                         <col style={{ width: 78 }} />
@@ -158,6 +160,7 @@ export default function DashboardGrievanceQueue({ cases, onCaseClick }) {
             </div>
 
             <div
+                className="flex-wrap gap-2"
                 style={{
                     padding: '8px 16px',
                     borderTop: `1px solid ${P.hair}`,

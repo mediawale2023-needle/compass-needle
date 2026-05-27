@@ -44,17 +44,16 @@ export default function DashboardPage() {
     }
 
     return (
-        <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1.55fr) minmax(0, 1fr)',
-            gridTemplateRows: 'auto minmax(0,auto) minmax(0,auto)',
-            gap: 14,
-            fontFamily: SANS,
-            fontSize: 12.5,
-            color: P.ink,
-        }}>
+        <div
+            className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] gap-3.5 md:gap-[14px]"
+            style={{
+                fontFamily: SANS,
+                fontSize: 12.5,
+                color: P.ink,
+            }}
+        >
             {/* Row 1: KPI tiles — full width */}
-            <div style={{ gridColumn: '1 / -1' }}>
+            <div className="xl:col-[1/-1]">
                 <DashboardKpiTiles summary={summary} />
             </div>
 
@@ -62,19 +61,19 @@ export default function DashboardPage() {
             <DashboardGrievanceQueue cases={cases} onCaseClick={handleCaseClick} />
 
             {/* Row 2 right: Workload + Engagements */}
-            <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: 14 }}>
+            <div className="grid grid-rows-2 gap-3.5 md:gap-[14px] min-w-0">
                 <DashboardWorkloadCard summary={summary} />
                 <DashboardEngagementsCard />
             </div>
 
             {/* Row 3 left: Letters + Press */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 md:gap-[14px] min-w-0">
                 <DashboardLettersCard letters={letters} />
                 <DashboardPressCard news={news} />
             </div>
 
             {/* Row 3 right: Map + Activity */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 14 }}>
+            <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-3.5 md:gap-[14px] min-w-0">
                 <DashboardConstituencyMap summary={summary} user={user} />
                 <DashboardActivityFeed cases={cases} letters={letters} />
             </div>
