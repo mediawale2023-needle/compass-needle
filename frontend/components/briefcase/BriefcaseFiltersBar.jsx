@@ -141,7 +141,6 @@ export default function BriefcaseFiltersBar(props) {
                         {[
                             { label: 'Critical', active: criticalOnly, onClick: () => onCriticalOnlyChange(!criticalOnly), count: null },
                             { label: 'New', active: statusFilter === 'new', onClick: () => onTabChange('new'), count: tabCounts?.new },
-                            { label: 'Needs you', active: statusFilter === 'needs', onClick: () => onTabChange('needs'), count: tabCounts?.needs },
                             { label: 'Today', active: !!dateFrom && dateFrom === dateTo, onClick: () => {
                                 const today = new Date().toISOString().slice(0, 10);
                                 onDateFromChange(today);

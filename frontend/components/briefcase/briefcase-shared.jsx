@@ -34,7 +34,6 @@ export const briefcaseFonts = {
 
 export const TABS = [
     { key: 'all_cases', label: 'All cases', countKey: 'all_cases' },
-    { key: 'needs', label: 'Needs you', countKey: 'needs', accent: briefcasePalette.saffron },
     { key: 'new', label: 'New', countKey: 'new' },
     { key: 'in_progress', label: 'In progress', countKey: 'in_progress' },
     { key: 'resolved', label: 'Resolved', countKey: 'resolved' },

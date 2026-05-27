@@ -113,10 +113,7 @@ export default function useBriefcaseCases(user) {
     }
 
     function applyCaseFilters(params) {
-        if (statusFilter === 'needs') {
-            params.set('exclude_status', ['resolved', 'closed', ...OTHER_STATUSES].join(','));
-            params.set('exclude_categories', OTHER_CATEGORIES.join(','));
-        } else if (statusFilter === 'others') {
+        if (statusFilter === 'others') {
             params.set('bucket', 'other');
         } else if (statusFilter === 'all_cases') {
             params.delete('exclude_status');
@@ -417,7 +414,6 @@ export default function useBriefcaseCases(user) {
             .reduce((sum, entry) => sum + (entry.count || 0), 0);
 
     const tabCounts = {
-        needs: newCount + pendingReviewCount + awaitingLocationCount + escalatedCount,
         new: newCount,
         in_progress: inProgressCount,
         resolved: resolvedCount,
@@ -425,7 +421,8 @@ export default function useBriefcaseCases(user) {
         others: othersCount,
     };
     const triage = {
-        needsYou: tabCounts.needs || cases.filter((item) => ['new', 'pending_review', 'awaiting_location', 'escalated'].includes((item.status || '').toLowerCase())).length,
+        needsYou: newCount + pendingReviewCount + awaitingLocationCount + escalatedCount ||
+            cases.filter((item) => ['new', 'pending_review', 'awaiting_location', 'escalated'].includes((item.status || '').toLowerCase())).length,
         newToday: newCount || cases.filter((item) => String(item.created_at || '').startsWith(todayIso)).length,
         uncategorised: uncategorisedCount,
         slaRisk: slaRiskCount,
