@@ -161,3 +161,15 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Updated the shared dashboard layout to suppress its generic route header on `/dashboard/sansadx`, leaving the page-level Briefcase header as the only visible header on that route.
 - Files touched: `frontend/app/dashboard/layout.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: This is intentionally scoped to Briefcase; other pages still use the shared “Operations Dashboard” header until we decide otherwise.
+
+- Date: 2026-05-27
+- Request: Push the Briefcase duplicate-header fix to GitHub.
+- Summary: Pushed commit `0a90e89d` (`Hide shared header on Briefcase`) to `origin/main`, so the Briefcase route now shows only its own page header instead of stacking the shared dashboard header above it.
+- Files touched: `frontend/app/dashboard/layout.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The suppression is route-specific to Briefcase; if we want the same behavior on other pages later, we should make that a deliberate shared-layout rule.
+
+- Date: 2026-05-27
+- Request: Restore the older Media Centre behavior on the dashboard so press monitoring shows separate national and local feeds again, while keeping the logic tenant-aware.
+- Summary: Replaced the simplified single-feed press card with a dual-tab `Media Centre`, updated the overview hook and mappers to fetch and normalize both `national` and `local` news feeds in parallel, and expanded the tenant-aware local news query strategy in `modules/news_intel.py` to use profile languages, constituency aliases, and broader digital-media search terms without hardcoding any single constituency.
+- Files touched: `frontend/components/dashboard/DashboardPressCard.jsx`, `frontend/hooks/useDashboardOverview.js`, `frontend/lib/dashboard-mappers.js`, `modules/news_intel.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The local feed is now broader and more multilingual, but it still depends on Google News-indexed sources; true direct social-handle/page monitoring would need a separate ingestion layer later.

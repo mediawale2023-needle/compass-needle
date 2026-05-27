@@ -30,6 +30,13 @@ export function normalizeDashboardNews(response) {
     return response.articles || [];
 }
 
+export function normalizeDashboardNewsFeeds(nationalResponse, localResponse) {
+    return {
+        national: normalizeDashboardNews(nationalResponse),
+        local: normalizeDashboardNews(localResponse),
+    };
+}
+
 export function getDashboardTotalCases(summary) {
     const statuses = summary?.status_breakdown || {};
     return Object.values(statuses).reduce((sum, count) => sum + count, 0);

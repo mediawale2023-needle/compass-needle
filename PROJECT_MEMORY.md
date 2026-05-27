@@ -53,6 +53,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - The third refactor batch moved overview request orchestration into `frontend/hooks/useDashboardOverview.js` and raw response normalization into `frontend/lib/dashboard-mappers.js`.
 - The dashboard overview page is now mostly a thin container for auth checks, navigation handlers, and component composition.
 - Final review fixes removed nondeterministic KPI chart rendering and hardened initial loading state so the overview no longer risks hydration drift or a false empty-state flash while cases are still loading.
+- The dashboard's press widget should preserve the older tenant-aware `Media Centre` behavior: separate `National` and `Local` feeds, both fetched in parallel from `/api/news`, with the local feed remaining driven by the current tenant's profile (`tenant_id`, languages, state, and constituency aliases) rather than any hardcoded constituency.
 
 ## Briefcase Refactor Memory
 

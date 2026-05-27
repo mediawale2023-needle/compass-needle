@@ -7,7 +7,7 @@ import {
     getEmptyDashboardSummary,
     normalizeDashboardCases,
     normalizeDashboardLetters,
-    normalizeDashboardNews,
+    normalizeDashboardNewsFeeds,
     normalizeDashboardSummary,
 } from '@/lib/dashboard-mappers';
 
@@ -15,7 +15,7 @@ export function useDashboardOverview() {
     const [summary, setSummary] = useState(null);
     const [cases, setCases] = useState([]);
     const [letters, setLetters] = useState([]);
-    const [news, setNews] = useState([]);
+    const [news, setNews] = useState({ national: [], local: [] });
     const [summaryLoaded, setSummaryLoaded] = useState(false);
     const [casesLoaded, setCasesLoaded] = useState(false);
 
@@ -41,12 +41,15 @@ export function useDashboardOverview() {
         const timer = setTimeout(async () => {
             const [letterboxResponse, newsResponse] = await Promise.all([
                 apiGet('/api/letterbox?direction=inbox&limit=10').catch(() => ({ items: [] })),
-                apiGet('/api/news?news_type=national').catch(() => ({ articles: [] })),
+                Promise.all([
+                    apiGet('/api/news?news_type=national').catch(() => ({ articles: [] })),
+                    apiGet('/api/news?news_type=local').catch(() => ({ articles: [] })),
+                ]),
             ]);
 
             if (!cancelled) {
                 setLetters(normalizeDashboardLetters(letterboxResponse));
-                setNews(normalizeDashboardNews(newsResponse));
+                setNews(normalizeDashboardNewsFeeds(newsResponse[0], newsResponse[1]));
             }
         }, 600);
 

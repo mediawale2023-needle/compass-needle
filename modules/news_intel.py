@@ -43,6 +43,15 @@ NATIONAL_MEDIA_TERMS = [
     "News18",
 ]
 
+LOCAL_DIGITAL_TERMS = [
+    "news",
+    "live",
+    "digital",
+    "media",
+    "channel",
+    "updates",
+]
+
 LOCAL_MEDIA_BY_STATE = {
     "karnataka": [
         "Public TV",
@@ -166,6 +175,55 @@ def _local_feed_languages(context):
     return languages[:4]
 
 
+def _unique_nonempty(items):
+    seen = set()
+    ordered = []
+    for item in items:
+        value = (item or "").strip()
+        if not value:
+            continue
+        key = value.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered.append(value)
+    return ordered
+
+
+def _build_place_variants(context):
+    return _unique_nonempty([
+        context.get("constituency", ""),
+        *context.get("alt_names", []),
+    ])[:4]
+
+
+def _build_local_queries(context):
+    constituency = context.get("constituency", "")
+    state = context.get("state", "")
+    mp_name = context.get("mp_name", "")
+    place_variants = _build_place_variants(context)
+    place_query = " OR ".join(f'"{name}"' for name in place_variants[:3])
+    media_query = " OR ".join(f'"{term}"' for term in _unique_nonempty([
+        *_state_media_terms(state),
+        *LOCAL_DIGITAL_TERMS,
+    ])[:8])
+
+    queries = []
+    if place_query and media_query:
+        queries.append(f'({place_query}) ({media_query})')
+    if place_query and state:
+        queries.append(f'({place_query}) "{state}" news')
+    if constituency:
+        queries.append(f'"{constituency}" latest')
+        queries.append(f'"{constituency}" local news')
+    if mp_name and constituency:
+        queries.append(f'"{mp_name}" "{constituency}"')
+    if mp_name and place_query:
+        queries.append(f'"{mp_name}" ({place_query})')
+
+    return _unique_nonempty(queries)[:6]
+
+
 def _as_naive_utc(value):
     if value is None:
         return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -214,7 +272,12 @@ def get_language_code(lang_name):
         "Telugu": "te",
         "Malayalam": "ml",
         "Bengali": "bn",
-        "Gujarati": "gu"
+        "Gujarati": "gu",
+        "Punjabi": "pa",
+        "Urdu": "ur",
+        "Odia": "or",
+        "Oriya": "or",
+        "Assamese": "as",
     }
     return codes.get(lang_name, "en-IN")
 
@@ -328,8 +391,7 @@ def fetch_tenant_media_news(tenant_id=None, news_type="national", language="Engl
     constituency = context["constituency"]
     state = context["state"]
     mp_name = context["mp_name"]
-    alt_names = [constituency] + [a for a in context.get("alt_names", []) if a]
-    alt_names = [a for i, a in enumerate(alt_names) if a and a.lower() not in {x.lower() for x in alt_names[:i]}]
+    alt_names = _build_place_variants(context)
 
     if not constituency and not mp_name:
         return []
@@ -359,9 +421,7 @@ def fetch_tenant_media_news(tenant_id=None, news_type="national", language="Engl
         all_items.extend(_fetch_rss(q, language, limit=6))
 
     if news_type == "local":
-        local_queries = [f'"{constituency}" latest']
-        if mp_name:
-            local_queries.append(f'"{mp_name}" "{constituency}"')
+        local_queries = _build_local_queries(context)
         for lang in _local_feed_languages(context):
             for q in local_queries:
                 if time.time() - start_time > 10:
