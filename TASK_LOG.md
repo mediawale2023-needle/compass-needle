@@ -149,3 +149,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Removed `Needs you` from the Briefcase tab strip and quick filters, kept `All cases` as the default operational view, and retained the “needs attention” number only in the triage metrics derived from new, pending-review, awaiting-location, and escalated cases.
 - Files touched: `frontend/components/briefcase/briefcase-shared.jsx`, `frontend/hooks/useBriefcaseCases.js`, `frontend/components/briefcase/BriefcaseFiltersBar.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: The triage stat still reflects the same attention bucket, but there is no dedicated one-click tab for it anymore.
+
+- Date: 2026-05-27
+- Request: Push the Briefcase `Needs you` tab removal to GitHub.
+- Summary: Pushed commit `261e3315` (`Remove Briefcase needs-you tab`) to `origin/main`, keeping the triage “needs attention” metric while removing the tab itself from Briefcase.
+- Files touched: `frontend/components/briefcase/briefcase-shared.jsx`, `frontend/hooks/useBriefcaseCases.js`, `frontend/components/briefcase/BriefcaseFiltersBar.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The triage number remains available, but users can no longer jump directly into that subset through a dedicated Briefcase tab.
