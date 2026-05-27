@@ -33,11 +33,12 @@ export const briefcaseFonts = {
 };
 
 export const TABS = [
+    { key: 'all_cases', label: 'All cases', countKey: 'all_cases' },
     { key: 'needs', label: 'Needs you', countKey: 'needs', accent: briefcasePalette.saffron },
     { key: 'new', label: 'New', countKey: 'new' },
     { key: 'in_progress', label: 'In progress', countKey: 'in_progress' },
     { key: 'resolved', label: 'Resolved', countKey: 'resolved' },
-    { key: 'all_cases', label: 'All cases', countKey: 'all_cases' },
+    { key: 'others', label: 'Others', countKey: 'others' },
     { key: 'clusters', label: 'Clusters' },
     { key: 'deleted', label: 'Deleted' },
 ];
@@ -53,8 +54,16 @@ export const STATUS_OPTIONS = [
     { value: 'irrelevant', label: 'Irrelevant', className: 'bg-slate-100 text-slate-500' },
 ];
 
-export const OTHER_CATEGORIES = ['Request', 'Greetings', 'Spam', 'Spam (Offensive)'];
-export const OTHER_STATUSES = ['offensive', 'irrelevant'];
+export const OTHER_CATEGORIES = [
+    'Request',
+    'Personal Request',
+    'Personal request',
+    'Greetings',
+    'Greeting',
+    'Spam',
+    'Spam (Offensive)',
+];
+export const OTHER_STATUSES = ['offensive', 'irrelevant', 'abusive'];
 
 export function getStatusBadge(status) {
     const option = STATUS_OPTIONS.find((item) => item.value === (status || '').toLowerCase());

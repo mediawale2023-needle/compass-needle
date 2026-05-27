@@ -63,6 +63,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - Sidebar naming now treats `/dashboard/sansadx` as `Briefcase` and `/dashboard/letterbox` as `Letterbox`, so future copy changes should preserve that naming across the MP frontend.
 - The current Briefcase redesign direction is based on the `Needle-2.zip` prototype, using the `Needs you` triage screen as the default live state and borrowing the selected-state treatment from the `All cases` artboard.
 - The live Briefcase page now uses a triage-first composition with prototype-inspired header, KPI strip, promoted-clusters banner, status tabs, two-row filter toolbar, editorial table styling, and dark-green bulk action bar while keeping the existing backend APIs and case workflows intact.
+- Briefcase now defaults back to `All cases`, and the `Others` tab is restored as a first-class bucket using the backend-supported `bucket=other` filter for greetings, spam/offensive messages, and personal/request-style cases.
 - The attempted mobile-specific Briefcase layouts were reverted on 2026-05-26. The preferred responsive direction is to preserve the desktop structure and visual hierarchy on mobile as much as possible, using wrapping, narrower spacing, and stacked controls only where necessary rather than introducing separate phone-only card layouts.
 
 ## Open Memory Items

@@ -32,7 +32,7 @@ export default function useBriefcaseCases(user) {
 
     const [cases, setCases] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'needs');
+    const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'all_cases');
     const [categoryFilter, setCategoryFilter] = useState(() => searchParams.get('category') || '');
     const [locationFilter, setLocationFilter] = useState(() => searchParams.get('location') || '');
     const [assemblyFilter, setAssemblyFilter] = useState(() => searchParams.get('assembly') || '');
@@ -61,8 +61,8 @@ export default function useBriefcaseCases(user) {
     const [loadingDeleted, setLoadingDeleted] = useState(false);
 
     useEffect(() => {
-        const status = searchParams.get('status') || 'needs';
-        setStatusFilter(status === 'All' ? 'needs' : status);
+        const status = searchParams.get('status') || 'all_cases';
+        setStatusFilter(status === 'All' ? 'all_cases' : status);
         setCategoryFilter(searchParams.get('category') || '');
         setLocationFilter(searchParams.get('location') || '');
         setAssemblyFilter(searchParams.get('assembly') || '');
@@ -116,6 +116,8 @@ export default function useBriefcaseCases(user) {
         if (statusFilter === 'needs') {
             params.set('exclude_status', ['resolved', 'closed', ...OTHER_STATUSES].join(','));
             params.set('exclude_categories', OTHER_CATEGORIES.join(','));
+        } else if (statusFilter === 'others') {
+            params.set('bucket', 'other');
         } else if (statusFilter === 'all_cases') {
             params.delete('exclude_status');
             params.delete('exclude_categories');
@@ -239,7 +241,7 @@ export default function useBriefcaseCases(user) {
         setSearch('');
         setSearchInput('');
         const url = new URL(window.location.href);
-        if (key === 'needs') {
+        if (key === 'all_cases') {
             url.searchParams.delete('status');
         } else {
             url.searchParams.set('status', key);
@@ -406,12 +408,21 @@ export default function useBriefcaseCases(user) {
         }
         return (Date.now() - new Date(item.created_at).getTime()) / 3600000 >= 18;
     }).length;
+    const othersCount =
+        statusEntries
+            .filter((entry) => OTHER_STATUSES.includes(String(entry.value || '').toLowerCase()))
+            .reduce((sum, entry) => sum + (entry.count || 0), 0) +
+        categoryEntries
+            .filter((entry) => OTHER_CATEGORIES.map((value) => value.toLowerCase()).includes(String(entry.value || '').toLowerCase()))
+            .reduce((sum, entry) => sum + (entry.count || 0), 0);
+
     const tabCounts = {
         needs: newCount + pendingReviewCount + awaitingLocationCount + escalatedCount,
         new: newCount,
         in_progress: inProgressCount,
         resolved: resolvedCount,
         all_cases: activeCaseTotal,
+        others: othersCount,
     };
     const triage = {
         needsYou: tabCounts.needs || cases.filter((item) => ['new', 'pending_review', 'awaiting_location', 'escalated'].includes((item.status || '').toLowerCase())).length,

@@ -128,7 +128,7 @@ function BriefcaseInner() {
                     onClearAssembly={briefcase.clearAssemblyFilter}
                     onClearCategory={briefcase.clearCategoryFilter}
                     onClearLocation={briefcase.clearLocationFilter}
-                    onResetStatus={() => briefcase.switchTab('needs')}
+                    onResetStatus={() => briefcase.switchTab('all_cases')}
                     statusFilter={briefcase.statusFilter}
                 />
 
