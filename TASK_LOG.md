@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-05-29
+- Request: Implement a safer constituency-specific synthetic grievance seeder for aspirant/demo accounts, capped at 500 cases.
+- Summary: Added a protected `/api/admin/seed-constituency-cases` endpoint that targets one tenant by `tenant_id` or `username`, clears only prior synthetic seeded cases for that tenant, and generates up to 500 tagged synthetic grievances using shared seat geography localities and assemblies when available, with focused API tests covering geography-aware insertion and rerun replacement behavior.
+- Files touched: `admin_api.py`, `tests/test_constituency_case_seed_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The endpoint is implemented and tested locally, but actually populating the real `Jadhav` tenant on `backend.coinmedia.co.in` still requires authenticated admin access to that live backend.
+
+- Date: 2026-05-29
 - Request: Push the tenant-aware geography reuse flow to GitHub.
 - Summary: Pushed commit `9c4387a5` (`Add tenant-aware geography reuse flow`) to `origin/main`, including the launch-readiness geography redirect, the tenant-aware reuse-vs-upload chooser on the geography page, the constituency sync fix across tenant/profile/user records, and focused admin test coverage.
 - Files touched: `admin/app/dashboard/mps/[tenant_id]/setup/page.js`, `admin/app/dashboard/geography/page.js`, `admin_api.py`, `admin/tests/setup-checklist.test.jsx`, `admin/tests/geography.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`

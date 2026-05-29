@@ -9,6 +9,7 @@ import base64
 import bcrypt
 import logging
 import re
+import random
 import requests as http_requests
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -23,7 +24,7 @@ from jwt.exceptions import PyJWTError as JWTError
 from sqlalchemy import text, func
 from sqlalchemy.orm.attributes import flag_modified
 
-from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, validate_password, get_all_overrides, save_overrides_to_db, AdminAuditLog, AdminNote, derive_account_stage, derive_seat_type, build_geography_key, parse_geography_key, get_all_geography_data, seat_label
+from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, TenantOverride, validate_password, get_all_overrides, save_overrides_to_db, AdminAuditLog, AdminNote, derive_account_stage, derive_seat_type, build_geography_key, parse_geography_key, get_all_geography_data, seat_label
 from core.db_helpers import _q, _q_one, _parse_meta
 from core.gemini_client import get_gemini_client
 from modules.constituencies import ALL_CONSTITUENCIES
@@ -1939,6 +1940,335 @@ def case_analytics(_=Depends(get_admin_user)):
 # ═══════════════════════════════════════════
 # SEED & TENANTS (admin JWT only; no separate secret)
 # ═══════════════════════════════════════════
+
+class ConstituencyCaseSeedRequest(BaseModel):
+    tenant_id: Optional[int] = None
+    username: Optional[str] = None
+    count: int = 500
+    clear_existing_seeded: bool = True
+    seed: Optional[int] = None
+
+
+_SYNTHETIC_CASE_BLUEPRINTS = [
+    {
+        "category": "Water",
+        "problem_domain": "Infrastructure & Utilities",
+        "problem_subdomain": "Water Supply",
+        "messages": [
+            "Paani supply kal raat se band hai. Tanker bhi abhi tak nahi aaya.",
+            "Drinking water line mein pressure bahut kam hai aur subah se paani nahi mila.",
+            "Borewell ka paani ganda aa raha hai. Bacchon ko pet ki problem ho rahi hai.",
+        ],
+    },
+    {
+        "category": "Sanitation",
+        "problem_domain": "Infrastructure & Utilities",
+        "problem_subdomain": "Garbage Collection",
+        "messages": [
+            "Garbage collection gaadi 3 din se nahi aayi. Kachra road par jama ho raha hai.",
+            "Nala block ho gaya hai aur badbu bahut aa rahi hai.",
+            "Drainage overflow ki wajah se gali mein gandagi aur machhar badh gaye hain.",
+        ],
+    },
+    {
+        "category": "Roads",
+        "problem_domain": "Infrastructure & Utilities",
+        "problem_subdomain": "Road Repair",
+        "messages": [
+            "Main road par bade khadde ho gaye hain. Roz accident hone ka darr rehta hai.",
+            "Road patchwork adhoora chhod diya gaya hai aur traffic jam lagta hai.",
+            "Internal road poora toot gaya hai. School bus ko nikalne mein problem hoti hai.",
+        ],
+    },
+    {
+        "category": "Electricity",
+        "problem_domain": "Infrastructure & Utilities",
+        "problem_subdomain": "Street Lighting",
+        "messages": [
+            "Street lights kaam nahi kar rahi hain. Raat ko area unsafe lagta hai.",
+            "Roz power cut hota hai aur low voltage ki wajah se appliances kharab ho rahe hain.",
+            "Transformer se awaaz aa rahi hai aur bijli baar baar trip ho rahi hai.",
+        ],
+    },
+    {
+        "category": "Health",
+        "problem_domain": "Health",
+        "problem_subdomain": "Public Health Facility",
+        "messages": [
+            "PHC mein doctor available nahi the. Patients ko private clinic jaana pada.",
+            "Government dispensary mein basic medicines khatam ho gayi hain.",
+            "Health camp announce hua tha lekin locality mein conduct hi nahi hua.",
+        ],
+    },
+    {
+        "category": "Education",
+        "problem_domain": "Education",
+        "problem_subdomain": "School Infrastructure",
+        "messages": [
+            "School building ka roof leak kar raha hai aur classroom use karna mushkil hai.",
+            "Government school mein toilet aur drinking water facility theek nahi hai.",
+            "Teacher shortage ki wajah se regular classes nahi ho pa rahi hain.",
+        ],
+    },
+    {
+        "category": "Pensions",
+        "problem_domain": "Social Welfare",
+        "problem_subdomain": "Pension Delay",
+        "messages": [
+            "Vruddha pension iss mahine credit nahi hui. Senior citizens ko dikkat ho rahi hai.",
+            "Widow pension application verify hone ke baad bhi amount release nahi hua.",
+            "Pension status portal par approved dikha raha hai lekin bank mein paisa nahi aaya.",
+        ],
+    },
+    {
+        "category": "Housing",
+        "problem_domain": "Housing",
+        "problem_subdomain": "Housing Scheme Delay",
+        "messages": [
+            "Housing scheme ke liye survey hua tha lekin allotment update nahi mila.",
+            "PMAY installment ruk gayi hai aur construction adhura pada hai.",
+            "List mein naam aane ke baad bhi ghar sanction order receive nahi hua.",
+        ],
+    },
+    {
+        "category": "Transport",
+        "problem_domain": "Transport",
+        "problem_subdomain": "Bus Service",
+        "messages": [
+            "Bus stop par schedule follow nahi ho raha. Office time par bus nahi milti.",
+            "School route ki bus frequency kam hone se students late ho rahe hain.",
+            "Bus shelter toot gaya hai aur barish mein logon ko khade rehna padta hai.",
+        ],
+    },
+    {
+        "category": "Police",
+        "problem_domain": "Public Safety",
+        "problem_subdomain": "Patrolling",
+        "messages": [
+            "Raat ko area mein patrolling kam hai aur bike theft incidents badh gaye hain.",
+            "Market ke paas eve teasing ki complaint di thi lekin action update nahi mila.",
+            "Festival ke time crowd control aur traffic police arrangement weak tha.",
+        ],
+    },
+]
+
+_SYNTHETIC_STATUS_WEIGHTS = [
+    ("new", 0.42),
+    ("in_progress", 0.33),
+    ("resolved", 0.25),
+]
+
+
+def _weighted_status(rng: random.Random) -> str:
+    pick = rng.random()
+    running = 0.0
+    for status, weight in _SYNTHETIC_STATUS_WEIGHTS:
+        running += weight
+        if pick <= running:
+            return status
+    return "resolved"
+
+
+def _resolve_seed_tenant(db, req: ConstituencyCaseSeedRequest) -> tuple[Tenant, User | None]:
+    if req.tenant_id:
+        tenant = db.query(Tenant).filter(Tenant.id == req.tenant_id).first()
+        if not tenant:
+            raise HTTPException(404, f"Tenant {req.tenant_id} not found")
+        primary_user = db.query(User).filter(
+            User.tenant_id == tenant.id,
+            User.role.in_(["owner", "mp", "pr"]),
+        ).order_by(User.id.asc()).first()
+        return tenant, primary_user
+
+    username = (req.username or "").strip()
+    if not username:
+        raise HTTPException(400, "Provide either tenant_id or username")
+
+    user = db.query(User).filter(User.username == username).first()
+    if not user or not user.tenant_id:
+        raise HTTPException(404, f"User '{username}' was not found with a tenant")
+
+    tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(404, f"Tenant for user '{username}' not found")
+    return tenant, user
+
+
+def _load_shared_seat_localities(db, tenant: Tenant) -> list[dict]:
+    seat_type = derive_seat_type(tenant)
+    seat_name = (tenant.constituency or "").strip()
+    if not seat_name:
+        return []
+
+    rows = db.query(TenantOverride).filter(TenantOverride.override_type == "geography_data").all()
+    resolved = []
+    for row in rows:
+        row_seat_type, row_seat_name, assembly_name = parse_geography_key(row.key)
+        if row_seat_type != seat_type or row_seat_name != seat_name or not assembly_name:
+            continue
+        try:
+            stations = json.loads(row.value) if isinstance(row.value, str) else row.value
+        except Exception:
+            stations = []
+        seen = set()
+        for station in stations or []:
+            locality = (station.get("locality") or "").strip()
+            if not locality:
+                continue
+            dedupe_key = (assembly_name.strip(), locality.lower())
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            resolved.append({
+                "assembly": assembly_name.strip(),
+                "locality": locality,
+            })
+    return resolved
+
+
+def _fallback_seed_localities(seat_name: str) -> list[dict]:
+    base = (seat_name or "Constituency").strip() or "Constituency"
+    return [
+        {"assembly": f"{base} Central", "locality": "Market Road"},
+        {"assembly": f"{base} Central", "locality": "Station Area"},
+        {"assembly": f"{base} North", "locality": "Ward 1"},
+        {"assembly": f"{base} North", "locality": "Ward 2"},
+        {"assembly": f"{base} South", "locality": "Bus Stand"},
+        {"assembly": f"{base} South", "locality": "Old Town"},
+        {"assembly": f"{base} East", "locality": "Industrial Area"},
+        {"assembly": f"{base} West", "locality": "Teachers Colony"},
+    ]
+
+
+def _delete_existing_seeded_cases(db, tenant_id: int) -> int:
+    seeded_cases = db.query(Case).filter(Case.tenant_id == tenant_id).all()
+    doomed_ids = []
+    for case in seeded_cases:
+        meta = case.case_metadata or {}
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except Exception:
+                meta = {}
+        if isinstance(meta, dict) and meta.get("synthetic_seed") is True:
+            doomed_ids.append(case.id)
+    if not doomed_ids:
+        return 0
+    db.query(Case).filter(Case.id.in_(doomed_ids)).delete(synchronize_session=False)
+    return len(doomed_ids)
+
+
+@router.post("/seed-constituency-cases")
+def seed_constituency_cases(req: ConstituencyCaseSeedRequest, _=Depends(get_admin_user)):
+    """Seed synthetic grievances for one tenant using shared seat geography when available."""
+    if req.count < 1 or req.count > 500:
+        raise HTTPException(400, "count must be between 1 and 500")
+
+    db = SessionLocal()
+    try:
+        tenant, matched_user = _resolve_seed_tenant(db, req)
+        seat_name = (tenant.constituency or "").strip()
+        if not seat_name:
+            raise HTTPException(400, "Target tenant must have a constituency before seeding")
+
+        if req.clear_existing_seeded:
+            deleted = _delete_existing_seeded_cases(db, tenant.id)
+            if deleted:
+                db.flush()
+        else:
+            deleted = 0
+
+        localities = _load_shared_seat_localities(db, tenant)
+        used_fallback = False
+        if not localities:
+            localities = _fallback_seed_localities(seat_name)
+            used_fallback = True
+
+        rng = random.Random(req.seed if req.seed is not None else tenant.id * 1009 + req.count)
+        batch_id = f"seed-{uuid.uuid4().hex[:10]}"
+        inserted = 0
+        now = datetime.utcnow()
+        profile = db.query(TenantProfile).filter(TenantProfile.tenant_id == tenant.id).first()
+        primary_name = None
+        if profile and profile.mp_name:
+            primary_name = profile.mp_name
+        elif matched_user and matched_user.display_name:
+            primary_name = matched_user.display_name
+        else:
+            primary_name = tenant.name or seat_name
+
+        for idx in range(req.count):
+            issue = rng.choice(_SYNTHETIC_CASE_BLUEPRINTS)  # nosec B311
+            geo = localities[idx % len(localities)] if len(localities) >= req.count else rng.choice(localities)  # nosec B311
+            status = _weighted_status(rng)
+            created_at = now - timedelta(
+                days=rng.randint(0, 120),  # nosec B311
+                hours=rng.randint(0, 23),  # nosec B311
+                minutes=rng.randint(0, 59),  # nosec B311
+            )
+            updated_at = created_at + timedelta(hours=rng.randint(1, 72))  # nosec B311
+            resolved_at = updated_at if status == "resolved" else None
+            phone = f"+9185{tenant.id:03d}{idx:06d}"
+            message = rng.choice(issue["messages"])  # nosec B311
+            meta = {
+                "synthetic_seed": True,
+                "synthetic_batch_id": batch_id,
+                "synthetic_seed_version": 1,
+                "seeded_for": "demo",
+                "seeded_for_account": primary_name,
+                "seeded_constituency": seat_name,
+                "seeded_by": "admin_api",
+                "location_resolved": True,
+                "matched_value": geo["locality"],
+                "assembly_constituency": geo["assembly"],
+                "user_intent": "complaint",
+            }
+            db.add(Case(
+                tenant_id=tenant.id,
+                user_phone=phone,
+                raw_message=message,
+                category=issue["category"],
+                problem_domain=issue["problem_domain"],
+                problem_subdomain=issue["problem_subdomain"],
+                status=status,
+                location=geo["locality"],
+                ward=geo["locality"],
+                assembly=geo["assembly"],
+                is_critical=(idx % 17 == 0),
+                response_to_citizen="Synthetic demo case seeded for internal testing only.",
+                notes_for_staff="Synthetic seeded grievance for demo/testing. Do not treat as live citizen complaint.",
+                case_metadata=meta,
+                created_at=created_at,
+                updated_at=updated_at,
+                resolved_at=resolved_at,
+                case_ref=f"SYN-{tenant.id}-{idx + 1:04d}",
+            ))
+            inserted += 1
+
+        db.commit()
+        return {
+            "status": "seeded",
+            "tenant_id": tenant.id,
+            "username": matched_user.username if matched_user else None,
+            "constituency": seat_name,
+            "seat_type": derive_seat_type(tenant),
+            "count_requested": req.count,
+            "inserted": inserted,
+            "deleted_existing_seeded": deleted,
+            "used_fallback_localities": used_fallback,
+            "batch_id": batch_id,
+            "locality_count": len(localities),
+        }
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        logger.exception("Constituency case seeding failed")
+        raise HTTPException(500, "Internal server error")
+    finally:
+        db.close()
+
 
 @router.post("/seed-test-cases")
 def seed_test_cases(tid: int = 0, _=Depends(get_admin_user)):
