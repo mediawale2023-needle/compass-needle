@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-05-29
+- Request: Push the constituency-specific synthetic grievance seeder to GitHub.
+- Summary: Pushed commit `166db58e` (`Add constituency case seed endpoint`) to `origin/main`, including the protected `/api/admin/seed-constituency-cases` endpoint, geography-aware synthetic seed generation capped at 500 cases, selective rerun cleanup for prior synthetic cases, and focused API tests.
+- Files touched: `admin_api.py`, `tests/test_constituency_case_seed_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The endpoint is now in Git history, but actually populating the live `Jadhav` tenant still requires the backend deployment to pick up this commit and an authenticated admin request against production.
+
+- Date: 2026-05-29
 - Request: Implement a safer constituency-specific synthetic grievance seeder for aspirant/demo accounts, capped at 500 cases.
 - Summary: Added a protected `/api/admin/seed-constituency-cases` endpoint that targets one tenant by `tenant_id` or `username`, clears only prior synthetic seeded cases for that tenant, and generates up to 500 tagged synthetic grievances using shared seat geography localities and assemblies when available, with focused API tests covering geography-aware insertion and rerun replacement behavior.
 - Files touched: `admin_api.py`, `tests/test_constituency_case_seed_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
