@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-05-29
+- Request: Finish the account-model rollout by aligning the remaining Briefcase modal actions with primary-account permissions before pushing.
+- Summary: Updated the Briefcase case modal to use shared `isPrimaryAccount` logic for citizen notifications, adjusted the related UI copy from MP-only wording to primary-account wording, and allowed `owner` accounts to retain delete-case access alongside legacy `mp` and `pr` roles.
+- Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `TASK_LOG.md`
+- Risks or follow-ups: This closes an omitted frontend permission check from the larger rollout; deeper parliamentary drafting/research wording remains intentionally elected-office-specific.
+
+- Date: 2026-05-29
 - Request: Begin the aspirant/MP identity rollout by implementing Phase 1 of the account model changes.
 - Summary: Added explicit `tenant_type` handling to tenant creation and auth payloads, switched new primary customer accounts to `role='owner'` while keeping legacy `role='mp'` accounts compatible, updated key admin/frontend screens to recognize the new owner identity, and exposed account type selection in the admin create-account flow.
 - Files touched: `admin_api.py`, `api_router.py`, `admin/app/dashboard/mps/new/page.js`, `admin/app/dashboard/rules/page.js`, `frontend/app/dashboard/page.js`, `frontend/app/dashboard/layout.js`, `frontend/app/dashboard/settings/page.js`, `frontend/components/Sidebar.js`, `frontend/components/briefcase/BriefcaseHeader.jsx`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `frontend/app/dashboard/sansadai/page.js`, `frontend/app/dashboard/csr/page.js`, `frontend/app/dashboard/schemes/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`

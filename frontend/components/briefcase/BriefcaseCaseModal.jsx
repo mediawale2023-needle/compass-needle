@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import BriefcaseEscalationModal from '@/components/briefcase/BriefcaseEscalationModal';
 import BriefcaseSourceMediaViewer from '@/components/briefcase/BriefcaseSourceMediaViewer';
 import { STATUS_OPTIONS, getStatusBadge } from '@/components/briefcase/briefcase-shared';
+import { isPrimaryAccount } from '@/lib/account';
 import { cn } from '@/lib/utils';
 
 export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
@@ -86,7 +87,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const createdAt = current.created_at ? new Date(current.created_at) : null;
     const updatedAt = current.updated_at ? new Date(current.updated_at) : null;
     const currentStatus = (current.status || 'new').toLowerCase();
-    const isMp = user?.role === 'mp';
+    const isMp = isPrimaryAccount(user);
     const caseRef = current.case_ref || `#${current.id}`;
 
     const handleStatusChange = async (newStatus) => {
@@ -432,7 +433,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                 variant="outline"
                                 className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                                 disabled={!current.user_phone || !isMp}
-                                title={!isMp ? 'Only the MP can send citizen notifications' : !current.user_phone ? 'No phone number on file' : ''}
+                                title={!isMp ? 'Only the primary account can send citizen notifications' : !current.user_phone ? 'No phone number on file' : ''}
                                 onClick={() => {
                                     setNotifyInput('');
                                     setNotifyOpen(true);
@@ -440,7 +441,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                             >
                                 <Send className="h-4 w-4 mr-1" />
                                 Send Update via WhatsApp
-                                {!isMp && <span className="ml-1 text-xs opacity-60">(MP only)</span>}
+                                {!isMp && <span className="ml-1 text-xs opacity-60">(Primary only)</span>}
                             </Button>
                         </div>
                     </div>
@@ -524,7 +525,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         >
                             Escalate to Officer
                         </Button>
-                        {(user?.role === 'mp' || user?.role === 'pr') && (
+                        {(user?.role === 'mp' || user?.role === 'owner' || user?.role === 'pr') && (
                             <Button variant="destructive" size="sm" onClick={handleDelete}>
                                 Delete Case
                             </Button>
