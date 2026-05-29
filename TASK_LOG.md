@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-05-29
+- Request: Make the launch-readiness geography step support either uploading new geography or reusing existing shared seat geography from rival/same-seat accounts.
+- Summary: Redirected the setup checklist geography CTA to the dedicated geography page, added a tenant-aware chooser flow there that prefills the tenant seat and offers `use existing shared geography` before the upload form, and fixed the admin constituency update endpoint to keep tenant/profile/user constituency fields aligned when an account is linked to an existing saved seat.
+- Files touched: `admin/app/dashboard/mps/[tenant_id]/setup/page.js`, `admin/app/dashboard/geography/page.js`, `admin_api.py`, `admin/tests/setup-checklist.test.jsx`, `admin/tests/geography.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This reuses shared geography by seat name; if operators later need fuzzy matching or alias-based seat selection, we should add that deliberately instead of auto-linking near matches.
+
+- Date: 2026-05-29
 - Request: Push the aspirant rollout and follow-up Briefcase permission fix to GitHub.
 - Summary: Rebasing local commits onto `origin/main` after the upstream Briefcase mobile merge, then pushed `a6bd8137` (`Add aspirant seat model and shared geography flow`) and `f235d7a0` (`Align Briefcase modal with primary accounts`) to `origin/main`.
 - Files touched: `TASK_LOG.md`

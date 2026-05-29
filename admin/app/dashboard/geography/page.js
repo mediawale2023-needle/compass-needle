@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { apiGet, apiPut, apiDelete, apiUpload } from '@/lib/api';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { apiGet, apiPut, apiDelete, apiUpload, apiPatch } from '@/lib/api';
 import ConfirmModal from '@/components/ConfirmModal';
 
 const SEAT_TYPES = [
@@ -323,6 +325,8 @@ function ReviewTable({ stations, onChange }) {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function GeographyUploadPage() {
+    const searchParams = useSearchParams();
+    const tenantId = searchParams.get('tenant_id');
     const [constituencies, setConstituencies] = useState([]);
     const [seatType, setSeatType]             = useState('mp');
     const [pConst, setPConst]                 = useState('');
@@ -338,6 +342,10 @@ export default function GeographyUploadPage() {
     const [saving, setSaving]                 = useState(false);
     const [validationReport, setValidationReport] = useState(null);
     const [deleteTarget, setDeleteTarget]     = useState(null); // {seatType, pc, ac}
+    const [tenantContext, setTenantContext]   = useState(null);
+    const [tenantLoading, setTenantLoading]   = useState(false);
+    const [reuseSeatName, setReuseSeatName]   = useState('');
+    const [linkingSeat, setLinkingSeat]       = useState(false);
     const fileRef = useRef();
     const seatConfig = getSeatConfig(seatType);
     const assemblyLabel = seatType === 'mla' ? 'Routing Group / Area' : 'Assembly Constituency';
@@ -350,11 +358,48 @@ export default function GeographyUploadPage() {
     }, []);
 
     useEffect(() => {
+        if (!tenantId) {
+            setTenantContext(null);
+            return;
+        }
+        setTenantLoading(true);
+        apiGet(`/api/admin/mps/${tenantId}/detail`)
+            .then((detail) => {
+                const profile = detail?.profile || {};
+                const nextSeatType = profile.seat_type || detail?.seat_type || 'mp';
+                const nextSeatName = profile.constituency || '';
+                setTenantContext({
+                    tenantId: String(tenantId),
+                    displayName: profile.mp_name || 'Account',
+                    constituency: nextSeatName,
+                    seatType: nextSeatType,
+                    seatLabel: profile.seat_label || detail?.seat_label || getSeatConfig(nextSeatType).label,
+                });
+                setSeatType(nextSeatType);
+                setPConst(nextSeatName);
+                setASelection('');
+                setNewAssembly('');
+                setReuseSeatName(nextSeatName);
+            })
+            .catch(() => {
+                setTenantContext(null);
+            })
+            .finally(() => setTenantLoading(false));
+    }, [tenantId]);
+
+    useEffect(() => {
         if (!pConst) { setAssemblies([]); return; }
         apiGet(`/api/admin/geography/${encodeURIComponent(pConst)}/assemblies?seat_type=${seatType}`)
             .then(r => setAssemblies(r.assemblies || []))
             .catch(() => { });
     }, [pConst, seatType]);
+
+    useEffect(() => {
+        if (!tenantContext) return;
+        if (!reuseSeatName && tenantContext.constituency) {
+            setReuseSeatName(tenantContext.constituency);
+        }
+    }, [tenantContext, reuseSeatName]);
 
     const loadSavedFiles = async () => {
         try {
@@ -388,6 +433,33 @@ export default function GeographyUploadPage() {
     };
 
     const aConst = aSelection === '__new__' ? newAssembly : aSelection;
+    const seatHasSavedGeography = !!(savedData[`${seatType}:${pConst}`] || []).length;
+    const savedSeatsForCurrentType = savedSeats.filter(({ seatType: currentSeatType }) => currentSeatType === seatType);
+    const selectedReuseBlockCount = (savedData[`${seatType}:${reuseSeatName}`] || []).length;
+
+    const handleReuseExistingSeat = async () => {
+        if (!tenantContext?.tenantId) return;
+        if (!reuseSeatName) {
+            showMsg('error', 'Select a saved seat first.');
+            return;
+        }
+        setLinkingSeat(true);
+        try {
+            if (reuseSeatName !== tenantContext.constituency) {
+                await apiPatch(`/api/admin/mps/${tenantContext.tenantId}/constituency`, { constituency: reuseSeatName });
+                setTenantContext((prev) => prev ? { ...prev, constituency: reuseSeatName } : prev);
+                setPConst(reuseSeatName);
+            }
+            setSeatType(tenantContext.seatType);
+            showMsg('success', reuseSeatName === tenantContext.constituency
+                ? `Using existing shared geography for ${reuseSeatName}. No upload needed.`
+                : `Linked this account to existing shared geography for ${reuseSeatName}.`);
+        } catch (err) {
+            showMsg('error', err.message || 'Could not link existing geography.');
+        } finally {
+            setLinkingSeat(false);
+        }
+    };
 
     // ── PDF parse ──────────────────────────────────────────────────────────────
     const handleParsePDF = async () => {
@@ -493,6 +565,105 @@ export default function GeographyUploadPage() {
                     onConfirm={confirmDelete}
                     onCancel={() => setDeleteTarget(null)}
                 />
+            )}
+
+            {tenantId && (
+                <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 10, flexWrap: 'wrap' }}>
+                        <div>
+                            <div className="section-title" style={{ marginBottom: 6 }}>Tenant Geography Setup</div>
+                            <p style={{ color: '#6b7f76', fontSize: '0.82rem', margin: 0 }}>
+                                Choose an existing shared seat geography or upload a new one for this account.
+                            </p>
+                        </div>
+                        <Link
+                            href={`/dashboard/mps/${tenantId}/setup`}
+                            className="btn-ghost"
+                            style={{ textDecoration: 'none', fontSize: '0.74rem', flexShrink: 0 }}
+                        >
+                            Back to launch readiness
+                        </Link>
+                    </div>
+
+                    {tenantLoading ? (
+                        <div style={{ color: '#6b7f76', fontSize: '0.8rem' }}>Loading tenant seat…</div>
+                    ) : tenantContext ? (
+                        <>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                                <span className="badge badge-slate">{tenantContext.displayName}</span>
+                                <span className={`badge ${tenantContext.seatType === 'mla' ? 'badge-red' : 'badge-green'}`}>{tenantContext.seatLabel}</span>
+                                <span className="badge badge-slate">{tenantContext.constituency || 'No constituency set'}</span>
+                                <span className={`badge badge-dot ${seatHasSavedGeography ? 'badge-green' : 'badge-amber'}`}>
+                                    {seatHasSavedGeography ? 'Shared geography already present' : 'No shared geography yet'}
+                                </span>
+                            </div>
+
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'minmax(240px, 1.15fr) minmax(280px, 1.6fr)',
+                                gap: 16,
+                                alignItems: 'start',
+                            }}>
+                                <div style={{
+                                    border: '1px solid #e2ebe5',
+                                    borderRadius: 12,
+                                    padding: '14px 16px',
+                                    background: '#f8fbf9',
+                                }}>
+                                    <div style={{ fontWeight: 700, fontSize: '0.84rem', color: '#1a2e28', marginBottom: 6 }}>
+                                        Option 1: Use Existing Shared Geography
+                                    </div>
+                                    <div style={{ color: '#6b7f76', fontSize: '0.78rem', lineHeight: 1.5, marginBottom: 12 }}>
+                                        If this seat already exists because of a rival or another account, just select it here.
+                                        Shared geography will apply immediately.
+                                    </div>
+                                    <label className="form-label">Saved {tenantContext.seatType === 'mla' ? 'MLA' : 'MP'} constituency</label>
+                                    <select
+                                        className="form-input"
+                                        value={reuseSeatName}
+                                        onChange={(e) => setReuseSeatName(e.target.value)}
+                                    >
+                                        <option value="">Select existing seat…</option>
+                                        {savedSeatsForCurrentType.map(({ seatName }) => (
+                                            <option key={`${tenantContext.seatType}:${seatName}`} value={seatName}>{seatName}</option>
+                                        ))}
+                                    </select>
+                                    <div style={{ color: '#6b7f76', fontSize: '0.75rem', marginTop: 8, minHeight: 18 }}>
+                                        {reuseSeatName
+                                            ? `${selectedReuseBlockCount} routing block${selectedReuseBlockCount === 1 ? '' : 's'} available for ${reuseSeatName}.`
+                                            : 'Choose a saved seat to reuse its shared geography.'}
+                                    </div>
+                                    <button
+                                        className="btn-primary"
+                                        style={{ marginTop: 12, width: '100%' }}
+                                        disabled={!reuseSeatName || linkingSeat}
+                                        onClick={handleReuseExistingSeat}
+                                    >
+                                        {linkingSeat ? 'Linking…' : reuseSeatName && reuseSeatName !== tenantContext.constituency ? 'Use selected seat geography' : 'Use existing geography'}
+                                    </button>
+                                </div>
+
+                                <div style={{
+                                    border: '1px solid #e2ebe5',
+                                    borderRadius: 12,
+                                    padding: '14px 16px',
+                                    background: '#fff',
+                                }}>
+                                    <div style={{ fontWeight: 700, fontSize: '0.84rem', color: '#1a2e28', marginBottom: 6 }}>
+                                        Option 2: Upload New Shared Geography
+                                    </div>
+                                    <div style={{ color: '#6b7f76', fontSize: '0.78rem', lineHeight: 1.5 }}>
+                                        Use the upload form below if this seat has no saved geography yet, or if you want to replace the shared base dataset with a newer Election Commission PDF.
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div style={{ color: '#9a3412', fontSize: '0.8rem' }}>
+                            Could not load tenant details for this geography setup flow.
+                        </div>
+                    )}
+                </div>
             )}
 
             {/* ── Upload form ────────────────────────────────────────────────── */}

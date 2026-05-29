@@ -683,6 +683,9 @@ def update_constituency(tenant_id: int, req: UpdateConstituencyRequest, _=Depend
         tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
         if tenant:
             tenant.constituency = req.constituency
+        profile = db.query(TenantProfile).filter(TenantProfile.tenant_id == tenant_id).first()
+        if profile:
+            profile.constituency = req.constituency
         db.commit()
         return {"success": True}
     except Exception as e:

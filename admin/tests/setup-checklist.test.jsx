@@ -69,4 +69,34 @@ describe('Admin MP setup checklist', () => {
             expect(apiPatchMock).toHaveBeenCalledWith('/api/admin/mps/7/onboarding', { test_sent: true });
         });
     });
+
+    it('routes the geography checklist action to the dedicated geography page', async () => {
+        apiGetMock.mockImplementation(async (path) => {
+            if (path === '/api/admin/mps/7/detail') {
+                return {
+                    tenant_id: 7,
+                    profile: {
+                        mp_name: 'Shri Jagdish Shettar',
+                        constituency: 'Belagavi',
+                        state: 'Karnataka',
+                        house: 'Lok Sabha',
+                        key_facts: ['Border district'],
+                        whatsapp_number: '+919876543210',
+                        phone_number_id: '',
+                    },
+                    staff: [{ username: 'pa_one', is_active: true }],
+                    onboarding_state: {},
+                };
+            }
+            if (path === '/api/admin/mps/7/geography') {
+                return { assemblies: {} };
+            }
+            return {};
+        });
+
+        render(<SetupChecklistPage />);
+
+        const link = await screen.findByRole('link', { name: 'Configure geography →' });
+        expect(link).toHaveAttribute('href', '/dashboard/geography?tenant_id=7');
+    });
 });

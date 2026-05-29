@@ -39,7 +39,7 @@ function buildChecklist(tenantId, detail, onboarding, geography) {
                 ? `${assemblies.length} assemblies and ${localityCount} localities available for routing.`
                 : 'Upload or add assembly-locality data before live grievance routing.',
             action: 'Configure geography',
-            link: `/dashboard/profiles?tenant_id=${tenantId}#geography`,
+            link: `/dashboard/geography?tenant_id=${tenantId}`,
             done: assemblies.length > 0 && localityCount > 0,
             source: 'Verified from saved geography',
         },
