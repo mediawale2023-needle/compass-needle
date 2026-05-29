@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-05-29
+- Request: Push the aspirant rollout and follow-up Briefcase permission fix to GitHub.
+- Summary: Rebasing local commits onto `origin/main` after the upstream Briefcase mobile merge, then pushed `a6bd8137` (`Add aspirant seat model and shared geography flow`) and `f235d7a0` (`Align Briefcase modal with primary accounts`) to `origin/main`.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Remote history now contains the full aspirant/account-stage rollout plus the final Briefcase primary-account alignment; remaining follow-up work is optional cleanup only.
+
+- Date: 2026-05-29
 - Request: Finish the account-model rollout by aligning the remaining Briefcase modal actions with primary-account permissions before pushing.
 - Summary: Updated the Briefcase case modal to use shared `isPrimaryAccount` logic for citizen notifications, adjusted the related UI copy from MP-only wording to primary-account wording, and allowed `owner` accounts to retain delete-case access alongside legacy `mp` and `pr` roles.
 - Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `TASK_LOG.md`
