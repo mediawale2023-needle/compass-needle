@@ -1027,6 +1027,8 @@ def init_db():
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS ward VARCHAR",
         # Added for case assignment and staff notes
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS assigned_to VARCHAR",
+        # Fix assigned_to type if it was previously created as INTEGER
+        "ALTER TABLE cases ALTER COLUMN assigned_to TYPE VARCHAR USING assigned_to::VARCHAR",
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS notes_for_staff TEXT",
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS response_to_citizen TEXT",
         "ALTER TABLE cases ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP",

@@ -2262,10 +2262,10 @@ def seed_constituency_cases(req: ConstituencyCaseSeedRequest, _=Depends(get_admi
     except HTTPException:
         db.rollback()
         raise
-    except Exception as _seed_exc:
+    except Exception:
         db.rollback()
         logger.exception("Constituency case seeding failed")
-        raise HTTPException(500, f"Seed error [{type(_seed_exc).__name__}]: {_seed_exc}")
+        raise HTTPException(500, "Internal server error")
     finally:
         db.close()
 
