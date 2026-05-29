@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-05-29
+- Request: Push the tenant-aware geography reuse flow to GitHub.
+- Summary: Pushed commit `9c4387a5` (`Add tenant-aware geography reuse flow`) to `origin/main`, including the launch-readiness geography redirect, the tenant-aware reuse-vs-upload chooser on the geography page, the constituency sync fix across tenant/profile/user records, and focused admin test coverage.
+- Files touched: `admin/app/dashboard/mps/[tenant_id]/setup/page.js`, `admin/app/dashboard/geography/page.js`, `admin_api.py`, `admin/tests/setup-checklist.test.jsx`, `admin/tests/geography.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Shared geography reuse still relies on exact seat-name matching; if operators later need alias-based or fuzzy seat matching, that should be added intentionally.
+
+- Date: 2026-05-29
 - Request: Make the launch-readiness geography step support either uploading new geography or reusing existing shared seat geography from rival/same-seat accounts.
 - Summary: Redirected the setup checklist geography CTA to the dedicated geography page, added a tenant-aware chooser flow there that prefills the tenant seat and offers `use existing shared geography` before the upload form, and fixed the admin constituency update endpoint to keep tenant/profile/user constituency fields aligned when an account is linked to an existing saved seat.
 - Files touched: `admin/app/dashboard/mps/[tenant_id]/setup/page.js`, `admin/app/dashboard/geography/page.js`, `admin_api.py`, `admin/tests/setup-checklist.test.jsx`, `admin/tests/geography.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
