@@ -2230,7 +2230,7 @@ def seed_constituency_cases(req: ConstituencyCaseSeedRequest, _=Depends(get_admi
                 "assembly_constituency": geo["assembly"],
                 "user_intent": "complaint",
             }
-            db.add(Case(
+            c = Case(
                 tenant_id=tenant.id,
                 user_phone=phone,
                 raw_message=message,
@@ -2249,7 +2249,9 @@ def seed_constituency_cases(req: ConstituencyCaseSeedRequest, _=Depends(get_admi
                 updated_at=updated_at,
                 resolved_at=resolved_at,
                 case_ref=f"SYN-{tenant.id}-{idx + 1:04d}",
-            ))
+            )
+            db.add(c)
+            db.flush()  # flush individually to avoid SQLAlchemy batched executemany typed params
             inserted += 1
 
         db.commit()
