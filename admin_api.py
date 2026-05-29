@@ -2166,6 +2166,13 @@ def seed_constituency_cases(req: ConstituencyCaseSeedRequest, _=Depends(get_admi
 
     db = SessionLocal()
     try:
+        # Ensure assigned_to column is VARCHAR (may still be INTEGER on older DBs)
+        try:
+            db.execute(sa_text("ALTER TABLE cases ALTER COLUMN assigned_to TYPE VARCHAR USING assigned_to::VARCHAR"))
+            db.commit()
+        except Exception:
+            db.rollback()
+
         tenant, matched_user = _resolve_seed_tenant(db, req)
         seat_name = (tenant.constituency or "").strip()
         if not seat_name:
