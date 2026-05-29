@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { apiGet, apiPost, AI_TIMEOUT } from '@/lib/api';
+import { canAccessSansadAI } from '@/lib/account';
 import { ResearchDeskExperience } from '@/app/dashboard/copilot/page';
 import {
     Bot, Building2, ChevronLeft, ChevronRight, Landmark,
@@ -515,7 +516,7 @@ export function GovernmentIntelExperience({
 
     const color = user?.theme_color || '#006a4d';
 
-    if (user && user.role !== 'mp' && user.role !== 'admin') {
+    if (user && !canAccessSansadAI(user)) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-6">
                 <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
@@ -523,7 +524,7 @@ export function GovernmentIntelExperience({
                 </div>
                 <div>
                     <h2 className="text-lg font-semibold text-foreground">SansadAI is restricted</h2>
-                    <p className="text-sm text-muted-foreground mt-1">Available to the MP only.</p>
+                    <p className="text-sm text-muted-foreground mt-1">Available to elected-office accounts only.</p>
                 </div>
             </div>
         );

@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { briefcaseFonts, briefcasePalette as P, BriefcaseIcon } from '@/components/briefcase/briefcase-shared';
+import { canAccessSansadAI, getAccountLabel } from '@/lib/account';
 
 const { serif: SERIF, mono: MONO } = briefcaseFonts;
 
 export default function BriefcaseHeader({ searchInput, onSearchInputChange, subtitle, user }) {
     const initials = user?.display_name
         ? user.display_name.split(' ').map((word) => word[0]).slice(0, 2).join('').toUpperCase()
-        : 'MP';
+        : 'CN';
 
     return (
         <>
@@ -82,27 +83,29 @@ export default function BriefcaseHeader({ searchInput, onSearchInputChange, subt
                 </span>
             </div>
 
-            <Link
-                href="/dashboard/sansadai"
-                style={{
-                    padding: '7px 12px',
-                    background: P.green,
-                    color: '#F5EFE0',
-                    border: 'none',
-                    fontSize: 11,
-                    letterSpacing: '0.08em',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    fontFamily: 'inherit',
-                    textDecoration: 'none',
-                }}
-            >
-                <BriefcaseIcon name="sparkle" size={12} color="#F5EFE0" /> Sansad AI
-            </Link>
+            {canAccessSansadAI(user) && (
+                <Link
+                    href="/dashboard/sansadai"
+                    style={{
+                        padding: '7px 12px',
+                        background: P.green,
+                        color: '#F5EFE0',
+                        border: 'none',
+                        fontSize: 11,
+                        letterSpacing: '0.08em',
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontFamily: 'inherit',
+                        textDecoration: 'none',
+                    }}
+                >
+                    <BriefcaseIcon name="sparkle" size={12} color="#F5EFE0" /> Sansad AI
+                </Link>
+            )}
 
             <button
                 style={{
@@ -159,10 +162,10 @@ export default function BriefcaseHeader({ searchInput, onSearchInputChange, subt
                 </div>
                 <div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: P.ink, lineHeight: 1.1 }}>
-                        {user?.display_name || 'Member'}
+                        {user?.display_name || 'Workspace User'}
                     </div>
                     <div style={{ fontSize: 10, color: P.ink3 }}>
-                        {user?.role === 'mp' ? 'MP' : user?.role === 'admin' ? 'Admin' : 'Staff'}
+                        {getAccountLabel(user)}
                     </div>
                 </div>
             </div>

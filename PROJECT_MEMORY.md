@@ -21,6 +21,22 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - MP frontend lives in `frontend/` and admin frontend lives in `admin/`, both using Next.js 15 and React 19.
 - The platform is multi-tenant. Every data access path must preserve `tenant_id` isolation.
 - Production source of truth is AWS EC2 for backend/Postgres and Vercel for both frontends.
+- Primary account identity is now split across `tenants.tenant_type` and `users.role`: new top-level customer accounts are created with `role='owner'` and a `tenant_type` of `mp`, `mla`, or `aspirant`, while older `role='mp'` tenants remain supported for backward compatibility.
+- Auth payloads now expose `tenant_type` to the MP frontend, and primary-account checks should treat both `owner` and legacy `mp` roles as equivalent until the full migration is complete.
+- The MP frontend now centralizes account/session interpretation in `frontend/lib/account.js`; new UI gating and account labels should reuse those helpers instead of re-implementing role checks inline.
+- Session payloads from `/api/auth/login` and `/api/auth/me` now include `tenant_type`, `is_primary_account`, and `account_label`, which are the preferred frontend contract for account-aware behavior.
+- Feature locking is now tenant-type-aware: aspirant accounts must be blocked from `Sansad AI` and `Convergence` in both frontend navigation/routes and backend API handlers, while core modules like Briefcase, Letterbox, Drafter, and Schemes remain available.
+- `frontend/lib/account.js` now owns the feature-level access helpers (`canAccessSansadAI`, `canAccessConvergence`); use those instead of broad “MP-only” role checks when adding or editing gated UI.
+- Primary-account identity has now been normalized further into two axes on `tenants`: `account_stage` (`aspirant` or `elected`) and `seat_type` (`mp` or `mla`). Keep `users.role` for permissions (`owner`, `staff`, `admin`) and treat legacy `tenant_type` as a backward-compatibility shim rather than the future source of truth.
+- Shared geography is now seat-scoped rather than tenant-scoped. Persist base geography rows once per seat using keys like `mp:<seat>/<assembly>` or `mla:<seat>/<assembly>`, allow multiple tenants to reference the same seat, and keep only generated `geo_override` / `geo_alias` rows tenant-specific.
+- Same-seat rivals are now a supported model: multiple aspirants and an elected office can share one constituency/seat safely as long as tenant-owned data remains filtered by `tenant_id` and any geography/bootstrap helper uses `tenant_id -> seat` instead of `seat -> tenant_id`.
+- The admin geography workflow is now seat-aware at the UI layer too: `admin/app/dashboard/geography/page.js` lets operators choose `MP Seat` vs `MLA Seat`, stores shared geography through the existing global admin routes using `seat_type` query parameters, and shows saved geography grouped by seat rather than assuming every record is a Lok Sabha constituency.
+- Admin overview and geography/rules copy should now prefer `account`, `tenant`, and `seat` language over `MP`-only phrasing unless a page is truly parliamentary-only.
+- Shared seat geography fan-out is now covered by backend tests: `auto_generate_overrides()` must create separate `geo_override` rows for every tenant on the same seat without leaking MLA-seat geography into MP-seat tenants.
+- Admin staff management must never treat primary political accounts as ordinary staff. `owner` and legacy `mp` users are now excluded from `/api/admin/staff` and blocked from staff suspend/reassign/edit flows; staff tooling is for non-primary tenant users only.
+- The ORM `User` model now explicitly includes `phone`, matching the existing migration and the live staff/WhatsApp features. Future user-facing phone work should rely on the ORM field rather than assuming it exists only via raw SQL migrations.
+- The aspirant-facing UI copy direction is now `workspace`/`team` oriented rather than `MP office` oriented. High-visibility MP frontend surfaces such as Settings, schedule cards, and Briefcase triage notes should prefer labels like `Your profile`, `Workspace details`, `Role / Position`, `Team`, and `Constituency Workspace` when the copy does not need to imply elected authority.
+- A second UI-only wording pass extended that same direction into fallback labels and helper text: avoid defaults like `MP`, `Member`, `PA / Staff`, or `MP Office` on shared workspace screens unless the feature is specifically parliamentary or elected-office only.
 
 ## Safety Rules Worth Rechecking
 

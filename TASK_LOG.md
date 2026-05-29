@@ -12,6 +12,54 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-05-29
+- Request: Begin the aspirant/MP identity rollout by implementing Phase 1 of the account model changes.
+- Summary: Added explicit `tenant_type` handling to tenant creation and auth payloads, switched new primary customer accounts to `role='owner'` while keeping legacy `role='mp'` accounts compatible, updated key admin/frontend screens to recognize the new owner identity, and exposed account type selection in the admin create-account flow.
+- Files touched: `admin_api.py`, `api_router.py`, `admin/app/dashboard/mps/new/page.js`, `admin/app/dashboard/rules/page.js`, `frontend/app/dashboard/page.js`, `frontend/app/dashboard/layout.js`, `frontend/app/dashboard/settings/page.js`, `frontend/components/Sidebar.js`, `frontend/components/briefcase/BriefcaseHeader.jsx`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `frontend/app/dashboard/sansadai/page.js`, `frontend/app/dashboard/csr/page.js`, `frontend/app/dashboard/schemes/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Geography/setup helpers still contain same-constituency assumptions and module access is not yet gated by `tenant_type`; those belong to the next rollout phases.
+
+- Date: 2026-05-29
+- Request: Implement Phase 2 of the aspirant/MP rollout by making session/account-type handling consistent across the frontend.
+- Summary: Added shared frontend account helpers, enriched login and `/auth/me` payloads with `is_primary_account` and `account_label`, switched key frontend module gates to use centralized account-type logic, and normalized remaining “MP-only” messaging to “primary account” or “elected-office accounts” where appropriate.
+- Files touched: `api_router.py`, `frontend/lib/account.js`, `frontend/app/dashboard/page.js`, `frontend/app/dashboard/layout.js`, `frontend/components/Sidebar.js`, `frontend/components/briefcase/BriefcaseHeader.jsx`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `frontend/app/dashboard/settings/page.js`, `frontend/app/dashboard/sansadai/page.js`, `frontend/app/dashboard/csr/page.js`, `frontend/app/dashboard/schemes/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Phase 2 centralizes frontend gating logic, but actual business feature locks by `tenant_type` still need explicit backend enforcement in the next phase.
+
+- Date: 2026-05-29
+- Request: Implement Phase 3 of the aspirant/MP rollout by locking Sansad AI and Convergence for aspirants.
+- Summary: Added backend feature-access enforcement for Sansad AI and Convergence APIs, refined frontend access helpers so only those two modules are gated by tenant type, hid the protected nav/buttons/routes for aspirants, added a direct Convergence route guard on company detail pages, and restored Schemes as an allowed module instead of incorrectly bundling it into the elected-office lock.
+- Files touched: `api_router.py`, `frontend/lib/account.js`, `frontend/components/Sidebar.js`, `frontend/app/dashboard/layout.js`, `frontend/components/briefcase/BriefcaseHeader.jsx`, `frontend/app/dashboard/page.js`, `frontend/components/dashboard/DashboardEmptyState.jsx`, `frontend/app/dashboard/sansadai/page.js`, `frontend/app/dashboard/csr/page.js`, `frontend/app/dashboard/csr/company/[slug]/page.js`, `frontend/app/dashboard/schemes/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Same-constituency helper assumptions in geography/setup flows still need cleanup, and future module launches should choose feature-specific tenant-type gates instead of reusing old MP-only role checks.
+
+- Date: 2026-05-29
+- Request: Implement the post-Phase-3 account-model expansion for aspirant MP/MLA accounts and build Phase 4 geography safety.
+- Summary: Split tenant identity into `account_stage` and `seat_type`, updated admin create/edit flows plus auth/session payloads to carry those fields, kept legacy `tenant_type` compatibility, and moved geography persistence to shared seat-level keys so multiple aspirants and elected accounts can safely share one seat while generated overrides remain tenant-specific.
+- Files touched: `sansadx_backend/db.py`, `main.py`, `modules/geography_resolver.py`, `admin_api.py`, `api_router.py`, `frontend/lib/account.js`, `frontend/components/Sidebar.js`, `frontend/app/dashboard/layout.js`, `frontend/app/dashboard/page.js`, `frontend/app/dashboard/sansadai/page.js`, `frontend/app/dashboard/csr/page.js`, `frontend/app/dashboard/csr/company/[slug]/page.js`, `frontend/app/dashboard/schemes/page.js`, `frontend/components/dashboard/DashboardEmptyState.jsx`, `admin/app/dashboard/mps/new/page.js`, `admin/app/dashboard/profiles/page.js`, `admin/app/dashboard/mps/[tenant_id]/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The generic admin geography routes are still MP-seat-shaped (`/geography/{pc}/...`), so a later cleanup should either add explicit seat-type-aware admin tooling or rename those routes/UI concepts to a more neutral seat model.
+
+- Date: 2026-05-29
+- Request: Make the admin geography UX seat-aware and validate the new shared-seat model with focused tests.
+- Summary: Extended the global admin geography routes to accept `seat_type`, rebuilt the admin geography upload/browser page around explicit `MP Seat` vs `MLA Seat` selection, updated nearby admin copy from MP-only language to account/seat language, refreshed overview stats/cards for the broader account model, and added a focused geography UI test alongside updated admin dashboard coverage.
+- Files touched: `admin_api.py`, `admin/app/dashboard/geography/page.js`, `admin/app/dashboard/rules/page.js`, `admin/app/dashboard/layout.js`, `admin/app/dashboard/page.js`, `admin/app/dashboard/mps/[tenant_id]/setup/page.js`, `admin/tests/dashboard.test.jsx`, `admin/tests/geography.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The generic route names still use legacy `parliamentary`/`pc` terminology under the hood; a future cleanup can rename that API surface more neutrally once downstream callers are ready.
+
+- Date: 2026-05-29
+- Request: Finish the same-seat safety pass and permission audit after the seat-aware rollout.
+- Summary: Verified shared-seat geography fan-out with a backend isolation test, hardened admin staff APIs so primary `owner`/legacy `mp` accounts cannot appear in staff management or be manipulated via staff endpoints, aligned the staff UI copy to tenant/account language, and fixed the ORM/User schema drift by adding the existing `phone` column to the `User` model.
+- Files touched: `admin_api.py`, `sansadx_backend/db.py`, `admin/app/dashboard/staff/page.js`, `tests/test_same_seat_isolation.py`, `tests/test_admin_staff_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The permission audit found plenty of MP-specific copy/prompting in parliamentary research and drafting modules, but those are product-language issues rather than tenant-isolation bugs; they can be normalized later if the product expands beyond parliamentary positioning.
+
+- Date: 2026-05-29
+- Request: Apply the first aspirant-facing UI copy pass on the MP frontend.
+- Summary: Updated high-visibility user-facing copy to feel more intentional for aspirants by shifting settings/profile language toward `workspace` and `team`, replacing an `MP office` triage note in Briefcase, and renaming the dashboard schedule reference from `Constituency Office` to `Constituency Workspace`.
+- Files touched: `frontend/app/dashboard/settings/page.js`, `frontend/components/dashboard/DashboardEngagementsCard.jsx`, `frontend/components/briefcase/BriefcaseTriageStrip.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This was intentionally a narrow copy pass; deeper product-language normalization in drafting/research/parliamentary modules should stay separate so we do not blur features that are still meant only for elected-office contexts.
+
+- Date: 2026-05-29
+- Request: Do a broader UI-only frontend wording cleanup after the first aspirant copy pass.
+- Summary: Normalized more shared-workspace labels across the MP frontend by replacing remaining generic fallbacks like `MP`, `Member`, `PA / Staff`, and `MP Office` on non-parliamentary screens, including Briefcase header/escalation copy, dashboard layout fallback initials, and settings/team action labels.
+- Files touched: `frontend/components/briefcase/BriefcaseHeader.jsx`, `frontend/components/briefcase/BriefcaseEscalationModal.jsx`, `frontend/app/dashboard/layout.js`, `frontend/app/dashboard/settings/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Parliamentary drafting/research flows still intentionally use MP-specific language; those should only be generalized later if the underlying product behavior changes too.
+
 - Date: 2026-05-26
 - Request: Establish a repo memory and confirmation-first workflow before future code changes.
 - Summary: Added a mandatory pre-change protocol to `AGENTS.md` and created `PROJECT_MEMORY.md` plus `TASK_LOG.md` as persistent context files for future sessions.

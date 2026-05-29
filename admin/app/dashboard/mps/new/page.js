@@ -11,6 +11,8 @@ export default function CreateMPPage() {
     const [success, setSuccess] = useState('');
 
     const [form, setForm] = useState({
+        account_stage: 'elected',
+        seat_type: 'mp',
         name: '', display_name: '', house: 'Lok Sabha',
         username: '', password: '', constituency: '',
         state: '', party: '', whatsapp_number: '',
@@ -21,11 +23,19 @@ export default function CreateMPPage() {
         apiGet('/api/admin/constituencies').then(r => setConstituencies(r.constituencies || [])).catch(() => { });
     }, []);
 
-    const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+    const set = (k) => (e) => {
+        const value = e.target.value;
+        setForm((prev) => {
+            const next = { ...prev, [k]: value };
+            if (k === 'seat_type' && value === 'mla') next.house = 'Vidhan Sabha';
+            if (k === 'seat_type' && value === 'mp' && prev.house === 'Vidhan Sabha') next.house = 'Lok Sabha';
+            return next;
+        });
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!form.name || !form.username || !form.password || !form.state) { setError('MP Name, Username, Password and State are required'); return; }
+        if (!form.name || !form.username || !form.password || !form.state) { setError('Name, Username, Password and State are required'); return; }
         setLoading(true);
         setError('');
         try {
@@ -33,6 +43,9 @@ export default function CreateMPPage() {
                 name: form.name,
                 username: form.username,
                 password: form.password,
+                tenant_type: form.account_stage === 'aspirant' ? 'aspirant' : form.seat_type,
+                account_stage: form.account_stage,
+                seat_type: form.seat_type,
                 constituency: form.constituency || 'India',
                 whatsapp_number: form.whatsapp_number,
                 house: form.house,
@@ -68,7 +81,21 @@ export default function CreateMPPage() {
                         <div className="section-title">Identity & Login</div>
 
                         <div className="form-row">
-                            <label className="form-label">MP Full Name *</label>
+                            <label className="form-label">Account Stage *</label>
+                            <select className="form-input" value={form.account_stage} onChange={set('account_stage')}>
+                                <option value="elected">Elected</option>
+                                <option value="aspirant">Aspirant</option>
+                            </select>
+                        </div>
+                        <div className="form-row">
+                            <label className="form-label">Seat Type *</label>
+                            <select className="form-input" value={form.seat_type} onChange={set('seat_type')}>
+                                <option value="mp">MP Seat</option>
+                                <option value="mla">MLA Seat</option>
+                            </select>
+                        </div>
+                        <div className="form-row">
+                            <label className="form-label">{form.account_stage === 'aspirant' ? 'Candidate / Leader Name *' : `${form.seat_type === 'mla' ? 'MLA' : 'MP'} Full Name *`}</label>
                             <input className="form-input" placeholder="Hon. Shri/Smt…" value={form.name} onChange={set('name')} required />
                         </div>
                         <div className="form-row">
@@ -77,10 +104,14 @@ export default function CreateMPPage() {
                         </div>
                         <div className="form-row">
                             <label className="form-label">House *</label>
-                            <select className="form-input" value={form.house} onChange={set('house')}>
-                                <option value="Lok Sabha">Lok Sabha</option>
-                                <option value="Rajya Sabha">Rajya Sabha</option>
-                            </select>
+                            {form.seat_type === 'mla' ? (
+                                <input className="form-input" value="Vidhan Sabha" disabled />
+                            ) : (
+                                <select className="form-input" value={form.house} onChange={set('house')}>
+                                    <option value="Lok Sabha">Lok Sabha</option>
+                                    <option value="Rajya Sabha">Rajya Sabha</option>
+                                </select>
+                            )}
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                             <div>
@@ -93,7 +124,7 @@ export default function CreateMPPage() {
                             </div>
                         </div>
 
-                        {form.house === 'Lok Sabha' ? (
+                        {form.seat_type === 'mp' && form.house === 'Lok Sabha' ? (
                             <div className="form-row">
                                 <label className="form-label">Parliamentary Constituency *</label>
                                 <select className="form-input" value={form.constituency} onChange={set('constituency')}>
@@ -103,7 +134,7 @@ export default function CreateMPPage() {
                             </div>
                         ) : (
                             <div className="form-row">
-                                <label className="form-label">State / Nominated</label>
+                                <label className="form-label">{form.seat_type === 'mla' ? 'Assembly Seat Name' : 'State / Nominated'}</label>
                                 <input className="form-input" placeholder="e.g. Maharashtra" value={form.constituency} onChange={set('constituency')} />
                             </div>
                         )}
@@ -148,7 +179,7 @@ export default function CreateMPPage() {
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <button type="submit" className="btn-primary" disabled={loading} style={{ padding: '10px 32px', fontSize: '0.88rem' }}>
-                        {loading ? 'Creating…' : 'Create MP'}
+                        {loading ? 'Creating…' : 'Create Account'}
                     </button>
                 </div>
             </form>

@@ -129,6 +129,9 @@ export default function MpDetailPage() {
 
     const p = data.profile || {};
     const isLS = p.house === 'Lok Sabha';
+    const accountBadge = data?.account_stage === 'aspirant'
+        ? `Aspirant ${data?.seat_label || ''}`.trim()
+        : (data?.seat_label || p.house || 'MP');
 
     return (
         <>
@@ -157,12 +160,13 @@ export default function MpDetailPage() {
                             <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#1a2e28' }}>
                                 {p.mp_name || '—'}
                             </h2>
-                            <span className={`badge ${isLS ? 'badge-green' : 'badge-red'}`}>{p.house || 'Lok Sabha'}</span>
+                            <span className={`badge ${isLS ? 'badge-green' : 'badge-red'}`}>{accountBadge}</span>
                         </div>
                         <div style={{ display: 'flex', gap: 20, fontSize: '0.78rem', color: '#6b7f76', flexWrap: 'wrap', alignItems: 'center' }}>
                             <span><strong>Constituency:</strong> {p.constituency || '—'}</span>
                             <span><strong>State:</strong> {p.state || '—'}</span>
                             <span><strong>Party:</strong> {p.party || '—'}</span>
+                            <span><strong>Stage:</strong> {data?.account_stage || 'elected'}</span>
                             <span style={{
                                 fontFamily: 'monospace', fontSize: '0.72rem', fontWeight: 700,
                                 background: '#f0f4f1', color: '#006a4d',

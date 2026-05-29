@@ -91,6 +91,8 @@ class Tenant(Base):
     whatsapp_number = Column(String, unique=True)
     subscription_plan = Column(String, default="Pro")
     tenant_type = Column(String, default="mp")        # "mp" or "aspirant"
+    account_stage = Column(String, default="elected")  # "aspirant" | "elected"
+    seat_type = Column(String, default="mp")           # "mp" | "mla"
     config = Column(JSON, default=dict)
     is_active = Column(Boolean, default=True)
     onboarding_state = Column(JSON, default=dict)   # {geography: bool, staff: bool, test_sent: bool, live: bool}
@@ -118,6 +120,7 @@ class User(Base):
     role = Column(String, default="user")
     constituency = Column(String, default="India")
     house = Column(String, default="Lok Sabha")
+    phone = Column(String, nullable=True, index=True)
     display_name = Column(String, nullable=True)
     last_login = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
@@ -592,9 +595,58 @@ def get_tenant_constituency(tenant_id: int) -> str | None:
         db.close()
 
 
+def derive_account_stage(tenant, house: str | None = None) -> str:
+    stage = getattr(tenant, "account_stage", None) if tenant is not None else None
+    if stage in {"aspirant", "elected"}:
+        return stage
+    tenant_type = (getattr(tenant, "tenant_type", None) or "").strip().lower() if tenant is not None else ""
+    if tenant_type == "aspirant":
+        return "aspirant"
+    return "elected"
+
+
+def derive_seat_type(tenant, house: str | None = None) -> str:
+    seat_type = getattr(tenant, "seat_type", None) if tenant is not None else None
+    if seat_type in {"mp", "mla"}:
+        return seat_type
+    tenant_type = (getattr(tenant, "tenant_type", None) or "").strip().lower() if tenant is not None else ""
+    effective_house = (house or "").strip().lower()
+    if tenant_type == "mla" or effective_house == "vidhan sabha":
+        return "mla"
+    return "mp"
+
+
+def seat_label(seat_type: str | None) -> str:
+    return "MLA" if (seat_type or "").strip().lower() == "mla" else "MP"
+
+
+def build_seat_key(seat_type: str | None, seat_name: str | None) -> str:
+    clean_type = "mla" if (seat_type or "").strip().lower() == "mla" else "mp"
+    clean_name = (seat_name or "").strip()
+    return f"{clean_type}:{clean_name}"
+
+
+def build_geography_key(seat_type: str | None, seat_name: str | None, assembly_name: str | None) -> str:
+    return f"{build_seat_key(seat_type, seat_name)}/{(assembly_name or '').strip()}"
+
+
+def parse_geography_key(key: str | None) -> tuple[str | None, str | None, str | None]:
+    raw = (key or "").strip()
+    if "/" not in raw:
+        return None, None, None
+    seat_part, assembly_name = raw.split("/", 1)
+    if ":" in seat_part:
+        seat_type, seat_name = seat_part.split(":", 1)
+        return (seat_type or "mp").strip().lower(), seat_name.strip(), assembly_name.strip()
+    # Backward compatibility: old keys were "<Constituency>/<Assembly>" and implied MP seat geography.
+    return "mp", seat_part.strip(), assembly_name.strip()
+
+
 def get_geography_data(
     tenant_id: int | None = None,
     parliamentary_constituency: str | None = None,
+    seat_type: str | None = None,
+    seat_name: str | None = None,
 ) -> dict[str, list[dict]]:
     """Return {assembly_name: [station, ...]} geography rows stored in DB.
 
@@ -607,15 +659,22 @@ def get_geography_data(
             TenantOverride.override_type == "geography_data"
         )
         if tenant_id is not None:
-            query = query.filter(TenantOverride.tenant_id == tenant_id)
+            tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+            if tenant:
+                seat_type = seat_type or derive_seat_type(tenant)
+                seat_name = seat_name or tenant.constituency
+            # Prefer shared seat geography; allow legacy tenant-bound rows as fallback.
 
         assemblies: dict[str, list[dict]] = {}
         for row in query.all():
-            parts = (row.key or "").split("/", 1)
-            if len(parts) != 2:
+            row_seat_type, row_seat_name, assembly_name = parse_geography_key(row.key)
+            if not row_seat_name or not assembly_name:
                 continue
-            parl_name, assembly_name = parts
-            if parliamentary_constituency and parl_name.lower() != parliamentary_constituency.lower():
+            if parliamentary_constituency and row_seat_name.lower() != parliamentary_constituency.lower():
+                continue
+            if seat_type and row_seat_type != seat_type:
+                continue
+            if seat_name and row_seat_name.lower() != seat_name.lower():
                 continue
             try:
                 payload = json.loads(row.value) if isinstance(row.value, str) else row.value
@@ -637,10 +696,9 @@ def get_all_geography_data() -> list[dict]:
         ).all()
         result: list[dict] = []
         for row in rows:
-            parts = (row.key or "").split("/", 1)
-            if len(parts) != 2:
+            row_seat_type, row_seat_name, assembly_name = parse_geography_key(row.key)
+            if not row_seat_name or not assembly_name:
                 continue
-            parl_name, assembly_name = parts
             try:
                 payload = json.loads(row.value) if isinstance(row.value, str) else row.value
             except Exception:
@@ -650,7 +708,9 @@ def get_all_geography_data() -> list[dict]:
             result.append(
                 {
                     "tenant_id": row.tenant_id,
-                    "parliamentary_constituency": parl_name,
+                    "seat_type": row_seat_type or "mp",
+                    "seat_name": row_seat_name,
+                    "parliamentary_constituency": row_seat_name,
                     "assembly": assembly_name,
                     "stations": payload,
                 }

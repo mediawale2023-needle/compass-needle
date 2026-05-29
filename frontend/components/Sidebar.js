@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { canAccessConvergence, canAccessSansadAI, getAccountLabel, getSeatBadge } from '@/lib/account';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -25,8 +26,8 @@ const NAV_ITEMS = [
     { name: 'Briefcase',   path: '/dashboard/sansadx',    icon: Briefcase,   badgeKey: 'briefcase' },
     { name: 'Letterbox',   path: '/dashboard/letterbox',  icon: Mail,        badgeKey: 'letterbox' },
     { name: 'Drafter',     path: '/dashboard/drafter',    icon: PenTool },
-    { name: 'Sansad AI',   path: '/dashboard/sansadai',   icon: Bot,         mpOnly: true },
-    { name: 'Convergence', path: '/dashboard/csr',        icon: Users,       mpOnly: true },
+    { name: 'Sansad AI',   path: '/dashboard/sansadai',   icon: Bot,         access: canAccessSansadAI },
+    { name: 'Convergence', path: '/dashboard/csr',        icon: Users,       access: canAccessConvergence },
     { name: 'Schemes',     path: '/dashboard/schemes',    icon: Newspaper },
     { name: 'Archives',    path: '/dashboard/archives',   icon: Archive },
     { name: 'Settings',    path: '/dashboard/settings',   icon: Settings },
@@ -118,7 +119,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                     </p>
 
                     <nav>
-                        {NAV_ITEMS.filter(item => !item.mpOnly || user?.role === 'mp' || user?.role === 'admin').map((item) => {
+                        {NAV_ITEMS.filter(item => !item.access || item.access(user)).map((item) => {
                             const Icon = item.icon;
                             const active =
                                 pathname === item.path ||
@@ -221,7 +222,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                             className="text-[9.5px] tracking-[0.08em]"
                             style={{ color: 'rgba(229,221,200,0.5)', fontFamily: '"JetBrains Mono", monospace' }}
                         >
-                            {user?.constituency} · {user?.house?.includes('Lok') ? 'LS' : 'RS'}
+                            {user?.constituency} · {getSeatBadge(user)}
                         </p>
                     </div>
 
@@ -251,7 +252,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                                 className="text-[9.5px] tracking-[0.08em] truncate mt-0.5"
                                 style={{ color: 'rgba(229,221,200,0.55)', fontFamily: '"JetBrains Mono", monospace' }}
                             >
-                                {user?.role === 'mp' ? 'MP' : user?.role === 'admin' ? 'Admin' : 'Staff'}
+                                {getAccountLabel(user)}
                             </p>
                         </div>
 

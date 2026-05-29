@@ -14,6 +14,7 @@ import DashboardPressCard from '@/components/dashboard/DashboardPressCard';
 import DashboardWorkloadCard from '@/components/dashboard/DashboardWorkloadCard';
 import { dashboardFonts, dashboardPalette as P } from '@/lib/dashboard-theme';
 import { useDashboardOverview } from '@/hooks/useDashboardOverview';
+import { canAccessSansadAI } from '@/lib/account';
 
 const MONO = dashboardFonts.mono;
 const SANS = dashboardFonts.sans;
@@ -22,7 +23,7 @@ const SANS = dashboardFonts.sans;
 export default function DashboardPage() {
     const { user } = useAuth();
     const router = useRouter();
-    const canUseSansadAI = user?.role === 'mp' || user?.role === 'admin';
+    const canUseSansadAI = canAccessSansadAI(user);
     const { summary, cases, letters, news, isInitialLoading, isEmpty } = useDashboardOverview();
 
     const handleCaseClick = useCallback((id) => {

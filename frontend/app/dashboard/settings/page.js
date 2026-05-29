@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { getAccountLabel, isPrimaryAccount } from '@/lib/account';
 
 /* ── helpers ─────────────────────────────────────────────────────── */
 
@@ -25,12 +26,14 @@ function initials(name) {
 }
 
 function roleLabel(role) {
-    if (role === 'mp')    return 'MP';
+    if (role === 'owner') return 'Workspace lead';
+    if (role === 'mp')    return 'Primary account';
     if (role === 'admin') return 'Admin';
-    return 'PA / Staff';
+    return 'Team';
 }
 
 function roleBadgeStyle(role, color) {
+    if (role === 'owner') return { background: `${color}20`, color };
     if (role === 'mp') return { background: `${color}20`, color };
     return { background: '#6b728015', color: '#6b7280' };
 }
@@ -132,15 +135,15 @@ function AddMemberForm({ color, onSuccess, onCancel }) {
                     </div>
                 </div>
                 <div className="space-y-1.5">
-                    <Label htmlFor="tm-role">Role</Label>
+                    <Label htmlFor="tm-role">Role / Position</Label>
                     <select
                         id="tm-role"
                         value={form.role}
                         onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                        <option value="user">PA / Staff</option>
-                        <option value="mp">MP (Full Access)</option>
+                        <option value="user">Team</option>
+                        <option value="mp">Primary account (Full Access)</option>
                     </select>
                 </div>
             </div>
@@ -192,7 +195,7 @@ function AddMemberForm({ color, onSuccess, onCancel }) {
                     Cancel
                 </Button>
                 <Button type="submit" disabled={saving} style={{ background: color }}>
-                    {saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating…</> : <><UserPlus className="h-4 w-4" /> Add Member</>}
+                    {saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating…</> : <><UserPlus className="h-4 w-4" /> Add Team Member</>}
                 </Button>
             </div>
         </form>
@@ -205,7 +208,7 @@ function MemberRow({ member, currentUserId, color, onDelete }) {
     const [confirming, setConfirming] = useState(false);
     const [deleting, setDeleting]     = useState(false);
     const isSelf    = member.id === currentUserId;
-    const isPrimary = member.role === 'mp';
+    const isPrimary = member.role === 'mp' || member.role === 'owner';
 
     const handleDelete = async () => {
         setDeleting(true);
@@ -332,7 +335,7 @@ function TeamCard({ user, color }) {
 
     const handleDeleted = (id) => {
         setMembers(ms => ms.filter(m => m.id !== id));
-        setToast('Member removed.');
+        setToast('Team member removed.');
         setTimeout(() => setToast(''), 3000);
     };
 
@@ -358,13 +361,13 @@ function TeamCard({ user, color }) {
                     >
                         {showForm
                             ? <><ChevronUp className="h-4 w-4" /> Cancel</>
-                            : <><UserPlus className="h-4 w-4" /> Add Member</>
+                            : <><UserPlus className="h-4 w-4" /> Add Team Member</>
                         }
                     </Button>
                 </div>
                 <CardDescription>
-                    Manage who has access to this dashboard. PAs and staff can view and update cases.
-                    Only the MP account can add or remove members.
+                    Manage who has access to this workspace. Team members can view and update cases.
+                    Only the primary account can add or remove members.
                 </CardDescription>
             </CardHeader>
 
@@ -468,7 +471,7 @@ function ProfileCard({ user, color }) {
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <User className="h-5 w-5 text-muted-foreground" />
-                        <CardTitle>Profile</CardTitle>
+                        <CardTitle>Your profile</CardTitle>
                     </div>
                     {!editing && (
                         <Button variant="ghost" size="sm" onClick={handleEdit} className="gap-1.5 text-muted-foreground hover:text-foreground">
@@ -476,7 +479,7 @@ function ProfileCard({ user, color }) {
                         </Button>
                     )}
                 </div>
-                <CardDescription>Your account information</CardDescription>
+                <CardDescription>Workspace details</CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="flex items-start gap-6">
@@ -515,9 +518,9 @@ function ProfileCard({ user, color }) {
                             </div>
                         </div>
                         <div>
-                            <p className="text-xs text-muted-foreground uppercase font-medium">Role</p>
+                            <p className="text-xs text-muted-foreground uppercase font-medium">Role / Position</p>
                             <Badge variant="secondary" className="mt-1" style={{ background: `${color}15`, color }}>
-                                {user?.role || 'Member'}
+                                {getAccountLabel(user)}
                             </Badge>
                         </div>
                     </div>
@@ -617,14 +620,14 @@ export default function SettingsPage() {
         }
     };
 
-    const isMp = user?.role === 'mp' || user?.role === 'admin';
+    const isMp = isPrimaryAccount(user);
 
     return (
         <div className="space-y-6 max-w-2xl">
             <div>
                 <h1 className="text-2xl font-bold text-foreground">Settings</h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                    Manage your account and preferences
+                    Manage your constituency operations efficiently
                 </p>
             </div>
 
@@ -716,7 +719,7 @@ export default function SettingsPage() {
                         Found a bug or need help? Click below to send a pre-filled report with your account details.
                     </p>
                     <Button variant="outline" className="gap-2" asChild>
-                        <a href={`mailto:support@needle.in?subject=${encodeURIComponent(`Issue from ${user?.constituency || 'MP Office'}`)}&body=${encodeURIComponent(`Hi Needle Team,\n\nI'm writing from the ${user?.constituency || ''} office.\n\nUsername: ${user?.username || ''}\nConstituency: ${user?.constituency || ''}\nHouse: ${user?.house || ''}\n\nIssue:\n[Please describe here]\n\nThank you`)}`}>
+                        <a href={`mailto:support@needle.in?subject=${encodeURIComponent(`Issue from ${user?.constituency || 'Constituency Workspace'}`)}&body=${encodeURIComponent(`Hi Needle Team,\n\nI'm writing from the ${user?.constituency || ''} workspace.\n\nUsername: ${user?.username || ''}\nConstituency: ${user?.constituency || ''}\nHouse: ${user?.house || ''}\n\nIssue:\n[Please describe here]\n\nThank you`)}`}>
                             <ExternalLink className="h-4 w-4" />
                             Report an Issue
                         </a>

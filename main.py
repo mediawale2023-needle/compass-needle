@@ -246,7 +246,7 @@ try:
         raise RuntimeError("__skip_geo_startup_sync__")
 
     import pathlib as _pl
-    from sansadx_backend.db import SessionLocal as _startup_SL, TenantOverride as _startup_TO, Tenant as _startup_T
+    from sansadx_backend.db import SessionLocal as _startup_SL, TenantOverride as _startup_TO, build_geography_key
 
     _sdb = _startup_SL()
     try:
@@ -256,18 +256,12 @@ try:
         # source of truth and the files are ephemeral.
         _geo_base = _pl.Path(__file__).parent / "data" / "geography"
         if _geo_base.exists():
-            # Build constituency → tenant_id map
-            _c2t = {}
-            for _t in _sdb.query(_startup_T).all():
-                if _t.constituency and _t.constituency != "System":
-                    _c2t[_t.constituency.lower()] = _t.id
-
             _seeded = 0
             for _parl_dir in sorted(_geo_base.iterdir()):
                 if not _parl_dir.is_dir():
                     continue
                 for _jf in sorted(_parl_dir.glob("*.json")):
-                    _db_key = f"{_parl_dir.name}/{_jf.stem}"
+                    _db_key = build_geography_key("mp", _parl_dir.name, _jf.stem)
                     # Only insert if not already in DB (don't overwrite admin edits)
                     _exists = _sdb.query(_startup_TO).filter(
                         _startup_TO.override_type == "geography_data",
@@ -276,9 +270,8 @@ try:
                     if not _exists:
                         try:
                             _payload = _jf.read_text(encoding="utf-8")
-                            _tid = _c2t.get(_parl_dir.name.lower())
                             _sdb.add(_startup_TO(
-                                tenant_id=_tid,
+                                tenant_id=None,
                                 override_type="geography_data",
                                 key=_db_key,
                                 value=_payload,
@@ -410,6 +403,8 @@ except Exception as e:
 # ─── Migration: add missing columns to tenants table (idempotent) ───
 for _col_sql in [
     "ALTER TABLE tenants ADD COLUMN tenant_type VARCHAR DEFAULT 'mp'",
+    "ALTER TABLE tenants ADD COLUMN account_stage VARCHAR DEFAULT 'elected'",
+    "ALTER TABLE tenants ADD COLUMN seat_type VARCHAR DEFAULT 'mp'",
     "ALTER TABLE tenants ADD COLUMN is_active BOOLEAN DEFAULT TRUE",
     "ALTER TABLE tenants ADD COLUMN onboarding_state JSON",
 ]:
@@ -427,6 +422,27 @@ try:
             UPDATE tenants SET tenant_type = 'aspirant'
             WHERE tenant_type = 'mp'
               AND config::text LIKE '%"type": "PR"%'
+        """))
+except Exception:  # nosec B110 — idempotent migration
+    pass
+
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE tenants
+            SET account_stage = CASE
+                WHEN tenant_type = 'aspirant' THEN 'aspirant'
+                ELSE 'elected'
+            END
+            WHERE account_stage IS NULL OR account_stage = ''
+        """))
+        conn.execute(text("""
+            UPDATE tenants
+            SET seat_type = CASE
+                WHEN tenant_type = 'mla' THEN 'mla'
+                ELSE 'mp'
+            END
+            WHERE seat_type IS NULL OR seat_type = ''
         """))
 except Exception:  # nosec B110 — idempotent migration
     pass

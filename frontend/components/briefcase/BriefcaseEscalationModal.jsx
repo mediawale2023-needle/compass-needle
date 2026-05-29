@@ -56,7 +56,7 @@ This issue requires immediate attention and resolution. Kindly look into this ma
 Thank you for your cooperation.
 
 Regards,
-MP Office`
+Constituency Workspace`
         );
     }, [open, caseItem]);
 

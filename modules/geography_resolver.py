@@ -1057,14 +1057,14 @@ def auto_generate_overrides():
     writes them to the DB as geo_override rows.
     """
     try:
-        from sansadx_backend.db import SessionLocal, Tenant, get_all_geography_data
+        from sansadx_backend.db import SessionLocal, Tenant, get_all_geography_data, build_seat_key, derive_seat_type
         db = SessionLocal()
         tenant_rows = db.query(Tenant).all()
-        constituency_to_tenant = {
-            t.constituency: t.id
-            for t in tenant_rows
-            if t.constituency and t.constituency != "System"
-        }
+        seat_to_tenants = {}
+        for t in tenant_rows:
+            if not t.constituency or t.constituency == "System":
+                continue
+            seat_to_tenants.setdefault(build_seat_key(derive_seat_type(t), t.constituency), []).append(t.id)
         db.close()
         geography_rows = get_all_geography_data()
     except Exception as e:
@@ -1082,7 +1082,9 @@ def auto_generate_overrides():
                 except Exception:
                     continue
                 geography_rows.append({
-                    "tenant_id": constituency_to_tenant.get(parl_dir.name),
+                    "tenant_id": None,
+                    "seat_type": "mp",
+                    "seat_name": parl_dir.name,
                     "parliamentary_constituency": parl_dir.name,
                     "assembly": json_file.stem,
                     "stations": stations if isinstance(stations, list) else [],
@@ -1098,13 +1100,16 @@ def auto_generate_overrides():
     grouped_rows = {}
     for row in geography_rows:
         parl_name = row["parliamentary_constituency"]
-        tenant_id = row.get("tenant_id") or constituency_to_tenant.get(parl_name)
-        if not tenant_id:
-            logger.info(f"No tenant found for constituency '{parl_name}', skipping override generation")
+        seat_type = row.get("seat_type") or "mp"
+        seat_name = row.get("seat_name") or parl_name
+        tenant_ids = seat_to_tenants.get(build_seat_key(seat_type, seat_name), [])
+        if not tenant_ids:
+            logger.info(f"No tenant found for seat '{seat_type}:{seat_name}', skipping override generation")
             continue
-        grouped_rows.setdefault((parl_name, tenant_id), []).append(row)
+        for tenant_id in tenant_ids:
+            grouped_rows.setdefault((seat_type, seat_name, parl_name, tenant_id), []).append(row)
 
-    for (parl_name, tenant_id), rows in grouped_rows.items():
+    for (_seat_type, seat_name, parl_name, tenant_id), rows in grouped_rows.items():
         overrides_map = {}
         alias_payloads = {}
         ambiguous_localities: Dict[str, Set[str]] = {}

@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { apiGet } from '@/lib/api';
+import { canAccessSansadAI, getAccountLabel, getSeatBadge } from '@/lib/account';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -92,6 +93,7 @@ export default function DashboardLayout({ children }) {
     };
 
     const visibleAnnouncements = announcements.filter(a => !dismissedIds.includes(a.id));
+    const userRoleLabel = getAccountLabel(user);
 
     const historyItemHref = (item) => {
         const meta = item?.metadata || {};
@@ -269,18 +271,20 @@ export default function DashboardLayout({ children }) {
                         </div>
 
                         {/* Sansad AI button */}
-                        <button
-                            className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold tracking-[0.08em] uppercase transition-opacity hover:opacity-90"
-                            style={{
-                                background: 'var(--cn-green)',
-                                color: '#F5EFE0',
-                                fontFamily: 'inherit',
-                            }}
-                            onClick={() => router.push('/dashboard/sansadai')}
-                        >
-                            <Sparkles className="h-3 w-3" />
-                            Sansad AI
-                        </button>
+                        {canAccessSansadAI(user) && (
+                            <button
+                                className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold tracking-[0.08em] uppercase transition-opacity hover:opacity-90"
+                                style={{
+                                    background: 'var(--cn-green)',
+                                    color: '#F5EFE0',
+                                    fontFamily: 'inherit',
+                                }}
+                                onClick={() => router.push('/dashboard/sansadai')}
+                            >
+                                <Sparkles className="h-3 w-3" />
+                                Sansad AI
+                            </button>
+                        )}
 
                         {/* Bell */}
                         <button
@@ -317,7 +321,7 @@ export default function DashboardLayout({ children }) {
                                     fontFamily: '"Source Serif 4", serif',
                                 }}
                             >
-                                {user?.display_name?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'MP'}
+                                {user?.display_name?.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'CN'}
                             </div>
                             <div>
                                 <div
@@ -333,8 +337,8 @@ export default function DashboardLayout({ children }) {
                                         fontFamily: '"JetBrains Mono", monospace',
                                     }}
                                 >
-                                    {user?.role === 'mp' ? 'MP' : user?.role === 'admin' ? 'Admin' : 'Staff'}
-                                    {user?.house?.includes('Lok') ? ' · LS' : ' · RS'}
+                                    {userRoleLabel}
+                                    {user ? ` · ${getSeatBadge(user)}` : ''}
                                 </div>
                             </div>
                         </div>

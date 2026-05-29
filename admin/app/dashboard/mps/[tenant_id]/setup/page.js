@@ -56,7 +56,7 @@ function buildChecklist(tenantId, detail, onboarding, geography) {
         {
             key: 'staff',
             label: 'Staff Assigned',
-            desc: 'At least one active non-admin staff account is assigned to this MP tenant.',
+            desc: 'At least one active non-admin staff account is assigned to this tenant.',
             action: 'Add staff',
             link: `/dashboard/mps/${tenantId}`,
             done: (detail?.staff || []).some(s => s.is_active),

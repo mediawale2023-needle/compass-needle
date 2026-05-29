@@ -2,7 +2,9 @@
 
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth';
 import { apiGet, apiPatch, apiPost, AI_TIMEOUT } from '@/lib/api';
+import { canAccessConvergence } from '@/lib/account';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -102,6 +104,7 @@ function SpendTrendIcon({ y1, y2, y3 }) {
 export default function CompanyProfilePage({ params }) {
     const { slug } = use(params);
     const router = useRouter();
+    const { user } = useAuth();
 
     const [company, setCompany] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -118,6 +121,20 @@ export default function CompanyProfilePage({ params }) {
 
     // Pipeline quick-add
     const [addingPipeline, setAddingPipeline] = useState(false);
+
+    if (user && !canAccessConvergence(user)) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-6">
+                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+                    <Users className="h-7 w-7 text-muted-foreground" />
+                </div>
+                <div>
+                    <h2 className="text-lg font-semibold text-foreground">Convergence is restricted</h2>
+                    <p className="text-sm text-muted-foreground mt-1">Available to elected-office accounts only.</p>
+                </div>
+            </div>
+        );
+    }
     const [pipelineStage, setPipelineStage] = useState('identified');
     const [pipelineNotes, setPipelineNotes] = useState('');
     const [pipelineLoading, setPipelineLoading] = useState(false);

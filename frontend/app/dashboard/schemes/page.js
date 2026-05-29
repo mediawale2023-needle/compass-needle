@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { apiGet, apiPost, AI_TIMEOUT } from '@/lib/api';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-    Lock, ChevronRight, ChevronLeft, Loader2, RefreshCw,
+    ChevronRight, ChevronLeft, Loader2, RefreshCw,
     Building2, FileText, TrendingUp, AlertTriangle,
     BarChart3, CircleDot, Search,
     MapPin, Globe, ArrowLeftRight, Wrench
@@ -14,20 +14,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-
-function LockedModule() {
-    return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-6">
-            <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
-                <Lock className="h-7 w-7 text-muted-foreground" />
-            </div>
-            <div>
-                <h2 className="text-lg font-semibold text-foreground">Scheme Intelligence is restricted</h2>
-                <p className="text-sm text-muted-foreground mt-1">Available to the MP only.</p>
-            </div>
-        </div>
-    );
-}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -865,10 +851,6 @@ export function SchemesExperience({
     );
 
     const color = user?.theme_color || '#006a4d';
-
-    if (user && user.role !== 'mp' && user.role !== 'admin') {
-        return <LockedModule />;
-    }
 
     const goMinistry = (ministry) => { setMinistry(ministry); setScheme(null); setScreen('ministry'); };
     const goScheme   = (scheme)   => { setScheme(scheme); setScreen('scheme'); };

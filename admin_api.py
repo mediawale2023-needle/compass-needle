@@ -23,7 +23,7 @@ from jwt.exceptions import PyJWTError as JWTError
 from sqlalchemy import text, func
 from sqlalchemy.orm.attributes import flag_modified
 
-from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, validate_password, get_all_overrides, save_overrides_to_db, AdminAuditLog, AdminNote
+from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, validate_password, get_all_overrides, save_overrides_to_db, AdminAuditLog, AdminNote, derive_account_stage, derive_seat_type, build_geography_key, parse_geography_key, get_all_geography_data, seat_label
 from core.db_helpers import _q, _q_one, _parse_meta
 from core.gemini_client import get_gemini_client
 from modules.constituencies import ALL_CONSTITUENCIES
@@ -185,6 +185,9 @@ class CreateMPRequest(BaseModel):
     name: str
     username: str
     password: str
+    tenant_type: str = "mp"
+    account_stage: str = "elected"
+    seat_type: str = "mp"
     constituency: str = "India"
     whatsapp_number: str = ""
     house: str = "Lok Sabha"
@@ -201,6 +204,8 @@ class UpdateProfileRequest(BaseModel):
     constituency: str = ""
     state: str = ""
     house: str = "Lok Sabha"
+    account_stage: str = "elected"
+    seat_type: str = "mp"
     party: str = "Independent"
     key_facts: List[str] = []
     languages: List[str] = ["English", "Hindi"]
@@ -239,6 +244,54 @@ class SaveOverridesRequest(BaseModel):
 class AddRuleRequest(BaseModel):
     location: str
     assembly_constituency: str
+
+
+def _resolve_account_stage_and_seat_type(
+    *,
+    tenant_type: str | None = None,
+    account_stage: str | None = None,
+    seat_type: str | None = None,
+    house: str | None = None,
+) -> tuple[str, str, str, str]:
+    legacy_type = (tenant_type or "").strip().lower()
+    stage = (account_stage or "").strip().lower()
+    seat = (seat_type or "").strip().lower()
+    house_value = (house or "").strip()
+
+    if not stage:
+        stage = "aspirant" if legacy_type == "aspirant" else "elected"
+    if stage not in {"aspirant", "elected"}:
+        raise HTTPException(400, "account_stage must be one of: aspirant, elected")
+
+    if not seat:
+        if legacy_type == "mla" or house_value == "Vidhan Sabha":
+            seat = "mla"
+        else:
+            seat = "mp"
+    if seat not in {"mp", "mla"}:
+        raise HTTPException(400, "seat_type must be one of: mp, mla")
+
+    resolved_house = "Vidhan Sabha" if seat == "mla" else (house_value or "Lok Sabha")
+    resolved_legacy_type = "aspirant" if stage == "aspirant" else seat
+    return stage, seat, resolved_house if resolved_house else "Lok Sabha", resolved_legacy_type
+
+
+def _normalize_seat_type(value: str | None) -> str:
+    seat_type = (value or "mp").strip().lower()
+    if seat_type not in {"mp", "mla"}:
+        raise HTTPException(400, "seat_type must be one of: mp, mla")
+    return seat_type
+
+
+def _tenant_identity_dict(tenant: dict | Tenant | None, user: dict | User | None = None) -> dict:
+    user_house = (user.get("house") if isinstance(user, dict) else getattr(user, "house", None)) if user is not None else None
+    account_stage = derive_account_stage(tenant, user_house)
+    seat_type = derive_seat_type(tenant, user_house)
+    return {
+        "account_stage": account_stage,
+        "seat_type": seat_type,
+        "seat_label": seat_label(seat_type),
+    }
 
 
 # ═══════════════════════════════════════════
@@ -305,16 +358,23 @@ def admin_login(req: AdminLoginRequest, request: Request):
 def admin_stats(_=Depends(get_admin_user)):
     db = SessionLocal()
     try:
-        total_mps = db.query(User).filter(User.role == "mp").count()
-        ls_count = db.query(User).filter(User.role == "mp", User.house == "Lok Sabha").count()
-        rs_count = db.query(User).filter(User.role == "mp", User.house == "Rajya Sabha").count()
+        total_accounts = db.query(User).filter(User.role.in_(["mp", "owner"])).count()
+        mp_seat_count = db.query(Tenant).filter(Tenant.seat_type == "mp").count()
+        mla_seat_count = db.query(Tenant).filter(Tenant.seat_type == "mla").count()
+        aspirant_count = db.query(Tenant).filter(Tenant.account_stage == "aspirant").count()
+        ls_count = db.query(User).filter(User.role.in_(["mp", "owner"]), User.house == "Lok Sabha").count()
+        rs_count = db.query(User).filter(User.role.in_(["mp", "owner"]), User.house == "Rajya Sabha").count()
         total_profiles = db.query(TenantProfile).count()
         try:
             total_cases = db.query(Case).count()
         except Exception:
             total_cases = 0
         return {
-            "total_mps": total_mps,
+            "total_accounts": total_accounts,
+            "mp_seats": mp_seat_count,
+            "mla_seats": mla_seat_count,
+            "aspirants": aspirant_count,
+            "total_mps": total_accounts,
             "lok_sabha": ls_count,
             "rajya_sabha": rs_count,
             "total_profiles": total_profiles,
@@ -338,7 +398,7 @@ def list_mps(_=Depends(get_admin_user)):
         result = []
         for t in tenants:
             for u in t.users:
-                if u.role != "mp":
+                if u.role not in {"mp", "owner"}:
                     continue
                 # Get profile
                 profile = db.query(TenantProfile).filter(TenantProfile.tenant_id == t.id).first()
@@ -371,6 +431,7 @@ def list_mps(_=Depends(get_admin_user)):
                         score += 1
                     completeness = int((score / 8) * 100)
 
+                identity = _tenant_identity_dict(t, u)
                 result.append({
                     "tenant_id": t.id,
                     "user_id": u.id,
@@ -378,6 +439,10 @@ def list_mps(_=Depends(get_admin_user)):
                     "display_name": u.display_name or t.name,
                     "username": u.username,
                     "role": u.role,
+                    "tenant_type": t.tenant_type or "mp",
+                    "account_stage": identity["account_stage"],
+                    "seat_type": identity["seat_type"],
+                    "seat_label": identity["seat_label"],
                     "house": u.house or "Lok Sabha",
                     "parliamentary_constituency": u.constituency or t.constituency or "India",
                     "whatsapp_number": t.whatsapp_number,
@@ -396,6 +461,12 @@ def create_mp(req: CreateMPRequest, _=Depends(get_admin_user)):
     pw_err = validate_password(req.password)
     if pw_err:
         raise HTTPException(400, pw_err)
+    account_stage, seat_type, resolved_house, legacy_tenant_type = _resolve_account_stage_and_seat_type(
+        tenant_type=req.tenant_type,
+        account_stage=req.account_stage,
+        seat_type=req.seat_type,
+        house=req.house,
+    )
     db = SessionLocal()
     try:
         if db.query(User).filter(User.username == req.username).first():
@@ -406,8 +477,10 @@ def create_mp(req: CreateMPRequest, _=Depends(get_admin_user)):
             constituency=req.constituency,
             whatsapp_number=req.whatsapp_number or f"temp_{datetime.now().timestamp()}",
             subscription_plan="Pro",
-            tenant_type="mp",
-            config={"language": "English", "type": req.house.upper().replace(" ", "_"), "map_enabled": True},
+            tenant_type=legacy_tenant_type,
+            account_stage=account_stage,
+            seat_type=seat_type,
+            config={"language": "English", "type": resolved_house.upper().replace(" ", "_"), "map_enabled": True},
         )
         db.add(new_tenant)
         db.flush()
@@ -416,9 +489,9 @@ def create_mp(req: CreateMPRequest, _=Depends(get_admin_user)):
             tenant_id=new_tenant.id,
             username=req.username,
             password_hash=hash_password(req.password),
-            role="mp",
+            role="owner",
             constituency=req.constituency,
-            house=req.house,
+            house=resolved_house,
             display_name=req.display_name or req.name,
         )
         db.add(new_user)
@@ -435,7 +508,7 @@ def create_mp(req: CreateMPRequest, _=Depends(get_admin_user)):
             mp_name=req.display_name or req.name,
             constituency=req.constituency,
             state=req.state,
-            house=req.house,
+            house=resolved_house,
             party=req.party,
             profile_data=profile_data,
         )
@@ -507,23 +580,32 @@ def delete_mp(tenant_id: int, _=Depends(get_admin_user)):
 def get_mp_profile(tenant_id: int, _=Depends(get_admin_user)):
     db = SessionLocal()
     try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(404, "Tenant not found")
         profile = db.query(TenantProfile).filter(TenantProfile.tenant_id == tenant_id).first()
         if not profile:
             return {"exists": False}
 
         extra = profile.profile_data or {}
+        identity = _tenant_identity_dict(tenant, profile)
+        phone_number_id = (tenant.config or {}).get("meta_phone_number_id") if tenant.config else None
         return {
             "exists": True,
             "mp_name": profile.mp_name or "",
             "constituency": profile.constituency or "",
             "state": profile.state or "",
             "house": profile.house or "Lok Sabha",
+            "account_stage": identity["account_stage"],
+            "seat_type": identity["seat_type"],
             "party": profile.party or "Independent",
             "key_facts": extra.get("key_facts", []),
             "languages": extra.get("languages", ["English", "Hindi"]),
             "alt_names": extra.get("alt_names", []),
             "sovereignty_rules": extra.get("sovereignty_rules", ""),
             "vocabulary_guide": extra.get("vocabulary_guide", {}),
+            "whatsapp_number": tenant.whatsapp_number or "",
+            "phone_number_id": phone_number_id or "",
         }
     finally:
         db.close()
@@ -533,6 +615,15 @@ def get_mp_profile(tenant_id: int, _=Depends(get_admin_user)):
 def update_mp_profile(tenant_id: int, req: UpdateProfileRequest, _=Depends(get_admin_user)):
     db = SessionLocal()
     try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(404, "Tenant not found")
+        account_stage, seat_type, resolved_house, legacy_tenant_type = _resolve_account_stage_and_seat_type(
+            tenant_type=tenant.tenant_type,
+            account_stage=req.account_stage,
+            seat_type=req.seat_type,
+            house=req.house,
+        )
         profile = db.query(TenantProfile).filter(TenantProfile.tenant_id == tenant_id).first()
 
         profile_data = {
@@ -547,7 +638,7 @@ def update_mp_profile(tenant_id: int, req: UpdateProfileRequest, _=Depends(get_a
             profile.mp_name = req.mp_name or profile.mp_name
             profile.constituency = req.constituency or profile.constituency
             profile.state = req.state or profile.state
-            profile.house = req.house or profile.house
+            profile.house = resolved_house or profile.house
             profile.party = req.party or profile.party
             profile.profile_data = profile_data
         else:
@@ -556,11 +647,20 @@ def update_mp_profile(tenant_id: int, req: UpdateProfileRequest, _=Depends(get_a
                 mp_name=req.mp_name,
                 constituency=req.constituency,
                 state=req.state,
-                house=req.house,
+                house=resolved_house,
                 party=req.party,
                 profile_data=profile_data,
             )
             db.add(profile)
+
+        tenant.account_stage = account_stage
+        tenant.seat_type = seat_type
+        tenant.tenant_type = legacy_tenant_type
+        tenant.constituency = req.constituency or tenant.constituency
+        new_config = dict(tenant.config or {})
+        new_config["type"] = resolved_house.upper().replace(" ", "_")
+        tenant.config = new_config
+        flag_modified(tenant, "config")
 
         db.commit()
         _audit(_, "updated", "mp_profile", req.mp_name or "", f"tenant_id={tenant_id}")
@@ -577,7 +677,7 @@ def update_mp_profile(tenant_id: int, req: UpdateProfileRequest, _=Depends(get_a
 def update_constituency(tenant_id: int, req: UpdateConstituencyRequest, _=Depends(get_admin_user)):
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.tenant_id == tenant_id, User.role == "mp").first()
+        user = db.query(User).filter(User.tenant_id == tenant_id, User.role.in_(["mp", "owner"])).first()
         if user:
             user.constituency = req.constituency
         tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
@@ -600,7 +700,7 @@ def reset_mp_password(tenant_id: int, req: ResetPasswordRequest, _=Depends(get_a
         raise HTTPException(400, pw_err)
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.tenant_id == tenant_id, User.role == "mp").first()
+        user = db.query(User).filter(User.tenant_id == tenant_id, User.role.in_(["mp", "owner"])).first()
         if not user:
             raise HTTPException(404, "MP not found")
         user.password_hash = hash_password(req.new_password)
@@ -698,23 +798,28 @@ class GeoAssemblyBulk(BaseModel):
     localities: List[str]               # list of locality names
 
 
+def _tenant_seat_context(db, tenant_id: int) -> tuple[Tenant, str, str]:
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(404, "Tenant not found")
+    seat_type = derive_seat_type(tenant)
+    seat_name = tenant.constituency or "Unknown"
+    return tenant, seat_type, seat_name
+
+
 @router.get("/mps/{tenant_id}/geography")
 def get_mp_geography(tenant_id: int, _=Depends(get_admin_user)):
-    """Return all geography data stored in DB for this tenant (assembly → [localities])."""
+    """Return shared seat geography for this tenant's seat (assembly → [localities])."""
     from sansadx_backend.db import TenantOverride
     db = SessionLocal()
     try:
-        rows = db.query(TenantOverride).filter(
-            TenantOverride.tenant_id == tenant_id,
-            TenantOverride.override_type == "geography_data",
-        ).all()
-        # key = "Constituency/Assembly", value = JSON list of stations
+        _, seat_type, seat_name = _tenant_seat_context(db, tenant_id)
+        rows = db.query(TenantOverride).filter(TenantOverride.override_type == "geography_data").all()
         assemblies = {}
         for row in rows:
-            parts = row.key.split("/", 1)
-            if len(parts) != 2:
+            row_seat_type, row_seat_name, assembly = parse_geography_key(row.key)
+            if row_seat_type != seat_type or row_seat_name != seat_name:
                 continue
-            _parl, assembly = parts
             try:
                 stations = json.loads(row.value) if isinstance(row.value, str) else row.value
             except Exception:
@@ -725,30 +830,27 @@ def get_mp_geography(tenant_id: int, _=Depends(get_admin_user)):
                 if s.get("locality", "").strip()
             ))
             assemblies[assembly] = localities
-        return {"tenant_id": tenant_id, "assemblies": assemblies}
+        return {"tenant_id": tenant_id, "seat_type": seat_type, "seat_name": seat_name, "assemblies": assemblies}
     finally:
         db.close()
 
 
 @router.post("/mps/{tenant_id}/geography")
 def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(get_admin_user)):
-    """Add a single locality → assembly mapping for this MP's constituency.
+    """Add a single locality → assembly mapping for this seat.
 
-    If the assembly JSON already exists in the DB, the locality is appended.
-    If not, a new entry is created. Changes take effect via DB-backed
+    If the assembly JSON already exists in the shared seat DB entry, the locality is appended.
+    If not, a new shared seat entry is created. Changes take effect via DB-backed
     geo_override lookup and a resolver index refresh.
     """
-    from sansadx_backend.db import TenantOverride, Tenant
+    from sansadx_backend.db import TenantOverride
     db = SessionLocal()
     try:
-        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-        if not tenant:
-            raise HTTPException(404, "Tenant not found")
-        parl = tenant.constituency or "Unknown"
-        db_key = f"{parl}/{req.assembly_constituency}"
+        _, seat_type, seat_name = _tenant_seat_context(db, tenant_id)
+        parl = seat_name
+        db_key = build_geography_key(seat_type, seat_name, req.assembly_constituency)
 
         existing = db.query(TenantOverride).filter(
-            TenantOverride.tenant_id == tenant_id,
             TenantOverride.override_type == "geography_data",
             TenantOverride.key == db_key,
         ).first()
@@ -781,7 +883,7 @@ def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(g
                 assembly=req.assembly_constituency,
             )
             db.add(TenantOverride(
-                tenant_id=tenant_id,
+                tenant_id=None,
                 override_type="geography_data",
                 key=db_key,
                 value=json.dumps(stations, ensure_ascii=False),
@@ -808,10 +910,11 @@ def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, _=Depends(get_ad
     Replaces the existing assembly entry in the DB. Use this to import
     a full list at once (e.g. paste from election commission data).
     """
-    from sansadx_backend.db import TenantOverride, get_all_geography_data
+    from sansadx_backend.db import TenantOverride
     db = SessionLocal()
     try:
-        db_key = f"{req.parliamentary_constituency}/{req.assembly_constituency}"
+        _, seat_type, seat_name = _tenant_seat_context(db, tenant_id)
+        db_key = build_geography_key(seat_type, seat_name, req.assembly_constituency)
         raw_stations = [
             {"station_number": str(i + 1), "locality": loc.strip(), "building_name": loc.strip()}
             for i, loc in enumerate(req.localities)
@@ -820,22 +923,21 @@ def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, _=Depends(get_ad
         from modules.geography_resolver import sanitize_and_validate_stations
         stations, validation = sanitize_and_validate_stations(
             raw_stations,
-            parliamentary_constituency=req.parliamentary_constituency,
+            parliamentary_constituency=seat_name,
             assembly=req.assembly_constituency,
             other_rows=get_all_geography_data(),
         )
         existing = db.query(TenantOverride).filter(
-            TenantOverride.tenant_id == tenant_id,
             TenantOverride.override_type == "geography_data",
             TenantOverride.key == db_key,
         ).first()
         if existing:
             existing.value = json.dumps(stations, ensure_ascii=False)
-            existing.tenant_id = tenant_id
+            existing.tenant_id = None
             flag_modified(existing, "value")
         else:
             db.add(TenantOverride(
-                tenant_id=tenant_id,
+                tenant_id=None,
                 override_type="geography_data",
                 key=db_key,
                 value=json.dumps(stations, ensure_ascii=False),
@@ -863,16 +965,12 @@ def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, _=Depends(get_ad
 @router.delete("/mps/{tenant_id}/geography/{assembly}")
 def delete_mp_geography_assembly(tenant_id: int, assembly: str, _=Depends(get_admin_user)):
     """Delete all geography data for one assembly constituency of this MP."""
-    from sansadx_backend.db import TenantOverride, Tenant
+    from sansadx_backend.db import TenantOverride
     db = SessionLocal()
     try:
-        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-        if not tenant:
-            raise HTTPException(404, "Tenant not found")
-        parl = tenant.constituency or "Unknown"
-        db_key = f"{parl}/{assembly}"
+        _, seat_type, seat_name = _tenant_seat_context(db, tenant_id)
+        db_key = build_geography_key(seat_type, seat_name, assembly)
         deleted = db.query(TenantOverride).filter(
-            TenantOverride.tenant_id == tenant_id,
             TenantOverride.override_type == "geography_data",
             TenantOverride.key == db_key,
         ).delete()
@@ -1001,87 +1099,116 @@ def list_constituencies(_=Depends(get_admin_user)):
 
 
 @router.get("/geography/parliamentary")
-def list_parliamentary(_=Depends(get_admin_user)):
+def list_parliamentary(
+    seat_type: str = Query("mp"),
+    _=Depends(get_admin_user),
+):
     from sansadx_backend.db import TenantOverride
 
+    seat_type = _normalize_seat_type(seat_type)
     db = SessionLocal()
     try:
         pcs = {
-            (row.key or "").split("/", 1)[0]
+            row_seat_name
             for row in db.query(TenantOverride).filter(
                 TenantOverride.override_type == "geography_data",
             ).all()
-            if "/" in (row.key or "")
+            for row_seat_type, row_seat_name, _ in [parse_geography_key(row.key)]
+            if row_seat_name and row_seat_type == seat_type
         }
     finally:
         db.close()
 
-    if not pcs and GEOGRAPHY_BASE_PATH.exists():
+    if seat_type == "mp" and not pcs and GEOGRAPHY_BASE_PATH.exists():
         pcs = {d.name for d in GEOGRAPHY_BASE_PATH.iterdir() if d.is_dir()}
-    return {"parliamentary_constituencies": sorted(pcs)}
+    return {
+        "parliamentary_constituencies": sorted(pcs),
+        "seat_type": seat_type,
+        "seat_label": seat_label(seat_type),
+    }
 
 
 @router.get("/geography/{pc}/assemblies")
-def list_assemblies(pc: str, _=Depends(get_admin_user)):
+def list_assemblies(
+    pc: str,
+    seat_type: str = Query("mp"),
+    _=Depends(get_admin_user),
+):
     pc = _sanitize_path_param(pc)
     from sansadx_backend.db import TenantOverride
 
+    seat_type = _normalize_seat_type(seat_type)
     db = SessionLocal()
     try:
-        assemblies = sorted({
-            (row.key or "").split("/", 1)[1]
-            for row in db.query(TenantOverride).filter(
-                TenantOverride.override_type == "geography_data",
-                TenantOverride.key.ilike(f"{pc}/%"),
-            ).all()
-            if "/" in (row.key or "")
-        })
+        assemblies = sorted(
+            assembly_name
+            for row in db.query(TenantOverride).filter(TenantOverride.override_type == "geography_data").all()
+            for row_seat_type, row_seat_name, assembly_name in [parse_geography_key(row.key)]
+            if row_seat_type == seat_type and row_seat_name == pc and assembly_name
+        )
         if assemblies:
-            return {"assemblies": assemblies}
+            return {"assemblies": assemblies, "seat_type": seat_type, "seat_label": seat_label(seat_type)}
     finally:
         db.close()
 
+    if seat_type != "mp":
+        return {"assemblies": [], "seat_type": seat_type, "seat_label": seat_label(seat_type)}
     path = GEOGRAPHY_BASE_PATH / pc
     if not path.exists():
-        return {"assemblies": []}
+        return {"assemblies": [], "seat_type": seat_type, "seat_label": seat_label(seat_type)}
     assemblies = [f.stem for f in path.glob("*.json")]
-    return {"assemblies": assemblies}
+    return {"assemblies": assemblies, "seat_type": seat_type, "seat_label": seat_label(seat_type)}
 
 
 @router.get("/geography/{pc}/{ac}")
-def load_geography(pc: str, ac: str, _=Depends(get_admin_user)):
+def load_geography(
+    pc: str,
+    ac: str,
+    seat_type: str = Query("mp"),
+    _=Depends(get_admin_user),
+):
     pc = _sanitize_path_param(pc)
     ac = _sanitize_path_param(ac)
     from sansadx_backend.db import TenantOverride
 
+    seat_type = _normalize_seat_type(seat_type)
     db = SessionLocal()
     try:
         row = db.query(TenantOverride).filter(
             TenantOverride.override_type == "geography_data",
-            TenantOverride.key == f"{pc}/{ac}",
+            TenantOverride.key == build_geography_key(seat_type, pc, ac),
         ).first()
         if row:
             try:
                 data = json.loads(row.value) if isinstance(row.value, str) else row.value
             except Exception:
                 data = []
-            return {"data": data if isinstance(data, list) else []}
+            return {"data": data if isinstance(data, list) else [], "seat_type": seat_type, "seat_label": seat_label(seat_type)}
     finally:
         db.close()
 
+    if seat_type != "mp":
+        return {"data": [], "seat_type": seat_type, "seat_label": seat_label(seat_type)}
     filepath = GEOGRAPHY_BASE_PATH / pc / f"{ac}.json"
     if not filepath.exists():
-        return {"data": []}
+        return {"data": [], "seat_type": seat_type, "seat_label": seat_label(seat_type)}
     with open(filepath, "r", encoding="utf-8") as f:
-        return {"data": json.load(f)}
+        return {"data": json.load(f), "seat_type": seat_type, "seat_label": seat_label(seat_type)}
 
 
 @router.put("/geography/{pc}/{ac}")
-def save_geography(pc: str, ac: str, req: SaveGeographyRequest, _=Depends(get_admin_user)):
+def save_geography(
+    pc: str,
+    ac: str,
+    req: SaveGeographyRequest,
+    seat_type: str = Query("mp"),
+    _=Depends(get_admin_user),
+):
     pc = _sanitize_path_param(pc)
     ac = _sanitize_path_param(ac)
+    seat_type = _normalize_seat_type(seat_type)
     try:
-        from sansadx_backend.db import TenantOverride, get_all_geography_data
+        from sansadx_backend.db import TenantOverride
         from modules.geography_resolver import sanitize_and_validate_stations
 
         cleaned_data, validation = sanitize_and_validate_stations(
@@ -1093,13 +1220,8 @@ def save_geography(pc: str, ac: str, req: SaveGeographyRequest, _=Depends(get_ad
 
         db = SessionLocal()
         try:
-            tenant = db.query(Tenant).filter(Tenant.constituency == pc).first()
-            if not tenant:
-                raise HTTPException(404, "Tenant not found for parliamentary constituency")
-
-            db_key = f"{pc}/{ac}"
+            db_key = build_geography_key(seat_type, pc, ac)
             existing = db.query(TenantOverride).filter(
-                TenantOverride.tenant_id == tenant.id,
                 TenantOverride.override_type == "geography_data",
                 TenantOverride.key == db_key,
             ).first()
@@ -1109,17 +1231,17 @@ def save_geography(pc: str, ac: str, req: SaveGeographyRequest, _=Depends(get_ad
                 flag_modified(existing, "value")
             else:
                 db.add(TenantOverride(
-                    tenant_id=tenant.id,
+                    tenant_id=None,
                     override_type="geography_data",
                     key=db_key,
                     value=payload,
                 ))
             db.commit()
-            logger.info("Geography %s persisted to DB for tenant %s", db_key, tenant.id)
+            logger.info("Geography %s persisted to DB as shared seat data", db_key)
         finally:
             db.close()
 
-        if not _production_db_only_geography():
+        if seat_type == "mp" and not _production_db_only_geography():
             path = GEOGRAPHY_BASE_PATH / pc
             path.mkdir(parents=True, exist_ok=True)
             with open(path / f"{ac}.json", "w", encoding="utf-8") as f:
@@ -1135,28 +1257,31 @@ def save_geography(pc: str, ac: str, req: SaveGeographyRequest, _=Depends(get_ad
 
 
 @router.delete("/geography/{pc}/{ac}")
-def delete_geography(pc: str, ac: str, _=Depends(get_admin_user)):
+def delete_geography(
+    pc: str,
+    ac: str,
+    seat_type: str = Query("mp"),
+    _=Depends(get_admin_user),
+):
     pc = _sanitize_path_param(pc)
     ac = _sanitize_path_param(ac)
+    seat_type = _normalize_seat_type(seat_type)
     deleted = 0
-    if not _production_db_only_geography():
+    if seat_type == "mp" and not _production_db_only_geography():
         filepath = GEOGRAPHY_BASE_PATH / pc / f"{ac}.json"
         if filepath.exists():
             filepath.unlink()
             deleted += 1
 
     try:
-        from sansadx_backend.db import TenantOverride, Tenant
+        from sansadx_backend.db import TenantOverride
         db = SessionLocal()
         try:
-            tenant = db.query(Tenant).filter(Tenant.constituency == pc).first()
-            if tenant:
-                deleted += db.query(TenantOverride).filter(
-                    TenantOverride.tenant_id == tenant.id,
-                    TenantOverride.override_type == "geography_data",
-                    TenantOverride.key == f"{pc}/{ac}",
-                ).delete()
-                db.commit()
+            deleted += db.query(TenantOverride).filter(
+                TenantOverride.override_type == "geography_data",
+                TenantOverride.key == build_geography_key(seat_type, pc, ac),
+            ).delete()
+            db.commit()
         finally:
             db.close()
     except Exception as e:
@@ -1577,7 +1702,7 @@ def case_health(_=Depends(get_admin_user)):
                t.constituency, t.name AS mp_name, COUNT(c.id) AS total_cases
         FROM users u JOIN tenants t ON u.tenant_id = t.id
         LEFT JOIN cases c ON t.id = c.tenant_id
-        WHERE u.role IN ('mp', 'user') AND t.name != 'System Admin'
+        WHERE u.role IN ('mp', 'owner', 'user') AND t.name != 'System Admin'
         GROUP BY u.id, u.display_name, u.username, u.last_login, t.constituency, t.name
         ORDER BY total_cases DESC
     """)
@@ -2010,7 +2135,7 @@ def list_all_staff(_=Depends(get_admin_user)):
                t.name AS tenant_name, t.constituency
         FROM users u
         JOIN tenants t ON t.id = u.tenant_id
-        WHERE u.role NOT IN ('admin', 'super_admin', 'sysadmin')
+        WHERE u.role NOT IN ('admin', 'super_admin', 'sysadmin', 'owner', 'mp')
         ORDER BY t.name, u.display_name
     """, {})
     for r in rows:
@@ -2022,9 +2147,9 @@ def list_all_staff(_=Depends(get_admin_user)):
 
 @router.post("/staff")
 def create_staff(req: StaffCreateRequest, admin=Depends(get_admin_user)):
-    """Create a new staff account under a specific MP tenant."""
-    if req.role in {"admin", "super_admin", "sysadmin", "mp", "pr"}:
-        raise HTTPException(400, "Cannot assign admin or MP roles via this endpoint.")
+    """Create a new staff account under a specific tenant."""
+    if req.role in {"admin", "super_admin", "sysadmin", "owner", "mp", "pr"}:
+        raise HTTPException(400, "Cannot assign admin or primary-account roles via this endpoint.")
 
     # Validate tenant exists
     tenant = _q_one("SELECT id, constituency FROM tenants WHERE id = :t", {"t": req.tenant_id})
@@ -2077,8 +2202,8 @@ def edit_staff(staff_id: int, req: StaffEditRequest, _=Depends(get_admin_user)):
         updates.append("display_name = :dn")
         params["dn"] = req.display_name
     if req.role is not None:
-        if req.role in {"admin", "super_admin", "sysadmin"}:
-            raise HTTPException(400, "Cannot grant admin roles via this endpoint.")
+        if req.role in {"admin", "super_admin", "sysadmin", "owner", "mp"}:
+            raise HTTPException(400, "Cannot grant admin or primary-account roles via this endpoint.")
         updates.append("role = :role")
         params["role"] = req.role
     if req.phone is not None:
@@ -2087,7 +2212,7 @@ def edit_staff(staff_id: int, req: StaffEditRequest, _=Depends(get_admin_user)):
     if not updates:
         raise HTTPException(400, "Nothing to update.")
     with engine.begin() as conn:
-        result = conn.execute(text(f"UPDATE users SET {', '.join(updates)} WHERE id = :id AND role NOT IN ('admin','super_admin','sysadmin')"), params)
+        result = conn.execute(text(f"UPDATE users SET {', '.join(updates)} WHERE id = :id AND role NOT IN ('admin','super_admin','sysadmin','owner','mp')"), params)
     if result.rowcount == 0:
         raise HTTPException(404, "Staff member not found.")
     return {"success": True}
@@ -2099,8 +2224,8 @@ def toggle_staff_suspension(staff_id: int, _=Depends(get_admin_user)):
     row = _q_one("SELECT is_active, role FROM users WHERE id = :id", {"id": staff_id})
     if not row:
         raise HTTPException(404, "Staff member not found.")
-    if row.get("role") in {"admin", "super_admin", "sysadmin"}:
-        raise HTTPException(400, "Cannot suspend admin accounts.")
+    if row.get("role") in {"admin", "super_admin", "sysadmin", "owner", "mp"}:
+        raise HTTPException(400, "Cannot suspend primary or admin accounts.")
     new_state = not bool(row.get("is_active", True))
     with engine.begin() as conn:
         conn.execute(text("UPDATE users SET is_active = :s WHERE id = :id"), {"s": new_state, "id": staff_id})
@@ -2115,11 +2240,11 @@ def reassign_staff(staff_id: int, req: StaffReassignRequest, _=Depends(get_admin
         raise HTTPException(404, "Target tenant not found.")
     with engine.begin() as conn:
         result = conn.execute(
-            text("UPDATE users SET tenant_id = :t WHERE id = :id AND role NOT IN ('admin','super_admin','sysadmin')"),
+            text("UPDATE users SET tenant_id = :t WHERE id = :id AND role NOT IN ('admin','super_admin','sysadmin','owner','mp')"),
             {"t": req.tenant_id, "id": staff_id},
         )
     if result.rowcount == 0:
-        raise HTTPException(404, "Staff member not found or is an admin.")
+        raise HTTPException(404, "Staff member not found or is a primary/admin account.")
     return {"success": True}
 
 
@@ -2303,7 +2428,7 @@ def mp_detail(tenant_id: int, _=Depends(get_admin_user)):
     if not tenant:
         raise HTTPException(404, "Tenant not found")
 
-    user = _q_one("SELECT * FROM users WHERE tenant_id = :t AND role IN ('mp','pr') LIMIT 1", {"t": tenant_id})
+    user = _q_one("SELECT * FROM users WHERE tenant_id = :t AND role IN ('owner','mp','pr') LIMIT 1", {"t": tenant_id})
 
     # Profile summary
     extra = {}
@@ -2316,12 +2441,17 @@ def mp_detail(tenant_id: int, _=Depends(get_admin_user)):
             pd = {}
         extra = pd
 
+    identity = _tenant_identity_dict(tenant, user)
     profile_summary = {
         "mp_name": profile.get("mp_name", "") if profile else tenant.get("name", ""),
         "constituency": profile.get("constituency", "") if profile else tenant.get("constituency", ""),
         "state": profile.get("state", "") if profile else "",
         "house": profile.get("house", "Lok Sabha") if profile else (user.get("house", "Lok Sabha") if user else "Lok Sabha"),
         "party": profile.get("party", "Independent") if profile else "Independent",
+        "tenant_type": tenant.get("tenant_type", "mp"),
+        "account_stage": identity["account_stage"],
+        "seat_type": identity["seat_type"],
+        "seat_label": identity["seat_label"],
         "key_facts": extra.get("key_facts", []),
         "languages": extra.get("languages", []),
         "whatsapp_number": tenant.get("whatsapp_number", ""),
@@ -2345,7 +2475,7 @@ def mp_detail(tenant_id: int, _=Depends(get_admin_user)):
     last_wa_str = last_wa_ts.isoformat() if last_wa_ts and hasattr(last_wa_ts, "isoformat") else None
 
     # Staff roster
-    staff = _q("SELECT id, username, display_name, role, is_active, last_login, phone FROM users WHERE tenant_id = :t AND role NOT IN ('admin','super_admin','sysadmin','mp','pr')", {"t": tenant_id})
+    staff = _q("SELECT id, username, display_name, role, is_active, last_login, phone FROM users WHERE tenant_id = :t AND role NOT IN ('admin','super_admin','sysadmin','owner','mp','pr')", {"t": tenant_id})
     for s in staff:
         if s.get("last_login") and hasattr(s["last_login"], "isoformat"):
             s["last_login"] = s["last_login"].isoformat()
@@ -2365,6 +2495,10 @@ def mp_detail(tenant_id: int, _=Depends(get_admin_user)):
 
     return {
         "tenant_id": tenant_id,
+        "tenant_type": tenant.get("tenant_type", "mp"),
+        "account_stage": identity["account_stage"],
+        "seat_type": identity["seat_type"],
+        "seat_label": identity["seat_label"],
         "profile": profile_summary,
         "last_login": login_str,
         "cases": {

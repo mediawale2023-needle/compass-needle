@@ -14,7 +14,7 @@ export default function GeographyRulesPage() {
     const [deleteRuleTarget, setDeleteRuleTarget] = useState(null);
 
     useEffect(() => {
-        apiGet('/api/admin/mps').then(r => setMps((r.mps || []).filter(m => m.role === 'mp'))).catch(() => { });
+        apiGet('/api/admin/mps').then(r => setMps(r.mps || [])).catch(() => { });
         apiGet('/api/admin/overrides').then(setOverrides).catch(() => { });
     }, []);
 
@@ -91,16 +91,16 @@ export default function GeographyRulesPage() {
                                 <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/>
                             </svg>
                         </div>
-                        <div className="empty-state-title">No MPs registered</div>
-                        <div className="empty-state-desc">Create an MP account first before configuring geography rules</div>
+                        <div className="empty-state-title">No accounts registered</div>
+                        <div className="empty-state-desc">Create an account first before configuring geography rules</div>
                     </div>
                 </div>
             ) : (
                 <>
                     <div className="form-row">
-                        <label className="form-label">Select MP</label>
+                        <label className="form-label">Select Account</label>
                         <select className="form-input" value={selectedTid} onChange={e => setSelectedTid(e.target.value)} style={{ maxWidth: 480 }}>
-                            <option value="">Choose an MP…</option>
+                            <option value="">Choose an account…</option>
                             {mpList.map(m => (
                                 <option key={m.tenant_id} value={m.tenant_id}>
                                     {m.display_name} — {m.parliamentary_constituency}
@@ -115,7 +115,7 @@ export default function GeographyRulesPage() {
                             <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
                                 <div className="section-title">Add Geography Override Rule</div>
                                 <p style={{ color: '#6b7f76', fontSize: '0.8rem', marginTop: -8, marginBottom: '1rem' }}>
-                                    Map a location string (as citizens type it) to the correct assembly constituency.
+                                    Map a location string (as citizens type it) to the correct routing assembly or area for this account.
                                 </p>
                                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr auto', gap: 12, alignItems: 'flex-end' }}>
                                     <div>
@@ -129,7 +129,7 @@ export default function GeographyRulesPage() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="form-label">Maps to Assembly Constituency</label>
+                                        <label className="form-label">Maps to Assembly / Routing Area</label>
                                         <input
                                             className="form-input"
                                             placeholder="e.g. Belgaum Dakshin"
@@ -190,7 +190,7 @@ export default function GeographyRulesPage() {
                                 <div className="glass-panel">
                                     <div className="empty-state" style={{ padding: '1.5rem 0' }}>
                                         <div className="empty-state-title">No rules defined</div>
-                                        <div className="empty-state-desc">Add a rule above to override location-to-assembly mapping for this MP</div>
+                                        <div className="empty-state-desc">Add a rule above to override location-to-assembly mapping for this account</div>
                                     </div>
                                 </div>
                             )}

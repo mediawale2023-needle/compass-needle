@@ -60,7 +60,7 @@ export default function BriefcaseTriageStrip({ triage }) {
         {
             label: 'Needs you',
             value: triage?.needsYou || 0,
-            note: 'Open cases requiring MP office intervention or review.',
+            note: 'Open cases requiring office intervention or review.',
             accent: P.saffron,
             icon: 'briefcase',
         },

@@ -84,7 +84,7 @@ export default function StaffManagementPage() {
     };
 
     const handleCreate = async () => {
-        if (!createForm.tenant_id) { showMsg('error', 'Select an MP tenant.'); return; }
+        if (!createForm.tenant_id) { showMsg('error', 'Select a tenant.'); return; }
         if (!createForm.username.trim()) { showMsg('error', 'Username is required.'); return; }
         if (!createForm.password) { showMsg('error', 'Password is required.'); return; }
         setSaving(true);
@@ -162,7 +162,7 @@ export default function StaffManagementPage() {
                         <thead>
                             <tr>
                                 <th>Staff Member</th>
-                                <th>MP / Tenant</th>
+                                <th>Account / Tenant</th>
                                 <th>Role</th>
                                 <th>WhatsApp (PA)</th>
                                 <th>Status</th>
@@ -230,10 +230,10 @@ export default function StaffManagementPage() {
                         <h3 style={{ margin: '0 0 16px', fontSize: '1rem', fontWeight: 700 }}>Add Staff Member</h3>
 
                         <div className="form-row">
-                            <label className="form-label">MP / Tenant *</label>
+                            <label className="form-label">Account / Tenant *</label>
                             <select className="form-input" value={createForm.tenant_id}
                                 onChange={e => setCreateForm(f => ({ ...f, tenant_id: e.target.value }))}>
-                                <option value="">— select MP —</option>
+                                <option value="">— select tenant —</option>
                                 {mpList.map(m => (
                                     <option key={m.tenant_id} value={m.tenant_id}>
                                         {m.display_name} · {m.parliamentary_constituency} #{m.tenant_id}

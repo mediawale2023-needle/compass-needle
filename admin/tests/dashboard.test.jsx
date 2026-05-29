@@ -33,9 +33,10 @@ describe('Admin dashboard overview', () => {
             }
             if (path === '/api/admin/stats') {
                 return {
-                    total_mps: 2,
-                    lok_sabha: 1,
-                    rajya_sabha: 1,
+                    total_accounts: 2,
+                    mp_seats: 1,
+                    mla_seats: 1,
+                    aspirants: 1,
                     total_profiles: 2,
                     total_cases: 14,
                 };
@@ -48,6 +49,9 @@ describe('Admin dashboard overview', () => {
                             display_name: 'Arun Kumar',
                             username: 'mp_arun',
                             house: 'Lok Sabha',
+                            seat_type: 'mp',
+                            account_stage: 'elected',
+                            seat_label: 'MP',
                             parliamentary_constituency: 'Bangalore North',
                             completeness: 82,
                         },
@@ -58,12 +62,12 @@ describe('Admin dashboard overview', () => {
         });
     });
 
-    it('renders admin stats and MP cards from the API', async () => {
+    it('renders admin stats and account cards from the API', async () => {
         render(<DashboardOverview />);
 
         expect(await screen.findByText('Arun Kumar')).toBeInTheDocument();
-        expect(screen.getByText('Total MPs')).toBeInTheDocument();
+        expect(screen.getByText('Total Accounts')).toBeInTheDocument();
         expect(screen.getByText('System Health')).toBeInTheDocument();
-        expect(screen.getByText('+ Add MP')).toBeInTheDocument();
+        expect(screen.getByText('+ Add Account')).toBeInTheDocument();
     });
 });

@@ -7,7 +7,7 @@ const { serif: SERIF, mono: MONO } = dashboardFonts;
 export default function DashboardEngagementsCard() {
     const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
     const items = [
-        { time: '09:00', dur: '60m', title: 'Constituency office hours', loc: 'Constituency Office', tag: 'Public' },
+        { time: '09:00', dur: '60m', title: 'Constituency workspace hours', loc: 'Constituency Workspace', tag: 'Public' },
         { time: '11:30', dur: '30m', title: 'Team review · Grievance pipeline', loc: 'War room', tag: 'Internal' },
         { time: '14:00', dur: '90m', title: 'Site visit — Ward inspection', loc: 'Field', tag: 'Field' },
         { time: '16:30', dur: '45m', title: 'Press briefing', loc: 'Press cabin', tag: 'Media' },

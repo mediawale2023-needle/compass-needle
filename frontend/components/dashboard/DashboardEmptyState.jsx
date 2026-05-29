@@ -10,7 +10,7 @@ export default function DashboardEmptyState({ canUseSansadAI }) {
         { label: 'Upload a Letter', href: '/dashboard/letterbox' },
         { label: 'Log a Case', href: '/dashboard/sansadx' },
         ...(canUseSansadAI ? [{ label: 'Open Sansad AI', href: '/dashboard/sansadai' }] : []),
-        { label: 'Find a Scheme', href: '/dashboard/sansadai?tab=schemes' },
+        { label: 'Find a Scheme', href: '/dashboard/schemes' },
     ];
 
     return (

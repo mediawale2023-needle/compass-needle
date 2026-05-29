@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { apiGet, apiPost, apiPatch, apiDelete, AI_TIMEOUT } from '@/lib/api';
+import { canAccessConvergence } from '@/lib/account';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -356,7 +357,7 @@ function LockedModule({ name }) {
             <div>
                 <h2 className="text-lg font-semibold text-foreground">{name} is restricted</h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                    This module is available to the MP only. Contact your MP for access.
+                    This module is available to elected-office accounts only.
                 </p>
             </div>
         </div>
@@ -367,7 +368,7 @@ export default function CSRPage() {
     const { user } = useAuth();
     const router = useRouter();
 
-    if (user && user.role !== 'mp' && user.role !== 'admin') {
+    if (user && !canAccessConvergence(user)) {
         return <LockedModule name="Convergence" />;
     }
 

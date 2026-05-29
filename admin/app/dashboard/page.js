@@ -231,16 +231,18 @@ function StatCard({ Icon, value, label, accentClass, bgClass }) {
 
 function MpCard({ mp }) {
     const initials = mp.display_name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-    const isLS = mp.house === 'Lok Sabha';
-    const badgeClass = isLS ? 'badge badge-green' : 'badge badge-red';
-    const badgeLabel = isLS ? 'Lok Sabha' : 'Rajya Sabha';
+    const badgeClass = mp.account_stage === 'aspirant' ? 'badge badge-amber' : mp.seat_type === 'mla' ? 'badge badge-red' : 'badge badge-green';
+    const badgeLabel = mp.account_stage === 'aspirant' ? `Aspirant ${mp.seat_label || 'MP'}` : (mp.seat_label || (mp.house === 'Lok Sabha' ? 'MP' : 'MP'));
     const fillClass = mp.completeness >= 70 ? 'fill-good' : mp.completeness >= 40 ? 'fill-mid' : 'fill-low';
+    const avatarClass = mp.seat_type === 'mla'
+        ? 'bg-gradient-to-br from-[#8d153a] to-[#b91c50]'
+        : 'bg-gradient-to-br from-[#006a4d] to-[#00875f]';
 
     return (
         <Link href={`/dashboard/mps/${mp.tenant_id}`} className="block">
             <div className="rounded-2xl border border-[#e2ebe5] bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#c4d8cc] hover:shadow-md">
                 <div className="flex items-center gap-3">
-                    <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-sm font-bold text-white ${isLS ? 'bg-gradient-to-br from-[#006a4d] to-[#00875f]' : 'bg-gradient-to-br from-[#8d153a] to-[#b91c50]'}`}>
+                    <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-sm font-bold text-white ${avatarClass}`}>
                         {initials}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -284,8 +286,9 @@ export default function DashboardOverview() {
         .filter((m) => {
             if (quickFilter === 'low_completeness') return (m.completeness || 0) < 70;
             if (quickFilter === 'missing_whatsapp') return !m.whatsapp_number || String(m.whatsapp_number).startsWith('temp_');
-            if (quickFilter === 'lok_sabha') return m.house === 'Lok Sabha';
-            if (quickFilter === 'rajya_sabha') return m.house === 'Rajya Sabha';
+            if (quickFilter === 'mp_seat') return m.seat_type === 'mp';
+            if (quickFilter === 'mla_seat') return m.seat_type === 'mla';
+            if (quickFilter === 'aspirants') return m.account_stage === 'aspirant';
             return true;
         })
         .filter((m) => !search || (
@@ -295,9 +298,10 @@ export default function DashboardOverview() {
         ));
 
     const statDefs = stats ? [
-        { Icon: StatIcons.mps, value: stats.total_mps, label: 'Total MPs', accentClass: 'text-[#006a4d]', bgClass: 'bg-[#f0fdf4]' },
-        { Icon: StatIcons.lok, value: stats.lok_sabha, label: 'Lok Sabha', accentClass: 'text-emerald-600', bgClass: 'bg-[#f0fdf4]' },
-        { Icon: StatIcons.rajya, value: stats.rajya_sabha, label: 'Rajya Sabha', accentClass: 'text-[#8d153a]', bgClass: 'bg-[#fff1f2]' },
+        { Icon: StatIcons.mps, value: stats.total_accounts ?? stats.total_mps, label: 'Total Accounts', accentClass: 'text-[#006a4d]', bgClass: 'bg-[#f0fdf4]' },
+        { Icon: StatIcons.lok, value: stats.mp_seats ?? stats.lok_sabha, label: 'MP Seats', accentClass: 'text-emerald-600', bgClass: 'bg-[#f0fdf4]' },
+        { Icon: StatIcons.rajya, value: stats.mla_seats ?? stats.rajya_sabha, label: 'MLA Seats', accentClass: 'text-[#8d153a]', bgClass: 'bg-[#fff1f2]' },
+        { Icon: StatIcons.profiles, value: stats.aspirants ?? 0, label: 'Aspirants', accentClass: 'text-amber-600', bgClass: 'bg-[#fffbeb]' },
         { Icon: StatIcons.profiles, value: stats.total_profiles, label: 'Profiles', accentClass: 'text-amber-600', bgClass: 'bg-[#fffbeb]' },
         { Icon: StatIcons.cases, value: stats.total_cases, label: 'Total Cases', accentClass: 'text-sky-600', bgClass: 'bg-[#f0f9ff]' },
     ] : [];
@@ -311,12 +315,12 @@ export default function DashboardOverview() {
             <SystemHealthWidget />
 
             {stats ? (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
                     {statDefs.map((stat) => <StatCard key={stat.label} {...stat} />)}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                    {[...Array(5)].map((_, i) => (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+                    {[...Array(6)].map((_, i) => (
                         <div key={i} className="h-[116px] rounded-2xl border border-[#e2ebe5] bg-white shadow-sm" />
                     ))}
                 </div>
@@ -324,11 +328,11 @@ export default function DashboardOverview() {
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h2 className="text-lg font-semibold text-[#1a2e28]">Members of Parliament</h2>
-                    <p className="text-sm text-[#6b7f76]">Search and manage tenant accounts from a unified overview.</p>
+                    <h2 className="text-lg font-semibold text-[#1a2e28]">Political Accounts</h2>
+                    <p className="text-sm text-[#6b7f76]">Search and manage MP, MLA, and aspirant tenant accounts from a unified overview.</p>
                 </div>
                 <Link href="/dashboard/mps/new" className="btn-primary">
-                    + Add MP
+                    + Add Account
                 </Link>
             </div>
 
@@ -352,8 +356,9 @@ export default function DashboardOverview() {
                             ['all', 'All'],
                             ['low_completeness', 'Low profile'],
                             ['missing_whatsapp', 'Missing WhatsApp'],
-                            ['lok_sabha', 'Lok Sabha'],
-                            ['rajya_sabha', 'Rajya Sabha'],
+                            ['mp_seat', 'MP seats'],
+                            ['mla_seat', 'MLA seats'],
+                            ['aspirants', 'Aspirants'],
                         ].map(([key, label]) => (
                             <button
                                 key={key}
@@ -374,9 +379,9 @@ export default function DashboardOverview() {
                     <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f0f4f1] text-[#6b7f76]">
                         <StatIcons.mps />
                     </div>
-                    <h3 className="text-base font-semibold text-[#1a2e28]">{search ? 'No results found' : 'No MPs registered yet'}</h3>
+                    <h3 className="text-base font-semibold text-[#1a2e28]">{search ? 'No results found' : 'No accounts registered yet'}</h3>
                     <p className="mt-2 text-sm text-[#6b7f76]">
-                        {search ? `No MPs match "${search}". Try a broader search.` : 'Create the first MP account to get started.'}
+                        {search ? `No accounts match "${search}". Try a broader search.` : 'Create the first political account to get started.'}
                     </p>
                 </div>
             ) : (

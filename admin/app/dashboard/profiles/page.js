@@ -43,6 +43,8 @@ export default function ProfileEditorPage() {
                 constituency: p.constituency || selected.parliamentary_constituency,
                 state: p.state || '',
                 house: p.house || selected.house,
+                account_stage: p.account_stage || selected.account_stage || 'elected',
+                seat_type: p.seat_type || selected.seat_type || 'mp',
                 party: p.party || 'Independent',
             });
             setProfileForm({
@@ -184,20 +186,20 @@ export default function ProfileEditorPage() {
             {mpList.length === 0 ? (
                 <div className="glass-panel">
                     <div className="empty-state">
-                        <div className="empty-state-title">No MPs registered</div>
-                        <div className="empty-state-desc">Create an MP account first from the Overview page</div>
+                        <div className="empty-state-title">No accounts registered</div>
+                        <div className="empty-state-desc">Create an account first from the Overview page</div>
                     </div>
                 </div>
             ) : (
                 <>
                     <div className="form-row">
-                        <label className="form-label">Select MP to Edit</label>
+                        <label className="form-label">Select Account to Edit</label>
                         <select className="form-input" value={selected?.user_id || ''} onChange={(e) => {
                             const mp = mpList.find(m => m.user_id === Number(e.target.value));
                             setSelected(mp || null);
                             setMsg({});
                         }}>
-                            <option value="">Choose an MP…</option>
+                            <option value="">Choose an account…</option>
                             {mpList.map(m => <option key={m.user_id} value={m.user_id}>{m.display_name} (@{m.username})</option>)}
                         </select>
                     </div>
@@ -235,8 +237,24 @@ export default function ProfileEditorPage() {
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                                         <div>
+                                            <label className="form-label">Account Stage</label>
+                                            <select className="form-input" value={identityForm.account_stage || 'elected'} onChange={e => setIdentityForm({ ...identityForm, account_stage: e.target.value })}>
+                                                <option value="elected">Elected</option>
+                                                <option value="aspirant">Aspirant</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="form-label">Seat Type</label>
+                                            <select className="form-input" value={identityForm.seat_type || 'mp'} onChange={e => setIdentityForm({ ...identityForm, seat_type: e.target.value, house: e.target.value === 'mla' ? 'Vidhan Sabha' : (identityForm.house === 'Vidhan Sabha' ? 'Lok Sabha' : identityForm.house) })}>
+                                                <option value="mp">MP Seat</option>
+                                                <option value="mla">MLA Seat</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                                        <div>
                                             <label className="form-label">Constituency</label>
-                                            {selected.house === 'Lok Sabha' ? (
+                                            {(identityForm.seat_type || 'mp') === 'mp' && (identityForm.house || selected.house) === 'Lok Sabha' ? (
                                                 <select className="form-input" value={identityForm.constituency || ''} onChange={e => setIdentityForm({ ...identityForm, constituency: e.target.value })}>
                                                     {constituencies.map(c => <option key={c} value={c}>{c}</option>)}
                                                 </select>
@@ -252,10 +270,14 @@ export default function ProfileEditorPage() {
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                                         <div>
                                             <label className="form-label">House</label>
-                                            <select className="form-input" value={identityForm.house || 'Lok Sabha'} onChange={e => setIdentityForm({ ...identityForm, house: e.target.value })}>
-                                                <option value="Lok Sabha">Lok Sabha</option>
-                                                <option value="Rajya Sabha">Rajya Sabha</option>
-                                            </select>
+                                            {(identityForm.seat_type || 'mp') === 'mla' ? (
+                                                <input className="form-input" value="Vidhan Sabha" disabled />
+                                            ) : (
+                                                <select className="form-input" value={identityForm.house || 'Lok Sabha'} onChange={e => setIdentityForm({ ...identityForm, house: e.target.value })}>
+                                                    <option value="Lok Sabha">Lok Sabha</option>
+                                                    <option value="Rajya Sabha">Rajya Sabha</option>
+                                                </select>
+                                            )}
                                         </div>
                                         <div>
                                             <label className="form-label">Party</label>
@@ -336,8 +358,8 @@ export default function ProfileEditorPage() {
                             <div className="glass-panel" style={{ marginBottom: '1.25rem' }}>
                                 <div className="section-title">Constituency Geography</div>
                                 <p style={{ fontSize: '0.82rem', color: '#6b7f76', marginBottom: 14, marginTop: 0 }}>
-                                    Location → Assembly Constituency mappings. Stored in the database — survives all redeployments.
-                                    Add each assembly segment's localities so WhatsApp complaints are routed correctly.
+                                    Shared seat geography. Upload once for this seat and every tenant on the same seat will inherit it.
+                                    Tenant-specific geography overrides still stay separate.
                                 </p>
 
                                 {/* Existing assemblies */}

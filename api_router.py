@@ -26,6 +26,8 @@ from sansadx_backend.db import (
     ResearchDocument,
     ResearchMessage,
     ResearchSession,
+    derive_account_stage,
+    derive_seat_type,
     get_tenant_phone_number_id,
     log_letterbox_activity,
 )
@@ -84,6 +86,46 @@ JWT_EXPIRE_HOURS = 8
 
 security = HTTPBearer()
 router = APIRouter()
+
+
+def _is_primary_workspace_user(user: dict | None) -> bool:
+    role = (user or {}).get("role", "")
+    return role in {"owner", "mp", "admin"}
+
+
+def _account_label_for_user(user: dict | None, tenant: dict | None) -> str:
+    role = (user or {}).get("role", "")
+    account_stage = (tenant or {}).get("account_stage") or ("aspirant" if (tenant or {}).get("tenant_type") == "aspirant" else "elected")
+    seat_type = (tenant or {}).get("seat_type") or ("mla" if (tenant or {}).get("tenant_type") == "mla" or (user or {}).get("house") == "Vidhan Sabha" else "mp")
+    if role == "admin":
+        return "Admin"
+    if role == "owner":
+        if account_stage == "aspirant":
+            return "Aspirant MLA" if seat_type == "mla" else "Aspirant MP"
+        if seat_type == "mla":
+            return "MLA"
+        return "MP"
+    if role == "mp":
+        return "MP"
+    return "Staff"
+
+
+def _account_context_for_user(user: dict | None) -> dict:
+    if (user or {}).get("role") == "admin":
+        return {"account_stage": "elected", "seat_type": "mp", "tenant_type": "admin"}
+    tid = get_tenant_or_fail(user or {})
+    tenant = _q_one("SELECT tenant_type, account_stage, seat_type FROM tenants WHERE id = :tid", {"tid": tid}) or {}
+    account_stage = tenant.get("account_stage") or ("aspirant" if tenant.get("tenant_type") == "aspirant" else "elected")
+    seat_type = tenant.get("seat_type") or ("mla" if tenant.get("tenant_type") == "mla" or (user or {}).get("house") == "Vidhan Sabha" else "mp")
+    return {"account_stage": account_stage, "seat_type": seat_type, "tenant_type": tenant.get("tenant_type", "mp")}
+
+
+def _require_feature_access(user: dict | None, feature: str) -> None:
+    if (user or {}).get("role") == "admin":
+        return
+    context = _account_context_for_user(user)
+    if context.get("account_stage") == "aspirant":
+        raise HTTPException(403, "This feature is not available for aspirant accounts")
 
 
 # ─────────────────────────────────────────
@@ -206,6 +248,7 @@ def login(req: LoginRequest, request: Request):
     tid = get_tenant_or_fail(user)
     tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
     house = user.get("house") or "Lok Sabha"
+    account_context = _account_context_for_user(user)
     token = create_token({"sub": user["username"], "tid": tid, "role": user.get("role", "user")})
 
     return {
@@ -215,6 +258,11 @@ def login(req: LoginRequest, request: Request):
             "display_name": user.get("display_name") or user["username"].title(),
             "role": user.get("role", "user"),
             "tenant_id": tid,
+            "tenant_type": tenant.get("tenant_type", "mp") if tenant else "mp",
+            "account_stage": account_context["account_stage"],
+            "seat_type": account_context["seat_type"],
+            "is_primary_account": _is_primary_workspace_user(user),
+            "account_label": _account_label_for_user(user, tenant),
             "constituency": tenant.get("constituency", "India") if tenant else "India",
             "house": house,
             "theme_color": "#006a4d" if house == "Lok Sabha" else "#8d153a",
@@ -235,11 +283,17 @@ def get_me(user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
     tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
     house = user.get("house") or "Lok Sabha"
+    account_context = _account_context_for_user(user)
     return {
         "username": user["username"],
         "display_name": user.get("display_name") or user["username"].title(),
         "role": user.get("role", "user"),
         "tenant_id": tid,
+        "tenant_type": tenant.get("tenant_type", "mp") if tenant else "mp",
+        "account_stage": account_context["account_stage"],
+        "seat_type": account_context["seat_type"],
+        "is_primary_account": _is_primary_workspace_user(user),
+        "account_label": _account_label_for_user(user, tenant),
         "constituency": tenant.get("constituency", "India") if tenant else "India",
         "house": house,
         "theme_color": "#006a4d" if house == "Lok Sabha" else "#8d153a",
@@ -1174,11 +1228,11 @@ def get_similar_cases(case_id: int, user=Depends(get_current_user)):
 
 @router.post("/cases/{case_id}/notify/send")
 async def notify_citizen(case_id: int, request: Request, body: Optional[CitizenNotifyRequest] = None, user=Depends(get_current_user)):
-    """Send a WhatsApp status update to the citizen. MP role only — PAs cannot trigger this."""
+    """Send a WhatsApp status update to the citizen. Primary account only — PAs cannot trigger this."""
     tid = get_tenant_or_fail(user)
 
-    if user.get("role") not in ("mp", "admin"):
-        raise HTTPException(403, "Only the MP can send citizen notifications")
+    if not _is_primary_workspace_user(user):
+        raise HTTPException(403, "Only the primary account can send citizen notifications")
 
     case = _q_one(
         "SELECT c.* FROM cases c "
@@ -1311,7 +1365,7 @@ def get_team(user=Depends(get_current_user)):
            FROM users
            WHERE tenant_id = :tid AND is_active = true
            ORDER BY
-               CASE WHEN role = 'mp' THEN 0 ELSE 1 END,
+               CASE WHEN role IN ('owner', 'mp') THEN 0 ELSE 1 END,
                display_name NULLS LAST""",
         {"tid": tid}
     )
@@ -1327,12 +1381,13 @@ def get_team(user=Depends(get_current_user)):
 def create_team_member(body: TeamMemberCreate, user=Depends(get_current_user)):
     """Create a new dashboard user (PA / Staff) under this tenant. MP-only."""
     tid = get_tenant_or_fail(user)
-    if user.get("role") not in ("mp", "admin"):
-        raise HTTPException(403, "Only the MP account can add team members")
+    if not _is_primary_workspace_user(user):
+        raise HTTPException(403, "Only the primary account can add team members")
 
     # Validate role — PAs/staff created here should never be 'admin'
-    if body.role not in ("user", "mp"):
-        raise HTTPException(400, "role must be 'user' (PA/Staff) or 'mp'")
+    normalized_role = "owner" if body.role == "mp" else body.role
+    if normalized_role not in ("user", "owner"):
+        raise HTTPException(400, "role must be 'user' (PA/Staff) or 'owner'")
 
     # Username must be globally unique (users.username has a UNIQUE constraint)
     existing = _q_one("SELECT id FROM users WHERE username = :u", {"u": body.username.strip().lower()})
@@ -1358,7 +1413,7 @@ def create_team_member(body: TeamMemberCreate, user=Depends(get_current_user)):
                     "tid":   tid,
                     "uname": body.username.strip().lower(),
                     "pw":    hashed,
-                    "role":  body.role,
+                    "role":  normalized_role,
                     "name":  body.display_name.strip(),
                     "phone": body.phone.strip() or None,
                     "now":   _utcnow(),
@@ -1378,8 +1433,8 @@ def create_team_member(body: TeamMemberCreate, user=Depends(get_current_user)):
 def delete_team_member(member_id: int, user=Depends(get_current_user)):
     """Deactivate (soft-delete) a team member. MP-only. Cannot delete yourself."""
     tid = get_tenant_or_fail(user)
-    if user.get("role") not in ("mp", "admin"):
-        raise HTTPException(403, "Only the MP account can remove team members")
+    if not _is_primary_workspace_user(user):
+        raise HTTPException(403, "Only the primary account can remove team members")
 
     # Prevent self-deletion
     if user.get("id") == member_id:
@@ -2724,6 +2779,7 @@ def refresh_scheme_intelligence(scheme_name: str, user=Depends(get_current_user)
 @router.get("/sansadai/ministries")
 def sansadai_ministries(user=Depends(get_current_user)):
     """SansadAI ministry list for issue intelligence."""
+    _require_feature_access(user, "sansadai")
     from modules.sansadai_api import get_issue_ministries
     return {"ministries": get_issue_ministries()}
 
@@ -2735,6 +2791,7 @@ def sansadai_topics(
     user=Depends(get_current_user),
 ):
     """SansadAI topics for one ministry, scoped to the current MP's state unless overridden."""
+    _require_feature_access(user, "sansadai")
     from modules.sansadai_api import _resolved_state, get_issue_topics
     resolved_state = _resolved_state(user.get("tenant_id"), state)
     return {
@@ -2753,6 +2810,7 @@ def sansadai_intelligence(
     user=Depends(get_current_user),
 ):
     """Cached issue brief for ministry + topic + state."""
+    _require_feature_access(user, "sansadai")
     from modules.sansadai_api import get_issue_intelligence
     parsed_issue_ids = []
     if issue_ids:
@@ -2779,6 +2837,7 @@ def refresh_sansadai_intelligence(
     user=Depends(get_current_user),
 ):
     """Delete the cached SansadAI brief for this ministry/topic/state so it regenerates fresh."""
+    _require_feature_access(user, "sansadai")
     from modules.sansadai_api import _generation_key, _issue_cache_topic, _resolved_state, _runtime_cache
     resolved_state = _resolved_state(user.get("tenant_id"), state)
     parsed_issue_ids = []
@@ -3304,6 +3363,7 @@ def get_csr_companies(
     sector: Optional[str] = None,
     company_type: Optional[str] = None,
 ):
+    _require_feature_access(user, "convergence")
     data = _cached_load("csr_data", _load_csr_data)
     if not data:
         return {"companies": [], "total": 0, "districts": [], "sectors": []}
@@ -3321,6 +3381,7 @@ def get_csr_companies(
 
 @router.get("/csr/watchdog")
 def get_csr_watchdog(user=Depends(get_current_user), district: Optional[str] = None):
+    _require_feature_access(user, "convergence")
     data = _cached_load("csr_data", _load_csr_data)
     violators = [
         d for d in data
@@ -3382,6 +3443,7 @@ def _row_to_profile(r: dict) -> dict:
 @router.get("/csr/companies/{company_id}/profile")
 def get_company_profile(company_id: int, user=Depends(get_current_user)):
     """Return full enriched profile for a single CSR company by DB id."""
+    _require_feature_access(user, "convergence")
     row = _q_one("SELECT * FROM csr_companies WHERE id = :id", {"id": company_id})
     if not row:
         raise HTTPException(404, "Company not found.")
@@ -3406,6 +3468,7 @@ def get_company_profile(company_id: int, user=Depends(get_current_user)):
 @router.get("/csr/companies/by-slug/{slug}")
 def get_company_by_slug(slug: str, user=Depends(get_current_user)):
     """Return full enriched profile for a single CSR company by URL slug."""
+    _require_feature_access(user, "convergence")
     row = _q_one("SELECT * FROM csr_companies WHERE slug = :slug", {"slug": slug})
     if not row:
         raise HTTPException(404, "Company not found.")
@@ -3433,6 +3496,7 @@ def get_company_briefing(slug: str, user=Depends(get_current_user)):
     Returns: spend summary, Schedule VII sector gaps, open pipeline ask,
              top NGO implementer for the sector, and current FY window status.
     """
+    _require_feature_access(user, "convergence")
     from modules.csr_matching_engine import fy_window_label
     row = _q_one("SELECT * FROM csr_companies WHERE slug = :slug", {"slug": slug})
     if not row:
@@ -3522,6 +3586,7 @@ def update_company_profile(company_id: int, req: CSRCompanyUpdateRequest, user=D
     transfer unspent amounts to a designated Schedule VII fund within 6 months of FY end.
     Enrichment fields (spend, sector, etc.) are managed by the data loader.
     """
+    _require_feature_access(user, "convergence")
     existing = _q_one("SELECT id FROM csr_companies WHERE id = :id", {"id": company_id})
     if not existing:
         raise HTTPException(404, "Company not found.")
@@ -3553,6 +3618,7 @@ def update_company_profile(company_id: int, req: CSRCompanyUpdateRequest, user=D
 
 @router.get("/csr/proposals")
 def get_csr_proposals(user=Depends(get_current_user)):
+    _require_feature_access(user, "convergence")
     tid = get_tenant_or_fail(user)
     try:
         from modules.csr_pipeline import get_csr_candidates, get_monitoring_clusters, match_companies
@@ -3638,6 +3704,7 @@ class CSRDraftRequest(BaseModel):
 @router.post("/csr/draft-letter")
 @_limit_ai
 def csr_draft_letter(req: CSRDraftRequest, request: Request, user=Depends(get_current_user)):
+    _require_feature_access(user, "convergence")
     try:
         client = get_gemini_client()
         if not client:
@@ -3678,6 +3745,7 @@ class CSRStrategicMatchRequest(BaseModel):
 
 @router.post("/csr/strategic-matches")
 def get_strategic_matches(req: CSRStrategicMatchRequest = None, user=Depends(get_current_user)):
+    _require_feature_access(user, "convergence")
     tid = get_tenant_or_fail(user)
     csr_data = _cached_load("csr_data", _load_csr_data)
     gaps = get_live_gaps(tid)
@@ -3959,6 +4027,7 @@ def get_csr_opportunities(user=Depends(get_current_user)):
                           suggested_approach, has_funded_similar, similar_projects,
                           recommended_ask_amount, ... }] }
     """
+    _require_feature_access(user, "convergence")
     tid = get_tenant_or_fail(user)
     try:
         from modules.csr_pipeline import get_grievance_clusters, CSR_MONITOR_THRESHOLD
@@ -4044,6 +4113,7 @@ def get_convergence_opportunities(user=Depends(get_current_user)):
     This endpoint currently reuses the CSR opportunity engine for cluster and company
     scoring, but exposes the product-facing convergence contract explicitly.
     """
+    _require_feature_access(user, "convergence")
     return get_csr_opportunities(user)
 
 
@@ -4074,6 +4144,7 @@ class CSRPipelineUpdateRequest(BaseModel):
 @router.post("/csr/pipeline")
 def create_pipeline_entry(req: CSRPipelineCreateRequest, user=Depends(get_current_user)):
     """Add a company to the CSR funding pipeline."""
+    _require_feature_access(user, "convergence")
     tid = get_tenant_or_fail(user)
     if req.stage not in PIPELINE_STAGES:
         raise HTTPException(400, f"Invalid stage. Must be one of: {', '.join(PIPELINE_STAGES)}")
@@ -4108,6 +4179,7 @@ def create_pipeline_entry(req: CSRPipelineCreateRequest, user=Depends(get_curren
 @router.get("/csr/pipeline")
 def get_pipeline(user=Depends(get_current_user)):
     """Return all pipeline entries for this tenant, grouped by stage."""
+    _require_feature_access(user, "convergence")
     tid = get_tenant_or_fail(user)
     try:
         rows = _q("""
@@ -4136,6 +4208,7 @@ def get_pipeline(user=Depends(get_current_user)):
 @router.patch("/csr/pipeline/{entry_id}")
 def update_pipeline_entry(entry_id: int, req: CSRPipelineUpdateRequest, user=Depends(get_current_user)):
     """Update the stage or notes on a pipeline entry."""
+    _require_feature_access(user, "convergence")
     tid = get_tenant_or_fail(user)
     # Verify ownership
     existing = _q_one(
@@ -4175,6 +4248,7 @@ def update_pipeline_entry(entry_id: int, req: CSRPipelineUpdateRequest, user=Dep
 @router.get("/csr/fy-status")
 def get_fy_status(user=Depends(get_current_user)):
     """Return the current position in India's April–March CSR budget cycle."""
+    _require_feature_access(user, "convergence")
     from modules.csr_matching_engine import fy_window_label
     return fy_window_label()
 
@@ -4194,6 +4268,7 @@ def log_pipeline_interaction(
     One free-text field per entry, staff-filled after real-world meetings.
     Overwrites the previous note — this is a log line, not a history.
     """
+    _require_feature_access(user, "convergence")
     tid = get_tenant_or_fail(user)
     existing = _q_one(
         "SELECT id FROM csr_pipeline_entries WHERE id = :id AND tenant_id = :tid",
@@ -4234,6 +4309,7 @@ def log_pipeline_interaction(
 @router.delete("/csr/pipeline/{entry_id}")
 def delete_pipeline_entry(entry_id: int, user=Depends(get_current_user)):
     """Remove an entry from the pipeline."""
+    _require_feature_access(user, "convergence")
     tid = get_tenant_or_fail(user)
     existing = _q_one(
         "SELECT id FROM csr_pipeline_entries WHERE id = :id AND tenant_id = :tid",
@@ -4260,6 +4336,7 @@ def get_opportunity_matches(opportunity_id: int, user=Depends(get_current_user))
     Return the pre-computed multi-dimensional company matches for an opportunity.
     If no persisted scores exist, compute on-the-fly and return (but do not persist).
     """
+    _require_feature_access(user, "convergence")
     tid = get_tenant_or_fail(user)
 
     # Try persisted matches first
@@ -4321,6 +4398,7 @@ def sync_opportunities(user=Depends(get_current_user)):
     Trigger on-demand opportunity sync + scoring recompute for the current tenant.
     Runs synchronously (fast for <100 clusters). For large deployments use the job queue.
     """
+    _require_feature_access(user, "convergence")
     tid = get_tenant_or_fail(user)
     try:
         from modules.csr_pipeline import get_grievance_clusters, CSR_MONITOR_THRESHOLD
@@ -4413,6 +4491,7 @@ def get_csr_analytics(user=Depends(get_current_user)):
       - constituency CSR funding totals (from impact reports)
       - watchdog summary
     """
+    _require_feature_access(user, "convergence")
     tid = get_tenant_or_fail(user)
 
     # ── Pipeline Funnel ──
@@ -4510,6 +4589,7 @@ def get_csr_analytics(user=Depends(get_current_user)):
 @router.get("/csr/analytics/heatmap")
 def get_csr_heatmap(user=Depends(get_current_user)):
     """Returns district-level CSR opportunity heatmap data for geographic visualisation."""
+    _require_feature_access(user, "convergence")
     tid = get_tenant_or_fail(user)
     try:
         rows = _q("""
@@ -4531,6 +4611,7 @@ def get_csr_heatmap(user=Depends(get_current_user)):
 @router.get("/csr/analytics/pipeline-funnel")
 def get_pipeline_funnel(user=Depends(get_current_user)):
     """Returns pipeline conversion rates across all 6 stages."""
+    _require_feature_access(user, "convergence")
     tid = get_tenant_or_fail(user)
     stages = ['identified', 'contacted', 'proposal_sent', 'negotiating', 'approved', 'funded']
     try:
@@ -4563,6 +4644,7 @@ def get_weekly_report(user=Depends(get_current_user)):
     Return the latest weekly CSR intelligence report for this tenant.
     If no saved report exists, generate one on-the-fly (lighter version).
     """
+    _require_feature_access(user, "convergence")
     tid = get_tenant_or_fail(user)
     import glob
     pattern = f"data/weekly_csr_report_tenant{tid}_*.json"

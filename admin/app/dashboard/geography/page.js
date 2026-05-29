@@ -3,6 +3,15 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { apiGet, apiPut, apiDelete, apiUpload } from '@/lib/api';
 import ConfirmModal from '@/components/ConfirmModal';
 
+const SEAT_TYPES = [
+    { value: 'mp', label: 'MP Seat', pickerLabel: 'Parliamentary Seat' },
+    { value: 'mla', label: 'MLA Seat', pickerLabel: 'Assembly Seat' },
+];
+
+function getSeatConfig(seatType) {
+    return SEAT_TYPES.find((item) => item.value === seatType) || SEAT_TYPES[0];
+}
+
 // ─── style constants ───────────────────────────────────────────────────────────
 const TH = {
     padding: '8px 12px', textAlign: 'left', fontSize: '0.72rem',
@@ -315,20 +324,23 @@ function ReviewTable({ stations, onChange }) {
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function GeographyUploadPage() {
     const [constituencies, setConstituencies] = useState([]);
+    const [seatType, setSeatType]             = useState('mp');
     const [pConst, setPConst]                 = useState('');
     const [assemblies, setAssemblies]         = useState([]);
     const [aSelection, setASelection]         = useState('');
     const [newAssembly, setNewAssembly]       = useState('');
     const [stations, setStations]             = useState(null); // null = not yet parsed
-    const [savedPCs, setSavedPCs]             = useState([]);
+    const [savedSeats, setSavedSeats]         = useState([]);
     const [savedData, setSavedData]           = useState({});
     const [msg, setMsg]                       = useState({ type: '', text: '' });
     const [parsing, setParsing]               = useState(false);
     const [ocrProgress, setOcrProgress]       = useState(null);
     const [saving, setSaving]                 = useState(false);
     const [validationReport, setValidationReport] = useState(null);
-    const [deleteTarget, setDeleteTarget]     = useState(null); // {pc, ac}
+    const [deleteTarget, setDeleteTarget]     = useState(null); // {seatType, pc, ac}
     const fileRef = useRef();
+    const seatConfig = getSeatConfig(seatType);
+    const assemblyLabel = seatType === 'mla' ? 'Routing Group / Area' : 'Assembly Constituency';
 
     useEffect(() => {
         apiGet('/api/admin/constituencies')
@@ -339,21 +351,33 @@ export default function GeographyUploadPage() {
 
     useEffect(() => {
         if (!pConst) { setAssemblies([]); return; }
-        apiGet(`/api/admin/geography/${encodeURIComponent(pConst)}/assemblies`)
+        apiGet(`/api/admin/geography/${encodeURIComponent(pConst)}/assemblies?seat_type=${seatType}`)
             .then(r => setAssemblies(r.assemblies || []))
             .catch(() => { });
-    }, [pConst]);
+    }, [pConst, seatType]);
 
     const loadSavedFiles = async () => {
         try {
-            const r = await apiGet('/api/admin/geography/parliamentary');
-            const pcs = r.parliamentary_constituencies || [];
-            setSavedPCs(pcs);
+            const responses = await Promise.all(
+                SEAT_TYPES.map(async ({ value }) => {
+                    const r = await apiGet(`/api/admin/geography/parliamentary?seat_type=${value}`);
+                    return {
+                        seatType: value,
+                        seatNames: r.parliamentary_constituencies || [],
+                    };
+                }),
+            );
+            const seats = [];
             const data = {};
-            for (const pc of pcs) {
-                const ar = await apiGet(`/api/admin/geography/${encodeURIComponent(pc)}/assemblies`);
-                data[pc] = ar.assemblies || [];
+            for (const response of responses) {
+                for (const seatName of response.seatNames) {
+                    const key = `${response.seatType}:${seatName}`;
+                    const ar = await apiGet(`/api/admin/geography/${encodeURIComponent(seatName)}/assemblies?seat_type=${response.seatType}`);
+                    data[key] = ar.assemblies || [];
+                    seats.push({ seatType: response.seatType, seatName });
+                }
             }
+            setSavedSeats(seats);
             setSavedData(data);
         } catch { }
     };
@@ -421,7 +445,7 @@ export default function GeographyUploadPage() {
         setSaving(true);
         try {
             const r = await apiPut(
-                `/api/admin/geography/${encodeURIComponent(pConst)}/${encodeURIComponent(aConst)}`,
+                `/api/admin/geography/${encodeURIComponent(pConst)}/${encodeURIComponent(aConst)}?seat_type=${seatType}`,
                 { data: stations },
             );
             setValidationReport(r.validation || null);
@@ -444,10 +468,10 @@ export default function GeographyUploadPage() {
     // ── Delete ─────────────────────────────────────────────────────────────────
     const confirmDelete = async () => {
         if (!deleteTarget) return;
-        const { pc, ac } = deleteTarget;
+        const { seatType: deleteSeatType, pc, ac } = deleteTarget;
         setDeleteTarget(null);
         try {
-            await apiDelete(`/api/admin/geography/${encodeURIComponent(pc)}/${encodeURIComponent(ac)}`);
+            await apiDelete(`/api/admin/geography/${encodeURIComponent(pc)}/${encodeURIComponent(ac)}?seat_type=${deleteSeatType}`);
             loadSavedFiles();
         } catch { }
     };
@@ -462,8 +486,8 @@ export default function GeographyUploadPage() {
 
             {deleteTarget && (
                 <ConfirmModal
-                    title={`Delete assembly "${deleteTarget.ac}"?`}
-                    description={`This will remove all polling station data for "${deleteTarget.ac}" from ${deleteTarget.pc}. This action cannot be undone.`}
+                    title={`Delete geography block "${deleteTarget.ac}"?`}
+                    description={`This will remove all polling station data for "${deleteTarget.ac}" from the ${getSeatConfig(deleteTarget.seatType).label.toLowerCase()} "${deleteTarget.pc}". This action cannot be undone.`}
                     confirmLabel="Delete"
                     variant="danger"
                     onConfirm={confirmDelete}
@@ -473,22 +497,51 @@ export default function GeographyUploadPage() {
 
             {/* ── Upload form ────────────────────────────────────────────────── */}
             <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
-                <div className="section-title">Upload Polling Station Data</div>
+                <div className="section-title">Upload Shared Seat Geography</div>
+                <p style={{ color: '#6b7f76', fontSize: '0.8rem', marginTop: -8, marginBottom: '1rem' }}>
+                    Upload once per seat. Every tenant on the same seat inherits this base geography automatically.
+                </p>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: '1rem' }}>
                     <div className="form-row" style={{ marginBottom: 0 }}>
-                        <label className="form-label">Parliamentary Constituency</label>
+                        <label className="form-label">Seat Type</label>
                         <select
                             className="form-input"
-                            value={pConst}
-                            onChange={e => { setPConst(e.target.value); setASelection(''); }}
+                            value={seatType}
+                            onChange={e => {
+                                setSeatType(e.target.value);
+                                setPConst('');
+                                setASelection('');
+                                setNewAssembly('');
+                                setStations(null);
+                                setValidationReport(null);
+                            }}
                         >
-                            <option value="">Select…</option>
-                            {constituencies.map(c => <option key={c} value={c}>{c}</option>)}
+                            {SEAT_TYPES.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
                         </select>
                     </div>
                     <div className="form-row" style={{ marginBottom: 0 }}>
-                        <label className="form-label">Assembly Constituency</label>
+                        <label className="form-label">{seatConfig.pickerLabel}</label>
+                        {seatType === 'mp' ? (
+                            <select
+                                className="form-input"
+                                value={pConst}
+                                onChange={e => { setPConst(e.target.value); setASelection(''); }}
+                            >
+                                <option value="">Select…</option>
+                                {constituencies.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        ) : (
+                            <input
+                                className="form-input"
+                                placeholder="e.g. Belagavi North"
+                                value={pConst}
+                                onChange={e => { setPConst(e.target.value); setASelection(''); }}
+                            />
+                        )}
+                    </div>
+                    <div className="form-row" style={{ marginBottom: 0 }}>
+                        <label className="form-label">{assemblyLabel}</label>
                         {pConst ? (
                             <>
                                 <select
@@ -498,13 +551,13 @@ export default function GeographyUploadPage() {
                                 >
                                     <option value="">Select…</option>
                                     {assemblies.map(a => <option key={a} value={a}>{a}</option>)}
-                                    <option value="__new__">+ Add New Assembly…</option>
+                                    <option value="__new__">+ Add New {assemblyLabel}…</option>
                                 </select>
                                 {aSelection === '__new__' && (
                                     <input
                                         className="form-input"
                                         style={{ marginTop: 8 }}
-                                        placeholder="e.g. Ghaziabad"
+                                        placeholder={seatType === 'mla' ? 'e.g. North Zone' : 'e.g. Ghaziabad'}
                                         value={newAssembly}
                                         onChange={e => setNewAssembly(e.target.value)}
                                     />
@@ -512,7 +565,7 @@ export default function GeographyUploadPage() {
                             </>
                         ) : (
                             <select className="form-input" disabled>
-                                <option>Select a parliamentary constituency first</option>
+                                <option>Select a seat first</option>
                             </select>
                         )}
                     </div>
@@ -535,6 +588,11 @@ export default function GeographyUploadPage() {
                             : 'Parsing PDF…')
                         : 'Parse PDF'}
                 </button>
+                {seatType === 'mla' && (
+                    <div style={{ marginTop: 10, color: '#6b7f76', fontSize: '0.76rem', lineHeight: 1.45 }}>
+                        For MLA seats, you can keep a single routing group named after the seat or create multiple local routing buckets if that helps case routing.
+                    </div>
+                )}
             </div>
 
             {/* ── Review panel ───────────────────────────────────────────────── */}
@@ -542,7 +600,7 @@ export default function GeographyUploadPage() {
                 <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                         <div className="section-title" style={{ margin: 0 }}>
-                            Review — {pConst} · {aConst}
+                            Review — {seatConfig.label} · {pConst} · {aConst}
                         </div>
                     </div>
 
@@ -610,9 +668,9 @@ export default function GeographyUploadPage() {
             <hr className="divider" />
 
             {/* ── Saved geography list ───────────────────────────────────────── */}
-            <div className="section-title" style={{ marginBottom: '1rem' }}>Saved Geography Files</div>
+            <div className="section-title" style={{ marginBottom: '1rem' }}>Saved Seat Geography</div>
 
-            {savedPCs.length === 0 ? (
+            {savedSeats.length === 0 ? (
                 <div className="glass-panel">
                     <div className="empty-state">
                         <div className="empty-state-icon">
@@ -620,40 +678,44 @@ export default function GeographyUploadPage() {
                                 <path d="M3 6l9-4 9 4v12l-9 4-9-4V6z" /><path d="M12 2v20M3 6l9 4 9-4" />
                             </svg>
                         </div>
-                        <div className="empty-state-title">No geography data uploaded yet</div>
+                        <div className="empty-state-title">No seat geography uploaded yet</div>
                         <div className="empty-state-desc">Upload an Election Commission PDF above to get started</div>
                     </div>
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {savedPCs.map(pc => (
-                        <div key={pc} className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
+                    {savedSeats.map(({ seatType: savedSeatType, seatName }) => {
+                        const key = `${savedSeatType}:${seatName}`;
+                        const openKey = `${key}_open`;
+                        return (
+                        <div key={key} className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
                             <div
                                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', cursor: 'pointer' }}
-                                onClick={() => setSavedData(prev => ({ ...prev, [`${pc}_open`]: !prev[`${pc}_open`] }))}
+                                onClick={() => setSavedData(prev => ({ ...prev, [openKey]: !prev[openKey] }))}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#006a4d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M3 6l9-4 9 4v12l-9 4-9-4V6z" />
                                     </svg>
-                                    <span style={{ fontWeight: 600, fontSize: '0.88rem', color: '#1a2e28' }}>{pc}</span>
+                                    <span className={`badge ${savedSeatType === 'mla' ? 'badge-red' : 'badge-green'}`}>{getSeatConfig(savedSeatType).label}</span>
+                                    <span style={{ fontWeight: 600, fontSize: '0.88rem', color: '#1a2e28' }}>{seatName}</span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                    <span className="badge badge-slate">{(savedData[pc] || []).length} assemblies</span>
+                                    <span className="badge badge-slate">{(savedData[key] || []).length} blocks</span>
                                     <svg
                                         width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7f76" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                                        style={{ transform: savedData[`${pc}_open`] ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+                                        style={{ transform: savedData[openKey] ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
                                     >
                                         <polyline points="6 9 12 15 18 9" />
                                     </svg>
                                 </div>
                             </div>
 
-                            {savedData[`${pc}_open`] && (
+                            {savedData[openKey] && (
                                 <div style={{ borderTop: '1px solid #e2ebe5' }}>
-                                    {(savedData[pc] || []).length === 0 ? (
-                                        <div style={{ padding: '12px 16px', color: '#6b7f76', fontSize: '0.82rem' }}>No assemblies found</div>
-                                    ) : (savedData[pc] || []).map(ac => (
+                                    {(savedData[key] || []).length === 0 ? (
+                                        <div style={{ padding: '12px 16px', color: '#6b7f76', fontSize: '0.82rem' }}>No routing blocks found</div>
+                                    ) : (savedData[key] || []).map(ac => (
                                         <div key={ac} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid #f0f4f1' }}>
                                             <span style={{ fontSize: '0.85rem', color: '#1a2e28' }}>{ac}</span>
                                             <div style={{ display: 'flex', gap: 8 }}>
@@ -662,9 +724,10 @@ export default function GeographyUploadPage() {
                                                     style={{ fontSize: '0.72rem', padding: '4px 10px' }}
                                                     onClick={async () => {
                                                         try {
-                                                            const r = await apiGet(`/api/admin/geography/${encodeURIComponent(pc)}/${encodeURIComponent(ac)}`);
+                                                            const r = await apiGet(`/api/admin/geography/${encodeURIComponent(seatName)}/${encodeURIComponent(ac)}?seat_type=${savedSeatType}`);
                                                             setStations(applyClean(r.data || []));
-                                                            setPConst(pc);
+                                                            setSeatType(savedSeatType);
+                                                            setPConst(seatName);
                                                             setASelection(ac);
                                                             window.scrollTo({ top: 0, behavior: 'smooth' });
                                                         } catch {
@@ -677,7 +740,7 @@ export default function GeographyUploadPage() {
                                                 <button
                                                     className="btn-danger"
                                                     style={{ fontSize: '0.72rem', padding: '4px 10px' }}
-                                                    onClick={() => setDeleteTarget({ pc, ac })}
+                                                    onClick={() => setDeleteTarget({ seatType: savedSeatType, pc: seatName, ac })}
                                                 >
                                                     Delete
                                                 </button>
@@ -687,7 +750,7 @@ export default function GeographyUploadPage() {
                                 </div>
                             )}
                         </div>
-                    ))}
+                    )})}
                 </div>
             )}
         </>
