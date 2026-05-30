@@ -938,46 +938,69 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
 
 # --- WRAPPERS ---
 def _get_tenant_constituency(tenant_id):
-    """Look up the parliamentary constituency for a given tenant_id."""
+    """Return the parliamentary constituency for a given tenant_id.
+
+    For MP tenants, tenant.constituency IS the parliamentary constituency.
+    For MLA tenants, tenant.constituency is the assembly constituency name —
+    we resolve it up to its parent parliamentary constituency via the geography
+    index so that scope_parliamentary filtering works correctly.
+    """
     if not tenant_id:
         return None
+
+    raw_constituency = None
+
     try:
         from sansadx_backend.db import get_tenant_constituency
-        constituency = get_tenant_constituency(tenant_id)
-        if constituency:
-            return constituency
+        raw_constituency = get_tenant_constituency(tenant_id)
     except Exception:
         pass
-    try:
-        # Try tenant_overrides.json first
-        override_paths = [
-            PROJECT_ROOT / "tenant_overrides.json",
-            Path("tenant_overrides.json").resolve(),
-        ]
-        for op in override_paths:
-            if op.exists():
-                with open(op, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                # Check if constituency is stored in overrides
-                tenant_data = data.get("tenants", {}).get(str(tenant_id), {})
-                if tenant_data.get("constituency"):
-                    return tenant_data["constituency"]
-    except Exception:
-        pass
-    
-    # Fallback: look up from DB
-    try:
-        from sansadx_backend.db import SessionLocal, Tenant
-        db = SessionLocal()
-        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-        if tenant and tenant.constituency:
+
+    if not raw_constituency:
+        try:
+            override_paths = [
+                PROJECT_ROOT / "tenant_overrides.json",
+                Path("tenant_overrides.json").resolve(),
+            ]
+            for op in override_paths:
+                if op.exists():
+                    with open(op, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    tenant_data = data.get("tenants", {}).get(str(tenant_id), {})
+                    if tenant_data.get("constituency"):
+                        raw_constituency = tenant_data["constituency"]
+                        break
+        except Exception:
+            pass
+
+    if not raw_constituency:
+        try:
+            from sansadx_backend.db import SessionLocal, Tenant
+            db = SessionLocal()
+            tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+            if tenant and tenant.constituency:
+                raw_constituency = tenant.constituency
             db.close()
-            return tenant.constituency
-        db.close()
-    except Exception:
-        pass
-    
-    return None
+        except Exception:
+            pass
+
+    if not raw_constituency:
+        return None
+
+    # If raw_constituency is an assembly name (MLA tenant), resolve it to
+    # its parent parliamentary constituency so scope_parliamentary filtering works.
+    if not _geography_index["loaded"]:
+        load_geography_index()
+    parl = get_assembly_parliamentary_constituency(raw_constituency)
+    if parl:
+        logger.debug(
+            "_get_tenant_constituency: resolved assembly '%s' → parliamentary '%s' for tenant %s",
+            raw_constituency, parl, tenant_id,
+        )
+        return parl
+
+    # Not found as an assembly — assume it is already a parliamentary constituency.
+    return raw_constituency
 
 def enrich_grievance_with_location(grievance: Dict, tenant_id: Optional[int] = None) -> Dict:
     text = grievance.get("raw_message") or ""
