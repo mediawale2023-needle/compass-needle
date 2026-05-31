@@ -876,19 +876,18 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
                     ]
                     matched_name = min(matching_names, key=len) if matching_names else entry["orig_name"]
 
-            # G. FUZZY KEYWORD MATCH — STRICT (93% similarity, min 6 char keywords)
-            # Catches common Indian spelling variants: "Budhwar"/"Budhawar",
-            # "Tilkwadi"/"Tilakwadi", inserted/dropped vowels in Marathi/Kannada names.
+            # G. FUZZY KEYWORD MATCH — STRICT (95% similarity, min 6 char keywords)
+            # Only used as last resort to catch typos like "Tilkwadi" vs "Tilakwadi"
             if score == 0:
                 for uk in user_keywords:
-                    if len(uk) < 6: continue
+                    if len(uk) < 6: continue  # Increased from 5 to 6
                     for dk in entry["keywords"]:
-                        if len(dk) < 6: continue
+                        if len(dk) < 6: continue  # Increased from 5 to 6
                         # Only consider if lengths are similar (±25%)
                         if not (0.75 <= len(uk)/len(dk) <= 1.25):
                             continue
                         sim = similarity_score(uk, dk)
-                        if sim > 93:  # 93% catches 1-char diff in 7-char words
+                        if sim > 95:  # Increased from 92 to 95
                             score = sim
                             match_type = f"fuzzy_strict ({uk}~{dk})"
                             matched_name = dk
