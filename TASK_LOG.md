@@ -12,6 +12,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-05-31
+- Request: Revert all GitHub pushes newer than `127fce16` while keeping `166db58e` and `127fce16`.
+- Summary: Safely reverted the 14 commits on `main` that landed after `127fce16`, including the later seed-endpoint fixes, debug endpoints, geography persistence fixes, WhatsApp reply changes, fuzzy-matching tweak, and Briefcase table redesign. The revert was done with standard `git revert` commits so history remains intact.
+- Files touched: `admin_api.py`, `api_router.py`, `frontend/components/briefcase/BriefcaseCasesTable.jsx`, `main.py`, `sansadx_backend/db.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The repository is now back to the state represented by `127fce16` plus earlier history; any functionality introduced only by the reverted commits will need to be reintroduced deliberately later if still needed.
+
 - Date: 2026-05-29
 - Request: Push the constituency-specific synthetic grievance seeder to GitHub.
 - Summary: Pushed commit `166db58e` (`Add constituency case seed endpoint`) to `origin/main`, including the protected `/api/admin/seed-constituency-cases` endpoint, geography-aware synthetic seed generation capped at 500 cases, selective rerun cleanup for prior synthetic cases, and focused API tests.
@@ -275,3 +281,15 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Pushed commit `a2bfd2bf` (`Improve dashboard mobile responsiveness`) to `origin/main`, keeping the dashboard’s desktop structure intact while making its grids, controls, and dense sections behave better on smaller screens.
 - Files touched: `frontend/app/dashboard/page.js`, `frontend/components/dashboard/DashboardSectionFrame.jsx`, `frontend/components/dashboard/DashboardKpiTiles.jsx`, `frontend/components/dashboard/DashboardGrievanceQueue.jsx`, `frontend/components/dashboard/DashboardPressCard.jsx`, `frontend/components/dashboard/DashboardConstituencyMap.jsx`, `frontend/components/dashboard/DashboardActivityFeed.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: This push only covers the dashboard overview; Briefcase, Letterbox, Sansad AI, and other MP pages will need their own responsive passes.
+
+- Date: 2026-05-29
+- Request: Redesign the Briefcase cases table to match the "All cases" variant from the Needle-3 design ZIP.
+- Summary: Rewrote `BriefcaseCasesTable.jsx` as a fixed-layout native `<table>` with `<colgroup>` pixel widths matching the design. Added: left 3px accent bar (saffron=critical, green=selected), stacked citizen name + phone, stacked sub-category + domain, stacked location + assembly, `StatusPill` with icon+label from `briefcasePalette`, language badge + 2-line clamped message, hover-reveal action buttons, and skeleton loader rows. Pushed as commit `2641837d`.
+- Files touched: `frontend/components/briefcase/BriefcaseCasesTable.jsx`, `TASK_LOG.md`
+- Risks or follow-ups: Frontend deploys via Vercel on push to main. Backend (EC2) has no changes in this commit. Visual verification against the design should be done once Vercel deploy completes.
+
+- Date: 2026-05-29
+- Request: Fix Jadhav's seeded cases showing only "Nanawadi" — data looked fake for demo.
+- Summary: Root cause was twofold: (1) seed was called with count=1 in a loop, so idx=0 always picked localities[0]="Nanawadi"; (2) count>500 bulk seed failed because SQLAlchemy 2.x batches session.add() objects into a typed executemany that casts String columns as ::VARCHAR, rejected when assigned_to column is still INTEGER. Fixed by adding db.flush() after each Case add (forces individual single-row INSERTs, NULL sent untyped). Seeded 500 cases across all 69 Belgaum dakshin localities for tenant_id=10. Commits: 41c9193e, f48bd38c, 5e3349dd.
+- Files touched: `admin_api.py`, `TASK_LOG.md`
+- Risks or follow-ups: The assigned_to INTEGER column is still on the DB — the startup migration keeps getting skipped. The flush workaround is solid but the ALTER COLUMN migration should be investigated and cleaned up later.
