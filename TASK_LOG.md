@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-05-31
+- Request: Push the one-file Briefcase table design restore to GitHub.
+- Summary: Pushed commit `12eaceed` (`Restore Briefcase cases table design`) to `origin/main`, restoring the `2641837d` editorial All Cases table look in `frontend/components/briefcase/BriefcaseCasesTable.jsx`.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is a UI-only restore and should be browser-verified against the current Briefcase data shape before any further related design restores.
+
+- Date: 2026-05-31
 - Request: Restore only the reverted Briefcase All Cases table design from commit `2641837d`.
 - Summary: Replaced `frontend/components/briefcase/BriefcaseCasesTable.jsx` with the earlier editorial table layout from `2641837d`, bringing back the denser fixed-column All Cases design without restoring the broader mobile or backend commits from that reverted batch.
 - Files touched: `frontend/components/briefcase/BriefcaseCasesTable.jsx`, `TASK_LOG.md`
