@@ -1101,6 +1101,7 @@ from modules.localized_replies import (
     get_details_request_reply,
     get_generic_ack_reply,
     get_location_update_reply,
+    get_missing_location_reply,
     get_rate_limit_reply,
     get_review_ack_reply,
     get_unsupported_message_reply,
@@ -1151,18 +1152,22 @@ def get_user_context(phone_number: str) -> str:
 
 def get_pending_incomplete_case(phone: str, tenant_id: int):
     """
-    Returns the most recent awaiting_location case for this phone/tenant
+    Returns the most recent clarification-pending case for this phone/tenant
     created within the last 30 minutes, or None if no such case exists.
     """
     try:
         with engine.connect() as conn:
             row = conn.execute(
                 text("""
-                    SELECT id, case_metadata, category, raw_message
+                    SELECT id, case_metadata, category, raw_message, status
                     FROM cases
                     WHERE user_phone = :phone
                       AND tenant_id = :tid
-                      AND status = 'awaiting_location'
+                      AND (
+                        status = 'awaiting_location'
+                        OR status = 'incomplete'
+                        OR case_metadata::jsonb ->> 'clarification_follow_up_pending' = 'true'
+                      )
                       AND created_at >= NOW() - INTERVAL '30 minutes'
                       AND (is_deleted = false OR is_deleted IS NULL)
                     ORDER BY created_at DESC LIMIT 1
@@ -1173,7 +1178,7 @@ def get_pending_incomplete_case(phone: str, tenant_id: int):
                 meta = row[1]
                 if isinstance(meta, str):
                     meta = json.loads(meta)
-                return {"id": row[0], "meta": meta, "category": row[2], "raw_message": row[3]}
+                return {"id": row[0], "meta": meta, "category": row[2], "raw_message": row[3], "status": row[4]}
     except Exception as e:
         logger.warning("Pending incomplete case lookup failed: %s", e)
     return None
@@ -2416,14 +2421,479 @@ def _resolve_citizen_ack_message(
         return get_offensive_warning_reply(detected_language, message_body)
 
     if normalized_status == "awaiting_location":
-        if location_name:
-            return get_awaiting_location_reply(location_name, detected_language, message_body)
         return get_generic_ack_reply(detected_language, message_body)
 
     if normalized_status == "irrelevant":
         return get_review_ack_reply(detected_language, message_body)
 
     return get_generic_ack_reply(detected_language, message_body)
+
+
+_CLARIFICATION_DELAY_SECONDS = max(120, int(os.getenv("CITIZEN_CLARIFICATION_DELAY_SECONDS", "150") or "150"))
+_clarification_followup_timers: dict[int, threading.Timer] = {}
+_clarification_followup_lock = threading.Lock()
+
+
+def _needs_delayed_clarification(status: str) -> bool:
+    normalized = str(status or "").lower().strip()
+    return normalized == "awaiting_location" or normalized in DETAILS_REQUEST_STATUSES
+
+
+def _clarification_kind_for_status(status: str) -> str | None:
+    normalized = str(status or "").lower().strip()
+    if normalized == "awaiting_location":
+        return "missing_location"
+    if normalized in DETAILS_REQUEST_STATUSES:
+        return "missing_details"
+    return None
+
+
+def _apply_clarification_metadata(
+    meta_data: dict,
+    *,
+    status: str,
+    sender: str,
+    detected_language: str,
+) -> tuple[dict, bool]:
+    meta = dict(meta_data or {})
+    follow_up_kind = _clarification_kind_for_status(status)
+    if not follow_up_kind:
+        for key in (
+            "clarification_follow_up_pending",
+            "clarification_follow_up_sent",
+            "clarification_follow_up_kind",
+            "clarification_follow_up_after_epoch",
+            "clarification_follow_up_sent_at",
+            "clarification_follow_up_resolved_at",
+        ):
+            meta.pop(key, None)
+        meta.pop("citizen_phone", None)
+        return meta, False
+
+    meta["clarification_follow_up_pending"] = True
+    meta["clarification_follow_up_sent"] = False
+    meta["clarification_follow_up_kind"] = follow_up_kind
+    meta["clarification_follow_up_after_epoch"] = int(_utcnow().timestamp()) + _CLARIFICATION_DELAY_SECONDS
+    meta["citizen_phone"] = sender
+    meta["clarification_language"] = detected_language
+    return meta, True
+
+
+def _build_clarification_follow_up_message(meta: dict, raw_message: str) -> str:
+    detected_language = normalize_language_name(meta.get("clarification_language", ""), "Hindi")
+    follow_up_kind = str(meta.get("clarification_follow_up_kind") or "").strip().lower()
+    if follow_up_kind == "missing_location":
+        location_hint = str(meta.get("matched_value") or "").strip()
+        if location_hint:
+            return get_awaiting_location_reply(location_hint, detected_language, raw_message)
+        return get_missing_location_reply(detected_language, raw_message)
+    return get_details_request_reply(detected_language, raw_message)
+
+
+def _cancel_case_clarification_follow_up(case_id: int | None) -> None:
+    if not case_id:
+        return
+    with _clarification_followup_lock:
+        timer = _clarification_followup_timers.pop(int(case_id), None)
+    if timer:
+        timer.cancel()
+
+
+def _send_due_case_clarification_followups(case_id: int | None = None) -> None:
+    now_epoch = int(_utcnow().timestamp())
+    params = {"now_epoch": now_epoch}
+    where_case = ""
+    if case_id is not None:
+        params["case_id"] = int(case_id)
+        where_case = "AND id = :case_id"
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text(f"""
+                    SELECT id, tenant_id, user_phone, raw_message, case_metadata
+                    FROM cases
+                    WHERE case_metadata::jsonb ->> 'clarification_follow_up_pending' = 'true'
+                      AND COALESCE(case_metadata::jsonb ->> 'clarification_follow_up_sent', 'false') <> 'true'
+                      AND COALESCE((case_metadata::jsonb ->> 'clarification_follow_up_after_epoch')::bigint, 0) <= :now_epoch
+                      AND (is_deleted = false OR is_deleted IS NULL)
+                      {where_case}
+                    ORDER BY created_at ASC
+                    LIMIT 25
+                """),
+                params,
+            ).fetchall()
+    except Exception as exc:
+        logger.warning("Clarification follow-up sweep failed: %s", exc)
+        return
+
+    for row in rows:
+        _case_id, _tenant_id, _phone, _raw_message, _meta_raw = row
+        try:
+            meta = _meta_raw if isinstance(_meta_raw, dict) else json.loads(_meta_raw or "{}")
+            reply = _build_clarification_follow_up_message(meta, _raw_message or "")
+            _wa_pid = get_tenant_phone_number_id(_tenant_id)
+            send_whatsapp_message(_phone, reply, _wa_pid)
+            meta["clarification_follow_up_sent"] = True
+            meta["clarification_follow_up_sent_at"] = _utcnow().isoformat()
+            with engine.begin() as conn:
+                conn.execute(
+                    text("""
+                        UPDATE cases
+                        SET case_metadata = :meta
+                        WHERE id = :cid
+                    """),
+                    {"meta": json.dumps(meta), "cid": _case_id},
+                )
+            _cancel_case_clarification_follow_up(_case_id)
+            logger.info("Clarification follow-up sent for case %s", _case_id)
+        except Exception as exc:
+            logger.warning("Clarification follow-up send failed for case %s: %s", _case_id, exc)
+
+
+def _schedule_case_clarification_follow_up(case_id: int | None, delay_seconds: int | None = None) -> None:
+    if not case_id:
+        return
+    _cancel_case_clarification_follow_up(case_id)
+    delay = max(5, int(delay_seconds or _CLARIFICATION_DELAY_SECONDS))
+    timer = threading.Timer(delay, _send_due_case_clarification_followups, args=(int(case_id),))
+    timer.daemon = True
+    with _clarification_followup_lock:
+        _clarification_followup_timers[int(case_id)] = timer
+    timer.start()
+
+
+def _run_citizen_case_enrichment(
+    *,
+    sender: str,
+    message_body: str,
+    resolver_message_body: str | None,
+    current_tenant: int,
+    language_hint: str,
+    media_source: dict | None = None,
+) -> dict:
+    user_context = get_user_context(sender)
+    full_prompt = f"{user_context}\n\nUSER MESSAGE: {message_body}"
+    ai_result = ask_chatgpt_agent(full_prompt, tenant_id=current_tenant)
+
+    if isinstance(ai_result, str):
+        try:
+            ai_result = json.loads(ai_result)
+        except Exception:
+            ai_result = {"status": "INCOMPLETE", "political_response": ai_result, "grievance_data": {}}
+
+    grievance = ai_result.get("grievance_data", {}) or {}
+    status = str(ai_result.get("status", "new")).lower()
+    detected_language = _resolve_citizen_reply_language(message_body, ai_result, language_hint)
+    problem_domain = grievance.get("problem_domain")
+    problem_subdomain = grievance.get("problem_subdomain")
+    convergence_program_type = grievance.get("convergence_program_type")
+    categories = grievance.get("categories", [problem_domain] if problem_domain else [])
+    category = (
+        problem_domain
+        or (categories[0] if isinstance(categories, list) and categories else None)
+        or "Uncategorised"
+    )
+
+    _emergency_keyword_match = False
+    try:
+        from modules.emergency_keywords import detect_emergency_severity
+        _emergency_keyword_match = detect_emergency_severity(message_body)
+    except Exception as _em_kw_exc:
+        logger.warning("Emergency keyword detection failed (non-blocking): %s", _em_kw_exc)
+
+    is_emergency_complaint = bool(
+        ai_result.get("is_critical", False) or status == "emergency" or _emergency_keyword_match
+    )
+    if is_emergency_complaint:
+        category = "Emergency"
+        if isinstance(categories, list):
+            categories = ["Emergency", *[c for c in categories if c != "Emergency"]]
+        else:
+            categories = ["Emergency"]
+
+    political_reply = ai_result.get("political_response", get_generic_ack_reply(detected_language, message_body))
+    ai_language = normalize_language_name(ai_result.get("detected_language", ""), "")
+    if language_hint and ai_language and ai_language != detected_language:
+        political_reply = get_generic_ack_reply(detected_language, message_body)
+
+    geo_decision = _finalize_whatsapp_geography_decision(
+        grievance=grievance,
+        ai_result=ai_result,
+        status=status,
+        political_reply=political_reply,
+        detected_language=detected_language,
+        message_body=message_body,
+        resolver_message_body=resolver_message_body,
+        current_tenant=current_tenant,
+        is_emergency_complaint=is_emergency_complaint,
+        location_required=location_required_for_domain(category),
+    )
+    grievance = geo_decision["grievance"]
+    status = geo_decision["status"]
+    political_reply = geo_decision["political_reply"]
+    location_name = geo_decision["location_name"]
+    final_constituency = geo_decision["final_constituency"]
+    citizen_ack_message = _resolve_citizen_ack_message(
+        status=status,
+        detected_language=detected_language,
+        message_body=message_body,
+        location_name=location_name,
+    )
+
+    if location_name and not final_constituency:
+        lookup_key = str(location_name).lower().strip()
+        combined_geo = {}
+        try:
+            geo_map = get_geo_overrides(current_tenant)
+            combined_geo.update(geo_map)
+        except Exception:
+            logger.warning("Geo override lookup failed for tenant %s", current_tenant)
+
+        try:
+            import glob as _glob
+            tenant_const = None
+            try:
+                from sansadx_backend.db import SessionLocal as _SL2, Tenant as _T2
+                _db2 = _SL2()
+                try:
+                    _t2 = _db2.query(_T2).filter(_T2.id == current_tenant).first()
+                    if _t2:
+                        tenant_const = _t2.constituency
+                finally:
+                    _db2.close()
+            except Exception:
+                pass
+
+            if tenant_const:
+                for base in ["data/geography", "/app/data/geography"]:
+                    const_dir = os.path.join(base, tenant_const)
+                    if not os.path.isdir(const_dir):
+                        if os.path.isdir(base):
+                            for d in os.listdir(base):
+                                if d.lower() == tenant_const.lower() and os.path.isdir(os.path.join(base, d)):
+                                    const_dir = os.path.join(base, d)
+                                    break
+                            else:
+                                continue
+                        else:
+                            continue
+
+                    for fpath in _glob.glob(os.path.join(const_dir, "*.json")):
+                        assembly_name = os.path.splitext(os.path.basename(fpath))[0]
+                        try:
+                            with open(fpath, "r") as gf:
+                                stations = json.load(gf)
+                            if isinstance(stations, list):
+                                for station in stations:
+                                    if isinstance(station, dict):
+                                        loc = station.get("locality", "").strip()
+                                        if loc and loc not in combined_geo:
+                                            combined_geo[loc] = assembly_name
+                        except Exception:
+                            pass
+                    break
+        except Exception as e:
+            logger.warning(f"Geography file scan failed in main.py: {e}")
+
+        combined_lower = {k.lower(): v for k, v in combined_geo.items()}
+        final_constituency = combined_lower.get(lookup_key)
+        if not final_constituency:
+            import re as _re
+            for geo_key, geo_val in combined_lower.items():
+                if len(geo_key) >= 4:
+                    word_pattern = r'\b' + _re.escape(geo_key) + r'\b'
+                    if _re.search(word_pattern, lookup_key):
+                        final_constituency = geo_val
+                        break
+        if not final_constituency:
+            best_match = None
+            best_match_len = 0
+            for geo_key, geo_val in combined_lower.items():
+                if len(geo_key) >= 5 and geo_key in lookup_key and len(geo_key) > best_match_len:
+                    best_match = geo_val
+                    best_match_len = len(geo_key)
+                    best_match_key = geo_key
+            if best_match:
+                final_constituency = best_match
+        if not final_constituency and len(lookup_key) >= 5:
+            import difflib
+            candidate_keys = [
+                k for k in combined_lower.keys()
+                if len(k) >= 5 and 0.7 <= len(k)/len(lookup_key) <= 1.3
+            ]
+            if candidate_keys:
+                matches = difflib.get_close_matches(lookup_key, candidate_keys, n=1, cutoff=0.85)
+                if matches:
+                    final_constituency = combined_lower[matches[0]]
+
+    meta_data = {
+        "user_intent": status,
+        "location_resolved": bool(location_name and final_constituency != "Unknown"),
+        "matched_value": location_name or "",
+        "assembly_constituency": final_constituency,
+        "geography_confidence": grievance.get("geography_confidence", "unknown"),
+        "geography_source": grievance.get("geography_source", "unknown"),
+        "geography_locked": bool(grievance.get("geography_locked")),
+        "needs_geography_review": bool(grievance.get("needs_geography_review")),
+        "geography_review_reason": grievance.get("geography_review_reason", ""),
+        "geography_diagnostics": grievance.get("geography_diagnostics", {}),
+        "summary": grievance.get("summary", message_body[:100]),
+        "categories": categories if isinstance(categories, list) else [category],
+        "problem_domain": problem_domain,
+        "problem_subdomain": problem_subdomain,
+        "convergence_program_type": convergence_program_type,
+        "person": grievance.get("person"),
+        "department": grievance.get("department"),
+        "scheme": grievance.get("scheme"),
+        "source_media": bool(media_source),
+        "source_media_type": media_source.get("media_type") if media_source else "",
+        "source_media_caption": media_source.get("caption", "") if media_source else "",
+    }
+
+    return {
+        "ai_result": ai_result,
+        "grievance": grievance,
+        "status": status,
+        "detected_language": detected_language,
+        "problem_domain": problem_domain,
+        "problem_subdomain": problem_subdomain,
+        "convergence_program_type": convergence_program_type,
+        "categories": categories,
+        "category": category,
+        "is_emergency_complaint": is_emergency_complaint,
+        "emergency_keyword_match": _emergency_keyword_match,
+        "political_reply": political_reply,
+        "location_name": location_name,
+        "final_constituency": final_constituency,
+        "citizen_ack_message": citizen_ack_message,
+        "meta_data": meta_data,
+    }
+
+
+def _save_case_enrichment_and_respond(
+    *,
+    case_id: int,
+    sender: str,
+    current_tenant: int,
+    message_body: str,
+    wa_phone_id: str,
+    enrichment: dict,
+    raw_message_override: str | None = None,
+    citizen_ack_override: str | None = None,
+) -> None:
+    status = enrichment["status"]
+    category = enrichment["category"]
+    detected_language = enrichment["detected_language"]
+    meta_data, clarification_needed = _apply_clarification_metadata(
+        enrichment["meta_data"],
+        status=status,
+        sender=sender,
+        detected_language=detected_language,
+    )
+    enrichment["meta_data"] = meta_data
+
+    try:
+        sql = """
+            UPDATE cases
+            SET category = :cat,
+                problem_domain = :problem_domain,
+                problem_subdomain = :problem_subdomain,
+                convergence_program_type = :convergence_program_type,
+                status = :stat,
+                case_metadata = :meta,
+                is_critical = :crit
+        """
+        params = {
+            "cat": category,
+            "problem_domain": enrichment["problem_domain"],
+            "problem_subdomain": enrichment["problem_subdomain"],
+            "convergence_program_type": enrichment["convergence_program_type"],
+            "stat": status,
+            "meta": json.dumps(meta_data),
+            "crit": enrichment["is_emergency_complaint"],
+            "cid": case_id,
+        }
+        if raw_message_override is not None:
+            sql += ", raw_message = :raw_message"
+            params["raw_message"] = raw_message_override
+        sql += " WHERE id = :cid"
+
+        with engine.begin() as conn:
+            conn.execute(text(sql), params)
+            logger.info("AI updated case %s: status='%s' category='%s' constituency='%s'", case_id, status, category, enrichment["final_constituency"])
+    except Exception as e:
+        logger.error(f"DB update failed for case {case_id}: {e}")
+
+    _is_critical_case = enrichment["is_emergency_complaint"]
+    if _is_critical_case or status == "emergency" or enrichment["emergency_keyword_match"]:
+        try:
+            from modules.emergency_intake import process_emergency_case
+            process_emergency_case(
+                case_id=case_id,
+                tenant_id=current_tenant,
+                message_body=message_body,
+                sender_phone=sender,
+                assembly=enrichment["final_constituency"],
+                ward=None,
+                category=category,
+                problem_domain=enrichment["problem_domain"] or "",
+                status=status,
+            )
+        except Exception as _em_exc:
+            logger.warning("Emergency intake failed (non-blocking): %s", _em_exc)
+
+    _is_review_category = category.lower().strip() in _REVIEW_REQUIRED_CATEGORIES
+    if (_is_review_category or _is_critical_case) and status not in ("awaiting_location",):
+        try:
+            with engine.begin() as _rv_conn:
+                _rv_meta = {**meta_data, "ai_reply_pending_review": enrichment["political_reply"]}
+                _rv_conn.execute(
+                    text("""
+                        UPDATE cases
+                        SET status = 'pending_review', case_metadata = :meta
+                        WHERE id = :cid
+                    """),
+                    {"meta": json.dumps(_rv_meta), "cid": case_id}
+                )
+        except Exception as _rv_exc:
+            logger.error("Failed to set pending_review status for case %s: %s", case_id, _rv_exc)
+
+        if _is_critical_case:
+            _cancel_case_clarification_follow_up(case_id)
+            return
+
+        try:
+            send_whatsapp_message(sender, get_review_ack_reply(detected_language, message_body), wa_phone_id)
+        except Exception as _rv_send_exc:
+            logger.error("Failed to send review ack to %s (case=%s): %s", sender, case_id, _rv_send_exc)
+            try:
+                with engine.begin() as _ack_conn:
+                    _ack_conn.execute(
+                        text("""
+                            UPDATE cases
+                            SET case_metadata = case_metadata || :patch::jsonb
+                            WHERE id = :cid
+                        """),
+                        {"patch": json.dumps({"citizen_ack_pending": True, "citizen_phone": sender}), "cid": case_id},
+                    )
+            except Exception as _ack_flag_exc:
+                logger.error("Failed to set citizen_ack_pending flag on case %s: %s", case_id, _ack_flag_exc)
+        _cancel_case_clarification_follow_up(case_id)
+        return
+
+    try:
+        send_whatsapp_message(sender, citizen_ack_override or enrichment["citizen_ack_message"], wa_phone_id)
+    except Exception as send_exc:
+        logger.error(
+            "WHATSAPP_SEND_FAILED: could not reply to %s (case=%s) — %s. "
+            "Check META_ACCESS_TOKEN and per-tenant Phone Number ID configuration.",
+            sender, case_id, send_exc,
+        )
+
+    if clarification_needed:
+        _schedule_case_clarification_follow_up(case_id)
+    else:
+        _cancel_case_clarification_follow_up(case_id)
 
 
 def _process_incoming_message(
@@ -2638,53 +3108,60 @@ def _process_incoming_message(
     except Exception as _rate_exc:
         logger.warning("Per-phone rate limit check failed (non-blocking): %s", _rate_exc)
 
-    # ── INTERCEPT: Location follow-up for awaiting_location cases ──────────────
-    # If this sender has a recent case in status='awaiting_location' (AI asked
-    # for their location but couldn't resolve it), treat the incoming message as
-    # the location reply — update the existing case instead of creating a new one.
+    # ── INTERCEPT: clarification follow-up on an existing case ─────────────────
+    # If this sender has a recent case that is still waiting on location or
+    # more detail, treat the next inbound message as clarification and enrich
+    # the original case instead of creating a second complaint row.
     _pending = get_pending_incomplete_case(sender, current_tenant)
     if _pending:
-        _loc_text = message_body.strip()
-        _resolver_loc_text = resolver_message_body.strip()
-        _resolved_const = None
-        _matched_location = _loc_text
-        try:
-            _matched, _resolved_const = resolve_constituency(_resolver_loc_text, current_tenant)
-            if _matched:
-                _matched_location = _matched
-            if _resolved_const == "Unknown":
-                _resolved_const = None
-        except Exception:
-            pass
+        _followup_text = message_body.strip()
+        _pending_meta = dict(_pending["meta"] or {})
+        _followup_kind = str(_pending_meta.get("clarification_follow_up_kind") or "").strip().lower()
+        _combined_message = (_pending.get("raw_message") or "").strip()
+        if _combined_message:
+            _combined_message += f"\n\nAdditional citizen clarification: {_followup_text}"
+        else:
+            _combined_message = _followup_text
 
-        _upd_meta = dict(_pending["meta"])
-        _upd_meta["matched_value"] = _matched_location
-        _upd_meta["location_resolved"] = bool(_resolved_const)
-        _upd_meta["assembly_constituency"] = _resolved_const or "Unknown"
-        _upd_meta["location_follow_up"] = True
+        _resolver_followup = resolver_message_body.strip()
+        if _followup_kind == "missing_location":
+            _resolver_combined = f"{_combined_message}\n\nLocation: {_resolver_followup or _followup_text}"
+        else:
+            _resolver_combined = _combined_message
 
         try:
-            with engine.begin() as _loc_conn:
-                _loc_conn.execute(
-                    text("""
-                        UPDATE cases
-                        SET status = 'new', case_metadata = :meta
-                        WHERE id = :cid
-                    """),
-                    {"meta": json.dumps(_upd_meta), "cid": _pending["id"]},
-                )
-            logger.info(
-                "Location follow-up: updated case %s with location '%s' → '%s'",
-                _pending["id"], _matched_location, _resolved_const,
+            enrichment = _run_citizen_case_enrichment(
+                sender=sender,
+                message_body=_combined_message,
+                resolver_message_body=_resolver_combined,
+                current_tenant=current_tenant,
+                language_hint=language_hint,
             )
-        except Exception as _loc_exc:
-            logger.error("Failed to update pending case with location: %s", _loc_exc)
+            enrichment["meta_data"]["clarification_source_case_id"] = _pending["id"]
+            enrichment["meta_data"]["clarification_reply_text"] = _followup_text[:500]
+            enrichment["meta_data"]["clarification_reply_at"] = _utcnow().isoformat()
 
-        _cat = _pending.get("category") or "shikayat"
-        _detected_lang = _resolve_citizen_reply_language(_loc_text, language_hint=language_hint)
-        _loc_ack = get_location_update_reply(_matched_location, _detected_lang, _loc_text)
-        send_whatsapp_message(sender, _loc_ack, _wa_phone_id)
-        return
+            _ack_override = None
+            if _followup_kind == "missing_location" and enrichment.get("location_name") and enrichment.get("final_constituency") not in {None, "", "Unknown"}:
+                _ack_override = get_location_update_reply(
+                    enrichment["location_name"],
+                    enrichment["detected_language"],
+                    _followup_text,
+                )
+
+            _save_case_enrichment_and_respond(
+                case_id=_pending["id"],
+                sender=sender,
+                current_tenant=current_tenant,
+                message_body=_combined_message,
+                wa_phone_id=_wa_phone_id,
+                enrichment=enrichment,
+                raw_message_override=_combined_message,
+                citizen_ack_override=_ack_override,
+            )
+            return
+        except Exception as _followup_exc:
+            logger.error("Failed to process clarification follow-up for case %s: %s", _pending["id"], _followup_exc)
 
     # ── STEP 1: Save raw grievance to DB immediately ────────────
     # This ensures the message is never lost, even if AI fails.
@@ -2750,344 +3227,22 @@ def _process_incoming_message(
 
     # ── STEP 2: AI classification (if this fails, the grievance is still saved) ──
     try:
-        user_context = get_user_context(sender)
-        full_prompt = f"{user_context}\n\nUSER MESSAGE: {message_body}"
-        ai_result = ask_chatgpt_agent(full_prompt, tenant_id=current_tenant)
-
-        if isinstance(ai_result, str):
-            try:
-                ai_result = json.loads(ai_result)
-            except Exception:
-                ai_result = {"status": "INCOMPLETE", "political_response": ai_result, "grievance_data": {}}
-
-        # Parse AI result
-        grievance = ai_result.get("grievance_data", {}) or {}
-        status = str(ai_result.get("status", "new")).lower()
-        # Reply language must be based on the citizen's actual message, not on
-        # OpenAI's self-reported detected_language. This prevents Marathi/Hinglish
-        # inputs like "Tilakwadi madhe pani nahi" from receiving Hindi replies.
-        detected_language = _resolve_citizen_reply_language(message_body, ai_result, language_hint)
-        problem_domain = grievance.get("problem_domain")
-        problem_subdomain = grievance.get("problem_subdomain")
-        convergence_program_type = grievance.get("convergence_program_type")
-        categories = grievance.get("categories", [problem_domain] if problem_domain else [])
-        category = (
-            problem_domain
-            or (categories[0] if isinstance(categories, list) and categories else None)
-            or "Uncategorised"
-        )
-        # Emergency routing is status/severity-led, not domain-led. Preserve the
-        # AI's problem_domain for context, but make the dashboard bucket explicit.
-        _emergency_keyword_match = False
-        try:
-            from modules.emergency_keywords import detect_emergency_severity
-            _emergency_keyword_match = detect_emergency_severity(message_body)
-        except Exception as _em_kw_exc:
-            logger.warning("Emergency keyword detection failed (non-blocking): %s", _em_kw_exc)
-
-        _is_emergency_complaint = bool(
-            ai_result.get("is_critical", False) or status == "emergency" or _emergency_keyword_match
-        )
-        if _is_emergency_complaint:
-            category = "Emergency"
-            if isinstance(categories, list):
-                categories = ["Emergency", *[c for c in categories if c != "Emergency"]]
-            else:
-                categories = ["Emergency"]
-        political_reply = ai_result.get("political_response", get_generic_ack_reply(detected_language, message_body))
-        ai_language = normalize_language_name(ai_result.get("detected_language", ""), "")
-        if language_hint and ai_language and ai_language != detected_language:
-            political_reply = get_generic_ack_reply(detected_language, message_body)
-
-        geo_decision = _finalize_whatsapp_geography_decision(
-            grievance=grievance,
-            ai_result=ai_result,
-            status=status,
-            political_reply=political_reply,
-            detected_language=detected_language,
+        enrichment = _run_citizen_case_enrichment(
+            sender=sender,
             message_body=message_body,
             resolver_message_body=resolver_message_body,
             current_tenant=current_tenant,
-            is_emergency_complaint=_is_emergency_complaint,
-            location_required=location_required_for_domain(category),
+            language_hint=language_hint,
+            media_source=media_source,
         )
-        grievance = geo_decision["grievance"]
-        status = geo_decision["status"]
-        political_reply = geo_decision["political_reply"]
-        location_name = geo_decision["location_name"]
-        final_constituency = geo_decision["final_constituency"]
-        citizen_ack_message = _resolve_citizen_ack_message(
-            status=status,
-            detected_language=detected_language,
+        _save_case_enrichment_and_respond(
+            case_id=case_id,
+            sender=sender,
+            current_tenant=current_tenant,
             message_body=message_body,
-            location_name=location_name,
+            wa_phone_id=_wa_phone_id,
+            enrichment=enrichment,
         )
-
-        # Geo mapping — DB overrides + geography JSON files
-        if location_name and not final_constituency:
-            lookup_key = str(location_name).lower().strip()
-            # Build combined rules: geo_overrides + geography JSON files
-            combined_geo = {}
-            try:
-                geo_map = get_geo_overrides(current_tenant)
-                combined_geo.update(geo_map)
-            except Exception:
-                logger.warning("Geo override lookup failed for tenant %s", current_tenant)
-
-            # Also scan geography JSON files for locality→assembly mapping
-            try:
-                import glob as _glob
-                tenant_const = None
-                try:
-                    from sansadx_backend.db import SessionLocal as _SL2, Tenant as _T2
-                    _db2 = _SL2()
-                    try:
-                        _t2 = _db2.query(_T2).filter(_T2.id == current_tenant).first()
-                        if _t2:
-                            tenant_const = _t2.constituency
-                    finally:
-                        _db2.close()
-                except Exception:
-                    pass
-
-                if tenant_const:
-                    for base in ["data/geography", "/app/data/geography"]:
-                        const_dir = os.path.join(base, tenant_const)
-                        if not os.path.isdir(const_dir):
-                            # Case-insensitive fallback
-                            if os.path.isdir(base):
-                                for d in os.listdir(base):
-                                    if d.lower() == tenant_const.lower() and os.path.isdir(os.path.join(base, d)):
-                                        const_dir = os.path.join(base, d)
-                                        break
-                                else:
-                                    continue
-                            else:
-                                continue
-
-                        for fpath in _glob.glob(os.path.join(const_dir, "*.json")):
-                            assembly_name = os.path.splitext(os.path.basename(fpath))[0]
-                            try:
-                                with open(fpath, "r") as gf:
-                                    stations = json.load(gf)
-                                if isinstance(stations, list):
-                                    for station in stations:
-                                        if isinstance(station, dict):
-                                            loc = station.get("locality", "").strip()
-                                            if loc and loc not in combined_geo:
-                                                combined_geo[loc] = assembly_name
-                            except Exception:
-                                pass
-                        break
-            except Exception as e:
-                logger.warning(f"Geography file scan failed in main.py: {e}")
-
-            # Now do STRICT 4-tier matching against combined_geo
-            # Priority: Exact > Word Boundary > Substring (key in input only) > Strict Fuzzy (85%)
-            combined_lower = {k.lower(): v for k, v in combined_geo.items()}
-            
-            # 1. Exact match (highest priority)
-            final_constituency = combined_lower.get(lookup_key)
-            if final_constituency:
-                logger.info(f"Geo exact match: '{lookup_key}' → {final_constituency}")
-            
-            # 2. Word boundary match — key appears as complete word in user input
-            # Prevents "hosur" matching "gilihosur" or "chandanhosur"
-            if not final_constituency:
-                import re as _re
-                for geo_key, geo_val in combined_lower.items():
-                    if len(geo_key) >= 4:
-                        word_pattern = r'\b' + _re.escape(geo_key) + r'\b'
-                        if _re.search(word_pattern, lookup_key):
-                            final_constituency = geo_val
-                            logger.info(f"Geo word boundary match: '{geo_key}' in '{lookup_key}' → {geo_val}")
-                            break
-            
-            # 3. Substring match — ONLY if geo_key is contained in lookup_key (not reverse)
-            # This prevents "hosur" from matching "chandanhosur" when user just says "hosur"
-            # Prefer longer matches (more specific)
-            if not final_constituency:
-                best_match = None
-                best_match_len = 0
-                for geo_key, geo_val in combined_lower.items():
-                    # Only match if key is at least 5 chars and fully contained in user input
-                    if len(geo_key) >= 5 and geo_key in lookup_key:
-                        if len(geo_key) > best_match_len:
-                            best_match = geo_val
-                            best_match_len = len(geo_key)
-                            best_match_key = geo_key
-                if best_match:
-                    final_constituency = best_match
-                    logger.info(f"Geo substring match: '{best_match_key}' ({best_match_len} chars) in '{lookup_key}' → {final_constituency}")
-            
-            # 4. Strict fuzzy match (85% cutoff, min 5 chars, similar lengths)
-            if not final_constituency and len(lookup_key) >= 5:
-                import difflib
-                # Only consider keys of similar length (±30%) to prevent wild mismatches
-                candidate_keys = [
-                    k for k in combined_lower.keys()
-                    if len(k) >= 5 and 0.7 <= len(k)/len(lookup_key) <= 1.3
-                ]
-                if candidate_keys:
-                    matches = difflib.get_close_matches(lookup_key, candidate_keys, n=1, cutoff=0.85)
-                    if matches:
-                        final_constituency = combined_lower[matches[0]]
-                        logger.info(f"Geo fuzzy match (85%): '{lookup_key}' ≈ '{matches[0]}' → {final_constituency}")
-
-        meta_data = {
-            "user_intent": status,
-            "location_resolved": bool(location_name and final_constituency != "Unknown"),
-            "matched_value": location_name or "",
-            "assembly_constituency": final_constituency,
-            "geography_confidence": grievance.get("geography_confidence", "unknown"),
-            "geography_source": grievance.get("geography_source", "unknown"),
-            "geography_locked": bool(grievance.get("geography_locked")),
-            "needs_geography_review": bool(grievance.get("needs_geography_review")),
-            "geography_review_reason": grievance.get("geography_review_reason", ""),
-            "geography_diagnostics": grievance.get("geography_diagnostics", {}),
-            "summary": grievance.get("summary", message_body[:100]),
-            "categories": categories if isinstance(categories, list) else [category],
-            "problem_domain": problem_domain,
-            "problem_subdomain": problem_subdomain,
-            "convergence_program_type": convergence_program_type,
-            "person": grievance.get("person"),
-            "department": grievance.get("department"),
-            "scheme": grievance.get("scheme"),
-            "source_media": bool(media_source),
-            "source_media_type": media_source.get("media_type") if media_source else "",
-            "source_media_caption": media_source.get("caption", "") if media_source else "",
-        }
-
-        # ── STEP 3: Update the saved case with AI results ──
-        try:
-            with engine.begin() as conn:
-                conn.execute(
-                    text("""
-                        UPDATE cases
-                        SET category = :cat,
-                            problem_domain = :problem_domain,
-                            problem_subdomain = :problem_subdomain,
-                            convergence_program_type = :convergence_program_type,
-                            status = :stat,
-                            case_metadata = :meta,
-                            is_critical = :crit
-                        WHERE id = :cid
-                    """),
-                    {
-                        "cat": category,
-                        "problem_domain": problem_domain,
-                        "problem_subdomain": problem_subdomain,
-                        "convergence_program_type": convergence_program_type,
-                        "stat": status,
-                        "meta": json.dumps(meta_data),
-                        "crit": _is_emergency_complaint,
-                        "cid": case_id,
-                    }
-                )
-                logger.info(f"AI updated case {case_id}: status='{status}' category='{category}' constituency='{final_constituency}'")
-        except Exception as e:
-            logger.error(f"DB update failed for case {case_id}: {e}")
-
-        # ── STEP 3.5: Emergency surge detection ───────────────────────────────
-        # Fix 5: gate on AI signal OR keyword match so language gaps in AI
-        # classification don't silently bypass the cluster pipeline entirely.
-        # detect_emergency_severity() is pure Python (no DB/network) so calling
-        # it on every citizen message is negligible cost.
-        _is_critical_case = _is_emergency_complaint
-
-        if _is_critical_case or status == "emergency" or _emergency_keyword_match:
-            try:
-                from modules.emergency_intake import process_emergency_case
-                process_emergency_case(
-                    case_id=case_id,
-                    tenant_id=current_tenant,
-                    message_body=message_body,
-                    sender_phone=sender,
-                    assembly=final_constituency,
-                    ward=None,
-                    category=category,
-                    problem_domain=problem_domain or "",
-                    status=status,
-                )
-            except Exception as _em_exc:
-                logger.warning("Emergency intake failed (non-blocking): %s", _em_exc)
-
-        # ── Human review gate ─────────────────────────────────────────────
-        # Sensitive cases (Law & Order, Emergency, Political, is_critical) are
-        # held for PA review before the AI reply is sent to the citizen.
-        # Emergency complaints are silent by policy: no citizen acknowledgment.
-        # Other review-required cases still get a generic acknowledgment.
-        # The AI-generated reply is stored in case_metadata for PA to see.
-        _is_review_category = category.lower().strip() in _REVIEW_REQUIRED_CATEGORIES
-        _is_critical_case = _is_emergency_complaint
-
-        if (_is_review_category or _is_critical_case) and status not in ("awaiting_location",):
-            # Store the AI reply so PA can view and approve it from the dashboard
-            try:
-                with engine.begin() as _rv_conn:
-                    _rv_meta = {**meta_data, "ai_reply_pending_review": political_reply}
-                    _rv_conn.execute(
-                        text("""
-                            UPDATE cases
-                            SET status = 'pending_review', case_metadata = :meta
-                            WHERE id = :cid
-                        """),
-                        {"meta": json.dumps(_rv_meta), "cid": case_id}
-                    )
-                logger.info(
-                    "REVIEW_REQUIRED: case_id=%s tenant=%s category=%s is_critical=%s — held for PA review",
-                    case_id, current_tenant, category, _is_critical_case
-                )
-            except Exception as _rv_exc:
-                logger.error("Failed to set pending_review status for case %s: %s", case_id, _rv_exc)
-
-            if _is_emergency_complaint:
-                logger.info(
-                    "EMERGENCY_SILENT_HOLD: case_id=%s tenant=%s — no citizen acknowledgment sent",
-                    case_id, current_tenant,
-                )
-                return
-
-            # Send only generic ack — NOT the AI-generated political reply.
-            # On failure, flag the case so the startup sweep can retry the ACK.
-            try:
-                send_whatsapp_message(sender, get_review_ack_reply(detected_language, message_body), _wa_phone_id)
-            except Exception as _rv_send_exc:
-                logger.error("Failed to send review ack to %s (case=%s): %s", sender, case_id, _rv_send_exc)
-                try:
-                    with engine.begin() as _ack_conn:
-                        _ack_conn.execute(
-                            text("""
-                                UPDATE cases
-                                SET case_metadata = case_metadata || :patch::jsonb
-                                WHERE id = :cid
-                            """),
-                            {"patch": json.dumps({"citizen_ack_pending": True, "citizen_phone": sender}), "cid": case_id},
-                        )
-                except Exception as _ack_flag_exc:
-                    logger.error("Failed to set citizen_ack_pending flag on case %s: %s", case_id, _ack_flag_exc)
-            return  # Done — do not fall through to the regular send below
-
-        try:
-            send_whatsapp_message(sender, citizen_ack_message, _wa_phone_id)
-        except Exception as send_exc:
-            logger.error(
-                "WHATSAPP_SEND_FAILED: could not reply to %s (case=%s) — %s. "
-                "Check META_ACCESS_TOKEN and per-tenant Phone Number ID configuration.",
-                sender, case_id, send_exc,
-            )
-
-        # ── Second message: politely ask citizen for their details ────────────
-        # Only sent when the grievance is explicitly incomplete.
-        # Skipped for: awaiting_location, offensive, irrelevant, emergency,
-        # pending_review (those have separate flows).
-        if status in DETAILS_REQUEST_STATUSES:
-            try:
-                details_msg = get_details_request_reply(detected_language, message_body)
-                send_whatsapp_message(sender, details_msg, _wa_phone_id)
-                logger.info("Details request sent to %s (case=%s lang=%s)", sender, case_id, detected_language)
-            except Exception as _det_exc:
-                logger.warning("Failed to send details request to %s (case=%s): %s", sender, case_id, _det_exc)
 
     except Exception as e:
         # AI failed — grievance is still saved as pending/Uncategorised
@@ -3360,6 +3515,7 @@ async def startup_jobs():
     from fastapi.concurrency import run_in_threadpool
     await run_in_threadpool(_sweep_stale_batches)
     await run_in_threadpool(_sweep_pending_citizen_acks)
+    await run_in_threadpool(_send_due_case_clarification_followups)
     _start_keep_alive()
 
 
