@@ -68,6 +68,7 @@ export default function BriefcaseCasesTable({
     setSelectedIds,
     onSelectCase,
     onOpenContact,
+    onDeleteCase,
 }) {
     const [hoverIdx, setHoverIdx] = useState(-1);
 
@@ -281,6 +282,23 @@ export default function BriefcaseCasesTable({
                                             style={iconBtn}
                                         >
                                             <BriefcaseIcon name="chevr" size={13} color={P.ink2} />
+                                        </button>
+                                        <button
+                                            title="Delete"
+                                            onClick={async (e) => {
+                                                e.stopPropagation();
+                                                if (!window.confirm('Are you sure you want to delete this case? This cannot be undone.')) {
+                                                    return;
+                                                }
+                                                try {
+                                                    await onDeleteCase?.(item.id);
+                                                } catch (error) {
+                                                    console.error('Failed to delete case:', error);
+                                                }
+                                            }}
+                                            style={iconBtn}
+                                        >
+                                            <BriefcaseIcon name="x" size={13} color={P.red} />
                                         </button>
                                     </div>
                                 </td>

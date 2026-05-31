@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-05-31
+- Request: Restore visible individual and bulk delete controls in the Briefcase dashboard after the table-design rollback removed them.
+- Summary: Added a shared `deleteCase`/`bulkDelete` path to `useBriefcaseCases`, wired bulk delete into `BriefcaseBulkActions`, restored a per-row delete action in `BriefcaseCasesTable`, and pointed the case modal delete button at the same shared hook so Briefcase deletions now update the list, selection state, and totals consistently.
+- Files touched: `frontend/hooks/useBriefcaseCases.js`, `frontend/components/briefcase/BriefcaseBulkActions.jsx`, `frontend/components/briefcase/BriefcaseCasesTable.jsx`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `frontend/app/dashboard/sansadx/page.js`, `TASK_LOG.md`
+- Risks or follow-ups: This was a frontend-only repair on top of the restored table design; a quick browser smoke test is still the best next check before pushing to production.
+
+- Date: 2026-05-31
 - Request: Push the one-file Briefcase table design restore to GitHub.
 - Summary: Pushed commit `12eaceed` (`Restore Briefcase cases table design`) to `origin/main`, restoring the `2641837d` editorial All Cases table look in `frontend/components/briefcase/BriefcaseCasesTable.jsx`.
 - Files touched: `TASK_LOG.md`

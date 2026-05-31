@@ -136,6 +136,7 @@ function BriefcaseInner() {
                     selectedCount={briefcase.selectedIds.size}
                     onStatusChange={briefcase.bulkStatusChange}
                     onAssign={briefcase.bulkAssign}
+                    onDelete={briefcase.bulkDelete}
                     onClear={() => briefcase.setSelectedIds(new Set())}
                     staff={briefcase.staff}
                 />
@@ -163,6 +164,7 @@ function BriefcaseInner() {
                         setSelectedIds={briefcase.setSelectedIds}
                         onSelectCase={briefcase.setSelected}
                         onOpenContact={briefcase.setContactPhone}
+                        onDeleteCase={briefcase.deleteCase}
                     />
                 )}
 
@@ -185,6 +187,7 @@ function BriefcaseInner() {
                 onStatusChange={briefcase.handleStatusChange}
                 staff={briefcase.staff}
                 user={user}
+                onDeleteCase={briefcase.deleteCase}
             />
 
             <BriefcaseContactPanel

@@ -2,7 +2,7 @@
 
 import { briefcasePalette as P, BriefcaseIcon, STATUS_OPTIONS } from '@/components/briefcase/briefcase-shared';
 
-export default function BriefcaseBulkActions({ selectedCount, onStatusChange, onAssign, onClear, staff }) {
+export default function BriefcaseBulkActions({ selectedCount, onStatusChange, onAssign, onDelete, onClear, staff }) {
     if (selectedCount === 0) {
         return null;
     }
@@ -96,6 +96,9 @@ export default function BriefcaseBulkActions({ selectedCount, onStatusChange, on
             </button>
             <button style={buttonStyle} type="button">
                 <BriefcaseIcon name="cluster" size={12} color="#F5EFE0" /> Group as cluster
+            </button>
+            <button style={buttonStyle} type="button" onClick={onDelete}>
+                <BriefcaseIcon name="x" size={12} color="#F5EFE0" /> Delete
             </button>
 
             <div style={{ flex: 1 }} />

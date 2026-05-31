@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2, Send } from 'lucide-react';
-import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
+import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { STATUS_OPTIONS, getStatusBadge } from '@/components/briefcase/briefcase
 import { isPrimaryAccount } from '@/lib/account';
 import { cn } from '@/lib/utils';
 
-export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusChange, staff, user }) {
+export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusChange, staff, user, onDeleteCase }) {
     const toast = useToast();
     const [updating, setUpdating] = useState(null);
     const [notes, setNotes] = useState('');
@@ -181,7 +181,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
             return;
         }
         try {
-            await apiDelete(`/api/cases/${current.id}`);
+            await onDeleteCase(current.id);
             onClose();
             toast.success('Case deleted successfully');
         } catch (error) {

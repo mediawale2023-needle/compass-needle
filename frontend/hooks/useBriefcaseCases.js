@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useToast } from '@/components/ui/toast';
-import { apiBlob, apiGet, apiPatch } from '@/lib/api';
+import { apiBlob, apiDelete, apiGet, apiPatch } from '@/lib/api';
 import { OTHER_CATEGORIES, OTHER_STATUSES } from '@/components/briefcase/briefcase-shared';
 
 export function getBriefcaseRowHighlight(status, category) {
@@ -303,6 +303,18 @@ export default function useBriefcaseCases(user) {
         setSelected((current) => current && current.id === caseId ? { ...current, status: newStatus } : current);
     }
 
+    async function deleteCase(caseId) {
+        await apiDelete(`/api/cases/${caseId}`);
+        setCases((current) => current.filter((item) => item.id !== caseId));
+        setSelected((current) => current && current.id === caseId ? null : current);
+        setSelectedIds((current) => {
+            const next = new Set(current);
+            next.delete(caseId);
+            return next;
+        });
+        setTotalCases((current) => Math.max(0, current - 1));
+    }
+
     async function bulkStatusChange(newStatus) {
         const ids = [...selectedIds];
         if (ids.length === 0) {
@@ -332,6 +344,27 @@ export default function useBriefcaseCases(user) {
         } catch (error) {
             console.error(error);
             toast.error('Bulk assign failed');
+        }
+    }
+
+    async function bulkDelete() {
+        const ids = [...selectedIds];
+        if (ids.length === 0) {
+            return;
+        }
+        if (!window.confirm(`Delete ${ids.length} selected case${ids.length !== 1 ? 's' : ''}? This cannot be undone.`)) {
+            return;
+        }
+        try {
+            await Promise.all(ids.map((id) => apiDelete(`/api/cases/${id}`)));
+            setCases((current) => current.filter((item) => !ids.includes(item.id)));
+            setSelected((current) => current && ids.includes(current.id) ? null : current);
+            setSelectedIds(new Set());
+            setTotalCases((current) => Math.max(0, current - ids.length));
+            toast.success(`Deleted ${ids.length} case${ids.length !== 1 ? 's' : ''}`);
+        } catch (error) {
+            console.error(error);
+            toast.error('Bulk delete failed');
         }
     }
 
@@ -433,6 +466,7 @@ export default function useBriefcaseCases(user) {
         assemblyFilter,
         assignedFilter,
         bulkAssign,
+        bulkDelete,
         bulkStatusChange,
         cases,
         categoryFilter,
@@ -449,6 +483,7 @@ export default function useBriefcaseCases(user) {
         deletedCases,
         downloading,
         downloadReport,
+        deleteCase,
         exportCasesCsv,
         filterOptions,
         handleRestore,
