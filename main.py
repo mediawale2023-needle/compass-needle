@@ -1282,6 +1282,7 @@ def _finalize_whatsapp_geography_decision(
     message_body: str,
     current_tenant: int,
     is_emergency_complaint: bool,
+    location_required: bool = True,
     resolver_message_body: str | None = None,
 ) -> dict:
     try:
@@ -1299,6 +1300,7 @@ def _finalize_whatsapp_geography_decision(
         resolver_message_body=resolver_message_body,
         current_tenant=current_tenant,
         is_emergency_complaint=is_emergency_complaint,
+        location_required=location_required,
         resolve_location_fn=resolve_location,
         resolve_constituency_fn=resolve_constituency,
         get_tenant_constituency_fn=get_tenant_constituency,

@@ -13,6 +13,18 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-05-31
+- Request: Fix the live WhatsApp geography regression that left new tenant 10 cases without location or assembly after ingestion.
+- Summary: Patched `main.py` so `_finalize_whatsapp_geography_decision()` once again accepts and forwards the `location_required` argument to `modules.whatsapp_geography.finalize_geography_decision()`. This removes the runtime `unexpected keyword argument 'location_required'` failure that was aborting geography enrichment after case insertion.
+- Files touched: `main.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This fixes the webhook argument mismatch, but live OpenAI quota issues can still degrade classification separately; production should be redeployed and retested with a fresh WhatsApp message.
+
+- Date: 2026-05-31
+- Request: Reintroduce the location-matching improvements that help MLA aspirant geography resolve real localities again after the earlier revert.
+- Summary: Restored three targeted resolver fixes in `modules/geography_resolver.py`: assembly-to-parent-parliamentary scoping for MLA tenants, fuzzy keyword threshold `>93` for common Indian spelling variants, and independent indexing of newline-separated locality lines. Added resolver regressions covering multiline localities and MLA tenant scoping.
+- Files touched: `modules/geography_resolver.py`, `tests/test_geography_resolver.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This improves matching coverage without restoring the broader reverted commit stack, but if tenant 10's saved geography itself is incomplete we may still need alias/data cleanup for missing localities.
+
+- Date: 2026-05-31
 - Request: Revert all GitHub pushes newer than `127fce16` while keeping `166db58e` and `127fce16`.
 - Summary: Safely reverted the 14 commits on `main` that landed after `127fce16`, including the later seed-endpoint fixes, debug endpoints, geography persistence fixes, WhatsApp reply changes, fuzzy-matching tweak, and Briefcase table redesign. The revert was done with standard `git revert` commits so history remains intact.
 - Files touched: `admin_api.py`, `api_router.py`, `frontend/components/briefcase/BriefcaseCasesTable.jsx`, `main.py`, `sansadx_backend/db.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
