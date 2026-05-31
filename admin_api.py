@@ -4926,27 +4926,3 @@ def get_classify_topics_stats(user=Depends(get_admin_user)):
         logger.exception("classify_topics/stats failed: %s", e)
         raise HTTPException(500, "Failed to fetch stats")
 
-
-
-@router.post("/debug/whatsapp-send-test")
-def whatsapp_send_test(req: dict, _=Depends(get_admin_user)):
-    """Live send test — calls Meta API directly and returns full response."""
-    import requests as _req
-    phone_number_id = req.get("phone_number_id") or os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
-    to_number = req.get("to", "").replace("+", "").replace("whatsapp:", "").strip()
-    message = req.get("message", "Test from Compass Needle admin")
-    access_token = os.getenv("META_ACCESS_TOKEN", "")
-    if not phone_number_id or not access_token or not to_number:
-        return {"error": "Missing phone_number_id, to, or META_ACCESS_TOKEN"}
-    url = f"https://graph.facebook.com/v21.0/{phone_number_id}/messages"
-    payload = {"messaging_product": "whatsapp", "to": to_number, "type": "text", "text": {"body": message}}
-    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-    r = _req.post(url, json=payload, headers=headers, timeout=10)
-    return {
-        "status_code": r.status_code,
-        "ok": r.ok,
-        "response": r.json() if r.headers.get("content-type", "").startswith("application/json") else r.text[:500],
-        "url": url,
-        "to": to_number,
-        "phone_number_id": phone_number_id,
-    }
