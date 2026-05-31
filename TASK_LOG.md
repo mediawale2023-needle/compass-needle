@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-05-31
+- Request: Restore only the reverted Briefcase All Cases table design from commit `2641837d`.
+- Summary: Replaced `frontend/components/briefcase/BriefcaseCasesTable.jsx` with the earlier editorial table layout from `2641837d`, bringing back the denser fixed-column All Cases design without restoring the broader mobile or backend commits from that reverted batch.
+- Files touched: `frontend/components/briefcase/BriefcaseCasesTable.jsx`, `TASK_LOG.md`
+- Risks or follow-ups: This is a single-file visual restoration and has not yet been browser-verified against the current Briefcase data shape; if any newer props or interactions drifted, the next step should be a quick frontend smoke test before push.
+
+- Date: 2026-05-31
 - Request: Push the WhatsApp geography wrapper fix to GitHub.
 - Summary: Pushed commit `78f7a5d8` (`Fix WhatsApp geography wrapper arg`) to `origin/main`, publishing the webhook fix that restores `location_required` pass-through into `finalize_geography_decision()`.
 - Files touched: `TASK_LOG.md`
