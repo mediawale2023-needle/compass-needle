@@ -365,3 +365,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Pushed commit `abb16bfe` (`Delay citizen clarification follow-ups`) to `origin/main`, including the delayed clarification scheduler, same-case clarification enrichment, and focused citizen intake tests.
 - Files touched: `main.py`, `tests/test_citizen_clarification_flow.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: This is pushed but not yet deployed to EC2, so live WhatsApp behavior will not change until the backend is redeployed.
+
+- Date: 2026-05-31
+- Request: Switch WhatsApp voice-note reading from the old multimodal path to Sarvam AI because the current transcription quality is poor.
+- Summary: Added `core/sarvam_client.py` and routed `modules/whatsapp_media_intake.py` to use Sarvam STT first for `media_type="audio"`, while keeping Gemini as the fallback and leaving image/document handling unchanged. Added focused media-intake test coverage for the Sarvam-first audio path.
+- Files touched: `core/sarvam_client.py`, `modules/whatsapp_media_intake.py`, `tests/test_whatsapp_media_intake.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This is an audio-only provider swap. If Sarvam’s API shape or auth header changes, voice notes will fall back to Gemini, so production should be tested with real WhatsApp OGG voice notes after deploy.

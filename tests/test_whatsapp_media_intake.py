@@ -72,3 +72,30 @@ def test_normalize_media_complaint_fails_closed_on_empty_media():
 
     assert result.ok is False
     assert result.error == "empty_media"
+
+
+def test_audio_prefers_sarvam_transcription(monkeypatch):
+    import core.sarvam_client as sarvam_client
+
+    monkeypatch.setattr(
+        sarvam_client,
+        "transcribe_audio_bytes",
+        lambda *args, **kwargs: sarvam_client.SarvamTranscriptionResult(
+            ok=True,
+            transcript="Raat ko area mein patrolling kam hai aur bike theft incidents badh gaye hain.",
+            language_code="hi-IN",
+            request_id="sarvam-test-1",
+        ),
+    )
+
+    result = normalize_media_complaint(
+        b"fake-audio",
+        "audio/ogg",
+        tenant_id=2,
+        media_type="audio",
+    )
+
+    assert result.ok is True
+    assert "bike theft" in result.text.lower()
+    assert result.extracted_language == "Hindi"
+    assert result.confidence == "high"

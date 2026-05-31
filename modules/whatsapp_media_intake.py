@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -61,6 +62,87 @@ def _json_from_response(text: str) -> dict[str, Any]:
     return json.loads(cleaned)
 
 
+_SARVAM_LANGUAGE_NAMES = {
+    "hi-IN": "Hindi",
+    "bn-IN": "Bengali",
+    "kn-IN": "Kannada",
+    "ml-IN": "Malayalam",
+    "mr-IN": "Marathi",
+    "od-IN": "Odia",
+    "pa-IN": "Punjabi",
+    "ta-IN": "Tamil",
+    "te-IN": "Telugu",
+    "gu-IN": "Gujarati",
+    "en-IN": "English",
+    "unknown": "Unknown",
+}
+
+
+def _sarvam_language_name(language_code: str) -> str:
+    code = str(language_code or "").strip()
+    if not code:
+        return "Unknown"
+    return _SARVAM_LANGUAGE_NAMES.get(code, code)
+
+
+def _normalize_sarvam_transcript(
+    media_bytes: bytes,
+    mime_type: str,
+    *,
+    media_type: str,
+    caption: str,
+) -> NormalizedMediaComplaint | None:
+    if media_type != "audio":
+        return None
+    try:
+        from core.sarvam_client import transcribe_audio_bytes
+    except Exception as exc:
+        logger.warning("Sarvam client unavailable, falling back to Gemini: %s", exc)
+        return None
+
+    result = transcribe_audio_bytes(
+        media_bytes,
+        mime_type=mime_type,
+        file_name="whatsapp-voice-note.ogg",
+    )
+    if not result.ok:
+        logger.warning("Sarvam transcription unavailable, falling back to Gemini: %s", result.error)
+        return None
+
+    complaint_text = str(result.transcript or "").strip()
+    if caption.strip():
+        complaint_text = f"{complaint_text}\n\nCitizen caption: {caption.strip()}".strip()
+
+    location_roman = ""
+    location_original = ""
+    # Best-effort hint only; real geography resolution still happens downstream.
+    lines = [line.strip() for line in complaint_text.splitlines() if line.strip()]
+    candidate_text = " ".join(lines[:2])
+    match = re.search(r"\b(?:in|at|from|near)\s+([A-Za-z][A-Za-z0-9 .,'-]{2,60})", candidate_text, flags=re.IGNORECASE)
+    if match:
+        location_roman = match.group(1).strip(" .,:;!?")
+        location_original = location_roman
+
+    logger.info(
+        "WhatsApp voice note transcribed via Sarvam: type=%s mime=%s chars=%s lang=%s request_id=%s",
+        media_type,
+        mime_type,
+        len(complaint_text),
+        result.language_code,
+        result.request_id,
+    )
+    return NormalizedMediaComplaint(
+        ok=True,
+        text=complaint_text,
+        media_type=media_type,
+        mime_type=mime_type,
+        extracted_language=_sarvam_language_name(result.language_code),
+        mentioned_location_original=location_original,
+        mentioned_location_roman=location_roman,
+        confidence="high",
+    )
+
+
 def normalize_media_complaint(
     media_bytes: bytes,
     mime_type: str,
@@ -85,6 +167,15 @@ def normalize_media_complaint(
             mime_type=mime_type,
             error="empty_media",
         )
+
+    sarvam_audio_result = _normalize_sarvam_transcript(
+        media_bytes,
+        mime_type,
+        media_type=media_type,
+        caption=caption,
+    )
+    if sarvam_audio_result is not None:
+        return sarvam_audio_result
 
     try:
         from core.gemini_client import get_gemini_client
