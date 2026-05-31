@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-05-31
+- Request: Push the Briefcase delete-control restore to GitHub.
+- Summary: Pushed commit `6e5c23f3` (`Restore Briefcase delete controls`) to `origin/main`, restoring visible bulk delete and per-row delete actions on the Briefcase dashboard while keeping the shared modal delete flow aligned with the same hook helper.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: The delete controls are now back in GitHub, but a production deploy is still required before the live Briefcase UI will show them.
+
+- Date: 2026-05-31
 - Request: Restore visible individual and bulk delete controls in the Briefcase dashboard after the table-design rollback removed them.
 - Summary: Added a shared `deleteCase`/`bulkDelete` path to `useBriefcaseCases`, wired bulk delete into `BriefcaseBulkActions`, restored a per-row delete action in `BriefcaseCasesTable`, and pointed the case modal delete button at the same shared hook so Briefcase deletions now update the list, selection state, and totals consistently.
 - Files touched: `frontend/hooks/useBriefcaseCases.js`, `frontend/components/briefcase/BriefcaseBulkActions.jsx`, `frontend/components/briefcase/BriefcaseCasesTable.jsx`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `frontend/app/dashboard/sansadx/page.js`, `TASK_LOG.md`
