@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-05-31
+- Request: Push the geography validation/diagnostics/backfill hardening batch to GitHub.
+- Summary: Pushed commit `1ec273d7` (`Harden geography validation and diagnostics`) to `origin/main`, publishing seat-safe onboarding validation, persisted `geography_diagnostics`, and the tenant-scoped geography backfill script/tests together as one coherent hardening batch.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: The backend now stores diagnostics and has a repair tool, but there is still no dedicated admin/Briefcase UI surface for operators to inspect `geography_diagnostics` without reading raw case metadata.
+
+- Date: 2026-05-31
 - Request: Add stronger geography onboarding validation, persist geography diagnostics per case, and create a tenant-scoped backfill path for blank historical case geography.
 - Summary: Extended `sanitize_and_validate_stations()` with same-seat generated-alias collision detection and weak-coverage warnings, wired all seat-geography save endpoints to reject blocking alias collisions, persisted structured `geography_diagnostics` into case metadata through `finalize_geography_decision()`/`main.py`, and added `scripts/backfill_case_geography.py` for tenant-scoped blank-geometry repair. Added focused tests for onboarding blocking behavior, diagnostics persistence, and backfill safety.
 - Files touched: `modules/geography_resolver.py`, `modules/whatsapp_geography.py`, `admin_api.py`, `main.py`, `scripts/backfill_case_geography.py`, `tests/test_geography_onboarding_api.py`, `tests/test_whatsapp_geography_decision.py`, `tests/test_case_geography_backfill.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
