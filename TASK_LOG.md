@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-05-31
+- Request: Push the WhatsApp geography wrapper fix to GitHub.
+- Summary: Pushed commit `78f7a5d8` (`Fix WhatsApp geography wrapper arg`) to `origin/main`, publishing the webhook fix that restores `location_required` pass-through into `finalize_geography_decision()`.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Production still needs a backend deploy/restart on the EC2 host to pick up this commit, and OpenAI quota issues may still affect classification separately.
+
+- Date: 2026-05-31
 - Request: Fix the live WhatsApp geography regression that left new tenant 10 cases without location or assembly after ingestion.
 - Summary: Patched `main.py` so `_finalize_whatsapp_geography_decision()` once again accepts and forwards the `location_required` argument to `modules.whatsapp_geography.finalize_geography_decision()`. This removes the runtime `unexpected keyword argument 'location_required'` failure that was aborting geography enrichment after case insertion.
 - Files touched: `main.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
