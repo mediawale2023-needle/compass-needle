@@ -2432,6 +2432,7 @@ def _process_incoming_message(
     media_source: dict | None = None,
     language_hint: str = "",
     resolver_message_body: str | None = None,
+    webhook_phone_number_id: str = "",
 ):
     """Background task: AI processing + DB save + reply. Runs after 200 is returned to Meta."""
     if not receiver_number:
@@ -2443,7 +2444,11 @@ def _process_incoming_message(
             receiver_number, sender
         )
         return
-    _wa_phone_id = get_tenant_phone_number_id(current_tenant)
+    # Prefer the phone_number_id from Meta's webhook metadata (always correct for replies)
+    # over the per-tenant config, which may lag if numbers are reassigned.
+    _wa_phone_id = webhook_phone_number_id or get_tenant_phone_number_id(current_tenant)
+    logger.info("Reply will use phone_number_id=%s (webhook=%s tenant_cfg=%s)",
+                _wa_phone_id, webhook_phone_number_id, get_tenant_phone_number_id(current_tenant))
 
     resolver_message_body = resolver_message_body or message_body
 
@@ -3177,9 +3182,14 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     # after staff identification — so staff/PA senders are never blocked.
 
     # Extract business phone number for tenant routing
-    display_number = entry.get("metadata", {}).get("display_phone_number", "")
+    _meta = entry.get("metadata", {})
+    display_number = _meta.get("display_phone_number", "")
     if display_number and not display_number.startswith("+"):
         display_number = f"+{display_number}"
+    # The phone_number_id from Meta's payload IS the correct ID to use for replies —
+    # pass it through so _process_incoming_message never has to guess.
+    webhook_phone_number_id = _meta.get("phone_number_id", "")
+    logger.debug("Webhook meta: display=%s phone_number_id=%s", display_number, webhook_phone_number_id)
 
     if msg_type == "text":
         message_body = str(msg.get("text", {}).get("body", "")).strip()
@@ -3197,7 +3207,7 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
                 sender, move_match.group(1), move_match.group(2), display_number
             )
         else:
-            background_tasks.add_task(_process_incoming_message, sender, message_body, display_number, msg_id)
+            background_tasks.add_task(_process_incoming_message, sender, message_body, display_number, msg_id, webhook_phone_number_id)
         return {"status": "received"}
 
     elif msg_type == "image":
