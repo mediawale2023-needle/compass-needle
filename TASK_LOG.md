@@ -371,3 +371,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Added `core/sarvam_client.py` and routed `modules/whatsapp_media_intake.py` to use Sarvam STT first for `media_type="audio"`, while keeping Gemini as the fallback and leaving image/document handling unchanged. Added focused media-intake test coverage for the Sarvam-first audio path.
 - Files touched: `core/sarvam_client.py`, `modules/whatsapp_media_intake.py`, `tests/test_whatsapp_media_intake.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: This is an audio-only provider swap. If Sarvam’s API shape or auth header changes, voice notes will fall back to Gemini, so production should be tested with real WhatsApp OGG voice notes after deploy.
+
+- Date: 2026-05-31
+- Request: Push the Sarvam voice-note transcription swap to GitHub.
+- Summary: Pushed commit `036bcfbf` (`Use Sarvam for voice note transcription`) to `origin/main`, publishing the new Sarvam-first audio transcription path with Gemini fallback and the focused media-intake tests.
+- Files touched: `core/sarvam_client.py`, `modules/whatsapp_media_intake.py`, `tests/test_whatsapp_media_intake.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The live backend still needs a deploy/restart before WhatsApp voice notes start using Sarvam in production.
