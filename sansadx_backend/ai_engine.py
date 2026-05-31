@@ -706,17 +706,6 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         _tenant_const = get_tenant_constituency(tenant_id)
                     except Exception:
                         _tenant_const = None
-                # For MLA tenants, tenant.constituency is an assembly name, not a
-                # parliamentary constituency. Resolve it up to parliamentary so that
-                # scope_parliamentary filtering in the geography index works correctly.
-                if _tenant_const:
-                    try:
-                        from modules.geography_resolver import get_assembly_parliamentary_constituency
-                        _parl = get_assembly_parliamentary_constituency(_tenant_const)
-                        if _parl:
-                            _tenant_const = _parl
-                    except Exception:
-                        pass
 
                 message_geo = {"location_resolved": False}
                 try:
