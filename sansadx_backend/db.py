@@ -1042,11 +1042,8 @@ def init_db():
     with engine.connect() as conn:
         for stmt in _migrations:
             try:
-                conn.execute(sa_text("SAVEPOINT _mig"))
                 conn.execute(sa_text(stmt))
-                conn.execute(sa_text("RELEASE SAVEPOINT _mig"))
             except Exception as e:
-                conn.execute(sa_text("ROLLBACK TO SAVEPOINT _mig"))
                 logging.warning("Migration skipped (%s): %s", stmt[:60], e)
         conn.commit()
 
