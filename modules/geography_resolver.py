@@ -372,9 +372,19 @@ def _confidence_level_for_match_type(match_type: str) -> str:
 def _station_seed_aliases(station: Dict[str, Any], parliamentary_constituency: Optional[str] = None) -> Set[str]:
     seeds: Set[str] = set()
     for field in ("locality", "locality_en", "mentioned_location_roman", "mentioned_location_original"):
-        value = str(station.get(field) or "").replace("\n", " ").strip()
+        raw = str(station.get(field) or "").strip()
+        if not raw:
+            continue
+        # Add full value (newlines → space) as one seed
+        value = raw.replace("\n", " ").strip()
         if value:
             seeds.add(value)
+        # Also add each line independently so "Nath Pai Circle\nShahapur, Belagavi"
+        # indexes "Nath Pai Circle" as its own matchable form.
+        for line in raw.split("\n"):
+            line = line.strip()
+            if line and line != value:
+                seeds.add(line)
 
     raw_aliases = station.get("aliases") or station.get("alias") or []
     if isinstance(raw_aliases, str):
