@@ -743,18 +743,10 @@ def get_all_overrides() -> dict:
 
 
 def save_overrides_to_db(data: dict):
-    """Bulk replace phone_mapping and geo_override rows from a dict matching JSON format.
-
-    IMPORTANT: Only deletes override_type IN ('phone_mapping', 'geo_override').
-    geography_data rows (polled station data uploaded via admin PDF parser) are
-    intentionally preserved — they are NOT managed by this function and must never
-    be wiped by a phone/geo override update.
-    """
+    """Bulk replace all overrides from a dict matching JSON format."""
     db = SessionLocal()
     try:
-        db.query(TenantOverride).filter(
-            TenantOverride.override_type.in_(["phone_mapping", "geo_override"])
-        ).delete(synchronize_session=False)
+        db.query(TenantOverride).delete()
         # Phone mappings (top-level keys that aren't "geo_overrides")
         for key, value in data.items():
             if key == "geo_overrides":
