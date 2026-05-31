@@ -85,6 +85,20 @@ def _refresh_geography_runtime() -> None:
         logger.warning("Geography override regeneration / index reload failed: %s", exc)
 
 
+def _raise_on_blocking_geography_validation(validation: dict) -> None:
+    blocking_errors = list(validation.get("blocking_errors") or [])
+    if not blocking_errors:
+        return
+    raise HTTPException(
+        status_code=400,
+        detail={
+            "message": "Geography validation failed",
+            "blocking_errors": blocking_errors,
+            "validation": validation,
+        },
+    )
+
+
 # ─────────────────────────────────────────
 # AUTH HELPERS
 # ─────────────────────────────────────────
@@ -877,7 +891,11 @@ def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(g
                 stations,
                 parliamentary_constituency=parl,
                 assembly=req.assembly_constituency,
+                seat_type=seat_type,
+                seat_name=seat_name,
+                other_rows=get_all_geography_data(),
             )
+            _raise_on_blocking_geography_validation(validation)
             existing.value = json.dumps(stations, ensure_ascii=False)
             flag_modified(existing, "value")
         else:
@@ -885,7 +903,11 @@ def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(g
                 [{"station_number": "1", "locality": locality_clean, "building_name": locality_clean}],
                 parliamentary_constituency=parl,
                 assembly=req.assembly_constituency,
+                seat_type=seat_type,
+                seat_name=seat_name,
+                other_rows=get_all_geography_data(),
             )
+            _raise_on_blocking_geography_validation(validation)
             db.add(TenantOverride(
                 tenant_id=None,
                 override_type="geography_data",
@@ -929,8 +951,11 @@ def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, _=Depends(get_ad
             raw_stations,
             parliamentary_constituency=seat_name,
             assembly=req.assembly_constituency,
+            seat_type=seat_type,
+            seat_name=seat_name,
             other_rows=get_all_geography_data(),
         )
+        _raise_on_blocking_geography_validation(validation)
         existing = db.query(TenantOverride).filter(
             TenantOverride.override_type == "geography_data",
             TenantOverride.key == db_key,
@@ -1219,8 +1244,11 @@ def save_geography(
             req.data,
             parliamentary_constituency=pc,
             assembly=ac,
+            seat_type=seat_type,
+            seat_name=pc,
             other_rows=get_all_geography_data(),
         )
+        _raise_on_blocking_geography_validation(validation)
 
         db = SessionLocal()
         try:

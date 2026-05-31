@@ -57,6 +57,7 @@ def _seed_database():
     admin_api.engine = test_engine
     admin_api.SessionLocal = TestSession
 
+    Base.metadata.drop_all(bind=test_engine)
     Base.metadata.create_all(bind=test_engine)
 
     with test_engine.begin() as conn:
@@ -76,11 +77,14 @@ def _seed_database():
 
         now = datetime.utcnow()
         conn.execute(text("""
-            INSERT INTO tenants (id, name, constituency, whatsapp_number, subscription_plan, is_active, created_at)
+            INSERT INTO tenants (
+                id, name, constituency, whatsapp_number, subscription_plan,
+                tenant_type, account_stage, seat_type, is_active, created_at
+            )
             VALUES
-                (1, 'System Admin', 'India', '+910000000001', 'System', 1, :now),
-                (2, 'Ghaziabad MP', 'Ghaziabad', '+910000000002', 'Pro', 1, :now),
-                (3, 'Aligarh MP', 'Aligarh', '+910000000003', 'Pro', 1, :now)
+                (1, 'System Admin', 'India', '+910000000001', 'System', 'mp', 'elected', 'mp', 1, :now),
+                (2, 'Ghaziabad MP', 'Ghaziabad', '+910000000002', 'Pro', 'mp', 'elected', 'mp', 1, :now),
+                (3, 'Aligarh MP', 'Aligarh', '+910000000003', 'Pro', 'mp', 'elected', 'mp', 1, :now)
         """), {"now": now})
 
         conn.execute(text("""
@@ -92,8 +96,8 @@ def _seed_database():
         conn.execute(text("""
             INSERT INTO tenant_overrides (tenant_id, override_type, key, value, created_at)
             VALUES
-                (2, 'geography_data', 'Ghaziabad/Ghaziabad', :gzb, :now),
-                (2, 'geography_data', 'Ghaziabad/Muradnagar', :mrd, :now)
+                (NULL, 'geography_data', 'mp:Ghaziabad/Ghaziabad', :gzb, :now),
+                (NULL, 'geography_data', 'mp:Ghaziabad/Muradnagar', :mrd, :now)
         """), {
             "now": now,
             "gzb": '[{"station_number":"1","locality":"Lohiya Nagar","building_name":""},{"station_number":"2","locality":"Patel Nagar","building_name":""}]',
@@ -133,7 +137,7 @@ def test_save_geography_sanitizes_rows_and_returns_validation():
     with test_engine.connect() as conn:
         saved = conn.execute(text("""
             SELECT value FROM tenant_overrides
-            WHERE tenant_id = 2 AND override_type = 'geography_data' AND key = 'Ghaziabad/Loni'
+            WHERE tenant_id IS NULL AND override_type = 'geography_data' AND key = 'mp:Ghaziabad/Loni'
         """)).scalar_one()
     assert "District" not in saved
     assert "Unique Colony" in saved
@@ -216,3 +220,20 @@ def test_upload_pdf_returns_sanitized_stations_and_validation(monkeypatch):
     assert [row["locality"] for row in body["stations"]] == ["Lohiya Nagar", "Unique Colony"]
     assert body["validation"]["meta_rows_removed"] == 1
     assert body["validation"]["meta_row_samples"] == ["District"]
+
+
+def test_save_geography_blocks_generated_alias_collision():
+    _seed_database()
+    headers = _admin_headers()
+
+    payload = {
+        "data": [
+            {"station_number": "1", "locality": "Market Road Lohiya Nagar", "building_name": ""},
+        ]
+    }
+    resp = client.put("/api/admin/geography/Ghaziabad/Loni", json=payload, headers=headers)
+
+    assert resp.status_code == 400, resp.text
+    body = resp.json()["detail"]
+    assert body["blocking_errors"] == ["alias_collisions_against_seat"]
+    assert "lohiya nagar" in body["validation"]["alias_collisions_against_seat"]

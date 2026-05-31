@@ -13,6 +13,18 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-05-31
+- Request: Add stronger geography onboarding validation, persist geography diagnostics per case, and create a tenant-scoped backfill path for blank historical case geography.
+- Summary: Extended `sanitize_and_validate_stations()` with same-seat generated-alias collision detection and weak-coverage warnings, wired all seat-geography save endpoints to reject blocking alias collisions, persisted structured `geography_diagnostics` into case metadata through `finalize_geography_decision()`/`main.py`, and added `scripts/backfill_case_geography.py` for tenant-scoped blank-geometry repair. Added focused tests for onboarding blocking behavior, diagnostics persistence, and backfill safety.
+- Files touched: `modules/geography_resolver.py`, `modules/whatsapp_geography.py`, `admin_api.py`, `main.py`, `scripts/backfill_case_geography.py`, `tests/test_geography_onboarding_api.py`, `tests/test_whatsapp_geography_decision.py`, `tests/test_case_geography_backfill.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This batch does not yet add a UI for ops to view `geography_diagnostics`; the data is stored in case metadata now, but an admin/Briefcase surface would be the natural next step.
+
+- Date: 2026-05-31
+- Request: Harden geography resolution so location and assembly mapping stay tenant-safe and reliable for all current and future tenants.
+- Summary: Made the geography resolver seat-aware internally by indexing assembly buckets with `seat_type + seat_name + assembly`, preferring tenant seat context during resolution, and keeping parliamentary fallback only for non-tenant-scoped lookups. Also made `save_overrides_to_db()` replace only legacy `phone_mapping` and `geo_override` rows so shared `geography_data` and generated `geo_alias` rows survive admin override saves. Added regressions for same-name cross-seat assemblies and override persistence safety.
+- Files touched: `modules/geography_resolver.py`, `sansadx_backend/db.py`, `tests/test_geography_resolver.py`, `tests/test_override_persistence.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This is the first hardening phase; onboarding validation, resolver diagnostics, and blank-case geography backfill are still the next improvements if we want consistently high accuracy in production.
+
+- Date: 2026-05-31
 - Request: Push the Briefcase delete-control restore to GitHub.
 - Summary: Pushed commit `6e5c23f3` (`Restore Briefcase delete controls`) to `origin/main`, restoring visible bulk delete and per-row delete actions on the Briefcase dashboard while keeping the shared modal delete flow aligned with the same hook helper.
 - Files touched: `TASK_LOG.md`

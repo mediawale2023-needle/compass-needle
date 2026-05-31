@@ -2944,6 +2944,7 @@ def _process_incoming_message(
             "geography_locked": bool(grievance.get("geography_locked")),
             "needs_geography_review": bool(grievance.get("needs_geography_review")),
             "geography_review_reason": grievance.get("geography_review_reason", ""),
+            "geography_diagnostics": grievance.get("geography_diagnostics", {}),
             "summary": grievance.get("summary", message_body[:100]),
             "categories": categories if isinstance(categories, list) else [category],
             "problem_domain": problem_domain,

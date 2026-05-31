@@ -743,10 +743,12 @@ def get_all_overrides() -> dict:
 
 
 def save_overrides_to_db(data: dict):
-    """Bulk replace all overrides from a dict matching JSON format."""
+    """Bulk replace legacy phone/geo overrides without touching shared geography rows."""
     db = SessionLocal()
     try:
-        db.query(TenantOverride).delete()
+        db.query(TenantOverride).filter(
+            TenantOverride.override_type.in_(["phone_mapping", "geo_override"])
+        ).delete(synchronize_session=False)
         # Phone mappings (top-level keys that aren't "geo_overrides")
         for key, value in data.items():
             if key == "geo_overrides":

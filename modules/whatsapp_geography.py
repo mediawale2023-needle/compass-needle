@@ -75,6 +75,69 @@ def _normalize_confidence_level(resolution: dict[str, Any] | None) -> str:
     return "unknown"
 
 
+def _init_geography_diagnostics(
+    *,
+    grievance: dict[str, Any],
+    tenant_id: int,
+    tenant_constituency: str | None,
+    message_body: str,
+) -> dict[str, Any]:
+    diagnostics = grievance.get("geography_diagnostics")
+    if not isinstance(diagnostics, dict):
+        diagnostics = {}
+    diagnostics.setdefault("version", 1)
+    diagnostics["tenant_id"] = tenant_id
+    diagnostics["tenant_scope"] = tenant_constituency
+    diagnostics["message_excerpt"] = str(message_body or "")[:160]
+    diagnostics["attempts"] = list(diagnostics.get("attempts") or [])
+    return diagnostics
+
+
+def _record_geography_attempt(
+    diagnostics: dict[str, Any],
+    *,
+    source: str,
+    input_text: str | None,
+    resolution: dict[str, Any] | None,
+    reason: str | None = None,
+) -> None:
+    resolution = resolution or {}
+    diagnostics.setdefault("attempts", []).append(
+        {
+            "source": source,
+            "input_excerpt": str(input_text or "")[:160],
+            "location_resolved": bool(resolution.get("location_resolved")),
+            "matched_value": _clean_location_candidate(resolution.get("matched_value")) or "",
+            "assembly_constituency": str(resolution.get("assembly_constituency") or "").strip(),
+            "confidence_level": _normalize_confidence_level(resolution),
+            "match_type": str(resolution.get("match_type") or "").strip(),
+            "reason": reason or str(resolution.get("reason") or "").strip(),
+        }
+    )
+
+
+def _finalize_geography_diagnostics(
+    grievance: dict[str, Any],
+    diagnostics: dict[str, Any],
+    *,
+    final_constituency: str | None,
+    location_name: str | None,
+    status: str,
+    review_reason: str | None = None,
+) -> None:
+    diagnostics["final"] = {
+        "location_resolved": bool(location_name and final_constituency and final_constituency != "Unknown"),
+        "matched_value": location_name or "",
+        "assembly_constituency": final_constituency or "",
+        "status": status,
+        "geography_confidence": grievance.get("geography_confidence", "unknown"),
+        "geography_source": grievance.get("geography_source", "unknown"),
+        "needs_geography_review": bool(grievance.get("needs_geography_review")),
+        "review_reason": review_reason or grievance.get("geography_review_reason") or "",
+    }
+    grievance["geography_diagnostics"] = diagnostics
+
+
 def _apply_resolved_geography(
     *,
     grievance: dict[str, Any],
@@ -141,11 +204,17 @@ def finalize_geography_decision(
         location_name = None
         grievance["location"] = None
     final_constituency = None
-    raw_message_geo = {"location_resolved": False}
-
     tenant_const = None
+    raw_message_geo = {"location_resolved": False}
+    diagnostics = _init_geography_diagnostics(
+        grievance=grievance,
+        tenant_id=current_tenant,
+        tenant_constituency=None,
+        message_body=message_body,
+    )
     try:
         tenant_const = get_tenant_constituency_fn(current_tenant) if get_tenant_constituency_fn else None
+        diagnostics["tenant_scope"] = tenant_const
         raw_message_geo = resolve_location_fn(
             resolver_message_body or message_body,
             scope_parliamentary=tenant_const,
@@ -153,6 +222,20 @@ def finalize_geography_decision(
         )
     except Exception as exc:
         logger.warning("Raw message geography resolution failed: %s", exc)
+        _record_geography_attempt(
+            diagnostics,
+            source="raw_message",
+            input_text=resolver_message_body or message_body,
+            resolution={"location_resolved": False},
+            reason=f"resolver_exception:{exc.__class__.__name__}",
+        )
+    else:
+        _record_geography_attempt(
+            diagnostics,
+            source="raw_message",
+            input_text=resolver_message_body or message_body,
+            resolution=raw_message_geo,
+        )
 
     if raw_message_geo.get("location_resolved"):
         location_name, final_constituency, status, political_reply = _apply_resolved_geography(
@@ -181,6 +264,11 @@ def finalize_geography_decision(
                     tenant_const,
                     current_tenant,
                 )
+                diagnostics["rejected_ai_assembly"] = {
+                    "assembly_constituency": ai_constituency,
+                    "tenant_scope": tenant_const,
+                    "reason": "outside_tenant_scope",
+                }
                 final_constituency = None
                 grievance.pop("assembly_constituency", None)
                 grievance.pop("constituency", None)
@@ -198,6 +286,20 @@ def finalize_geography_decision(
                 )
             except Exception as exc:
                 logger.warning("Location-hint geography resolution failed: %s", exc)
+                _record_geography_attempt(
+                    diagnostics,
+                    source="location_hint",
+                    input_text=location_name,
+                    resolution={"location_resolved": False},
+                    reason=f"resolver_exception:{exc.__class__.__name__}",
+                )
+            else:
+                _record_geography_attempt(
+                    diagnostics,
+                    source="location_hint",
+                    input_text=location_name,
+                    resolution=location_hint_geo,
+                )
 
             if location_hint_geo.get("location_resolved"):
                 location_name, final_constituency, status, political_reply = _apply_resolved_geography(
@@ -223,6 +325,11 @@ def finalize_geography_decision(
                     if status not in _PROTECTED_STATUSES:
                         status = "new"
                         political_reply = get_generic_ack_reply(detected_language, message_body)
+                else:
+                    diagnostics["fallback_constituency_lookup"] = {
+                        "input_excerpt": str(location_name or "")[:160],
+                        "resolved": False,
+                    }
 
     if not final_constituency:
         final_constituency = "Unknown"
@@ -235,6 +342,15 @@ def finalize_geography_decision(
     if final_constituency == "Unknown" and location_required and location_name and not is_emergency_complaint:
         status = "awaiting_location"
         political_reply = get_awaiting_location_reply(location_name, detected_language, message_body)
+
+    _finalize_geography_diagnostics(
+        grievance,
+        diagnostics,
+        final_constituency=final_constituency,
+        location_name=location_name,
+        status=status,
+        review_reason=grievance.get("geography_review_reason"),
+    )
 
     return {
         "grievance": grievance,

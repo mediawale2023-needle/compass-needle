@@ -298,6 +298,11 @@ def test_low_confidence_speech_match_goes_to_pending_review():
     assert result["final_constituency"] == "Belgaum Dakshin"
     assert result["grievance"]["geography_confidence"] == "speech_phonetic"
     assert result["grievance"]["needs_geography_review"] is True
+    diagnostics = result["grievance"]["geography_diagnostics"]
+    assert diagnostics["tenant_scope"] == "Belagavi"
+    assert diagnostics["attempts"][0]["source"] == "raw_message"
+    assert diagnostics["final"]["location_resolved"] is True
+    assert diagnostics["final"]["geography_confidence"] == "speech_phonetic"
 
 
 def test_ai_assembly_alone_does_not_become_final_truth():
@@ -320,3 +325,4 @@ def test_ai_assembly_alone_does_not_become_final_truth():
 
     assert result["status"] == "new"
     assert result["final_constituency"] == "Unknown"
+    assert result["grievance"]["geography_diagnostics"]["final"]["location_resolved"] is False

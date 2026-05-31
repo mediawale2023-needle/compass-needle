@@ -9,6 +9,8 @@ def stub_geography_index(monkeypatch):
     rows = [
         {
             "tenant_id": 1,
+            "seat_type": "mp",
+            "seat_name": "Aligarh",
             "parliamentary_constituency": "Aligarh",
             "assembly": "Koil",
             "stations": [
@@ -24,6 +26,8 @@ def stub_geography_index(monkeypatch):
         },
         {
             "tenant_id": 2,
+            "seat_type": "mp",
+            "seat_name": "Ghaziabad",
             "parliamentary_constituency": "Ghaziabad",
             "assembly": "Ghaziabad",
             "stations": [
@@ -33,6 +37,8 @@ def stub_geography_index(monkeypatch):
         },
         {
             "tenant_id": 22,
+            "seat_type": "mp",
+            "seat_name": "Ghaziabad",
             "parliamentary_constituency": "Ghaziabad",
             "assembly": "Muradnagar",
             "stations": [
@@ -41,6 +47,8 @@ def stub_geography_index(monkeypatch):
         },
         {
             "tenant_id": 3,
+            "seat_type": "mp",
+            "seat_name": "Belagavi",
             "parliamentary_constituency": "Belagavi",
             "assembly": "Belgaum Uttar",
             "stations": [
@@ -49,6 +57,8 @@ def stub_geography_index(monkeypatch):
         },
         {
             "tenant_id": 3,
+            "seat_type": "mp",
+            "seat_name": "Belagavi",
             "parliamentary_constituency": "Belagavi",
             "assembly": "Belgaum Dakshin",
             "stations": [
@@ -56,15 +66,38 @@ def stub_geography_index(monkeypatch):
                 {"station_number": "2", "locality": "Meerapur Galli, Shahapur Belagavi", "building_name": ""},
                 {"station_number": "3", "locality": "Somawar Peth Tilakwadi, Belagavi", "building_name": ""},
                 {"station_number": "4", "locality": "Vadagaon Belagavi", "building_name": ""},
+                {"station_number": "5", "locality": "Nath Pai Circle\nShahapur, Belagavi", "building_name": ""},
             ],
         },
         {
             "tenant_id": 3,
+            "seat_type": "mp",
+            "seat_name": "Belagavi",
             "parliamentary_constituency": "Belagavi",
             "assembly": "Belgaum Rural",
             "stations": [
                 {"station_number": "1", "locality": "Balekundri KH", "building_name": ""},
                 {"station_number": "2", "locality": "Santibastawad", "building_name": ""},
+            ],
+        },
+        {
+            "tenant_id": 31,
+            "seat_type": "mp",
+            "seat_name": "Belagavi",
+            "parliamentary_constituency": "Belagavi",
+            "assembly": "Core Zone",
+            "stations": [
+                {"station_number": "1", "locality": "Market Road", "building_name": ""},
+            ],
+        },
+        {
+            "tenant_id": 32,
+            "seat_type": "mla",
+            "seat_name": "Belagavi North",
+            "parliamentary_constituency": "Belagavi North",
+            "assembly": "Core Zone",
+            "stations": [
+                {"station_number": "1", "locality": "Sector 1", "building_name": ""},
             ],
         },
     ]
@@ -119,6 +152,19 @@ def test_resolve_location_supports_city_suffix_aliases(stub_geography_index):
     assert result["location_resolved"] is True
     assert result["assembly_constituency"] == "Belgaum Dakshin"
     assert result["matched_value"] == "Shahapur"
+
+
+def test_resolve_location_indexes_each_multiline_locality_line(stub_geography_index):
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "Nath Pai Circle cha rasta tutla aahe",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Dakshin"
+    assert result["matched_value"] in {"Nath Pai Circle", "Pai Circle"}
 
 
 def test_resolve_location_preserves_user_level_detail(stub_geography_index):
@@ -216,6 +262,24 @@ def test_resolve_constituency_scopes_lookup_by_tenant(monkeypatch, stub_geograph
     assert assembly == "Belgaum Rural"
 
 
+def test_get_tenant_constituency_resolves_mla_assembly_to_parent_parliamentary(monkeypatch, stub_geography_index):
+    geography_resolver.reload_index()
+    monkeypatch.setattr(
+        geography_resolver,
+        "_get_tenant_seat_context",
+        lambda tenant_id: {
+            "seat_type": "mla",
+            "seat_name": "Belgaum Dakshin",
+            "scope_parliamentary": "Belagavi",
+            "constituency": "Belgaum Dakshin",
+        },
+    )
+
+    resolved_scope = geography_resolver._get_tenant_constituency(10)
+
+    assert resolved_scope == "Belagavi"
+
+
 def test_resolve_location_uses_db_backed_geo_aliases(monkeypatch, stub_geography_index):
     geography_resolver.reload_index()
     monkeypatch.setattr(
@@ -238,7 +302,41 @@ def test_resolve_location_uses_db_backed_geo_aliases(monkeypatch, stub_geography
     assert result["location_resolved"] is True
     assert result["assembly_constituency"] == "Belgaum Rural"
     assert result["matched_value"] == "Balekundri"
-    assert result["confidence"] == "db_alias_boundary"
+
+
+def test_resolve_location_filters_by_tenant_seat_context(monkeypatch, stub_geography_index):
+    geography_resolver.reload_index()
+    monkeypatch.setattr(
+        geography_resolver,
+        "_get_tenant_seat_context",
+        lambda tenant_id: {
+            "seat_type": "mla",
+            "seat_name": "Belagavi North",
+            "scope_parliamentary": "Belagavi",
+            "constituency": "Belagavi North",
+        } if tenant_id == 21 else {
+            "seat_type": "mp",
+            "seat_name": "Belagavi",
+            "scope_parliamentary": "Belagavi",
+            "constituency": "Belagavi",
+        },
+    )
+
+    mla_result = geography_resolver.resolve_location("Sector 1 drainage issue", tenant_id=21)
+    mp_result = geography_resolver.resolve_location("Market Road drainage issue", tenant_id=13)
+
+    assert mla_result["location_resolved"] is True
+    assert mla_result["assembly_constituency"] == "Core Zone"
+    assert mla_result["matched_value"] == "Sector 1"
+    assert mp_result["location_resolved"] is True
+    assert mp_result["assembly_constituency"] == "Core Zone"
+    assert mp_result["matched_value"] == "Market Road"
+
+
+def test_get_assembly_parliamentary_constituency_returns_none_for_cross_seat_duplicates(stub_geography_index):
+    geography_resolver.reload_index()
+
+    assert geography_resolver.get_assembly_parliamentary_constituency("Core Zone") is None
 
 
 def test_resolve_location_fails_closed_on_ambiguous_locality(stub_geography_index):

@@ -231,6 +231,17 @@ _geography_index = {
     "loaded": False
 }
 
+
+def _build_assembly_bucket_key(
+    seat_type: str | None,
+    seat_name: str | None,
+    assembly_name: str | None,
+) -> str:
+    clean_type = "mla" if normalize(seat_type or "") == "mla" else "mp"
+    clean_seat = normalize(seat_name or "")
+    clean_assembly = normalize(assembly_name or "")
+    return f"{clean_type}:{clean_seat}/{clean_assembly}"
+
 # --- HELPERS ---
 def normalize(text: str) -> str:
     """Standardizes text: lower, no punctuation, single spaces."""
@@ -372,9 +383,19 @@ def _confidence_level_for_match_type(match_type: str) -> str:
 def _station_seed_aliases(station: Dict[str, Any], parliamentary_constituency: Optional[str] = None) -> Set[str]:
     seeds: Set[str] = set()
     for field in ("locality", "locality_en", "mentioned_location_roman", "mentioned_location_original"):
-        value = str(station.get(field) or "").replace("\n", " ").strip()
+        raw = str(station.get(field) or "").strip()
+        if not raw:
+            continue
+        # Add full value (newlines -> space) as one seed.
+        value = raw.replace("\n", " ").strip()
         if value:
             seeds.add(value)
+        # Also index each line independently so multiline locality strings like
+        # "Nath Pai Circle\nShahapur, Belagavi" can match on the prefix line alone.
+        for line in raw.split("\n"):
+            line = line.strip()
+            if line and line != value:
+                seeds.add(line)
 
     raw_aliases = station.get("aliases") or station.get("alias") or []
     if isinstance(raw_aliases, str):
@@ -526,11 +547,91 @@ def _collect_constituency_ambiguities(
     }
 
 
+def _collect_generated_alias_collisions(
+    *,
+    seat_type: str | None,
+    seat_name: str | None,
+    parliamentary_constituency: str,
+    assembly: str,
+    stations: Iterable[Dict[str, Any]],
+    other_rows: Iterable[Dict[str, Any]],
+) -> Dict[str, list]:
+    current_aliases: Dict[str, Set[str]] = {}
+    current_base_forms: Dict[str, Set[str]] = {}
+
+    for station in stations:
+        locality = (station.get("locality") or "").replace("\n", " ").strip()
+        if not locality or _is_meta_locality(locality):
+            continue
+        base_seed_values: Set[str] = set()
+        for field in ("locality", "locality_en", "mentioned_location_roman", "mentioned_location_original"):
+            raw = str(station.get(field) or "").strip()
+            if not raw:
+                continue
+            value = raw.replace("\n", " ").strip()
+            if value:
+                base_seed_values.add(value)
+            for line in raw.split("\n"):
+                line = line.strip()
+                if line and line != value:
+                    base_seed_values.add(line)
+        raw_aliases = station.get("aliases") or station.get("alias") or []
+        if isinstance(raw_aliases, str):
+            raw_aliases = re.split(r"[,;|]", raw_aliases)
+        if isinstance(raw_aliases, (list, tuple, set)):
+            for alias in raw_aliases:
+                value = str(alias or "").replace("\n", " ").strip()
+                if value:
+                    base_seed_values.add(value)
+        base_forms: Set[str] = set()
+        for seed in base_seed_values:
+            base_forms.update(_build_match_forms(seed))
+        generated_forms = _generated_alias_forms(station, parliamentary_constituency)
+        derived_aliases = {
+            form for form in generated_forms
+            if form and form not in base_forms and len(form) >= 5
+        }
+        if derived_aliases:
+            current_aliases[locality] = derived_aliases
+            current_base_forms[locality] = base_forms
+
+    collisions: Dict[str, Set[str]] = {}
+    clean_seat_type = normalize(seat_type or "")
+    clean_seat_name = normalize(seat_name or parliamentary_constituency)
+    for row in other_rows:
+        row_seat_type = normalize(row.get("seat_type") or "mp")
+        row_seat_name = normalize(row.get("seat_name") or row.get("parliamentary_constituency") or "")
+        if row_seat_type != clean_seat_type or row_seat_name != clean_seat_name:
+            continue
+        if row.get("assembly") == assembly:
+            continue
+        for station in row.get("stations") or []:
+            other_locality = (station.get("locality") or "").replace("\n", " ").strip()
+            if not other_locality or _is_meta_locality(other_locality):
+                continue
+            other_forms = _generated_alias_forms(station, parliamentary_constituency)
+            for locality, aliases in current_aliases.items():
+                overlapping = aliases & other_forms
+                if overlapping:
+                    for alias in overlapping:
+                        if alias in current_base_forms.get(locality, set()):
+                            continue
+                        collisions.setdefault(alias, set()).add(row.get("assembly", ""))
+
+    return {
+        alias: sorted(assemblies)
+        for alias, assemblies in sorted(collisions.items())
+        if assemblies
+    }
+
+
 def sanitize_and_validate_stations(
     stations: Iterable[Dict[str, Any]],
     *,
     parliamentary_constituency: Optional[str] = None,
     assembly: Optional[str] = None,
+    seat_type: Optional[str] = None,
+    seat_name: Optional[str] = None,
     other_rows: Optional[Iterable[Dict[str, Any]]] = None,
 ) -> tuple[list[Dict[str, Any]], Dict[str, Any]]:
     cleaned: list[Dict[str, Any]] = []
@@ -573,6 +674,7 @@ def sanitize_and_validate_stations(
             duplicate_localities_in_upload[station["locality"]] = count
 
     ambiguity_report: Dict[str, list] = {}
+    alias_collision_report: Dict[str, list] = {}
     if parliamentary_constituency and assembly and other_rows is not None:
         ambiguity_report = _collect_constituency_ambiguities(
             parliamentary_constituency,
@@ -580,6 +682,31 @@ def sanitize_and_validate_stations(
             cleaned,
             other_rows,
         )
+        alias_collision_report = _collect_generated_alias_collisions(
+            seat_type=seat_type,
+            seat_name=seat_name,
+            parliamentary_constituency=parliamentary_constituency,
+            assembly=assembly,
+            stations=cleaned,
+            other_rows=other_rows,
+        )
+
+    alias_form_counts = []
+    low_coverage_samples: list[str] = []
+    for station in cleaned:
+        alias_count = len(_generated_alias_forms(station, parliamentary_constituency))
+        alias_form_counts.append(alias_count)
+        if alias_count <= 1 and len(low_coverage_samples) < 20:
+            low_coverage_samples.append(station["locality"])
+
+    weak_coverage_reasons: list[str] = []
+    if cleaned:
+        missing_locality_en_ratio = sum(1 for station in cleaned if not station.get("locality_en")) / len(cleaned)
+        limited_alias_ratio = sum(1 for count in alias_form_counts if count <= 1) / len(cleaned)
+        if missing_locality_en_ratio >= 0.5:
+            weak_coverage_reasons.append("more_than_half_rows_missing_locality_en")
+        if limited_alias_ratio >= 0.35:
+            weak_coverage_reasons.append("many_rows_have_only_one_alias_form")
 
     report = {
         "rows_received": len(list(stations or [])) if not isinstance(stations, list) else len(stations),
@@ -588,8 +715,16 @@ def sanitize_and_validate_stations(
         "meta_row_samples": removed_meta_rows[:20],
         "duplicate_localities_in_upload": duplicate_localities_in_upload,
         "ambiguous_localities_against_constituency": ambiguity_report,
+        "alias_collisions_against_seat": alias_collision_report,
         "missing_locality_en_count": sum(1 for station in cleaned if not station.get("locality_en")),
         "missing_locality_en_samples": missing_locality_en_samples[:20],
+        "distinct_generated_alias_forms": len({form for station in cleaned for form in _generated_alias_forms(station, parliamentary_constituency)}),
+        "average_generated_alias_forms_per_row": round(sum(alias_form_counts) / len(alias_form_counts), 2) if alias_form_counts else 0,
+        "rows_with_single_generated_alias_form": sum(1 for count in alias_form_counts if count <= 1),
+        "weak_coverage_warning": bool(weak_coverage_reasons),
+        "weak_coverage_reasons": weak_coverage_reasons,
+        "weak_coverage_samples": low_coverage_samples,
+        "blocking_errors": ["alias_collisions_against_seat"] if alias_collision_report else [],
     }
     return cleaned, report
 
@@ -645,6 +780,8 @@ def load_geography_index() -> bool:
             for row in db_rows:
                 sources.append(
                     (
+                        row.get("seat_type") or "mp",
+                        row.get("seat_name") or row["parliamentary_constituency"],
                         row["parliamentary_constituency"],
                         row["assembly"],
                         row["stations"],
@@ -664,11 +801,18 @@ def load_geography_index() -> bool:
                         stations = json.load(f)
                 except Exception:
                     continue
-                sources.append((parl_name, json_file.stem, stations))
+                sources.append(("mp", parl_name, parl_name, json_file.stem, stations))
 
-    for parl_name, assembly, stations in sources:
-        if assembly not in _geography_index["assemblies"]:
-            _geography_index["assemblies"][assembly] = {"parl": parl_name, "entries": []}
+    for seat_type, seat_name, parl_name, assembly, stations in sources:
+        bucket_key = _build_assembly_bucket_key(seat_type, seat_name, assembly)
+        if bucket_key not in _geography_index["assemblies"]:
+            _geography_index["assemblies"][bucket_key] = {
+                "seat_type": "mla" if normalize(seat_type) == "mla" else "mp",
+                "seat_name": seat_name,
+                "parl": parl_name,
+                "assembly": assembly,
+                "entries": [],
+            }
 
         for s in stations:
             raw_loc = s.get("locality", "").replace("\n", " ").strip()
@@ -689,7 +833,7 @@ def load_geography_index() -> bool:
             keywords |= get_keywords(raw_bldg)
             speech_match_forms.update(_speech_location_keys(keywords))
 
-            _geography_index["assemblies"][assembly]["entries"].append({
+            _geography_index["assemblies"][bucket_key]["entries"].append({
                 "orig_name": raw_loc,
                 "match_forms": match_forms,
                 "spaceless_match_forms": spaceless_match_forms,
@@ -704,6 +848,64 @@ def load_geography_index() -> bool:
 
     _geography_index["loaded"] = True
     return files_loaded > 0
+
+
+def _get_tenant_seat_context(tenant_id: int | None) -> Optional[Dict[str, str]]:
+    if not tenant_id:
+        return None
+
+    tenant = None
+    raw_constituency = None
+    try:
+        from sansadx_backend.db import SessionLocal, Tenant, derive_seat_type
+        db = SessionLocal()
+        try:
+            tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+            if tenant and tenant.constituency:
+                raw_constituency = tenant.constituency
+                seat_type = derive_seat_type(tenant)
+                scope = raw_constituency
+                if seat_type == "mla":
+                    scope = get_assembly_parliamentary_constituency(raw_constituency) or raw_constituency
+                return {
+                    "seat_type": seat_type,
+                    "seat_name": raw_constituency,
+                    "scope_parliamentary": scope,
+                    "constituency": raw_constituency,
+                }
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+    if not raw_constituency:
+        try:
+            override_paths = [
+                PROJECT_ROOT / "tenant_overrides.json",
+                Path("tenant_overrides.json").resolve(),
+            ]
+            for op in override_paths:
+                if not op.exists():
+                    continue
+                with open(op, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                tenant_data = data.get("tenants", {}).get(str(tenant_id), {})
+                raw_constituency = tenant_data.get("constituency")
+                if raw_constituency:
+                    seat_type = "mla" if normalize(tenant_data.get("seat_type", "")) == "mla" else "mp"
+                    scope = raw_constituency
+                    if seat_type == "mla":
+                        scope = get_assembly_parliamentary_constituency(raw_constituency) or raw_constituency
+                    return {
+                        "seat_type": seat_type,
+                        "seat_name": raw_constituency,
+                        "scope_parliamentary": scope,
+                        "constituency": raw_constituency,
+                    }
+        except Exception:
+            pass
+
+    return None
 
 # --- RESOLVER ---
 def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenant_id: Optional[int] = None) -> Dict[str, Any]:
@@ -764,10 +966,20 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
                     "match_type": "god_mode",
                 }
 
+    tenant_context = _get_tenant_seat_context(tenant_id) if tenant_id is not None else None
+    seat_scope_type = normalize((tenant_context or {}).get("seat_type", ""))
+    seat_scope_name = normalize((tenant_context or {}).get("seat_name", ""))
+
     candidates = []
 
-    for assembly, data in _geography_index["assemblies"].items():
-        if scope_parliamentary and normalize(data["parl"]) != normalize(scope_parliamentary): continue
+    for _, data in _geography_index["assemblies"].items():
+        if tenant_context:
+            if seat_scope_type and normalize(data.get("seat_type", "")) != seat_scope_type:
+                continue
+            if seat_scope_name and normalize(data.get("seat_name", "")) != seat_scope_name:
+                continue
+        elif scope_parliamentary and normalize(data["parl"]) != normalize(scope_parliamentary):
+            continue
 
         for entry in data["entries"]:
             score = 0
@@ -876,18 +1088,19 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
                     ]
                     matched_name = min(matching_names, key=len) if matching_names else entry["orig_name"]
 
-            # G. FUZZY KEYWORD MATCH — STRICT (95% similarity, min 6 char keywords)
-            # Only used as last resort to catch typos like "Tilkwadi" vs "Tilakwadi"
+            # G. FUZZY KEYWORD MATCH — STRICT (93% similarity, min 6 char keywords)
+            # Catches common Indian spelling variants like "Budhwar"/"Budhawar"
+            # and "Tilkwadi"/"Tilakwadi" without opening the gate too wide.
             if score == 0:
                 for uk in user_keywords:
-                    if len(uk) < 6: continue  # Increased from 5 to 6
+                    if len(uk) < 6: continue
                     for dk in entry["keywords"]:
-                        if len(dk) < 6: continue  # Increased from 5 to 6
+                        if len(dk) < 6: continue
                         # Only consider if lengths are similar (±25%)
                         if not (0.75 <= len(uk)/len(dk) <= 1.25):
                             continue
                         sim = similarity_score(uk, dk)
-                        if sim > 95:  # Increased from 92 to 95
+                        if sim > 93:
                             score = sim
                             match_type = f"fuzzy_strict ({uk}~{dk})"
                             matched_name = dk
@@ -898,8 +1111,10 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
             # Only accept matches with score > 70 (raised threshold)
             if score > 70:
                 candidates.append({
-                    "assembly": assembly,
+                    "assembly": data["assembly"],
                     "parl": data["parl"],
+                    "seat_type": data.get("seat_type"),
+                    "seat_name": data.get("seat_name"),
                     "name": entry["orig_name"],
                     "matched_name": _display_location_name(matched_name),
                     "score": score,
@@ -938,46 +1153,18 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
 
 # --- WRAPPERS ---
 def _get_tenant_constituency(tenant_id):
-    """Look up the parliamentary constituency for a given tenant_id."""
+    """Return the parliamentary constituency for a given tenant_id.
+
+    MP tenants already store the parliamentary constituency directly.
+    MLA tenants store the assembly name; for those we resolve assembly -> parent
+    parliamentary constituency so scope filtering can still work.
+    """
     if not tenant_id:
         return None
-    try:
-        from sansadx_backend.db import get_tenant_constituency
-        constituency = get_tenant_constituency(tenant_id)
-        if constituency:
-            return constituency
-    except Exception:
-        pass
-    try:
-        # Try tenant_overrides.json first
-        override_paths = [
-            PROJECT_ROOT / "tenant_overrides.json",
-            Path("tenant_overrides.json").resolve(),
-        ]
-        for op in override_paths:
-            if op.exists():
-                with open(op, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                # Check if constituency is stored in overrides
-                tenant_data = data.get("tenants", {}).get(str(tenant_id), {})
-                if tenant_data.get("constituency"):
-                    return tenant_data["constituency"]
-    except Exception:
-        pass
-    
-    # Fallback: look up from DB
-    try:
-        from sansadx_backend.db import SessionLocal, Tenant
-        db = SessionLocal()
-        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-        if tenant and tenant.constituency:
-            db.close()
-            return tenant.constituency
-        db.close()
-    except Exception:
-        pass
-    
-    return None
+    tenant_context = _get_tenant_seat_context(tenant_id)
+    if not tenant_context:
+        return None
+    return tenant_context.get("scope_parliamentary")
 
 def enrich_grievance_with_location(grievance: Dict, tenant_id: Optional[int] = None) -> Dict:
     text = grievance.get("raw_message") or ""
@@ -1012,8 +1199,8 @@ def assembly_belongs_to_parliamentary(
 
     assembly_norm = normalize(assembly)
     parliament_norm = normalize(parliamentary_constituency)
-    for indexed_assembly, data in _geography_index["assemblies"].items():
-        if normalize(indexed_assembly) == assembly_norm and normalize(data.get("parl", "")) == parliament_norm:
+    for data in _geography_index["assemblies"].values():
+        if normalize(data.get("assembly", "")) == assembly_norm and normalize(data.get("parl", "")) == parliament_norm:
             return True
     return False
 
@@ -1028,8 +1215,8 @@ def get_assembly_parliamentary_constituency(assembly: str | None) -> str | None:
     assembly_norm = normalize(assembly)
     matches = {
         str(data.get("parl") or "").strip()
-        for indexed_assembly, data in _geography_index["assemblies"].items()
-        if normalize(indexed_assembly) == assembly_norm and str(data.get("parl") or "").strip()
+        for data in _geography_index["assemblies"].values()
+        if normalize(data.get("assembly", "")) == assembly_norm and str(data.get("parl") or "").strip()
     }
     if len(matches) == 1:
         return next(iter(matches))
@@ -1056,11 +1243,11 @@ def auto_generate_overrides():
     Scans persisted geography data, extracts locality→assembly mappings, and
     writes them to the DB as geo_override rows.
     """
+    seat_to_tenants = {}
     try:
         from sansadx_backend.db import SessionLocal, Tenant, get_all_geography_data, build_seat_key, derive_seat_type
         db = SessionLocal()
         tenant_rows = db.query(Tenant).all()
-        seat_to_tenants = {}
         for t in tenant_rows:
             if not t.constituency or t.constituency == "System":
                 continue
