@@ -359,3 +359,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Added a shared citizen-case enrichment path in `main.py`, delayed clarification scheduling via case metadata plus background timers/startup sweep, and a follow-up intercept that enriches the original recent clarification-pending case instead of inserting a new one. The first citizen reply now stays generic even for `awaiting_location` / `incomplete`, while the delayed second message asks for location or more detail only when needed.
 - Files touched: `main.py`, `tests/test_citizen_clarification_flow.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: The timing is handled in-process plus startup recovery, so truly guaranteed delayed delivery across crashes would eventually benefit from a dedicated job queue; for now the metadata + startup sweep path covers deploy/restart recovery.
+
+- Date: 2026-05-31
+- Request: Push the delayed citizen clarification follow-up flow to GitHub.
+- Summary: Pushed commit `abb16bfe` (`Delay citizen clarification follow-ups`) to `origin/main`, including the delayed clarification scheduler, same-case clarification enrichment, and focused citizen intake tests.
+- Files touched: `main.py`, `tests/test_citizen_clarification_flow.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This is pushed but not yet deployed to EC2, so live WhatsApp behavior will not change until the backend is redeployed.
