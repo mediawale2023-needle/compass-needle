@@ -39,6 +39,9 @@ describe('Admin seat maps workflow page', () => {
                             map_status: null,
                             map_source: null,
                             generated: false,
+                            boundary_ready: false,
+                            boundary_type: null,
+                            boundary_source: null,
                             manifest: null,
                         },
                     ],
@@ -72,7 +75,7 @@ describe('Admin seat maps workflow page', () => {
         render(<SeatMapsPage />);
 
         expect(await screen.findByDisplayValue('Belgaum Dakshin')).toBeInTheDocument();
-        expect(screen.getByText('Ready to generate')).toBeInTheDocument();
+        expect(screen.getByText('Ready, but fallback only')).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: 'Generate map' }));
 
@@ -84,5 +87,46 @@ describe('Admin seat maps workflow page', () => {
         });
 
         expect(await screen.findByText('Generated mla:Belgaum Dakshin')).toBeInTheDocument();
+    });
+
+    it('saves a real boundary for the selected seat', async () => {
+        apiPostMock.mockImplementation(async (path) => {
+            if (path === '/api/admin/seat-boundaries') {
+                return {
+                    boundary: {
+                        seat_key: 'mla:Belgaum Dakshin',
+                        seat_type: 'mla',
+                        seat_name: 'Belgaum Dakshin',
+                        state: 'Karnataka',
+                        asset: {
+                            type: 'svg',
+                            path: '/maps/mla/belgaum-dakshin-real.svg',
+                            inline_svg: '',
+                            geojson: {},
+                        },
+                        metadata: { aspect_ratio: '72 / 63' },
+                        status: 'verified',
+                        source: 'admin',
+                    },
+                };
+            }
+            return { manifest: {} };
+        });
+
+        render(<SeatMapsPage />);
+        expect(await screen.findByDisplayValue('Belgaum Dakshin')).toBeInTheDocument();
+
+        fireEvent.change(screen.getByPlaceholderText('/maps/mp/belagavi-outline.svg'), {
+            target: { value: '/maps/mla/belgaum-dakshin-real.svg' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Save boundary' }));
+
+        await waitFor(() => {
+            expect(apiPostMock).toHaveBeenCalledWith('/api/admin/seat-boundaries', expect.objectContaining({
+                seat_type: 'mla',
+                seat_name: 'Belgaum Dakshin',
+                asset_path: '/maps/mla/belgaum-dakshin-real.svg',
+            }));
+        });
     });
 });

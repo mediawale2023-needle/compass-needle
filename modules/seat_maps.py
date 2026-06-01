@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import text
 
 from sansadx_backend.db import SessionLocal, get_all_geography_data
+from modules.seat_boundaries import get_seat_boundary
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -304,6 +305,9 @@ def list_seat_map_workflows() -> list[dict[str, Any]]:
                 "map_status": None,
                 "map_source": None,
                 "generated": False,
+                "boundary_ready": False,
+                "boundary_type": None,
+                "boundary_source": None,
                 "manifest": None,
             },
         )
@@ -345,6 +349,13 @@ def list_seat_map_workflows() -> list[dict[str, Any]]:
         item["map_source"] = manifest.get("source") or "unknown"
         item["generated"] = bool((manifest.get("asset") or {}).get("generated"))
         item["manifest"] = manifest
+
+    for seat_key, item in seats.items():
+        boundary = get_seat_boundary(seat_key)
+        if boundary and (((boundary.get("asset") or {}).get("path")) or ((boundary.get("asset") or {}).get("inline_svg"))):
+            item["boundary_ready"] = True
+            item["boundary_type"] = (boundary.get("asset") or {}).get("type") or "svg"
+            item["boundary_source"] = boundary.get("source") or "admin"
 
     ordered = sorted(seats.values(), key=lambda item: (item["seat_type"], item["seat_name"].lower()))
     for item in ordered:

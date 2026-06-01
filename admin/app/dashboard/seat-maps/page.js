@@ -58,6 +58,9 @@ function blankSeat() {
         map_status: null,
         map_source: null,
         generated: false,
+        boundary_ready: false,
+        boundary_type: null,
+        boundary_source: null,
         manifest: null,
     };
 }
@@ -87,8 +90,10 @@ export default function SeatMapsPage() {
     const [draft, setDraft] = useState(blankSeat());
     const [loading, setLoading] = useState(true);
     const [working, setWorking] = useState(false);
+    const [boundarySaving, setBoundarySaving] = useState(false);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
+    const [boundaryDraft, setBoundaryDraft] = useState({ asset_type: 'svg', asset_path: '', inline_svg: '', aspect_ratio: '100 / 72' });
 
     async function loadWorkflow(preferredKey = '') {
         setLoading(true);
@@ -101,6 +106,13 @@ export default function SeatMapsPage() {
             const target = nextItems.find((item) => item.seat_key === targetKey) || nextItems[0] || blankSeat();
             setSelectedKey(target.seat_key || '');
             setDraft(normalizeSeat(target));
+            const manifestAsset = target.manifest?.asset || {};
+            setBoundaryDraft({
+                asset_type: target.boundary_type || manifestAsset.type || 'svg',
+                asset_path: manifestAsset.path || '',
+                inline_svg: manifestAsset.generated ? '' : (manifestAsset.inline_svg || ''),
+                aspect_ratio: manifestAsset.aspect_ratio || '100 / 72',
+            });
         } catch (err) {
             setError(err.message || 'Unable to load seat workflows.');
         } finally {
@@ -121,6 +133,13 @@ export default function SeatMapsPage() {
     function selectSeat(item) {
         setSelectedKey(item.seat_key || '');
         setDraft(normalizeSeat(item));
+        const manifestAsset = item.manifest?.asset || {};
+        setBoundaryDraft({
+            asset_type: item.boundary_type || manifestAsset.type || 'svg',
+            asset_path: manifestAsset.path || '',
+            inline_svg: item.generated ? '' : (manifestAsset.inline_svg || ''),
+            aspect_ratio: manifestAsset.aspect_ratio || '100 / 72',
+        });
         setError('');
         setNotice('');
     }
@@ -128,6 +147,7 @@ export default function SeatMapsPage() {
     function startNewSeat() {
         setSelectedKey('');
         setDraft(blankSeat());
+        setBoundaryDraft({ asset_type: 'svg', asset_path: '', inline_svg: '', aspect_ratio: '100 / 72' });
         setError('');
         setNotice('');
     }
@@ -157,6 +177,42 @@ export default function SeatMapsPage() {
             setError(err.message || 'Unable to generate seat map.');
         } finally {
             setWorking(false);
+        }
+    }
+
+    async function saveBoundary() {
+        const seatName = String(draft.seat_name || '').trim();
+        if (!seatName) {
+            setError('Seat name is required before saving a boundary.');
+            setNotice('');
+            return;
+        }
+        if (!String(boundaryDraft.asset_path || '').trim() && !String(boundaryDraft.inline_svg || '').trim()) {
+            setError('Boundary asset path or inline SVG is required.');
+            setNotice('');
+            return;
+        }
+        setBoundarySaving(true);
+        setError('');
+        setNotice('');
+        try {
+            await apiPost('/api/admin/seat-boundaries', {
+                seat_key: String(draft.seat_key || '').trim() || null,
+                seat_type: String(draft.seat_type || 'mla').trim(),
+                seat_name: seatName,
+                state: String(draft.state || '').trim(),
+                asset_type: String(boundaryDraft.asset_type || 'svg').trim(),
+                asset_path: String(boundaryDraft.asset_path || '').trim(),
+                inline_svg: String(boundaryDraft.inline_svg || '').trim(),
+                metadata: { aspect_ratio: String(boundaryDraft.aspect_ratio || '100 / 72').trim() },
+                status: 'verified',
+            });
+            await loadWorkflow(String(draft.seat_key || '').trim() || `${draft.seat_type}:${seatName}`);
+            setNotice(`Saved real boundary for ${seatName}`);
+        } catch (err) {
+            setError(err.message || 'Unable to save boundary.');
+        } finally {
+            setBoundarySaving(false);
         }
     }
 
@@ -276,7 +332,7 @@ export default function SeatMapsPage() {
                     <div style={{ ...CARD, padding: 14, boxShadow: 'none' }}>
                         <div style={{ ...LABEL, marginBottom: 4 }}>Map status</div>
                         <div style={{ fontSize: '1rem', color: draft.map_ready ? '#006a4d' : '#6b7f76', fontWeight: 700 }}>
-                            {draft.map_ready ? (draft.generated ? 'Generated' : 'Configured') : 'Not created'}
+                            {draft.map_ready ? (draft.generated ? 'Fallback generated' : 'Boundary-backed') : 'Not created'}
                         </div>
                         <div style={{ fontSize: '0.82rem', color: '#6b7f76', marginTop: 4 }}>
                             {draft.map_status || '—'} · {draft.map_source || '—'}
@@ -292,12 +348,21 @@ export default function SeatMapsPage() {
                         </div>
                     </div>
                     <div style={{ ...CARD, padding: 14, boxShadow: 'none' }}>
-                        <div style={{ ...LABEL, marginBottom: 4 }}>Workflow</div>
-                        <div style={{ fontSize: '0.92rem', color: '#1a2e28', fontWeight: 700 }}>
-                            {draft.geography_ready ? 'Ready to generate' : 'Upload geography first'}
+                        <div style={{ ...LABEL, marginBottom: 4 }}>Real boundary</div>
+                        <div style={{ fontSize: '1rem', color: draft.boundary_ready ? '#006a4d' : '#8b6f1a', fontWeight: 700 }}>
+                            {draft.boundary_ready ? 'Available' : 'Missing'}
                         </div>
                         <div style={{ fontSize: '0.82rem', color: '#6b7f76', marginTop: 4 }}>
-                            No manual asset upload needed
+                            {draft.boundary_ready ? `${draft.boundary_type || 'svg'} · ${draft.boundary_source || 'admin'}` : 'Blob fallback only'}
+                        </div>
+                    </div>
+                    <div style={{ ...CARD, padding: 14, boxShadow: 'none' }}>
+                        <div style={{ ...LABEL, marginBottom: 4 }}>Workflow</div>
+                        <div style={{ fontSize: '0.92rem', color: '#1a2e28', fontWeight: 700 }}>
+                            {!draft.geography_ready ? 'Upload geography first' : draft.boundary_ready ? 'Ready for real map' : 'Ready, but fallback only'}
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: '#6b7f76', marginTop: 4 }}>
+                            {draft.boundary_ready ? 'Generation will use real boundary' : 'Register a boundary to avoid fallback blob'}
                         </div>
                     </div>
                 </div>
@@ -316,12 +381,52 @@ export default function SeatMapsPage() {
                     </div>
                 ) : (
                     <div style={{ marginTop: 18, padding: '14px 16px', borderRadius: 12, background: '#f4fbf7', border: '1px solid #cfe6d8', color: '#365247' }}>
-                        <div style={{ fontWeight: 700, marginBottom: 6 }}>This seat can be generated automatically.</div>
+                        <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                            {draft.boundary_ready ? 'This seat can generate a proper boundary-backed map.' : 'This seat can generate automatically, but will fall back to a generated blob.'}
+                        </div>
                         <div style={{ fontSize: '0.9rem' }}>
-                            The system will reuse the shared seat geography, generate an operational SVG map, place locality hotspots, and save the map for every tenant on this constituency.
+                            The system will reuse the shared seat geography, place locality hotspots, and save one shared seat map for every tenant on this constituency.
                         </div>
                     </div>
                 )}
+
+                <div style={{ marginTop: 22 }}>
+                    <h3 style={{ margin: '0 0 10px', fontSize: '0.96rem', color: '#1a2e28' }}>Real boundary ingestion</h3>
+                    <div style={{ padding: '14px 16px', borderRadius: 12, border: '1px solid #e2ebe5', background: '#fbfcfb' }}>
+                        <div style={{ fontSize: '0.88rem', color: '#6b7f76', marginBottom: 12 }}>
+                            Register a real SVG boundary for this seat. Once saved, one-click generation will use it automatically instead of the fallback blob.
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr 160px auto', gap: 12, alignItems: 'end' }}>
+                            <div>
+                                <label style={LABEL}>Asset Type</label>
+                                <select style={INPUT} value={boundaryDraft.asset_type} onChange={(e) => setBoundaryDraft((prev) => ({ ...prev, asset_type: e.target.value }))}>
+                                    <option value="svg">SVG</option>
+                                    <option value="geojson">GeoJSON</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style={LABEL}>Asset Path</label>
+                                <input style={INPUT} value={boundaryDraft.asset_path} onChange={(e) => setBoundaryDraft((prev) => ({ ...prev, asset_path: e.target.value }))} placeholder="/maps/mp/belagavi-outline.svg" />
+                            </div>
+                            <div>
+                                <label style={LABEL}>Aspect Ratio</label>
+                                <input style={INPUT} value={boundaryDraft.aspect_ratio} onChange={(e) => setBoundaryDraft((prev) => ({ ...prev, aspect_ratio: e.target.value }))} placeholder="100 / 72" />
+                            </div>
+                            <button onClick={saveBoundary} disabled={boundarySaving} style={SMALL_BTN}>
+                                {boundarySaving ? 'Saving…' : 'Save boundary'}
+                            </button>
+                        </div>
+                        <div style={{ marginTop: 12 }}>
+                            <label style={LABEL}>Inline SVG (optional)</label>
+                            <textarea
+                                style={{ ...INPUT, minHeight: 96, resize: 'vertical' }}
+                                value={boundaryDraft.inline_svg}
+                                onChange={(e) => setBoundaryDraft((prev) => ({ ...prev, inline_svg: e.target.value }))}
+                                placeholder="<svg>…</svg>"
+                            />
+                        </div>
+                    </div>
+                </div>
 
                 <div style={{ marginTop: 22 }}>
                     <h3 style={{ margin: '0 0 10px', fontSize: '0.96rem', color: '#1a2e28' }}>Tenant usage</h3>

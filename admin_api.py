@@ -30,6 +30,7 @@ from core.gemini_client import get_gemini_client
 from modules.constituencies import ALL_CONSTITUENCIES
 from modules.seat_maps import list_all_seat_manifests, upsert_db_seat_manifest, get_db_seat_manifest, list_seat_map_workflows
 from modules.seat_map_generator import generate_seat_map_manifest
+from modules.seat_boundaries import get_seat_boundary, upsert_seat_boundary
 
 logger = logging.getLogger("needle.admin_api")
 
@@ -289,6 +290,19 @@ class GenerateSeatMapRequest(BaseModel):
     seat_name: str
     state: str = ""
     aliases: List[str] = []
+
+
+class SeatBoundaryRequest(BaseModel):
+    seat_key: str | None = None
+    seat_type: str
+    seat_name: str
+    state: str = ""
+    asset_type: str = "svg"
+    asset_path: str = ""
+    inline_svg: str = ""
+    geojson: dict = {}
+    metadata: dict = {}
+    status: str = "verified"
 
 
 def _resolve_account_stage_and_seat_type(
@@ -1051,6 +1065,14 @@ def list_seat_map_workflow(_=Depends(get_admin_user)):
     return {"items": list_seat_map_workflows()}
 
 
+@router.get("/seat-boundaries/by-key")
+def get_seat_boundary_by_key(seat_key: str = Query(...), _=Depends(get_admin_user)):
+    boundary = get_seat_boundary(seat_key)
+    if not boundary:
+        raise HTTPException(404, "Seat boundary not found")
+    return boundary
+
+
 @router.get("/seat-maps/by-key")
 def get_seat_map_by_key(seat_key: str = Query(...), _=Depends(get_admin_user)):
     manifest = get_db_seat_manifest(seat_key)
@@ -1124,6 +1146,49 @@ def generate_seat_map(req: GenerateSeatMapRequest, admin_user=Depends(get_admin_
         change_summary=f"generated {len(manifest.get('features') or [])} features",
     )
     return {"success": True, "manifest": manifest}
+
+
+@router.post("/seat-boundaries")
+def upsert_boundary(req: SeatBoundaryRequest, admin_user=Depends(get_admin_user)):
+    seat_type = _normalize_seat_type(req.seat_type)
+    seat_name = (req.seat_name or "").strip()
+    seat_key = (req.seat_key or "").strip() or f"{seat_type}:{seat_name}"
+    asset_type = (req.asset_type or "svg").strip().lower()
+    asset_path = (req.asset_path or "").strip()
+    inline_svg = req.inline_svg or ""
+    geojson = req.geojson or {}
+    if not seat_name:
+        raise HTTPException(400, "seat_name is required")
+    if asset_type not in {"svg", "geojson"}:
+        raise HTTPException(400, "asset_type must be svg or geojson")
+    if not asset_path and not inline_svg and not geojson:
+        raise HTTPException(400, "Provide asset_path, inline_svg, or geojson")
+
+    boundary = upsert_seat_boundary(
+        {
+            "seat_key": seat_key,
+            "seat_type": seat_type,
+            "seat_name": seat_name,
+            "state": (req.state or "").strip(),
+            "asset": {
+                "type": asset_type,
+                "path": asset_path,
+                "inline_svg": inline_svg,
+                "geojson": geojson,
+            },
+            "metadata": req.metadata or {},
+            "status": (req.status or "verified").strip().lower(),
+            "source": "admin",
+        }
+    )
+    _audit(
+        admin_user,
+        action="upsert_seat_boundary",
+        target_type="seat_boundary",
+        target_name=seat_key,
+        change_summary=boundary.get("status") or "verified",
+    )
+    return {"success": True, "boundary": boundary}
 
 
 # ═══════════════════════════════════════════

@@ -260,6 +260,26 @@ class SeatMapManifest(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class SeatBoundaryAsset(Base):
+    """DB-backed boundary asset registry for real constituency geometry."""
+    __tablename__ = "seat_boundary_assets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    seat_key = Column(String, unique=True, index=True, nullable=False)
+    seat_type = Column(String, index=True, nullable=False)
+    seat_name = Column(String, index=True, nullable=False)
+    state = Column(String, nullable=True)
+    asset_type = Column(String, default="svg", nullable=False)
+    asset_path = Column(String, nullable=True)
+    inline_svg = Column(Text, nullable=True)
+    geojson = Column(JSON, default=dict)
+    metadata_json = Column(JSON, default=dict)
+    status = Column(String, default="draft")
+    source = Column(String, default="admin")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Archive(Base):
     """Stores saved drafts/archives for users."""
     __tablename__ = "archives"

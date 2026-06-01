@@ -56,7 +56,7 @@ def _seed_database():
     Base.metadata.create_all(bind=test_engine)
 
     with test_engine.begin() as conn:
-        for table_name in ("admin_audit_log", "seat_map_manifests", "tenant_overrides", "users", "tenant_profiles", "tenants"):
+        for table_name in ("admin_audit_log", "seat_boundary_assets", "seat_map_manifests", "tenant_overrides", "users", "tenant_profiles", "tenants"):
             conn.execute(text(f"DELETE FROM {table_name}"))  # nosec B608
 
         now = datetime.utcnow()
@@ -198,3 +198,28 @@ def test_admin_seat_map_workflow_reports_geography_and_tenants():
     assert belgaum["geography_ready"] is True
     assert belgaum["tenant_count"] == 1
     assert belgaum["assembly_count"] == 2
+
+
+def test_admin_seat_boundary_registration_and_workflow_visibility():
+    _seed_database()
+    admin_headers = _auth_headers("sysadmin", 10, role="admin")
+
+    save_resp = client.post(
+        "/api/admin/seat-boundaries",
+        headers=admin_headers,
+        json={
+            "seat_type": "mla",
+            "seat_name": "Belgaum Dakshin",
+            "state": "Karnataka",
+            "asset_type": "svg",
+            "asset_path": "/maps/mla/belgaum-dakshin-real.svg",
+            "metadata": {"aspect_ratio": "72 / 63"},
+        },
+    )
+    assert save_resp.status_code == 200, save_resp.text
+
+    workflow_resp = client.get("/api/admin/seat-maps/workflow", headers=admin_headers)
+    assert workflow_resp.status_code == 200, workflow_resp.text
+    belgaum = next(item for item in workflow_resp.json()["items"] if item["seat_key"] == "mla:Belgaum Dakshin")
+    assert belgaum["boundary_ready"] is True
+    assert belgaum["boundary_type"] == "svg"

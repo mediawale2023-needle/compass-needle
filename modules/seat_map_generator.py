@@ -7,6 +7,7 @@ from html import escape
 from typing import Any
 
 from sansadx_backend.db import build_seat_key, get_geography_data
+from modules.seat_boundaries import get_seat_boundary_for_identity
 
 
 CANVAS_WIDTH = 100
@@ -219,22 +220,37 @@ def generate_seat_map_manifest(
             )
 
     auto_aliases = _dedupe_preserve((aliases or []) + [clean_seat_name])
-    svg_markup = _build_generated_svg(clean_seat_name, assembly_centers)
+    boundary = get_seat_boundary_for_identity(clean_seat_type, clean_seat_name)
+    if boundary and ((boundary.get("asset") or {}).get("path") or (boundary.get("asset") or {}).get("inline_svg")):
+        asset = {
+            "type": (boundary.get("asset") or {}).get("type") or "svg",
+            "path": (boundary.get("asset") or {}).get("path") or "",
+            "inline_svg": (boundary.get("asset") or {}).get("inline_svg") or "",
+            "geojson": (boundary.get("asset") or {}).get("geojson") or {},
+            "aspect_ratio": (boundary.get("metadata") or {}).get("aspect_ratio") or f"{CANVAS_WIDTH} / {CANVAS_HEIGHT}",
+            "generated": False,
+            "boundary_source": boundary.get("source") or "admin",
+        }
+        source = "generated-from-boundary"
+    else:
+        svg_markup = _build_generated_svg(clean_seat_name, assembly_centers)
+        asset = {
+            "type": "generated-svg",
+            "aspect_ratio": f"{CANVAS_WIDTH} / {CANVAS_HEIGHT}",
+            "inline_svg": svg_markup,
+            "generated": True,
+        }
+        source = "generated"
     return {
         "seat_key": seat_key or build_seat_key(clean_seat_type, clean_seat_name),
         "seat_type": clean_seat_type,
         "seat_name": clean_seat_name,
         "state": (state or "").strip(),
         "aliases": auto_aliases,
-        "asset": {
-            "type": "generated-svg",
-            "aspect_ratio": f"{CANVAS_WIDTH} / {CANVAS_HEIGHT}",
-            "inline_svg": svg_markup,
-            "generated": True,
-        },
+        "asset": asset,
         "features": features,
         "fallback_anchors": fallback_anchors[:12],
         "status": "draft",
         "version": 1,
-        "source": "generated",
+        "source": source,
     }
