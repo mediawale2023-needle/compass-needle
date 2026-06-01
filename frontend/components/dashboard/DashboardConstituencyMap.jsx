@@ -85,7 +85,7 @@ function deriveGeoJsonAspectRatio(geojson) {
     return `100 / ${scaledHeight}`;
 }
 
-function GeoJsonBoundary({ geojson }) {
+function buildGeoJsonProjection(geojson) {
     const rings = collectGeoJsonRings(geojson);
     const points = rings.flat();
     if (!points.length) return null;
@@ -111,7 +111,11 @@ function GeoJsonBoundary({ geojson }) {
         return `${x.toFixed(2)} ${y.toFixed(2)}`;
     };
 
-    const pathData = rings
+    return { rings, projectPoint };
+}
+
+function buildPathData(rings, projectPoint) {
+    return rings
         .map((ring) => {
             if (!Array.isArray(ring) || ring.length < 3) return '';
             const [first, ...rest] = ring;
@@ -119,8 +123,16 @@ function GeoJsonBoundary({ geojson }) {
         })
         .filter(Boolean)
         .join(' ');
+}
 
+function GeoJsonBoundary({ geojson, assemblyGeojson = null }) {
+    const projection = buildGeoJsonProjection(geojson);
+    if (!projection) return null;
+    const { rings, projectPoint } = projection;
+
+    const pathData = buildPathData(rings, projectPoint);
     if (!pathData) return null;
+    const assemblyPathData = assemblyGeojson ? buildPathData(collectGeoJsonRings(assemblyGeojson), projectPoint) : '';
 
     return (
         <svg viewBox="0 0 100 72" width="100%" height="100%" style={{ display: 'block' }}>
@@ -131,6 +143,16 @@ function GeoJsonBoundary({ geojson }) {
                 </linearGradient>
             </defs>
             <path d={pathData} fill="url(#constituencyGeoFill)" stroke={P.hairStrong} strokeWidth="0.7" />
+            {assemblyPathData ? (
+                <path
+                    d={assemblyPathData}
+                    fill="none"
+                    stroke="#A89E87"
+                    strokeWidth="0.45"
+                    strokeOpacity="0.85"
+                    vectorEffect="non-scaling-stroke"
+                />
+            ) : null}
         </svg>
     );
 }
@@ -148,6 +170,7 @@ function normalizeApiManifest(manifest) {
         state: manifest.state || null,
         assetPath,
         geojson,
+        assemblyGeojson: manifest.asset?.assembly_geojson || null,
         assetType: manifest.asset?.type || 'svg',
         aspectRatio: manifest.asset?.aspect_ratio || (geojson ? deriveGeoJsonAspectRatio(geojson) : '1 / 1'),
         features: manifest.features || [],
@@ -193,7 +216,7 @@ export default function DashboardConstituencyMap({ summary, user, mapManifest = 
                 {mapConfig ? (
                     <div style={{ position: 'relative', width: '100%', aspectRatio: mapConfig.aspectRatio, minHeight: 180 }}>
                         {mapConfig.assetType === 'geojson' && mapConfig.geojson ? (
-                            <GeoJsonBoundary geojson={mapConfig.geojson} />
+                            <GeoJsonBoundary geojson={mapConfig.geojson} assemblyGeojson={mapConfig.assemblyGeojson} />
                         ) : (
                             <img
                                 src={mapConfig.assetPath}

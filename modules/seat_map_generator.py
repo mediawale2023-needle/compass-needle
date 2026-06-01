@@ -7,9 +7,12 @@ from html import escape
 from typing import Any
 
 from sansadx_backend.db import build_seat_key, get_geography_data
-from modules.assembly_boundary_importer import import_builtin_assembly_boundary_for_seat
+from modules.assembly_boundary_importer import (
+    get_builtin_assembly_features_for_parliamentary_seat,
+    import_builtin_assembly_boundary_for_seat,
+)
 from modules.seat_boundaries import get_seat_boundary_for_identity
-from modules.parliamentary_boundary_importer import import_builtin_parliamentary_boundary_for_seat
+from modules.parliamentary_boundary_importer import _compute_bbox, import_builtin_parliamentary_boundary_for_seat
 
 
 CANVAS_WIDTH = 100
@@ -74,6 +77,36 @@ def _point_for_locality(center_x: float, center_y: float, index: int, total: int
     x = _clamp(center_x + math.cos(angle) * radius, 8, 92)
     y = _clamp(center_y + math.sin(angle) * radius, 10, 64)
     return (round(x, 2), round(y, 2))
+
+
+def _point_for_locality_with_bounds(
+    center_x: float,
+    center_y: float,
+    index: int,
+    total: int,
+    bounds: tuple[float, float, float, float] | None = None,
+) -> tuple[float, float]:
+    x, y = _point_for_locality(center_x, center_y, index, total)
+    if not bounds:
+        return (x, y)
+
+    min_x, max_x, min_y, max_y = bounds
+    inset_x = min(2.4, max((max_x - min_x) * 0.15, 0.6))
+    inset_y = min(2.2, max((max_y - min_y) * 0.15, 0.6))
+    clamped_min_x = min_x + inset_x
+    clamped_max_x = max_x - inset_x
+    clamped_min_y = min_y + inset_y
+    clamped_max_y = max_y - inset_y
+    if clamped_min_x > clamped_max_x:
+        mid_x = (min_x + max_x) / 2
+        clamped_min_x = clamped_max_x = mid_x
+    if clamped_min_y > clamped_max_y:
+        mid_y = (min_y + max_y) / 2
+        clamped_min_y = clamped_max_y = mid_y
+    return (
+        round(_clamp(x, clamped_min_x, clamped_max_x), 2),
+        round(_clamp(y, clamped_min_y, clamped_max_y), 2),
+    )
 
 
 def _midpoint(a: tuple[float, float], b: tuple[float, float]) -> tuple[float, float]:
@@ -164,6 +197,109 @@ def _extract_localities(
     return {assembly: _dedupe_preserve(localities) for assembly, localities in assemblies.items() if localities}
 
 
+def _collect_geojson_points(geojson: dict[str, Any]) -> list[tuple[float, float]]:
+    features = []
+    if geojson.get("type") == "FeatureCollection":
+        features = geojson.get("features") or []
+    elif geojson.get("type") == "Feature":
+        features = [geojson]
+
+    points: list[tuple[float, float]] = []
+    for feature in features:
+        geometry = feature.get("geometry") or {}
+        min_x, min_y, max_x, max_y = _compute_bbox(geometry)
+        if max_x > min_x or max_y > min_y:
+            for node in ((geometry or {}).get("coordinates") or []):
+                points.extend(_iter_points(node))
+    return points
+
+
+def _iter_points(node: Any):
+    if isinstance(node, (list, tuple)):
+        if len(node) >= 2 and all(isinstance(part, (int, float)) for part in node[:2]):
+            yield float(node[0]), float(node[1])
+            return
+        for child in node:
+            yield from _iter_points(child)
+
+
+def _build_geojson_projector(geojson: dict[str, Any]) -> tuple[tuple[float, float, float, float], Any] | None:
+    points = _collect_geojson_points(geojson)
+    if not points:
+        return None
+
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    min_x = min(xs)
+    max_x = max(xs)
+    min_y = min(ys)
+    max_y = max(ys)
+    width = max(max_x - min_x, 1)
+    height = max(max_y - min_y, 1)
+    padding = 6
+    usable_width = 100 - padding * 2
+    usable_height = 72 - padding * 2
+    scale = min(usable_width / width, usable_height / height)
+    offset_x = (100 - width * scale) / 2
+    offset_y = (72 - height * scale) / 2
+
+    def project(point: tuple[float, float]) -> tuple[float, float]:
+        x = offset_x + (point[0] - min_x) * scale
+        y = 72 - (offset_y + (point[1] - min_y) * scale)
+        return (round(x, 2), round(y, 2))
+
+    return ((min_x, min_y, max_x, max_y), project)
+
+
+def _assembly_segments_for_parliamentary_map(
+    *,
+    seat_name: str,
+    state: str,
+    parliamentary_geojson: dict[str, Any],
+) -> tuple[dict[str, tuple[float, float]], dict[str, tuple[float, float, float, float]], dict[str, Any] | None]:
+    assembly_features = get_builtin_assembly_features_for_parliamentary_seat(
+        seat_name=seat_name,
+        state=state,
+    )
+    if not assembly_features:
+        return {}, {}, None
+
+    projected = _build_geojson_projector(parliamentary_geojson)
+    if not projected:
+        return {}, {}, None
+
+    _, project = projected
+    centers: dict[str, tuple[float, float]] = {}
+    bounds_by_assembly: dict[str, tuple[float, float, float, float]] = {}
+    overlay_features: list[dict[str, Any]] = []
+
+    for feature in assembly_features:
+        props = feature.get("properties") or {}
+        assembly_name = str(props.get("AC_NAME") or "").strip()
+        if not assembly_name:
+            continue
+        geometry = feature.get("geometry") or {}
+        min_x, min_y, max_x, max_y = _compute_bbox(geometry)
+        if max_x <= min_x and max_y <= min_y:
+            continue
+        center = project(((min_x + max_x) / 2, (min_y + max_y) / 2))
+        top_left = project((min_x, max_y))
+        bottom_right = project((max_x, min_y))
+        bounds_by_assembly[assembly_name] = (
+            min(top_left[0], bottom_right[0]),
+            max(top_left[0], bottom_right[0]),
+            min(top_left[1], bottom_right[1]),
+            max(top_left[1], bottom_right[1]),
+        )
+        centers[assembly_name] = center
+        overlay_features.append(feature)
+
+    if not overlay_features:
+        return {}, {}, None
+
+    return centers, bounds_by_assembly, {"type": "FeatureCollection", "features": overlay_features}
+
+
 def generate_seat_map_manifest(
     *,
     seat_type: str,
@@ -183,6 +319,7 @@ def generate_seat_map_manifest(
 
     assembly_names = sorted(assemblies)
     assembly_centers = _assembly_centers(assembly_names)
+    assembly_bounds: dict[str, tuple[float, float, float, float]] = {}
     features: list[dict[str, Any]] = []
     seen_feature_keys: dict[str, int] = defaultdict(int)
 
@@ -191,7 +328,13 @@ def generate_seat_map_manifest(
         center_x, center_y = assembly_centers[assembly]
         total = len(localities)
         for index, locality in enumerate(localities):
-            x, y = _point_for_locality(center_x, center_y, index, total)
+            x, y = _point_for_locality_with_bounds(
+                center_x,
+                center_y,
+                index,
+                total,
+                assembly_bounds.get(assembly),
+            )
             base_key = _slugify(locality)
             seen_feature_keys[base_key] += 1
             feature_key = base_key if seen_feature_keys[base_key] == 1 else f"{base_key}-{seen_feature_keys[base_key]}"
@@ -242,11 +385,54 @@ def generate_seat_map_manifest(
         or (boundary.get("asset") or {}).get("inline_svg")
         or (boundary.get("asset") or {}).get("geojson")
     ):
+        parliamentary_geojson = (boundary.get("asset") or {}).get("geojson") or {}
+        assembly_geojson = None
+        if clean_seat_type == "mp" and parliamentary_geojson:
+            real_centers, real_bounds, assembly_geojson = _assembly_segments_for_parliamentary_map(
+                seat_name=clean_seat_name,
+                state=(state or "").strip(),
+                parliamentary_geojson=parliamentary_geojson,
+            )
+            if real_centers:
+                assembly_centers = {**assembly_centers, **real_centers}
+                assembly_bounds = real_bounds
+                features = []
+                seen_feature_keys = defaultdict(int)
+                for assembly in assembly_names:
+                    localities = assemblies[assembly]
+                    center_x, center_y = assembly_centers.get(assembly, (50.0, 36.0))
+                    total = len(localities)
+                    for index, locality in enumerate(localities):
+                        x, y = _point_for_locality_with_bounds(
+                            center_x,
+                            center_y,
+                            index,
+                            total,
+                            assembly_bounds.get(assembly),
+                        )
+                        base_key = _slugify(locality)
+                        seen_feature_keys[base_key] += 1
+                        feature_key = base_key if seen_feature_keys[base_key] == 1 else f"{base_key}-{seen_feature_keys[base_key]}"
+                        feature_aliases = _dedupe_preserve([
+                            locality,
+                            f"{locality} {assembly}".strip(),
+                            f"{locality} {clean_seat_name}".strip(),
+                        ])
+                        features.append(
+                            {
+                                "feature_key": feature_key,
+                                "label": locality,
+                                "aliases": feature_aliases,
+                                "anchor": {"x": x, "y": y},
+                                "assembly": assembly,
+                            }
+                        )
         asset = {
             "type": (boundary.get("asset") or {}).get("type") or "svg",
             "path": (boundary.get("asset") or {}).get("path") or "",
             "inline_svg": (boundary.get("asset") or {}).get("inline_svg") or "",
-            "geojson": (boundary.get("asset") or {}).get("geojson") or {},
+            "geojson": parliamentary_geojson,
+            "assembly_geojson": assembly_geojson or {},
             "aspect_ratio": (boundary.get("metadata") or {}).get("aspect_ratio") or f"{CANVAS_WIDTH} / {CANVAS_HEIGHT}",
             "generated": False,
             "boundary_source": boundary.get("source") or "admin",

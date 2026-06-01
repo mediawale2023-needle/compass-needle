@@ -533,3 +533,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Pushed commit `0ddc1b8e` (`Bundle assembly boundary library`) to `origin/main`, publishing the in-repo MLA boundary dataset, `modules/assembly_boundary_importer.py`, and the shared no-upload `import-auto` seat-boundary flow for both MP and MLA seats.
 - Files touched: `TASK_LOG.md`
 - Risks or follow-ups: This is pushed but not deployed yet. The live admin workflow will keep the older behavior until the backend and admin frontend are redeployed.
+
+- Date: 2026-06-01
+- Request: Make parliamentary constituency maps use assembly constituency boundaries internally so grievance hotspots pin within the correct assembly segment instead of floating arbitrarily inside the MP outline.
+- Summary: Extended `modules/assembly_boundary_importer.py` with built-in assembly lookup by parliamentary seat, updated `modules/seat_map_generator.py` so MP manifests carry `asset.assembly_geojson` and derive locality anchors from real assembly sub-boundaries when available, and taught `DashboardConstituencyMap.jsx` to render those internal assembly lines on top of the parliamentary GeoJSON outline. Added regression coverage proving MP manifests now separate hotspot anchors by assembly geography instead of the old synthetic ring layout.
+- Files touched: `modules/assembly_boundary_importer.py`, `modules/seat_map_generator.py`, `frontend/components/dashboard/DashboardConstituencyMap.jsx`, `tests/test_seat_map_generator.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This improves MP map credibility materially, but it still depends on the quality of the normalized assembly GeoJSON for each state. If a constituency's assembly shapes are wrong or stale in the source dataset, hotspot placement will still inherit that source-quality issue until the boundary library is corrected.

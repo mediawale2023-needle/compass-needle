@@ -54,6 +54,26 @@ def _matching_assembly_features(
     return matches
 
 
+def _matching_assembly_features_for_parliamentary_seat(
+    feature_collection: dict[str, Any],
+    *,
+    parliamentary_seat_name: str,
+    state: str = "",
+) -> list[dict[str, Any]]:
+    target_name = _normalize_token(parliamentary_seat_name)
+    target_state = _normalize_token(state)
+    matches: list[dict[str, Any]] = []
+    for feature in feature_collection.get("features") or []:
+        props = feature.get("properties") or {}
+        feature_name = _normalize_token(props.get("PC_NAME"))
+        feature_state = _normalize_token(props.get("ST_NAME"))
+        if target_state and feature_state != target_state:
+            continue
+        if feature_name == target_name:
+            matches.append(feature)
+    return matches
+
+
 def build_boundary_payload_from_assembly_feature(
     feature: dict[str, Any],
     *,
@@ -129,4 +149,16 @@ def import_builtin_assembly_boundary_for_seat(
         state=state,
         status=status,
         source=source,
+    )
+
+
+def get_builtin_assembly_features_for_parliamentary_seat(
+    *,
+    seat_name: str,
+    state: str = "",
+) -> list[dict[str, Any]]:
+    return _matching_assembly_features_for_parliamentary_seat(
+        load_builtin_assembly_geojson(),
+        parliamentary_seat_name=seat_name,
+        state=state,
     )
