@@ -515,3 +515,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Added the Datameet parliamentary GeoJSON into the repo at `data/maps/parliamentary/india_pc_2019_simplified.geojson`, taught `modules/parliamentary_boundary_importer.py` to load that built-in library, added `POST /api/admin/seat-boundaries/import-parliamentary-auto`, and updated `modules/seat_map_generator.py` so MP map generation attempts a built-in boundary import before any blob fallback. The Seat Maps admin UI now offers `Import MP boundary automatically` instead of requiring a file upload.
 - Files touched: `data/maps/parliamentary/india_pc_2019_simplified.geojson`, `modules/parliamentary_boundary_importer.py`, `modules/seat_map_generator.py`, `admin_api.py`, `admin/app/dashboard/seat-maps/page.js`, `tests/test_dashboard_map_manifest_api.py`, `tests/test_parliamentary_boundary_importer.py`, `admin/tests/seat-maps.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: This closes the upload requirement for MP seats only. MLA boundaries still need a safe built-in ingestion path before the same experience can be exposed there.
+
+- Date: 2026-06-01
+- Request: Push the built-in parliamentary boundary library change to GitHub.
+- Summary: Pushed commit `84996e26` (`Bundle parliamentary boundary library`) to `origin/main`, publishing the in-repo MP boundary dataset, automatic parliamentary boundary import endpoint, and the no-upload Seat Maps admin flow for MP constituencies.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is pushed but not deployed yet. The new no-upload MP boundary flow will appear live only after the backend and admin frontend are redeployed.
