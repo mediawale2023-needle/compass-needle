@@ -527,3 +527,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Normalized the Datameet assembly shapefile into a built-in GeoJSON library at `data/maps/assembly/india_ac_normalized.geojson`, added `modules/assembly_boundary_importer.py`, generalized the admin endpoint to `POST /api/admin/seat-boundaries/import-auto`, and updated seat-map generation so both MP and MLA seats attempt built-in boundary import before any blob fallback. The Seat Maps UI now uses a single `Import real boundary automatically` action for both seat types.
 - Files touched: `data/maps/assembly/india_ac_normalized.geojson`, `modules/assembly_boundary_importer.py`, `modules/seat_map_generator.py`, `admin_api.py`, `admin/app/dashboard/seat-maps/page.js`, `tests/test_dashboard_map_manifest_api.py`, `tests/test_seat_map_generator.py`, `tests/test_assembly_boundary_importer.py`, `admin/tests/seat-maps.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: The built-in MLA library comes from the normalized Datameet assembly source, which still has known delimitation/naming caveats in some states. The admin experience is now upload-free, but boundary accuracy should still be spot-checked for high-stakes constituencies.
+
+- Date: 2026-06-01
+- Request: Push the built-in assembly boundary library and unified auto-import flow to GitHub.
+- Summary: Pushed commit `0ddc1b8e` (`Bundle assembly boundary library`) to `origin/main`, publishing the in-repo MLA boundary dataset, `modules/assembly_boundary_importer.py`, and the shared no-upload `import-auto` seat-boundary flow for both MP and MLA seats.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is pushed but not deployed yet. The live admin workflow will keep the older behavior until the backend and admin frontend are redeployed.
