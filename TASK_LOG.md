@@ -461,3 +461,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Added a new admin seat-map management page at `/dashboard/seat-maps`, linked it into the admin sidebar/layout, and wired it to `/api/admin/seat-maps` for listing and saving DB-backed seat manifests. The UI supports seat metadata, aliases, asset configuration, features, and fallback anchors with client-side validation for missing required fields, duplicate aliases, and invalid anchor coordinates.
 - Files touched: `admin/app/dashboard/layout.js`, `admin/components/Sidebar.js`, `admin/app/dashboard/seat-maps/page.js`, `admin/tests/seat-maps.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: Asset management is still path-based rather than upload-based, so Phase 4 is operational but not yet a full asset pipeline. Future work can add asset upload/storage and stronger server-side manifest validation if needed.
+
+- Date: 2026-06-01
+- Request: Push and deploy the constituency map architecture through Phase 4.
+- Summary: Pushed commit `c23f4315` (`Build seat map admin architecture`) to `origin/main`, covering the Phase 2 backend manifest API, Phase 3 DB-backed/admin-managed manifest storage, and Phase 4 admin seat-map management UI. Deployed the backend manually on EC2 by pulling `main`, rebuilding `ec2-backend-1`, and verifying `https://backend.coinmedia.co.in/health` returned `ok`. Temporary SSH ingress on the EC2 security group was revoked after deploy.
+- Files touched: `PROJECT_MEMORY.md`, `TASK_LOG.md`, deployment host `/opt/compass-needle/app`
+- Risks or follow-ups: Vercel still needs to pick up the pushed frontend/admin changes through its normal deployment flow. Backend APIs are live; if the admin UI does not appear immediately, wait for the Vercel build to finish or redeploy the frontend projects.
