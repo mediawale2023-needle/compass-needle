@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-01
+- Request: Replace the mocked dashboard constituency map with a real Belgaum Dakshin outline and real hotspot placement.
+- Summary: Added a seat-aware constituency map config layer, extracted a clean Belgaum Dakshin SVG outline into `frontend/public/maps/mla/`, and rewired `DashboardConstituencyMap.jsx` to place live `red_zones` hotspots against the real seat outline for supported constituencies while preserving the previous mock map as a fallback for unmapped seats. Verified with `npm run test --prefix frontend -- --run tests/dashboard.test.jsx`.
+- Files touched: `frontend/components/dashboard/DashboardConstituencyMap.jsx`, `frontend/lib/constituency-map-data.js`, `frontend/public/maps/mla/belgaum-dakshin-outline.svg`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The first real map only covers Belgaum Dakshin and uses curated hotspot anchors rather than true ward polygons; additional seats should reuse the same asset-plus-anchor pattern, and a future step can replace anchor heuristics with polygon/centroid data where available.
+
+- Date: 2026-06-01
 - Request: Push the UTC case-timestamp serialization fix to GitHub.
 - Summary: Pushed commit `aed0b630` (`Fix case timestamp UTC serialization`) to `origin/main`, publishing the explicit-UTC `Z` timestamp contract for Briefcase case APIs so frontend `received` ages no longer drift by local timezone offsets.
 - Files touched: `api_router.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
