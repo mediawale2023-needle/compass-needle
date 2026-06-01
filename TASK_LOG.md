@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-01
+- Request: Push the generalized official-corruption routing fix to GitHub.
+- Summary: Pushed commit `1f81a5a0` (`Generalize corruption routing override`) to `origin/main`, publishing the structural cross-language override that rescues official bribery/payment-demand complaints into `Bureaucratic / Administrative -> Bribery/Corruption` instead of bad generic infrastructure labels.
+- Files touched: `sansadx_backend/unified_taxonomy.py`, `tests/test_ai_location_grounding.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Production still needs a backend deploy/restart before live classifications pick up this generalized routing fix; future expansion should stay structural and not drift into brittle language-specific phrase hardcoding.
+
+- Date: 2026-06-01
 - Request: Fix wrong category routing for official-bribery complaints like `तलाठी पैसे मागत आहे`.
 - Summary: Added a narrow high-confidence taxonomy override in `sansadx_backend/unified_taxonomy.py` so bribery or payment-demand semantics in official/revenue-office context now force `Bureaucratic / Administrative -> Bribery/Corruption` instead of falling back to bad generic infrastructure labels. Generalized the rule away from single-language phrase matching and added focused regressions covering both Marathi-script and English office-corruption complaints plus the AI normalization path.
 - Files touched: `sansadx_backend/unified_taxonomy.py`, `tests/test_ai_location_grounding.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
