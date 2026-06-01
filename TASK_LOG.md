@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-01
+- Request: Fix Briefcase language badges that were showing `EN` for Marathi/Hinglish messages and add a backfill path for old cases.
+- Summary: Persisted `detected_language` into case metadata during enrichment in `main.py`, changed the Briefcase language badge helper to show real mapped tags or `UNK` instead of defaulting missing values to English, and added `scripts/backfill_case_languages.py` plus focused tests to repair tenant-scoped historical rows whose language is missing or clearly mislabeled as English.
+- Files touched: `main.py`, `frontend/components/briefcase/briefcase-shared.jsx`, `scripts/backfill_case_languages.py`, `tests/test_case_language_backfill.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Existing rows need the backfill script run per tenant to show corrected badges; the frontend now stops lying about missing values, so unbackfilled rows will surface as `UNK` until repaired.
+
+- Date: 2026-06-01
 - Request: Push the generalized official-corruption routing fix to GitHub.
 - Summary: Pushed commit `1f81a5a0` (`Generalize corruption routing override`) to `origin/main`, publishing the structural cross-language override that rescues official bribery/payment-demand complaints into `Bureaucratic / Administrative -> Bribery/Corruption` instead of bad generic infrastructure labels.
 - Files touched: `sansadx_backend/unified_taxonomy.py`, `tests/test_ai_location_grounding.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`

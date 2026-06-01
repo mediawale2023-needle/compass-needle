@@ -104,6 +104,8 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - WhatsApp citizen intake now follows an `ack first, clarify later` rule: even when a case is missing location or is otherwise incomplete, the first reply should stay a normal acknowledgment instead of immediately asking follow-up questions.
 - Missing-location and missing-details clarification now use delayed follow-ups driven by case metadata (`clarification_follow_up_*`) and background timers/startup sweeps, rather than sending the clarification inline during the original webhook request.
 - Clarification replies from the same citizen should enrich the original recent incomplete case instead of creating a second case row; the intake flow now treats recent clarification-pending cases as update targets.
+- Case enrichment now persists `detected_language` into `case_metadata` (`detected_language` and legacy `language`) so UI surfaces do not have to infer citizen language from raw text on every render.
+- Historical language gaps can be repaired with `scripts/backfill_case_languages.py`, which is tenant-scoped and only backfills rows whose stored language is missing or clearly a bad default-English label compared to the case text.
 
 ## Media Intake Memory
 

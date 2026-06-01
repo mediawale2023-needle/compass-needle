@@ -151,12 +151,29 @@ export function formatBriefcaseAge(createdAt) {
 }
 
 export function formatLanguageTag(caseItem) {
-    const raw = caseItem.case_metadata?.detected_language || caseItem.case_metadata?.language || caseItem.detected_language || 'EN';
+    const raw = (
+        caseItem.case_metadata?.detected_language ||
+        caseItem.case_metadata?.language ||
+        caseItem.detected_language ||
+        ''
+    ).trim();
+    if (!raw) return 'UNK';
+    if (/hing/i.test(raw)) return 'HING';
     if (/mar/i.test(raw)) return 'MAR';
     if (/hin/i.test(raw)) return 'HIN';
     if (/kan/i.test(raw)) return 'KAN';
-    if (/eng/i.test(raw)) return 'EN';
-    return String(raw).slice(0, 3).toUpperCase();
+    if (/tam/i.test(raw)) return 'TAM';
+    if (/tel/i.test(raw)) return 'TEL';
+    if (/ben/i.test(raw)) return 'BEN';
+    if (/guj/i.test(raw)) return 'GUJ';
+    if (/pun/i.test(raw)) return 'PUN';
+    if (/mal/i.test(raw)) return 'MAL';
+    if (/urd/i.test(raw)) return 'URD';
+    if (/odi/i.test(raw)) return 'ODI';
+    if (/assam|asm/i.test(raw)) return 'ASM';
+    if (/eng/i.test(raw)) return 'ENG';
+    if (/unknown/i.test(raw)) return 'UNK';
+    return String(raw).slice(0, 4).toUpperCase();
 }
 
 export function getBriefcaseCitizenName(caseItem) {

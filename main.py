@@ -2730,6 +2730,8 @@ def _run_citizen_case_enrichment(
                     final_constituency = combined_lower[matches[0]]
 
     meta_data = {
+        "detected_language": detected_language,
+        "language": detected_language,
         "user_intent": status,
         "location_resolved": bool(location_name and final_constituency != "Unknown"),
         "matched_value": location_name or "",
