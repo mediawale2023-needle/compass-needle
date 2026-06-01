@@ -48,6 +48,18 @@ describe('MP dashboard overview', () => {
                     critical_count: 1,
                 };
             }
+            if (path === '/api/maps/seat-manifest') {
+                return {
+                    seat_key: 'mla:belgaum-dakshin',
+                    seat_type: 'mla',
+                    seat_name: 'Belgaum Dakshin',
+                    asset: { type: 'svg', path: '/maps/mla/belgaum-dakshin-outline.svg', aspect_ratio: '72 / 63' },
+                    features: [],
+                    fallback_anchors: [],
+                    status: 'live',
+                    version: 1,
+                };
+            }
             if (path === '/api/activity/report-card') return null;
             if (path.startsWith('/api/news?news_type=')) return { articles: [] };
             if (path.startsWith('/api/cases?')) {

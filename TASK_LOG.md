@@ -13,6 +13,24 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-01
+- Request: Implement Phase 3 of the constituency-map architecture.
+- Summary: Added DB-backed seat map manifest storage via the new `seat_map_manifests` model, upgraded `modules/seat_maps.py` to prefer admin-managed manifests over repo fallback, and introduced admin APIs to list, fetch, and upsert seat maps without requiring dashboard code changes. Added tests proving tenant map lookup still works and that an admin-upserted manifest overrides the repo default for the same seat key. Verified with `venv/bin/python -m pytest tests/test_dashboard_map_manifest_api.py -q`, `venv/bin/python -m py_compile sansadx_backend/db.py modules/seat_maps.py api_router.py admin_api.py tests/test_dashboard_map_manifest_api.py`, and `npm run test --prefix frontend -- --run tests/dashboard.test.jsx`.
+- Files touched: `sansadx_backend/db.py`, `modules/seat_maps.py`, `admin_api.py`, `tests/test_dashboard_map_manifest_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The storage/control plane is ready, but there is still no admin UI for editing these manifests. Phase 4 should build a lightweight admin screen over `/api/admin/seat-maps` and eventually support asset upload/validation workflows rather than requiring raw JSON payloads.
+
+- Date: 2026-06-01
+- Request: Build Phase 2 of the constituency-map architecture.
+- Summary: Added a tenant-safe backend seat-manifest contract at `/api/maps/seat-manifest`, backed by the new `modules/seat_maps.py` loader over the shared frontend map registry/manifests. Updated the dashboard overview hook to fetch the manifest from the API and pass it into the map renderer, while keeping the local manifest loader as a fallback. Added backend contract tests and refreshed the dashboard frontend test. Verified with `venv/bin/python -m pytest tests/test_dashboard_map_manifest_api.py -q`, `venv/bin/python -m py_compile api_router.py modules/seat_maps.py tests/test_dashboard_map_manifest_api.py`, and `npm run test --prefix frontend -- --run tests/dashboard.test.jsx`.
+- Files touched: `modules/seat_maps.py`, `api_router.py`, `frontend/hooks/useDashboardOverview.js`, `frontend/app/dashboard/page.js`, `frontend/components/dashboard/DashboardConstituencyMap.jsx`, `frontend/tests/dashboard.test.jsx`, `tests/test_dashboard_map_manifest_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Map manifests are still repo-backed and served through the backend; Phase 3 should move registry/manifest management into admin-facing workflows or DB-backed storage so new seats do not require code changes or app redeploys.
+
+- Date: 2026-06-01
+- Request: Start building the constituency-map architecture phase by phase.
+- Summary: Implemented Phase 1 by formalizing the first live map into a generic seat-registry and seat-manifest structure. Added `frontend/data/maps/registry.json`, moved Belgaum Dakshin hotspot/asset metadata into `frontend/data/maps/mla/belgaum-dakshin.manifest.json`, and refactored `frontend/lib/constituency-map-data.js` into a manifest loader instead of a one-seat config blob. Verified with `npm run test --prefix frontend -- --run tests/dashboard.test.jsx`.
+- Files touched: `frontend/data/maps/registry.json`, `frontend/data/maps/mla/belgaum-dakshin.manifest.json`, `frontend/lib/constituency-map-data.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This phase still uses a static in-frontend manifest registry; the next phase should move toward a backend/API seat-manifest contract so new constituencies do not require frontend code deploys.
+
+- Date: 2026-06-01
 - Request: Push the first real constituency-map implementation to GitHub.
 - Summary: Pushed commit `c0dedf04` (`Build first real constituency map`) to `origin/main`, publishing the Belgaum Dakshin real-seat SVG, seat-aware hotspot config, and the dashboard fallback strategy for unmapped constituencies.
 - Files touched: `frontend/components/dashboard/DashboardConstituencyMap.jsx`, `frontend/lib/constituency-map-data.js`, `frontend/public/maps/mla/belgaum-dakshin-outline.svg`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
@@ -437,3 +455,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Added a new `modules/voice_note_normalizer.py` layer that sits between Sarvam transcription and grievance classification, builds a tenant-scoped shortlist of likely localities using resolver candidates, and uses Gemini to conservatively clean ASR drift without translating the citizen’s language. Media intake now preserves both the raw transcript and normalized complaint text in source-media metadata, and the geography resolver exposes `suggest_location_candidates()` for voice-note grounding.
 - Files touched: `modules/geography_resolver.py`, `modules/voice_note_normalizer.py`, `modules/whatsapp_media_intake.py`, `main.py`, `tests/test_voice_note_normalizer.py`, `tests/test_whatsapp_media_intake.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: This materially improves the pipeline, but true production confidence still depends on live OpenAI/Gemini quota health and real-world evaluation across diverse voice notes; ambiguous cases should still fall back to clarification or review instead of forced certainty.
+
+- Date: 2026-06-01
+- Request: Build Phase 4 of the constituency map architecture so seat maps can be managed operationally instead of through raw JSON or code-only edits.
+- Summary: Added a new admin seat-map management page at `/dashboard/seat-maps`, linked it into the admin sidebar/layout, and wired it to `/api/admin/seat-maps` for listing and saving DB-backed seat manifests. The UI supports seat metadata, aliases, asset configuration, features, and fallback anchors with client-side validation for missing required fields, duplicate aliases, and invalid anchor coordinates.
+- Files touched: `admin/app/dashboard/layout.js`, `admin/components/Sidebar.js`, `admin/app/dashboard/seat-maps/page.js`, `admin/tests/seat-maps.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Asset management is still path-based rather than upload-based, so Phase 4 is operational but not yet a full asset pipeline. Future work can add asset upload/storage and stronger server-side manifest validation if needed.

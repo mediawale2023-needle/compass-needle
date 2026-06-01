@@ -131,6 +131,7 @@ const NAV_GROUPS = [
         items: [
             { href: '/dashboard/profiles', label: 'Profile Editor', Icon: Icons.Profiles },
             { href: '/dashboard/geography', label: 'Geography Upload', Icon: Icons.Geography },
+            { href: '/dashboard/seat-maps', label: 'Seat Maps', Icon: Icons.Geography },
             { href: '/dashboard/rules', label: 'Geography Rules', Icon: Icons.Rules },
             { href: '/dashboard/staff', label: 'Staff Management', Icon: Icons.Staff },
         ],

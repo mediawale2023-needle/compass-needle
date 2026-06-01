@@ -28,6 +28,7 @@ from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantP
 from core.db_helpers import _q, _q_one, _parse_meta
 from core.gemini_client import get_gemini_client
 from modules.constituencies import ALL_CONSTITUENCIES
+from modules.seat_maps import list_all_seat_manifests, upsert_db_seat_manifest, get_db_seat_manifest
 
 logger = logging.getLogger("needle.admin_api")
 
@@ -259,6 +260,26 @@ class SaveOverridesRequest(BaseModel):
 class AddRuleRequest(BaseModel):
     location: str
     assembly_constituency: str
+
+
+class SeatMapFeatureRequest(BaseModel):
+    feature_key: str
+    label: str
+    aliases: List[str] = []
+    anchor: dict = {}
+
+
+class SeatMapManifestRequest(BaseModel):
+    seat_key: str
+    seat_type: str
+    seat_name: str
+    state: str = ""
+    aliases: List[str] = []
+    asset: dict = {}
+    features: List[SeatMapFeatureRequest] = []
+    fallback_anchors: List[dict] = []
+    status: str = "draft"
+    version: Optional[int] = None
 
 
 def _resolve_account_stage_and_seat_type(
@@ -1009,6 +1030,58 @@ def delete_mp_geography_assembly(tenant_id: int, assembly: str, _=Depends(get_ad
         return {"success": True, "deleted": deleted}
     finally:
         db.close()
+
+
+@router.get("/seat-maps")
+def list_seat_maps(_=Depends(get_admin_user)):
+    return {"items": list_all_seat_manifests()}
+
+
+@router.get("/seat-maps/by-key")
+def get_seat_map_by_key(seat_key: str = Query(...), _=Depends(get_admin_user)):
+    manifest = get_db_seat_manifest(seat_key)
+    if manifest:
+        return manifest
+    for item in list_all_seat_manifests():
+        if item.get("seat_key") == seat_key:
+            return item
+    raise HTTPException(404, "Seat map manifest not found")
+
+
+@router.post("/seat-maps")
+def upsert_seat_map(req: SeatMapManifestRequest, admin_user=Depends(get_admin_user)):
+    seat_type = _normalize_seat_type(req.seat_type)
+    payload = {
+        "seat_key": req.seat_key.strip(),
+        "seat_type": seat_type,
+        "seat_name": req.seat_name.strip(),
+        "state": req.state.strip(),
+        "aliases": [alias.strip() for alias in req.aliases if alias.strip()],
+        "asset": req.asset,
+        "features": [feature.model_dump() for feature in req.features],
+        "fallback_anchors": req.fallback_anchors,
+        "status": (req.status or "draft").strip().lower(),
+        "version": req.version,
+        "source": "admin",
+    }
+    if not payload["seat_key"] or not payload["seat_name"]:
+        raise HTTPException(400, "seat_key and seat_name are required")
+    if payload["status"] not in {"draft", "verified", "live"}:
+        raise HTTPException(400, "status must be one of: draft, verified, live")
+    if not payload["aliases"]:
+        payload["aliases"] = [payload["seat_name"]]
+    if not isinstance(payload["asset"], dict) or not payload["asset"].get("path"):
+        raise HTTPException(400, "asset.path is required")
+
+    manifest = upsert_db_seat_manifest(payload)
+    _audit(
+        admin_user,
+        action="upsert_seat_map",
+        target_type="seat_map",
+        target_name=payload["seat_key"],
+        change_summary=f"{payload['status']} v{manifest.get('version')}",
+    )
+    return {"success": True, "manifest": manifest}
 
 
 # ═══════════════════════════════════════════

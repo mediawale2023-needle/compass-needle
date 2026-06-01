@@ -51,6 +51,12 @@ except Exception:
     def resolve_location(text, scope_parliamentary=None, tenant_id=None):
         return {"location_resolved": False}
 
+try:
+    from modules.seat_maps import get_seat_manifest_for_identity
+except Exception:
+    def get_seat_manifest_for_identity(seat_type=None, constituency=None):
+        return None
+
 # Security event logger (soft-import)
 try:
     from core.security_logger import log_security_event
@@ -348,6 +354,27 @@ def dashboard_summary(user=Depends(get_current_user)):
         "critical_count": critical["cnt"] if critical else 0,
         "red_zones": [{"area": r["area"], "count": r["cnt"]} for r in red_zones if r.get("area")],
     }
+
+
+@router.get("/maps/seat-manifest")
+def dashboard_seat_manifest(user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    tenant = _q_one(
+        """
+        SELECT constituency, seat_type
+        FROM tenants
+        WHERE id = :tid
+        """,
+        {"tid": tid},
+    ) or {}
+
+    manifest = get_seat_manifest_for_identity(
+        tenant.get("seat_type"),
+        tenant.get("constituency"),
+    )
+    if not manifest:
+        raise HTTPException(status_code=404, detail="Seat map manifest not found")
+    return manifest
 
 
 # ─────────────────────────────────────────

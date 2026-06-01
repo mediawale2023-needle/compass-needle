@@ -1,0 +1,16 @@
+[
+  {
+    "seat_key": "mla:belgaum-dakshin",
+    "seat_type": "mla",
+    "seat_name": "Belgaum Dakshin",
+    "aliases": [
+      "belgaum dakshin",
+      "belgaum south",
+      "belagavi south",
+      "belgaum dakhshin"
+    ],
+    "manifest_key": "mla:belgaum-dakshin",
+    "status": "live",
+    "version": 1
+  }
+]

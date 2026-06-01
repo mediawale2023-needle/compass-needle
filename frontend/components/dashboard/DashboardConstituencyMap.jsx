@@ -52,7 +52,23 @@ function LegacyFallbackMap({ redZones, maxLoad }) {
     );
 }
 
-export default function DashboardConstituencyMap({ summary, user }) {
+function normalizeApiManifest(manifest) {
+    if (!manifest || typeof manifest !== 'object') return null;
+    return {
+        seatKey: manifest.seat_key,
+        seatType: manifest.seat_type,
+        seatName: manifest.seat_name,
+        state: manifest.state || null,
+        assetPath: manifest.asset?.path,
+        aspectRatio: manifest.asset?.aspect_ratio || '1 / 1',
+        features: manifest.features || [],
+        fallbackAnchors: manifest.fallback_anchors || [],
+        registryStatus: manifest.status || 'draft',
+        version: manifest.version || 1,
+    };
+}
+
+export default function DashboardConstituencyMap({ summary, user, mapManifest = null }) {
     const redZones = (summary?.red_zones || []).map((zone) => ({
         area: zone.area || zone.name || '',
         count: zone.count ?? zone.cnt ?? 0,
@@ -60,7 +76,7 @@ export default function DashboardConstituencyMap({ summary, user }) {
     const categories = summary?.category_breakdown || {};
     const topCategories = Object.entries(categories).sort((a, b) => b[1] - a[1]).slice(0, 3);
     const maxLoad = Math.max(...redZones.map((zone) => zone.count || 0), 1);
-    const mapConfig = getConstituencyMapConfig({ constituency: user?.constituency, seatType: user?.seat_type });
+    const mapConfig = normalizeApiManifest(mapManifest) || getConstituencyMapConfig({ constituency: user?.constituency, seatType: user?.seat_type });
     const hotspots = mapConfig
         ? redZones.slice(0, 8).map((zone, index) => ({ ...zone, ...resolveConstituencyHotspot(mapConfig, zone.area, index) }))
         : [];

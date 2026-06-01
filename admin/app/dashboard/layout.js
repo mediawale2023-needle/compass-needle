@@ -9,6 +9,7 @@ const PAGE_TITLES = {
     '/dashboard': { title: 'Overview', desc: 'Manage MPs and platform configuration' },
     '/dashboard/profiles': { title: 'Profile Editor', desc: 'Edit account identity, credentials, and AI profile data' },
     '/dashboard/geography': { title: 'Seat Geography', desc: 'Upload and manage shared polling-station geography for MP and MLA seats' },
+    '/dashboard/seat-maps': { title: 'Seat Maps', desc: 'Manage shared constituency map manifests, hotspot bindings, and map asset references' },
     '/dashboard/rules': { title: 'Geography Rules', desc: 'Define tenant-specific location-to-routing-area override rules' },
     '/dashboard/intelligence': { title: 'Case Intelligence', desc: 'Platform health, case explorer, and grievance analytics' },
     '/dashboard/health': { title: 'Tenant Health', desc: 'Monitor tenant activity status across the platform' },

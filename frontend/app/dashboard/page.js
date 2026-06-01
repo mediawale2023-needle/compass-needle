@@ -24,7 +24,7 @@ export default function DashboardPage() {
     const { user } = useAuth();
     const router = useRouter();
     const canUseSansadAI = canAccessSansadAI(user);
-    const { summary, cases, letters, news, isInitialLoading, isEmpty } = useDashboardOverview();
+    const { summary, cases, letters, news, seatManifest, isInitialLoading, isEmpty } = useDashboardOverview();
 
     const handleCaseClick = useCallback((id) => {
         router.push(`/dashboard/sansadx?case_id=${id}`);
@@ -75,7 +75,7 @@ export default function DashboardPage() {
 
             {/* Row 3 right: Map + Activity */}
             <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-3.5 md:gap-[14px] min-w-0">
-                <DashboardConstituencyMap summary={summary} user={user} />
+                <DashboardConstituencyMap summary={summary} user={user} mapManifest={seatManifest} />
                 <DashboardActivityFeed cases={cases} letters={letters} />
             </div>
         </div>

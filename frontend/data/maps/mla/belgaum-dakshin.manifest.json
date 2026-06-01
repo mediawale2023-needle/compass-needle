@@ -1,0 +1,65 @@
+{
+  "seat_key": "mla:belgaum-dakshin",
+  "seat_type": "mla",
+  "seat_name": "Belgaum Dakshin",
+  "state": "Karnataka",
+  "asset": {
+    "type": "svg",
+    "path": "/maps/mla/belgaum-dakshin-outline.svg",
+    "aspect_ratio": "72 / 63"
+  },
+  "features": [
+    {
+      "feature_key": "peeranwadi-cluster",
+      "label": "Peeranwadi belt",
+      "aliases": ["peeranwadi", "khadarwadi", "hunchanatti", "majagaon"],
+      "anchor": { "x": 49, "y": 15 }
+    },
+    {
+      "feature_key": "hindwadi-cluster",
+      "label": "Hindwadi belt",
+      "aliases": ["hindawadi", "hindwadi", "jain basti", "nanawadi", "nanawadai"],
+      "anchor": { "x": 31, "y": 28 }
+    },
+    {
+      "feature_key": "tilakwadi-core",
+      "label": "Tilakwadi core",
+      "aliases": ["tilakwadi", "budhawar peth", "somawar peth", "vaccine depot", "gajanan maharaj", "godshewadi", "r c nagar", "subhash chandra nagar", "govaves"],
+      "anchor": { "x": 45, "y": 34 }
+    },
+    {
+      "feature_key": "angol-bhagya-nagar",
+      "label": "Angol / Bhagya Nagar",
+      "aliases": ["angol", "bhagya nagar"],
+      "anchor": { "x": 24, "y": 58 }
+    },
+    {
+      "feature_key": "shahapur-nath-pai",
+      "label": "Shahapur / Nath Pai Circle",
+      "aliases": ["shahapur", "nath pai circle", "teli patil galli", "khasabag", "basavan galli", "meerapur", "kacheri galli", "alawan galli", "mahadwar road", "gudshed road"],
+      "anchor": { "x": 68, "y": 40 }
+    },
+    {
+      "feature_key": "vadgaon-june-belagavi",
+      "label": "Vadgaon / June Belagavi",
+      "aliases": ["vadgaon", "vadagaon", "vadagon", "june belagavi", "june belgaavi", "rajwada", "rajawada", "rajawad", "malprabha nagar", "chavadi galli"],
+      "anchor": { "x": 56, "y": 69 }
+    },
+    {
+      "feature_key": "yellur-eastern-belt",
+      "label": "Yellur belt",
+      "aliases": ["yellur", "awacharatti", "yaramal", "masagoudanahatti", "dhamne", "balagamatti", "machhe", "macche"],
+      "anchor": { "x": 79, "y": 63 }
+    }
+  ],
+  "fallback_anchors": [
+    { "x": 25, "y": 26 },
+    { "x": 42, "y": 22 },
+    { "x": 62, "y": 28 },
+    { "x": 21, "y": 51 },
+    { "x": 43, "y": 45 },
+    { "x": 68, "y": 48 },
+    { "x": 34, "y": 71 },
+    { "x": 57, "y": 73 }
+  ]
+}

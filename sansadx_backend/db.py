@@ -240,6 +240,26 @@ class TenantProfile(Base):
     tenant = relationship("Tenant", backref="profile")
 
 
+class SeatMapManifest(Base):
+    """DB-backed seat map manifest registry for constituency dashboard maps."""
+    __tablename__ = "seat_map_manifests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    seat_key = Column(String, unique=True, index=True, nullable=False)
+    seat_type = Column(String, index=True, nullable=False)
+    seat_name = Column(String, index=True, nullable=False)
+    state = Column(String, nullable=True)
+    aliases = Column(JSON, default=list)
+    asset = Column(JSON, default=dict)
+    features = Column(JSON, default=list)
+    fallback_anchors = Column(JSON, default=list)
+    status = Column(String, default="draft")
+    version = Column(Integer, default=1)
+    source = Column(String, default="admin")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Archive(Base):
     """Stores saved drafts/archives for users."""
     __tablename__ = "archives"

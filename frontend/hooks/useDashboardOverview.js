@@ -16,6 +16,7 @@ export function useDashboardOverview() {
     const [cases, setCases] = useState([]);
     const [letters, setLetters] = useState([]);
     const [news, setNews] = useState({ national: [], local: [] });
+    const [seatManifest, setSeatManifest] = useState(null);
     const [summaryLoaded, setSummaryLoaded] = useState(false);
     const [casesLoaded, setCasesLoaded] = useState(false);
 
@@ -35,6 +36,13 @@ export function useDashboardOverview() {
             if (!cancelled) {
                 setCases(normalizeDashboardCases(response));
                 setCasesLoaded(true);
+            }
+        })();
+
+        (async () => {
+            const response = await apiGet('/api/maps/seat-manifest').catch(() => null);
+            if (!cancelled) {
+                setSeatManifest(response);
             }
         })();
 
@@ -64,6 +72,7 @@ export function useDashboardOverview() {
         cases,
         letters,
         news,
+        seatManifest,
         isInitialLoading: !summaryLoaded || !casesLoaded,
         isEmpty: getDashboardIsEmpty(summary, cases),
     };
