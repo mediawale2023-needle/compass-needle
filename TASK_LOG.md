@@ -539,3 +539,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Extended `modules/assembly_boundary_importer.py` with built-in assembly lookup by parliamentary seat, updated `modules/seat_map_generator.py` so MP manifests carry `asset.assembly_geojson` and derive locality anchors from real assembly sub-boundaries when available, and taught `DashboardConstituencyMap.jsx` to render those internal assembly lines on top of the parliamentary GeoJSON outline. Added regression coverage proving MP manifests now separate hotspot anchors by assembly geography instead of the old synthetic ring layout.
 - Files touched: `modules/assembly_boundary_importer.py`, `modules/seat_map_generator.py`, `frontend/components/dashboard/DashboardConstituencyMap.jsx`, `tests/test_seat_map_generator.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: This improves MP map credibility materially, but it still depends on the quality of the normalized assembly GeoJSON for each state. If a constituency's assembly shapes are wrong or stale in the source dataset, hotspot placement will still inherit that source-quality issue until the boundary library is corrected.
+
+- Date: 2026-06-01
+- Request: Push the parliamentary assembly-segment map refinement to GitHub.
+- Summary: Pushed commit `db1f82ce` (`Use assembly segments inside parliamentary maps`) to `origin/main`, publishing the parliamentary-map change that uses built-in assembly sub-boundaries for MP hotspot placement and renders assembly lines inside the real parliamentary GeoJSON outline.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is pushed but not deployed yet. The live dashboard will continue using the older flat parliamentary hotspot behavior until the backend is redeployed and the frontend build picks up the new renderer.
