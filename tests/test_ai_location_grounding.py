@@ -9,6 +9,7 @@ os.environ["OPENAI_API_KEY"] = "sk-test-fake-key-for-testing"
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import sansadx_backend.ai_engine as ai_engine
+from sansadx_backend.unified_taxonomy import build_taxonomy_fields
 
 
 def _stub_client(payload: dict):
@@ -203,3 +204,52 @@ def test_bureaucratic_case_can_stay_new_without_location(monkeypatch):
     assert result["assembly_constituency"] == "Unknown"
     assert result["grievance_data"]["location"] is None
     assert "ward number" not in result["political_response"].lower()
+
+
+def test_build_taxonomy_fields_overrides_wrong_road_guess_for_talathi_bribe():
+    fields = build_taxonomy_fields(
+        problem_domain="Infrastructure & Utilities",
+        problem_subdomain="Roads & Bridges",
+        raw_text="तलाठी पैसे मागत आहे, माझं काम करून द्या.",
+    )
+
+    assert fields["problem_domain"] == "Bureaucratic / Administrative"
+    assert fields["problem_subdomain"] == "Bribery/Corruption"
+    assert fields["convergence_program_type"] == "Monitoring & Transparency"
+    assert fields["categories"] == ["Bureaucratic / Administrative"]
+
+
+def test_normalize_grievance_taxonomy_overrides_wrong_road_guess_for_talathi_bribe():
+    grievance = {
+        "categories": ["Infrastructure & Utilities"],
+        "problem_domain": "Infrastructure & Utilities",
+        "problem_subdomain": "Roads & Bridges",
+        "convergence_program_type": "Public Asset Upgrade",
+        "location": None,
+        "person": "तलाठी",
+        "department": None,
+        "scheme": None,
+    }
+
+    normalized = ai_engine._normalize_grievance_taxonomy(
+        grievance,
+        "तलाठी पैसे मागत आहे, माझं काम करून द्या.",
+    )
+
+    assert normalized["problem_domain"] == "Bureaucratic / Administrative"
+    assert normalized["problem_subdomain"] == "Bribery/Corruption"
+    assert normalized["convergence_program_type"] == "Monitoring & Transparency"
+    assert normalized["categories"] == ["Bureaucratic / Administrative"]
+
+
+def test_build_taxonomy_fields_overrides_wrong_road_guess_for_patwari_money_demand():
+    fields = build_taxonomy_fields(
+        problem_domain="Infrastructure & Utilities",
+        problem_subdomain="Roads & Bridges",
+        raw_text="Patwari is asking for money to move my file.",
+    )
+
+    assert fields["problem_domain"] == "Bureaucratic / Administrative"
+    assert fields["problem_subdomain"] == "Bribery/Corruption"
+    assert fields["convergence_program_type"] == "Monitoring & Transparency"
+    assert fields["categories"] == ["Bureaucratic / Administrative"]

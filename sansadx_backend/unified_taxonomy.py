@@ -477,6 +477,75 @@ SUBDOMAIN_SIGNALS = {
     "Tax/Registration/Revenue Office": ("tax", "registration", "revenue office", "stamp duty"),
 }
 
+_CORRUPTION_EXPLICIT_MARKERS = (
+    "bribe", "bribery", "corrupt", "ghoos", "ghus", "rishwat",
+    "लाच", "रिश्वत", "घूस", "भ्रष्टाचार",
+)
+
+_CORRUPTION_OFFICIAL_MARKERS = (
+    "talathi", "talati", "तलाठी",
+    "patwari", "पटवारी",
+    "tehsildar", "tahsildar", "तहसीलदार",
+    "lekhpal", "लेखपाल",
+    "babu", "बाबू",
+    "clerk", "क्लर्क",
+    "officer", "अधिकारी",
+    "official", "अफसर",
+    "collector", "collectorate", "collector office",
+    "sdm", "एसडीएम",
+    "naib tehsildar", "नायब तहसीलदार",
+    "revenue office", "revenue department",
+    "block office", "sarkaari daftar", "karyalay", "कार्यालय",
+)
+
+_PAYMENT_MARKERS = (
+    "money", "cash", "paisa", "paise", "payment",
+    "पैसा", "पैसे", "रुपया", "रुपये",
+)
+
+_DEMAND_MARKERS = (
+    "ask", "asking", "asked", "demand", "demanding", "demanded",
+    "mang", "maang", "magt", "magat", "maga",
+    "माग", "मांग",
+)
+
+_WORKFLOW_CONTEXT_MARKERS = (
+    "work", "file", "application", "approval", "certificate", "sign", "service",
+    "काम", "फाइल", "अर्ज", "प्रमाणपत्र", "साइन", "सेवा",
+)
+
+
+def _has_any_marker(blob: str, markers: tuple[str, ...]) -> bool:
+    return any(marker in blob for marker in markers)
+
+
+def _looks_like_payment_demand(blob: str) -> bool:
+    has_payment = _has_any_marker(blob, _PAYMENT_MARKERS)
+    has_demand = _has_any_marker(blob, _DEMAND_MARKERS)
+    return has_payment and has_demand
+
+
+def _infer_strong_taxonomy_override(blob: str) -> tuple[str | None, str | None]:
+    """
+    Return a high-confidence taxonomy override only for patterns where the
+    text itself clearly outweighs a bad model guess.
+
+    Keep this intentionally narrow; it is for rescuing obvious misroutes such
+    as official corruption/bribery complaints, not for general classification.
+    """
+    if not blob:
+        return None, None
+
+    has_explicit_corruption = _has_any_marker(blob, _CORRUPTION_EXPLICIT_MARKERS)
+    has_official_context = _has_any_marker(blob, _CORRUPTION_OFFICIAL_MARKERS)
+    has_payment_demand = _looks_like_payment_demand(blob)
+    has_workflow_context = _has_any_marker(blob, _WORKFLOW_CONTEXT_MARKERS)
+
+    if (has_explicit_corruption or has_payment_demand) and (has_official_context or has_workflow_context):
+        return "Bureaucratic / Administrative", "Bribery/Corruption"
+
+    return None, None
+
 
 def _norm(value: str | None) -> str:
     return str(value or "").strip()
@@ -600,6 +669,15 @@ def build_taxonomy_fields(
     Return canonical taxonomy fields for storage and API responses.
     """
     blob = _search_text_blob((problem_subdomain, scheme, department, raw_text))
+    strong_domain, strong_subdomain = _infer_strong_taxonomy_override(blob)
+    if strong_domain and strong_subdomain:
+        return {
+            "problem_domain": strong_domain,
+            "problem_subdomain": strong_subdomain,
+            "convergence_program_type": SUBDOMAIN_TO_PROGRAM_TYPE[strong_subdomain],
+            "categories": [strong_domain],
+        }
+
     inferred_domain = None
     inferred_subdomain = None
     if _lower(problem_domain) in GENERIC_DOMAIN_INPUTS:

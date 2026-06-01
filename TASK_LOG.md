@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-01
+- Request: Fix wrong category routing for official-bribery complaints like `तलाठी पैसे मागत आहे`.
+- Summary: Added a narrow high-confidence taxonomy override in `sansadx_backend/unified_taxonomy.py` so bribery or payment-demand semantics in official/revenue-office context now force `Bureaucratic / Administrative -> Bribery/Corruption` instead of falling back to bad generic infrastructure labels. Generalized the rule away from single-language phrase matching and added focused regressions covering both Marathi-script and English office-corruption complaints plus the AI normalization path.
+- Files touched: `sansadx_backend/unified_taxonomy.py`, `tests/test_ai_location_grounding.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The override is intentionally narrow; if more official-corruption patterns surface in other languages, extend the structural signal sets carefully and only when they clearly outweigh model guesses.
+
+- Date: 2026-06-01
 - Request: Push the voice-note normalization hardening batch to GitHub.
 - Summary: Pushed commit `60e6dcf3` (`Harden voice note normalization pipeline`) to `origin/main`, publishing the new voice-note normalization layer, tenant-aware location candidate grounding, and raw-versus-normalized transcript preservation for future voice-note cases.
 - Files touched: `modules/geography_resolver.py`, `modules/voice_note_normalizer.py`, `modules/whatsapp_media_intake.py`, `main.py`, `tests/test_voice_note_normalizer.py`, `tests/test_whatsapp_media_intake.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`

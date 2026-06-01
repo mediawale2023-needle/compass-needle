@@ -109,3 +109,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 
 - WhatsApp voice-note transcription now prefers Sarvam STT (`core/sarvam_client.py`) for `media_type="audio"` and falls back to the older Gemini multimodal normalization only when Sarvam is unavailable. Image and document normalization remain Gemini-backed.
 - Voice-note intake is now two-stage: Sarvam produces the raw transcript, then `modules/voice_note_normalizer.py` uses tenant-scoped geography candidates plus Gemini cleanup to create a safer normalized complaint text before the normal grievance pipeline sees it. Keep both `raw_transcript` and `normalized_text` available in media metadata for audit/debug.
+
+## Classification Memory
+
+- `sansadx_backend/unified_taxonomy.py` now includes a narrow high-confidence override for official-corruption complaints: if the text clearly combines bribery/corruption or payment-demand semantics with office-official context (`talathi`, `patwari`, `tehsildar`, `babu`, etc.), taxonomy normalization must force `Bureaucratic / Administrative -> Bribery/Corruption` even if the model guessed a generic infrastructure/roads label. Keep this override structural and cross-language rather than tied to one exact sentence or script.
