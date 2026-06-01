@@ -12,6 +12,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-06-01
+- Request: Push the voice-note normalization hardening batch to GitHub.
+- Summary: Pushed commit `60e6dcf3` (`Harden voice note normalization pipeline`) to `origin/main`, publishing the new voice-note normalization layer, tenant-aware location candidate grounding, and raw-versus-normalized transcript preservation for future voice-note cases.
+- Files touched: `modules/geography_resolver.py`, `modules/voice_note_normalizer.py`, `modules/whatsapp_media_intake.py`, `main.py`, `tests/test_voice_note_normalizer.py`, `tests/test_whatsapp_media_intake.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Production still needs a backend deploy/restart before live WhatsApp voice notes start using the new normalization pass, and ambiguous transcripts should continue to fall back to clarification or review instead of forced certainty.
+
 - Date: 2026-05-31
 - Request: Push the geography validation/diagnostics/backfill hardening batch to GitHub.
 - Summary: Pushed commit `1ec273d7` (`Harden geography validation and diagnostics`) to `origin/main`, publishing seat-safe onboarding validation, persisted `geography_diagnostics`, and the tenant-scoped geography backfill script/tests together as one coherent hardening batch.
