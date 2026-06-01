@@ -295,3 +295,33 @@ def test_admin_imports_parliamentary_boundary_for_mp_seat():
     assert manifest["asset"]["type"] == "geojson"
     assert manifest["asset"]["generated"] is False
     assert manifest["source"] == "generated-from-boundary"
+
+
+def test_admin_imports_builtin_parliamentary_boundary_for_mp_seat(monkeypatch):
+    _seed_database()
+    admin_headers = _auth_headers("sysadmin", 10, role="admin")
+
+    monkeypatch.setattr(
+        admin_api,
+        "import_builtin_parliamentary_boundary_for_seat",
+        lambda **kwargs: {
+            "seat_key": "mp:Belagavi",
+            "seat_type": "mp",
+            "seat_name": "Belagavi",
+            "state": "Karnataka",
+            "asset": {"type": "geojson", "path": "", "inline_svg": "", "geojson": {"type": "FeatureCollection", "features": []}},
+            "metadata": {"aspect_ratio": "100 / 60"},
+            "status": "verified",
+            "source": "datameet-parliamentary-2019",
+        },
+    )
+
+    resp = client.post(
+        "/api/admin/seat-boundaries/import-parliamentary-auto",
+        headers=admin_headers,
+        json={"seat_type": "mp", "seat_name": "Belagavi", "state": "Karnataka"},
+    )
+    assert resp.status_code == 200, resp.text
+    boundary = resp.json()["boundary"]
+    assert boundary["seat_key"] == "mp:Belagavi"
+    assert boundary["asset"]["type"] == "geojson"

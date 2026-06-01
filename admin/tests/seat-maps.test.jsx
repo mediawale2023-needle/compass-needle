@@ -2,16 +2,14 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
-const { apiGetMock, apiPostMock, apiUploadMock } = vi.hoisted(() => ({
+const { apiGetMock, apiPostMock } = vi.hoisted(() => ({
     apiGetMock: vi.fn(),
     apiPostMock: vi.fn(),
-    apiUploadMock: vi.fn(),
 }));
 
 vi.mock('@/lib/api', () => ({
     apiGet: (path) => apiGetMock(path),
     apiPost: (path, body) => apiPostMock(path, body),
-    apiUpload: (path, file) => apiUploadMock(path, file),
 }));
 
 import SeatMapsPage from '@/app/dashboard/seat-maps/page';
@@ -20,7 +18,6 @@ describe('Admin seat maps workflow page', () => {
     beforeEach(() => {
         apiGetMock.mockReset();
         apiPostMock.mockReset();
-        apiUploadMock.mockReset();
         apiGetMock.mockImplementation(async (path) => {
             if (path === '/api/admin/seat-maps/workflow') {
                 return {
@@ -70,18 +67,6 @@ describe('Admin seat maps workflow page', () => {
                 status: 'draft',
                 version: 1,
                 source: 'generated',
-            },
-        });
-        apiUploadMock.mockResolvedValue({
-            boundary: {
-                seat_key: 'mp:Belagavi',
-                seat_type: 'mp',
-                seat_name: 'Belagavi',
-                state: 'Karnataka',
-                asset: { type: 'geojson', path: '', inline_svg: '', geojson: { type: 'FeatureCollection', features: [] } },
-                metadata: { aspect_ratio: '100 / 60' },
-                status: 'verified',
-                source: 'datameet-parliamentary-2019',
             },
         });
     });
@@ -145,7 +130,7 @@ describe('Admin seat maps workflow page', () => {
         });
     });
 
-    it('uploads a parliamentary dataset to import an MP boundary', async () => {
+    it('uses the built-in parliamentary dataset to import an MP boundary', async () => {
         apiGetMock.mockImplementation(async (path) => {
             if (path === '/api/admin/seat-maps/workflow') {
                 return {
@@ -174,20 +159,37 @@ describe('Admin seat maps workflow page', () => {
             }
             return {};
         });
+        apiPostMock.mockImplementation(async (path) => {
+            if (path === '/api/admin/seat-boundaries/import-parliamentary-auto') {
+                return {
+                    boundary: {
+                        seat_key: 'mp:Belagavi',
+                        seat_type: 'mp',
+                        seat_name: 'Belagavi',
+                        state: 'Karnataka',
+                        asset: { type: 'geojson', path: '', inline_svg: '', geojson: { type: 'FeatureCollection', features: [] } },
+                        metadata: { aspect_ratio: '100 / 60' },
+                        status: 'verified',
+                        source: 'datameet-parliamentary-2019',
+                    },
+                };
+            }
+            return { manifest: {} };
+        });
 
         render(<SeatMapsPage />);
         expect(await screen.findByDisplayValue('Belagavi')).toBeInTheDocument();
 
-        const file = new File(['zip-bits'], 'maps-master.zip', { type: 'application/zip' });
-        fireEvent.change(screen.getByLabelText('Parliamentary dataset'), {
-            target: { files: [file] },
-        });
-        fireEvent.click(screen.getByRole('button', { name: 'Import MP boundary' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Import MP boundary automatically' }));
 
         await waitFor(() => {
-            expect(apiUploadMock).toHaveBeenCalledWith(
-                '/api/admin/seat-boundaries/import-parliamentary?seat_type=mp&seat_name=Belagavi&state=Karnataka',
-                file,
+            expect(apiPostMock).toHaveBeenCalledWith(
+                '/api/admin/seat-boundaries/import-parliamentary-auto',
+                expect.objectContaining({
+                    seat_type: 'mp',
+                    seat_name: 'Belagavi',
+                    state: 'Karnataka',
+                }),
             );
         });
     });

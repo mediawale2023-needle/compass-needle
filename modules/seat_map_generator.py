@@ -8,6 +8,7 @@ from typing import Any
 
 from sansadx_backend.db import build_seat_key, get_geography_data
 from modules.seat_boundaries import get_seat_boundary_for_identity
+from modules.parliamentary_boundary_importer import import_builtin_parliamentary_boundary_for_seat
 
 
 CANVAS_WIDTH = 100
@@ -221,6 +222,14 @@ def generate_seat_map_manifest(
 
     auto_aliases = _dedupe_preserve((aliases or []) + [clean_seat_name])
     boundary = get_seat_boundary_for_identity(clean_seat_type, clean_seat_name)
+    if not boundary and clean_seat_type == "mp":
+        try:
+            boundary = import_builtin_parliamentary_boundary_for_seat(
+                seat_name=clean_seat_name,
+                state=(state or "").strip(),
+            )
+        except Exception:
+            boundary = None
     if boundary and (
         (boundary.get("asset") or {}).get("path")
         or (boundary.get("asset") or {}).get("inline_svg")

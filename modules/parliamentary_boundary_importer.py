@@ -3,6 +3,8 @@ from __future__ import annotations
 import io
 import json
 import zipfile
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from modules.seat_boundaries import upsert_seat_boundary
@@ -10,6 +12,13 @@ from modules.seat_boundaries import upsert_seat_boundary
 
 DATASET_SOURCE = "datameet-parliamentary-2019"
 PARLIAMENTARY_GEOJSON_NAME = "india_pc_2019_simplified.geojson"
+BUILTIN_PARLIAMENTARY_GEOJSON_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "data"
+    / "maps"
+    / "parliamentary"
+    / PARLIAMENTARY_GEOJSON_NAME
+)
 
 
 def _normalize_token(value: str | None) -> str:
@@ -78,6 +87,13 @@ def load_parliamentary_geojson_from_upload(raw_bytes: bytes, filename: str | Non
     if lower_name.endswith(".geojson") or lower_name.endswith(".json") or not lower_name:
         return json.loads(raw_bytes.decode("utf-8"))
     raise ValueError("Upload a .zip or .geojson file.")
+
+
+@lru_cache(maxsize=1)
+def load_builtin_parliamentary_geojson() -> dict[str, Any]:
+    if not BUILTIN_PARLIAMENTARY_GEOJSON_PATH.exists():
+        raise ValueError(f"Built-in parliamentary dataset is missing at {BUILTIN_PARLIAMENTARY_GEOJSON_PATH}")
+    return json.loads(BUILTIN_PARLIAMENTARY_GEOJSON_PATH.read_text(encoding="utf-8"))
 
 
 def _matching_parliamentary_features(
@@ -159,6 +175,22 @@ def import_parliamentary_boundary_for_seat(
 
     payload = build_boundary_payload_from_parliamentary_feature(matches[0], status=status, source=source)
     return upsert_seat_boundary(payload)
+
+
+def import_builtin_parliamentary_boundary_for_seat(
+    *,
+    seat_name: str,
+    state: str = "",
+    status: str = "verified",
+    source: str = DATASET_SOURCE,
+) -> dict[str, Any]:
+    return import_parliamentary_boundary_for_seat(
+        load_builtin_parliamentary_geojson(),
+        seat_name=seat_name,
+        state=state,
+        status=status,
+        source=source,
+    )
 
 
 def import_all_parliamentary_boundaries(

@@ -32,6 +32,7 @@ from modules.seat_maps import list_all_seat_manifests, upsert_db_seat_manifest, 
 from modules.seat_map_generator import generate_seat_map_manifest
 from modules.seat_boundaries import get_seat_boundary, upsert_seat_boundary
 from modules.parliamentary_boundary_importer import (
+    import_builtin_parliamentary_boundary_for_seat,
     import_parliamentary_boundary_for_seat,
     load_parliamentary_geojson_from_upload,
 )
@@ -1231,6 +1232,32 @@ async def import_parliamentary_boundary(
         target_type="seat_boundary",
         target_name=boundary.get("seat_key") or f"mp:{seat_name}",
         change_summary=file.filename or "uploaded parliamentary dataset",
+    )
+    return {"success": True, "boundary": boundary}
+
+
+@router.post("/seat-boundaries/import-parliamentary-auto")
+def import_parliamentary_boundary_auto(req: GenerateSeatMapRequest, admin_user=Depends(get_admin_user)):
+    seat_type = _normalize_seat_type(req.seat_type)
+    if seat_type != "mp":
+        raise HTTPException(400, "Automatic parliamentary boundary import currently supports MP seats only")
+    seat_name = (req.seat_name or "").strip()
+    if not seat_name:
+        raise HTTPException(400, "seat_name is required")
+    try:
+        boundary = import_builtin_parliamentary_boundary_for_seat(
+            seat_name=seat_name,
+            state=(req.state or "").strip(),
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    _audit(
+        admin_user,
+        action="import_parliamentary_boundary_auto",
+        target_type="seat_boundary",
+        target_name=boundary.get("seat_key") or f"mp:{seat_name}",
+        change_summary="built-in parliamentary dataset",
     )
     return {"success": True, "boundary": boundary}
 

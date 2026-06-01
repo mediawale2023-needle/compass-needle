@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { apiGet, apiPost, apiUpload } from '@/lib/api';
+import { apiGet, apiPost } from '@/lib/api';
 
 const CARD = {
     background: '#fff',
@@ -95,7 +95,6 @@ export default function SeatMapsPage() {
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
     const [boundaryDraft, setBoundaryDraft] = useState({ asset_type: 'svg', asset_path: '', inline_svg: '', aspect_ratio: '100 / 72' });
-    const [boundaryDatasetFile, setBoundaryDatasetFile] = useState(null);
 
     async function loadWorkflow(preferredKey = '') {
         setLoading(true);
@@ -231,19 +230,15 @@ export default function SeatMapsPage() {
             setNotice('');
             return;
         }
-        if (!boundaryDatasetFile) {
-            setError('Choose the parliamentary dataset ZIP or GeoJSON file first.');
-            setNotice('');
-            return;
-        }
         setDatasetImporting(true);
         setError('');
         setNotice('');
         try {
-            await apiUpload(
-                `/api/admin/seat-boundaries/import-parliamentary?seat_type=${encodeURIComponent(seatType)}&seat_name=${encodeURIComponent(seatName)}&state=${encodeURIComponent(String(draft.state || '').trim())}`,
-                boundaryDatasetFile,
-            );
+            await apiPost('/api/admin/seat-boundaries/import-parliamentary-auto', {
+                seat_type: seatType,
+                seat_name: seatName,
+                state: String(draft.state || '').trim(),
+            });
             await loadWorkflow(String(draft.seat_key || '').trim() || `${seatType}:${seatName}`);
             setNotice(`Imported a real parliamentary boundary for ${seatName}`);
         } catch (err) {
@@ -464,25 +459,18 @@ export default function SeatMapsPage() {
                         </div>
                         <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed #d7e3dc' }}>
                             <div style={{ fontSize: '0.88rem', color: '#6b7f76', marginBottom: 12 }}>
-                                For MP seats, you can import a real constituency boundary directly from the parliamentary dataset ZIP or GeoJSON instead of preparing an asset manually.
+                                For MP seats, the system can now pull the real constituency boundary automatically from the built-in parliamentary dataset. No file upload is needed.
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'end' }}>
-                                <div>
-                                    <label style={LABEL}>Parliamentary dataset</label>
-                                    <input
-                                        type="file"
-                                        aria-label="Parliamentary dataset"
-                                        accept=".zip,.geojson,.json"
-                                        onChange={(e) => setBoundaryDatasetFile(e.target.files?.[0] || null)}
-                                        style={{ ...INPUT, padding: '8px 10px' }}
-                                    />
-                                </div>
-                                <button onClick={importBoundaryFromDataset} disabled={datasetImporting} style={SMALL_BTN}>
-                                    {datasetImporting ? 'Importing…' : 'Import MP boundary'}
+                            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                                <button onClick={importBoundaryFromDataset} disabled={datasetImporting || String(draft.seat_type || '').trim().toLowerCase() !== 'mp'} style={SMALL_BTN}>
+                                    {datasetImporting ? 'Importing…' : 'Import MP boundary automatically'}
                                 </button>
+                                <span style={{ fontSize: '0.8rem', color: '#6b7f76' }}>
+                                    Uses the built-in `india_pc_2019_simplified.geojson` library.
+                                </span>
                             </div>
                             <div style={{ marginTop: 8, fontSize: '0.8rem', color: '#6b7f76' }}>
-                                Best source: `maps-master.zip` → `india_pc_2019_simplified.geojson`
+                                If a matching parliamentary boundary exists, it will be ingested and reused for all tenants on that MP seat.
                             </div>
                         </div>
                     </div>
