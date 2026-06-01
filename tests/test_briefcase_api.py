@@ -406,6 +406,8 @@ def test_briefcase_cases_list_supports_filters_search_pagination_and_metadata_fa
     assert payload["cases"][0]["problem_domain"] == "Infrastructure & Utilities"
     assert payload["cases"][0]["problem_subdomain"] == "Water Supply"
     assert payload["cases"][0]["convergence_program_type"] == "Service Delivery Strengthening"
+    assert payload["cases"][0]["created_at"].endswith("Z")
+    assert payload["cases"][0]["updated_at"].endswith("Z")
 
     search_resp = client.get("/api/cases?search=Whitefield", headers=headers)
     assert search_resp.status_code == 200, search_resp.text
@@ -423,6 +425,7 @@ def test_briefcase_cases_list_supports_filters_search_pagination_and_metadata_fa
     assert export_resp.status_code == 200, export_resp.text
     assert export_resp.headers["content-type"].startswith("text/csv")
     assert "NDL-2026-00101" in export_resp.text
+    assert "Z" in export_resp.text
 
 
 def test_briefcase_status_notes_and_assignment_updates_are_logged():

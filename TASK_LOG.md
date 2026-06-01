@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-01
+- Request: Fix Briefcase `received` ages that were drifting by about 5.5 hours because case timestamps were serialized without timezone information.
+- Summary: Updated `api_router.py` so case-list/detail/export/media timestamps are normalized through `_coerce_iso()` into explicit UTC ISO strings with `Z`, including SQLite-style naive datetime strings in tests. Added Briefcase API assertions to lock the UTC contract and prevent frontend age drift from naive timestamp parsing.
+- Files touched: `api_router.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This fixes the backend contract for affected case APIs; any remaining screens showing drift are likely consuming other endpoints that still need the same UTC serialization pass.
+
+- Date: 2026-06-01
 - Request: Push the case-language persistence and backfill batch to GitHub.
 - Summary: Pushed commit `6c4e76a6` (`Persist and backfill case languages`) to `origin/main`, publishing detected-language persistence in case metadata, neutral Briefcase `UNK` fallback instead of fake `EN`, and the tenant-scoped language backfill script/tests.
 - Files touched: `main.py`, `frontend/components/briefcase/briefcase-shared.jsx`, `scripts/backfill_case_languages.py`, `tests/test_case_language_backfill.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`

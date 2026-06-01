@@ -115,3 +115,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 ## Classification Memory
 
 - `sansadx_backend/unified_taxonomy.py` now includes a narrow high-confidence override for official-corruption complaints: if the text clearly combines bribery/corruption or payment-demand semantics with office-official context (`talathi`, `patwari`, `tehsildar`, `babu`, etc.), taxonomy normalization must force `Bureaucratic / Administrative -> Bribery/Corruption` even if the model guessed a generic infrastructure/roads label. Keep this override structural and cross-language rather than tied to one exact sentence or script.
+
+## API Contract Memory
+
+- Case-facing timestamps from `api_router.py` should be emitted as explicit UTC ISO strings with a trailing `Z`, even when the underlying DB values are naive UTC datetimes or SQLite-style datetime strings. Frontend age/date widgets like Briefcase `received` should not have to guess timezone semantics from raw case timestamps.

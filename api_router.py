@@ -598,9 +598,7 @@ def get_cases(
         _apply_tenant_safe_case_geography(c, tenant_constituency, tid)
 
         for field in ["created_at", "updated_at"]:
-            val = c.get(field)
-            if val and hasattr(val, "isoformat"):
-                c[field] = val.isoformat()
+            c[field] = _coerce_iso(c.get(field))
 
     return {"cases": cases, "total": total, "page": page, "limit": limit, "pages": pages}
 
@@ -743,9 +741,7 @@ def get_deleted_cases_mp(user=Depends(get_current_user)):
     )
     for c in cases:
         for field in ["created_at", "updated_at", "deleted_at"]:
-            val = c.get(field)
-            if val and hasattr(val, "isoformat"):
-                c[field] = val.isoformat()
+            c[field] = _coerce_iso(c.get(field))
     return {"cases": cases}
 
 
@@ -866,8 +862,8 @@ def export_cases(
             row.get("assembly") or "",
             "yes" if row.get("is_critical") else "no",
             row.get("assigned_to") or "",
-            row.get("created_at").isoformat() if hasattr(row.get("created_at"), "isoformat") else row.get("created_at") or "",
-            row.get("updated_at").isoformat() if hasattr(row.get("updated_at"), "isoformat") else row.get("updated_at") or "",
+            _coerce_iso(row.get("created_at")) or "",
+            _coerce_iso(row.get("updated_at")) or "",
             row.get("raw_message") or "",
         ])
 
@@ -894,9 +890,7 @@ def get_case(case_id: int, user=Depends(get_current_user)):
     _apply_tenant_safe_case_geography(case, case.get("mp_constituency"), tid)
 
     for field in ["created_at", "updated_at", "resolved_at"]:
-        val = case.get(field)
-        if val and hasattr(val, "isoformat"):
-            case[field] = val.isoformat()
+        case[field] = _coerce_iso(case.get(field))
 
     try:
         media_rows = _q("""
@@ -906,9 +900,7 @@ def get_case(case_id: int, user=Depends(get_current_user)):
             ORDER BY id ASC
         """, {"tid": tid, "cid": case_id})
         for media in media_rows:
-            val = media.get("created_at")
-            if val and hasattr(val, "isoformat"):
-                media["created_at"] = val.isoformat()
+            media["created_at"] = _coerce_iso(media.get("created_at"))
         case["media"] = media_rows
         case["media_count"] = len(media_rows)
     except Exception:
@@ -1777,7 +1769,23 @@ class ResearchSessionCreateRequest(BaseModel):
 
 
 def _coerce_iso(value):
-    return value.isoformat() if value and hasattr(value, "isoformat") else value
+    if not value:
+        return value
+    try:
+        if isinstance(value, str):
+            try:
+                dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return value
+        else:
+            if not hasattr(value, "isoformat"):
+                return value
+            dt = value
+        if getattr(dt, "tzinfo", None) is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat().replace("+00:00", "Z")
+    except Exception:
+        return value.isoformat() if hasattr(value, "isoformat") else value
 
 
 def _parse_json_field(value, default):
