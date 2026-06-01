@@ -2280,6 +2280,9 @@ def _process_citizen_media_complaint(
             "media_type": media_type,
             "caption": caption,
             "extracted_text": normalized.text,
+            "raw_transcript": getattr(normalized, "raw_text", "") or normalized.text,
+            "transcript_provider": getattr(normalized, "transcript_provider", "") or "",
+            "normalization_notes": getattr(normalized, "normalization_notes", None),
             "mentioned_location_original": normalized.mentioned_location_original,
             "mentioned_location_roman": normalized.mentioned_location_roman,
             "meta_message_id": msg_id,
@@ -2748,6 +2751,9 @@ def _run_citizen_case_enrichment(
         "source_media": bool(media_source),
         "source_media_type": media_source.get("media_type") if media_source else "",
         "source_media_caption": media_source.get("caption", "") if media_source else "",
+        "source_media_raw_transcript": media_source.get("raw_transcript", "") if media_source else "",
+        "source_media_transcript_provider": media_source.get("transcript_provider", "") if media_source else "",
+        "source_media_normalization_notes": media_source.get("normalization_notes") if media_source else None,
     }
 
     return {

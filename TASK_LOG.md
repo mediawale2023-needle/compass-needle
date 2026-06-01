@@ -377,3 +377,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Pushed commit `036bcfbf` (`Use Sarvam for voice note transcription`) to `origin/main`, publishing the new Sarvam-first audio transcription path with Gemini fallback and the focused media-intake tests.
 - Files touched: `core/sarvam_client.py`, `modules/whatsapp_media_intake.py`, `tests/test_whatsapp_media_intake.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: The live backend still needs a deploy/restart before WhatsApp voice notes start using Sarvam in production.
+
+- Date: 2026-05-31
+- Request: Improve future voice-note reading and mapping accuracy across languages and issue types, not just for a single corrected case.
+- Summary: Added a new `modules/voice_note_normalizer.py` layer that sits between Sarvam transcription and grievance classification, builds a tenant-scoped shortlist of likely localities using resolver candidates, and uses Gemini to conservatively clean ASR drift without translating the citizen’s language. Media intake now preserves both the raw transcript and normalized complaint text in source-media metadata, and the geography resolver exposes `suggest_location_candidates()` for voice-note grounding.
+- Files touched: `modules/geography_resolver.py`, `modules/voice_note_normalizer.py`, `modules/whatsapp_media_intake.py`, `main.py`, `tests/test_voice_note_normalizer.py`, `tests/test_whatsapp_media_intake.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This materially improves the pipeline, but true production confidence still depends on live OpenAI/Gemini quota health and real-world evaluation across diverse voice notes; ambiguous cases should still fall back to clarification or review instead of forced certainty.

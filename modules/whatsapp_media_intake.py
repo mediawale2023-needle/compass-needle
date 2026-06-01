@@ -21,10 +21,13 @@ class NormalizedMediaComplaint:
     text: str
     media_type: str
     mime_type: str
+    raw_text: str = ""
     extracted_language: str = ""
     mentioned_location_original: str = ""
     mentioned_location_roman: str = ""
     confidence: str = ""
+    transcript_provider: str = ""
+    normalization_notes: dict[str, Any] | None = None
     error: str = ""
 
 
@@ -109,37 +112,54 @@ def _normalize_sarvam_transcript(
         logger.warning("Sarvam transcription unavailable, falling back to Gemini: %s", result.error)
         return None
 
-    complaint_text = str(result.transcript or "").strip()
+    raw_transcript = str(result.transcript or "").strip()
     if caption.strip():
-        complaint_text = f"{complaint_text}\n\nCitizen caption: {caption.strip()}".strip()
+        raw_transcript = f"{raw_transcript}\n\nCitizen caption: {caption.strip()}".strip()
 
-    location_roman = ""
-    location_original = ""
-    # Best-effort hint only; real geography resolution still happens downstream.
-    lines = [line.strip() for line in complaint_text.splitlines() if line.strip()]
-    candidate_text = " ".join(lines[:2])
-    match = re.search(r"\b(?:in|at|from|near)\s+([A-Za-z][A-Za-z0-9 .,'-]{2,60})", candidate_text, flags=re.IGNORECASE)
-    if match:
-        location_roman = match.group(1).strip(" .,:;!?")
-        location_original = location_roman
+    try:
+        from modules.voice_note_normalizer import normalize_voice_note_transcript
+        normalized = normalize_voice_note_transcript(
+            raw_transcript,
+            tenant_id=tenant_id,
+            detected_language=_sarvam_language_name(result.language_code),
+            caption=caption,
+        )
+    except Exception as exc:
+        logger.warning("Voice-note normalization unavailable, using raw Sarvam transcript: %s", exc)
+        normalized = None
+
+    complaint_text = (normalized.normalized_text if normalized else raw_transcript).strip() or raw_transcript
+    location_roman = (normalized.mentioned_location_roman if normalized else "").strip()
+    location_original = (normalized.mentioned_location_original if normalized else "").strip()
+    if not location_roman or not location_original:
+        lines = [line.strip() for line in complaint_text.splitlines() if line.strip()]
+        candidate_text = " ".join(lines[:2])
+        match = re.search(r"\b(?:in|at|from|near)\s+([A-Za-z][A-Za-z0-9 .,'-]{2,60})", candidate_text, flags=re.IGNORECASE)
+        if match and not location_roman:
+            location_roman = match.group(1).strip(" .,:;!?")
+            location_original = location_original or location_roman
 
     logger.info(
-        "WhatsApp voice note transcribed via Sarvam: type=%s mime=%s chars=%s lang=%s request_id=%s",
+        "WhatsApp voice note transcribed via Sarvam: type=%s mime=%s chars=%s lang=%s request_id=%s provider=%s",
         media_type,
         mime_type,
         len(complaint_text),
         result.language_code,
         result.request_id,
+        normalized.provider if normalized else "sarvam",
     )
     return NormalizedMediaComplaint(
         ok=True,
         text=complaint_text,
         media_type=media_type,
         mime_type=mime_type,
-        extracted_language=_sarvam_language_name(result.language_code),
+        raw_text=raw_transcript,
+        extracted_language=(normalized.extracted_language if normalized else _sarvam_language_name(result.language_code)),
         mentioned_location_original=location_original,
         mentioned_location_roman=location_roman,
-        confidence="high",
+        confidence=(normalized.confidence if normalized else "high"),
+        transcript_provider="sarvam",
+        normalization_notes=(normalized.notes if normalized else {"normalizer": "none"}),
     )
 
 

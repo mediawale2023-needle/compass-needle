@@ -908,13 +908,20 @@ def _get_tenant_seat_context(tenant_id: int | None) -> Optional[Dict[str, str]]:
     return None
 
 # --- RESOLVER ---
-def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenant_id: Optional[int] = None) -> Dict[str, Any]:
-    if not text: return {"location_resolved": False}
-    if not _geography_index["loaded"]: load_geography_index()
+def _rank_location_candidates(
+    text: str,
+    *,
+    scope_parliamentary: Optional[str] = None,
+    tenant_id: Optional[int] = None,
+) -> list[Dict[str, Any]]:
+    if not text:
+        return []
+    if not _geography_index["loaded"]:
+        load_geography_index()
 
     query_forms = _build_match_forms(text)
     if not query_forms:
-        return {"location_resolved": False}
+        return []
 
     clean_text = max(query_forms, key=len)
     spaceless_query_forms = _spaceless_forms(query_forms)
@@ -925,6 +932,7 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
         user_keywords |= get_keywords(form)
     
     logger.debug(f"RESOLVING: '{clean_text}' (tenant={tenant_id})")
+    tenant_context = _get_tenant_seat_context(tenant_id) if tenant_id is not None else None
 
     # 1. TENANT-SPECIFIC OVERRIDES (from tenant_overrides.json)
     if tenant_id is not None:
@@ -934,39 +942,62 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
             if not alias_forms:
                 continue
             if alias_forms & query_forms:
-                return {
+                return [{
                     "location_resolved": True,
                     "assembly_constituency": payload["assembly"],
                     "matched_value": _display_location_name(payload["display"]),
                     "confidence": "db_alias_exact",
                     "confidence_level": "exact",
                     "match_type": "db_alias_exact",
-                }
+                    "assembly": payload["assembly"],
+                    "parl": scope_parliamentary or (tenant_context or {}).get("scope_parliamentary"),
+                    "seat_type": (tenant_context or {}).get("seat_type"),
+                    "seat_name": (tenant_context or {}).get("seat_name"),
+                    "name": payload["display"],
+                    "matched_name": _display_location_name(payload["display"]),
+                    "score": 1000,
+                    "type": "db_alias_exact",
+                }]
             for alias_form in alias_forms:
                 if len(alias_form) >= 5 and any(re.search(r'\b' + re.escape(alias_form) + r'\b', qf) for qf in query_forms):
-                    return {
+                    return [{
                         "location_resolved": True,
                         "assembly_constituency": payload["assembly"],
                         "matched_value": _display_location_name(payload["display"]),
                         "confidence": "db_alias_boundary",
                         "confidence_level": "boundary",
                         "match_type": "db_alias_boundary",
-                    }
+                        "assembly": payload["assembly"],
+                        "parl": scope_parliamentary or (tenant_context or {}).get("scope_parliamentary"),
+                        "seat_type": (tenant_context or {}).get("seat_type"),
+                        "seat_name": (tenant_context or {}).get("seat_name"),
+                        "name": payload["display"],
+                        "matched_name": _display_location_name(payload["display"]),
+                        "score": 980,
+                        "type": "db_alias_boundary",
+                    }]
 
         tenant_overrides = _load_tenant_overrides(tenant_id)
         for k, v in tenant_overrides.items():
             if k.lower() in clean_text:
                 logger.debug(f"   OVERRIDE (tenant {tenant_id}): {k} -> {v}")
-                return {
+                return [{
                     "location_resolved": True,
                     "assembly_constituency": v,
                     "matched_value": k.title(),
                     "confidence": "god_mode",
                     "confidence_level": "exact",
                     "match_type": "god_mode",
-                }
+                    "assembly": v,
+                    "parl": scope_parliamentary or (tenant_context or {}).get("scope_parliamentary"),
+                    "seat_type": (tenant_context or {}).get("seat_type"),
+                    "seat_name": (tenant_context or {}).get("seat_name"),
+                    "name": k.title(),
+                    "matched_name": k.title(),
+                    "score": 990,
+                    "type": "god_mode",
+                }]
 
-    tenant_context = _get_tenant_seat_context(tenant_id) if tenant_id is not None else None
     seat_scope_type = normalize((tenant_context or {}).get("seat_type", ""))
     seat_scope_name = normalize((tenant_context or {}).get("seat_name", ""))
 
@@ -1121,10 +1152,57 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
                     "type": match_type
                 })
 
+    candidates.sort(key=lambda x: (-x["score"], len(x.get("matched_name") or ""), len(x["name"])))
+    return candidates
+
+
+def suggest_location_candidates(
+    text: str,
+    *,
+    scope_parliamentary: Optional[str] = None,
+    tenant_id: Optional[int] = None,
+    limit: int = 5,
+) -> list[Dict[str, Any]]:
+    candidates = _rank_location_candidates(
+        text,
+        scope_parliamentary=scope_parliamentary,
+        tenant_id=tenant_id,
+    )
+    if not candidates:
+        return []
+    suggestions: list[Dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for candidate in candidates:
+        key = (str(candidate.get("assembly") or ""), str(candidate.get("matched_name") or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        suggestions.append({
+            "matched_value": candidate["matched_name"],
+            "assembly_constituency": candidate["assembly"],
+            "parliamentary_constituency": candidate.get("parl"),
+            "seat_type": candidate.get("seat_type"),
+            "seat_name": candidate.get("seat_name"),
+            "score": candidate["score"],
+            "match_type": candidate["type"],
+            "confidence_level": _confidence_level_for_match_type(candidate["type"]),
+        })
+        if len(suggestions) >= max(1, int(limit)):
+            break
+    return suggestions
+
+
+def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenant_id: Optional[int] = None) -> Dict[str, Any]:
+    if not text:
+        return {"location_resolved": False}
+    candidates = _rank_location_candidates(
+        text,
+        scope_parliamentary=scope_parliamentary,
+        tenant_id=tenant_id,
+    )
     if not candidates:
         return {"location_resolved": False}
 
-    candidates.sort(key=lambda x: (-x["score"], len(x.get("matched_name") or ""), len(x["name"])))
     winner = candidates[0]
     top_score = winner["score"]
     top_candidates = [c for c in candidates if c["score"] == top_score]
