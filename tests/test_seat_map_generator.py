@@ -5,6 +5,11 @@ def test_generate_seat_map_manifest_uses_shared_geography(monkeypatch):
     monkeypatch.setattr(seat_map_generator, "get_seat_boundary_for_identity", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         seat_map_generator,
+        "import_builtin_assembly_boundary_for_seat",
+        lambda **kwargs: (_ for _ in ()).throw(ValueError("no built-in boundary")),
+    )
+    monkeypatch.setattr(
+        seat_map_generator,
         "get_geography_data",
         lambda **kwargs: {
             "Belgaum South": [
@@ -108,8 +113,53 @@ def test_generate_seat_map_manifest_prefers_registered_geojson_boundary(monkeypa
     assert manifest["source"] == "generated-from-boundary"
 
 
+def test_generate_seat_map_manifest_auto_imports_builtin_assembly_boundary(monkeypatch):
+    monkeypatch.setattr(
+        seat_map_generator,
+        "get_geography_data",
+        lambda **kwargs: {
+            "Belgaum South": [{"locality": "Nath Pai Circle"}],
+        },
+    )
+    monkeypatch.setattr(seat_map_generator, "get_seat_boundary_for_identity", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        seat_map_generator,
+        "import_builtin_assembly_boundary_for_seat",
+        lambda **kwargs: {
+            "source": "datameet-assembly-2022-normalized",
+            "asset": {
+                "type": "geojson",
+                "path": "",
+                "inline_svg": "",
+                "geojson": {"type": "FeatureCollection", "features": []},
+            },
+            "metadata": {"aspect_ratio": "100 / 65"},
+        },
+    )
+
+    manifest = seat_map_generator.generate_seat_map_manifest(
+        seat_type="mla",
+        seat_name="Belgaum Dakshin",
+        state="Karnataka",
+    )
+
+    assert manifest["asset"]["type"] == "geojson"
+    assert manifest["asset"]["generated"] is False
+    assert manifest["source"] == "generated-from-boundary"
+
+
 def test_generate_seat_map_manifest_requires_geography(monkeypatch):
     monkeypatch.setattr(seat_map_generator, "get_geography_data", lambda **kwargs: {})
+    monkeypatch.setattr(
+        seat_map_generator,
+        "import_builtin_assembly_boundary_for_seat",
+        lambda **kwargs: (_ for _ in ()).throw(ValueError("no built-in boundary")),
+    )
+    monkeypatch.setattr(
+        seat_map_generator,
+        "import_builtin_parliamentary_boundary_for_seat",
+        lambda **kwargs: (_ for _ in ()).throw(ValueError("no built-in boundary")),
+    )
     try:
         seat_map_generator.generate_seat_map_manifest(
             seat_type="mp",

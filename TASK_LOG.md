@@ -521,3 +521,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Pushed commit `84996e26` (`Bundle parliamentary boundary library`) to `origin/main`, publishing the in-repo MP boundary dataset, automatic parliamentary boundary import endpoint, and the no-upload Seat Maps admin flow for MP constituencies.
 - Files touched: `TASK_LOG.md`
 - Risks or follow-ups: This is pushed but not deployed yet. The new no-upload MP boundary flow will appear live only after the backend and admin frontend are redeployed.
+
+- Date: 2026-06-01
+- Request: Extend the no-upload built-in boundary ingestion system to MLA seats as well, so admins never need to upload constituency datasets manually.
+- Summary: Normalized the Datameet assembly shapefile into a built-in GeoJSON library at `data/maps/assembly/india_ac_normalized.geojson`, added `modules/assembly_boundary_importer.py`, generalized the admin endpoint to `POST /api/admin/seat-boundaries/import-auto`, and updated seat-map generation so both MP and MLA seats attempt built-in boundary import before any blob fallback. The Seat Maps UI now uses a single `Import real boundary automatically` action for both seat types.
+- Files touched: `data/maps/assembly/india_ac_normalized.geojson`, `modules/assembly_boundary_importer.py`, `modules/seat_map_generator.py`, `admin_api.py`, `admin/app/dashboard/seat-maps/page.js`, `tests/test_dashboard_map_manifest_api.py`, `tests/test_seat_map_generator.py`, `tests/test_assembly_boundary_importer.py`, `admin/tests/seat-maps.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The built-in MLA library comes from the normalized Datameet assembly source, which still has known delimitation/naming caveats in some states. The admin experience is now upload-free, but boundary accuracy should still be spot-checked for high-stakes constituencies.

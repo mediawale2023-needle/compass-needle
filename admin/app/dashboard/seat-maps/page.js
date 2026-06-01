@@ -225,24 +225,19 @@ export default function SeatMapsPage() {
             setNotice('');
             return;
         }
-        if (seatType !== 'mp') {
-            setError('The current open dataset importer supports MP constituency boundaries only.');
-            setNotice('');
-            return;
-        }
         setDatasetImporting(true);
         setError('');
         setNotice('');
         try {
-            await apiPost('/api/admin/seat-boundaries/import-parliamentary-auto', {
+            await apiPost('/api/admin/seat-boundaries/import-auto', {
                 seat_type: seatType,
                 seat_name: seatName,
                 state: String(draft.state || '').trim(),
             });
             await loadWorkflow(String(draft.seat_key || '').trim() || `${seatType}:${seatName}`);
-            setNotice(`Imported a real parliamentary boundary for ${seatName}`);
+            setNotice(`Imported a real ${seatType === 'mp' ? 'parliamentary' : 'assembly'} boundary for ${seatName}`);
         } catch (err) {
-            setError(err.message || 'Unable to import parliamentary boundary.');
+            setError(err.message || 'Unable to import the real boundary automatically.');
         } finally {
             setDatasetImporting(false);
         }
@@ -459,18 +454,20 @@ export default function SeatMapsPage() {
                         </div>
                         <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed #d7e3dc' }}>
                             <div style={{ fontSize: '0.88rem', color: '#6b7f76', marginBottom: 12 }}>
-                                For MP seats, the system can now pull the real constituency boundary automatically from the built-in parliamentary dataset. No file upload is needed.
+                                The system can pull a real constituency boundary automatically from the built-in boundary libraries. No admin upload is needed.
                             </div>
                             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                                <button onClick={importBoundaryFromDataset} disabled={datasetImporting || String(draft.seat_type || '').trim().toLowerCase() !== 'mp'} style={SMALL_BTN}>
-                                    {datasetImporting ? 'Importing…' : 'Import MP boundary automatically'}
+                                <button onClick={importBoundaryFromDataset} disabled={datasetImporting} style={SMALL_BTN}>
+                                    {datasetImporting ? 'Importing…' : 'Import real boundary automatically'}
                                 </button>
                                 <span style={{ fontSize: '0.8rem', color: '#6b7f76' }}>
-                                    Uses the built-in `india_pc_2019_simplified.geojson` library.
+                                    {String(draft.seat_type || '').trim().toLowerCase() === 'mp'
+                                        ? 'Uses the built-in parliamentary GeoJSON library.'
+                                        : 'Uses the built-in normalized assembly GeoJSON library.'}
                                 </span>
                             </div>
                             <div style={{ marginTop: 8, fontSize: '0.8rem', color: '#6b7f76' }}>
-                                If a matching parliamentary boundary exists, it will be ingested and reused for all tenants on that MP seat.
+                                If a matching boundary exists, it will be ingested once and reused for all tenants on that seat.
                             </div>
                         </div>
                     </div>

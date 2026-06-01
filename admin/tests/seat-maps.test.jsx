@@ -180,14 +180,50 @@ describe('Admin seat maps workflow page', () => {
         render(<SeatMapsPage />);
         expect(await screen.findByDisplayValue('Belagavi')).toBeInTheDocument();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Import MP boundary automatically' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Import real boundary automatically' }));
 
         await waitFor(() => {
             expect(apiPostMock).toHaveBeenCalledWith(
-                '/api/admin/seat-boundaries/import-parliamentary-auto',
+                '/api/admin/seat-boundaries/import-auto',
                 expect.objectContaining({
                     seat_type: 'mp',
                     seat_name: 'Belagavi',
+                    state: 'Karnataka',
+                }),
+            );
+        });
+    });
+
+    it('uses the built-in assembly dataset to import an MLA boundary', async () => {
+        apiPostMock.mockImplementation(async (path) => {
+            if (path === '/api/admin/seat-boundaries/import-auto') {
+                return {
+                    boundary: {
+                        seat_key: 'mla:Belgaum Dakshin',
+                        seat_type: 'mla',
+                        seat_name: 'Belgaum Dakshin',
+                        state: 'Karnataka',
+                        asset: { type: 'geojson', path: '', inline_svg: '', geojson: { type: 'FeatureCollection', features: [] } },
+                        metadata: { aspect_ratio: '100 / 65' },
+                        status: 'verified',
+                        source: 'datameet-assembly-2022-normalized',
+                    },
+                };
+            }
+            return { manifest: {} };
+        });
+
+        render(<SeatMapsPage />);
+        expect(await screen.findByDisplayValue('Belgaum Dakshin')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Import real boundary automatically' }));
+
+        await waitFor(() => {
+            expect(apiPostMock).toHaveBeenCalledWith(
+                '/api/admin/seat-boundaries/import-auto',
+                expect.objectContaining({
+                    seat_type: 'mla',
+                    seat_name: 'Belgaum Dakshin',
                     state: 'Karnataka',
                 }),
             );

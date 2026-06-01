@@ -31,6 +31,7 @@ from modules.constituencies import ALL_CONSTITUENCIES
 from modules.seat_maps import list_all_seat_manifests, upsert_db_seat_manifest, get_db_seat_manifest, list_seat_map_workflows
 from modules.seat_map_generator import generate_seat_map_manifest
 from modules.seat_boundaries import get_seat_boundary, upsert_seat_boundary
+from modules.assembly_boundary_importer import import_builtin_assembly_boundary_for_seat
 from modules.parliamentary_boundary_importer import (
     import_builtin_parliamentary_boundary_for_seat,
     import_parliamentary_boundary_for_seat,
@@ -1258,6 +1259,36 @@ def import_parliamentary_boundary_auto(req: GenerateSeatMapRequest, admin_user=D
         target_type="seat_boundary",
         target_name=boundary.get("seat_key") or f"mp:{seat_name}",
         change_summary="built-in parliamentary dataset",
+    )
+    return {"success": True, "boundary": boundary}
+
+
+@router.post("/seat-boundaries/import-auto")
+def import_boundary_auto(req: GenerateSeatMapRequest, admin_user=Depends(get_admin_user)):
+    seat_type = _normalize_seat_type(req.seat_type)
+    seat_name = (req.seat_name or "").strip()
+    if not seat_name:
+        raise HTTPException(400, "seat_name is required")
+    try:
+        if seat_type == "mp":
+            boundary = import_builtin_parliamentary_boundary_for_seat(
+                seat_name=seat_name,
+                state=(req.state or "").strip(),
+            )
+        else:
+            boundary = import_builtin_assembly_boundary_for_seat(
+                seat_name=seat_name,
+                state=(req.state or "").strip(),
+            )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    _audit(
+        admin_user,
+        action="import_boundary_auto",
+        target_type="seat_boundary",
+        target_name=boundary.get("seat_key") or f"{seat_type}:{seat_name}",
+        change_summary=f"built-in {'parliamentary' if seat_type == 'mp' else 'assembly'} dataset",
     )
     return {"success": True, "boundary": boundary}
 

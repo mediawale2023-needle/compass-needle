@@ -38,6 +38,7 @@ import main
 import api_router
 import core.db_helpers as db_helpers
 import sansadx_backend.db as dbmod
+import modules.seat_map_generator as seat_map_generator
 from sansadx_backend.db import Base, hash_password
 
 
@@ -175,17 +176,22 @@ def test_admin_seat_map_upsert_overrides_repo_manifest():
 def test_admin_seat_map_generate_creates_generated_manifest():
     _seed_database()
     admin_headers = _auth_headers("sysadmin", 10, role="admin")
+    original_import = seat_map_generator.import_builtin_assembly_boundary_for_seat
+    seat_map_generator.import_builtin_assembly_boundary_for_seat = lambda **kwargs: (_ for _ in ()).throw(ValueError("no built-in boundary"))
+    try:
+        resp = client.post(
+            "/api/admin/seat-maps/generate",
+            headers=admin_headers,
+            json={
+                "seat_type": "mla",
+                "seat_name": "Belgaum Dakshin",
+                "state": "Karnataka",
+                "aliases": ["Belgaum Dakshin"],
+            },
+        )
+    finally:
+        seat_map_generator.import_builtin_assembly_boundary_for_seat = original_import
 
-    resp = client.post(
-        "/api/admin/seat-maps/generate",
-        headers=admin_headers,
-        json={
-            "seat_type": "mla",
-            "seat_name": "Belgaum Dakshin",
-            "state": "Karnataka",
-            "aliases": ["Belgaum Dakshin"],
-        },
-    )
     assert resp.status_code == 200, resp.text
     manifest = resp.json()["manifest"]
     assert manifest["asset"]["type"] == "generated-svg"
@@ -324,4 +330,34 @@ def test_admin_imports_builtin_parliamentary_boundary_for_mp_seat(monkeypatch):
     assert resp.status_code == 200, resp.text
     boundary = resp.json()["boundary"]
     assert boundary["seat_key"] == "mp:Belagavi"
+    assert boundary["asset"]["type"] == "geojson"
+
+
+def test_admin_imports_builtin_assembly_boundary_for_mla_seat(monkeypatch):
+    _seed_database()
+    admin_headers = _auth_headers("sysadmin", 10, role="admin")
+
+    monkeypatch.setattr(
+        admin_api,
+        "import_builtin_assembly_boundary_for_seat",
+        lambda **kwargs: {
+            "seat_key": "mla:Belgaum Dakshin",
+            "seat_type": "mla",
+            "seat_name": "Belgaum Dakshin",
+            "state": "Karnataka",
+            "asset": {"type": "geojson", "path": "", "inline_svg": "", "geojson": {"type": "FeatureCollection", "features": []}},
+            "metadata": {"aspect_ratio": "100 / 65"},
+            "status": "verified",
+            "source": "datameet-assembly-2022-normalized",
+        },
+    )
+
+    resp = client.post(
+        "/api/admin/seat-boundaries/import-auto",
+        headers=admin_headers,
+        json={"seat_type": "mla", "seat_name": "Belgaum Dakshin", "state": "Karnataka"},
+    )
+    assert resp.status_code == 200, resp.text
+    boundary = resp.json()["boundary"]
+    assert boundary["seat_key"] == "mla:Belgaum Dakshin"
     assert boundary["asset"]["type"] == "geojson"
