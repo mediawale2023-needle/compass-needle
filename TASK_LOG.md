@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-01
+- Request: Push the first real constituency-map implementation to GitHub.
+- Summary: Pushed commit `c0dedf04` (`Build first real constituency map`) to `origin/main`, publishing the Belgaum Dakshin real-seat SVG, seat-aware hotspot config, and the dashboard fallback strategy for unmapped constituencies.
+- Files touched: `frontend/components/dashboard/DashboardConstituencyMap.jsx`, `frontend/lib/constituency-map-data.js`, `frontend/public/maps/mla/belgaum-dakshin-outline.svg`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The live map currently has real coverage only for Belgaum Dakshin; additional constituencies should be added through the same generic asset-plus-anchor contract rather than new component logic.
+
+- Date: 2026-06-01
 - Request: Replace the mocked dashboard constituency map with a real Belgaum Dakshin outline and real hotspot placement.
 - Summary: Added a seat-aware constituency map config layer, extracted a clean Belgaum Dakshin SVG outline into `frontend/public/maps/mla/`, and rewired `DashboardConstituencyMap.jsx` to place live `red_zones` hotspots against the real seat outline for supported constituencies while preserving the previous mock map as a fallback for unmapped seats. Verified with `npm run test --prefix frontend -- --run tests/dashboard.test.jsx`.
 - Files touched: `frontend/components/dashboard/DashboardConstituencyMap.jsx`, `frontend/lib/constituency-map-data.js`, `frontend/public/maps/mla/belgaum-dakshin-outline.svg`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
