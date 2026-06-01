@@ -487,6 +487,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Risks or follow-ups: The system is now architecturally correct, but it still depends on real boundary assets actually being registered seat by seat. Without those, the generator will still use the blob backup tier; that fallback should be hidden or avoided in demos whenever a real boundary asset can be provided.
 
 - Date: 2026-06-01
+- Request: Push and deploy the boundary-first seat map system.
+- Summary: Pushed commit `c7ba5224` (`Build boundary-first seat map system`) to `origin/main`, publishing the `seat_boundary_assets` registry, boundary ingestion APIs, boundary-aware workflow status, and real-boundary-first generation behavior. Deployed the backend manually on EC2 by pulling `main`, rebuilding `ec2-backend-1`, confirming `https://backend.coinmedia.co.in/health` returned `ok`, and revoking the temporary SSH ingress rule afterward.
+- Files touched: `PROJECT_MEMORY.md`, `TASK_LOG.md`, deployment host `/opt/compass-needle/app`
+- Risks or follow-ups: Backend support is live now, but the admin/frontend UI still depends on Vercel finishing the latest deploy from `main`. Real maps will only stop using the blob fallback once real boundary assets are actually registered seat by seat.
+
+- Date: 2026-06-01
 - Request: Push and deploy the workflow-first Seat Maps generator system.
 - Summary: Pushed commit `0b51b5e5` (`Build seat map workflow generator`) to `origin/main`, publishing the shared-geography-driven one-click seat map generator, the new `/api/admin/seat-maps/workflow` endpoint, and the rebuilt Seat Maps admin surface. Deployed the backend manually on EC2 by pulling `main`, rebuilding `ec2-backend-1`, confirming `https://backend.coinmedia.co.in/health` returned `ok`, and revoking the temporary SSH ingress rule afterward.
 - Files touched: `PROJECT_MEMORY.md`, `TASK_LOG.md`, deployment host `/opt/compass-needle/app`
