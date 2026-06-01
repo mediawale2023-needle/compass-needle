@@ -557,3 +557,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Reordered the dashboard overview composition in `frontend/app/dashboard/page.js` so `DashboardConstituencyMap` now renders in the exact row/slot previously used by `DashboardEngagementsCard`, while the schedule card now renders in the old map position next to the activity feed. This keeps the swap layout-only and preserves existing card internals.
 - Files touched: `frontend/app/dashboard/page.js`, `TASK_LOG.md`
 - Risks or follow-ups: This is intentionally a pure placement swap. If the schedule card feels visually too wide in the old map slot, that should be handled by tuning the schedule card itself rather than reworking the overall dashboard grid again.
+
+- Date: 2026-06-01
+- Request: Push the dashboard map/schedule card swap to GitHub for deployment.
+- Summary: Pushed commit `85147f4a` (`Swap dashboard map and schedule cards`) to `origin/main`, publishing the dashboard overview layout change that moves the constituency map into the former `Today · Schedule` slot and moves the schedule card into the former map slot.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is a frontend-only change. Deployment depends on Vercel picking up the new `main` push; no backend redeploy is required for this specific layout swap.
