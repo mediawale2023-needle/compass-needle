@@ -181,6 +181,17 @@ function normalizeApiManifest(manifest) {
     };
 }
 
+function toAnchorPercents(anchor = {}) {
+    const rawX = Number(anchor?.x);
+    const rawY = Number(anchor?.y);
+    const x = Number.isFinite(rawX) ? rawX : 50;
+    const y = Number.isFinite(rawY) ? rawY : 36;
+    return {
+        left: `${x}%`,
+        top: `${(y / 72) * 100}%`,
+    };
+}
+
 export default function DashboardConstituencyMap({ summary, user, mapManifest = null }) {
     const redZones = (summary?.red_zones || []).map((zone) => ({
         area: zone.area || zone.name || '',
@@ -226,6 +237,7 @@ export default function DashboardConstituencyMap({ summary, user, mapManifest = 
                         )}
                         {hotspots.map((zone, index) => {
                             const radius = 16 + (zone.count ? (zone.count / maxLoad) * 14 : 8);
+                            const anchorStyle = toAnchorPercents(zone);
                             return (
                                 <Link
                                     key={`${zone.area}-${index}`}
@@ -233,8 +245,8 @@ export default function DashboardConstituencyMap({ summary, user, mapManifest = 
                                     title={`${zone.area}: ${zone.count} cases`}
                                     style={{
                                         position: 'absolute',
-                                        left: `${zone.x}%`,
-                                        top: `${zone.y}%`,
+                                        left: anchorStyle.left,
+                                        top: anchorStyle.top,
                                         width: radius,
                                         height: radius,
                                         marginLeft: -(radius / 2),

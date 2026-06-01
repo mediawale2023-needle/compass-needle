@@ -563,3 +563,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Pushed commit `85147f4a` (`Swap dashboard map and schedule cards`) to `origin/main`, publishing the dashboard overview layout change that moves the constituency map into the former `Today · Schedule` slot and moves the schedule card into the former map slot.
 - Files touched: `TASK_LOG.md`
 - Risks or follow-ups: This is a frontend-only change. Deployment depends on Vercel picking up the new `main` push; no backend redeploy is required for this specific layout swap.
+
+- Date: 2026-06-01
+- Request: Fix parliamentary hotspot placement after the map renderer started showing assembly-aware anchors outside the actual assembly shapes.
+- Summary: Corrected `DashboardConstituencyMap.jsx` so saved hotspot anchors are converted from the generator’s `100 x 72` map coordinate space into CSS percentages before rendering. The generator was already saving assembly-aware anchors, but the frontend was treating `y` as a raw percent instead of a 72-unit canvas value, which pushed MP hotspots visibly above their intended assembly regions.
+- Files touched: `frontend/components/dashboard/DashboardConstituencyMap.jsx`, `TASK_LOG.md`
+- Risks or follow-ups: This assumes the current seat-map anchor convention remains `x in [0,100]`, `y in [0,72]`. If future map manifests use a different canvas coordinate system, the manifest contract should expose that explicitly rather than relying on this frontend default.
