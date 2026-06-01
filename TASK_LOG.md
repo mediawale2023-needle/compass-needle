@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-01
+- Request: Push the UTC case-timestamp serialization fix to GitHub.
+- Summary: Pushed commit `aed0b630` (`Fix case timestamp UTC serialization`) to `origin/main`, publishing the explicit-UTC `Z` timestamp contract for Briefcase case APIs so frontend `received` ages no longer drift by local timezone offsets.
+- Files touched: `api_router.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Production still needs a backend deploy/restart before live Briefcase rows pick up the corrected timestamp contract; other API surfaces may still need the same UTC pass if they serialize naive datetimes separately.
+
+- Date: 2026-06-01
 - Request: Fix Briefcase `received` ages that were drifting by about 5.5 hours because case timestamps were serialized without timezone information.
 - Summary: Updated `api_router.py` so case-list/detail/export/media timestamps are normalized through `_coerce_iso()` into explicit UTC ISO strings with `Z`, including SQLite-style naive datetime strings in tests. Added Briefcase API assertions to lock the UTC contract and prevent frontend age drift from naive timestamp parsing.
 - Files touched: `api_router.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
