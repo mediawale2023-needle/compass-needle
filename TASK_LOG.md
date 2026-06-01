@@ -551,3 +551,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Updated `modules/assembly_boundary_importer.py` so parliamentary assembly lookups prefer `PC_NO` and alias matches before canonical seat-name text, and updated `modules/seat_map_generator.py` to pass parliamentary boundary `pc_no`/aliases into that lookup. Added regression coverage proving MP map generation can resolve assembly segments even when parliamentary seat naming differs between the parliamentary and assembly datasets.
 - Files touched: `modules/assembly_boundary_importer.py`, `modules/seat_map_generator.py`, `tests/test_assembly_boundary_importer.py`, `tests/test_seat_map_generator.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: This should fix the `Belagavi` vs `BELGAUM` mismatch cleanly, but any other source-data naming drift should still be handled through `PC_NO` first and alias curation second rather than piling on more one-off text normalizations.
+
+- Date: 2026-06-01
+- Request: Swap the dashboard positions of the constituency map and the `Today · Schedule` card so the map takes the schedule slot and the schedule card moves into the old map slot.
+- Summary: Reordered the dashboard overview composition in `frontend/app/dashboard/page.js` so `DashboardConstituencyMap` now renders in the exact row/slot previously used by `DashboardEngagementsCard`, while the schedule card now renders in the old map position next to the activity feed. This keeps the swap layout-only and preserves existing card internals.
+- Files touched: `frontend/app/dashboard/page.js`, `TASK_LOG.md`
+- Risks or follow-ups: This is intentionally a pure placement swap. If the schedule card feels visually too wide in the old map slot, that should be handled by tuning the schedule card itself rather than reworking the overall dashboard grid again.

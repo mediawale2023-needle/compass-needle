@@ -61,10 +61,10 @@ export default function DashboardPage() {
             {/* Row 2 left: Grievance table */}
             <DashboardGrievanceQueue cases={cases} onCaseClick={handleCaseClick} />
 
-            {/* Row 2 right: Workload + Engagements */}
+            {/* Row 2 right: Workload + Constituency map */}
             <div className="grid grid-rows-2 gap-3.5 md:gap-[14px] min-w-0">
                 <DashboardWorkloadCard summary={summary} />
-                <DashboardEngagementsCard />
+                <DashboardConstituencyMap summary={summary} user={user} mapManifest={seatManifest} />
             </div>
 
             {/* Row 3 left: Letters + Press */}
@@ -73,9 +73,9 @@ export default function DashboardPage() {
                 <DashboardPressCard news={news} />
             </div>
 
-            {/* Row 3 right: Map + Activity */}
+            {/* Row 3 right: Schedule + Activity */}
             <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-3.5 md:gap-[14px] min-w-0">
-                <DashboardConstituencyMap summary={summary} user={user} mapManifest={seatManifest} />
+                <DashboardEngagementsCard />
                 <DashboardActivityFeed cases={cases} letters={letters} />
             </div>
         </div>
