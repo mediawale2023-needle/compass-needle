@@ -545,3 +545,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Pushed commit `db1f82ce` (`Use assembly segments inside parliamentary maps`) to `origin/main`, publishing the parliamentary-map change that uses built-in assembly sub-boundaries for MP hotspot placement and renders assembly lines inside the real parliamentary GeoJSON outline.
 - Files touched: `TASK_LOG.md`
 - Risks or follow-ups: This is pushed but not deployed yet. The live dashboard will continue using the older flat parliamentary hotspot behavior until the backend is redeployed and the frontend build picks up the new renderer.
+
+- Date: 2026-06-01
+- Request: Fix the live parliamentary assembly-segment map lookup so `Belagavi` MP seats can find the built-in assembly segments stored under older parliamentary labels like `BELGAUM`.
+- Summary: Updated `modules/assembly_boundary_importer.py` so parliamentary assembly lookups prefer `PC_NO` and alias matches before canonical seat-name text, and updated `modules/seat_map_generator.py` to pass parliamentary boundary `pc_no`/aliases into that lookup. Added regression coverage proving MP map generation can resolve assembly segments even when parliamentary seat naming differs between the parliamentary and assembly datasets.
+- Files touched: `modules/assembly_boundary_importer.py`, `modules/seat_map_generator.py`, `tests/test_assembly_boundary_importer.py`, `tests/test_seat_map_generator.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This should fix the `Belagavi` vs `BELGAUM` mismatch cleanly, but any other source-data naming drift should still be handled through `PC_NO` first and alias curation second rather than piling on more one-off text normalizations.

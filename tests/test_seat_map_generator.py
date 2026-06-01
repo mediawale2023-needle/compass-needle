@@ -145,13 +145,13 @@ def test_generate_mp_seat_map_manifest_uses_assembly_segments_for_hotspots(monke
                     ],
                 },
             },
-            "metadata": {"aspect_ratio": "100 / 50"},
+            "metadata": {"aspect_ratio": "100 / 50", "pc_no": "2", "aliases": ["Belgaum"]},
         },
     )
-    monkeypatch.setattr(
-        seat_map_generator,
-        "get_builtin_assembly_features_for_parliamentary_seat",
-        lambda **kwargs: [
+    calls = {}
+    def _assembly_lookup(**kwargs):
+        calls.update(kwargs)
+        return [
             {
                 "type": "Feature",
                 "properties": {"AC_NAME": "Belgaum South"},
@@ -168,7 +168,11 @@ def test_generate_mp_seat_map_manifest_uses_assembly_segments_for_hotspots(monke
                     "coordinates": [[[17, 3], [28, 3], [28, 12], [17, 12], [17, 3]]],
                 },
             },
-        ],
+        ]
+    monkeypatch.setattr(
+        seat_map_generator,
+        "get_builtin_assembly_features_for_parliamentary_seat",
+        _assembly_lookup,
     )
 
     manifest = seat_map_generator.generate_seat_map_manifest(
@@ -180,6 +184,8 @@ def test_generate_mp_seat_map_manifest_uses_assembly_segments_for_hotspots(monke
     assert manifest["asset"]["type"] == "geojson"
     assert manifest["asset"]["assembly_geojson"]["type"] == "FeatureCollection"
     assert len(manifest["asset"]["assembly_geojson"]["features"]) == 2
+    assert calls["parliamentary_pc_no"] == "2"
+    assert "Belgaum" in calls["aliases"]
     anchors = {feature["label"]: feature["anchor"] for feature in manifest["features"]}
     assert anchors["Nath Pai Circle"]["x"] < anchors["Bailhongal Town"]["x"]
     assert "assembly" in manifest["features"][0]

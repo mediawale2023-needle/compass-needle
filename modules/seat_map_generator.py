@@ -256,9 +256,13 @@ def _assembly_segments_for_parliamentary_map(
     seat_name: str,
     state: str,
     parliamentary_geojson: dict[str, Any],
+    parliamentary_boundary_metadata: dict[str, Any] | None = None,
+    seat_aliases: list[str] | None = None,
 ) -> tuple[dict[str, tuple[float, float]], dict[str, tuple[float, float, float, float]], dict[str, Any] | None]:
     assembly_features = get_builtin_assembly_features_for_parliamentary_seat(
         seat_name=seat_name,
+        parliamentary_pc_no=(parliamentary_boundary_metadata or {}).get("pc_no"),
+        aliases=(seat_aliases or []) + list((parliamentary_boundary_metadata or {}).get("aliases") or []),
         state=state,
     )
     if not assembly_features:
@@ -392,6 +396,8 @@ def generate_seat_map_manifest(
                 seat_name=clean_seat_name,
                 state=(state or "").strip(),
                 parliamentary_geojson=parliamentary_geojson,
+                parliamentary_boundary_metadata=boundary.get("metadata") or {},
+                seat_aliases=auto_aliases,
             )
             if real_centers:
                 assembly_centers = {**assembly_centers, **real_centers}

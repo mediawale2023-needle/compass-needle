@@ -58,18 +58,30 @@ def _matching_assembly_features_for_parliamentary_seat(
     feature_collection: dict[str, Any],
     *,
     parliamentary_seat_name: str,
+    parliamentary_pc_no: str | int | None = None,
+    aliases: list[str] | None = None,
     state: str = "",
 ) -> list[dict[str, Any]]:
     target_name = _normalize_token(parliamentary_seat_name)
+    target_aliases = {
+        _normalize_token(alias)
+        for alias in (aliases or [])
+        if _normalize_token(alias)
+    }
     target_state = _normalize_token(state)
+    target_pc_no = str(parliamentary_pc_no).strip() if parliamentary_pc_no not in (None, "") else ""
     matches: list[dict[str, Any]] = []
     for feature in feature_collection.get("features") or []:
         props = feature.get("properties") or {}
         feature_name = _normalize_token(props.get("PC_NAME"))
         feature_state = _normalize_token(props.get("ST_NAME"))
+        feature_pc_no = str(props.get("PC_NO") or "").strip()
         if target_state and feature_state != target_state:
             continue
-        if feature_name == target_name:
+        if target_pc_no and feature_pc_no == target_pc_no:
+            matches.append(feature)
+            continue
+        if feature_name == target_name or feature_name in target_aliases:
             matches.append(feature)
     return matches
 
@@ -155,10 +167,14 @@ def import_builtin_assembly_boundary_for_seat(
 def get_builtin_assembly_features_for_parliamentary_seat(
     *,
     seat_name: str,
+    parliamentary_pc_no: str | int | None = None,
+    aliases: list[str] | None = None,
     state: str = "",
 ) -> list[dict[str, Any]]:
     return _matching_assembly_features_for_parliamentary_seat(
         load_builtin_assembly_geojson(),
         parliamentary_seat_name=seat_name,
+        parliamentary_pc_no=parliamentary_pc_no,
+        aliases=aliases,
         state=state,
     )
