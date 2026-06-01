@@ -56,7 +56,7 @@ def _seed_database():
     Base.metadata.create_all(bind=test_engine)
 
     with test_engine.begin() as conn:
-        for table_name in ("admin_audit_log", "seat_map_manifests", "users", "tenant_profiles", "tenants"):
+        for table_name in ("admin_audit_log", "seat_map_manifests", "tenant_overrides", "users", "tenant_profiles", "tenants"):
             conn.execute(text(f"DELETE FROM {table_name}"))  # nosec B608
 
         now = datetime.utcnow()
@@ -84,6 +84,22 @@ def _seed_database():
                 """
             ),
             {"password_hash": hash_password("ValidPass1!")},
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO tenant_overrides
+                    (tenant_id, override_type, key, value, created_at)
+                VALUES
+                    (10, 'geography_data', 'mla:Belgaum Dakshin/Belgaum South', :value_one, :now),
+                    (10, 'geography_data', 'mla:Belgaum Dakshin/Yellur', :value_two, :now)
+                """
+            ),
+            {
+                "now": now,
+                "value_one": '[{"locality":"Nath Pai Circle"},{"locality":"Shahapur"}]',
+                "value_two": '[{"locality":"Yellur"}]',
+            },
         )
 
 
@@ -147,3 +163,38 @@ def test_admin_seat_map_upsert_overrides_repo_manifest():
     assert data["source"] == "admin"
     assert data["asset"]["path"] == "/maps/mla/custom-bd.svg"
     assert data["features"][0]["feature_key"] == "custom-core"
+
+
+def test_admin_seat_map_generate_creates_generated_manifest():
+    _seed_database()
+    admin_headers = _auth_headers("sysadmin", 10, role="admin")
+
+    resp = client.post(
+        "/api/admin/seat-maps/generate",
+        headers=admin_headers,
+        json={
+            "seat_type": "mla",
+            "seat_name": "Belgaum Dakshin",
+            "state": "Karnataka",
+            "aliases": ["Belgaum Dakshin"],
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    manifest = resp.json()["manifest"]
+    assert manifest["asset"]["type"] == "generated-svg"
+    assert manifest["asset"]["generated"] is True
+    assert "<svg" in manifest["asset"]["inline_svg"]
+    assert len(manifest["features"]) >= 3
+
+
+def test_admin_seat_map_workflow_reports_geography_and_tenants():
+    _seed_database()
+    admin_headers = _auth_headers("sysadmin", 10, role="admin")
+
+    resp = client.get("/api/admin/seat-maps/workflow", headers=admin_headers)
+    assert resp.status_code == 200, resp.text
+    items = resp.json()["items"]
+    belgaum = next(item for item in items if item["seat_key"] == "mla:Belgaum Dakshin")
+    assert belgaum["geography_ready"] is True
+    assert belgaum["tenant_count"] == 1
+    assert belgaum["assembly_count"] == 2

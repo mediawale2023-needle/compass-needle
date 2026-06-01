@@ -28,7 +28,8 @@ from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantP
 from core.db_helpers import _q, _q_one, _parse_meta
 from core.gemini_client import get_gemini_client
 from modules.constituencies import ALL_CONSTITUENCIES
-from modules.seat_maps import list_all_seat_manifests, upsert_db_seat_manifest, get_db_seat_manifest
+from modules.seat_maps import list_all_seat_manifests, upsert_db_seat_manifest, get_db_seat_manifest, list_seat_map_workflows
+from modules.seat_map_generator import generate_seat_map_manifest
 
 logger = logging.getLogger("needle.admin_api")
 
@@ -280,6 +281,14 @@ class SeatMapManifestRequest(BaseModel):
     fallback_anchors: List[dict] = []
     status: str = "draft"
     version: Optional[int] = None
+
+
+class GenerateSeatMapRequest(BaseModel):
+    seat_key: str | None = None
+    seat_type: str
+    seat_name: str
+    state: str = ""
+    aliases: List[str] = []
 
 
 def _resolve_account_stage_and_seat_type(
@@ -1037,6 +1046,11 @@ def list_seat_maps(_=Depends(get_admin_user)):
     return {"items": list_all_seat_manifests()}
 
 
+@router.get("/seat-maps/workflow")
+def list_seat_map_workflow(_=Depends(get_admin_user)):
+    return {"items": list_seat_map_workflows()}
+
+
 @router.get("/seat-maps/by-key")
 def get_seat_map_by_key(seat_key: str = Query(...), _=Depends(get_admin_user)):
     manifest = get_db_seat_manifest(seat_key)
@@ -1070,8 +1084,9 @@ def upsert_seat_map(req: SeatMapManifestRequest, admin_user=Depends(get_admin_us
         raise HTTPException(400, "status must be one of: draft, verified, live")
     if not payload["aliases"]:
         payload["aliases"] = [payload["seat_name"]]
-    if not isinstance(payload["asset"], dict) or not payload["asset"].get("path"):
-        raise HTTPException(400, "asset.path is required")
+    asset = payload["asset"] if isinstance(payload["asset"], dict) else {}
+    if not asset.get("path") and not asset.get("inline_svg"):
+        raise HTTPException(400, "asset.path or asset.inline_svg is required")
 
     manifest = upsert_db_seat_manifest(payload)
     _audit(
@@ -1080,6 +1095,33 @@ def upsert_seat_map(req: SeatMapManifestRequest, admin_user=Depends(get_admin_us
         target_type="seat_map",
         target_name=payload["seat_key"],
         change_summary=f"{payload['status']} v{manifest.get('version')}",
+    )
+    return {"success": True, "manifest": manifest}
+
+
+@router.post("/seat-maps/generate")
+def generate_seat_map(req: GenerateSeatMapRequest, admin_user=Depends(get_admin_user)):
+    seat_type = _normalize_seat_type(req.seat_type)
+    seat_name = (req.seat_name or "").strip()
+    seat_key = (req.seat_key or "").strip() or None
+    try:
+        manifest_payload = generate_seat_map_manifest(
+            seat_type=seat_type,
+            seat_name=seat_name,
+            state=(req.state or "").strip(),
+            aliases=[alias.strip() for alias in req.aliases if alias.strip()],
+            seat_key=seat_key,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    manifest = upsert_db_seat_manifest(manifest_payload)
+    _audit(
+        admin_user,
+        action="generate_seat_map",
+        target_type="seat_map",
+        target_name=manifest["seat_key"],
+        change_summary=f"generated {len(manifest.get('features') or [])} features",
     )
     return {"success": True, "manifest": manifest}
 

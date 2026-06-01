@@ -7,7 +7,7 @@ from typing import Any
 
 from sqlalchemy import text
 
-from sansadx_backend.db import SessionLocal
+from sansadx_backend.db import SessionLocal, get_all_geography_data
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -265,3 +265,88 @@ def get_seat_manifest_for_identity(seat_type: str | None, constituency: str | No
         if any(_normalize(alias) == normalized_constituency for alias in aliases):
             return manifest
     return None
+
+
+def list_seat_map_workflows() -> list[dict[str, Any]]:
+    manifests = {item["seat_key"]: item for item in list_all_seat_manifests()}
+    geography_rows = get_all_geography_data()
+    seats: dict[str, dict[str, Any]] = {}
+
+    db = SessionLocal()
+    try:
+        tenant_rows = db.execute(
+            text(
+                """
+                SELECT id, name, constituency, seat_type, account_stage
+                FROM tenants
+                WHERE is_active = true AND constituency IS NOT NULL AND TRIM(constituency) <> ''
+                ORDER BY seat_type, constituency, id
+                """
+            )
+        ).mappings().all()
+    finally:
+        db.close()
+
+    def ensure(seat_key: str, seat_type: str, seat_name: str) -> dict[str, Any]:
+        return seats.setdefault(
+            seat_key,
+            {
+                "seat_key": seat_key,
+                "seat_type": seat_type,
+                "seat_name": seat_name,
+                "state": "",
+                "tenant_count": 0,
+                "tenants": [],
+                "assembly_count": 0,
+                "locality_count": 0,
+                "geography_ready": False,
+                "map_ready": False,
+                "map_status": None,
+                "map_source": None,
+                "generated": False,
+                "manifest": None,
+            },
+        )
+
+    for row in tenant_rows:
+        seat_type = str(row.get("seat_type") or "mp").strip().lower()
+        seat_name = str(row.get("constituency") or "").strip()
+        if not seat_name:
+            continue
+        seat_key = f"{seat_type}:{seat_name}"
+        item = ensure(seat_key, seat_type, seat_name)
+        item["tenant_count"] += 1
+        item["tenants"].append(
+            {
+                "tenant_id": row.get("id"),
+                "name": row.get("name"),
+                "account_stage": row.get("account_stage") or "",
+            }
+        )
+
+    for row in geography_rows:
+        seat_type = str(row.get("seat_type") or "mp").strip().lower()
+        seat_name = str(row.get("seat_name") or "").strip()
+        if not seat_name:
+            continue
+        seat_key = f"{seat_type}:{seat_name}"
+        item = ensure(seat_key, seat_type, seat_name)
+        item["geography_ready"] = True
+        item["assembly_count"] += 1
+        item["locality_count"] += len(row.get("stations") or [])
+
+    for seat_key, manifest in manifests.items():
+        seat_type = str(manifest.get("seat_type") or "mp").strip().lower()
+        seat_name = str(manifest.get("seat_name") or "").strip() or seat_key.split(":", 1)[-1]
+        item = ensure(seat_key, seat_type, seat_name)
+        item["state"] = item.get("state") or manifest.get("state") or ""
+        item["map_ready"] = True
+        item["map_status"] = manifest.get("status") or "draft"
+        item["map_source"] = manifest.get("source") or "unknown"
+        item["generated"] = bool((manifest.get("asset") or {}).get("generated"))
+        item["manifest"] = manifest
+
+    ordered = sorted(seats.values(), key=lambda item: (item["seat_type"], item["seat_name"].lower()))
+    for item in ordered:
+        item["tenants"] = sorted(item["tenants"], key=lambda tenant: (tenant["name"] or "").lower())
+    return ordered

@@ -54,17 +54,22 @@ function LegacyFallbackMap({ redZones, maxLoad }) {
 
 function normalizeApiManifest(manifest) {
     if (!manifest || typeof manifest !== 'object') return null;
+    const inlineSvg = manifest.asset?.inline_svg || null;
+    const assetPath = manifest.asset?.path
+        || (inlineSvg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(inlineSvg)}` : null);
     return {
         seatKey: manifest.seat_key,
         seatType: manifest.seat_type,
         seatName: manifest.seat_name,
         state: manifest.state || null,
-        assetPath: manifest.asset?.path,
+        assetPath,
+        assetType: manifest.asset?.type || 'svg',
         aspectRatio: manifest.asset?.aspect_ratio || '1 / 1',
         features: manifest.features || [],
         fallbackAnchors: manifest.fallback_anchors || [],
         registryStatus: manifest.status || 'draft',
         version: manifest.version || 1,
+        generated: Boolean(manifest.asset?.generated),
     };
 }
 
@@ -155,7 +160,7 @@ export default function DashboardConstituencyMap({ summary, user, mapManifest = 
                                 color: P.ink3,
                             }}
                         >
-                            Real seat outline
+                            {mapConfig.generated ? 'Generated seat map' : 'Real seat outline'}
                         </div>
                     </div>
                 ) : (
