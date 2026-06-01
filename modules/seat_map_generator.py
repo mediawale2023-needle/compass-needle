@@ -221,7 +221,11 @@ def generate_seat_map_manifest(
 
     auto_aliases = _dedupe_preserve((aliases or []) + [clean_seat_name])
     boundary = get_seat_boundary_for_identity(clean_seat_type, clean_seat_name)
-    if boundary and ((boundary.get("asset") or {}).get("path") or (boundary.get("asset") or {}).get("inline_svg")):
+    if boundary and (
+        (boundary.get("asset") or {}).get("path")
+        or (boundary.get("asset") or {}).get("inline_svg")
+        or (boundary.get("asset") or {}).get("geojson")
+    ):
         asset = {
             "type": (boundary.get("asset") or {}).get("type") or "svg",
             "path": (boundary.get("asset") or {}).get("path") or "",

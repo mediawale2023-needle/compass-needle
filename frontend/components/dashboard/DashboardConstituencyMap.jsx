@@ -52,19 +52,104 @@ function LegacyFallbackMap({ redZones, maxLoad }) {
     );
 }
 
+function collectGeoJsonRings(geojson) {
+    const collection = geojson?.type === 'FeatureCollection'
+        ? geojson.features || []
+        : geojson?.type === 'Feature'
+            ? [geojson]
+            : [];
+    const rings = [];
+    collection.forEach((feature) => {
+        const geometry = feature?.geometry || {};
+        if (geometry.type === 'Polygon') {
+            (geometry.coordinates || []).forEach((ring) => rings.push(ring));
+        } else if (geometry.type === 'MultiPolygon') {
+            (geometry.coordinates || []).forEach((polygon) => {
+                (polygon || []).forEach((ring) => rings.push(ring));
+            });
+        }
+    });
+    return rings;
+}
+
+function deriveGeoJsonAspectRatio(geojson) {
+    const rings = collectGeoJsonRings(geojson);
+    const points = rings.flat();
+    if (!points.length) return '100 / 72';
+
+    const xs = points.map((point) => Number(point?.[0]) || 0);
+    const ys = points.map((point) => Number(point?.[1]) || 0);
+    const width = Math.max(Math.max(...xs) - Math.min(...xs), 1);
+    const height = Math.max(Math.max(...ys) - Math.min(...ys), 1);
+    const scaledHeight = Math.max(44, Math.min(120, Math.round(100 * (height / width))));
+    return `100 / ${scaledHeight}`;
+}
+
+function GeoJsonBoundary({ geojson }) {
+    const rings = collectGeoJsonRings(geojson);
+    const points = rings.flat();
+    if (!points.length) return null;
+
+    const xs = points.map((point) => Number(point?.[0]) || 0);
+    const ys = points.map((point) => Number(point?.[1]) || 0);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const width = Math.max(maxX - minX, 1);
+    const height = Math.max(maxY - minY, 1);
+    const padding = 6;
+    const usableWidth = 100 - padding * 2;
+    const usableHeight = 72 - padding * 2;
+    const scale = Math.min(usableWidth / width, usableHeight / height);
+    const offsetX = (100 - width * scale) / 2;
+    const offsetY = (72 - height * scale) / 2;
+
+    const projectPoint = (point) => {
+        const x = offsetX + (Number(point?.[0]) - minX) * scale;
+        const y = 72 - (offsetY + (Number(point?.[1]) - minY) * scale);
+        return `${x.toFixed(2)} ${y.toFixed(2)}`;
+    };
+
+    const pathData = rings
+        .map((ring) => {
+            if (!Array.isArray(ring) || ring.length < 3) return '';
+            const [first, ...rest] = ring;
+            return `M ${projectPoint(first)} ${rest.map((point) => `L ${projectPoint(point)}`).join(' ')} Z`;
+        })
+        .filter(Boolean)
+        .join(' ');
+
+    if (!pathData) return null;
+
+    return (
+        <svg viewBox="0 0 100 72" width="100%" height="100%" style={{ display: 'block' }}>
+            <defs>
+                <linearGradient id="constituencyGeoFill" x1="0%" x2="100%" y1="0%" y2="100%">
+                    <stop offset="0%" stopColor="#F6F0E1" />
+                    <stop offset="100%" stopColor="#ECE3CE" />
+                </linearGradient>
+            </defs>
+            <path d={pathData} fill="url(#constituencyGeoFill)" stroke={P.hairStrong} strokeWidth="0.7" />
+        </svg>
+    );
+}
+
 function normalizeApiManifest(manifest) {
     if (!manifest || typeof manifest !== 'object') return null;
     const inlineSvg = manifest.asset?.inline_svg || null;
     const assetPath = manifest.asset?.path
         || (inlineSvg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(inlineSvg)}` : null);
+    const geojson = manifest.asset?.geojson || null;
     return {
         seatKey: manifest.seat_key,
         seatType: manifest.seat_type,
         seatName: manifest.seat_name,
         state: manifest.state || null,
         assetPath,
+        geojson,
         assetType: manifest.asset?.type || 'svg',
-        aspectRatio: manifest.asset?.aspect_ratio || '1 / 1',
+        aspectRatio: manifest.asset?.aspect_ratio || (geojson ? deriveGeoJsonAspectRatio(geojson) : '1 / 1'),
         features: manifest.features || [],
         fallbackAnchors: manifest.fallback_anchors || [],
         registryStatus: manifest.status || 'draft',
@@ -107,11 +192,15 @@ export default function DashboardConstituencyMap({ summary, user, mapManifest = 
             <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
                 {mapConfig ? (
                     <div style={{ position: 'relative', width: '100%', aspectRatio: mapConfig.aspectRatio, minHeight: 180 }}>
-                        <img
-                            src={mapConfig.assetPath}
-                            alt={`${user?.constituency || 'Constituency'} outline`}
-                            style={{ width: '100%', height: '100%', display: 'block' }}
-                        />
+                        {mapConfig.assetType === 'geojson' && mapConfig.geojson ? (
+                            <GeoJsonBoundary geojson={mapConfig.geojson} />
+                        ) : (
+                            <img
+                                src={mapConfig.assetPath}
+                                alt={`${user?.constituency || 'Constituency'} outline`}
+                                style={{ width: '100%', height: '100%', display: 'block' }}
+                            />
+                        )}
                         {hotspots.map((zone, index) => {
                             const radius = 16 + (zone.count ? (zone.count / maxLoad) * 14 : 8);
                             return (
@@ -160,7 +249,7 @@ export default function DashboardConstituencyMap({ summary, user, mapManifest = 
                                 color: P.ink3,
                             }}
                         >
-                            {mapConfig.generated ? 'Generated seat map' : 'Real seat outline'}
+                            {mapConfig.generated ? 'Generated seat map' : (mapConfig.assetType === 'geojson' ? 'Real GeoJSON boundary' : 'Real seat outline')}
                         </div>
                     </div>
                 ) : (

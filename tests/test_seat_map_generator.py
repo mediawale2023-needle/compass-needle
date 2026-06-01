@@ -73,6 +73,41 @@ def test_generate_seat_map_manifest_prefers_registered_boundary(monkeypatch):
     assert manifest["source"] == "generated-from-boundary"
 
 
+def test_generate_seat_map_manifest_prefers_registered_geojson_boundary(monkeypatch):
+    monkeypatch.setattr(
+        seat_map_generator,
+        "get_geography_data",
+        lambda **kwargs: {
+            "Belagavi": [{"locality": "Belagavi City"}],
+        },
+    )
+    monkeypatch.setattr(
+        seat_map_generator,
+        "get_seat_boundary_for_identity",
+        lambda *_args, **_kwargs: {
+            "source": "datameet-parliamentary-2019",
+            "asset": {
+                "type": "geojson",
+                "path": "",
+                "inline_svg": "",
+                "geojson": {"type": "FeatureCollection", "features": []},
+            },
+            "metadata": {"aspect_ratio": "100 / 60"},
+        },
+    )
+
+    manifest = seat_map_generator.generate_seat_map_manifest(
+        seat_type="mp",
+        seat_name="Belagavi",
+        state="Karnataka",
+    )
+
+    assert manifest["asset"]["type"] == "geojson"
+    assert manifest["asset"]["geojson"]["type"] == "FeatureCollection"
+    assert manifest["asset"]["generated"] is False
+    assert manifest["source"] == "generated-from-boundary"
+
+
 def test_generate_seat_map_manifest_requires_geography(monkeypatch):
     monkeypatch.setattr(seat_map_generator, "get_geography_data", lambda **kwargs: {})
     try:

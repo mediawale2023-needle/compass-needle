@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet, apiPost, apiUpload } from '@/lib/api';
 
 const CARD = {
     background: '#fff',
@@ -91,9 +91,11 @@ export default function SeatMapsPage() {
     const [loading, setLoading] = useState(true);
     const [working, setWorking] = useState(false);
     const [boundarySaving, setBoundarySaving] = useState(false);
+    const [datasetImporting, setDatasetImporting] = useState(false);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
     const [boundaryDraft, setBoundaryDraft] = useState({ asset_type: 'svg', asset_path: '', inline_svg: '', aspect_ratio: '100 / 72' });
+    const [boundaryDatasetFile, setBoundaryDatasetFile] = useState(null);
 
     async function loadWorkflow(preferredKey = '') {
         setLoading(true);
@@ -213,6 +215,41 @@ export default function SeatMapsPage() {
             setError(err.message || 'Unable to save boundary.');
         } finally {
             setBoundarySaving(false);
+        }
+    }
+
+    async function importBoundaryFromDataset() {
+        const seatName = String(draft.seat_name || '').trim();
+        const seatType = String(draft.seat_type || 'mla').trim().toLowerCase();
+        if (!seatName) {
+            setError('Seat name is required before importing a boundary.');
+            setNotice('');
+            return;
+        }
+        if (seatType !== 'mp') {
+            setError('The current open dataset importer supports MP constituency boundaries only.');
+            setNotice('');
+            return;
+        }
+        if (!boundaryDatasetFile) {
+            setError('Choose the parliamentary dataset ZIP or GeoJSON file first.');
+            setNotice('');
+            return;
+        }
+        setDatasetImporting(true);
+        setError('');
+        setNotice('');
+        try {
+            await apiUpload(
+                `/api/admin/seat-boundaries/import-parliamentary?seat_type=${encodeURIComponent(seatType)}&seat_name=${encodeURIComponent(seatName)}&state=${encodeURIComponent(String(draft.state || '').trim())}`,
+                boundaryDatasetFile,
+            );
+            await loadWorkflow(String(draft.seat_key || '').trim() || `${seatType}:${seatName}`);
+            setNotice(`Imported a real parliamentary boundary for ${seatName}`);
+        } catch (err) {
+            setError(err.message || 'Unable to import parliamentary boundary.');
+        } finally {
+            setDatasetImporting(false);
         }
     }
 
@@ -424,6 +461,29 @@ export default function SeatMapsPage() {
                                 onChange={(e) => setBoundaryDraft((prev) => ({ ...prev, inline_svg: e.target.value }))}
                                 placeholder="<svg>…</svg>"
                             />
+                        </div>
+                        <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed #d7e3dc' }}>
+                            <div style={{ fontSize: '0.88rem', color: '#6b7f76', marginBottom: 12 }}>
+                                For MP seats, you can import a real constituency boundary directly from the parliamentary dataset ZIP or GeoJSON instead of preparing an asset manually.
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'end' }}>
+                                <div>
+                                    <label style={LABEL}>Parliamentary dataset</label>
+                                    <input
+                                        type="file"
+                                        aria-label="Parliamentary dataset"
+                                        accept=".zip,.geojson,.json"
+                                        onChange={(e) => setBoundaryDatasetFile(e.target.files?.[0] || null)}
+                                        style={{ ...INPUT, padding: '8px 10px' }}
+                                    />
+                                </div>
+                                <button onClick={importBoundaryFromDataset} disabled={datasetImporting} style={SMALL_BTN}>
+                                    {datasetImporting ? 'Importing…' : 'Import MP boundary'}
+                                </button>
+                            </div>
+                            <div style={{ marginTop: 8, fontSize: '0.8rem', color: '#6b7f76' }}>
+                                Best source: `maps-master.zip` → `india_pc_2019_simplified.geojson`
+                            </div>
                         </div>
                     </div>
                 </div>

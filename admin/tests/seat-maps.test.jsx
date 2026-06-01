@@ -2,14 +2,16 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
-const { apiGetMock, apiPostMock } = vi.hoisted(() => ({
+const { apiGetMock, apiPostMock, apiUploadMock } = vi.hoisted(() => ({
     apiGetMock: vi.fn(),
     apiPostMock: vi.fn(),
+    apiUploadMock: vi.fn(),
 }));
 
 vi.mock('@/lib/api', () => ({
     apiGet: (path) => apiGetMock(path),
     apiPost: (path, body) => apiPostMock(path, body),
+    apiUpload: (path, file) => apiUploadMock(path, file),
 }));
 
 import SeatMapsPage from '@/app/dashboard/seat-maps/page';
@@ -18,6 +20,7 @@ describe('Admin seat maps workflow page', () => {
     beforeEach(() => {
         apiGetMock.mockReset();
         apiPostMock.mockReset();
+        apiUploadMock.mockReset();
         apiGetMock.mockImplementation(async (path) => {
             if (path === '/api/admin/seat-maps/workflow') {
                 return {
@@ -67,6 +70,18 @@ describe('Admin seat maps workflow page', () => {
                 status: 'draft',
                 version: 1,
                 source: 'generated',
+            },
+        });
+        apiUploadMock.mockResolvedValue({
+            boundary: {
+                seat_key: 'mp:Belagavi',
+                seat_type: 'mp',
+                seat_name: 'Belagavi',
+                state: 'Karnataka',
+                asset: { type: 'geojson', path: '', inline_svg: '', geojson: { type: 'FeatureCollection', features: [] } },
+                metadata: { aspect_ratio: '100 / 60' },
+                status: 'verified',
+                source: 'datameet-parliamentary-2019',
             },
         });
     });
@@ -127,6 +142,53 @@ describe('Admin seat maps workflow page', () => {
                 seat_name: 'Belgaum Dakshin',
                 asset_path: '/maps/mla/belgaum-dakshin-real.svg',
             }));
+        });
+    });
+
+    it('uploads a parliamentary dataset to import an MP boundary', async () => {
+        apiGetMock.mockImplementation(async (path) => {
+            if (path === '/api/admin/seat-maps/workflow') {
+                return {
+                    items: [
+                        {
+                            seat_key: 'mp:Belagavi',
+                            seat_type: 'mp',
+                            seat_name: 'Belagavi',
+                            state: 'Karnataka',
+                            tenant_count: 1,
+                            tenants: [{ tenant_id: 12, name: 'Belagavi MP', account_stage: 'elected' }],
+                            assembly_count: 8,
+                            locality_count: 120,
+                            geography_ready: true,
+                            map_ready: false,
+                            map_status: null,
+                            map_source: null,
+                            generated: false,
+                            boundary_ready: false,
+                            boundary_type: null,
+                            boundary_source: null,
+                            manifest: null,
+                        },
+                    ],
+                };
+            }
+            return {};
+        });
+
+        render(<SeatMapsPage />);
+        expect(await screen.findByDisplayValue('Belagavi')).toBeInTheDocument();
+
+        const file = new File(['zip-bits'], 'maps-master.zip', { type: 'application/zip' });
+        fireEvent.change(screen.getByLabelText('Parliamentary dataset'), {
+            target: { files: [file] },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Import MP boundary' }));
+
+        await waitFor(() => {
+            expect(apiUploadMock).toHaveBeenCalledWith(
+                '/api/admin/seat-boundaries/import-parliamentary?seat_type=mp&seat_name=Belagavi&state=Karnataka',
+                file,
+            );
         });
     });
 });

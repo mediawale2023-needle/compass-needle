@@ -352,7 +352,11 @@ def list_seat_map_workflows() -> list[dict[str, Any]]:
 
     for seat_key, item in seats.items():
         boundary = get_seat_boundary(seat_key)
-        if boundary and (((boundary.get("asset") or {}).get("path")) or ((boundary.get("asset") or {}).get("inline_svg"))):
+        if boundary and (
+            ((boundary.get("asset") or {}).get("path"))
+            or ((boundary.get("asset") or {}).get("inline_svg"))
+            or ((boundary.get("asset") or {}).get("geojson"))
+        ):
             item["boundary_ready"] = True
             item["boundary_type"] = (boundary.get("asset") or {}).get("type") or "svg"
             item["boundary_source"] = boundary.get("source") or "admin"

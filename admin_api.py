@@ -31,6 +31,10 @@ from modules.constituencies import ALL_CONSTITUENCIES
 from modules.seat_maps import list_all_seat_manifests, upsert_db_seat_manifest, get_db_seat_manifest, list_seat_map_workflows
 from modules.seat_map_generator import generate_seat_map_manifest
 from modules.seat_boundaries import get_seat_boundary, upsert_seat_boundary
+from modules.parliamentary_boundary_importer import (
+    import_parliamentary_boundary_for_seat,
+    load_parliamentary_geojson_from_upload,
+)
 
 logger = logging.getLogger("needle.admin_api")
 
@@ -1187,6 +1191,46 @@ def upsert_boundary(req: SeatBoundaryRequest, admin_user=Depends(get_admin_user)
         target_type="seat_boundary",
         target_name=seat_key,
         change_summary=boundary.get("status") or "verified",
+    )
+    return {"success": True, "boundary": boundary}
+
+
+@router.post("/seat-boundaries/import-parliamentary")
+async def import_parliamentary_boundary(
+    file: UploadFile = File(...),
+    seat_type: str = Query("mp"),
+    seat_name: str = Query(...),
+    state: str = Query(""),
+    admin_user=Depends(get_admin_user),
+):
+    normalized_type = _normalize_seat_type(seat_type)
+    if normalized_type != "mp":
+        raise HTTPException(400, "Parliamentary dataset import currently supports MP seats only")
+    if not (seat_name or "").strip():
+        raise HTTPException(400, "seat_name is required")
+
+    raw_bytes = await file.read()
+    if not raw_bytes:
+        raise HTTPException(400, "Uploaded file is empty")
+
+    try:
+        feature_collection = load_parliamentary_geojson_from_upload(raw_bytes, file.filename or "")
+        boundary = import_parliamentary_boundary_for_seat(
+            feature_collection,
+            seat_name=(seat_name or "").strip(),
+            state=(state or "").strip(),
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except json.JSONDecodeError:
+        raise HTTPException(400, "Uploaded file does not contain valid GeoJSON")
+
+    _audit(
+        admin_user,
+        action="import_parliamentary_boundary",
+        target_type="seat_boundary",
+        target_name=boundary.get("seat_key") or f"mp:{seat_name}",
+        change_summary=file.filename or "uploaded parliamentary dataset",
     )
     return {"success": True, "boundary": boundary}
 

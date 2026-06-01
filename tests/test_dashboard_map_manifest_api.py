@@ -1,5 +1,8 @@
 import os
 import sys
+import io
+import json
+import zipfile
 from datetime import datetime, timedelta
 
 import jwt
@@ -67,7 +70,8 @@ def _seed_database():
                     (id, name, constituency, seat_type, account_stage, whatsapp_number, subscription_plan, is_active, created_at)
                 VALUES
                     (10, 'Sanket', 'Belgaum Dakshin', 'mla', 'aspirant', '+919000001010', 'Pro', 1, :now),
-                    (11, 'Arun', 'Unknown Seat', 'mla', 'elected', '+919000001011', 'Pro', 1, :now)
+                    (11, 'Arun', 'Unknown Seat', 'mla', 'elected', '+919000001011', 'Pro', 1, :now),
+                    (12, 'Belagavi MP', 'Belagavi', 'mp', 'elected', '+919000001012', 'Pro', 1, :now)
                 """
             ),
             {"now": now},
@@ -80,6 +84,7 @@ def _seed_database():
                 VALUES
                     (10, 'sanket', :password_hash, 'owner', 'Belgaum Dakshin', 'Vidhan Sabha', 'Sanket', 1),
                     (11, 'arun', :password_hash, 'owner', 'Unknown Seat', 'Vidhan Sabha', 'Arun', 1),
+                    (12, 'belagavi_mp', :password_hash, 'owner', 'Belagavi', 'Lok Sabha', 'Belagavi MP', 1),
                     (10, 'sysadmin', :password_hash, 'admin', 'Belgaum Dakshin', 'Vidhan Sabha', 'Sysadmin', 1)
                 """
             ),
@@ -92,13 +97,15 @@ def _seed_database():
                     (tenant_id, override_type, key, value, created_at)
                 VALUES
                     (10, 'geography_data', 'mla:Belgaum Dakshin/Belgaum South', :value_one, :now),
-                    (10, 'geography_data', 'mla:Belgaum Dakshin/Yellur', :value_two, :now)
+                    (10, 'geography_data', 'mla:Belgaum Dakshin/Yellur', :value_two, :now),
+                    (12, 'geography_data', 'mp:Belagavi/Belagavi', :value_three, :now)
                 """
             ),
             {
                 "now": now,
                 "value_one": '[{"locality":"Nath Pai Circle"},{"locality":"Shahapur"}]',
                 "value_two": '[{"locality":"Yellur"}]',
+                "value_three": '[{"locality":"Belagavi City"},{"locality":"Camp"}]',
             },
         )
 
@@ -223,3 +230,68 @@ def test_admin_seat_boundary_registration_and_workflow_visibility():
     belgaum = next(item for item in workflow_resp.json()["items"] if item["seat_key"] == "mla:Belgaum Dakshin")
     assert belgaum["boundary_ready"] is True
     assert belgaum["boundary_type"] == "svg"
+
+
+def test_admin_imports_parliamentary_boundary_for_mp_seat():
+    _seed_database()
+    admin_headers = _auth_headers("sysadmin", 10, role="admin")
+
+    feature_collection = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {
+                    "pc_id": 2902,
+                    "st_name": "Karnataka",
+                    "pc_no": 2,
+                    "pc_name": "Belagavi",
+                    "pc_name_hi": "बेलगाम",
+                    "pc_category": "GEN",
+                },
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[74.4, 15.7], [74.9, 15.7], [74.9, 16.0], [74.4, 16.0], [74.4, 15.7]]],
+                },
+            }
+        ],
+    }
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr(
+            "maps-master/parliamentary-constituencies/india_pc_2019_simplified.geojson",
+            json.dumps(feature_collection),
+        )
+    buffer.seek(0)
+
+    import_resp = client.post(
+        "/api/admin/seat-boundaries/import-parliamentary?seat_type=mp&seat_name=Belagavi&state=Karnataka",
+        headers=admin_headers,
+        files={"file": ("maps-master.zip", buffer.getvalue(), "application/zip")},
+    )
+    assert import_resp.status_code == 200, import_resp.text
+    boundary = import_resp.json()["boundary"]
+    assert boundary["asset"]["type"] == "geojson"
+    assert boundary["seat_key"] == "mp:Belagavi"
+
+    workflow_resp = client.get("/api/admin/seat-maps/workflow", headers=admin_headers)
+    assert workflow_resp.status_code == 200, workflow_resp.text
+    belagavi = next(item for item in workflow_resp.json()["items"] if item["seat_key"] == "mp:Belagavi")
+    assert belagavi["boundary_ready"] is True
+    assert belagavi["boundary_type"] == "geojson"
+
+    generate_resp = client.post(
+        "/api/admin/seat-maps/generate",
+        headers=admin_headers,
+        json={
+            "seat_type": "mp",
+            "seat_name": "Belagavi",
+            "state": "Karnataka",
+            "aliases": ["Belagavi"],
+        },
+    )
+    assert generate_resp.status_code == 200, generate_resp.text
+    manifest = generate_resp.json()["manifest"]
+    assert manifest["asset"]["type"] == "geojson"
+    assert manifest["asset"]["generated"] is False
+    assert manifest["source"] == "generated-from-boundary"
