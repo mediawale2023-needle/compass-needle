@@ -84,7 +84,7 @@ def backfill_case_languages(*, tenant_id: int, limit: int = 500, dry_run: bool =
     update_sql = text(
         """
         UPDATE cases
-        SET case_metadata = :meta::jsonb
+        SET case_metadata = CAST(:meta AS jsonb)
         WHERE id = :case_id
         """
     )
