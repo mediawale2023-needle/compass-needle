@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-01
+- Request: Push the case-language persistence and backfill batch to GitHub.
+- Summary: Pushed commit `6c4e76a6` (`Persist and backfill case languages`) to `origin/main`, publishing detected-language persistence in case metadata, neutral Briefcase `UNK` fallback instead of fake `EN`, and the tenant-scoped language backfill script/tests.
+- Files touched: `main.py`, `frontend/components/briefcase/briefcase-shared.jsx`, `scripts/backfill_case_languages.py`, `tests/test_case_language_backfill.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Existing rows still need the backfill script run per tenant; until then the UI will truthfully show `UNK` for missing-language historical cases instead of pretending they are English.
+
+- Date: 2026-06-01
 - Request: Fix Briefcase language badges that were showing `EN` for Marathi/Hinglish messages and add a backfill path for old cases.
 - Summary: Persisted `detected_language` into case metadata during enrichment in `main.py`, changed the Briefcase language badge helper to show real mapped tags or `UNK` instead of defaulting missing values to English, and added `scripts/backfill_case_languages.py` plus focused tests to repair tenant-scoped historical rows whose language is missing or clearly mislabeled as English.
 - Files touched: `main.py`, `frontend/components/briefcase/briefcase-shared.jsx`, `scripts/backfill_case_languages.py`, `tests/test_case_language_backfill.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
