@@ -30,6 +30,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Files touched: `frontend/app/dashboard/page.js`, `frontend/components/dashboard/DashboardConstituencyMap.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: This compact behavior is intentionally scoped to the synced dashboard slot; if future designs want the chips back there, they will need a larger allocated row height rather than simply re-enabling them.
 
+- Date: 2026-06-02
+- Request: Push the compact dashboard constituency-map fix to GitHub.
+- Summary: Pushed commit `b6270702` (`Compact dashboard constituency map card`) to `origin/main`, publishing the compact constituency-map mode for the synced desktop queue/workload row so the map card no longer merges into the next row.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Frontend-only; Vercel needs to finish the `main` deploy before the live dashboard reflects this compact card behavior.
+
 - Date: 2026-06-01
 - Request: Implement Phase 3 of the constituency-map architecture.
 - Summary: Added DB-backed seat map manifest storage via the new `seat_map_manifests` model, upgraded `modules/seat_maps.py` to prefer admin-managed manifests over repo fallback, and introduced admin APIs to list, fetch, and upsert seat maps without requiring dashboard code changes. Added tests proving tenant map lookup still works and that an admin-upserted manifest overrides the repo default for the same seat key. Verified with `venv/bin/python -m pytest tests/test_dashboard_map_manifest_api.py -q`, `venv/bin/python -m py_compile sansadx_backend/db.py modules/seat_maps.py api_router.py admin_api.py tests/test_dashboard_map_manifest_api.py`, and `npm run test --prefix frontend -- --run tests/dashboard.test.jsx`.
