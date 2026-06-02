@@ -581,3 +581,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Updated the dashboard overview so `Activity`, `Letters & drafts`, and `Media Centre` each show 5 items by default with inline expand/collapse controls, reducing empty space without overloading the initial view. Also added a small `h-full` layout tweak in `frontend/app/dashboard/page.js` so the right-side stack stretches cleanly with the relocated constituency map.
 - Files touched: `frontend/app/dashboard/page.js`, `frontend/components/dashboard/DashboardActivityFeed.jsx`, `frontend/components/dashboard/DashboardLettersCard.jsx`, `frontend/components/dashboard/DashboardPressCard.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: This is frontend-only and should deploy through Vercel after push. If the same blank-space pattern shows up in other dashboard cards later, reuse the same 5-item plus toggle convention instead of increasing fixed card heights.
+
+- Date: 2026-06-02
+- Request: Push the dashboard blank-space fix to GitHub for frontend deployment.
+- Summary: Pushed commit `af3c094c` (`Fix dashboard blank space with view more toggles`) to `origin/main`, publishing the 5-item default plus `View more` / `View less` behavior for the lower dashboard cards and the small supporting layout adjustment in the overview page.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is a frontend-only push. No EC2 backend deploy is needed; rollout depends on Vercel picking up the new `main` commit.
