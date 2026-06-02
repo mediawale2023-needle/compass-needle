@@ -62,7 +62,7 @@ export default function DashboardPage() {
             <DashboardGrievanceQueue cases={cases} onCaseClick={handleCaseClick} />
 
             {/* Row 2 right: Workload + Constituency map */}
-            <div className="grid grid-rows-2 gap-3.5 md:gap-[14px] min-w-0">
+            <div className="grid grid-rows-2 gap-3.5 md:gap-[14px] min-w-0 h-full">
                 <DashboardWorkloadCard summary={summary} />
                 <DashboardConstituencyMap summary={summary} user={user} mapManifest={seatManifest} />
             </div>

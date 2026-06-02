@@ -133,3 +133,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 ## API Contract Memory
 
 - Case-facing timestamps from `api_router.py` should be emitted as explicit UTC ISO strings with a trailing `Z`, even when the underlying DB values are naive UTC datetimes or SQLite-style datetime strings. Frontend age/date widgets like Briefcase `received` should not have to guess timezone semantics from raw case timestamps.
+
+## Dashboard UX Memory
+
+- The lower dashboard content cards (`Activity`, `Letters & drafts`, `Media Centre`) should default to showing 5 items with an inline `View more` / `View less` toggle instead of leaving large blank card bodies. This keeps the dashboard visually dense without immediately overwhelming the user, and future dashboard list cards should prefer the same pattern over fixed-height empty space.

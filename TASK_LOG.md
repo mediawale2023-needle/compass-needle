@@ -575,3 +575,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Pushed commit `f972321d` (`Fix map hotspot coordinate scaling`) to `origin/main`, publishing the frontend renderer fix that maps saved `100 x 72` hotspot coordinates into correct CSS percentages before drawing them on the parliamentary/assembly constituency map.
 - Files touched: `TASK_LOG.md`
 - Risks or follow-ups: This is a frontend-only change. Deployment depends on Vercel picking up the latest `main` push; no backend redeploy is needed for this particular fix.
+
+- Date: 2026-06-02
+- Request: Fix dashboard blank space by showing 5 items with a `View more` toggle in the bottom-row cards.
+- Summary: Updated the dashboard overview so `Activity`, `Letters & drafts`, and `Media Centre` each show 5 items by default with inline expand/collapse controls, reducing empty space without overloading the initial view. Also added a small `h-full` layout tweak in `frontend/app/dashboard/page.js` so the right-side stack stretches cleanly with the relocated constituency map.
+- Files touched: `frontend/app/dashboard/page.js`, `frontend/components/dashboard/DashboardActivityFeed.jsx`, `frontend/components/dashboard/DashboardLettersCard.jsx`, `frontend/components/dashboard/DashboardPressCard.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This is frontend-only and should deploy through Vercel after push. If the same blank-space pattern shows up in other dashboard cards later, reuse the same 5-item plus toggle convention instead of increasing fixed card heights.

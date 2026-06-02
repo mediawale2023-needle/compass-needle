@@ -6,6 +6,8 @@ import { dashboardFonts, dashboardPalette as P } from '@/lib/dashboard-theme';
 
 const { serif: SERIF, mono: MONO } = dashboardFonts;
 
+const INITIAL_LIMIT = 5;
+
 function getToneStyle(tone) {
     if (!tone) return { fg: P.ink2, bg: P.neutralTint };
     const norm = tone.toLowerCase();
@@ -32,6 +34,7 @@ export default function DashboardPressCard({ news }) {
     const [newsTab, setNewsTab] = useState('national');
     const [search, setSearch] = useState('');
     const [source, setSource] = useState('');
+    const [expanded, setExpanded] = useState(false);
     const feeds = news && typeof news === 'object' ? news : { national: [], local: [] };
     const activeNews = feeds[newsTab] || [];
     const allCount = (feeds.national?.length || 0) + (feeds.local?.length || 0);
@@ -51,18 +54,21 @@ export default function DashboardPressCard({ news }) {
         });
     }, [activeNews, search, source]);
 
+    const visible = expanded ? filteredNews : filteredNews.slice(0, INITIAL_LIMIT);
+    const hasMore = filteredNews.length > INITIAL_LIMIT;
+
     return (
         <DashboardSectionFrame
             title="Media Centre"
             meta={`${allCount} articles`}
-            bodyStyle={{ flex: 1, overflow: 'auto', minHeight: 0, paddingTop: 0 }}
+            bodyStyle={{ minHeight: 0, paddingTop: 0 }}
         >
             <div style={{ padding: '0 16px 10px', borderBottom: `1px solid ${P.hair}` }}>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                    <button type="button" onClick={() => { setNewsTab('national'); setSource(''); }} style={tabButtonStyle(newsTab === 'national')}>
+                    <button type="button" onClick={() => { setNewsTab('national'); setSource(''); setExpanded(false); }} style={tabButtonStyle(newsTab === 'national')}>
                         National
                     </button>
-                    <button type="button" onClick={() => { setNewsTab('local'); setSource(''); }} style={tabButtonStyle(newsTab === 'local')}>
+                    <button type="button" onClick={() => { setNewsTab('local'); setSource(''); setExpanded(false); }} style={tabButtonStyle(newsTab === 'local')}>
                         Local
                     </button>
                 </div>
@@ -106,53 +112,77 @@ export default function DashboardPressCard({ news }) {
                     {newsTab === 'local' ? 'No local or digital media coverage fetched yet' : 'No national coverage fetched yet'}
                 </div>
             ) : (
-                filteredNews.slice(0, 8).map((item, index) => {
-                    const tone = getToneStyle(item.sentiment || item.tone);
-                    return (
-                        <div
-                            key={`${item.link || item.title}-${index}`}
+                <>
+                    {visible.map((item, index) => {
+                        const tone = getToneStyle(item.sentiment || item.tone);
+                        return (
+                            <div
+                                key={`${item.link || item.title}-${index}`}
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '12px 1fr',
+                                    gap: 10,
+                                    padding: '10px 16px',
+                                    borderBottom: index < visible.length - 1 ? `1px solid ${P.hair}` : 'none',
+                                    alignItems: 'flex-start',
+                                }}
+                            >
+                                <div style={{ width: 4, height: 34, background: tone.fg, marginTop: 2, flexShrink: 0 }} />
+                                <div>
+                                    <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 3 }}>
+                                        <div style={{ fontSize: 11.5, fontWeight: 600, color: P.ink, fontFamily: SERIF }}>
+                                            {item.source || 'Unknown'}
+                                        </div>
+                                        <div
+                                            style={{
+                                                fontFamily: MONO,
+                                                fontSize: 9.5,
+                                                color: tone.fg,
+                                                background: tone.bg,
+                                                padding: '2px 6px',
+                                            }}
+                                        >
+                                            {newsTab === 'local' ? 'LOCAL' : 'NATIONAL'}
+                                        </div>
+                                        <div style={{ fontFamily: MONO, fontSize: 9.5, color: P.ink3 }}>
+                                            {item.published ? new Date(item.published).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
+                                        </div>
+                                    </div>
+                                    <a
+                                        href={item.link || item.url || '#'}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ fontSize: 11, color: P.ink, lineHeight: 1.35, textDecoration: 'none' }}
+                                    >
+                                        {item.title}
+                                    </a>
+                                </div>
+                            </div>
+                        );
+                    })}
+                    {hasMore && (
+                        <button
+                            type="button"
+                            onClick={() => setExpanded(!expanded)}
                             style={{
-                                display: 'grid',
-                                gridTemplateColumns: '12px 1fr',
-                                gap: 10,
-                                padding: '10px 16px',
-                                borderBottom: index < Math.min(filteredNews.length, 8) - 1 ? `1px solid ${P.hair}` : 'none',
-                                alignItems: 'flex-start',
+                                width: '100%',
+                                padding: '7px 16px',
+                                background: P.surfaceWarm,
+                                color: P.ink2,
+                                fontSize: 10.5,
+                                fontFamily: MONO,
+                                fontWeight: 600,
+                                letterSpacing: '0.06em',
+                                cursor: 'pointer',
+                                border: 'none',
+                                borderTop: `1px solid ${P.hair}`,
+                                textAlign: 'center',
                             }}
                         >
-                            <div style={{ width: 4, height: 34, background: tone.fg, marginTop: 2, flexShrink: 0 }} />
-                            <div>
-                                <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 3 }}>
-                                    <div style={{ fontSize: 11.5, fontWeight: 600, color: P.ink, fontFamily: SERIF }}>
-                                        {item.source || 'Unknown'}
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontFamily: MONO,
-                                            fontSize: 9.5,
-                                            color: tone.fg,
-                                            background: tone.bg,
-                                            padding: '2px 6px',
-                                        }}
-                                    >
-                                        {newsTab === 'local' ? 'LOCAL' : 'NATIONAL'}
-                                    </div>
-                                    <div style={{ fontFamily: MONO, fontSize: 9.5, color: P.ink3 }}>
-                                        {item.published ? new Date(item.published).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
-                                    </div>
-                                </div>
-                                <a
-                                    href={item.link || item.url || '#'}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{ fontSize: 11, color: P.ink, lineHeight: 1.35, textDecoration: 'none' }}
-                                >
-                                    {item.title}
-                                </a>
-                            </div>
-                        </div>
-                    );
-                })
+                            {expanded ? `VIEW LESS ↑` : `VIEW ${filteredNews.length - INITIAL_LIMIT} MORE ↓`}
+                        </button>
+                    )}
+                </>
             )}
         </DashboardSectionFrame>
     );
