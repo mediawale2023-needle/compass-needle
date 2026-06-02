@@ -1,10 +1,16 @@
 """
-Geography Resolver (MULTI-TENANT)
+Geography Resolver (MULTI-TENANT) — Pan-India Edition
 1. Checks tenant-specific DB overrides (per tenant_id).
 2. Filters junk polling-sheet/meta rows before indexing.
 3. Exact/alias substring match against geography index.
 4. Spaceless Match (Fixes "Shahunagar" vs "Shahu Nagar").
 5. Fuzzy Typos Match (Fixes "Tilkwadi" vs "Tilakwadi").
+
+Transliteration covers all 22 scheduled + major Indian scripts with correct
+inherent-vowel handling (all Brahmi-derived scripts encode an implicit 'a'
+after every consonant unless suppressed by a virama/halant or replaced by a
+matra). Supported: Devanagari, Bengali/Assamese, Gurmukhi/Punjabi, Gujarati,
+Odia, Tamil, Telugu, Kannada, Malayalam, Arabic/Urdu.
 """
 
 import json
@@ -17,63 +23,344 @@ import string
 from difflib import SequenceMatcher
 
 # ==========================================
-# INDIC TRANSLITERATION
+# PAN-INDIA TRANSLITERATION
+# 22 scheduled languages + major scripts.
+# Each consonant map uses bare letters (no inherent 'a'); the function
+# _insert_inherent_vowels() restores the implicit 'a' between consecutive
+# consonants after block-level substitution is complete.
 # ==========================================
 
-# Simplified Devanagari → Roman map sufficient for Indian location names.
-# Covers consonants, vowels, matras, and common nukta variants.
+# --- DEVANAGARI U+0900-U+097F ---
+# Hindi, Marathi, Sanskrit, Konkani, Bodo, Dogri, Maithili, Nepali
 _DEVA_MAP = {
-    # Vowels (independent)
-    'अ': 'a', 'आ': 'aa', 'इ': 'i', 'ई': 'ee', 'उ': 'u', 'ऊ': 'oo',
-    'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au', 'ऋ': 'ri', 'अं': 'an',
-    # Consonants
-    'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'ङ': 'ng',
-    'च': 'ch', 'छ': 'chh', 'ज': 'j', 'झ': 'jh', 'ञ': 'n',
-    'ट': 't', 'ठ': 'th', 'ड': 'd', 'ढ': 'dh', 'ण': 'n',
-    'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n',
-    'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm',
-    'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v', 'श': 'sh',
-    'ष': 'sh', 'स': 's', 'ह': 'h', 'ळ': 'l', 'क्ष': 'ksh', 'ज्ञ': 'gya',
-    # Nukta variants (ड़, ढ़, etc.)
-    'ड़': 'r', 'ढ़': 'rh', 'ज़': 'z', 'फ़': 'f', 'ग़': 'g', 'ख़': 'kh',
-    # Matras (vowel signs attached to consonants)
-    'ा': 'a', 'ि': 'i', 'ी': 'ee', 'ु': 'u', 'ू': 'oo',
-    'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au', 'ृ': 'ri',
-    # Anusvara / visarga / halant
-    'ं': 'n', 'ँ': 'n', 'ः': 'h', '्': '',
+    # Multi-char conjuncts / nukta composites (must come first)
+    '\u0915\u094D\u0937': 'ksh', '\u091C\u094D\u091E': 'gya',  # क्ष, ज्ञ
+    '\u0905\u0902': 'an',   # अं
+    '\u0921\u093C': 'r',    # ड़
+    '\u0922\u093C': 'rh',   # ढ़
+    '\u091C\u093C': 'z',    # ज़
+    '\u092B\u093C': 'f',    # फ़
+    '\u0917\u093C': 'g',    # ग़
+    '\u0916\u093C': 'kh',   # ख़
+    # Independent vowels
+    '\u0905': 'a',  '\u0906': 'aa', '\u0907': 'i',  '\u0908': 'ee',
+    '\u0909': 'u',  '\u090A': 'oo', '\u090F': 'e',  '\u0910': 'ai',
+    '\u0913': 'o',  '\u0914': 'au', '\u090B': 'ri', '\u090C': 'l',
+    '\u090D': 'e',  '\u090E': 'e',  '\u0912': 'o',
+    # Consonants (no inherent 'a' — _insert_inherent_vowels adds it)
+    '\u0915': 'k',  '\u0916': 'kh', '\u0917': 'g',  '\u0918': 'gh', '\u0919': 'ng',
+    '\u091A': 'ch', '\u091B': 'chh','\u091C': 'j',  '\u091D': 'jh', '\u091E': 'n',
+    '\u091F': 't',  '\u0920': 'th', '\u0921': 'd',  '\u0922': 'dh', '\u0923': 'n',
+    '\u0924': 't',  '\u0925': 'th', '\u0926': 'd',  '\u0927': 'dh', '\u0928': 'n',
+    '\u092A': 'p',  '\u092B': 'ph', '\u092C': 'b',  '\u092D': 'bh', '\u092E': 'm',
+    '\u092F': 'y',  '\u0930': 'r',  '\u0932': 'l',  '\u0935': 'v',
+    '\u0936': 'sh', '\u0937': 'sh', '\u0938': 's',  '\u0939': 'h',
+    '\u0933': 'l',  '\u0934': 'l',
+    # Matras (vowel signs — replace inherent 'a')
+    '\u093E': 'a',  '\u093F': 'i',  '\u0940': 'ee', '\u0941': 'u',  '\u0942': 'oo',
+    '\u0947': 'e',  '\u0948': 'ai', '\u094B': 'o',  '\u094C': 'au', '\u0943': 'ri',
+    '\u0944': 'ri', '\u0945': 'e',  '\u0946': 'e',  '\u094A': 'o',
+    # Anusvara / chandrabindu / visarga / halant (virama)
+    '\u0902': 'n',  '\u0901': 'n',  '\u0903': 'h',  '\u094D': '',
     # Digits
-    '०': '0', '१': '1', '२': '2', '३': '3', '४': '4',
-    '५': '5', '६': '6', '७': '7', '८': '8', '९': '9',
+    '\u0966': '0', '\u0967': '1', '\u0968': '2', '\u0969': '3', '\u096A': '4',
+    '\u096B': '5', '\u096C': '6', '\u096D': '7', '\u096E': '8', '\u096F': '9',
 }
-
-# Devanagari Unicode range: U+0900–U+097F
 _DEVA_RE = re.compile(r'[\u0900-\u097F]')
 
-# Simplified Kannada → Roman map for locality names. This is intentionally
-# conservative: it exists to ground geography, not to produce pretty language.
-_KANNADA_MAP = {
-    # Independent vowels
-    'ಅ': 'a', 'ಆ': 'aa', 'ಇ': 'i', 'ಈ': 'ee', 'ಉ': 'u', 'ಊ': 'oo',
-    'ಋ': 'ri', 'ಎ': 'e', 'ಏ': 'e', 'ಐ': 'ai', 'ಒ': 'o', 'ಓ': 'o', 'ಔ': 'au',
-    # Consonants
-    'ಕ': 'k', 'ಖ': 'kh', 'ಗ': 'g', 'ಘ': 'gh', 'ಙ': 'ng',
-    'ಚ': 'ch', 'ಛ': 'chh', 'ಜ': 'j', 'ಝ': 'jh', 'ಞ': 'ny',
-    'ಟ': 't', 'ಠ': 'th', 'ಡ': 'd', 'ಢ': 'dh', 'ಣ': 'n',
-    'ತ': 't', 'ಥ': 'th', 'ದ': 'd', 'ಧ': 'dh', 'ನ': 'n',
-    'ಪ': 'p', 'ಫ': 'ph', 'ಬ': 'b', 'ಭ': 'bh', 'ಮ': 'm',
-    'ಯ': 'y', 'ರ': 'r', 'ಱ': 'r', 'ಲ': 'l', 'ಳ': 'l', 'ವ': 'v',
-    'ಶ': 'sh', 'ಷ': 'sh', 'ಸ': 's', 'ಹ': 'h',
-    # Vowel signs
-    'ಾ': 'a', 'ಿ': 'i', 'ೀ': 'ee', 'ು': 'u', 'ೂ': 'oo', 'ೃ': 'ri',
-    'ೆ': 'e', 'ೇ': 'e', 'ೈ': 'ai', 'ೊ': 'o', 'ೋ': 'o', 'ೌ': 'au',
-    # Marks / virama
-    'ಂ': 'n', 'ಃ': 'h', '್': '',
-    # Digits
-    '೦': '0', '೧': '1', '೨': '2', '೩': '3', '೪': '4',
-    '೫': '5', '೬': '6', '೭': '7', '೮': '8', '೯': '9',
+# --- BENGALI / ASSAMESE U+0980-U+09FF ---
+_BENGALI_MAP = {
+    '\u0985': 'a',  '\u0986': 'aa', '\u0987': 'i',  '\u0988': 'ee',
+    '\u0989': 'u',  '\u098A': 'u',  '\u098B': 'ri', '\u098C': 'l',
+    '\u098F': 'e',  '\u0990': 'oi', '\u0993': 'o',  '\u0994': 'ou',
+    '\u0995': 'k',  '\u0996': 'kh', '\u0997': 'g',  '\u0998': 'gh', '\u0999': 'ng',
+    '\u099A': 'ch', '\u099B': 'chh','\u099C': 'j',  '\u099D': 'jh', '\u099E': 'n',
+    '\u099F': 't',  '\u09A0': 'th', '\u09A1': 'd',  '\u09A2': 'dh', '\u09A3': 'n',
+    '\u09A4': 't',  '\u09A5': 'th', '\u09A6': 'd',  '\u09A7': 'dh', '\u09A8': 'n',
+    '\u09AA': 'p',  '\u09AB': 'ph', '\u09AC': 'b',  '\u09AD': 'bh', '\u09AE': 'm',
+    '\u09AF': 'j',  '\u09B0': 'r',  '\u09B2': 'l',
+    '\u09B6': 'sh', '\u09B7': 'sh', '\u09B8': 's',  '\u09B9': 'h',
+    '\u09DC': 'r',  '\u09DD': 'rh', '\u09DF': 'y',  '\u09CE': 't',
+    # Matras
+    '\u09BE': 'a',  '\u09BF': 'i',  '\u09C0': 'ee', '\u09C1': 'u',  '\u09C2': 'oo',
+    '\u09C3': 'ri', '\u09C7': 'e',  '\u09C8': 'oi', '\u09CB': 'o',  '\u09CC': 'ou',
+    '\u09C4': 'ri',
+    '\u09BC': '',   # nukta
+    '\u0982': 'n',  '\u0983': 'h',  '\u09CD': '',   # anusvara / visarga / hasanta
+    '\u09E6': '0',  '\u09E7': '1',  '\u09E8': '2',  '\u09E9': '3',  '\u09EA': '4',
+    '\u09EB': '5',  '\u09EC': '6',  '\u09ED': '7',  '\u09EE': '8',  '\u09EF': '9',
 }
+_BENGALI_RE = re.compile(r'[\u0980-\u09FF]')
 
+# --- GURMUKHI / PUNJABI U+0A00-U+0A7F ---
+_GURMUKHI_MAP = {
+    '\u0A05': 'a',  '\u0A06': 'aa', '\u0A07': 'i',  '\u0A08': 'ee',
+    '\u0A09': 'u',  '\u0A0A': 'oo', '\u0A0F': 'e',  '\u0A10': 'ai',
+    '\u0A13': 'o',  '\u0A14': 'au',
+    '\u0A15': 'k',  '\u0A16': 'kh', '\u0A17': 'g',  '\u0A18': 'gh', '\u0A19': 'ng',
+    '\u0A1A': 'ch', '\u0A1B': 'chh','\u0A1C': 'j',  '\u0A1D': 'jh', '\u0A1E': 'n',
+    '\u0A1F': 't',  '\u0A20': 'th', '\u0A21': 'd',  '\u0A22': 'dh', '\u0A23': 'n',
+    '\u0A24': 't',  '\u0A25': 'th', '\u0A26': 'd',  '\u0A27': 'dh', '\u0A28': 'n',
+    '\u0A2A': 'p',  '\u0A2B': 'ph', '\u0A2C': 'b',  '\u0A2D': 'bh', '\u0A2E': 'm',
+    '\u0A2F': 'y',  '\u0A30': 'r',  '\u0A32': 'l',  '\u0A35': 'v',
+    '\u0A38': 's',  '\u0A39': 'h',  '\u0A5C': 'r',
+    # Nukta forms: sha, kha, gha, za, fa, lla
+    '\u0A36': 'sh', '\u0A59': 'kh', '\u0A5A': 'g',  '\u0A5B': 'z',  '\u0A5E': 'f',
+    '\u0A33': 'l',
+    # Matras
+    '\u0A3E': 'a',  '\u0A3F': 'i',  '\u0A40': 'ee', '\u0A41': 'u',  '\u0A42': 'oo',
+    '\u0A47': 'e',  '\u0A48': 'ai', '\u0A4B': 'o',  '\u0A4C': 'au',
+    '\u0A70': 'n',  '\u0A71': '',   # tippi / addak
+    '\u0A02': 'n',  '\u0A4D': '',   # bindi / virama
+    '\u0A66': '0',  '\u0A67': '1',  '\u0A68': '2',  '\u0A69': '3',  '\u0A6A': '4',
+    '\u0A6B': '5',  '\u0A6C': '6',  '\u0A6D': '7',  '\u0A6E': '8',  '\u0A6F': '9',
+}
+_GURMUKHI_RE = re.compile(r'[\u0A00-\u0A7F]')
+
+# --- GUJARATI U+0A80-U+0AFF ---
+_GUJARATI_MAP = {
+    '\u0A95\u0ACD\u0AB7': 'ksh',  # ક્ષ
+    '\u0A85': 'a',  '\u0A86': 'aa', '\u0A87': 'i',  '\u0A88': 'ee',
+    '\u0A89': 'u',  '\u0A8A': 'oo', '\u0A8B': 'ri', '\u0A8F': 'e',
+    '\u0A90': 'ai', '\u0A93': 'o',  '\u0A94': 'au',
+    '\u0A95': 'k',  '\u0A96': 'kh', '\u0A97': 'g',  '\u0A98': 'gh', '\u0A99': 'ng',
+    '\u0A9A': 'ch', '\u0A9B': 'chh','\u0A9C': 'j',  '\u0A9D': 'jh', '\u0A9E': 'n',
+    '\u0A9F': 't',  '\u0AA0': 'th', '\u0AA1': 'd',  '\u0AA2': 'dh', '\u0AA3': 'n',
+    '\u0AA4': 't',  '\u0AA5': 'th', '\u0AA6': 'd',  '\u0AA7': 'dh', '\u0AA8': 'n',
+    '\u0AAA': 'p',  '\u0AAB': 'ph', '\u0AAC': 'b',  '\u0AAD': 'bh', '\u0AAE': 'm',
+    '\u0AAF': 'y',  '\u0AB0': 'r',  '\u0AB2': 'l',  '\u0AB3': 'l',  '\u0AB5': 'v',
+    '\u0AB6': 'sh', '\u0AB7': 'sh', '\u0AB8': 's',  '\u0AB9': 'h',
+    # Matras
+    '\u0ABE': 'a',  '\u0ABF': 'i',  '\u0AC0': 'ee', '\u0AC1': 'u',  '\u0AC2': 'oo',
+    '\u0AC3': 'ri', '\u0AC7': 'e',  '\u0AC8': 'ai', '\u0ACB': 'o',  '\u0ACC': 'au',
+    '\u0A82': 'n',  '\u0A83': 'h',  '\u0ACD': '',
+    '\u0AE6': '0',  '\u0AE7': '1',  '\u0AE8': '2',  '\u0AE9': '3',  '\u0AEA': '4',
+    '\u0AEB': '5',  '\u0AEC': '6',  '\u0AED': '7',  '\u0AEE': '8',  '\u0AEF': '9',
+}
+_GUJARATI_RE = re.compile(r'[\u0A80-\u0AFF]')
+
+# --- ODIA / ORIYA U+0B00-U+0B7F ---
+_ODIA_MAP = {
+    '\u0B05': 'a',  '\u0B06': 'aa', '\u0B07': 'i',  '\u0B08': 'ee',
+    '\u0B09': 'u',  '\u0B0A': 'oo', '\u0B0B': 'ri', '\u0B0F': 'e',
+    '\u0B10': 'ai', '\u0B13': 'o',  '\u0B14': 'au',
+    '\u0B15': 'k',  '\u0B16': 'kh', '\u0B17': 'g',  '\u0B18': 'gh', '\u0B19': 'ng',
+    '\u0B1A': 'ch', '\u0B1B': 'chh','\u0B1C': 'j',  '\u0B1D': 'jh', '\u0B1E': 'n',
+    '\u0B1F': 't',  '\u0B20': 'th', '\u0B21': 'd',  '\u0B22': 'dh', '\u0B23': 'n',
+    '\u0B24': 't',  '\u0B25': 'th', '\u0B26': 'd',  '\u0B27': 'dh', '\u0B28': 'n',
+    '\u0B2A': 'p',  '\u0B2B': 'ph', '\u0B2C': 'b',  '\u0B2D': 'bh', '\u0B2E': 'm',
+    '\u0B2F': 'j',  '\u0B30': 'r',  '\u0B32': 'l',  '\u0B33': 'l',
+    '\u0B35': 'v',  '\u0B36': 'sh', '\u0B37': 'sh', '\u0B38': 's',  '\u0B39': 'h',
+    '\u0B5C': 'r',  '\u0B5D': 'rh', '\u0B5F': 'y',
+    # Matras
+    '\u0B3E': 'a',  '\u0B3F': 'i',  '\u0B40': 'ee', '\u0B41': 'u',  '\u0B42': 'oo',
+    '\u0B43': 'ri', '\u0B47': 'e',  '\u0B48': 'ai', '\u0B4B': 'o',  '\u0B4C': 'au',
+    '\u0B01': 'n',  '\u0B02': 'n',  '\u0B03': 'h',  '\u0B4D': '',
+    '\u0B66': '0',  '\u0B67': '1',  '\u0B68': '2',  '\u0B69': '3',  '\u0B6A': '4',
+    '\u0B6B': '5',  '\u0B6C': '6',  '\u0B6D': '7',  '\u0B6E': '8',  '\u0B6F': '9',
+}
+_ODIA_RE = re.compile(r'[\u0B00-\u0B7F]')
+
+# --- TAMIL U+0B80-U+0BFF ---
+# Tamil has 18 consonants; same letter represents multiple phonemes by position.
+_TAMIL_MAP = {
+    '\u0B85': 'a',  '\u0B86': 'aa', '\u0B87': 'i',  '\u0B88': 'ee',
+    '\u0B89': 'u',  '\u0B8A': 'oo', '\u0B8E': 'e',  '\u0B8F': 'e',
+    '\u0B90': 'ai', '\u0B92': 'o',  '\u0B93': 'o',  '\u0B94': 'au',
+    '\u0B95': 'k',  '\u0B99': 'ng', '\u0B9A': 'ch', '\u0B9C': 'j',  '\u0B9E': 'n',
+    '\u0B9F': 't',  '\u0BA3': 'n',  '\u0BA4': 'th', '\u0BA8': 'n',  '\u0BA9': 'n',
+    '\u0BAA': 'p',  '\u0BAE': 'm',  '\u0BAF': 'y',  '\u0BB0': 'r',  '\u0BB1': 'r',
+    '\u0BB2': 'l',  '\u0BB3': 'l',  '\u0BB4': 'zh', '\u0BB5': 'v',
+    '\u0BB6': 'sh', '\u0BB7': 'sh', '\u0BB8': 's',  '\u0BB9': 'h',
+    '\u0B83': 'h',  # aytham
+    # Matras
+    '\u0BBE': 'a',  '\u0BBF': 'i',  '\u0BC0': 'ee', '\u0BC1': 'u',  '\u0BC2': 'oo',
+    '\u0BC6': 'e',  '\u0BC7': 'e',  '\u0BC8': 'ai', '\u0BCA': 'o',  '\u0BCB': 'o',
+    '\u0BCC': 'au', '\u0B82': 'n',  '\u0BCD': '',
+    '\u0BE6': '0',  '\u0BE7': '1',  '\u0BE8': '2',  '\u0BE9': '3',  '\u0BEA': '4',
+    '\u0BEB': '5',  '\u0BEC': '6',  '\u0BED': '7',  '\u0BEE': '8',  '\u0BEF': '9',
+}
+_TAMIL_RE = re.compile(r'[\u0B80-\u0BFF]')
+
+# --- TELUGU U+0C00-U+0C7F ---
+_TELUGU_MAP = {
+    '\u0C05': 'a',  '\u0C06': 'aa', '\u0C07': 'i',  '\u0C08': 'ee',
+    '\u0C09': 'u',  '\u0C0A': 'oo', '\u0C0B': 'ri', '\u0C0E': 'e',
+    '\u0C0F': 'e',  '\u0C10': 'ai', '\u0C12': 'o',  '\u0C13': 'o',  '\u0C14': 'au',
+    '\u0C15': 'k',  '\u0C16': 'kh', '\u0C17': 'g',  '\u0C18': 'gh', '\u0C19': 'ng',
+    '\u0C1A': 'ch', '\u0C1B': 'chh','\u0C1C': 'j',  '\u0C1D': 'jh', '\u0C1E': 'n',
+    '\u0C1F': 't',  '\u0C20': 'th', '\u0C21': 'd',  '\u0C22': 'dh', '\u0C23': 'n',
+    '\u0C24': 't',  '\u0C25': 'th', '\u0C26': 'd',  '\u0C27': 'dh', '\u0C28': 'n',
+    '\u0C2A': 'p',  '\u0C2B': 'ph', '\u0C2C': 'b',  '\u0C2D': 'bh', '\u0C2E': 'm',
+    '\u0C2F': 'y',  '\u0C30': 'r',  '\u0C31': 'r',  '\u0C32': 'l',  '\u0C33': 'l',
+    '\u0C35': 'v',  '\u0C36': 'sh', '\u0C37': 'sh', '\u0C38': 's',  '\u0C39': 'h',
+    # Matras
+    '\u0C3E': 'a',  '\u0C3F': 'i',  '\u0C40': 'ee', '\u0C41': 'u',  '\u0C42': 'oo',
+    '\u0C43': 'ri', '\u0C46': 'e',  '\u0C47': 'e',  '\u0C48': 'ai', '\u0C4A': 'o',
+    '\u0C4B': 'o',  '\u0C4C': 'au', '\u0C02': 'n',  '\u0C03': 'h',  '\u0C4D': '',
+    '\u0C66': '0',  '\u0C67': '1',  '\u0C68': '2',  '\u0C69': '3',  '\u0C6A': '4',
+    '\u0C6B': '5',  '\u0C6C': '6',  '\u0C6D': '7',  '\u0C6E': '8',  '\u0C6F': '9',
+}
+_TELUGU_RE = re.compile(r'[\u0C00-\u0C7F]')
+
+# --- KANNADA U+0C80-U+0CFF ---
+_KANNADA_MAP = {
+    '\u0C85': 'a',  '\u0C86': 'aa', '\u0C87': 'i',  '\u0C88': 'ee',
+    '\u0C89': 'u',  '\u0C8A': 'oo', '\u0C8B': 'ri', '\u0C8E': 'e',
+    '\u0C8F': 'e',  '\u0C90': 'ai', '\u0C92': 'o',  '\u0C93': 'o',  '\u0C94': 'au',
+    '\u0C95': 'k',  '\u0C96': 'kh', '\u0C97': 'g',  '\u0C98': 'gh', '\u0C99': 'ng',
+    '\u0C9A': 'ch', '\u0C9B': 'chh','\u0C9C': 'j',  '\u0C9D': 'jh', '\u0C9E': 'ny',
+    '\u0C9F': 't',  '\u0CA0': 'th', '\u0CA1': 'd',  '\u0CA2': 'dh', '\u0CA3': 'n',
+    '\u0CA4': 't',  '\u0CA5': 'th', '\u0CA6': 'd',  '\u0CA7': 'dh', '\u0CA8': 'n',
+    '\u0CAA': 'p',  '\u0CAB': 'ph', '\u0CAC': 'b',  '\u0CAD': 'bh', '\u0CAE': 'm',
+    '\u0CAF': 'y',  '\u0CB0': 'r',  '\u0CB1': 'r',  '\u0CB2': 'l',  '\u0CB3': 'l',
+    '\u0CB5': 'v',  '\u0CB6': 'sh', '\u0CB7': 'sh', '\u0CB8': 's',  '\u0CB9': 'h',
+    # Vowel signs
+    '\u0CBE': 'a',  '\u0CBF': 'i',  '\u0CC0': 'ee', '\u0CC1': 'u',  '\u0CC2': 'oo',
+    '\u0CC3': 'ri', '\u0CC6': 'e',  '\u0CC7': 'e',  '\u0CC8': 'ai', '\u0CCA': 'o',
+    '\u0CCB': 'o',  '\u0CCC': 'au', '\u0C82': 'n',  '\u0C83': 'h',  '\u0CCD': '',
+    '\u0CE6': '0',  '\u0CE7': '1',  '\u0CE8': '2',  '\u0CE9': '3',  '\u0CEA': '4',
+    '\u0CEB': '5',  '\u0CEC': '6',  '\u0CED': '7',  '\u0CEE': '8',  '\u0CEF': '9',
+}
 _KANNADA_RE = re.compile(r'[\u0C80-\u0CFF]')
+
+# --- MALAYALAM U+0D00-U+0D7F ---
+_MALAYALAM_MAP = {
+    '\u0D05': 'a',  '\u0D06': 'aa', '\u0D07': 'i',  '\u0D08': 'ee',
+    '\u0D09': 'u',  '\u0D0A': 'oo', '\u0D0B': 'ri', '\u0D0E': 'e',
+    '\u0D0F': 'e',  '\u0D10': 'ai', '\u0D12': 'o',  '\u0D13': 'o',  '\u0D14': 'au',
+    '\u0D15': 'k',  '\u0D16': 'kh', '\u0D17': 'g',  '\u0D18': 'gh', '\u0D19': 'ng',
+    '\u0D1A': 'ch', '\u0D1B': 'chh','\u0D1C': 'j',  '\u0D1D': 'jh', '\u0D1E': 'n',
+    '\u0D1F': 't',  '\u0D20': 'th', '\u0D21': 'd',  '\u0D22': 'dh', '\u0D23': 'n',
+    '\u0D24': 'th', '\u0D25': 'th', '\u0D26': 'd',  '\u0D27': 'dh', '\u0D28': 'n',
+    '\u0D2A': 'p',  '\u0D2B': 'ph', '\u0D2C': 'b',  '\u0D2D': 'bh', '\u0D2E': 'm',
+    '\u0D2F': 'y',  '\u0D30': 'r',  '\u0D31': 'r',  '\u0D32': 'l',  '\u0D33': 'l',
+    '\u0D34': 'zh', '\u0D35': 'v',  '\u0D36': 'sh', '\u0D37': 'sh', '\u0D38': 's',
+    '\u0D39': 'h',  '\u0D29': 'n',
+    # Chillu letters (pure consonants — no inherent vowel needed)
+    '\u0D7A': 'n',  '\u0D7B': 'n',  '\u0D7C': 'r',  '\u0D7D': 'l',  '\u0D7E': 'l',
+    '\u0D7F': 'k',
+    # Matras
+    '\u0D3E': 'a',  '\u0D3F': 'i',  '\u0D40': 'ee', '\u0D41': 'u',  '\u0D42': 'oo',
+    '\u0D43': 'ri', '\u0D46': 'e',  '\u0D47': 'e',  '\u0D48': 'ai', '\u0D4A': 'o',
+    '\u0D4B': 'o',  '\u0D4C': 'au', '\u0D57': 'au',
+    '\u0D02': 'n',  '\u0D03': 'h',  '\u0D4D': '',
+    '\u0D66': '0',  '\u0D67': '1',  '\u0D68': '2',  '\u0D69': '3',  '\u0D6A': '4',
+    '\u0D6B': '5',  '\u0D6C': '6',  '\u0D6D': '7',  '\u0D6E': '8',  '\u0D6F': '9',
+}
+_MALAYALAM_RE = re.compile(r'[\u0D00-\u0D7F]')
+
+# --- ARABIC / URDU U+0600-U+06FF ---
+# Urdu (also Kashmiri, Sindhi) uses Perso-Arabic. No inherent vowels.
+_URDU_MAP = {
+    '\u0627': 'a',  '\u0622': 'aa', '\u0628': 'b',  '\u067E': 'p',  '\u062A': 't',
+    '\u0679': 't',  '\u062B': 's',  '\u062C': 'j',  '\u0686': 'ch', '\u062D': 'h',
+    '\u062E': 'kh', '\u062F': 'd',  '\u0688': 'd',  '\u0630': 'z',  '\u0631': 'r',
+    '\u0691': 'r',  '\u0632': 'z',  '\u0698': 'zh', '\u0633': 's',  '\u0634': 'sh',
+    '\u0635': 's',  '\u0636': 'z',  '\u0637': 't',  '\u0638': 'z',  '\u0639': 'a',
+    '\u063A': 'gh', '\u0641': 'f',  '\u0642': 'q',  '\u06A9': 'k',  '\u06AF': 'g',
+    '\u0644': 'l',  '\u0645': 'm',  '\u0646': 'n',  '\u06BA': 'n',  '\u0648': 'w',
+    '\u06C1': 'h',  '\u06BE': 'h',  '\u0621': '',   '\u06CC': 'y',  '\u06D2': 'e',
+    '\u0626': 'y',  '\u0624': 'w',  '\u0629': 't',  '\u0623': 'a',  '\u0625': 'i',
+    '\u0649': 'a',  '\u064A': 'y',
+    # Harakat (vowel diacritics — rarely in location names)
+    '\u064E': 'a',  '\u064F': 'u',  '\u0650': 'i',  '\u0651': '',   '\u0652': '',
+    # Zero-width joiners
+    '\u200C': '',   '\u200D': '',
+}
+_URDU_RE = re.compile(r'[\u0600-\u06FF]')
+
+# --- COMBINED DETECTOR & BLOCK REGEX ---
+_ALL_INDIC_PATTERN = (
+    r'[\u0900-\u097F'   # Devanagari
+    r'\u0980-\u09FF'    # Bengali / Assamese
+    r'\u0A00-\u0A7F'    # Gurmukhi / Punjabi
+    r'\u0A80-\u0AFF'    # Gujarati
+    r'\u0B00-\u0B7F'    # Odia
+    r'\u0B80-\u0BFF'    # Tamil
+    r'\u0C00-\u0C7F'    # Telugu
+    r'\u0C80-\u0CFF'    # Kannada
+    r'\u0D00-\u0D7F'    # Malayalam
+    r'\u0600-\u06FF]'   # Arabic / Urdu
+)
+_ALL_INDIC_RE = re.compile(_ALL_INDIC_PATTERN)
+_INDIC_BLOCK_RE = re.compile(_ALL_INDIC_PATTERN.rstrip(']') + r']+')
+
+# Ordered list — each map applied per block (multi-char entries pre-sorted below).
+_SCRIPT_MAPS_RAW = [
+    (_DEVA_MAP,     _DEVA_RE),
+    (_BENGALI_MAP,  _BENGALI_RE),
+    (_GURMUKHI_MAP, _GURMUKHI_RE),
+    (_GUJARATI_MAP, _GUJARATI_RE),
+    (_ODIA_MAP,     _ODIA_RE),
+    (_TAMIL_MAP,    _TAMIL_RE),
+    (_TELUGU_MAP,   _TELUGU_RE),
+    (_KANNADA_MAP,  _KANNADA_RE),
+    (_MALAYALAM_MAP,_MALAYALAM_RE),
+    (_URDU_MAP,     _URDU_RE),
+]
+_SORTED_SCRIPT_MAPS = [
+    (sorted(m.items(), key=lambda x: -len(x[0])), cleanup_re)
+    for m, cleanup_re in _SCRIPT_MAPS_RAW
+]
+
+# Consonant digraphs and valid clusters that must NOT have 'a' inserted between
+# them. Includes aspirated pairs (kh, gh, …), South-Asian romanisation conventions,
+# and geminated consonants (tt, nn, …  = geminate, not a missing vowel).
+_VALID_CONSONANT_CLUSTERS: frozenset = frozenset({
+    # Aspirated consonant digraphs
+    'kh', 'gh', 'ng', 'ch', 'jh', 'ny', 'th', 'dh', 'ph', 'bh', 'sh', 'rh', 'zh',
+    # Conjunct first-pair tokens
+    'ks', 'gy', 'jn',
+    # Consonant + liquid / glide
+    'tr', 'pr', 'br', 'gr', 'dr', 'kr', 'mr', 'sr', 'vr',
+    'ty', 'py', 'by', 'ky', 'my', 'vy', 'sy', 'hy',
+    # Nasal + stop clusters — extremely common in Indian names after nasal
+    # assimilation (mb, mp, mm, nd, nt, nk, ng already above, nj, ns, nsh):
+    'mb', 'mp', 'nd', 'nt', 'nk', 'nj', 'ns', 'nch', 'nc',
+    # Geminates (doubled = geminate, no vowel between)
+    'bb', 'cc', 'dd', 'ff', 'gg', 'hh', 'jj', 'kk', 'll', 'mm',
+    'nn', 'pp', 'rr', 'ss', 'tt', 'vv', 'ww', 'yy', 'zz',
+})
+_ROMAN_CONSONANTS: frozenset = frozenset('bcdfghjklmnprstvwyz')
+
+
+def _insert_inherent_vowels(text: str) -> str:
+    """
+    Restore the inherent 'a' vowel between consecutive consonants that result
+    from transliterating a Brahmi-script block.
+
+    In all Brahmi-derived scripts (Devanagari, Bengali, Gurmukhi, Gujarati,
+    Odia, Telugu, Kannada, Malayalam, Tamil) every consonant carries an implicit
+    'a' unless followed by a virama (mapped to '') or a vowel matra (mapped to
+    an explicit vowel). After character substitution, back-to-back Roman
+    consonants in the output therefore represent a missing inherent vowel — this
+    function inserts 'a' to restore it.
+
+    Only called on text produced from an Indic block (not surrounding English),
+    so there is no risk of corrupting existing English words.
+    """
+    result: list = []
+    n = len(text)
+    i = 0
+    while i < n:
+        result.append(text[i])
+        if i + 1 < n:
+            curr, nxt = text[i], text[i + 1]
+            if curr in _ROMAN_CONSONANTS and nxt in _ROMAN_CONSONANTS:
+                pair = curr + nxt
+                if pair not in _VALID_CONSONANT_CLUSTERS:
+                    triple = text[i:i + 3] if i + 2 < n else ''
+                    if triple not in {'chh', 'ksh', 'gya', 'jny', 'rhy'}:
+                        result.append('a')
+        i += 1
+    return ''.join(result)
+
+
+def _apply_script_map(text: str, sorted_entries: list) -> str:
+    for src, dst in sorted_entries:
+        text = text.replace(src, dst)
+    return text
 
 
 def _is_devanagari(text: str) -> bool:
@@ -81,24 +368,42 @@ def _is_devanagari(text: str) -> bool:
 
 
 def _has_indic_script(text: str) -> bool:
-    return bool(_DEVA_RE.search(text) or _KANNADA_RE.search(text))
+    """Return True if text contains any supported Indian script character."""
+    return bool(_ALL_INDIC_RE.search(text))
 
 
 def _transliterate(text: str) -> str:
     """
-    Convert supported Indic scripts to a simplified Roman form suitable for
-    fuzzy matching against casual English spellings of Indian place names.
-    Unsupported Indic characters pass through unchanged.
+    Convert all supported Indian scripts to a simplified Roman form for fuzzy
+    matching against casual English spellings of Indian place names.
+
+    Each contiguous Indic block is processed in isolation so inherent-vowel
+    insertion never alters surrounding English text. Arabic/Urdu blocks have no
+    inherent vowels, so insertion is skipped for those.
     """
-    # Multi-char sequences first (nukta composites, conjuncts)
-    for deva, roman in sorted(_DEVA_MAP.items(), key=lambda x: -len(x[0])):
-        text = text.replace(deva, roman)
-    for kannada, roman in sorted(_KANNADA_MAP.items(), key=lambda x: -len(x[0])):
-        text = text.replace(kannada, roman)
-    # Remove any remaining supported-script characters not in the map
-    text = _DEVA_RE.sub('', text)
-    text = _KANNADA_RE.sub('', text)
-    return text.strip()
+    if not _ALL_INDIC_RE.search(text):
+        return text
+
+    def _transliterate_block(match: re.Match) -> str:
+        block = match.group(0)
+        is_arabic = bool(_URDU_RE.search(block))
+        for sorted_entries, cleanup_re in _SORTED_SCRIPT_MAPS:
+            block = _apply_script_map(block, sorted_entries)
+        block = _ALL_INDIC_RE.sub('', block)
+        if not is_arabic and block:
+            # Nasal assimilation BEFORE inherent-vowel insertion:
+            # Anusvara (ं ਂ ং ం ಂ ം etc.) maps to 'n' in all consonant tables,
+            # but before bilabials (b/p/m) it assimilates to 'm' in every
+            # major Indian language (Sanskrit sandhi rule, universally applied).
+            # Must run before _insert_inherent_vowels so 'n' is still adjacent
+            # to 'b' (otherwise the inherent-'a' step inserts a vowel between them).
+            # e.g. मुंबई: after subs → 'munbee' → assimilate → 'mumbee' → insert
+            # inherent vowels → 'mumbee' → canonical 'mumbi' ~ 'mumbai' 91%.
+            block = re.sub(r'n([bpm])', r'm\1', block)
+            block = _insert_inherent_vowels(block)
+        return block
+
+    return _INDIC_BLOCK_RE.sub(_transliterate_block, text).strip()
 
 # --- CONFIG & PATHS ---
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -143,10 +448,32 @@ _WORD_ALIAS_REPLACEMENTS = {
 }
 
 _ROMAN_LOCATION_SUFFIXES = (
-    "inlli", "nlli",
-    "nalli", "inalli", "dalli", "alli", "yalli",
-    "madhe", "madhye",
+    # ── KANNADA locative: -ನಲ್ಲಿ -ದಲ್ಲಿ etc.
+    "inlli", "nlli", "nalli", "inalli", "dalli", "alli", "yalli",
+    # ── MARATHI / HINDI locative: -मध्ये -मधे -में
+    "madhe", "madhye", "mein", "men",
+    # ── MARATHI / HINDI genitive: -च्या -चा -ची -चे
     "chya", "cha", "chi", "che",
+    # ── MARATHI / HINDI dative / locative endings
+    "la", "na",
+    # ── TELUGU locative: -లో -లోని -లోనే  (root must be >= 5 chars)
+    "lo", "loni", "lone", "lona", "lonu", "loke", "lona",
+    # ── TAMIL locative: -இல் → "il", -ல் → "l" (after inherent-vowel fix)
+    "il", "yil", "vil",
+    # ── MALAYALAM locative: -ൽ → "l" (chillu), -ത്തിൽ → "ttil", -ക്കിൽ → "kkil"
+    "ttil", "kkil",
+    # ── BENGALI / ASSAMESE locative: -তে → "te", -এ → "e" (bare, needs long root)
+    "te", "ye",
+    # ── GUJARATI locative: -માં → "man" / "maan"
+    "maan", "man",
+    # ── ODIA locative: -ରେ → "re"
+    "re",
+    # ── PUNJABI / GURMUKHI locative: -ਵਿੱਚ → "wich" / "vich"
+    "wich", "vich",
+    # ── URDU locative: میں → "myn" (after Arabic-script transliteration)
+    "myn",
+    # ── MALAYALAM / TAMIL locative with inherent-vowel forms after fix
+    "ail", "eil", "oil",
 )
 
 # ==========================================
@@ -266,19 +593,43 @@ def _canonicalize_alias(text: str) -> str:
 
     words = [_WORD_ALIAS_REPLACEMENTS.get(word, word) for word in value.split()]
     value = " ".join(words)
-    # Speech-to-text and transliteration often drift on Indian place names:
-    # "Shanti" may become "Santi", and "Bastwad/Bastawad" may become "Baswad".
-    # Keep these only as extra canonical forms; the original forms remain indexed.
+    # ── Pan-India phonetic normalizations ──────────────────────────────────
+    # Each rule produces an EXTRA canonical form; the original is also kept.
+    # Applied symmetrically to both query and index, so false matches cancel out.
+
+    # v/w — 'व' maps to 'v' in transliteration but most Indian place-name
+    # databases spell it 'w' (Wadi, Wada, Tilakwadi, Bhiwandi, Virar/Virar…).
+    # Normalise to 'w' so both sides collide.
+    value = value.replace("v", "w")
+
+    # sh/s — common drift in Indian regional romanisation ("Shivaji"/"Sivaji",
+    # "Sholapur"/"Solapur"). Applied at word boundaries only to limit false hits.
     value = re.sub(r"\bsh", "s", value)
+
+    # zh/j — Tamil ழ (mazhai, kozhikode) is variously romanised as zh, z, j, l.
+    value = value.replace("zh", "j")
+
+    # Aspirated/plain collapse — in casual messages aspirated consonants are
+    # often written as their plain equivalents or vice-versa.
+    value = re.sub(r"\bkh", "k", value)
+    value = re.sub(r"\bgh", "g", value)
+    value = re.sub(r"\bph", "p", value)
+
+    # Double-vowel normalisation (long → short for fuzzy matching)
+    value = re.sub(r"(aa|ae)", "a", value)
+    value = re.sub(r"(ee|ii)", "i", value)
+    value = re.sub(r"(oo|uu)", "u", value)
+
+    # Specific regional name normalisation
     value = value.replace("bastawad", "baswad")
     value = value.replace("bastwad", "baswad")
     value = value.replace("basawad", "baswad")
     value = value.replace("bsvad", "baswad")
-    value = re.sub(r"(aa|ae)", "a", value)
-    value = re.sub(r"(ee|ii)", "i", value)
-    value = re.sub(r"(oo|uu)", "u", value)
+
+    # Intervocalic /y/ drop ("Narayan" → "Narain", "Vijayan" → "Vijaan")
     value = re.sub(r"(?<=[aeiou])y(?=[aeiou])", "", value)
     value = re.sub(r"iya\b", "ia", value)
+
     value = re.sub(r"\s+", " ", value).strip()
     return value
 
@@ -1131,7 +1482,10 @@ def _rank_location_candidates(
                         if not (0.75 <= len(uk)/len(dk) <= 1.25):
                             continue
                         sim = similarity_score(uk, dk)
-                        if sim > 93:
+                        if sim > 90:  # lowered from 93: pan-India scripts produce
+                            # slightly imperfect romanizations; 90% still rejects
+                            # genuinely-different-romanization cases (Delhi, Mumbai)
+                            # which score 67-74% and need the alias DB instead.
                             score = sim
                             match_type = f"fuzzy_strict ({uk}~{dk})"
                             matched_name = dk
