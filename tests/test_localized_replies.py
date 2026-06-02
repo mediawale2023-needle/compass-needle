@@ -7,12 +7,43 @@ from modules.localized_replies import (
     get_review_ack_reply,
     normalize_language_name,
 )
-from sansadx_backend.ai_engine import detect_input_language
+from sansadx_backend.ai_engine import (
+    detect_input_language,
+    detect_input_language_confident,
+)
 
 
 def test_detect_input_language_identifies_roman_marathi_complaint():
     msg = "Kangrali madhe khup chori hot aahe"
     assert detect_input_language(msg) == "Marathi"
+
+
+def test_unrecognized_romanized_input_is_not_confident():
+    # Romanized Kannada the static marker list cannot enumerate
+    # ("idhe"/"nalli", code-mixed with Marathi "raste"). The rule-based
+    # detector must NOT confidently claim English here — it should report low
+    # confidence so the caller defers to the LLM's detection instead of
+    # replying to the citizen in the wrong language.
+    msg = "Hindwadi nalli raste bahal kait idhe"
+    _lang, confident = detect_input_language_confident(msg)
+    assert confident is False
+
+
+def test_confident_detection_preserved_for_strong_markers():
+    # Strong, unambiguous signals must stay confident so the rule-based result
+    # still wins over the LLM for these cases.
+    assert detect_input_language_confident("neeru illa alli maadi beku") == ("Kannada", True)
+    assert detect_input_language_confident("Kangrali madhe khup chori hot aahe") == ("Marathi", True)
+    assert detect_input_language_confident("Tilakwadi madhe pani nahi") == ("Marathi", True)
+    assert detect_input_language_confident("yahan paani nahi aata hai kya") == ("Hinglish", True)
+
+
+def test_plain_english_is_not_confidently_overridden():
+    # Plain English with no markers is a low-confidence guess; the LLM (which
+    # also sees the message) confirms English, so the citizen still gets English.
+    lang, confident = detect_input_language_confident("Water supply is broken near the school")
+    assert lang == "English"
+    assert confident is False
 
 
 def test_detect_input_language_identifies_short_roman_marathi_complaint():

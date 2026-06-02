@@ -2,7 +2,7 @@
 main.py — Needle Parliamentary Intelligence Platform
 Backend Entry Point (FastAPI)
 """
-from sansadx_backend.ai_engine import ask_chatgpt_agent, detect_input_language, get_offensive_warning_reply
+from sansadx_backend.ai_engine import ask_chatgpt_agent, detect_input_language, detect_input_language_confident, get_offensive_warning_reply
 import os
 import re
 import json
@@ -2396,13 +2396,24 @@ def _get_tenant_daily_limit(tenant_id: int) -> int:
 
 
 def _resolve_citizen_reply_language(message_body: str, ai_result: dict | None = None, language_hint: str = "") -> str:
+    # 1. An explicit per-number tenant language override always wins.
     hinted_language = normalize_language_name(language_hint, "")
     if hinted_language:
         return hinted_language
-    detected = detect_input_language(message_body)
-    if detected:
-        return detected
-    return normalize_language_name((ai_result or {}).get("detected_language", ""), "Hindi")
+
+    # 2. Trust the rule-based detector ONLY when it is confident (real markers
+    #    matched). It is high-precision but cannot enumerate every way citizens
+    #    romanize their language, so a non-confident "English"/"Hindi" guess must
+    #    not override the LLM's far broader detection.
+    rule_lang, rule_confident = detect_input_language_confident(message_body)
+    if rule_confident:
+        return rule_lang
+
+    # 3. Defer to the language the AI engine resolved (GPT's own detection of the
+    #    citizen's romanized/mixed message). Fall back to the rule guess only if
+    #    no AI result is available (pre-AI / AI-failure paths).
+    ai_lang = normalize_language_name((ai_result or {}).get("detected_language", ""), "")
+    return ai_lang or rule_lang
 
 
 def _resolve_citizen_ack_message(

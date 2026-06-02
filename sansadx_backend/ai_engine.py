@@ -22,7 +22,7 @@ from .unified_taxonomy import (
     VALID_CATEGORIES as _VALID_CATEGORIES,
     build_taxonomy_fields,
 )
-from modules.localized_replies import get_generic_ack_reply, get_missing_location_reply
+from modules.localized_replies import get_generic_ack_reply, get_missing_location_reply, normalize_language_name
 from modules.geography_policy import location_required_for_grievance
 
 # ==========================================
@@ -477,11 +477,37 @@ def detect_input_language(message: str) -> str:
     """Detect language from transliterated text using word markers.
     Returns: 'Marathi', 'Kannada', 'Tamil', 'Telugu', 'Bengali',
              'English', 'Hindi', or 'Hinglish'.
+
+    Backward-compatible wrapper around :func:`detect_input_language_confident`
+    that returns only the language label.
+    """
+    return detect_input_language_confident(message)[0]
+
+
+def detect_input_language_confident(message: str) -> tuple[str, bool]:
+    """Rule-based language detection that also reports its confidence.
+
+    Why this matters: these marker lists are high-precision but low-recall.
+    Citizens romanize Indian languages in endless, unpredictable ways
+    ("idhe"/"ide", "nalli"/"alli", code-mixed Kannada+Marathi+Hindi in a
+    single Belagavi sentence, …) and no static word list can ever enumerate
+    them. Trying to has been the "1000 fixes" treadmill.
+
+    So instead of pretending every result is authoritative, we only flag a
+    result as *confident* when we actually matched language-specific markers.
+    When nothing matches we still return a best-guess label ("English" for
+    Latin script, "Hindi" for other scripts) but mark it NOT confident — so
+    callers can defer to the LLM's own (far broader, context-aware) language
+    detection rather than forcing a wrong label onto the citizen's reply.
+
+    Returns:
+        (language, confident) — ``confident`` is True only when a real
+        language signal was matched.
     """
     words = set(message.lower().split())
     text_lower = message.lower()
 
-    # FIX P1: Detect pure-emoji or symbol-only input → English
+    # FIX P1: Detect pure-emoji or symbol-only input → English (confident).
     # Emoji are non-ASCII but are NOT Hindi/Devanagari.
     # Unicode general categories: So=Symbol-Other, Cs=Surrogate, Cn=Unassigned
     stripped_non_ws = message.replace(" ", "").replace("\t", "").replace("\n", "")
@@ -489,47 +515,52 @@ def detect_input_language(message: str) -> str:
         ord(c) > 127 and unicodedata.category(c) in ("So", "Cs", "Cn", "Sk", "Sm")
         for c in stripped_non_ws
     ):
-        return "English"
+        return "English", True
 
     # Check Marathi markers (most specific first)
     marathi_hits = sum(1 for m in _MARATHI_MARKERS if m in text_lower)
     if marathi_hits >= 2:
-        return "Marathi"
+        return "Marathi", True
 
     # Check Kannada markers
     kannada_hits = sum(1 for m in _KANNADA_MARKERS if m in text_lower)
     if kannada_hits >= 2:
-        return "Kannada"
+        return "Kannada", True
 
     # FIX P2: Check Tamil markers
     tamil_hits = sum(1 for m in _TAMIL_MARKERS if m in text_lower)
     if tamil_hits >= 2:
-        return "Tamil"
+        return "Tamil", True
 
     # FIX P2: Check Telugu markers
     telugu_hits = sum(1 for m in _TELUGU_MARKERS if m in text_lower)
     if telugu_hits >= 2:
-        return "Telugu"
+        return "Telugu", True
 
     # FIX P2: Check Bengali markers
     bengali_hits = sum(1 for m in _BENGALI_MARKERS if m in text_lower)
     if bengali_hits >= 2:
-        return "Bengali"
+        return "Bengali", True
 
-    # If mostly ASCII with no Indic markers, likely English
+    # If mostly ASCII with no strong Indic markers
     if all(ord(c) < 128 or c in ' \t\n' for c in message):
         # Single Marathi marker should win before Hindi/Hinglish markers for
         # short Roman Marathi complaints like "Tilakwadi madhe pani nahi".
         if marathi_hits >= 1:
-            return "Marathi"
+            return "Marathi", True
         # Check for common Hindi/Hinglish words
         hindi_markers = {"hai", "hain", "kya", "mein", "nahi", "bahut", "karo", "kijiye", "sahab"}
         if words & hindi_markers:
-            return "Hinglish"
-        return "English"
+            return "Hinglish", True
+        # All-ASCII with NO recognizable markers: this is the trap. It might be
+        # English — or romanized Kannada/Tamil/Telugu/etc. our markers missed.
+        # Return English as a guess but NOT confident, so the caller defers to
+        # the LLM's detection instead of replying in the wrong language.
+        return "English", False
 
-    # Devanagari / non-ASCII → let GPT handle
-    return "Hindi"
+    # Devanagari / non-ASCII with no markers → best guess Hindi, but it could be
+    # Marathi or another Devanagari language; defer to the LLM (not confident).
+    return "Hindi", False
 
 
 # ==========================================
@@ -586,10 +617,14 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     mp_constituency = mp_profile["constituency"]
     mp_state = mp_profile["state"]
 
-    # --- Deterministic language detection (on citizen message only) ---
+    # --- Language detection (on citizen message only) ---
+    # Rule-based markers are high-precision but cannot enumerate every way a
+    # citizen romanizes their language. We trust them only when confident;
+    # otherwise we let GPT (which reads romanized/mixed Indian text far better)
+    # detect the language and we keep its answer (reconciled below).
     extra_context, primary_message = _split_context_and_message(user_message)
     effective_user_message = primary_message or (user_message or "")
-    detected_lang = detect_input_language(effective_user_message)
+    detected_lang, lang_confident = detect_input_language_confident(effective_user_message)
 
     # --- Inject MP Persona & Professional Constraints ---
     mp_identity = ""
@@ -607,14 +642,37 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     4. ALWAYS reply in the SAME LANGUAGE as the citizen. Never switch to English.
         """
 
+    # Only force a specific language when our rule-based detector is confident.
+    # When it isn't (e.g. romanized Kannada the markers missed), instruct GPT to
+    # detect the citizen's actual language itself instead of forcing a guess.
+    if lang_confident:
+        language_rule = (
+            f"LANGUAGE: The citizen's message is in **{detected_lang}**. You MUST write your "
+            f"political_response in **{detected_lang}** only. Do NOT switch to Hindi or any other "
+            f'language. Set detected_language to "{detected_lang}".'
+        )
+        reply_language_phrase = detected_lang
+        language_tag = detected_lang
+    else:
+        language_rule = (
+            "LANGUAGE: Identify the citizen's actual language YOURSELF from their message — it may be "
+            "a romanized/transliterated Indian language (e.g. Kannada, Marathi, Tamil, Telugu, Bengali) "
+            "or a code-mix. Write your political_response in the SAME language and script the citizen "
+            "used, and set detected_language to that language. Do NOT default to Hindi or English "
+            f'unless the citizen actually wrote in it. (Rough automatic guess: "{detected_lang}" — '
+            "trust the citizen's message over this guess.)"
+        )
+        reply_language_phrase = "the citizen's own language"
+        language_tag = "auto-detect from the message"
+
     persona_instructions = f"""
     STRICT RULES:
     1. You are a Member of Parliament (MP) communicating with a citizen.
     2. NEVER mention 'departments', 'forwarding', or 'officials'.
     3. Maintain professional authority. DO NOT say 'it feels good' or 'I understand'.
     4. NO PROMISES: Do not promise a specific action. State the issue is 'noted and recorded'.
-    5. LANGUAGE: The citizen's message is in **{detected_lang}**. You MUST write your political_response in **{detected_lang}** only. Do NOT switch to Hindi or any other language. Set detected_language to "{detected_lang}".
-    6. Only If info is missing (location/area), ask for it directly in {detected_lang}.
+    5. {language_rule}
+    6. Only If info is missing (location/area), ask for it directly in {reply_language_phrase}.
     7. Be concise (max 2 sentences).
     8. Use neutral wording: prefer "issue/problem/samasya". Use "complaint" only if the citizen explicitly makes a complaint.
     {mp_identity}
@@ -623,15 +681,15 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     # Format the v3.0 system instructions from prompts.py
     system_instructions = f"{persona_instructions}\n\n{SYSTEM_PROMPT.format(user_message='{{MESSAGE_BELOW}}', jurisdiction_context=real_jurisdiction_context, taxonomy_categories=TAXONOMY_CATEGORIES, taxonomy_subdomains=TAXONOMY_SUBDOMAINS, convergence_program_types=CONVERGENCE_PROGRAM_TYPES_TEXT)}"
 
-    # Prefix user message with detected language so GPT cannot miss it
+    # Prefix user message with the language directive so GPT cannot miss it
     if extra_context:
         tagged_message = (
-            f"[LANGUAGE: {detected_lang}]\n"
+            f"[LANGUAGE: {language_tag}]\n"
             f"<user_input>\n{effective_user_message}\n</user_input>\n"
             f"<context>\n{extra_context}\n</context>"
         )
     else:
-        tagged_message = f"[LANGUAGE: {detected_lang}]\n<user_input>\n{effective_user_message}\n</user_input>"
+        tagged_message = f"[LANGUAGE: {language_tag}]\n<user_input>\n{effective_user_message}\n</user_input>"
 
     # ── Retry with exponential backoff (3 attempts: 1s → 2s → 4s) ──────────
     _MAX_RETRIES = 3
@@ -695,7 +753,17 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             if "status" in data:
                 _raw_status = str(data["status"]).lower().strip()
                 data["status"] = _raw_status if _raw_status in _VALID_STATUSES else "pending"
-            data["detected_language"] = detected_lang
+
+            # Reconcile language: trust the confident rule-based result; otherwise
+            # keep GPT's own detection (it reads romanized/mixed Indian text far
+            # better than a static marker list). Fall back to the rule guess only
+            # if GPT returned nothing usable.
+            if lang_confident:
+                data["detected_language"] = detected_lang
+            else:
+                gpt_lang = normalize_language_name(str(data.get("detected_language", "")), "")
+                detected_lang = gpt_lang or detected_lang
+                data["detected_language"] = detected_lang
 
             # [START OF MULTI-TENANT FIX (WITH AUTO-CORRECT)] ----------------
             try:
