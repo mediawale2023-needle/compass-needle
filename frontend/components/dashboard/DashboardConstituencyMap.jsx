@@ -206,7 +206,10 @@ export default function DashboardConstituencyMap({ summary, user, mapManifest = 
         : [];
 
     return (
-        <section className="min-w-0" style={{ background: P.surface, border: `1px solid ${P.hair}`, padding: 16, display: 'flex', flexDirection: 'column' }}>
+        <section
+            className="min-w-0"
+            style={{ background: P.surface, border: `1px solid ${P.hair}`, padding: 16, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}
+        >
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div>
                     <div style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 15, color: P.ink }}>
@@ -225,7 +228,7 @@ export default function DashboardConstituencyMap({ summary, user, mapManifest = 
 
             <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
                 {mapConfig ? (
-                    <div style={{ position: 'relative', width: '100%', aspectRatio: mapConfig.aspectRatio, minHeight: 180 }}>
+                    <div style={{ position: 'relative', width: '100%', aspectRatio: mapConfig.aspectRatio, minHeight: 140, maxHeight: '100%' }}>
                         {mapConfig.assetType === 'geojson' && mapConfig.geojson ? (
                             <GeoJsonBoundary geojson={mapConfig.geojson} assemblyGeojson={mapConfig.assemblyGeojson} />
                         ) : (

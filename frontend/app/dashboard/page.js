@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import DashboardActivityFeed from '@/components/dashboard/DashboardActivityFeed';
@@ -25,10 +25,40 @@ export default function DashboardPage() {
     const router = useRouter();
     const canUseSansadAI = canAccessSansadAI(user);
     const { summary, cases, letters, news, seatManifest, isInitialLoading, isEmpty } = useDashboardOverview();
+    const queueRef = useRef(null);
+    const [desktopQueueHeight, setDesktopQueueHeight] = useState(null);
 
     const handleCaseClick = useCallback((id) => {
         router.push(`/dashboard/sansadx?case_id=${id}`);
     }, [router]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return undefined;
+
+        const syncQueueHeight = () => {
+            if (window.innerWidth < 1280) {
+                setDesktopQueueHeight(null);
+                return;
+            }
+            const nextHeight = queueRef.current?.getBoundingClientRect?.().height || null;
+            setDesktopQueueHeight(nextHeight ? Math.round(nextHeight) : null);
+        };
+
+        syncQueueHeight();
+
+        const observer = typeof ResizeObserver !== 'undefined' && queueRef.current
+            ? new ResizeObserver(syncQueueHeight)
+            : null;
+        if (observer && queueRef.current) {
+            observer.observe(queueRef.current);
+        }
+
+        window.addEventListener('resize', syncQueueHeight);
+        return () => {
+            window.removeEventListener('resize', syncQueueHeight);
+            observer?.disconnect();
+        };
+    }, [cases]);
 
     if (isInitialLoading) {
         return (
@@ -59,10 +89,15 @@ export default function DashboardPage() {
             </div>
 
             {/* Row 2 left: Grievance table */}
-            <DashboardGrievanceQueue cases={cases} onCaseClick={handleCaseClick} />
+            <div ref={queueRef} className="min-w-0 self-start">
+                <DashboardGrievanceQueue cases={cases} onCaseClick={handleCaseClick} />
+            </div>
 
             {/* Row 2 right: Workload + Constituency map */}
-            <div className="grid grid-rows-2 gap-3.5 md:gap-[14px] min-w-0 h-full">
+            <div
+                className="grid grid-rows-2 gap-3.5 md:gap-[14px] min-w-0 self-start xl:self-stretch"
+                style={desktopQueueHeight ? { height: `${desktopQueueHeight}px` } : undefined}
+            >
                 <DashboardWorkloadCard summary={summary} />
                 <DashboardConstituencyMap summary={summary} user={user} mapManifest={seatManifest} />
             </div>

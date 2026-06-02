@@ -15,7 +15,13 @@ export default function DashboardWorkloadCard({ summary }) {
     const totalLabel = total > 999 ? `${(total / 1000).toFixed(1)}K` : String(total);
 
     return (
-        <DashboardSectionFrame title="Workload by category" meta={`${total} cases`} contentPadding={16}>
+        <DashboardSectionFrame
+            title="Workload by category"
+            meta={`${total} cases`}
+            contentPadding={16}
+            style={{ height: '100%' }}
+            bodyStyle={{ flex: 1, display: 'flex', minHeight: 0 }}
+        >
             {segments.length > 0 ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
                     <DashboardDonut segments={segments} size={96} thickness={16} label={totalLabel} sub="total" />

@@ -12,6 +12,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-06-02
+- Request: Remove the large blank space under the 10-row grievance queue and make the desktop right column match the left queue height.
+- Summary: Synced the desktop dashboard right-side `Workload + Constituency map` stack to the measured height of the 10-row grievance queue using a client-side `ResizeObserver`, anchored the left queue card to its content height instead of allowing grid stretch to create dead space, and made the workload/map cards fill that shared height cleanly. Verified with `npm run test --prefix frontend -- --run tests/dashboard.test.jsx`.
+- Files touched: `frontend/app/dashboard/page.js`, `frontend/components/dashboard/DashboardWorkloadCard.jsx`, `frontend/components/dashboard/DashboardConstituencyMap.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This sync is desktop-focused (`xl` and up); if visual drift still appears on the live Vercel build, the next step should be a browser-level check for font/content differences rather than another static CSS guess.
+
 - Date: 2026-06-01
 - Request: Implement Phase 3 of the constituency-map architecture.
 - Summary: Added DB-backed seat map manifest storage via the new `seat_map_manifests` model, upgraded `modules/seat_maps.py` to prefer admin-managed manifests over repo fallback, and introduced admin APIs to list, fetch, and upsert seat maps without requiring dashboard code changes. Added tests proving tenant map lookup still works and that an admin-upserted manifest overrides the repo default for the same seat key. Verified with `venv/bin/python -m pytest tests/test_dashboard_map_manifest_api.py -q`, `venv/bin/python -m py_compile sansadx_backend/db.py modules/seat_maps.py api_router.py admin_api.py tests/test_dashboard_map_manifest_api.py`, and `npm run test --prefix frontend -- --run tests/dashboard.test.jsx`.

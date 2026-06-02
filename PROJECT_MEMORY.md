@@ -137,3 +137,4 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 ## Dashboard UX Memory
 
 - The lower dashboard content cards (`Activity`, `Letters & drafts`, `Media Centre`) should default to showing 5 items with an inline `View more` / `View less` toggle instead of leaving large blank card bodies. This keeps the dashboard visually dense without immediately overwhelming the user, and future dashboard list cards should prefer the same pattern over fixed-height empty space.
+- On the desktop dashboard's main queue/workload row, the left grievance queue is the height source. The queue should stay visually capped to its 10 visible rows, and the right-side `Workload + Constituency map` stack should sync to that measured queue height instead of stretching the queue card with dead blank space.
