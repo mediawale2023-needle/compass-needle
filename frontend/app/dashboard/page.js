@@ -99,7 +99,7 @@ export default function DashboardPage() {
                 style={desktopQueueHeight ? { height: `${desktopQueueHeight}px` } : undefined}
             >
                 <DashboardWorkloadCard summary={summary} />
-                <DashboardConstituencyMap summary={summary} user={user} mapManifest={seatManifest} />
+                <DashboardConstituencyMap summary={summary} user={user} mapManifest={seatManifest} compact />
             </div>
 
             {/* Row 3 left: Letters + Press */}

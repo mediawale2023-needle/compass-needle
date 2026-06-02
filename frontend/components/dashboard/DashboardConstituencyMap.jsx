@@ -192,7 +192,7 @@ function toAnchorPercents(anchor = {}) {
     };
 }
 
-export default function DashboardConstituencyMap({ summary, user, mapManifest = null }) {
+export default function DashboardConstituencyMap({ summary, user, mapManifest = null, compact = false }) {
     const redZones = (summary?.red_zones || []).map((zone) => ({
         area: zone.area || zone.name || '',
         count: zone.count ?? zone.cnt ?? 0,
@@ -208,7 +208,7 @@ export default function DashboardConstituencyMap({ summary, user, mapManifest = 
     return (
         <section
             className="min-w-0"
-            style={{ background: P.surface, border: `1px solid ${P.hair}`, padding: 16, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}
+            style={{ background: P.surface, border: `1px solid ${P.hair}`, padding: 16, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden' }}
         >
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div>
@@ -228,7 +228,7 @@ export default function DashboardConstituencyMap({ summary, user, mapManifest = 
 
             <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
                 {mapConfig ? (
-                    <div style={{ position: 'relative', width: '100%', aspectRatio: mapConfig.aspectRatio, minHeight: 140, maxHeight: '100%' }}>
+                    <div style={{ position: 'relative', width: '100%', aspectRatio: mapConfig.aspectRatio, minHeight: compact ? 112 : 140, maxHeight: '100%' }}>
                         {mapConfig.assetType === 'geojson' && mapConfig.geojson ? (
                             <GeoJsonBoundary geojson={mapConfig.geojson} assemblyGeojson={mapConfig.assemblyGeojson} />
                         ) : (
@@ -295,7 +295,7 @@ export default function DashboardConstituencyMap({ summary, user, mapManifest = 
                 )}
             </div>
 
-            {hotspots.length > 0 && (
+            {!compact && hotspots.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-2.5">
                     {hotspots.map((zone) => (
                         <Link
@@ -324,7 +324,7 @@ export default function DashboardConstituencyMap({ summary, user, mapManifest = 
                 </div>
             )}
 
-            {topCategories.length > 0 && (
+            {!compact && topCategories.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-2.5">
                     {topCategories.map(([category, count]) => (
                         <Link key={category} href={`/dashboard/sansadx?category=${encodeURIComponent(category)}`} style={{ textDecoration: 'none' }}>
