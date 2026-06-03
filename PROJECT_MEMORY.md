@@ -107,6 +107,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - Briefcase now defaults back to `All cases`, and the `Others` tab is restored as a first-class bucket using the backend-supported `bucket=other` filter for greetings, spam/offensive messages, and personal/request-style cases.
 - `Needs you` is no longer a Briefcase tab. That concept now remains only as a triage metric, while the actual Briefcase tabs are `All cases`, `New`, `In progress`, `Resolved`, `Others`, plus the auxiliary `Clusters` and `Deleted`.
 - The shared dashboard chrome should not stack its own route header above the page-level Briefcase header. On `/dashboard/sansadx`, only the Briefcase header should render; the generic “Operations Dashboard” header is suppressed there.
+- The Briefcase right-drawer detail should not depend solely on `case_metadata.ai_*` fields being present. For older or partially enriched cases, the drawer must fall back to canonical case fields like `problem_domain`, `problem_subdomain`, `detected_language`, and a structured summary derived from saved taxonomy/location metadata instead of echoing the raw citizen message as the “summary”.
 - The attempted mobile-specific Briefcase layouts were reverted on 2026-05-26. The preferred responsive direction is to preserve the desktop structure and visual hierarchy on mobile as much as possible, using wrapping, narrower spacing, and stacked controls only where necessary rather than introducing separate phone-only card layouts.
 
 ## Open Memory Items

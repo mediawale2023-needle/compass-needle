@@ -84,6 +84,65 @@ const monoLbl = {
     display: 'block',
 };
 
+function normalizeForComparison(text) {
+    return String(text || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function isMeaningfullyDistinctSummary(summary, rawMessage) {
+    if (!summary) return false;
+    const normalizedSummary = normalizeForComparison(summary);
+    const normalizedRaw = normalizeForComparison(rawMessage);
+    if (!normalizedSummary) return false;
+    if (!normalizedRaw) return true;
+    return normalizedSummary !== normalizedRaw;
+}
+
+function buildStructuredSummary(current, meta) {
+    const category = meta.ai_category || current.problem_domain || current.category || '';
+    const subcategory = meta.ai_subcategory || current.problem_subdomain || '';
+    const location = meta.matched_value || current.location || '';
+    const assembly = meta.assembly_constituency || current.assembly || '';
+    const person = meta.person || '';
+    const department = meta.department || '';
+    const scheme = meta.scheme || '';
+    const fragments = [];
+
+    if (category && !/^(uncategorised|general)$/i.test(category)) {
+        fragments.push(subcategory ? `${category} · ${subcategory}` : category);
+    }
+    if (location) fragments.push(`location ${location}`);
+    if (assembly) fragments.push(`assembly ${assembly}`);
+    if (person) fragments.push(`mentions ${person}`);
+    if (department) fragments.push(`department ${department}`);
+    if (scheme) fragments.push(`scheme ${scheme}`);
+
+    if (!fragments.length) return '';
+    return `Case classified as ${fragments.join(' · ')}.`;
+}
+
+function getCaseSummary(current, meta) {
+    if (isMeaningfullyDistinctSummary(meta.summary, current.raw_message)) {
+        return meta.summary;
+    }
+    return buildStructuredSummary(current, meta);
+}
+
+function getSuggestedTriage(meta, current) {
+    const aiCategory = meta.ai_category || current.problem_domain || '';
+    const aiSubcategory = meta.ai_subcategory || current.problem_subdomain || '';
+    const detectedLanguage = meta.detected_language || meta.language || '';
+
+    if (!aiCategory || /^(uncategorised|general)$/i.test(aiCategory)) {
+        return null;
+    }
+
+    return {
+        ai_category: aiCategory,
+        ai_subcategory: aiSubcategory,
+        detected_language: detectedLanguage,
+    };
+}
+
 // ─── Drawer header ───────────────────────────────────────────
 function DrawerHeader({ caseRef, status, isUncategorised, onClose }) {
     const palette = {
@@ -208,8 +267,8 @@ function CitizenCard({ phone, createdAt, language }) {
 }
 
 // ─── AI suggestion banner ─────────────────────────────────────
-function AISuggestionBanner({ meta, onAccept }) {
-    if (!meta.ai_category) return null;
+function AISuggestionBanner({ suggestion, onAccept }) {
+    if (!suggestion?.ai_category) return null;
     return (
         <div style={{
             padding: '16px 20px',
@@ -233,23 +292,16 @@ function AISuggestionBanner({ meta, onAccept }) {
             }}>
                 Categorise as{' '}
                 <span style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 4 }}>
-                    {meta.ai_category}{meta.ai_subcategory ? ` · ${meta.ai_subcategory}` : ''}
+                    {suggestion.ai_category}{suggestion.ai_subcategory ? ` · ${suggestion.ai_subcategory}` : ''}
                 </span>
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-                {meta.ai_confidence && (
+                {suggestion.detected_language && (
                     <span style={{
                         fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5,
                         background: 'rgba(245,239,224,0.14)', color: '#F5EFE0',
                         padding: '2px 7px', letterSpacing: '0.06em',
-                    }}>confidence · {Math.round(meta.ai_confidence * 100)}%</span>
-                )}
-                {meta.detected_language && (
-                    <span style={{
-                        fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5,
-                        background: 'rgba(245,239,224,0.14)', color: '#F5EFE0',
-                        padding: '2px 7px', letterSpacing: '0.06em',
-                    }}>language · {meta.detected_language}</span>
+                    }}>language · {suggestion.detected_language}</span>
                 )}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -279,12 +331,13 @@ function AISuggestionBanner({ meta, onAccept }) {
 // ─── Message block ────────────────────────────────────────────
 function MessageBlock({ rawMessage, summary, media, caseId }) {
     const [showSummary, setShowSummary] = useState(false);
+    const hasSummary = Boolean(summary);
 
     return (
         <div style={sec}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <span style={monoLbl}>Citizen message</span>
-                {summary && (
+                {hasSummary && (
                     <div style={{ display: 'flex', border: `1px solid ${C.hair}` }}>
                         <button onClick={() => setShowSummary(false)} style={{
                             padding: '3px 10px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
@@ -311,7 +364,7 @@ function MessageBlock({ rawMessage, summary, media, caseId }) {
                 {showSummary ? (summary || 'No summary available.') : (rawMessage || 'No message content.')}
             </div>
 
-            {summary && !showSummary && (
+            {hasSummary && !showSummary && (
                 <div style={{
                     marginTop: 8, padding: '10px 12px',
                     background: C.greenWash, border: `1px solid ${C.greenTint}`,
@@ -749,6 +802,8 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const isUncategorised = !current.category || current.category === 'Uncategorised' || current.category === 'General';
     const isMp = isPrimaryAccount(user);
     const caseRef = current.case_ref || `#${current.id}`;
+    const suggestedTriage = getSuggestedTriage(meta, current);
+    const displaySummary = getCaseSummary(current, meta);
 
     const handleStatusChange = async (newStatus) => {
         setUpdating(newStatus);
@@ -884,17 +939,17 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                 <CitizenCard
                                     phone={current.user_phone}
                                     createdAt={createdAt}
-                                    language={meta.detected_language}
+                                    language={meta.detected_language || meta.language}
                                 />
-                                {isUncategorised && (
+                                {isUncategorised && suggestedTriage && (
                                     <AISuggestionBanner
-                                        meta={meta}
+                                        suggestion={suggestedTriage}
                                         onAccept={() => handleStatusChange('in_progress')}
                                     />
                                 )}
                                 <MessageBlock
                                     rawMessage={current.raw_message}
-                                    summary={meta.summary}
+                                    summary={displaySummary}
                                     media={current.media || []}
                                     caseId={current.id}
                                 />

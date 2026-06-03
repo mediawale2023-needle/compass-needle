@@ -2740,6 +2740,28 @@ def _run_citizen_case_enrichment(
                 if matches:
                     final_constituency = combined_lower[matches[0]]
 
+    raw_summary = (grievance.get("summary") or "").strip()
+    fallback_summary = ""
+    if not raw_summary or raw_summary.lower() == (message_body or "").strip().lower():
+        summary_bits = []
+        if problem_domain and str(problem_domain).lower() not in {"general", "uncategorised"}:
+            summary_bits.append(str(problem_domain))
+        if problem_subdomain:
+            summary_bits.append(str(problem_subdomain))
+        if location_name:
+            summary_bits.append(f"location {location_name}")
+        if final_constituency and final_constituency != "Unknown":
+            summary_bits.append(f"assembly {final_constituency}")
+        if grievance.get("person"):
+            summary_bits.append(f"mentions {grievance.get('person')}")
+        if grievance.get("department"):
+            summary_bits.append(f"department {grievance.get('department')}")
+        if grievance.get("scheme"):
+            summary_bits.append(f"scheme {grievance.get('scheme')}")
+        if summary_bits:
+            fallback_summary = f"Case classified as {' · '.join(summary_bits)}."
+    effective_summary = raw_summary or fallback_summary or message_body[:100]
+
     meta_data = {
         "detected_language": detected_language,
         "language": detected_language,
@@ -2753,7 +2775,10 @@ def _run_citizen_case_enrichment(
         "needs_geography_review": bool(grievance.get("needs_geography_review")),
         "geography_review_reason": grievance.get("geography_review_reason", ""),
         "geography_diagnostics": grievance.get("geography_diagnostics", {}),
-        "summary": grievance.get("summary", message_body[:100]),
+        "summary": effective_summary,
+        "ai_category": problem_domain,
+        "ai_subcategory": problem_subdomain,
+        "ai_confidence": grievance.get("ai_confidence"),
         "categories": categories if isinstance(categories, list) else [category],
         "problem_domain": problem_domain,
         "problem_subdomain": problem_subdomain,
