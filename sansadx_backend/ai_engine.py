@@ -24,6 +24,7 @@ from .unified_taxonomy import (
 )
 from modules.localized_replies import get_generic_ack_reply, get_missing_location_reply, normalize_language_name
 from modules.geography_policy import location_required_for_grievance
+from core.pii_redaction import redact_pii
 
 # ==========================================
 # 1. CONFIGURATION
@@ -681,15 +682,22 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
     # Format the v3.0 system instructions from prompts.py
     system_instructions = f"{persona_instructions}\n\n{SYSTEM_PROMPT.format(user_message='{{MESSAGE_BELOW}}', jurisdiction_context=real_jurisdiction_context, taxonomy_categories=TAXONOMY_CATEGORIES, taxonomy_subdomains=TAXONOMY_SUBDOMAINS, convergence_program_types=CONVERGENCE_PROGRAM_TYPES_TEXT)}"
 
+    # DPDP data-minimisation: strip phone numbers before the message leaves our
+    # servers. Classification never needs the number. We redact only the copy
+    # sent to OpenAI; effective_user_message stays intact for local logic
+    # (language detection already ran above; location grounding runs below).
+    prompt_message = redact_pii(effective_user_message)
+    prompt_context = redact_pii(extra_context)
+
     # Prefix user message with the language directive so GPT cannot miss it
-    if extra_context:
+    if prompt_context:
         tagged_message = (
             f"[LANGUAGE: {language_tag}]\n"
-            f"<user_input>\n{effective_user_message}\n</user_input>\n"
-            f"<context>\n{extra_context}\n</context>"
+            f"<user_input>\n{prompt_message}\n</user_input>\n"
+            f"<context>\n{prompt_context}\n</context>"
         )
     else:
-        tagged_message = f"[LANGUAGE: {language_tag}]\n<user_input>\n{effective_user_message}\n</user_input>"
+        tagged_message = f"[LANGUAGE: {language_tag}]\n<user_input>\n{prompt_message}\n</user_input>"
 
     # ── Retry with exponential backoff (3 attempts: 1s → 2s → 4s) ──────────
     _MAX_RETRIES = 3

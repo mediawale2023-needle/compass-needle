@@ -12,6 +12,8 @@ import json
 import logging
 from openai import OpenAI
 
+from core.pii_redaction import redact_pii
+
 logger = logging.getLogger("needle.case_query_parser")
 
 # ── OpenAI client (lazy, same pattern as ai_engine.py) ──────────────────────
@@ -204,7 +206,10 @@ def parse_query(message: str, tenant_id: int = 1) -> dict:
                 response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": _PARSER_SYSTEM_PROMPT},
-                    {"role": "user",   "content": message},
+                    # DPDP data-minimisation: phone numbers never appear in a
+                    # valid query filter (location/days/issue/status), so strip
+                    # them before the text leaves our servers.
+                    {"role": "user",   "content": redact_pii(message)},
                 ],
                 max_tokens=200,
                 temperature=0,
