@@ -683,3 +683,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Removed the `Legacy Tools` group from `admin/components/Sidebar.js`, leaving the new domain-first navigation as the only primary admin IA. Tightened `admin/app/dashboard/layout.js` descriptions and rewrote the new domain landing pages for `Accounts`, `Seats`, `Shared Geography`, `Cases & Intelligence`, `Staff & Access`, and `System` so they describe durable workflows rather than transitional migration state.
 - Files touched: `admin/components/Sidebar.js`, `admin/app/dashboard/layout.js`, `admin/app/dashboard/accounts/page.js`, `admin/app/dashboard/seats/page.js`, `admin/app/dashboard/shared-geography/page.js`, `admin/app/dashboard/cases-intelligence/page.js`, `admin/app/dashboard/staff-access/page.js`, `admin/app/dashboard/system/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: Navigation is now cleaner, but the next review should happen in the live admin UI to decide whether the `Seats` domain needs real seat-specific detail pages soon or can remain a landing hub a bit longer.
+
+- Date: 2026-06-03
+- Request: Push the full admin frontend IA migration and cleanup batch to GitHub for deployment.
+- Summary: Pushed commit `f4ba967a` (`Restructure admin frontend around domain IA`) to `origin/main`, publishing the domain-first admin route tree, shared admin-domain ownership modules, legacy route redirects, updated domain landing pages, and the cleaned primary sidebar without the old `Legacy Tools` section.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is an admin frontend rollout, so deployment depends on Vercel picking up the latest `main` push. The next live review should focus on whether `Seats` needs deeper seat-detail screens and whether any remaining page copy still feels transitional.
