@@ -1289,6 +1289,7 @@ def _finalize_whatsapp_geography_decision(
     is_emergency_complaint: bool,
     location_required: bool = True,
     resolver_message_body: str | None = None,
+    resolver_fallback_message_body: str | None = None,
 ) -> dict:
     try:
         from sansadx_backend.db import get_tenant_constituency
@@ -1303,6 +1304,7 @@ def _finalize_whatsapp_geography_decision(
         detected_language=detected_language,
         message_body=message_body,
         resolver_message_body=resolver_message_body,
+        resolver_fallback_message_body=resolver_fallback_message_body,
         current_tenant=current_tenant,
         is_emergency_complaint=is_emergency_complaint,
         location_required=location_required,
@@ -2262,8 +2264,14 @@ def _process_citizen_media_complaint(
     ]
     location_hint = " / ".join(dict.fromkeys(location_hint_parts))
     resolver_message_body = message_body
+    resolver_fallback_message_body = ""
     if location_hint and location_hint.lower() not in message_body.lower():
         resolver_message_body = f"{message_body}\n\nLocation: {location_hint}"
+    english_support_text = (getattr(normalized, "english_support_text", "") or "").strip()
+    if english_support_text:
+        resolver_fallback_message_body = english_support_text
+        if location_hint and location_hint.lower() not in resolver_fallback_message_body.lower():
+            resolver_fallback_message_body = f"{resolver_fallback_message_body}\n\nLocation: {location_hint}"
 
     logger.info(
         "Citizen media routed to grievance pipeline: sender=%s tenant=%s type=%s chars=%s",
@@ -2281,6 +2289,7 @@ def _process_citizen_media_complaint(
             "caption": caption,
             "extracted_text": normalized.text,
             "raw_transcript": getattr(normalized, "raw_text", "") or normalized.text,
+            "english_support_text": getattr(normalized, "english_support_text", "") or "",
             "transcript_provider": getattr(normalized, "transcript_provider", "") or "",
             "normalization_notes": getattr(normalized, "normalization_notes", None),
             "mentioned_location_original": normalized.mentioned_location_original,
@@ -2295,6 +2304,7 @@ def _process_citizen_media_complaint(
         media_source=media_source,
         language_hint=normalized.extracted_language,
         resolver_message_body=resolver_message_body,
+        resolver_fallback_message_body=resolver_fallback_message_body,
     )
 
 
@@ -2581,6 +2591,7 @@ def _run_citizen_case_enrichment(
     sender: str,
     message_body: str,
     resolver_message_body: str | None,
+    resolver_fallback_message_body: str | None,
     current_tenant: int,
     language_hint: str,
     media_source: dict | None = None,
@@ -2638,6 +2649,7 @@ def _run_citizen_case_enrichment(
         detected_language=detected_language,
         message_body=message_body,
         resolver_message_body=resolver_message_body,
+        resolver_fallback_message_body=resolver_fallback_message_body,
         current_tenant=current_tenant,
         is_emergency_complaint=is_emergency_complaint,
         location_required=location_required_for_domain(category),
@@ -2790,6 +2802,7 @@ def _run_citizen_case_enrichment(
         "source_media_type": media_source.get("media_type") if media_source else "",
         "source_media_caption": media_source.get("caption", "") if media_source else "",
         "source_media_raw_transcript": media_source.get("raw_transcript", "") if media_source else "",
+        "source_media_english_support_text": media_source.get("english_support_text", "") if media_source else "",
         "source_media_transcript_provider": media_source.get("transcript_provider", "") if media_source else "",
         "source_media_normalization_notes": media_source.get("normalization_notes") if media_source else None,
     }
@@ -2948,6 +2961,7 @@ def _process_incoming_message(
     media_source: dict | None = None,
     language_hint: str = "",
     resolver_message_body: str | None = None,
+    resolver_fallback_message_body: str | None = None,
 ):
     """Background task: AI processing + DB save + reply. Runs after 200 is returned to Meta."""
     if not receiver_number:
@@ -2962,6 +2976,7 @@ def _process_incoming_message(
     _wa_phone_id = get_tenant_phone_number_id(current_tenant)
 
     resolver_message_body = resolver_message_body or message_body
+    resolver_fallback_message_body = resolver_fallback_message_body or ""
 
     logger.info(f"Incoming from {sender} → Tenant {current_tenant}")
     sender_digits = re.sub(r"\D", "", sender or "")
@@ -3178,6 +3193,7 @@ def _process_incoming_message(
                 sender=sender,
                 message_body=_combined_message,
                 resolver_message_body=_resolver_combined,
+                resolver_fallback_message_body=resolver_fallback_message_body,
                 current_tenant=current_tenant,
                 language_hint=language_hint,
             )
@@ -3275,6 +3291,7 @@ def _process_incoming_message(
             sender=sender,
             message_body=message_body,
             resolver_message_body=resolver_message_body,
+            resolver_fallback_message_body=resolver_fallback_message_body,
             current_tenant=current_tenant,
             language_hint=language_hint,
             media_source=media_source,

@@ -22,6 +22,7 @@ logger = logging.getLogger("needle.voice_note_normalizer")
 class VoiceNoteNormalizationResult:
     raw_transcript: str
     normalized_text: str
+    english_support_text: str = ""
     extracted_language: str = ""
     mentioned_location_original: str = ""
     mentioned_location_roman: str = ""
@@ -35,6 +36,7 @@ _VOICE_NOTE_NORMALIZATION_PROMPT = """You are cleaning a speech-to-text transcri
 Return ONLY valid JSON:
 {
   "normalized_text": "same language as the citizen, corrected only for obvious ASR drift, no translation",
+  "english_support_text": "brief English rendering for internal support only; preserve locality names in usable Roman form, else empty string",
   "detected_language": "language name if clear, else Unknown",
   "mentioned_location_original": "exact location phrase present in normalized_text if clear, else empty string",
   "mentioned_location_roman": "Roman rendering of the location only if clear, else empty string",
@@ -43,6 +45,7 @@ Return ONLY valid JSON:
 
 Rules:
 1. Keep the citizen's meaning and language exactly. Do not translate.
+1b. Fill english_support_text with a short internal English rendering only to support downstream case understanding. Keep it concise and preserve locality names rather than over-translating them.
 2. Correct only likely speech-recognition drift, especially locality names, while staying conservative.
 3. If the shortlist of possible localities does not clearly fit the transcript, do not force one.
 4. Do not add new facts, issue details, or names that are not supported by the transcript.
@@ -68,6 +71,7 @@ def _fallback_normalization(
     return VoiceNoteNormalizationResult(
         raw_transcript=transcript,
         normalized_text=transcript,
+        english_support_text="",
         extracted_language=detected_language or "Unknown",
         mentioned_location_original="",
         mentioned_location_roman=str(top.get("matched_value") or "").strip(),
@@ -91,6 +95,7 @@ def normalize_voice_note_transcript(
         return VoiceNoteNormalizationResult(
             raw_transcript="",
             normalized_text="",
+            english_support_text="",
             extracted_language=detected_language or "Unknown",
             confidence="low",
             notes={"normalizer": "empty"},
@@ -147,6 +152,7 @@ def normalize_voice_note_transcript(
         return VoiceNoteNormalizationResult(
             raw_transcript=clean_transcript,
             normalized_text=normalized_text,
+            english_support_text=str(payload.get("english_support_text") or "").strip(),
             extracted_language=str(payload.get("detected_language") or detected_language or "Unknown").strip(),
             mentioned_location_original=str(payload.get("mentioned_location_original") or "").strip(),
             mentioned_location_roman=str(payload.get("mentioned_location_roman") or "").strip(),

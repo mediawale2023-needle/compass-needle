@@ -134,6 +134,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 
 - WhatsApp voice-note transcription now prefers Sarvam STT (`core/sarvam_client.py`) for `media_type="audio"` and falls back to the older Gemini multimodal normalization only when Sarvam is unavailable. Image and document normalization remain Gemini-backed.
 - Voice-note intake is now two-stage: Sarvam produces the raw transcript, then `modules/voice_note_normalizer.py` uses tenant-scoped geography candidates plus Gemini cleanup to create a safer normalized complaint text before the normal grievance pipeline sees it. Keep both `raw_transcript` and `normalized_text` available in media metadata for audit/debug.
+- Media/voice-note geography should now follow a dual-pass rule: preserve the citizen's original language as the primary geography-mapping input, but also carry an internal `english_support_text` for backup resolution when the native-script/native-transliteration pass misses. Translation is a support layer for mapping, not the primary source of truth.
 
 ## Classification Memory
 

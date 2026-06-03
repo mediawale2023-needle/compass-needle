@@ -22,6 +22,7 @@ class NormalizedMediaComplaint:
     media_type: str
     mime_type: str
     raw_text: str = ""
+    english_support_text: str = ""
     extracted_language: str = ""
     mentioned_location_original: str = ""
     mentioned_location_roman: str = ""
@@ -41,6 +42,7 @@ The media may be:
 Return ONLY a valid JSON object with no markdown:
 {
   "complaint_text": "A faithful grievance text in the citizen's language or transliteration. Include the issue and all location words that are visible or spoken. Do not invent missing details.",
+  "english_support_text": "A short internal English rendering preserving locality names in Roman form if possible, else empty string",
   "detected_language": "language name if clear, else Unknown",
   "mentioned_location_original": "the exact location words as visible/spoken, else empty string",
   "mentioned_location_roman": "best Roman-script rendering of the location only, else empty string",
@@ -154,6 +156,7 @@ def _normalize_sarvam_transcript(
         media_type=media_type,
         mime_type=mime_type,
         raw_text=raw_transcript,
+        english_support_text=(normalized.english_support_text if normalized else ""),
         extracted_language=(normalized.extracted_language if normalized else _sarvam_language_name(result.language_code)),
         mentioned_location_original=location_original,
         mentioned_location_roman=location_roman,
@@ -244,6 +247,7 @@ def normalize_media_complaint(
                 text="",
                 media_type=media_type,
                 mime_type=mime_type,
+                english_support_text=str(payload.get("english_support_text") or ""),
                 extracted_language=str(payload.get("detected_language") or ""),
                 mentioned_location_original=str(payload.get("mentioned_location_original") or ""),
                 mentioned_location_roman=str(payload.get("mentioned_location_roman") or ""),
@@ -264,6 +268,7 @@ def normalize_media_complaint(
             text=complaint_text,
             media_type=media_type,
             mime_type=mime_type,
+            english_support_text=str(payload.get("english_support_text") or ""),
             extracted_language=str(payload.get("detected_language") or ""),
             mentioned_location_original=str(payload.get("mentioned_location_original") or ""),
             mentioned_location_roman=str(payload.get("mentioned_location_roman") or ""),

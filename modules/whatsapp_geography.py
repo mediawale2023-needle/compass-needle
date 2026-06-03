@@ -191,6 +191,7 @@ def finalize_geography_decision(
     get_tenant_constituency_fn: Callable[[int], str | None] | None = None,
     assembly_belongs_to_parliamentary_fn: Callable[[str | None, str | None], bool] | None = None,
     resolver_message_body: str | None = None,
+    resolver_fallback_message_body: str | None = None,
 ) -> dict[str, Any]:
     """
     Final authority for citizen-grievance geography and reply state.
@@ -236,6 +237,41 @@ def finalize_geography_decision(
             input_text=resolver_message_body or message_body,
             resolution=raw_message_geo,
         )
+
+    if (not raw_message_geo.get("location_resolved")) and resolver_fallback_message_body:
+        try:
+            fallback_geo = resolve_location_fn(
+                resolver_fallback_message_body,
+                scope_parliamentary=tenant_const,
+                tenant_id=current_tenant,
+            )
+        except Exception as exc:
+            logger.warning("Fallback geography resolution failed: %s", exc)
+            _record_geography_attempt(
+                diagnostics,
+                source="english_support",
+                input_text=resolver_fallback_message_body,
+                resolution={"location_resolved": False},
+                reason=f"resolver_exception:{exc.__class__.__name__}",
+            )
+        else:
+            _record_geography_attempt(
+                diagnostics,
+                source="english_support",
+                input_text=resolver_fallback_message_body,
+                resolution=fallback_geo,
+            )
+            if fallback_geo.get("location_resolved"):
+                location_name, final_constituency, status, political_reply = _apply_resolved_geography(
+                    grievance=grievance,
+                    resolution=fallback_geo,
+                    location_name=location_name,
+                    source="english_support",
+                    status=status,
+                    political_reply=political_reply,
+                    detected_language=detected_language,
+                    message_body=message_body,
+                )
 
     if raw_message_geo.get("location_resolved"):
         location_name, final_constituency, status, political_reply = _apply_resolved_geography(

@@ -326,3 +326,39 @@ def test_ai_assembly_alone_does_not_become_final_truth():
     assert result["status"] == "new"
     assert result["final_constituency"] == "Unknown"
     assert result["grievance"]["geography_diagnostics"]["final"]["location_resolved"] is False
+
+
+def test_english_support_fallback_can_resolve_geography_when_native_pass_misses():
+    result = finalize_geography_decision(
+        grievance={},
+        ai_result={},
+        status="awaiting_location",
+        political_reply="please tell village/ward",
+        detected_language="Kannada",
+        message_body="ಸಾಹೇಬ್ರೆ ಪಿರನ್ವಾಡಿನ ರಸ್ತೆ ಖರಾಬ್ ಇದೆ ಅದೇನ್ ಏನ್ ಮಾಡ್ತೀನಿ ನೋಡ್ರಿ",
+        resolver_message_body="ಸಾಹೇಬ್ರೆ ಪಿರನ್ವಾಡಿನ ರಸ್ತೆ ಖರಾಬ್ ಇದೆ ಅದೇನ್ ಏನ್ ಮಾಡ್ತೀನಿ ನೋಡ್ರಿ",
+        resolver_fallback_message_body="The road in Peeranwadi is bad. Location: Peeranwadi",
+        current_tenant=2,
+        is_emergency_complaint=False,
+        resolve_location_fn=lambda text, **_kwargs: (
+            {
+                "location_resolved": True,
+                "matched_value": "Peeranwadi",
+                "assembly_constituency": "Belgaum Rural",
+                "confidence_level": "boundary",
+                "match_type": "db_alias_boundary",
+            }
+            if "Peeranwadi" in text
+            else {"location_resolved": False}
+        ),
+        resolve_constituency_fn=lambda *_args, **_kwargs: (None, None),
+        get_tenant_constituency_fn=lambda _tenant_id: "Belagavi",
+    )
+
+    assert result["status"] == "new"
+    assert result["location_name"] == "Peeranwadi"
+    assert result["final_constituency"] == "Belgaum Rural"
+    assert result["grievance"]["geography_source"] == "english_support"
+    diagnostics = result["grievance"]["geography_diagnostics"]
+    assert diagnostics["attempts"][0]["source"] == "raw_message"
+    assert diagnostics["attempts"][1]["source"] == "english_support"

@@ -7,6 +7,7 @@ from modules.voice_note_normalizer import normalize_voice_note_transcript
 class _FakeResponse:
     text = (
         '{"normalized_text":"नाथ पाई सर्कलमध्ये खूप चोरी होत आहे.",'
+        '"english_support_text":"There is a lot of theft happening at Nath Pai Circle.",'
         '"detected_language":"Marathi",'
         '"mentioned_location_original":"नाथ पाई सर्कल",'
         '"mentioned_location_roman":"Nath Pai Circle",'
@@ -67,6 +68,7 @@ def test_voice_note_normalizer_uses_candidate_shortlist_with_gemini(monkeypatch)
 
     assert result.raw_transcript == "नाथबाई सर्कलमध्ये खूप चोरी होत आहे."
     assert result.normalized_text == "नाथ पाई सर्कलमध्ये खूप चोरी होत आहे."
+    assert result.english_support_text == "There is a lot of theft happening at Nath Pai Circle."
     assert result.mentioned_location_roman == "Nath Pai Circle"
     assert result.extracted_language == "Marathi"
     assert result.provider == "sarvam+gemini"
