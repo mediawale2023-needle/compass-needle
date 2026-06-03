@@ -707,3 +707,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Upgraded `modules/geography_resolver.py` from mostly transliteration-plus-alias matching into a stronger native-first normalization path. Added native-script suffix stripping for common Indian locality inflections, broader transliterated stem variants, punctuation-preserving match forms for compound uploaded localities, and a separate `specific_keywords` scoring lane so real sub-localities like `Vaccine Depot` remain matchable even if their words look generic. Added regression coverage for Kannada inflected locality forms such as `ಪಿರನ್ವಾಡಿನ` -> `Peeranwadi` and `ಡೆಪೋನಲ್ಲಿ` -> the correct seat/assembly geography outcome.
 - Files touched: `modules/geography_resolver.py`, `tests/test_geography_resolver.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: This is seat-generic and tenant-safe, but it is still only as good as the uploaded shared geography. The next hardening step should be broader cross-state fixtures across more scripts/languages so launch confidence is based on representative data rather than only Belagavi-shaped examples.
+
+- Date: 2026-06-03
+- Request: Push the geography hardening pass for backend deployment.
+- Summary: Pushed commit `8b22fab2` (`Harden geography resolver normalization pipeline`) to `origin/main`, publishing the native-first locality normalization, stronger transliterated stem handling, and the new Kannada geography regression coverage.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is a backend resolver change, so production depends on the EC2 backend deploy workflow picking up `8b22fab2`. `tenant_overrides.json` remained intentionally unpushed.
