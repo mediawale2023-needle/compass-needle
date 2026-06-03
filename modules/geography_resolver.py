@@ -450,6 +450,7 @@ _WORD_ALIAS_REPLACEMENTS = {
 _ROMAN_LOCATION_SUFFIXES = (
     # ── KANNADA locative: -ನಲ್ಲಿ -ದಲ್ಲಿ etc.
     "inlli", "nlli", "nalli", "inalli", "dalli", "alli", "yalli",
+    "inda", "dinda", "yinda", "ige", "ge", "ina", "in", "n",
     # ── MARATHI / HINDI locative: -मध्ये -मधे -में
     "madhe", "madhye", "mein", "men",
     # ── MARATHI / HINDI genitive: -च्या -चा -ची -चे
@@ -474,6 +475,27 @@ _ROMAN_LOCATION_SUFFIXES = (
     "myn",
     # ── MALAYALAM / TAMIL locative with inherent-vowel forms after fix
     "ail", "eil", "oil",
+)
+
+_NATIVE_LOCATION_SUFFIXES = (
+    # Kannada
+    "ನಲ್ಲಿ", "ದಲ್ಲಿ", "ಯಲ್ಲಿ", "ಇಂದ", "ದಿಂದ", "ಯಿಂದ", "ಗೆ", "ಕ್ಕೆ", "ನ", "ದ",
+    # Devanagari (Hindi/Marathi and related)
+    "मध्ये", "मधे", "मध्येच", "मध्येही", "में", "पर", "ला", "ने", "च्या", "चा", "ची", "चे",
+    # Telugu
+    "లోని", "లోనే", "లో", "కి", "కు", "ని",
+    # Tamil
+    "யில்", "இல்", "க்கு", "இன்", "ல்", "ன்",
+    # Malayalam
+    "യിൽ", "ത്തില്", "യില്", "ല്", "ക്ക്", "ന്റെ",
+    # Bengali / Assamese
+    "তে", "তেই", "এর", "র", "এ",
+    # Gujarati
+    "માં", "મા", "ના", "ની", "ને",
+    # Odia
+    "ରେ", "ର", "କୁ",
+    # Gurmukhi / Punjabi
+    "ਵਿੱਚ", "ਚ", "ਦਾ", "ਦੀ", "ਦੇ",
 )
 
 # ==========================================
@@ -577,6 +599,15 @@ def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text.lower().strip())
 
 
+def _normalize_with_separators(text: str) -> str:
+    """Standardize while preserving token boundaries around punctuation."""
+    if not text:
+        return ""
+    translation = str.maketrans({char: " " for char in string.punctuation})
+    text = text.translate(translation)
+    return re.sub(r"\s+", " ", text.lower().strip())
+
+
 def _is_meta_locality(text: str) -> bool:
     value = normalize(text)
     if not value:
@@ -637,12 +668,18 @@ def _canonicalize_alias(text: str) -> str:
 def _build_location_token_variants(value: str) -> Set[str]:
     variants: Set[str] = set()
     for token in normalize(value).split():
-        if len(token) < 5:
+        if len(token) < 4:
             continue
         candidates = {token}
         for suffix in _ROMAN_LOCATION_SUFFIXES:
-            if token.endswith(suffix) and len(token) - len(suffix) >= 5:
-                candidates.add(token[: -len(suffix)])
+            if token.endswith(suffix) and len(token) - len(suffix) >= 4:
+                base = token[: -len(suffix)]
+                if base:
+                    candidates.add(base)
+                    if suffix in {"alli", "nalli", "dalli", "yalli", "inalli", "inlli", "nlli"} and base.endswith("n"):
+                        candidates.add(base[:-1])
+                    if suffix in {"in", "ina", "n"} and not base.endswith(("a", "e", "i", "o", "u")):
+                        candidates.add(f"{base}i")
 
         expanded = set(candidates)
         for candidate in candidates:
@@ -651,7 +688,18 @@ def _build_location_token_variants(value: str) -> Set[str]:
                 expanded.add(canonical)
             expanded.add(candidate.replace("gundri", "kundri"))
             expanded.add(candidate.replace("kundri", "gundri"))
-        variants.update(v for v in expanded if len(v) >= 5)
+            if candidate.endswith(("wad", "vad")):
+                expanded.add(f"{candidate}i")
+                expanded.add(f"{candidate[:-3]}wadi")
+            if candidate.endswith(("wad", "vad", "wadi", "vadi")):
+                expanded.add(candidate.replace("v", "w"))
+                expanded.add(candidate.replace("w", "v"))
+            if candidate.endswith("po"):
+                expanded.add(f"{candidate}t")
+            if candidate.endswith("depon"):
+                expanded.add(candidate[:-1])
+                expanded.add(f"{candidate[:-1]}t")
+        variants.update(v for v in expanded if len(v) >= 4)
     return variants
 
 
@@ -704,19 +752,45 @@ def _build_match_forms(*texts: str) -> Set[str]:
         normalized = normalize(text)
         if normalized:
             forms.add(normalized)
+        separated = _normalize_with_separators(text)
+        if separated:
+            forms.add(separated)
             canonical = _canonicalize_alias(text)
             if canonical:
                 forms.add(canonical)
         if _has_indic_script(text):
-            transliterated = normalize(_transliterate(text))
-            if transliterated:
-                forms.add(transliterated)
-                canonical = _canonicalize_alias(transliterated)
-                if canonical:
-                    forms.add(canonical)
-                forms.update(_build_location_token_variants(transliterated))
-                forms.update(_build_location_token_variants(canonical))
+            native_variants = _build_native_location_variants(text)
+            for native_variant in native_variants:
+                native_normalized = normalize(native_variant)
+                if native_normalized:
+                    forms.add(native_normalized)
+                transliterated = normalize(_transliterate(native_variant))
+                if transliterated:
+                    forms.add(transliterated)
+                    canonical = _canonicalize_alias(transliterated)
+                    if canonical:
+                        forms.add(canonical)
+                    forms.update(_build_location_token_variants(transliterated))
+                    forms.update(_build_location_token_variants(canonical))
     return {form for form in forms if form}
+
+
+def _build_native_location_variants(value: str) -> Set[str]:
+    variants: Set[str] = {value}
+    tokens = [token.strip() for token in re.split(r"\s+", str(value or "").strip()) if token.strip()]
+    for token in tokens:
+        if not _has_indic_script(token):
+            continue
+        token_variants = {token}
+        for suffix in _NATIVE_LOCATION_SUFFIXES:
+            current_variants = list(token_variants)
+            for candidate in current_variants:
+                if candidate.endswith(suffix) and len(candidate) - len(suffix) >= 2:
+                    base = candidate[: -len(suffix)]
+                    if base:
+                        token_variants.add(base)
+        variants.update(token_variants)
+    return variants
 
 
 def _confidence_level_for_match_type(match_type: str) -> str:
@@ -791,6 +865,12 @@ def _derive_locality_aliases(locality: str, parliamentary_constituency: Optional
     parl = normalize(parliamentary_constituency or "")
     candidates = {raw}
     candidates.update(part.strip() for part in re.split(r"[,;/]", raw) if part.strip())
+    dot_fragments = [fragment.strip() for fragment in raw.split(".") if fragment.strip()]
+    if len(dot_fragments) > 1 and len(normalize(dot_fragments[0]).split()) >= 2:
+        candidates.update(
+            fragment for fragment in dot_fragments
+            if len(normalize(fragment)) >= 4
+        )
 
     aliases: Set[str] = set()
     for candidate in candidates:
@@ -864,6 +944,21 @@ def _preferred_parent_display(locality: str, parliamentary_constituency: Optiona
         key=lambda alias: (len(alias.split()), len(alias), alias),
     )
     return _display_location_name(ranked[0]) if ranked else None
+
+
+def _preferred_specific_display(locality: str) -> Optional[str]:
+    raw = (locality or "").replace("\n", " ").strip()
+    if not raw:
+        return None
+    fragments = [fragment.strip() for fragment in re.split(r"[,.;/]", raw) if fragment.strip()]
+    ranked = [
+        fragment for fragment in fragments
+        if _is_meaningful_location_fragment(fragment) and len(normalize(fragment).split()) >= 2
+    ]
+    if not ranked:
+        return None
+    ranked.sort(key=lambda fragment: (-len(normalize(fragment).split()), -len(normalize(fragment)), fragment))
+    return _display_location_name(ranked[0])
 
 
 def _build_parent_locality_catalog(
@@ -1221,7 +1316,7 @@ def sanitize_and_validate_stations(
     }
     return cleaned, report
 
-def get_keywords(text: str) -> set:
+def get_keywords(text: str, *, allow_generic_locations: bool = False) -> set:
     """Get significant words >= 4 chars, excluding generic location/complaint terms."""
     words = normalize(text).split()
     stopwords = {
@@ -1232,15 +1327,15 @@ def get_keywords(text: str) -> set:
         "problem", "issue", "water", "logging", "broken", "bad",
         "east", "west", "north", "south", "station", "nagar", "chowk",
         "market", "park", "garden", "society", "sector", "block", "camp",
-        "gate", "bridge", "school", "college", "hospital", "temple",
+        "gate", "bridge", "hospital", "temple",
         "masjid", "church", "railway", "bus", "stop", "circle", "square",
         # Indian location generic
         "bazar", "bazaar", "peth", "pet", "galli", "gali", "wadi", "wada",
         "gaon", "goan", "pada", "pura", "pur", "abad", "ghat", "khurd",
         "budruk", "tarf", "road", "marg", "path", "math", "devi",
-        "maharaj", "govt", "government", "primary", "high", "english",
+        "maharaj", "govt", "government", "english",
         "medium", "kannada", "marathi", "urdu", "hindi",
-        "building", "room", "hall", "office", "depot", "vaccine",
+        "building", "room", "hall", "office",
         "number", "polling", "booth", "average", "voters",
         "total", "part", "page", "list",
         # Complaint language (Hindi/Marathi/Kannada/English)
@@ -1251,6 +1346,11 @@ def get_keywords(text: str) -> set:
         "complaint", "regarding", "about", "from", "this", "that",
         "very", "much", "also", "here", "there", "where", "when",
     }
+    if allow_generic_locations:
+        stopwords -= {
+            "school", "college", "depot", "vaccine", "circle", "market",
+            "primary", "high", "gate", "bridge", "bus", "stop",
+        }
     return {w for w in words if len(w) >= 4 and w not in stopwords}
 
 def similarity_score(a: str, b: str) -> float:
@@ -1339,8 +1439,12 @@ def load_geography_index() -> bool:
             keywords = set()
             for form in match_forms:
                 keywords |= get_keywords(form)
+            specific_keywords = set()
+            for form in specific_match_forms:
+                specific_keywords |= get_keywords(form, allow_generic_locations=True)
             keywords |= get_keywords(raw_bldg)
             speech_match_forms.update(_speech_location_keys(keywords))
+            speech_match_forms.update(_speech_location_keys(specific_keywords))
 
             _geography_index["assemblies"][bucket_key]["entries"].append({
                 "orig_name": raw_loc,
@@ -1351,6 +1455,7 @@ def load_geography_index() -> bool:
                 "speech_match_forms": speech_match_forms,
                 "station": station,
                 "keywords": keywords,
+                "specific_keywords": specific_keywords,
                 "hierarchy_type": hierarchy_type,
                 "parent_locality": parent_locality,
                 "sub_locality": sub_locality,
@@ -1444,6 +1549,9 @@ def _rank_location_candidates(
     user_keywords = set()
     for form in query_forms:
         user_keywords |= get_keywords(form)
+    specific_user_keywords = set()
+    for form in query_forms:
+        specific_user_keywords |= get_keywords(form, allow_generic_locations=True)
     
     logger.debug(f"RESOLVING: '{clean_text}' (tenant={tenant_id})")
     tenant_context = _get_tenant_seat_context(tenant_id) if tenant_id is not None else None
@@ -1537,6 +1645,7 @@ def _rank_location_candidates(
             entry_parent_forms = entry.get("parent_match_forms", set())
             entry_spaceless_forms = entry.get("spaceless_match_forms", set())
             entry_speech_forms = entry.get("speech_match_forms", set())
+            entry_specific_keywords = entry.get("specific_keywords", set())
             entry_name = max(entry_forms, key=len) if entry_forms else ""
 
             # A. EXACT MATCH — highest priority (full string match)
@@ -1660,13 +1769,45 @@ def _rank_location_candidates(
                     if score > 0:
                         break
 
+            if score == 0 and entry_specific_keywords:
+                for uk in specific_user_keywords:
+                    if len(uk) < 4:
+                        continue
+                    for dk in entry_specific_keywords:
+                        if len(dk) < 4:
+                            continue
+                        if not (0.7 <= len(uk) / len(dk) <= 1.35):
+                            continue
+                        sim = similarity_score(uk, dk)
+                        if sim > 84:
+                            score = 88 + (sim / 20)
+                            match_type = f"fuzzy_specific ({uk}~{dk})"
+                            matched_name = dk
+                            break
+                    if score > 0:
+                        break
+
             normalized_matched_name = normalize(matched_name)
             if entry_parent_forms and normalized_matched_name in entry_parent_forms:
                 matched_type = "locality"
-                matched_value = entry.get("parent_locality") or matched_name
+                matched_value = entry.get("parent_locality") or _preferred_parent_display(entry["orig_name"], data.get("parl")) or entry["orig_name"] or matched_name
             else:
                 matched_type = "sub_locality" if entry.get("sub_locality") else "locality"
-                matched_value = entry.get("sub_locality") or matched_name
+                preferred_specific_display = _preferred_specific_display(entry["orig_name"])
+                preferred_sub_locality = entry.get("sub_locality")
+                if (
+                    preferred_specific_display
+                    and preferred_sub_locality
+                    and len(normalize(str(preferred_sub_locality)).split()) == 1
+                ):
+                    preferred_sub_locality = preferred_specific_display
+                matched_value = (
+                    preferred_sub_locality
+                    or entry.get("parent_locality")
+                    or _preferred_parent_display(entry["orig_name"], data.get("parl"))
+                    or entry["orig_name"]
+                    or matched_name
+                )
 
             # Only accept matches with score > 70 (raised threshold)
             if score > 70:

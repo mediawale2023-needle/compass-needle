@@ -701,3 +701,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Pushed commit `f4ba967a` (`Restructure admin frontend around domain IA`) to `origin/main`, publishing the domain-first admin route tree, shared admin-domain ownership modules, legacy route redirects, updated domain landing pages, and the cleaned primary sidebar without the old `Legacy Tools` section.
 - Files touched: `TASK_LOG.md`
 - Risks or follow-ups: This is an admin frontend rollout, so deployment depends on Vercel picking up the latest `main` push. The next live review should focus on whether `Seats` needs deeper seat-detail screens and whether any remaining page copy still feels transitional.
+
+- Date: 2026-06-03
+- Request: Stop patching geography one miss at a time and harden the resolver for multi-state launch readiness.
+- Summary: Upgraded `modules/geography_resolver.py` from mostly transliteration-plus-alias matching into a stronger native-first normalization path. Added native-script suffix stripping for common Indian locality inflections, broader transliterated stem variants, punctuation-preserving match forms for compound uploaded localities, and a separate `specific_keywords` scoring lane so real sub-localities like `Vaccine Depot` remain matchable even if their words look generic. Added regression coverage for Kannada inflected locality forms such as `ಪಿರನ್ವಾಡಿನ` -> `Peeranwadi` and `ಡೆಪೋನಲ್ಲಿ` -> the correct seat/assembly geography outcome.
+- Files touched: `modules/geography_resolver.py`, `tests/test_geography_resolver.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This is seat-generic and tenant-safe, but it is still only as good as the uploaded shared geography. The next hardening step should be broader cross-state fixtures across more scripts/languages so launch confidence is based on representative data rather than only Belagavi-shaped examples.

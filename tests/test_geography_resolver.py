@@ -66,6 +66,7 @@ def stub_geography_index(monkeypatch):
                 {"station_number": "2", "locality": "Meerapur Galli, Shahapur Belagavi", "building_name": ""},
                 {"station_number": "2a", "locality": "Teli Patil Galli Shahapur, Belagavi", "building_name": ""},
                 {"station_number": "3", "locality": "Somawar Peth Tilakwadi, Belagavi", "building_name": ""},
+                {"station_number": "3a", "locality": "Vaccine Depot.Tilakwadi, Belagavi", "building_name": ""},
                 {"station_number": "4", "locality": "Vadagaon Belagavi", "building_name": ""},
                 {"station_number": "5", "locality": "Nath Pai Circle\nShahapur, Belagavi", "building_name": ""},
             ],
@@ -79,6 +80,7 @@ def stub_geography_index(monkeypatch):
             "stations": [
                 {"station_number": "1", "locality": "Balekundri KH", "building_name": ""},
                 {"station_number": "2", "locality": "Santibastawad", "building_name": ""},
+                {"station_number": "3", "locality": "Peeranwadi", "building_name": ""},
             ],
         },
         {
@@ -261,6 +263,32 @@ def test_resolve_location_supports_kannada_voice_transcript_for_balekundri(stub_
     assert result["matched_value"] == "Balekundri"
 
 
+def test_resolve_location_supports_kannada_inflected_peeranwadi(stub_geography_index):
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "ಸಾಹೇಬ್ರೆ ಪಿರನ್ವಾಡಿನ ರಸ್ತೆ ಖರಾಬ್ ಇದೆ ಅದೇನ್ ಏನ್ ಮಾಡ್ತೀನಿ ನೋಡ್ರಿ",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Rural"
+    assert result["matched_value"] == "Peeranwadi"
+
+
+def test_resolve_location_supports_kannada_locative_depot_forms(stub_geography_index):
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "ವ್ಯಾಕ್ಸಿನ್ ಡೆಪೋನಲ್ಲಿ ಬಹಳ ಕಸವಾಗಿದೆ ನೋಡಿ",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Dakshin"
+    assert result["matched_value"] in {"Vaccine Depot", "Depot", "Tilakwadi"}
+
+
 def test_resolve_location_supports_voice_note_spelling_drift_for_santibastawad(stub_geography_index):
     geography_resolver.reload_index()
 
@@ -271,7 +299,7 @@ def test_resolve_location_supports_voice_note_spelling_drift_for_santibastawad(s
 
     assert result["location_resolved"] is True
     assert result["assembly_constituency"] == "Belgaum Rural"
-    assert result["matched_value"] in {"Santibaswad", "Santi Baswad"}
+    assert result["matched_value"] in {"Santibastawad", "Santibaswad", "Santi Baswad"}
 
 
 def test_resolve_constituency_scopes_lookup_by_tenant(monkeypatch, stub_geography_index):
@@ -280,7 +308,7 @@ def test_resolve_constituency_scopes_lookup_by_tenant(monkeypatch, stub_geograph
 
     matched, assembly = geography_resolver.resolve_constituency("shanti baswad road issue", tenant_id=3)
 
-    assert matched in {"Santibaswad", "Santi Baswad"}
+    assert matched in {"Santibastawad", "Santibaswad", "Santi Baswad"}
     assert assembly == "Belgaum Rural"
 
 
