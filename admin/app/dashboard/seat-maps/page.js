@@ -401,7 +401,7 @@ export default function SeatMapsPage() {
                             Upload geography once for this seat, then come back here and generate the map in one click.
                         </div>
                         <div style={{ marginTop: 10 }}>
-                            <Link href="/dashboard/geography" style={{ ...SMALL_BTN, textDecoration: 'none', display: 'inline-flex' }}>
+                            <Link href="/dashboard/shared-geography/workspace" style={{ ...SMALL_BTN, textDecoration: 'none', display: 'inline-flex' }}>
                                 Go to Geography Upload
                             </Link>
                         </div>

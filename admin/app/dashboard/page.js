@@ -120,11 +120,11 @@ const ALERT_STYLES = {
 function alertHref(alert) {
     if (alert.tenant_id) {
         if (alert.type === 'setup_incomplete') return `/dashboard/mps/${alert.tenant_id}/setup`;
-        if (alert.type === 'low_completeness') return `/dashboard/profiles?tenant_id=${alert.tenant_id}`;
+        if (alert.type === 'low_completeness') return `/dashboard/accounts/registry?tenant_id=${alert.tenant_id}`;
         return `/dashboard/mps/${alert.tenant_id}`;
     }
-    if (alert.type === 'expiring_announcement') return '/dashboard/announcements';
-    return '/dashboard/health';
+    if (alert.type === 'expiring_announcement') return '/dashboard/system/announcements';
+    return '/dashboard/system/health';
 }
 
 function ActionQueue({ alerts, loading, error }) {
@@ -140,7 +140,7 @@ function ActionQueue({ alerts, loading, error }) {
                     <h2 className="text-base font-bold text-[#1a2e28]">Action Queue</h2>
                     <p className="mt-1 text-sm text-[#6b7f76]">Operational items that need developer attention.</p>
                 </div>
-                <Link href="/dashboard/audit" className="btn-secondary text-sm" style={{ textDecoration: 'none' }}>
+                <Link href="/dashboard/staff-access/audit" className="btn-secondary text-sm" style={{ textDecoration: 'none' }}>
                     Audit Log
                 </Link>
             </div>
@@ -331,7 +331,7 @@ export default function DashboardOverview() {
                     <h2 className="text-lg font-semibold text-[#1a2e28]">Political Accounts</h2>
                     <p className="text-sm text-[#6b7f76]">Search and manage MP, MLA, and aspirant tenant accounts from a unified overview.</p>
                 </div>
-                <Link href="/dashboard/mps/new" className="btn-primary">
+                <Link href="/dashboard/accounts/new" className="btn-primary">
                     + Add Account
                 </Link>
             </div>

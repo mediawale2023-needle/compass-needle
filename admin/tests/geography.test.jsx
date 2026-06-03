@@ -30,7 +30,7 @@ vi.mock('next/link', () => ({
     ),
 }));
 
-import GeographyUploadPage from '@/app/dashboard/geography/page';
+import GeographyUploadPage from '@/app/dashboard/shared-geography/workspace/page';
 
 describe('Admin geography page', () => {
     beforeEach(() => {

@@ -10,8 +10,8 @@ vi.mock('@/lib/api', () => ({
     apiGet: (path) => apiGetMock(path),
 }));
 
-import TenantHealthPage from '@/app/dashboard/health/page';
-import UsageAnalyticsPage from '@/app/dashboard/analytics/page';
+import TenantHealthPage from '@/app/dashboard/system/health/page';
+import UsageAnalyticsPage from '@/app/dashboard/cases-intelligence/analytics/page';
 
 describe('Admin tenant health and usage analytics contracts', () => {
     beforeEach(() => {

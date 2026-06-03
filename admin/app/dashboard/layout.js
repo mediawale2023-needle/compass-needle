@@ -6,23 +6,15 @@ import Sidebar from '@/components/Sidebar';
 import NotificationTray from '@/components/NotificationTray';
 
 const PAGE_TITLES = {
-    '/dashboard': { title: 'Overview', desc: 'Manage MPs and platform configuration' },
-    '/dashboard/profiles': { title: 'Profile Editor', desc: 'Edit account identity, credentials, and AI profile data' },
-    '/dashboard/geography': { title: 'Seat Geography', desc: 'Upload and manage shared polling-station geography for MP and MLA seats' },
-    '/dashboard/seat-maps': { title: 'Seat Maps', desc: 'Manage shared constituency map manifests, hotspot bindings, and map asset references' },
-    '/dashboard/rules': { title: 'Geography Rules', desc: 'Define tenant-specific location-to-routing-area override rules' },
-    '/dashboard/intelligence': { title: 'Case Intelligence', desc: 'Platform health, case explorer, and grievance analytics' },
-    '/dashboard/health': { title: 'Tenant Health', desc: 'Monitor tenant activity status across the platform' },
-    '/dashboard/analytics': { title: 'Usage Analytics', desc: 'Monthly activity per tenant — current calendar month' },
-    '/dashboard/staff': { title: 'Staff Management', desc: 'Manage all non-admin staff accounts across tenants' },
-    '/dashboard/announcements': { title: 'Announcements', desc: 'Compose banners shown on all MP dashboards' },
-    '/dashboard/settings': { title: 'Settings', desc: 'Admin account and editor access management' },
-    '/dashboard/mps/new': { title: 'Add New Account', desc: 'Create a new MP, MLA, or aspirant account and profile' },
-    '/dashboard/audit': { title: 'Audit Log', desc: 'Track all administrative actions across the platform' },
-    '/dashboard/knowledge': { title: 'Knowledge Sync', desc: 'Unified control plane for constituency profiles, parliament records, answer coverage, and brain indexing' },
-    '/dashboard/constituency': { title: 'Constituency Intelligence', desc: 'Deep political, demographic, economic and cultural profiles for each constituency' },
-    '/dashboard/parliament-sync': { title: 'Parliament Sync', desc: 'Map subscribed MPs to their sansad.in member ID and manage 18th Lok Sabha data sync' },
-    '/dashboard/brain': { title: 'Intelligence Engine', desc: 'National intelligence, knowledge readiness, and AI diagnostics' },
+    '/dashboard': { title: 'Overview', desc: 'Monitor platform readiness, account setup, and operational health from one control surface' },
+    '/dashboard/accounts': { title: 'Accounts', desc: 'Manage account lifecycle, setup progress, linked staff, and launch readiness' },
+    '/dashboard/seats': { title: 'Seats', desc: 'Review shared seat identity, tenant usage, and constituency readiness across geography and maps' },
+    '/dashboard/shared-geography': { title: 'Shared Geography', desc: 'Manage seat-scoped geography datasets, inferred hierarchy, diagnostics, and routing rules' },
+    '/dashboard/cases-intelligence': { title: 'Cases & Intelligence', desc: 'Operate case intelligence, knowledge coverage, AI tooling, and usage insight as one domain' },
+    '/dashboard/staff-access': { title: 'Staff & Access', desc: 'Manage platform staff, administrative permissions, and access audit trails' },
+    '/dashboard/system': { title: 'System', desc: 'Control platform-wide health, syncs, announcements, and administrative settings' },
+    '/dashboard/seat-maps': { title: 'Seat Maps', desc: 'Manage shared constituency boundaries, generation workflows, and seat map readiness' },
+    '/dashboard/constituency': { title: 'Constituency Intelligence', desc: 'Review constituency intelligence and legacy deep-dive reference material' },
 };
 
 export default function DashboardLayout({ children }) {
@@ -55,7 +47,8 @@ export default function DashboardLayout({ children }) {
     }
     if (!user) return null;
 
-    const meta = PAGE_TITLES[pathname] || { title: 'Needle', desc: '' };
+    const meta = Object.entries(PAGE_TITLES).find(([route]) => pathname === route || (route !== '/dashboard' && pathname.startsWith(`${route}/`)))?.[1]
+        || { title: 'Needle', desc: '' };
 
     return (
         <div style={{ display: 'flex', background: '#f4f6f5', minHeight: '100vh' }}>

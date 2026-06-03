@@ -97,6 +97,6 @@ describe('Admin MP setup checklist', () => {
         render(<SetupChecklistPage />);
 
         const link = await screen.findByRole('link', { name: 'Configure geography →' });
-        expect(link).toHaveAttribute('href', '/dashboard/geography?tenant_id=7');
+        expect(link).toHaveAttribute('href', '/dashboard/shared-geography/workspace?tenant_id=7');
     });
 });

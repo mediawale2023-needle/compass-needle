@@ -108,6 +108,30 @@ const Icons = {
             <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.84A2.5 2.5 0 0 0 14.5 2Z" />
         </svg>
     ),
+    Seats: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 8l8-4 8 4" />
+            <path d="M6 10v8" />
+            <path d="M10 8v10" />
+            <path d="M14 8v10" />
+            <path d="M18 10v8" />
+            <path d="M3 20h18" />
+        </svg>
+    ),
+    Cases: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+    ),
+    System: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9" />
+            <path d="M12 4h9" />
+            <path d="M4 9h16" />
+            <path d="M4 15h16" />
+            <path d="M8 4v16" />
+        </svg>
+    ),
     Compass: () => (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
             <line x1="12" y1="2" x2="12" y2="22" />
@@ -121,39 +145,23 @@ const NAV_GROUPS = [
         label: 'Monitor',
         items: [
             { href: '/dashboard', label: 'Overview', Icon: Icons.Overview },
-            { href: '/dashboard/health', label: 'Tenant Health', Icon: Icons.Health },
-            { href: '/dashboard/intelligence', label: 'Case Intelligence', Icon: Icons.Intelligence },
-            { href: '/dashboard/knowledge', label: 'Knowledge Sync', Icon: Icons.Constituency },
+            { href: '/dashboard/accounts', label: 'Accounts', Icon: Icons.Profiles },
+            { href: '/dashboard/seats', label: 'Seats', Icon: Icons.Seats },
         ],
     },
     {
         label: 'Configure',
         items: [
-            { href: '/dashboard/profiles', label: 'Profile Editor', Icon: Icons.Profiles },
-            { href: '/dashboard/geography', label: 'Geography Upload', Icon: Icons.Geography },
+            { href: '/dashboard/shared-geography', label: 'Shared Geography', Icon: Icons.Geography },
             { href: '/dashboard/seat-maps', label: 'Seat Maps', Icon: Icons.Geography },
-            { href: '/dashboard/rules', label: 'Geography Rules', Icon: Icons.Rules },
-            { href: '/dashboard/staff', label: 'Staff Management', Icon: Icons.Staff },
+            { href: '/dashboard/cases-intelligence', label: 'Cases & Intelligence', Icon: Icons.Cases },
         ],
     },
     {
-        label: 'Communicate',
+        label: 'Operations',
         items: [
-            { href: '/dashboard/announcements', label: 'Announcements', Icon: Icons.Announcements },
-        ],
-    },
-    {
-        label: 'AI Brain',
-        items: [
-            { href: '/dashboard/brain', label: 'Intelligence Engine', Icon: Icons.Brain },
-        ],
-    },
-    {
-        label: 'Admin',
-        items: [
-            { href: '/dashboard/analytics', label: 'Usage Analytics', Icon: Icons.Analytics },
-            { href: '/dashboard/audit', label: 'Audit Log', Icon: Icons.Audit },
-            { href: '/dashboard/settings', label: 'Settings', Icon: Icons.Settings },
+            { href: '/dashboard/staff-access', label: 'Staff & Access', Icon: Icons.Staff },
+            { href: '/dashboard/system', label: 'System', Icon: Icons.System },
         ],
     },
 ];
