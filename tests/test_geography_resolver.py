@@ -64,6 +64,7 @@ def stub_geography_index(monkeypatch):
             "stations": [
                 {"station_number": "1", "locality": "Shahapur Belagavi", "building_name": ""},
                 {"station_number": "2", "locality": "Meerapur Galli, Shahapur Belagavi", "building_name": ""},
+                {"station_number": "2a", "locality": "Teli Patil Galli Shahapur, Belagavi", "building_name": ""},
                 {"station_number": "3", "locality": "Somawar Peth Tilakwadi, Belagavi", "building_name": ""},
                 {"station_number": "4", "locality": "Vadagaon Belagavi", "building_name": ""},
                 {"station_number": "5", "locality": "Nath Pai Circle\nShahapur, Belagavi", "building_name": ""},
@@ -152,6 +153,7 @@ def test_resolve_location_supports_city_suffix_aliases(stub_geography_index):
     assert result["location_resolved"] is True
     assert result["assembly_constituency"] == "Belgaum Dakshin"
     assert result["matched_value"] == "Shahapur"
+    assert result["matched_type"] == "locality"
 
 
 def test_resolve_location_indexes_each_multiline_locality_line(stub_geography_index):
@@ -164,7 +166,9 @@ def test_resolve_location_indexes_each_multiline_locality_line(stub_geography_in
 
     assert result["location_resolved"] is True
     assert result["assembly_constituency"] == "Belgaum Dakshin"
-    assert result["matched_value"] in {"Nath Pai Circle", "Pai Circle"}
+    assert result["matched_value"] == "Nath Pai Circle"
+    assert result["matched_type"] == "sub_locality"
+    assert result["parent_locality"] == "Shahapur"
 
 
 def test_resolve_location_preserves_user_level_detail(stub_geography_index):
@@ -177,7 +181,9 @@ def test_resolve_location_preserves_user_level_detail(stub_geography_index):
 
     assert result["location_resolved"] is True
     assert result["assembly_constituency"] == "Belgaum Dakshin"
-    assert result["matched_value"] == "Meerapur Galli Shahapur"
+    assert result["matched_value"] == "Meerapur Galli"
+    assert result["matched_type"] == "sub_locality"
+    assert result["parent_locality"] == "Shahapur"
 
 
 def test_resolve_location_uses_short_user_location_not_polling_detail(stub_geography_index):
@@ -188,6 +194,22 @@ def test_resolve_location_uses_short_user_location_not_polling_detail(stub_geogr
     assert result["location_resolved"] is True
     assert result["assembly_constituency"] == "Belgaum Dakshin"
     assert result["matched_value"] == "Tilakwadi"
+    assert result["matched_type"] == "locality"
+
+
+def test_resolve_location_infers_parent_from_specific_sub_locality(stub_geography_index):
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "Teli Patil Galli madhe paani nahi",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Dakshin"
+    assert result["matched_value"] == "Teli Patil Galli"
+    assert result["matched_type"] == "sub_locality"
+    assert result["parent_locality"] == "Shahapur"
 
 
 def test_resolve_location_supports_marathi_voice_drift_for_vadgaon(stub_geography_index):

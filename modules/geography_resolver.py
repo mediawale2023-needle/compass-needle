@@ -671,6 +671,7 @@ def _speech_location_key(token: str) -> str:
         if value.endswith(suffix) and len(value) - len(suffix) >= 5:
             value = value[: -len(suffix)]
             break
+    value = re.sub(r"ga[vw]a$", "gav", value)
     value = value.replace("gaon", "gav")
     if not re.search(r"(gav|gao|gaw)$", value):
         return ""
@@ -757,6 +758,18 @@ def _station_seed_aliases(station: Dict[str, Any], parliamentary_constituency: O
             if value:
                 seeds.add(value)
 
+    if station.get("sub_locality"):
+        seeds.add(str(station.get("sub_locality")).strip())
+    if station.get("parent_locality"):
+        parent_locality = str(station.get("parent_locality")).strip()
+        if parent_locality:
+            seeds.add(parent_locality)
+            if station.get("sub_locality"):
+                sub_locality = str(station.get("sub_locality")).strip()
+                if sub_locality:
+                    seeds.add(f"{sub_locality} {parent_locality}")
+                    seeds.add(f"{sub_locality}, {parent_locality}")
+
     for seed in list(seeds):
         seeds.update(_derive_locality_aliases(seed, parliamentary_constituency))
     return {seed for seed in seeds if seed and not _is_meta_locality(seed)}
@@ -819,6 +832,133 @@ def _derive_locality_aliases(locality: str, parliamentary_constituency: Optional
                 aliases.add(suffix)
 
     return aliases
+
+
+def _is_meaningful_location_fragment(value: str) -> bool:
+    normalized = normalize(value)
+    if not normalized or len(normalized) < 4:
+        return False
+    generic_only = {
+        "road", "street", "lane", "galli", "gali", "wadi", "wada", "circle",
+        "nagar", "peth", "pet", "area", "colony", "camp", "market", "road",
+        "marg", "depot", "school", "college", "ward", "sector",
+    }
+    words = [word for word in normalized.split() if word]
+    if not words:
+        return False
+    if all(word in generic_only for word in words):
+        return False
+    return True
+
+
+def _preferred_parent_display(locality: str, parliamentary_constituency: Optional[str] = None) -> Optional[str]:
+    aliases = {
+        alias for alias in _derive_locality_aliases(locality, parliamentary_constituency)
+        if _is_meaningful_location_fragment(alias)
+    }
+    if not aliases:
+        normalized = normalize(locality)
+        return _display_location_name(normalized) if _is_meaningful_location_fragment(normalized) else None
+    ranked = sorted(
+        aliases,
+        key=lambda alias: (len(alias.split()), len(alias), alias),
+    )
+    return _display_location_name(ranked[0]) if ranked else None
+
+
+def _build_parent_locality_catalog(
+    stations: Iterable[Dict[str, Any]],
+    parliamentary_constituency: Optional[str] = None,
+) -> dict[str, str]:
+    catalog: dict[str, str] = {}
+    for station in stations or []:
+        locality = (station.get("locality") or "").replace("\n", " ").strip()
+        if not locality or _is_meta_locality(locality):
+            continue
+        preferred_display = _preferred_parent_display(locality, parliamentary_constituency)
+        if not preferred_display:
+            continue
+        for alias in _derive_locality_aliases(preferred_display, parliamentary_constituency) | {preferred_display}:
+            if not _is_meaningful_location_fragment(alias):
+                continue
+            catalog.setdefault(normalize(alias), preferred_display)
+    return catalog
+
+
+def _infer_station_hierarchy(
+    station: Dict[str, Any],
+    parent_catalog: dict[str, str],
+    parliamentary_constituency: Optional[str] = None,
+) -> Dict[str, Any]:
+    locality = (station.get("locality") or "").replace("\n", " ").strip()
+    if not locality or _is_meta_locality(locality):
+        return station
+
+    normalized_locality = normalize(locality)
+    row_aliases = sorted(
+        {
+            alias for alias in _derive_locality_aliases(locality, parliamentary_constituency)
+            if _is_meaningful_location_fragment(alias)
+        },
+        key=lambda alias: (-len(alias), alias),
+    )
+    sorted_candidates = sorted(
+        parent_catalog.items(),
+        key=lambda item: (-len(item[0]), item[0]),
+    )
+    parent_locality: Optional[str] = None
+    sub_locality: Optional[str] = None
+
+    for candidate_alias, candidate_display in sorted_candidates:
+        if not candidate_alias:
+            continue
+        for row_alias in row_aliases:
+            if row_alias == candidate_alias:
+                continue
+            if not row_alias.endswith(f" {candidate_alias}"):
+                continue
+            prefix = row_alias[: -len(candidate_alias)].strip(" ,-/")
+            if not _is_meaningful_location_fragment(prefix):
+                continue
+            parent_locality = candidate_display
+            sub_locality = _display_location_name(prefix)
+            break
+        if parent_locality and sub_locality:
+            break
+
+    enriched = dict(station)
+    if parent_locality and sub_locality:
+        enriched["parent_locality"] = parent_locality
+        enriched["sub_locality"] = sub_locality
+        enriched["hierarchy_type"] = "sub_locality"
+        raw_aliases = enriched.get("aliases") or []
+        if isinstance(raw_aliases, str):
+            raw_aliases = re.split(r"[,;|]", raw_aliases)
+        aliases = {str(alias or "").strip() for alias in raw_aliases if str(alias or "").strip()}
+        aliases.update(
+            {
+                sub_locality,
+                parent_locality,
+                f"{sub_locality} {parent_locality}",
+                f"{sub_locality}, {parent_locality}",
+            }
+        )
+        enriched["aliases"] = sorted(aliases)
+    else:
+        enriched["hierarchy_type"] = enriched.get("hierarchy_type") or "locality"
+    return enriched
+
+
+def _annotate_station_hierarchy(
+    stations: Iterable[Dict[str, Any]],
+    parliamentary_constituency: Optional[str] = None,
+) -> list[Dict[str, Any]]:
+    station_list = [dict(station) for station in (stations or [])]
+    parent_catalog = _build_parent_locality_catalog(station_list, parliamentary_constituency)
+    return [
+        _infer_station_hierarchy(station, parent_catalog, parliamentary_constituency)
+        for station in station_list
+    ]
 
 
 def _display_location_name(value: str) -> str:
@@ -1024,6 +1164,8 @@ def sanitize_and_validate_stations(
         if count > 1:
             duplicate_localities_in_upload[station["locality"]] = count
 
+    cleaned = _annotate_station_hierarchy(cleaned, parliamentary_constituency)
+
     ambiguity_report: Dict[str, list] = {}
     alias_collision_report: Dict[str, list] = {}
     if parliamentary_constituency and assembly and other_rows is not None:
@@ -1155,6 +1297,7 @@ def load_geography_index() -> bool:
                 sources.append(("mp", parl_name, parl_name, json_file.stem, stations))
 
     for seat_type, seat_name, parl_name, assembly, stations in sources:
+        annotated_stations = _annotate_station_hierarchy(stations, parl_name)
         bucket_key = _build_assembly_bucket_key(seat_type, seat_name, assembly)
         if bucket_key not in _geography_index["assemblies"]:
             _geography_index["assemblies"][bucket_key] = {
@@ -1165,10 +1308,13 @@ def load_geography_index() -> bool:
                 "entries": [],
             }
 
-        for s in stations:
+        for s in annotated_stations:
             raw_loc = s.get("locality", "").replace("\n", " ").strip()
             raw_bldg = s.get("building_name", "").replace("\n", " ").strip()
             station = str(s.get("station_number", "")).strip()
+            hierarchy_type = str(s.get("hierarchy_type") or "locality").strip()
+            parent_locality = (s.get("parent_locality") or "").replace("\n", " ").strip() or None
+            sub_locality = (s.get("sub_locality") or "").replace("\n", " ").strip() or None
 
             norm_loc = normalize(raw_loc)
             raw_loc_en = s.get("locality_en", "").replace("\n", " ").strip()
@@ -1176,6 +1322,18 @@ def load_geography_index() -> bool:
                 continue
 
             match_forms = _generated_alias_forms(s, parl_name)
+            specific_station = dict(s)
+            if parent_locality:
+                specific_station["parent_locality"] = None
+            specific_match_forms = _generated_alias_forms(specific_station, parl_name)
+            parent_match_forms: Set[str] = set()
+            if parent_locality:
+                parent_station = {
+                    "locality": parent_locality,
+                    "locality_en": parent_locality,
+                    "building_name": parent_locality,
+                }
+                parent_match_forms = _generated_alias_forms(parent_station, parl_name)
             spaceless_match_forms = _spaceless_forms(match_forms)
             speech_match_forms = _speech_location_keys(match_forms)
             keywords = set()
@@ -1187,10 +1345,15 @@ def load_geography_index() -> bool:
             _geography_index["assemblies"][bucket_key]["entries"].append({
                 "orig_name": raw_loc,
                 "match_forms": match_forms,
+                "specific_match_forms": specific_match_forms,
+                "parent_match_forms": parent_match_forms,
                 "spaceless_match_forms": spaceless_match_forms,
                 "speech_match_forms": speech_match_forms,
                 "station": station,
                 "keywords": keywords,
+                "hierarchy_type": hierarchy_type,
+                "parent_locality": parent_locality,
+                "sub_locality": sub_locality,
             })
             _register_entry_ambiguities(parl_name, assembly, match_forms)
             _register_entry_ambiguities(parl_name, assembly, spaceless_match_forms)
@@ -1367,7 +1530,11 @@ def _rank_location_candidates(
             score = 0
             match_type = "none"
             matched_name = entry["orig_name"]
+            matched_type = str(entry.get("hierarchy_type") or "locality")
+            matched_value = entry.get("sub_locality") or entry["orig_name"]
             entry_forms = entry.get("match_forms", set())
+            entry_specific_forms = entry.get("specific_match_forms", set()) or entry_forms
+            entry_parent_forms = entry.get("parent_match_forms", set())
             entry_spaceless_forms = entry.get("spaceless_match_forms", set())
             entry_speech_forms = entry.get("speech_match_forms", set())
             entry_name = max(entry_forms, key=len) if entry_forms else ""
@@ -1493,6 +1660,14 @@ def _rank_location_candidates(
                     if score > 0:
                         break
 
+            normalized_matched_name = normalize(matched_name)
+            if entry_parent_forms and normalized_matched_name in entry_parent_forms:
+                matched_type = "locality"
+                matched_value = entry.get("parent_locality") or matched_name
+            else:
+                matched_type = "sub_locality" if entry.get("sub_locality") else "locality"
+                matched_value = entry.get("sub_locality") or matched_name
+
             # Only accept matches with score > 70 (raised threshold)
             if score > 70:
                 candidates.append({
@@ -1502,11 +1677,21 @@ def _rank_location_candidates(
                     "seat_name": data.get("seat_name"),
                     "name": entry["orig_name"],
                     "matched_name": _display_location_name(matched_name),
+                    "matched_value": _display_location_name(str(matched_value)),
+                    "matched_type": matched_type,
+                    "parent_locality": entry.get("parent_locality"),
                     "score": score,
                     "type": match_type
                 })
 
-    candidates.sort(key=lambda x: (-x["score"], len(x.get("matched_name") or ""), len(x["name"])))
+    candidates.sort(
+        key=lambda x: (
+            -x["score"],
+            0 if x.get("matched_type") == "sub_locality" else 1,
+            len(x.get("matched_name") or ""),
+            len(x["name"]),
+        )
+    )
     return candidates
 
 
@@ -1532,7 +1717,9 @@ def suggest_location_candidates(
             continue
         seen.add(key)
         suggestions.append({
-            "matched_value": candidate["matched_name"],
+            "matched_value": candidate["matched_value"],
+            "matched_type": candidate.get("matched_type"),
+            "parent_locality": candidate.get("parent_locality"),
             "assembly_constituency": candidate["assembly"],
             "parliamentary_constituency": candidate.get("parl"),
             "seat_type": candidate.get("seat_type"),
@@ -1566,7 +1753,9 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
             "location_resolved": False,
             "reason": "ambiguous_match",
             "ambiguous_assemblies": top_assemblies,
-            "matched_value": winner["matched_name"],
+            "matched_value": winner["matched_value"],
+            "matched_type": winner.get("matched_type"),
+            "parent_locality": winner.get("parent_locality"),
             "parliamentary_constituency": winner["parl"],
             "confidence_level": "unknown",
         }
@@ -1577,7 +1766,9 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
         "location_resolved": True,
         "assembly_constituency": winner["assembly"],
         "parliamentary_constituency": winner["parl"],
-        "matched_value": winner["matched_name"],
+        "matched_value": winner["matched_value"],
+        "matched_type": winner.get("matched_type"),
+        "parent_locality": winner.get("parent_locality"),
         "confidence": "high",
         "confidence_level": _confidence_level_for_match_type(winner["type"]),
         "match_type": winner["type"],
