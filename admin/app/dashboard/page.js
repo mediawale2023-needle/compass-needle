@@ -79,30 +79,30 @@ function SystemHealthWidget() {
     };
 
     return (
-        <div className="rounded-2xl border border-[#e2ebe5] bg-white p-5 shadow-sm">
+        <div className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-sm)]">
             <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#006a4d]/10 text-[#006a4d]">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-[7px] bg-[rgba(11,110,79,0.1)] text-[var(--sansad-green)]">
                         <HeartbeatIcon />
                     </div>
                     <div>
-                        <p className="text-sm font-semibold text-[#1a2e28]">System Health</p>
-                        <p className="text-xs text-[#6b7f76]">Live platform readiness snapshot</p>
+                        <p className="cn-h3">System Health</p>
+                        <p className="cn-meta text-xs">Live platform readiness snapshot</p>
                     </div>
                 </div>
-                <span className="text-xs text-[#6b7f76]">Updated {health.last_checked ? timeAgo(health.last_checked) : '—'}</span>
+                <span className="cn-data text-[11px] text-[var(--ink-3)]">Updated {health.last_checked ? timeAgo(health.last_checked) : '—'}</span>
             </div>
 
             <div className="grid gap-3 md:grid-cols-3">
                 {services.map((service) => {
                     const status = health[service.key]?.status || 'red';
                     return (
-                        <div key={service.key} className="rounded-xl border border-[#eef2ef] bg-[#f8faf9] px-4 py-3">
+                        <div key={service.key} className="rounded-[7px] border border-[var(--line)] bg-[var(--surface-2)] px-4 py-3">
                             <div className="mb-1 flex items-center gap-2">
                                 <span className={`h-2.5 w-2.5 rounded-full ${statusTone[status] || statusTone.red}`} />
-                                <span className="text-sm font-medium text-[#1a2e28]">{service.label}</span>
+                                <span className="text-sm font-medium text-[var(--ink)]">{service.label}</span>
                             </div>
-                            <p className="text-xs text-[#6b7f76]">{service.detail}</p>
+                            <p className="cn-meta text-xs">{service.detail}</p>
                         </div>
                     );
                 })}
@@ -134,11 +134,12 @@ function ActionQueue({ alerts, loading, error }) {
     });
 
     return (
-        <div className="rounded-2xl border border-[#e2ebe5] bg-white p-5 shadow-sm">
+        <div className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-sm)]">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h2 className="text-base font-bold text-[#1a2e28]">Action Queue</h2>
-                    <p className="mt-1 text-sm text-[#6b7f76]">Operational items that need developer attention.</p>
+                    <div className="cn-eyebrow">Action Queue</div>
+                    <h2 className="cn-h2 mt-2">Operational items needing attention</h2>
+                    <p className="cn-meta mt-1">Operational items that need developer attention.</p>
                 </div>
                 <Link href="/dashboard/staff-access/audit" className="btn-secondary text-sm" style={{ textDecoration: 'none' }}>
                     Audit Log
@@ -154,11 +155,11 @@ function ActionQueue({ alerts, loading, error }) {
             {loading ? (
                 <div className="grid gap-3 lg:grid-cols-2">
                     {[...Array(4)].map((_, i) => (
-                        <div key={i} className="h-[86px] rounded-xl border border-[#eef2ef] bg-[#f8faf9]" />
+                        <div key={i} className="h-[86px] rounded-[7px] border border-[var(--line)] bg-[var(--surface-2)]" />
                     ))}
                 </div>
             ) : !error && sortedAlerts.length === 0 ? (
-                <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-5 text-sm font-semibold text-emerald-800">
+                <div className="rounded-[7px] border border-[rgba(11,110,79,0.16)] bg-[rgba(11,110,79,0.08)] px-4 py-5 text-sm font-semibold text-[var(--sansad-green)]">
                     No active operational alerts.
                 </div>
             ) : (
@@ -169,7 +170,7 @@ function ActionQueue({ alerts, loading, error }) {
                             <Link
                                 key={`${alert.type}-${alert.tenant_id || 'global'}-${i}`}
                                 href={alertHref(alert)}
-                                className="block rounded-xl border px-4 py-3 transition hover:-translate-y-0.5 hover:shadow-sm"
+                                className="block rounded-[7px] border px-4 py-3 transition hover:-translate-y-0.5 hover:shadow-sm"
                                 style={{ borderColor: tone.border, background: tone.bg, textDecoration: 'none' }}
                             >
                                 <div className="mb-2 flex items-center justify-between gap-3">
@@ -177,11 +178,11 @@ function ActionQueue({ alerts, loading, error }) {
                                         {tone.label}
                                     </span>
                                     {alert.tenant_id && (
-                                        <span className="text-xs font-semibold text-[#6b7f76]">Tenant #{alert.tenant_id}</span>
+                                        <span className="cn-data text-[11px] text-[var(--ink-3)]">Tenant #{alert.tenant_id}</span>
                                     )}
                                 </div>
-                                <div className="text-sm font-bold text-[#1a2e28]">{alert.title}</div>
-                                <div className="mt-1 text-xs leading-5 text-[#6b7f76]">{alert.description}</div>
+                                <div className="text-sm font-bold text-[var(--ink)]">{alert.title}</div>
+                                <div className="cn-meta mt-1 text-xs leading-5">{alert.description}</div>
                             </Link>
                         );
                     })}
@@ -208,9 +209,9 @@ function OpsSummary({ alerts, stats, mps }) {
     return (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             {items.map(item => (
-                <div key={item.label} className="rounded-2xl border border-[#e2ebe5] bg-white px-4 py-3 shadow-sm">
-                    <div className="text-2xl font-extrabold leading-none" style={{ color: item.color }}>{item.value}</div>
-                    <div className="mt-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#6b7f76]">{item.label}</div>
+                <div key={item.label} className="rounded-[7px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3 shadow-[var(--shadow-sm)]">
+                    <div className="cn-stat text-[24px] leading-none" style={{ color: item.color }}>{item.value}</div>
+                    <div className="mt-2 font-[var(--font-mono)] text-[9px] uppercase tracking-[0.12em] text-[var(--ink-3)]">{item.label}</div>
                 </div>
             ))}
         </div>
@@ -219,12 +220,12 @@ function OpsSummary({ alerts, stats, mps }) {
 
 function StatCard({ Icon, value, label, accentClass, bgClass }) {
     return (
-        <div className="rounded-2xl border border-[#e2ebe5] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-            <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${bgClass} ${accentClass}`}>
+        <div className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-sm)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]">
+            <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[7px] ${bgClass} ${accentClass}`}>
                 <Icon />
             </div>
-            <div className="text-3xl font-bold tracking-tight text-[#1a2e28]">{value ?? '—'}</div>
-            <div className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#6b7f76]">{label}</div>
+            <div className="cn-stat tracking-tight">{value ?? '—'}</div>
+            <div className="mt-2 font-[var(--font-mono)] text-[9px] uppercase tracking-[0.12em] text-[var(--ink-3)]">{label}</div>
         </div>
     );
 }
@@ -240,24 +241,24 @@ function MpCard({ mp }) {
 
     return (
         <Link href={`/dashboard/mps/${mp.tenant_id}`} className="block">
-            <div className="rounded-2xl border border-[#e2ebe5] bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#c4d8cc] hover:shadow-md">
+            <div className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--line-2)] hover:shadow-[var(--shadow-md)]">
                 <div className="flex items-center gap-3">
                     <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-sm font-bold text-white ${avatarClass}`}>
                         {initials}
                     </div>
                     <div className="min-w-0 flex-1">
                         <div className="mb-1 flex items-center gap-2">
-                            <span className="truncate text-sm font-semibold text-[#1a2e28]">{mp.display_name}</span>
+                            <span className="truncate text-sm font-semibold text-[var(--ink)]">{mp.display_name}</span>
                             <span className={badgeClass}>{badgeLabel}</span>
                         </div>
-                        <p className="truncate text-xs text-[#6b7f76]">@{mp.username} · {mp.parliamentary_constituency}</p>
+                        <p className="truncate font-[var(--font-mono)] text-[11px] text-[var(--ink-3)]">@{mp.username} · {mp.parliamentary_constituency}</p>
                     </div>
                 </div>
                 <div className="mt-4 flex items-center gap-3">
                     <div className="completeness-bar flex-1">
                         <div className={`completeness-fill ${fillClass}`} style={{ width: `${mp.completeness || 0}%` }} />
                     </div>
-                    <span className="text-xs font-semibold text-[#6b7f76]">{mp.completeness || 0}%</span>
+                    <span className="cn-data text-[11px] text-[var(--ink-3)]">{mp.completeness || 0}%</span>
                 </div>
             </div>
         </Link>
@@ -321,22 +322,23 @@ export default function DashboardOverview() {
             ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
                     {[...Array(6)].map((_, i) => (
-                        <div key={i} className="h-[116px] rounded-2xl border border-[#e2ebe5] bg-white shadow-sm" />
+                        <div key={i} className="h-[116px] rounded-[10px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-sm)]" />
                     ))}
                 </div>
             )}
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h2 className="text-lg font-semibold text-[#1a2e28]">Political Accounts</h2>
-                    <p className="text-sm text-[#6b7f76]">Search and manage MP, MLA, and aspirant tenant accounts from a unified overview.</p>
+                    <div className="cn-eyebrow">Tenants</div>
+                    <h2 className="cn-h2 mt-2">Political Accounts</h2>
+                    <p className="cn-meta mt-1">Search and manage MP, MLA, and aspirant tenant accounts from a unified overview.</p>
                 </div>
                 <Link href="/dashboard/accounts/new" className="btn-primary">
                     + Add Account
                 </Link>
             </div>
 
-            <div className="rounded-2xl border border-[#e2ebe5] bg-white p-4 shadow-sm">
+            <div className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)]">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
                     <div className="search-wrapper flex-1">
                         <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -375,12 +377,12 @@ export default function DashboardOverview() {
             </div>
 
             {filteredMps.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-[#d4e0d9] bg-white px-6 py-12 text-center shadow-sm">
-                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f0f4f1] text-[#6b7f76]">
+                <div className="rounded-[10px] border border-dashed border-[var(--line-2)] bg-[var(--surface)] px-6 py-12 text-center shadow-[var(--shadow-sm)]">
+                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[10px] bg-[var(--paper-2)] text-[var(--ink-3)]">
                         <StatIcons.mps />
                     </div>
-                    <h3 className="text-base font-semibold text-[#1a2e28]">{search ? 'No results found' : 'No accounts registered yet'}</h3>
-                    <p className="mt-2 text-sm text-[#6b7f76]">
+                    <h3 className="cn-h3 text-base">{search ? 'No results found' : 'No accounts registered yet'}</h3>
+                    <p className="cn-meta mt-2 text-sm">
                         {search ? `No accounts match "${search}". Try a broader search.` : 'Create the first political account to get started.'}
                     </p>
                 </div>

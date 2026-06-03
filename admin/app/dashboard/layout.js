@@ -6,7 +6,7 @@ import Sidebar from '@/components/Sidebar';
 import NotificationTray from '@/components/NotificationTray';
 
 const PAGE_TITLES = {
-    '/dashboard': { title: 'Overview', desc: 'Monitor platform readiness, account setup, and operational health from one control surface' },
+    '/dashboard': { title: 'Command Centre', desc: 'Monitor platform readiness, account setup, and operational health from one control surface' },
     '/dashboard/accounts': { title: 'Accounts', desc: 'Manage account lifecycle, setup progress, linked staff, and launch readiness' },
     '/dashboard/seats': { title: 'Seats', desc: 'Review shared seat identity, tenant usage, and constituency readiness across geography and maps' },
     '/dashboard/shared-geography': { title: 'Shared Geography', desc: 'Manage seat-scoped geography datasets, inferred hierarchy, diagnostics, and routing rules' },
@@ -51,52 +51,35 @@ export default function DashboardLayout({ children }) {
         || { title: 'Needle', desc: '' };
 
     return (
-        <div style={{ display: 'flex', background: '#f4f6f5', minHeight: '100vh' }}>
+        <div className="admin-shell">
             <Sidebar />
-            <main style={{ marginLeft: 240, flex: 1, minHeight: '100vh', padding: '1.75rem 2rem' }}>
-                {/* Page Header */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'space-between',
-                    marginBottom: '1.5rem',
-                    paddingBottom: '1.25rem',
-                    borderBottom: '1px solid #e2ebe5',
-                }}>
+            <main className="admin-main">
+                <div className="admin-header">
                     <div>
-                        <h1 style={{
-                            fontSize: '1.25rem',
-                            fontWeight: 700,
-                            color: '#1a2e28',
-                            margin: 0,
-                            letterSpacing: '-0.4px',
-                            lineHeight: 1.3,
-                        }}>
-                            {meta.title}
-                        </h1>
+                        <h1 className="cn-h1">{meta.title}</h1>
                         {meta.desc && (
-                            <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: '#6b7f76' }}>
+                            <p className="cn-meta" style={{ margin: '5px 0 0', maxWidth: 620 }}>
                                 {meta.desc}
                             </p>
                         )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginTop: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                         <NotificationTray />
-                        <div style={{
-                            background: 'rgba(0, 106, 77, 0.08)',
-                            color: '#006a4d',
-                            padding: '5px 12px',
-                            borderRadius: 20,
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            letterSpacing: '0.8px',
+                        <div className="cn-data" style={{
+                            background: 'var(--ink)',
+                            color: 'var(--chrome-hi)',
+                            padding: '6px 11px',
+                            borderRadius: 999,
+                            fontSize: '10px',
+                            letterSpacing: '0.1em',
+                            textTransform: 'uppercase',
                         }}>
                             ADMIN
                         </div>
                     </div>
                 </div>
 
-                {children}
+                <div className="admin-content">{children}</div>
             </main>
         </div>
     );

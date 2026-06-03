@@ -152,8 +152,8 @@ export default function AdminLoginPage() {
     const isChecking = serverStatus === 'checking';
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f4f6f5] via-white to-[#e8efe9] p-4">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(0,106,77,0.08),_transparent_42%),radial-gradient(circle_at_bottom_right,_rgba(0,106,77,0.06),_transparent_34%)]" />
+        <div className="min-h-screen flex items-center justify-center bg-[var(--paper)] p-6">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(11,110,79,0.06),_transparent_38%),radial-gradient(circle_at_bottom_right,_rgba(158,43,69,0.05),_transparent_32%)]" />
 
             <div className="relative w-full max-w-md animate-fade-in">
                 {!isReady && (
@@ -183,26 +183,26 @@ export default function AdminLoginPage() {
                     </div>
                 )}
 
-                <div className="rounded-3xl border border-[#e2ebe5] bg-white/95 p-8 shadow-xl backdrop-blur-sm">
+                <div className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-8 shadow-[var(--shadow-md)] backdrop-blur-sm">
                     <div className="mb-6 text-center">
                         <div className="mb-4 flex items-center justify-center">
-                            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#006a4d] text-white shadow-lg shadow-[0_12px_32px_rgba(0,106,77,0.18)]">
+                            <div className="flex h-14 w-14 items-center justify-center rounded-[7px] bg-[var(--sansad-green)] text-white shadow-[var(--shadow-md)]">
                                 <CompassIcon />
                             </div>
                         </div>
-                        <h1 className="text-2xl font-bold tracking-tight text-[#1a2e28]">Needle Command Center</h1>
-                        <p className="mt-1 text-sm text-[#6b7f76]">Administrative Control Panel</p>
+                        <h1 className="cn-display" style={{ fontSize: '26px' }}>Compass Needle</h1>
+                        <p className="mt-2 font-[var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--ink-3)]">Administrative Control Panel</p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-2">
-                            <label htmlFor="username" className="block text-sm font-medium text-[#1a2e28]">
+                            <label htmlFor="username" className="form-label">
                                 Username
                             </label>
                             <input
                                 id="username"
                                 type="text"
-                                className="w-full rounded-xl border border-[#d4e0d9] bg-[#f8faf9] px-4 py-3 text-sm text-[#1a2e28] outline-none transition focus:border-[#006a4d] focus:bg-white focus:ring-4 focus:ring-[#006a4d]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="form-input px-4 py-3"
                                 placeholder="Enter your username"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
@@ -213,14 +213,14 @@ export default function AdminLoginPage() {
                         </div>
 
                         <div className="space-y-2">
-                            <label htmlFor="password" className="block text-sm font-medium text-[#1a2e28]">
+                            <label htmlFor="password" className="form-label">
                                 Password
                             </label>
                             <div className="relative">
                                 <input
                                     id="password"
                                     type={showPassword ? 'text' : 'password'}
-                                    className="w-full rounded-xl border border-[#d4e0d9] bg-[#f8faf9] px-4 py-3 pr-12 text-sm text-[#1a2e28] outline-none transition focus:border-[#006a4d] focus:bg-white focus:ring-4 focus:ring-[#006a4d]/10 disabled:cursor-not-allowed disabled:opacity-60"
+                                    className="form-input px-4 py-3 pr-12"
                                     placeholder="Enter your password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
@@ -231,7 +231,7 @@ export default function AdminLoginPage() {
                                     type="button"
                                     onClick={() => setShowPassword(v => !v)}
                                     aria-label={showPassword ? 'Hide password' : 'Show password'}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-[#6b7f76] transition hover:bg-black/5 hover:text-[#1a2e28]"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-[5px] p-2 text-[var(--ink-3)] transition hover:bg-[var(--paper-2)] hover:text-[var(--ink)]"
                                 >
                                     {showPassword ? (
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -249,20 +249,20 @@ export default function AdminLoginPage() {
                                     )}
                                 </button>
                             </div>
-                            <p className="text-xs text-[#6b7f76]">
+                            <p className="cn-meta text-xs">
                                 Forgot password? Contact your system administrator.
                             </p>
                         </div>
 
                         {retryingLogin && !loading && (
-                            <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-700">
+                            <div className="flex items-start gap-2 rounded-[7px] border border-[rgba(194,117,42,0.18)] bg-[rgba(194,117,42,0.1)] p-3 text-sm text-[var(--saffron)]">
                                 <SpinnerIcon className="mt-0.5 h-4 w-4 shrink-0" />
                                 <span>Waiting for server to start — will sign in automatically.</span>
                             </div>
                         )}
 
                         {error && (
-                            <div className="flex items-start gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-700">
+                            <div className="flex items-start gap-2 rounded-[7px] border border-[rgba(158,43,69,0.18)] bg-[rgba(158,43,69,0.1)] p-3 text-sm text-[var(--sansad-maroon)]">
                                 <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
                                 <span>{error}</span>
                             </div>
@@ -271,7 +271,7 @@ export default function AdminLoginPage() {
                         <button
                             type="submit"
                             disabled={loading || retryingLogin}
-                            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#006a4d] to-[#00875f] px-4 text-base font-semibold text-white shadow-[0_10px_24px_rgba(0,106,77,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(0,106,77,0.22)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[5px] bg-gradient-to-r from-[var(--sansad-green)] to-[var(--sansad-green-light)] px-4 text-base font-semibold text-white shadow-[var(--shadow-md)] transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-lg)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                         >
                             {loading ? (
                                 <>
@@ -290,7 +290,7 @@ export default function AdminLoginPage() {
                     </form>
                 </div>
 
-                <p className="mt-6 text-center text-xs text-[#6b7f76]">Compass Needle · Admin Console</p>
+                <p className="mt-6 text-center font-[var(--font-mono)] text-[10.5px] uppercase tracking-[0.08em] text-[var(--ink-4)]">Compass Needle · Admin Console</p>
             </div>
         </div>
     );

@@ -171,24 +171,24 @@ export default function Sidebar() {
     const { user, logout } = useAuth();
 
     return (
-        <aside className="fixed left-0 top-0 z-50 flex h-screen w-64 flex-col border-r border-[#e2ebe5] bg-white">
-            <div className="flex h-16 items-center gap-3 border-b border-[#e2ebe5] px-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#006a4d] text-white shadow-sm">
+        <aside className="fixed left-0 top-0 z-50 flex h-screen w-60 flex-col border-r border-[var(--chrome-line)] bg-[var(--chrome)] text-[var(--chrome-text)]">
+            <div className="flex items-center gap-3 border-b border-[var(--chrome-line)] px-4 py-[18px]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-[7px] bg-[var(--sansad-green)] text-white shadow-sm">
                     <Icons.Compass />
                 </div>
                 <div className="min-w-0">
-                    <h1 className="truncate text-sm font-bold text-[#1a2e28]">Compass Needle</h1>
-                    <p className="truncate text-xs text-[#6b7f76]">Admin Console</p>
+                    <h1 className="truncate font-[var(--font-display)] text-[15px] font-semibold leading-none text-[var(--chrome-hi)]">Compass Needle</h1>
+                    <p className="mt-1 truncate font-[var(--font-mono)] text-[9.5px] uppercase tracking-[0.12em] text-[var(--chrome-muted)]">Admin Console</p>
                 </div>
             </div>
 
-            <nav className="flex-1 overflow-y-auto px-2 py-3">
+            <nav className="flex-1 overflow-y-auto px-[10px] py-[14px]">
                 {NAV_GROUPS.map((group) => (
-                    <div key={group.label} className="mb-5">
-                        <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#94a3a0]">
+                    <div key={group.label} className="mb-[18px]">
+                        <div className="px-3 pb-[10px] font-[var(--font-mono)] text-[9.5px] font-medium uppercase tracking-[0.18em] text-[var(--chrome-muted)]">
                             {group.label}
                         </div>
-                        <div className="space-y-1">
+                        <div>
                             {group.items.map((item) => {
                                 const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
                                 return (
@@ -196,10 +196,10 @@ export default function Sidebar() {
                                         key={item.href}
                                         href={item.href}
                                         className={cx(
-                                            'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                                            'mb-[3px] flex items-center gap-[11px] rounded-[5px] px-3 py-[9px] text-[13.5px] transition-all duration-200',
                                             isActive
-                                                ? 'bg-[#006a4d]/10 text-[#006a4d]'
-                                                : 'text-[#6b7f76] hover:bg-[#f4f7f5] hover:text-[#1a2e28]'
+                                                ? 'bg-[var(--sansad-green)] font-semibold text-white'
+                                                : 'font-medium text-[var(--chrome-text)] opacity-90 hover:bg-[var(--chrome-2)] hover:text-[var(--chrome-hi)]'
                                         )}
                                     >
                                         <span className={cx('shrink-0', isActive ? 'opacity-100' : 'opacity-75')}>
@@ -214,21 +214,21 @@ export default function Sidebar() {
                 ))}
             </nav>
 
-            <div className="border-t border-[#e2ebe5] p-3">
-                <div className="mb-3 flex items-center gap-3 rounded-xl bg-[#f8faf9] px-3 py-2.5">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e8efe9] text-sm font-semibold text-[#006a4d]">
+            <div className="border-t border-[var(--chrome-line)] p-3">
+                <div className="mb-[9px] flex items-center gap-[11px] rounded-[5px] bg-[var(--chrome-2)] px-[10px] py-[9px]">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--lok-deep,#084d38)] font-[var(--font-mono)] text-xs font-semibold text-[var(--chrome-hi)]">
                         {(user?.username || 'A')[0].toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-[#1a2e28]">{user?.display_name || user?.username || 'Administrator'}</div>
-                        <div className="truncate text-xs text-[#6b7f76]">Administrator</div>
+                        <div className="truncate text-[13px] font-semibold text-[var(--chrome-hi)]">{user?.display_name || user?.username || 'Administrator'}</div>
+                        <div className="truncate font-[var(--font-mono)] text-[10px] text-[var(--chrome-muted)]">Platform Admin</div>
                     </div>
                 </div>
 
                 <button
                     onClick={logout}
                     aria-label="Sign out"
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#e2ebe5] px-3 py-2.5 text-sm font-medium text-[#6b7f76] transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                    className="flex w-full items-center justify-center gap-2 rounded-[5px] border border-[var(--chrome-line)] px-3 py-[9px] text-sm font-medium text-[var(--chrome-muted)] transition hover:border-[var(--chrome-muted)] hover:text-[var(--chrome-hi)]"
                 >
                     <Icons.Logout />
                     Sign out

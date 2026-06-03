@@ -33,12 +33,12 @@ function Card({ title, body, href, cta }) {
     return (
         <Link
             href={href}
-            className="block rounded-2xl border border-[#e2ebe5] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+            className="admin-domain-card"
             style={{ textDecoration: 'none' }}
         >
-            <div className="text-base font-semibold text-[#1a2e28]">{title}</div>
-            <p className="mt-2 text-sm leading-6 text-[#6b7f76]">{body}</p>
-            <div className="mt-4 text-sm font-semibold text-[#006a4d]">{cta} →</div>
+            <div className="cn-h3">{title}</div>
+            <p className="cn-body mt-2 text-sm">{body}</p>
+            <div className="admin-domain-card-arrow mt-4">{cta} →</div>
         </Link>
     );
 }
@@ -46,10 +46,10 @@ function Card({ title, body, href, cta }) {
 export default function SystemPage() {
     return (
         <div className="space-y-6">
-            <div className="rounded-2xl border border-[#dce8e1] bg-[#f8fbf9] p-5">
-                <div className="text-xs font-bold uppercase tracking-[0.18em] text-[#6b7f76]">Platform Control</div>
-                <h2 className="mt-2 text-xl font-bold text-[#1a2e28]">System is the home for platform-wide health, settings, communication, and sync.</h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6b7f76]">
+            <div className="admin-domain-hero">
+                <div className="cn-eyebrow">Platform Control</div>
+                <h2 className="cn-h1 mt-3">System is the home for platform-wide health, settings, communication, and sync.</h2>
+                <p className="cn-body mt-3 max-w-3xl text-sm">
                     Use this domain for platform-wide controls that should stay distinct from seat, geography, and account workflows: health, messaging,
                     settings, and sync operations.
                 </p>
