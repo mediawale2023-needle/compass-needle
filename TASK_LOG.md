@@ -18,6 +18,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `main.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: Existing cases will benefit from the new frontend fallbacks immediately, but only newly enriched or re-enriched cases will permanently carry the richer `case_metadata.ai_*` fields unless we run a backfill later.
 
+- Date: 2026-06-03
+- Request: Push the Briefcase AI drawer summary/header fallback fix to GitHub.
+- Summary: Pushed commit `d3ff71a5` (`Fix Briefcase AI drawer summary fallbacks`) to `origin/main`, publishing the drawer-side AI category/summary fallbacks and the backend `case_metadata` persistence of `ai_category`, `ai_subcategory`, `ai_confidence`, and improved summaries for future cases.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Frontend changes depend on Vercel deploy, and backend persistence changes still need an EC2 deploy before new incoming cases start saving the richer metadata in production.
+
 - Date: 2026-06-02
 - Request: Remove the large blank space under the 10-row grievance queue and make the desktop right column match the left queue height.
 - Summary: Synced the desktop dashboard right-side `Workload + Constituency map` stack to the measured height of the 10-row grievance queue using a client-side `ResizeObserver`, anchored the left queue card to its content height instead of allowing grid stretch to create dead space, and made the workload/map cards fill that shared height cleanly. Verified with `npm run test --prefix frontend -- --run tests/dashboard.test.jsx`.
