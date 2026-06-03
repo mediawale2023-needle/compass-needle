@@ -19,6 +19,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Risks or follow-ups: Parent/sub-locality inference is intentionally conservative and currently driven by repeated suffix patterns inside the same seat/assembly data. If admins later want explicit hierarchy editing in the geography UI, we should surface `parent_locality` and `sub_locality` there instead of relying only on inference.
 
 - Date: 2026-06-03
+- Request: Push the hierarchical geography matching update to GitHub.
+- Summary: Pushed commit `ee373e9c` (`Add hierarchical geography matching`) to `origin/main`, publishing parent/sub-locality inference for shared geography uploads plus richer resolver metadata (`matched_type`, `parent_locality`) while preserving the older voice-drift matches.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Production still needs a backend deploy before live ingestion and dashboard geography begin using the hierarchical resolver behavior.
+
+- Date: 2026-06-03
 - Request: Fix the Briefcase right-side case detail so the green AI header appears again and the summary stops repeating the raw message.
 - Summary: Updated the Briefcase drawer to derive its suggestion banner from canonical case taxonomy fields when `case_metadata.ai_*` is missing, hide AI confidence in the UI, and use a structured fallback summary when the stored summary is empty or just duplicates the raw citizen message. Also updated `main.py` so newly enriched cases persist `ai_category`, `ai_subcategory`, `ai_confidence`, and a better fallback summary in `case_metadata`. Verified backend syntax with `venv/bin/python -m py_compile main.py`; frontend build/test verification was not possible in this shell because `node`/`npm` are unavailable here.
 - Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `main.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
