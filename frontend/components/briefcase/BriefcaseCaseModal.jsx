@@ -4,19 +4,690 @@ import { useEffect, useState } from 'react';
 import { Loader2, Send } from 'lucide-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { Textarea } from '@/components/ui/textarea';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import BriefcaseEscalationModal from '@/components/briefcase/BriefcaseEscalationModal';
 import BriefcaseSourceMediaViewer from '@/components/briefcase/BriefcaseSourceMediaViewer';
-import { STATUS_OPTIONS, getStatusBadge } from '@/components/briefcase/briefcase-shared';
+import { STATUS_OPTIONS } from '@/components/briefcase/briefcase-shared';
 import { isPrimaryAccount } from '@/lib/account';
-import { cn } from '@/lib/utils';
 
+// ─── Icon component ─────────────────────────────────────────
+function Icon({ name, size = 14, color = 'currentColor', stroke = 1.5 }) {
+    const paths = {
+        x:        <><path d="M6 6l12 12M18 6L6 18" /></>,
+        chevL:    <><path d="M15 6l-6 6 6 6" /></>,
+        chevR:    <><path d="M9 6l6 6-6 6" /></>,
+        chevD:    <><path d="M6 9l6 6 6-6" /></>,
+        sparkle:  <><path d="M12 3v6M12 15v6M3 12h6M15 12h6M6 6l4 4M14 14l4 4M6 18l4-4M14 10l4-4" /></>,
+        play:     <><path d="M7 5l12 7-12 7z" fill="currentColor" /></>,
+        phone:    <><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z" /></>,
+        pin:      <><path d="M12 21s7-7 7-12a7 7 0 10-14 0c0 5 7 12 7 12z" /><circle cx="12" cy="9" r="2.5" /></>,
+        clock:    <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+        check:    <><path d="M5 12l5 5 9-11" /></>,
+        edit:     <><path d="M4 19l4-1 12-12-3-3L5 15z" /><path d="M14 6l3 3" /></>,
+        whatsapp: <><circle cx="12" cy="12" r="9" /><path d="M16 14a4 4 0 01-5 1l-3 1 1-3a4 4 0 116-7" /></>,
+        warn:     <><path d="M12 3l10 17H2z" /><path d="M12 10v5M12 18v.5" /></>,
+        eye:      <><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></>,
+        dots:     <><circle cx="6" cy="12" r="1.5" fill="currentColor" /><circle cx="12" cy="12" r="1.5" fill="currentColor" /><circle cx="18" cy="12" r="1.5" fill="currentColor" /></>,
+        download: <><path d="M12 4v12M6 12l6 6 6-6M5 20h14" /></>,
+        history:  <><path d="M3 12a9 9 0 109-9M3 3v6h6" /><path d="M12 7v5l3 2" /></>,
+        send:     <><path d="M4 12l16-7-7 16-2-7z" /></>,
+        bolt:     <><path d="M13 2L4 14h7l-2 8 9-12h-7z" /></>,
+        cluster:  <><circle cx="7" cy="7" r="3" /><circle cx="17" cy="8" r="2.5" /><circle cx="9" cy="17" r="2.5" /><circle cx="18" cy="16" r="2.5" /><path d="M7 7l10 1M9 17l9-1M7 7l2 10" /></>,
+        user:     <><circle cx="12" cy="9" r="4" /><path d="M4 21c0-5 4-7 8-7s8 2 8 7" /></>,
+        escalate: <><path d="M12 3l10 17H2z" /><path d="M12 10v5" /></>,
+        trash:    <><path d="M4 6h16M9 6V4h6v2M5 6l1 14h12l1-14" /></>,
+    };
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+            stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
+            {paths[name] || null}
+        </svg>
+    );
+}
+
+// ─── Shared design tokens ────────────────────────────────────
+const C = {
+    paper:       '#F2EBD9',
+    paperDeep:   '#E8E0CB',
+    surface:     '#F7F2E6',
+    ink:         '#1A1812',
+    ink2:        '#4A453A',
+    ink3:        '#7A7263',
+    hair:        'rgba(26,24,18,0.14)',
+    hairStrong:  'rgba(26,24,18,0.32)',
+    green:       '#006A4D',
+    greenDeep:   '#003B2A',
+    greenInk:    '#024A36',
+    greenTint:   '#DFE9E2',
+    greenWash:   '#EAF1EC',
+    saffron:     '#C76A1A',
+    saffronTint: '#F4E3CE',
+    red:         '#C0392B',
+};
+
+const sec = {
+    padding: '14px 20px',
+    borderBottom: `1px solid ${C.hair}`,
+    background: C.paper,
+};
+
+const monoLbl = {
+    fontFamily: '"JetBrains Mono", monospace',
+    fontSize: 9.5,
+    letterSpacing: '0.16em',
+    color: C.ink3,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    display: 'block',
+};
+
+// ─── Drawer header ───────────────────────────────────────────
+function DrawerHeader({ caseRef, status, isUncategorised, onClose }) {
+    const palette = {
+        pending:     { bg: C.saffronTint, fg: C.saffron },
+        new:         { bg: C.greenWash,   fg: C.greenInk },
+        in_progress: { bg: '#E0F0FF',     fg: '#1A5276' },
+        resolved:    { bg: '#D5F5E3',     fg: '#1E8449' },
+        completed:   { bg: '#D5F5E3',     fg: '#1E8449' },
+        escalated:   { bg: '#FDEDEC',     fg: C.red },
+        closed:      { bg: C.paperDeep,   fg: C.ink3 },
+    }[status] || { bg: C.saffronTint, fg: C.saffron };
+
+    return (
+        <div style={{
+            position: 'sticky', top: 0, zIndex: 10,
+            background: C.paper, borderBottom: `1px solid ${C.hair}`,
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 16px',
+        }}>
+            <button onClick={onClose} style={{
+                width: 30, height: 30, border: `1px solid ${C.hair}`,
+                background: 'transparent', cursor: 'pointer', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+                <Icon name="x" size={13} color={C.ink2} />
+            </button>
+
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+                <span style={{
+                    fontFamily: '"JetBrains Mono", monospace', fontSize: 11,
+                    color: C.ink3, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                }}>Case {caseRef}</span>
+
+                <span style={{
+                    padding: '2px 8px', background: palette.bg, color: palette.fg,
+                    fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                    display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+                }}>
+                    <Icon name="clock" size={10} color={palette.fg} stroke={2} />
+                    {status.replace(/_/g, ' ')}
+                </span>
+
+                {isUncategorised && (
+                    <span style={{
+                        padding: '2px 8px', background: C.saffronTint, color: C.saffron,
+                        fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                        border: `1px dashed ${C.saffron}`, whiteSpace: 'nowrap',
+                    }}>uncategorised</span>
+                )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <button style={{
+                    width: 30, height: 30, border: `1px solid ${C.hair}`,
+                    background: 'transparent', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }} title="Activity history">
+                    <Icon name="history" size={13} color={C.ink2} />
+                </button>
+                <button style={{
+                    width: 30, height: 30, border: `1px solid ${C.hair}`,
+                    background: 'transparent', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }} title="More options">
+                    <Icon name="dots" size={13} color={C.ink2} />
+                </button>
+            </div>
+        </div>
+    );
+}
+
+// ─── Citizen card ─────────────────────────────────────────────
+function CitizenCard({ phone, createdAt, language }) {
+    const last4 = phone ? phone.slice(-4) : '??';
+    const dateStr = createdAt
+        ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+        : '–';
+    const timeStr = createdAt
+        ? createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ' IST'
+        : '–';
+
+    return (
+        <div style={sec}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{
+                    width: 44, height: 44, background: C.green, color: '#F5EFE0',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: '"JetBrains Mono", monospace', fontWeight: 700, fontSize: 11,
+                    flexShrink: 0, letterSpacing: '0.04em',
+                }}>···{last4}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{
+                            fontFamily: '"JetBrains Mono", monospace', fontSize: 12.5,
+                            color: C.ink, fontWeight: 600, letterSpacing: '0.04em',
+                        }}>{phone || 'Unknown'}</span>
+                        <span style={{ width: 1, height: 12, background: C.hair, flexShrink: 0 }} />
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: C.ink2 }}>
+                            <Icon name="whatsapp" size={11} color={C.green} /> WhatsApp
+                        </span>
+                        {language && (
+                            <>
+                                <span style={{ width: 1, height: 12, background: C.hair, flexShrink: 0 }} />
+                                <span style={{
+                                    fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5,
+                                    border: `1px solid ${C.hair}`, padding: '1px 6px', color: C.ink3,
+                                }}>{language}</span>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
+            <div style={{
+                marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.hair}`,
+                display: 'flex', gap: 10, fontSize: 11, color: C.ink3, flexWrap: 'wrap',
+            }}>
+                <span style={{ ...monoLbl, marginBottom: 0, fontSize: 9.5 }}>Received</span>
+                <span style={{ color: C.ink }}>{dateStr} · {timeStr}</span>
+            </div>
+        </div>
+    );
+}
+
+// ─── AI suggestion banner ─────────────────────────────────────
+function AISuggestionBanner({ meta, onAccept }) {
+    if (!meta.ai_category) return null;
+    return (
+        <div style={{
+            padding: '16px 20px',
+            background: 'linear-gradient(120deg, #024A36 0%, #006A4D 100%)',
+            color: '#F5EFE0', position: 'relative', overflow: 'hidden',
+            borderBottom: `1px solid ${C.hair}`,
+        }}>
+            <div style={{ position: 'absolute', right: -14, top: -14, opacity: 0.1, pointerEvents: 'none' }}>
+                <Icon name="sparkle" size={110} color="#F5EFE0" stroke={1} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+                <Icon name="sparkle" size={13} color={C.saffron} stroke={2} />
+                <span style={{
+                    fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5,
+                    letterSpacing: '0.18em', color: C.saffron, textTransform: 'uppercase', fontWeight: 700,
+                }}>Sansad AI · suggested triage</span>
+            </div>
+            <div style={{
+                fontSize: 16, fontWeight: 600, color: '#F5EFE0',
+                letterSpacing: '-0.01em', lineHeight: 1.2, marginBottom: 6,
+            }}>
+                Categorise as{' '}
+                <span style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 4 }}>
+                    {meta.ai_category}{meta.ai_subcategory ? ` · ${meta.ai_subcategory}` : ''}
+                </span>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                {meta.ai_confidence && (
+                    <span style={{
+                        fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5,
+                        background: 'rgba(245,239,224,0.14)', color: '#F5EFE0',
+                        padding: '2px 7px', letterSpacing: '0.06em',
+                    }}>confidence · {Math.round(meta.ai_confidence * 100)}%</span>
+                )}
+                {meta.detected_language && (
+                    <span style={{
+                        fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5,
+                        background: 'rgba(245,239,224,0.14)', color: '#F5EFE0',
+                        padding: '2px 7px', letterSpacing: '0.06em',
+                    }}>language · {meta.detected_language}</span>
+                )}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={onAccept} style={{
+                    background: C.saffron, color: '#fff', border: 'none',
+                    padding: '8px 16px', fontSize: 11.5, fontWeight: 700,
+                    letterSpacing: '0.06em', textTransform: 'uppercase',
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                }}>
+                    Accept &amp; assign <Icon name="check" size={12} color="#fff" stroke={2.5} />
+                </button>
+                <button style={{
+                    background: 'transparent', color: '#F5EFE0',
+                    border: '1px solid rgba(245,239,224,0.3)',
+                    padding: '6px 14px', fontSize: 11, fontWeight: 500,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                }}>
+                    <Icon name="edit" size={11} color="#F5EFE0" /> Edit
+                </button>
+            </div>
+        </div>
+    );
+}
+
+// ─── Message block ────────────────────────────────────────────
+function MessageBlock({ rawMessage, summary, media, caseId }) {
+    const [showSummary, setShowSummary] = useState(false);
+
+    return (
+        <div style={sec}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={monoLbl}>Citizen message</span>
+                {summary && (
+                    <div style={{ display: 'flex', border: `1px solid ${C.hair}` }}>
+                        <button onClick={() => setShowSummary(false)} style={{
+                            padding: '3px 10px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                            background: !showSummary ? C.ink : 'transparent',
+                            color: !showSummary ? C.paper : C.ink2,
+                            fontSize: 10.5, fontWeight: 600,
+                        }}>Original</button>
+                        <button onClick={() => setShowSummary(true)} style={{
+                            padding: '3px 10px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                            background: showSummary ? C.ink : 'transparent',
+                            color: showSummary ? C.paper : C.ink2,
+                            fontSize: 10.5, fontWeight: 600,
+                            borderLeft: `1px solid ${C.hair}`,
+                        }}>Summary</button>
+                    </div>
+                )}
+            </div>
+
+            <div style={{
+                padding: '12px 14px', background: C.paperDeep,
+                borderLeft: `3px solid ${C.green}`,
+                fontSize: 13.5, lineHeight: 1.6, color: C.ink, whiteSpace: 'pre-wrap',
+            }}>
+                {showSummary ? (summary || 'No summary available.') : (rawMessage || 'No message content.')}
+            </div>
+
+            {summary && !showSummary && (
+                <div style={{
+                    marginTop: 8, padding: '10px 12px',
+                    background: C.greenWash, border: `1px solid ${C.greenTint}`,
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                        <Icon name="sparkle" size={10} color={C.green} stroke={2} />
+                        <span style={{
+                            fontFamily: '"JetBrains Mono", monospace', fontSize: 9,
+                            letterSpacing: '0.14em', color: C.greenInk, textTransform: 'uppercase', fontWeight: 700,
+                        }}>AI Summary</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: C.ink, lineHeight: 1.5 }}>{summary}</div>
+                </div>
+            )}
+
+            {media && media.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                    <BriefcaseSourceMediaViewer caseId={caseId} media={media} />
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ─── Geography section ────────────────────────────────────────
+function GeographySection({ geoLocation, geoAssembly, setGeoLocation, setGeoAssembly, onSave, saving, locked }) {
+    return (
+        <div style={sec}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={monoLbl}>Geography</span>
+                {locked && (
+                    <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 7px',
+                        background: C.greenWash, color: C.greenInk,
+                        textTransform: 'uppercase', letterSpacing: '0.06em',
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                    }}>
+                        <Icon name="check" size={9} color={C.greenInk} stroke={2.5} /> Manual lock
+                    </span>
+                )}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <div>
+                    <span style={{ ...monoLbl, marginBottom: 4 }}>Location · ward</span>
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
+                        border: `1px solid ${C.green}`, background: C.surface,
+                    }}>
+                        <Icon name="pin" size={11} color={C.green} />
+                        <input value={geoLocation} onChange={(e) => setGeoLocation(e.target.value)}
+                            placeholder="Village / ward"
+                            style={{
+                                flex: 1, border: 'none', background: 'transparent', outline: 'none',
+                                fontSize: 12.5, color: C.ink, fontFamily: 'inherit', minWidth: 0,
+                            }} />
+                    </div>
+                </div>
+                <div>
+                    <span style={{ ...monoLbl, marginBottom: 4 }}>Assembly</span>
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
+                        border: `1px solid ${C.hair}`, background: C.surface,
+                    }}>
+                        <input value={geoAssembly} onChange={(e) => setGeoAssembly(e.target.value)}
+                            placeholder="Assembly constituency"
+                            style={{
+                                flex: 1, border: 'none', background: 'transparent', outline: 'none',
+                                fontSize: 12.5, color: C.ink, fontFamily: 'inherit', minWidth: 0,
+                            }} />
+                    </div>
+                </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button onClick={onSave} disabled={saving} style={{
+                    padding: '7px 14px', background: C.green, color: '#F5EFE0', border: 'none',
+                    fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                    cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                    display: 'inline-flex', alignItems: 'center', gap: 6, opacity: saving ? 0.7 : 1,
+                }}>
+                    {saving && <Loader2 size={12} className="animate-spin" />}
+                    Save Geography
+                </button>
+                <span style={{ fontSize: 11, color: C.ink3 }}>Saving locks as a manual correction.</span>
+            </div>
+        </div>
+    );
+}
+
+// ─── Status actions ───────────────────────────────────────────
+function StatusActions({ currentStatus, onStatusChange, updating }) {
+    const statusStyles = {
+        new:         { background: C.greenWash,   color: C.greenInk, border: `1px solid ${C.greenTint}` },
+        in_progress: { background: '#E0F0FF',      color: '#1A5276',  border: '1px solid #AED6F1' },
+        resolved:    { background: '#D5F5E3',      color: '#1E8449',  border: '1px solid #A9DFBF' },
+        completed:   { background: '#D5F5E3',      color: '#1E8449',  border: '1px solid #A9DFBF' },
+        escalated:   { background: '#FDEDEC',      color: C.red,      border: '1px solid #F5B7B1' },
+        closed:      { background: C.paperDeep,    color: C.ink3,     border: `1px solid ${C.hair}` },
+        pending:     { background: C.saffronTint,  color: C.saffron,  border: `1px solid #EDBB99` },
+        irrelevant:  { background: C.paperDeep,    color: C.ink3,     border: `1px solid ${C.hair}` },
+    };
+    return (
+        <div style={sec}>
+            <span style={monoLbl}>Update status</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {STATUS_OPTIONS.filter((o) => o.value !== currentStatus).map((opt) => (
+                    <button key={opt.value} onClick={() => onStatusChange(opt.value)} disabled={!!updating}
+                        style={{
+                            padding: '5px 12px', fontSize: 11, fontWeight: 600,
+                            letterSpacing: '0.04em', cursor: updating ? 'not-allowed' : 'pointer',
+                            fontFamily: 'inherit', opacity: updating ? 0.7 : 1,
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            ...(statusStyles[opt.value] || { background: C.paperDeep, color: C.ink3, border: `1px solid ${C.hair}` }),
+                        }}>
+                        {updating === opt.value && <Loader2 size={11} className="animate-spin" />}
+                        Mark {opt.label}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// ─── Activity timeline ────────────────────────────────────────
+function ActivityTimeline({ activities, loading }) {
+    const iconFor = (action = '') => {
+        if (action.includes('creat'))  return 'bolt';
+        if (action.includes('translat') || action.includes('summar') || action.includes('classif')) return 'sparkle';
+        if (action.includes('cluster') || action.includes('link'))  return 'cluster';
+        if (action.includes('view')   || action.includes('open'))   return 'eye';
+        if (action.includes('assign'))  return 'user';
+        if (action.includes('notif')  || action.includes('send'))   return 'whatsapp';
+        if (action.includes('escalat')) return 'escalate';
+        if (action.includes('resolv') || action.includes('complet')) return 'check';
+        return 'clock';
+    };
+    return (
+        <div style={sec}>
+            <span style={monoLbl}>Activity</span>
+            {loading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
+                    <Loader2 size={16} color={C.ink3} className="animate-spin" />
+                </div>
+            ) : activities.length === 0 ? (
+                <p style={{ fontSize: 12, color: C.ink3 }}>No activity yet.</p>
+            ) : (
+                <div>
+                    {activities.map((act, i) => (
+                        <div key={act.id || i} style={{
+                            display: 'grid', gridTemplateColumns: '22px 1fr auto',
+                            gap: 10, padding: '7px 0', alignItems: 'flex-start',
+                            borderTop: i > 0 ? `1px solid ${C.hair}` : 'none',
+                        }}>
+                            <div style={{
+                                width: 20, height: 20, background: C.greenWash,
+                                border: `1px solid ${C.greenTint}`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                            }}>
+                                <Icon name={iconFor(act.action)} size={11} color={C.green} stroke={1.8} />
+                            </div>
+                            <div style={{ fontSize: 12, color: C.ink, lineHeight: 1.4 }}>
+                                <span style={{ fontWeight: 600 }}>{act.username || 'System'}</span>{' '}
+                                <span style={{ color: C.ink2 }}>
+                                    {(act.action || '').replace(/_/g, ' ')}
+                                    {act.new_value ? ` → ${act.new_value}` : ''}
+                                </span>
+                            </div>
+                            <div style={{
+                                fontFamily: '"JetBrains Mono", monospace',
+                                fontSize: 10, color: C.ink3, whiteSpace: 'nowrap',
+                            }}>
+                                {act.created_at
+                                    ? new Date(act.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                                    : ''}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ─── Notes + response section ─────────────────────────────────
+function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSave, saving, phone, isMp, onNotify }) {
+    return (
+        <div style={sec}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={monoLbl}>Internal notes</span>
+                {draftSaved && (
+                    <span style={{
+                        fontSize: 10, color: C.saffron, fontWeight: 600,
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                    }}>
+                        <span style={{ width: 5, height: 5, background: C.saffron, borderRadius: '50%' }} />
+                        Draft saved locally
+                    </span>
+                )}
+            </div>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
+                placeholder="Add notes visible to your office staff only…"
+                style={{
+                    width: '100%', minHeight: 64, padding: '10px 12px',
+                    border: `1px solid ${C.hair}`, background: C.surface,
+                    fontFamily: 'inherit', fontSize: 12.5, color: C.ink,
+                    resize: 'vertical', outline: 'none', boxSizing: 'border-box', marginBottom: 10,
+                }} />
+
+            <span style={{ ...monoLbl, marginBottom: 6 }}>Response to citizen</span>
+            <textarea value={response} onChange={(e) => setResponse(e.target.value)}
+                placeholder="Custom WhatsApp message (optional)…"
+                style={{
+                    width: '100%', minHeight: 56, padding: '10px 12px',
+                    border: `1px solid ${C.hair}`, background: C.surface,
+                    fontFamily: 'inherit', fontSize: 12.5, color: C.ink,
+                    resize: 'vertical', outline: 'none', boxSizing: 'border-box', marginBottom: 10,
+                }} />
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={onSave} disabled={saving} style={{
+                    padding: '7px 14px', background: C.ink, color: C.paper, border: 'none',
+                    fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                    cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                    display: 'inline-flex', alignItems: 'center', gap: 6, opacity: saving ? 0.7 : 1,
+                }}>
+                    {saving && <Loader2 size={12} className="animate-spin" />}
+                    Save notes
+                </button>
+                <button onClick={onNotify} disabled={!phone || !isMp}
+                    title={!isMp ? 'Only the primary account can send notifications' : !phone ? 'No phone on file' : ''}
+                    style={{
+                        padding: '7px 14px', background: 'transparent',
+                        border: `1px solid ${C.green}`, color: C.green,
+                        fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                        cursor: (!phone || !isMp) ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        opacity: (!phone || !isMp) ? 0.5 : 1,
+                    }}>
+                    <Icon name="whatsapp" size={12} color={C.green} />
+                    Send via WhatsApp
+                    {!isMp && <span style={{ fontSize: 10, opacity: 0.6 }}>(Primary only)</span>}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+// ─── Assign + escalate + delete ───────────────────────────────
+function AssignSection({ assignee, onAssign, staff, onEscalate, onDelete, userRole }) {
+    const canDelete = ['mp', 'owner', 'pr'].includes(userRole);
+    return (
+        <div style={{ ...sec, borderBottom: 'none' }}>
+            <span style={monoLbl}>Assign to</span>
+            <select value={assignee} onChange={(e) => onAssign(e.target.value)} style={{
+                width: '100%', border: `1px solid ${C.hair}`,
+                background: C.surface, padding: '7px 10px',
+                fontSize: 12.5, color: C.ink, fontFamily: 'inherit', outline: 'none', marginBottom: 14,
+            }}>
+                <option value="">Unassigned</option>
+                {staff.map((s) => (
+                    <option key={s.username} value={s.username}>
+                        {s.display_name || s.username}
+                    </option>
+                ))}
+            </select>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={onEscalate} style={{
+                    padding: '6px 12px', border: '1px solid #EDBB99',
+                    background: '#FEF9EC', color: '#9A4F0E',
+                    fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                }}>
+                    <Icon name="escalate" size={12} color="#9A4F0E" /> Escalate to Officer
+                </button>
+                {canDelete && (
+                    <button onClick={onDelete} style={{
+                        padding: '6px 12px', border: '1px solid #F5B7B1',
+                        background: '#FDEDEC', color: C.red,
+                        fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                    }}>
+                        <Icon name="trash" size={12} color={C.red} /> Delete
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ─── Sticky bottom action bar ─────────────────────────────────
+function ActionBar({ onConfirm, onReply, isUncategorised }) {
+    return (
+        <div style={{
+            position: 'sticky', bottom: 0, zIndex: 10,
+            background: C.paper, borderTop: `1px solid ${C.hair}`,
+            padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8,
+            boxShadow: '0 -8px 20px rgba(26,24,18,0.06)',
+        }}>
+            <button onClick={onConfirm} style={{
+                flex: 1, padding: '10px 14px', background: C.green, color: '#F5EFE0', border: 'none',
+                fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                cursor: 'pointer', fontFamily: 'inherit',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+            }}>
+                <Icon name="check" size={13} color="#F5EFE0" stroke={2.5} />
+                {isUncategorised ? 'Confirm category & assign' : 'Mark resolved'}
+            </button>
+            <button onClick={onReply} style={{
+                padding: '10px 14px', background: 'transparent',
+                border: `1px solid ${C.hairStrong}`, color: C.ink,
+                fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}>
+                <Icon name="send" size={12} color={C.ink} /> Reply
+            </button>
+        </div>
+    );
+}
+
+// ─── Resolved view ────────────────────────────────────────────
+function ResolvedView({ current, activities, loadingActivity, onClose }) {
+    const meta = current.case_metadata || {};
+    const createdAt = current.created_at ? new Date(current.created_at) : null;
+    const caseRef = current.case_ref || `#${current.id}`;
+    const notifyAct = [...activities].reverse().find((a) => a.action === 'citizen_notified');
+    const notifiedAt = notifyAct ? new Date(notifyAct.created_at) : null;
+
+    const fields = [
+        ['Case Number', caseRef],
+        ['Contact', current.user_phone || '–'],
+        ['Category', current.category || 'General'],
+        ['Location', meta.matched_value || current.location || '–'],
+        ['Assembly', meta.assembly_constituency || current.assembly || '–'],
+        ['Geo Confidence', meta.geography_confidence || '–'],
+        ['Filed', createdAt ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '–'],
+        ['Resolved', notifiedAt ? notifiedAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '–'],
+    ];
+
+    return (
+        <>
+            <DrawerHeader caseRef={caseRef} status="resolved" isUncategorised={false} onClose={onClose} />
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                <div style={sec}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        {fields.map(([label, value]) => (
+                            <div key={label} style={{ border: `1px solid ${C.hair}`, padding: '8px 12px', background: C.surface }}>
+                                <div style={{ fontSize: 9.5, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"JetBrains Mono", monospace', marginBottom: 3 }}>{label}</div>
+                                <div style={{ fontSize: 13, fontWeight: 500, color: C.ink }}>{value}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                <MessageBlock rawMessage={current.raw_message} summary={meta.summary} media={current.media || []} caseId={current.id} />
+                {current.response_to_citizen && (
+                    <div style={sec}>
+                        <span style={monoLbl}>Resolution message sent</span>
+                        <div style={{
+                            padding: '12px 14px', background: C.greenWash,
+                            borderLeft: `3px solid ${C.green}`,
+                            fontSize: 13, color: C.ink, lineHeight: 1.6,
+                        }}>{current.response_to_citizen}</div>
+                    </div>
+                )}
+                <ActivityTimeline activities={activities} loading={loadingActivity} />
+            </div>
+            <div style={{ background: C.paper, borderTop: `1px solid ${C.hair}`, padding: '10px 16px' }}>
+                <button onClick={onClose} style={{
+                    width: '100%', padding: '10px', background: 'transparent',
+                    border: `1px solid ${C.hairStrong}`, color: C.ink,
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                }}>Close</button>
+            </div>
+        </>
+    );
+}
+
+// ─── Main export ──────────────────────────────────────────────
 export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusChange, staff, user, onDeleteCase }) {
     const toast = useToast();
     const [updating, setUpdating] = useState(null);
@@ -28,7 +699,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const [loadingActivity, setLoadingActivity] = useState(false);
     const [showEscalation, setShowEscalation] = useState(false);
     const [draftSaved, setDraftSaved] = useState(false);
-    const [similarCases, setSimilarCases] = useState([]);
     const [notifyOpen, setNotifyOpen] = useState(false);
     const [notifyInput, setNotifyInput] = useState('');
     const [notifySending, setNotifySending] = useState(false);
@@ -38,9 +708,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const [savingGeo, setSavingGeo] = useState(false);
 
     useEffect(() => {
-        if (!caseItem) {
-            return;
-        }
+        if (!caseItem) return;
         setFullCase(caseItem);
         apiGet(`/api/cases/${caseItem.id}`)
             .then((result) => {
@@ -64,29 +732,21 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
             .then((result) => setActivities(result.activities || []))
             .catch(() => setActivities([]))
             .finally(() => setLoadingActivity(false));
-
-        apiGet(`/api/cases/${caseItem.id}/similar`)
-            .then((result) => setSimilarCases(result.cases || []))
-            .catch(() => setSimilarCases([]));
     }, [caseItem?.id]);
 
     useEffect(() => {
-        if (!caseItem) {
-            return;
-        }
+        if (!caseItem) return;
         localStorage.setItem(`draft_notes_${caseItem.id}`, notes);
         localStorage.setItem(`draft_response_${caseItem.id}`, response);
     }, [notes, response, caseItem?.id]);
 
-    if (!caseItem) {
-        return null;
-    }
+    if (!caseItem) return null;
 
     const current = fullCase || caseItem;
     const meta = current.case_metadata || {};
     const createdAt = current.created_at ? new Date(current.created_at) : null;
-    const updatedAt = current.updated_at ? new Date(current.updated_at) : null;
     const currentStatus = (current.status || 'new').toLowerCase();
+    const isUncategorised = !current.category || current.category === 'Uncategorised' || current.category === 'General';
     const isMp = isPrimaryAccount(user);
     const caseRef = current.case_ref || `#${current.id}`;
 
@@ -96,8 +756,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
             await apiPatch(`/api/cases/${current.id}/status`, { status: newStatus });
             onStatusChange(current.id, newStatus);
             toast.success(`Case marked as ${newStatus}`);
-        } catch (error) {
-            console.error('Status update failed:', error);
+        } catch {
             toast.error('Failed to update status');
         } finally {
             setUpdating(null);
@@ -114,9 +773,8 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
             localStorage.removeItem(`draft_notes_${current.id}`);
             localStorage.removeItem(`draft_response_${current.id}`);
             setDraftSaved(false);
-            toast.success('Notes saved successfully');
-        } catch (error) {
-            console.error('Failed to save notes:', error);
+            toast.success('Notes saved');
+        } catch {
             toast.error('Failed to save notes');
         } finally {
             setSavingNotes(false);
@@ -136,8 +794,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
             setGeoAssembly(refreshed.case_metadata?.assembly_constituency || refreshed.assembly || '');
             onStatusChange(current.id, refreshed.status || currentStatus);
             toast.success('Geography updated and locked');
-        } catch (error) {
-            console.error('Failed to save geography:', error);
+        } catch {
             toast.error('Failed to save geography');
         } finally {
             setSavingGeo(false);
@@ -147,7 +804,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const sendNotification = async () => {
         setNotifySending(true);
         try {
-            const customMessage = response && response.trim() ? response.trim() : null;
+            const customMessage = response?.trim() || null;
             await apiPost(`/api/cases/${current.id}/notify/send`, {
                 message: customMessage,
                 response_to_citizen: customMessage,
@@ -169,374 +826,123 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
             await apiPatch(`/api/cases/${current.id}`, { assigned_to: username || null });
             setAssignee(username);
             onStatusChange(current.id, currentStatus);
-            toast.success(`Case assigned to ${username || 'unassigned'}`);
-        } catch (error) {
-            console.error('Failed to assign:', error);
+            toast.success(username ? `Assigned to ${username}` : 'Unassigned');
+        } catch {
             toast.error('Failed to assign case');
         }
     };
 
     const handleDelete = async () => {
-        if (!window.confirm('Are you sure you want to delete this case? This cannot be undone.')) {
-            return;
-        }
+        if (!window.confirm('Delete this case? This cannot be undone.')) return;
         try {
             await onDeleteCase(current.id);
             onClose();
-            toast.success('Case deleted successfully');
-        } catch (error) {
-            console.error('Failed to delete case:', error);
+            toast.success('Case deleted');
+        } catch {
             toast.error('Failed to delete case');
         }
     };
 
-    if (currentStatus === 'resolved') {
-        const notifyActivity = [...activities].reverse().find((activity) => activity.action === 'citizen_notified');
-        const notifiedAt = notifyActivity ? new Date(notifyActivity.created_at) : null;
-        return (
-            <Dialog open={!!caseItem} onOpenChange={onClose}>
-                <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-                    <DialogHeader className="p-0 -m-6 mb-0">
-                        <div className="p-6 text-white rounded-t-xl" style={{ background: color }}>
-                            <DialogDescription className="text-white/80 text-xs uppercase tracking-widest font-semibold mb-1">
-                                Resolved · {caseRef}
-                            </DialogDescription>
-                            <DialogTitle className="text-lg font-bold text-white">{current.category || 'General'}</DialogTitle>
-                        </div>
-                    </DialogHeader>
-                    <div className="space-y-4 pt-6">
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                            {[
-                                ['Case Number', caseRef],
-                                ['Contact', current.user_phone || '-'],
-                                ['Category', current.category || 'General'],
-                                ['Location', meta.matched_value || current.location || '-'],
-                                ['Assembly', meta.assembly_constituency || current.assembly || '-'],
-                                ['Geo Confidence', meta.geography_confidence || '-'],
-                                ['Date Filed', createdAt ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'],
-                                ['Time Filed', createdAt ? createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'],
-                                ['Date Resolved', notifiedAt ? notifiedAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'],
-                                ['Time Resolved', notifiedAt ? notifiedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'],
-                            ].map(([label, value]) => (
-                                <div key={label} className="border rounded-lg p-3">
-                                    <div className="text-xs text-muted-foreground uppercase font-medium">{label}</div>
-                                    <div className="text-sm font-medium text-foreground mt-0.5">{value}</div>
-                                </div>
-                            ))}
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Complaint Message</div>
-                            <div className="bg-muted/50 border rounded-lg p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed min-h-[60px]">
-                                {current.raw_message || 'No content available.'}
-                            </div>
-                        </div>
-                        <BriefcaseSourceMediaViewer caseId={current.id} media={current.media || []} />
-                        <div>
-                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Resolution Message Sent to Citizen</div>
-                            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed min-h-[60px]">
-                                {current.response_to_citizen || <span className="text-muted-foreground italic">Standard status message was sent</span>}
-                            </div>
-                        </div>
-                        <Separator />
-                        <div>
-                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Activity Log</div>
-                            {loadingActivity ? (
-                                <div className="flex items-center justify-center py-4">
-                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                </div>
-                            ) : (
-                                <div className="space-y-2 max-h-48 overflow-y-auto">
-                                    {activities.length === 0 ? (
-                                        <p className="text-xs text-muted-foreground">No activity yet</p>
-                                    ) : (
-                                        activities.map((activity) => (
-                                            <div key={activity.id} className="flex items-start gap-2 text-xs">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                                                <div>
-                                                    <span className="font-medium">{activity.username}</span> {activity.action.replace(/_/g, ' ')}
-                                                    {activity.new_value && <span className="text-muted-foreground"> → {activity.new_value}</span>}
-                                                    <div className="text-muted-foreground">
-                                                        {activity.created_at ? new Date(activity.created_at).toLocaleString('en-IN') : ''}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={onClose}>Close</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        );
-    }
+    const defaultNotifyMessage = (() => {
+        const msgs = {
+            new:         `Your grievance (${caseRef}) has been received and is being reviewed.`,
+            in_progress: `Update on your grievance (${caseRef}): We are actively working on this.`,
+            escalated:   `Update on your grievance (${caseRef}): This has been escalated to the relevant authority.`,
+            resolved:    `Good news! Your grievance (${caseRef}) has been resolved. Reply 'NO' to reopen.`,
+            completed:   `Good news! Your grievance (${caseRef}) has been resolved. Reply 'NO' to reopen.`,
+            closed:      `Your grievance (${caseRef}) has been closed. Thank you for reaching out.`,
+        };
+        return response?.trim() || msgs[current.status] || `Update on your grievance (${caseRef}): Status is now '${current.status}'.`;
+    })();
+
+    const isResolved = currentStatus === 'resolved' || currentStatus === 'completed';
 
     return (
-        <Dialog open={!!caseItem} onOpenChange={onClose}>
-            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-                <DialogHeader className="p-0 -m-6 mb-0">
-                    <div className="p-6 text-white rounded-t-xl" style={{ background: color }}>
-                        <DialogDescription className="text-white/80 text-xs uppercase tracking-widest font-semibold mb-1">
-                            Grievance · #{current.id}
-                        </DialogDescription>
-                        <DialogTitle className="text-lg font-bold text-white">
-                            {current.category || 'General'}
-                        </DialogTitle>
-                    </div>
-                </DialogHeader>
-
-                <div className="space-y-4 pt-6">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {[
-                            ['Contact', current.user_phone || '-'],
-                            ['Category', current.category || 'General'],
-                            ['Status', currentStatus],
-                            ['Location', meta.matched_value || current.location || '-'],
-                            ['Assembly', meta.assembly_constituency || current.assembly || '-'],
-                            ['Geo Confidence', meta.geography_confidence || '-'],
-                            ['Date', createdAt ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'],
-                            ['Time', createdAt ? createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'],
-                            ['Critical', current.is_critical ? 'Yes' : 'No'],
-                            ['Last Updated', updatedAt ? updatedAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'],
-                        ].map(([label, value]) => (
-                            <div key={label} className="border rounded-lg p-3">
-                                <div className="text-xs text-muted-foreground uppercase font-medium">{label}</div>
-                                <div className="text-sm font-medium text-foreground mt-0.5">{value}</div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div>
-                        <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Full Message</div>
-                        <div className="bg-muted/50 border rounded-lg p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed min-h-[80px]">
-                            {current.raw_message || 'No content available.'}
-                        </div>
-                    </div>
-
-                    <BriefcaseSourceMediaViewer caseId={current.id} media={current.media || []} />
-
-                    {meta.summary && (
-                        <div>
-                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">AI Summary</div>
-                            <div className="bg-muted/50 border rounded-lg p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-                                {meta.summary}
-                            </div>
-                        </div>
-                    )}
-
-                    {meta.needs_geography_review && (
-                        <div className="rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-800">
-                            Geography match needs staff review before routing decisions rely on it.
-                        </div>
-                    )}
-
-                    <Separator />
-
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div className="text-xs text-muted-foreground uppercase font-medium">Geography</div>
-                            {meta.geography_locked && (
-                                <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
-                                    Manual Lock
-                                </Badge>
-                            )}
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                                <Label htmlFor={`geo-location-${current.id}`} className="text-xs text-muted-foreground uppercase font-medium mb-2 block">
-                                    Location
-                                </Label>
-                                <Input
-                                    id={`geo-location-${current.id}`}
-                                    value={geoLocation}
-                                    onChange={(event) => setGeoLocation(event.target.value)}
-                                    placeholder="Village / area / ward"
-                                />
-                            </div>
-                            <div>
-                                <Label htmlFor={`geo-assembly-${current.id}`} className="text-xs text-muted-foreground uppercase font-medium mb-2 block">
-                                    Assembly
-                                </Label>
-                                <Input
-                                    id={`geo-assembly-${current.id}`}
-                                    value={geoAssembly}
-                                    onChange={(event) => setGeoAssembly(event.target.value)}
-                                    placeholder="Assembly constituency"
-                                />
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3 flex-wrap">
-                            <Button onClick={saveGeography} disabled={savingGeo}>
-                                {savingGeo ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                                Save Geography
-                            </Button>
-                            <span className="text-xs text-muted-foreground">
-                                Saving here marks this case as a manual geography correction.
-                            </span>
-                        </div>
-                    </div>
-
-                    <Separator />
-
-                    <div>
-                        <div className="text-xs text-muted-foreground uppercase font-medium mb-3">Update Status</div>
-                        <div className="flex flex-wrap gap-2">
-                            {STATUS_OPTIONS.filter((option) => option.value !== currentStatus).map((option) => (
-                                <Button
-                                    key={option.value}
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleStatusChange(option.value)}
-                                    disabled={updating === option.value}
-                                    className={cn('border', option.className)}
-                                >
-                                    {updating === option.value && <Loader2 className="h-3 w-3 animate-spin" />}
-                                    Mark {option.label}
-                                </Button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <Separator />
-
-                    <div className="space-y-4">
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="text-xs text-muted-foreground uppercase font-medium">Notes for Staff</div>
-                                {draftSaved && <span className="text-xs text-amber-600 font-medium">● Draft saved locally</span>}
-                            </div>
-                            <Textarea
-                                value={notes}
-                                onChange={(event) => setNotes(event.target.value)}
-                                placeholder="Internal notes..."
-                                className="min-h-[60px]"
-                            />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Response to Citizen</div>
-                            <Textarea
-                                value={response}
-                                onChange={(event) => setResponse(event.target.value)}
-                                placeholder="Response message..."
-                                className="min-h-[60px]"
-                            />
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <Button onClick={saveNotes} disabled={savingNotes}>
-                                {savingNotes ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                                Save Notes
-                            </Button>
-                            <Button
-                                variant="outline"
-                                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                                disabled={!current.user_phone || !isMp}
-                                title={!isMp ? 'Only the primary account can send citizen notifications' : !current.user_phone ? 'No phone number on file' : ''}
-                                onClick={() => {
-                                    setNotifyInput('');
-                                    setNotifyOpen(true);
-                                }}
-                            >
-                                <Send className="h-4 w-4 mr-1" />
-                                Send Update via WhatsApp
-                                {!isMp && <span className="ml-1 text-xs opacity-60">(Primary only)</span>}
-                            </Button>
-                        </div>
-                    </div>
-
-                    {similarCases.length > 0 && (
+        <>
+            <Sheet open={!!caseItem} onOpenChange={(open) => { if (!open) onClose(); }}>
+                <SheetContent
+                    side="right"
+                    className="w-[600px] sm:max-w-[600px] p-0 flex flex-col overflow-hidden [&>button]:hidden rounded-none"
+                    style={{
+                        background: C.paper,
+                        fontFamily: '"Inter", "Noto Sans Devanagari", system-ui, sans-serif',
+                        boxShadow: '-16px 0 40px rgba(26,24,18,0.10)',
+                        border: 'none',
+                    }}
+                >
+                    {isResolved ? (
+                        <ResolvedView current={current} activities={activities} loadingActivity={loadingActivity} onClose={onClose} />
+                    ) : (
                         <>
-                            <Separator />
-                            <div>
-                                <div className="text-xs text-muted-foreground uppercase font-medium mb-2">
-                                    Related Cases ({similarCases.length})
-                                </div>
-                                <div className="space-y-1 max-h-36 overflow-y-auto">
-                                    {similarCases.map((similarCase) => (
-                                        <div key={similarCase.id} className="flex items-center gap-2 text-xs py-1 border-b last:border-0">
-                                            <span className="font-mono text-muted-foreground shrink-0">#{similarCase.id}</span>
-                                            {getStatusBadge(similarCase.status)}
-                                            <span className="truncate text-muted-foreground">{similarCase.message_preview}</span>
-                                        </div>
-                                    ))}
-                                </div>
+                            <DrawerHeader
+                                caseRef={caseRef}
+                                status={currentStatus}
+                                isUncategorised={isUncategorised}
+                                onClose={onClose}
+                            />
+                            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                                <CitizenCard
+                                    phone={current.user_phone}
+                                    createdAt={createdAt}
+                                    language={meta.detected_language}
+                                />
+                                {isUncategorised && (
+                                    <AISuggestionBanner
+                                        meta={meta}
+                                        onAccept={() => handleStatusChange('in_progress')}
+                                    />
+                                )}
+                                <MessageBlock
+                                    rawMessage={current.raw_message}
+                                    summary={meta.summary}
+                                    media={current.media || []}
+                                    caseId={current.id}
+                                />
+                                <GeographySection
+                                    geoLocation={geoLocation}
+                                    geoAssembly={geoAssembly}
+                                    setGeoLocation={setGeoLocation}
+                                    setGeoAssembly={setGeoAssembly}
+                                    onSave={saveGeography}
+                                    saving={savingGeo}
+                                    locked={meta.geography_locked}
+                                />
+                                <StatusActions
+                                    currentStatus={currentStatus}
+                                    onStatusChange={handleStatusChange}
+                                    updating={updating}
+                                />
+                                <ActivityTimeline activities={activities} loading={loadingActivity} />
+                                <NotesSection
+                                    notes={notes}
+                                    setNotes={setNotes}
+                                    response={response}
+                                    setResponse={setResponse}
+                                    draftSaved={draftSaved}
+                                    onSave={saveNotes}
+                                    saving={savingNotes}
+                                    phone={current.user_phone}
+                                    isMp={isMp}
+                                    onNotify={() => { setNotifyInput(''); setNotifyOpen(true); }}
+                                />
+                                <AssignSection
+                                    assignee={assignee}
+                                    onAssign={handleAssign}
+                                    staff={staff}
+                                    onEscalate={() => setShowEscalation(true)}
+                                    onDelete={handleDelete}
+                                    userRole={user?.role}
+                                />
                             </div>
+                            <ActionBar
+                                onConfirm={() => handleStatusChange(isUncategorised ? 'in_progress' : 'resolved')}
+                                onReply={() => { setNotifyInput(''); setNotifyOpen(true); }}
+                                isUncategorised={isUncategorised}
+                            />
                         </>
                     )}
-
-                    <Separator />
-
-                    <div>
-                        <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Assign To</div>
-                        <select
-                            value={assignee}
-                            onChange={(event) => handleAssign(event.target.value)}
-                            className="w-full border rounded-lg p-2 text-sm"
-                        >
-                            <option value="">Unassigned</option>
-                            {staff.map((staffMember) => (
-                                <option key={staffMember.username} value={staffMember.username}>
-                                    {staffMember.display_name || staffMember.username}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <Separator />
-
-                    <div>
-                        <div className="text-xs text-muted-foreground uppercase font-medium mb-2">Activity Log</div>
-                        {loadingActivity ? (
-                            <div className="flex items-center justify-center py-4">
-                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                            </div>
-                        ) : (
-                            <div className="space-y-2 max-h-48 overflow-y-auto">
-                                {activities.length === 0 ? (
-                                    <p className="text-xs text-muted-foreground">No activity yet</p>
-                                ) : (
-                                    activities.map((activity) => (
-                                        <div key={activity.id} className="flex items-start gap-2 text-xs">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                                            <div>
-                                                <span className="font-medium">{activity.username}</span> {activity.action.replace('_', ' ')}
-                                                {activity.new_value && <span className="text-muted-foreground"> → {activity.new_value}</span>}
-                                                <div className="text-muted-foreground">
-                                                    {activity.created_at ? new Date(activity.created_at).toLocaleString('en-IN') : ''}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    <Separator />
-
-                    <div className="flex gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowEscalation(true)}
-                            className="border-amber-300 text-amber-700 hover:bg-amber-50"
-                        >
-                            Escalate to Officer
-                        </Button>
-                        {(user?.role === 'mp' || user?.role === 'owner' || user?.role === 'pr') && (
-                            <Button variant="destructive" size="sm" onClick={handleDelete}>
-                                Delete Case
-                            </Button>
-                        )}
-                    </div>
-                </div>
-
-                <DialogFooter>
-                    <Button variant="outline" onClick={onClose}>Close</Button>
-                </DialogFooter>
-            </DialogContent>
+                </SheetContent>
+            </Sheet>
 
             {showEscalation && (
                 <BriefcaseEscalationModal
@@ -548,47 +954,29 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                 />
             )}
 
-            <Dialog
-                open={notifyOpen}
-                onOpenChange={(open) => {
-                    setNotifyOpen(open);
-                    if (!open) {
-                        setNotifyInput('');
-                    }
-                }}
-            >
-                <DialogContent className="max-w-sm">
+            <Dialog open={notifyOpen} onOpenChange={(open) => { setNotifyOpen(open); if (!open) setNotifyInput(''); }}>
+                <DialogContent className="max-w-sm" style={{ background: C.paper, fontFamily: 'inherit' }}>
                     <DialogHeader>
-                        <DialogTitle>Send WhatsApp Update</DialogTitle>
-                        <DialogDescription>
-                            This will message the citizen about the current status of their case. Type the case reference <strong>{caseRef}</strong> to confirm.
+                        <DialogTitle style={{ color: C.ink }}>Send WhatsApp Update</DialogTitle>
+                        <DialogDescription style={{ color: C.ink3 }}>
+                            Type <strong style={{ color: C.ink }}>{caseRef}</strong> to confirm sending a message to the citizen.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="py-2 space-y-3">
-                        <div className="rounded-lg bg-muted/50 border p-3 text-sm text-muted-foreground">
-                            {(() => {
-                                if (response && response.trim()) {
-                                    return response.trim();
-                                }
-                                const statusMessages = {
-                                    new: `Your grievance (${caseRef}) has been received and is being reviewed.`,
-                                    in_progress: `Update on your grievance (${caseRef}): We are actively working on this.`,
-                                    escalated: `Update on your grievance (${caseRef}): This has been escalated to the relevant authority.`,
-                                    resolved: `Good news! Your grievance (${caseRef}) has been resolved. If unsatisfied, reply 'NO' to reopen.`,
-                                    completed: `Good news! Your grievance (${caseRef}) has been resolved. If unsatisfied, reply 'NO' to reopen.`,
-                                    closed: `Your grievance (${caseRef}) has been closed. Thank you for reaching out.`,
-                                };
-                                return statusMessages[current.status] || `Update on your grievance (${caseRef}): Status is now '${current.status}'.`;
-                            })()}
+                    <div style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{
+                            background: C.paperDeep, border: `1px solid ${C.hair}`,
+                            padding: '10px 12px', fontSize: 12.5, color: C.ink, lineHeight: 1.5,
+                        }}>
+                            {defaultNotifyMessage}
                         </div>
-                        {response && response.trim() && (
-                            <p className="text-xs text-emerald-600 font-medium">✓ Using your custom response message</p>
+                        {response?.trim() && (
+                            <p style={{ fontSize: 11, color: C.greenInk, fontWeight: 600 }}>✓ Using your custom response message</p>
                         )}
                         <Input
                             placeholder={`Type ${caseRef} to confirm`}
                             value={notifyInput}
-                            onChange={(event) => setNotifyInput(event.target.value)}
-                            onKeyDown={(event) => event.key === 'Enter' && notifyInput === caseRef && sendNotification()}
+                            onChange={(e) => setNotifyInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && notifyInput === caseRef && sendNotification()}
                             autoFocus
                         />
                     </div>
@@ -597,14 +985,14 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         <Button
                             onClick={sendNotification}
                             disabled={notifyInput !== caseRef || notifySending}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                            style={{ background: C.green, color: '#F5EFE0', border: 'none' }}
                         >
                             {notifySending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
-                            Confirm & Send
+                            Confirm &amp; Send
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </Dialog>
+        </>
     );
 }
