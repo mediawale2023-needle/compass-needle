@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-04
+- Request: Push the Shared Geography workflow unification pass to GitHub for deployment.
+- Summary: Pushed commit `b1115e45` (`Unify shared geography workspace flow`) to `origin/main`, publishing the tenant-aware workspace as the single operator surface for shared seat geography, manual matching corrections, and resolver alias diagnostics while the old rules route now redirects back into the workspace.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This deploy unifies the admin experience first, but the backend still stores manual corrections as `geo_override` under the hood for compatibility. A later migration can simplify that storage model without changing the operator workflow again.
+
+- Date: 2026-06-04
 - Request: Start unifying shared geography so upload, manual corrections, and resolver cleanup behave like one operator workflow while preserving the parent/sub-locality model.
 - Summary: Folded tenant-specific `geo_override` management into the tenant-aware Shared Geography workspace as `Manual Matching Corrections`, added explanatory copy that separates shared seat geography from manual corrections and generated resolver aliases, updated the Shared Geography landing page to point operators to the workspace instead of a separate rules tool, and converted `/dashboard/shared-geography/rules` into a compatibility redirect back to the workspace. Verified with `PATH=/opt/homebrew/bin:$PATH npm run test --prefix admin -- --run tests/geography.test.jsx` and `PATH=/opt/homebrew/bin:$PATH npm run build --prefix admin`.
 - Files touched: `admin/components/admin-domains/shared-geography/GeographyWorkspacePage.jsx`, `admin/app/dashboard/shared-geography/rules/page.js`, `admin/app/dashboard/shared-geography/page.js`, `admin/tests/geography.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
