@@ -178,6 +178,26 @@ class CaseActivityLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class DashboardEngagement(Base):
+    __tablename__ = "dashboard_engagements"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=False)
+    entry_type = Column(String, nullable=False, default="schedule")  # schedule | note | calendar
+    title = Column(String, nullable=False)
+    notes = Column(Text, nullable=True)
+    location = Column(String, nullable=True)
+    scheduled_for = Column(Date, nullable=False)
+    starts_at = Column(DateTime, nullable=True)
+    ends_at = Column(DateTime, nullable=True)
+    calendar_url = Column(String, nullable=True)
+    is_all_day = Column(Boolean, default=False)
+    created_by = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+
+    tenant = relationship("Tenant")
+
+
 class CaseMedia(Base):
     """Original WhatsApp source media attached to a citizen grievance."""
     __tablename__ = "case_media"
@@ -1090,6 +1110,15 @@ def init_db():
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS force_password_reason VARCHAR",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER DEFAULT 0",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP",
+        "ALTER TABLE dashboard_engagements ADD COLUMN IF NOT EXISTS notes TEXT",
+        "ALTER TABLE dashboard_engagements ADD COLUMN IF NOT EXISTS location VARCHAR",
+        "ALTER TABLE dashboard_engagements ADD COLUMN IF NOT EXISTS scheduled_for DATE",
+        "ALTER TABLE dashboard_engagements ADD COLUMN IF NOT EXISTS starts_at TIMESTAMP",
+        "ALTER TABLE dashboard_engagements ADD COLUMN IF NOT EXISTS ends_at TIMESTAMP",
+        "ALTER TABLE dashboard_engagements ADD COLUMN IF NOT EXISTS calendar_url VARCHAR",
+        "ALTER TABLE dashboard_engagements ADD COLUMN IF NOT EXISTS is_all_day BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE dashboard_engagements ADD COLUMN IF NOT EXISTS created_by VARCHAR",
+        "ALTER TABLE dashboard_engagements ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
     ]
     with engine.connect() as conn:
         for stmt in _migrations:

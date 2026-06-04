@@ -61,6 +61,7 @@ describe('MP dashboard overview', () => {
                 };
             }
             if (path === '/api/activity/report-card') return null;
+            if (path.startsWith('/api/dashboard/engagements?')) return { items: [] };
             if (path.startsWith('/api/news?news_type=')) return { articles: [] };
             if (path.startsWith('/api/cases?')) {
                 return {
@@ -85,6 +86,9 @@ describe('MP dashboard overview', () => {
         expect(await screen.findByText('Grievances open')).toBeInTheDocument();
         expect(screen.getByText('Workload by category')).toBeInTheDocument();
         expect(screen.getByText('Letters & drafts')).toBeInTheDocument();
+        expect(screen.getAllByText('Add schedule').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Add note').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Add calendar').length).toBeGreaterThan(0);
         expect(apiGetMock).toHaveBeenCalledWith('/api/dashboard/summary');
     });
 });

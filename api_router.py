@@ -11,7 +11,7 @@ import logging
 import re
 import secrets
 import string
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Request, Response, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -326,6 +326,18 @@ class CompleteForcedPasswordResetRequest(BaseModel):
     new_password: str
 
 
+class DashboardEngagementCreateRequest(BaseModel):
+    entry_type: str = "schedule"
+    title: str
+    notes: Optional[str] = None
+    location: Optional[str] = None
+    scheduled_for: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    is_all_day: bool = False
+    calendar_url: Optional[str] = None
+
+
 @router.post("/auth/login")
 @_limit_login
 def login(req: LoginRequest, request: Request):
@@ -532,6 +544,162 @@ def dashboard_summary(user=Depends(get_current_user)):
         "critical_count": critical["cnt"] if critical else 0,
         "red_zones": [{"area": r["area"], "count": r["cnt"]} for r in red_zones if r.get("area")],
     }
+
+
+def _parse_iso_date(value: str | None) -> date:
+    if not value:
+        return _utcnow().date()
+    try:
+        return date.fromisoformat(str(value).strip())
+    except ValueError:
+        raise HTTPException(400, "Invalid scheduled date")
+
+
+def _parse_time_fragment(value: str | None) -> tuple[int, int] | None:
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        hour_text, minute_text = str(value).strip().split(":", 1)
+        hour = int(hour_text)
+        minute = int(minute_text)
+    except Exception:
+        raise HTTPException(400, "Time must be in HH:MM format")
+    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+        raise HTTPException(400, "Time must be in HH:MM format")
+    return (hour, minute)
+
+
+def _combine_scheduled_datetime(target_date: date, time_fragment: tuple[int, int] | None) -> datetime | None:
+    if not time_fragment:
+        return None
+    hour, minute = time_fragment
+    return datetime(target_date.year, target_date.month, target_date.day, hour, minute)
+
+
+def _serialize_dashboard_engagement(row: dict | None) -> dict:
+    row = row or {}
+    starts_at = _coerce_datetime(row.get("starts_at"))
+    ends_at = _coerce_datetime(row.get("ends_at"))
+    scheduled_for = row.get("scheduled_for")
+    if isinstance(scheduled_for, date):
+        scheduled_for_value = scheduled_for.isoformat()
+    else:
+        scheduled_for_value = str(scheduled_for) if scheduled_for else None
+    return {
+        "id": row.get("id"),
+        "entry_type": row.get("entry_type") or "schedule",
+        "title": row.get("title") or "",
+        "notes": row.get("notes"),
+        "location": row.get("location"),
+        "scheduled_for": scheduled_for_value,
+        "starts_at": _coerce_iso(starts_at) if starts_at else None,
+        "ends_at": _coerce_iso(ends_at) if ends_at else None,
+        "calendar_url": row.get("calendar_url"),
+        "is_all_day": bool(row.get("is_all_day")),
+        "created_by": row.get("created_by"),
+    }
+
+
+@router.get("/dashboard/engagements")
+def get_dashboard_engagements(date_value: Optional[str] = Query(default=None, alias="date"), user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    scheduled_for = _parse_iso_date(date_value)
+    rows = _q(
+        """
+        SELECT id, entry_type, title, notes, location, scheduled_for, starts_at, ends_at,
+               calendar_url, is_all_day, created_by
+        FROM dashboard_engagements
+        WHERE tenant_id = :tid
+          AND scheduled_for = :scheduled_for
+        ORDER BY
+          CASE WHEN starts_at IS NULL THEN 1 ELSE 0 END,
+          starts_at ASC,
+          id ASC
+        """,
+        {"tid": tid, "scheduled_for": scheduled_for},
+    )
+    return {"items": [_serialize_dashboard_engagement(row) for row in rows]}
+
+
+@router.post("/dashboard/engagements")
+def create_dashboard_engagement(req: DashboardEngagementCreateRequest, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    entry_type = (req.entry_type or "schedule").strip().lower()
+    if entry_type not in {"schedule", "note", "calendar"}:
+        raise HTTPException(400, "Invalid engagement type")
+
+    title = (req.title or "").strip()
+    if not title:
+        raise HTTPException(400, "Title is required")
+
+    scheduled_for = _parse_iso_date(req.scheduled_for)
+    start_fragment = _parse_time_fragment(req.start_time)
+    end_fragment = _parse_time_fragment(req.end_time)
+    starts_at = None if req.is_all_day else _combine_scheduled_datetime(scheduled_for, start_fragment)
+    ends_at = None if req.is_all_day else _combine_scheduled_datetime(scheduled_for, end_fragment)
+
+    if entry_type == "schedule" and not req.is_all_day and starts_at is None:
+        raise HTTPException(400, "Schedule items need a start time or all-day mode")
+    if starts_at and ends_at and ends_at < starts_at:
+        raise HTTPException(400, "End time must be after start time")
+
+    notes = (req.notes or "").strip() or None
+    location = (req.location or "").strip() or None
+    calendar_url = (req.calendar_url or "").strip() or None
+    if entry_type == "calendar" and not calendar_url:
+        raise HTTPException(400, "Calendar link is required")
+
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                """
+                INSERT INTO dashboard_engagements (
+                    tenant_id, entry_type, title, notes, location, scheduled_for,
+                    starts_at, ends_at, calendar_url, is_all_day, created_by
+                )
+                VALUES (
+                    :tenant_id, :entry_type, :title, :notes, :location, :scheduled_for,
+                    :starts_at, :ends_at, :calendar_url, :is_all_day, :created_by
+                )
+                RETURNING id, entry_type, title, notes, location, scheduled_for,
+                          starts_at, ends_at, calendar_url, is_all_day, created_by
+                """
+            ),
+            {
+                "tenant_id": tid,
+                "entry_type": entry_type,
+                "title": title,
+                "notes": notes,
+                "location": location,
+                "scheduled_for": scheduled_for,
+                "starts_at": starts_at,
+                "ends_at": ends_at,
+                "calendar_url": calendar_url,
+                "is_all_day": bool(req.is_all_day),
+                "created_by": user.get("username"),
+            },
+        ).mappings().first()
+
+    return {"success": True, "item": _serialize_dashboard_engagement(dict(row) if row else {})}
+
+
+@router.delete("/dashboard/engagements/{engagement_id}")
+def delete_dashboard_engagement(engagement_id: int, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    with engine.begin() as conn:
+        deleted = conn.execute(
+            text(
+                """
+                DELETE FROM dashboard_engagements
+                WHERE id = :engagement_id
+                  AND tenant_id = :tenant_id
+                """
+            ),
+            {"engagement_id": engagement_id, "tenant_id": tid},
+        )
+    if not deleted.rowcount:
+        raise HTTPException(404, "Schedule item not found")
+    return {"success": True}
 
 
 @router.get("/maps/seat-manifest")

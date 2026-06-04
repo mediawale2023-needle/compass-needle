@@ -148,6 +148,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 
 ## Dashboard UX Memory
 
+- The dashboard `Today · Schedule` card is no longer a static mock. It now reads and writes tenant-scoped entries from `dashboard_engagements` via `/api/dashboard/engagements`, and the intended operator actions are first-class inline creation of `schedule`, `note`, and `calendar` items rather than hardcoded sample rows.
 - The lower dashboard content cards (`Activity`, `Letters & drafts`, `Media Centre`) should default to showing 5 items with an inline `View more` / `View less` toggle instead of leaving large blank card bodies. This keeps the dashboard visually dense without immediately overwhelming the user, and future dashboard list cards should prefer the same pattern over fixed-height empty space.
 - On the desktop dashboard's main queue/workload row, the left grievance queue is the height source. The queue should stay visually capped to its 10 visible rows, and the right-side `Workload + Constituency map` stack should sync to that measured queue height instead of stretching the queue card with dead blank space.
 - In that same desktop queue/workload row, the constituency map card must use a compact mode: keep the actual map visible, but suppress the extra hotspot chips and top-category tiles below the map so the card does not spill into the next dashboard row when its height is synced to the queue.
