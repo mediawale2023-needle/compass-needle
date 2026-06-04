@@ -355,6 +355,7 @@ export default function GeographyUploadPage() {
     const [manualRuleAssembly, setManualRuleAssembly] = useState('');
     const [manualRulesLoading, setManualRulesLoading] = useState(false);
     const [manualRuleDeleteTarget, setManualRuleDeleteTarget] = useState(null);
+    const [manualRuleEditingKey, setManualRuleEditingKey] = useState(null);
     const [tenantContext, setTenantContext]   = useState(null);
     const [tenantLoading, setTenantLoading]   = useState(false);
     const [reuseSeatName, setReuseSeatName]   = useState('');
@@ -519,14 +520,31 @@ export default function GeographyUploadPage() {
         const nextKey = manualRuleInput.trim().toLowerCase();
         const nextAssembly = manualRuleAssembly.trim();
         if (!nextKey || !nextAssembly) return;
-        const success = await persistManualRules({
-            ...manualRules,
-            [nextKey]: nextAssembly,
-        });
+        const nextRules = { ...manualRules };
+        if (manualRuleEditingKey && manualRuleEditingKey !== nextKey) {
+            delete nextRules[manualRuleEditingKey];
+        }
+        nextRules[nextKey] = nextAssembly;
+        const success = await persistManualRules(nextRules);
         if (!success) return;
         setManualRuleInput('');
         setManualRuleAssembly('');
-        showMsg('success', `Saved manual correction for "${nextKey}".`);
+        setManualRuleEditingKey(null);
+        showMsg('success', manualRuleEditingKey
+            ? `Updated manual correction for "${nextKey}".`
+            : `Saved manual correction for "${nextKey}".`);
+    };
+
+    const startManualRuleEdit = (loc, ac) => {
+        setManualRuleEditingKey(loc);
+        setManualRuleInput(loc);
+        setManualRuleAssembly(ac);
+    };
+
+    const cancelManualRuleEdit = () => {
+        setManualRuleEditingKey(null);
+        setManualRuleInput('');
+        setManualRuleAssembly('');
     };
 
     const showMsg = (type, text) => {
@@ -671,6 +689,9 @@ export default function GeographyUploadPage() {
         delete nextRules[target];
         const success = await persistManualRules(nextRules);
         if (success) {
+            if (manualRuleEditingKey === target) {
+                cancelManualRuleEdit();
+            }
             showMsg('success', `Removed manual correction for "${target}".`);
         }
     };
@@ -896,9 +917,25 @@ export default function GeographyUploadPage() {
                             onClick={addManualRule}
                             style={{ whiteSpace: 'nowrap' }}
                         >
-                            {manualRulesLoading ? 'Saving…' : 'Save Correction'}
+                            {manualRulesLoading ? 'Saving…' : manualRuleEditingKey ? 'Update Correction' : 'Save Correction'}
                         </button>
                     </div>
+
+                    {manualRuleEditingKey && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, padding: '10px 12px', border: '1px solid #e2ebe5', borderRadius: 10, background: '#f8fbf9' }}>
+                            <div style={{ color: '#6b7f76', fontSize: '0.78rem' }}>
+                                Editing manual correction for <code style={{ fontFamily: 'monospace', fontSize: '0.76rem' }}>{manualRuleEditingKey}</code>
+                            </div>
+                            <button
+                                className="btn-secondary"
+                                style={{ fontSize: '0.72rem', padding: '4px 10px' }}
+                                disabled={manualRulesLoading}
+                                onClick={cancelManualRuleEdit}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    )}
 
                     {manualRuleEntries.length > 0 ? (
                         <div style={{ border: '1px solid #e2ebe5', borderRadius: 12, overflow: 'hidden' }}>
@@ -907,7 +944,7 @@ export default function GeographyUploadPage() {
                                     <tr>
                                         <th>Citizen wording</th>
                                         <th>Maps to assembly / routing area</th>
-                                        <th style={{ width: 110, textAlign: 'right' }}></th>
+                                        <th style={{ width: 180, textAlign: 'right' }}></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -918,6 +955,14 @@ export default function GeographyUploadPage() {
                                             </td>
                                             <td style={{ color: '#1a2e28' }}>{ac}</td>
                                             <td style={{ textAlign: 'right' }}>
+                                                <button
+                                                    className="btn-secondary"
+                                                    style={{ fontSize: '0.72rem', padding: '4px 10px', marginRight: 8 }}
+                                                    disabled={manualRulesLoading}
+                                                    onClick={() => startManualRuleEdit(loc, ac)}
+                                                >
+                                                    Edit
+                                                </button>
                                                 <button
                                                     className="btn-danger"
                                                     style={{ fontSize: '0.72rem', padding: '4px 10px' }}

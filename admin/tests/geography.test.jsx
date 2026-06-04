@@ -172,5 +172,6 @@ describe('Admin geography page', () => {
         expect(screen.getByRole('button', { name: 'Use existing geography' })).toBeInTheDocument();
         expect(screen.getByText('teacher colony')).toBeInTheDocument();
         expect(screen.getByText('2 manual corrections')).toBeInTheDocument();
+        expect(screen.getAllByRole('button', { name: 'Edit' }).length).toBeGreaterThan(0);
     });
 });

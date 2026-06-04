@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-04
+- Request: Add an edit action to Manual Matching Corrections in the unified Shared Geography workspace.
+- Summary: Added in-place edit support for tenant-specific manual geography corrections inside `GeographyWorkspacePage.jsx`, including `Edit`, `Update Correction`, and `Cancel` flows that reuse the existing `geo_override` persistence path without forcing operators to delete and recreate a correction. Also extended the admin geography test to assert the new edit affordance. Verified with `PATH=/opt/homebrew/bin:$PATH npm run test --prefix admin -- --run tests/geography.test.jsx` and `PATH=/opt/homebrew/bin:$PATH npm run build --prefix admin`.
+- Files touched: `admin/components/admin-domains/shared-geography/GeographyWorkspacePage.jsx`, `admin/tests/geography.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This stays UI-only and keeps the same backend storage. A later deeper migration can still move manual corrections into a richer canonical locality model without changing this operator interaction pattern.
+
+- Date: 2026-06-04
 - Request: Push the Shared Geography workflow unification pass to GitHub for deployment.
 - Summary: Pushed commit `b1115e45` (`Unify shared geography workspace flow`) to `origin/main`, publishing the tenant-aware workspace as the single operator surface for shared seat geography, manual matching corrections, and resolver alias diagnostics while the old rules route now redirects back into the workspace.
 - Files touched: `TASK_LOG.md`
