@@ -13,6 +13,18 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-04
+- Request: Push the admin `geo_alias` inspection/deletion tool to GitHub for deployment.
+- Summary: Pending push from `main` for the Shared Geography admin tooling that lists and deletes tenant-scoped `geo_alias` rows through new admin API endpoints and a tenant-aware `Resolver Aliases` panel. This release intentionally excludes the unrelated local `tenant_overrides.json` changes.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: The live behavior depends on both the backend EC2 deploy workflow and the admin frontend deploy picking up this `main` push, since the feature spans `admin_api.py` and the Next.js admin workspace UI.
+
+- Date: 2026-06-04
+- Request: Build an admin tool to inspect and delete tenant `geo_alias` rows.
+- Summary: Added admin API endpoints to list and delete tenant-scoped `geo_alias` rows by id, then wired a new `Resolver Aliases` panel into the tenant-aware Shared Geography workspace so operators can inspect poisoned aliases and remove them safely. Also added backend regressions for alias list/delete and refreshed the geography workspace frontend test. Verified with `venv/bin/python -m pytest tests/test_geography_onboarding_api.py -q` and `PATH=/opt/homebrew/bin:$PATH npm run test --prefix admin -- --run tests/geography.test.jsx`.
+- Files touched: `admin_api.py`, `admin/components/admin-domains/shared-geography/GeographyWorkspacePage.jsx`, `tests/test_geography_onboarding_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Deleting a generated alias is immediate for tenant-scoped resolver lookups, but the alias may return after future geography regeneration until the underlying alias-generation rules or geography data are corrected.
+
+- Date: 2026-06-04
 - Request: Push the AI-hint geography cleanup to GitHub for deployment.
 - Summary: Pushed commit `9c7d78f1` (`Unify AI geography hint resolution`) to `origin/main`, publishing the removal of the legacy classifier-side geography matcher so AI-extracted locations now go back through the shared resolver before they can save location or assembly.
 - Files touched: `TASK_LOG.md`

@@ -342,6 +342,10 @@ export default function GeographyUploadPage() {
     const [saving, setSaving]                 = useState(false);
     const [validationReport, setValidationReport] = useState(null);
     const [deleteTarget, setDeleteTarget]     = useState(null); // {seatType, pc, ac}
+    const [geoAliases, setGeoAliases]         = useState([]);
+    const [geoAliasLoading, setGeoAliasLoading] = useState(false);
+    const [geoAliasQuery, setGeoAliasQuery]   = useState('');
+    const [geoAliasDeleteTarget, setGeoAliasDeleteTarget] = useState(null);
     const [tenantContext, setTenantContext]   = useState(null);
     const [tenantLoading, setTenantLoading]   = useState(false);
     const [reuseSeatName, setReuseSeatName]   = useState('');
@@ -360,6 +364,7 @@ export default function GeographyUploadPage() {
     useEffect(() => {
         if (!tenantId) {
             setTenantContext(null);
+            setGeoAliases([]);
             return;
         }
         setTenantLoading(true);
@@ -385,6 +390,11 @@ export default function GeographyUploadPage() {
                 setTenantContext(null);
             })
             .finally(() => setTenantLoading(false));
+    }, [tenantId]);
+
+    useEffect(() => {
+        if (!tenantId) return;
+        loadGeoAliases(tenantId);
     }, [tenantId]);
 
     useEffect(() => {
@@ -425,6 +435,19 @@ export default function GeographyUploadPage() {
             setSavedSeats(seats);
             setSavedData(data);
         } catch { }
+    };
+
+    const loadGeoAliases = async (tenant) => {
+        if (!tenant) return;
+        setGeoAliasLoading(true);
+        try {
+            const response = await apiGet(`/api/admin/mps/${tenant}/geo-aliases`);
+            setGeoAliases(response.items || []);
+        } catch {
+            setGeoAliases([]);
+        } finally {
+            setGeoAliasLoading(false);
+        }
     };
 
     const showMsg = (type, text) => {
@@ -548,6 +571,31 @@ export default function GeographyUploadPage() {
         } catch { }
     };
 
+    const confirmGeoAliasDelete = async () => {
+        if (!geoAliasDeleteTarget || !tenantId) return;
+        const target = geoAliasDeleteTarget;
+        setGeoAliasDeleteTarget(null);
+        try {
+            await apiDelete(`/api/admin/mps/${tenantId}/geo-aliases/${target.id}`);
+            setGeoAliases((current) => current.filter((item) => item.id !== target.id));
+            showMsg('success', `Deleted geo alias "${target.key}".`);
+        } catch (err) {
+            showMsg('error', err.message || 'Could not delete geo alias.');
+        }
+    };
+
+    const filteredGeoAliases = geoAliases.filter((item) => {
+        const needle = geoAliasQuery.trim().toLowerCase();
+        if (!needle) return true;
+        return [
+            item.key,
+            item.display,
+            item.assembly,
+            item.canonical_locality,
+            item.source,
+        ].some((value) => (value || '').toLowerCase().includes(needle));
+    });
+
     return (
         <>
             {msg.text && (
@@ -564,6 +612,17 @@ export default function GeographyUploadPage() {
                     variant="danger"
                     onConfirm={confirmDelete}
                     onCancel={() => setDeleteTarget(null)}
+                />
+            )}
+
+            {geoAliasDeleteTarget && (
+                <ConfirmModal
+                    title={`Delete alias "${geoAliasDeleteTarget.key}"?`}
+                    description={`This will remove the resolver alias for tenant ${tenantId}. If alias generation runs again later, the row may return unless the underlying geography data or generator rules are also corrected.`}
+                    confirmLabel="Delete Alias"
+                    variant="danger"
+                    onConfirm={confirmGeoAliasDelete}
+                    onCancel={() => setGeoAliasDeleteTarget(null)}
                 />
             )}
 
@@ -663,6 +722,92 @@ export default function GeographyUploadPage() {
                             Could not load tenant details for this geography setup flow.
                         </div>
                     )}
+                </div>
+            )}
+
+            {tenantId && (
+                <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 10, flexWrap: 'wrap' }}>
+                        <div>
+                            <div className="section-title" style={{ marginBottom: 6 }}>Resolver Aliases</div>
+                            <p style={{ color: '#6b7f76', fontSize: '0.82rem', margin: 0 }}>
+                                Inspect and delete tenant-scoped `geo_alias` rows that can short-circuit normal geography matching.
+                            </p>
+                        </div>
+                        <button
+                            className="btn-secondary"
+                            style={{ fontSize: '0.74rem' }}
+                            onClick={() => loadGeoAliases(tenantId)}
+                            disabled={geoAliasLoading}
+                        >
+                            {geoAliasLoading ? 'Refreshing…' : 'Refresh aliases'}
+                        </button>
+                    </div>
+
+                    <div style={{ color: '#9a3412', fontSize: '0.76rem', lineHeight: 1.5, marginBottom: 12 }}>
+                        Deleting an alias takes effect immediately for tenant-scoped resolver lookups, but generated aliases may return after future geography regeneration unless the underlying geography data or alias-generation rules are fixed too.
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+                        <input
+                            className="form-input"
+                            style={{ flex: 1, minWidth: 220, marginBottom: 0 }}
+                            placeholder="Search alias key, display, canonical locality, or assembly…"
+                            value={geoAliasQuery}
+                            onChange={(e) => setGeoAliasQuery(e.target.value)}
+                        />
+                        <span className="badge badge-slate">{filteredGeoAliases.length} shown</span>
+                        <span className="badge badge-amber">{geoAliases.length} total</span>
+                    </div>
+
+                    <div style={{ border: '1px solid #e2ebe5', borderRadius: 12, overflow: 'hidden' }}>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                <thead style={{ background: '#f4f6f5' }}>
+                                    <tr style={{ borderBottom: '1px solid #e2ebe5' }}>
+                                        <th style={TH}>Alias Key</th>
+                                        <th style={TH}>Display</th>
+                                        <th style={TH}>Assembly</th>
+                                        <th style={TH}>Canonical Locality</th>
+                                        <th style={TH}>Source</th>
+                                        <th style={{ ...TH, width: 90 }}>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {geoAliasLoading ? (
+                                        <tr>
+                                            <td colSpan={6} style={{ ...TD, textAlign: 'center', color: '#6b7f76', padding: '18px 12px' }}>
+                                                Loading aliases…
+                                            </td>
+                                        </tr>
+                                    ) : filteredGeoAliases.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} style={{ ...TD, textAlign: 'center', color: '#6b7f76', padding: '18px 12px' }}>
+                                                {geoAliases.length === 0 ? 'No tenant geo aliases found.' : 'No aliases match this search.'}
+                                            </td>
+                                        </tr>
+                                    ) : filteredGeoAliases.map((item) => (
+                                        <tr key={item.id} style={{ borderBottom: '1px solid #f0f4f1' }}>
+                                            <td style={{ ...TD, fontFamily: 'monospace', fontSize: '0.76rem' }}>{item.key}</td>
+                                            <td style={TD}>{item.display || <span style={{ color: '#9ca3af' }}>—</span>}</td>
+                                            <td style={TD}>{item.assembly || <span style={{ color: '#9ca3af' }}>—</span>}</td>
+                                            <td style={TD}>{item.canonical_locality || <span style={{ color: '#9ca3af' }}>—</span>}</td>
+                                            <td style={TD}>{item.source || <span style={{ color: '#9ca3af' }}>—</span>}</td>
+                                            <td style={{ ...TD, whiteSpace: 'nowrap' }}>
+                                                <button
+                                                    className="btn-danger"
+                                                    style={{ fontSize: '0.72rem', padding: '4px 10px' }}
+                                                    onClick={() => setGeoAliasDeleteTarget(item)}
+                                                >
+                                                    Delete
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             )}
 

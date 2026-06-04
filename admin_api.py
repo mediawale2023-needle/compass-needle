@@ -969,6 +969,14 @@ class GeoAssemblyBulk(BaseModel):
     localities: List[str]               # list of locality names
 
 
+def _parse_geo_alias_value(raw_value: str) -> dict:
+    try:
+        parsed = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
+    except Exception:
+        parsed = {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 def _tenant_seat_context(db, tenant_id: int) -> tuple[Tenant, str, str]:
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
@@ -1160,6 +1168,89 @@ def delete_mp_geography_assembly(tenant_id: int, assembly: str, _=Depends(get_ad
         if deleted:
             _refresh_geography_runtime()
         return {"success": True, "deleted": deleted}
+    finally:
+        db.close()
+
+
+@router.get("/mps/{tenant_id}/geo-aliases")
+def list_tenant_geo_aliases(tenant_id: int, _=Depends(get_admin_user)):
+    """List tenant-scoped geo_alias rows for admin inspection/debug."""
+    db = SessionLocal()
+    try:
+        tenant, seat_type, seat_name = _tenant_seat_context(db, tenant_id)
+        rows = (
+            db.query(TenantOverride)
+            .filter(
+                TenantOverride.tenant_id == tenant_id,
+                TenantOverride.override_type == "geo_alias",
+            )
+            .order_by(TenantOverride.created_at.desc(), TenantOverride.id.desc())
+            .all()
+        )
+        items = []
+        for row in rows:
+            payload = _parse_geo_alias_value(row.value)
+            items.append({
+                "id": row.id,
+                "key": row.key,
+                "display": str(payload.get("display") or "").strip(),
+                "assembly": str(payload.get("assembly") or "").strip(),
+                "canonical_locality": str(payload.get("canonical_locality") or "").strip(),
+                "source": str(payload.get("source") or "").strip(),
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "raw_value": payload,
+            })
+        return {
+            "tenant_id": tenant_id,
+            "tenant_name": tenant.name,
+            "seat_type": seat_type,
+            "seat_name": seat_name,
+            "items": items,
+        }
+    finally:
+        db.close()
+
+
+@router.delete("/mps/{tenant_id}/geo-aliases/{alias_id}")
+def delete_tenant_geo_alias(tenant_id: int, alias_id: int, admin=Depends(get_admin_user)):
+    """Delete one tenant-scoped geo_alias row by id."""
+    db = SessionLocal()
+    try:
+        _tenant_seat_context(db, tenant_id)
+        row = (
+            db.query(TenantOverride)
+            .filter(
+                TenantOverride.id == alias_id,
+                TenantOverride.tenant_id == tenant_id,
+                TenantOverride.override_type == "geo_alias",
+            )
+            .first()
+        )
+        if not row:
+            raise HTTPException(404, "Geo alias not found")
+
+        payload = _parse_geo_alias_value(row.value)
+        alias_key = str(row.key or "").strip()
+        display = str(payload.get("display") or "").strip()
+        assembly = str(payload.get("assembly") or "").strip()
+
+        db.delete(row)
+        db.commit()
+
+        _audit(
+            admin,
+            "deleted",
+            "geo_alias",
+            alias_key or f"id={alias_id}",
+            f"tenant_id={tenant_id} display={display} assembly={assembly}",
+        )
+        return {"success": True, "deleted_id": alias_id, "key": alias_key}
+    except HTTPException:
+        raise
+    except Exception:
+        db.rollback()
+        logger.exception("Geo alias delete failed")
+        raise HTTPException(500, "Internal server error")
     finally:
         db.close()
 
