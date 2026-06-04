@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect } from 'react';
-import { apiPost, apiGet } from './api';
+import { API_BASE, apiPost, setAuthNotice } from './api';
 
 const AuthContext = createContext(null);
 
@@ -12,6 +12,17 @@ function getStoredValue(key) {
 
 function setStoredValue(key, value) {
     if (typeof window === 'undefined') return;
+    sessionStorage.setItem(key, value);
+    localStorage.removeItem(key);
+}
+
+function setStoredValuePersistent(key, value, persist = false) {
+    if (typeof window === 'undefined') return;
+    if (persist) {
+        localStorage.setItem(key, value);
+        sessionStorage.removeItem(key);
+        return;
+    }
     sessionStorage.setItem(key, value);
     localStorage.removeItem(key);
 }
@@ -42,22 +53,50 @@ export function AuthProvider({ children }) {
         setLoading(false);
     }, []);
 
-    const login = async (username, password) => {
+    const login = async (username, password, rememberMe = false) => {
         const data = await apiPost('/api/auth/login', { username, password });
-        setStoredValue('needle_token', data.token);
-        setStoredValue('needle_user', JSON.stringify(data.user));
+        setStoredValuePersistent('needle_token', data.token, rememberMe);
+        setStoredValuePersistent('needle_user', JSON.stringify(data.user), rememberMe);
+        if (data.user?.must_change_password) {
+            sessionStorage.setItem('needle_force_reset_required', '1');
+        } else {
+            sessionStorage.removeItem('needle_force_reset_required');
+        }
         setUser(data.user);
         return data.user;
     };
 
-    const logout = () => {
+    const logout = async () => {
+        const token = getStoredValue('needle_token');
+        if (token) {
+            try {
+                await fetch(`${API_BASE}/api/logout`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+            } catch {}
+        }
         clearStoredValue('needle_token');
         clearStoredValue('needle_user');
+        sessionStorage.removeItem('needle_force_reset_required');
+        setAuthNotice('');
         setUser(null);
     };
 
+    const completeForcedPasswordReset = async (currentPassword, newPassword) => {
+        const data = await apiPost('/api/auth/complete-forced-password-reset', {
+            current_password: currentPassword,
+            new_password: newPassword,
+        });
+        setStoredValue('needle_token', data.token);
+        setStoredValue('needle_user', JSON.stringify(data.user));
+        sessionStorage.removeItem('needle_force_reset_required');
+        setUser(data.user);
+        return data.user;
+    };
+
     return (
-        <AuthContext.Provider value={{ user, login, logout, loading }}>
+        <AuthContext.Provider value={{ user, login, logout, loading, completeForcedPasswordReset }}>
             {children}
         </AuthContext.Provider>
     );

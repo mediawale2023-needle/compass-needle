@@ -39,6 +39,12 @@ function clearAuthToken() {
     localStorage.removeItem('needle_user');
 }
 
+export function setAuthNotice(message) {
+    if (typeof window === 'undefined') return;
+    if (message) sessionStorage.setItem('needle_auth_notice', message);
+    else sessionStorage.removeItem('needle_auth_notice');
+}
+
 async function fetchWithTimeout(url, options, timeout) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
@@ -78,15 +84,24 @@ export async function api(path, options = {}) {
 
             if (res.status === 401) {
                 if (typeof window !== 'undefined') {
+                    setAuthNotice('Your session expired. Please sign in again.');
                     clearAuthToken();
                     window.location.href = '/';
                 }
                 throw new Error('Unauthorized');
             }
 
+            if (res.status === 403) {
+                const err = await res.json().catch(() => ({ detail: 'Request failed' }));
+                if (err.detail === 'Password reset required' && typeof window !== 'undefined') {
+                    sessionStorage.setItem('needle_force_reset_required', '1');
+                    window.location.href = '/force-password-reset';
+                }
+                throw new Error(err.detail || `HTTP ${res.status}`);
+            }
+
             if (!res.ok) {
                 const err = await res.json().catch(() => ({ detail: 'Request failed' }));
-                // Don't retry 4xx client errors (except 408/429)
                 if (res.status < 500 && res.status !== 408 && res.status !== 429) {
                     throw new Error(err.detail || `HTTP ${res.status}`);
                 }

@@ -58,6 +58,12 @@ export default function DashboardLayout({ children }) {
     }, [user, loading, router]);
 
     useEffect(() => {
+        if (!loading && user?.must_change_password) {
+            router.replace('/force-password-reset');
+        }
+    }, [user, loading, router]);
+
+    useEffect(() => {
         if (!user) return;
         let cancelled = false;
 
@@ -140,7 +146,7 @@ export default function DashboardLayout({ children }) {
         </div>
     );
 
-    if (!user) return null;
+    if (!user || user.must_change_password) return null;
 
     const today = new Date().toLocaleDateString('en-IN', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -184,7 +190,7 @@ export default function DashboardLayout({ children }) {
 
             <Sidebar
                 user={user}
-                onLogout={() => { logout(); router.push('/'); }}
+                onLogout={async () => { await logout(); router.push('/'); }}
                 isOpen={isMobileMenuOpen}
                 setIsOpen={setIsMobileMenuOpen}
                 badges={badges}

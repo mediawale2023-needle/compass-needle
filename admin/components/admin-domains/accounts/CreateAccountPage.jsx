@@ -56,7 +56,7 @@ export default function CreateAccountPage() {
                 key_facts: form.key_facts ? form.key_facts.split('\n').map(s => s.trim()).filter(Boolean) : [],
                 alt_names: form.alt_names ? form.alt_names.split(',').map(s => s.trim()).filter(Boolean) : [],
             });
-            setSuccess(`Created ${form.name} — redirecting to setup checklist…`);
+            setSuccess(`Created ${form.name}. The account must set a new password on first login — redirecting to setup checklist…`);
             const tid = result?.tenant_id;
             setTimeout(() => router.push(tid ? `/dashboard/mps/${tid}/setup` : '/dashboard'), 1500);
         } catch (err) {

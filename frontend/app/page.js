@@ -42,8 +42,10 @@ export default function LoginPage() {
     const router = useRouter();
     const [username, setUsername]   = useState('');
     const [password, setPassword]   = useState('');
+    const [rememberMe, setRememberMe] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError]         = useState('');
+    const [notice, setNotice]       = useState('');
     const [loading, setLoading]     = useState(false);
     const [retryingLogin, setRetryingLogin] = useState(false);
 
@@ -54,8 +56,19 @@ export default function LoginPage() {
     const handleSubmitRef  = useRef(null);
 
     useEffect(() => {
-        if (user) router.push('/dashboard');
+        if (!user) return;
+        if (user.must_change_password) router.push('/force-password-reset');
+        else router.push('/dashboard');
     }, [user, router]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const storedNotice = sessionStorage.getItem('needle_auth_notice');
+        if (storedNotice) {
+            setNotice(storedNotice);
+            sessionStorage.removeItem('needle_auth_notice');
+        }
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -95,10 +108,12 @@ export default function LoginPage() {
         clearTimeout(loginRetryTimerRef.current);
         setRetryingLogin(false);
         setError('');
+        setNotice('');
         setLoading(true);
         try {
-            await login(username, password);
-            router.push('/dashboard');
+            const nextUser = await login(username, password, rememberMe);
+            if (nextUser?.must_change_password) router.push('/force-password-reset');
+            else router.push('/dashboard');
         } catch (err) {
             const msg = err.message || 'Invalid credentials';
             if (isConnError(msg) && serverStatus !== 'ready') {
@@ -155,6 +170,13 @@ export default function LoginPage() {
                     <div className="mb-3 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/20">
                         <CheckCircle2 className="h-4 w-4 shrink-0" />
                         <span>Server is ready.</span>
+                            </div>
+                        )}
+
+                {notice && (
+                    <div className="mb-3 flex items-start gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/20">
+                        <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                        <span>{notice}</span>
                     </div>
                 )}
 
@@ -222,6 +244,16 @@ export default function LoginPage() {
                                     Forgot password? Contact your administrator.
                                 </p>
                             </div>
+
+                            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <input
+                                    type="checkbox"
+                                    checked={rememberMe}
+                                    onChange={(e) => setRememberMe(e.target.checked)}
+                                    className="h-4 w-4 rounded border-input"
+                                />
+                                <span>Remember me on this device</span>
+                            </label>
 
                             {retryingLogin && !loading && (
                                 <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-sm">

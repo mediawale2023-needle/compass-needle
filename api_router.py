@@ -9,6 +9,8 @@ import io
 import bcrypt
 import logging
 import re
+import secrets
+import string
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Request, Response, Form
@@ -29,7 +31,9 @@ from sansadx_backend.db import (
     derive_account_stage,
     derive_seat_type,
     get_tenant_phone_number_id,
+    hash_password,
     log_letterbox_activity,
+    validate_password,
 )
 from core.db_helpers import _q, _q_one, _parse_meta
 from modules.auth import get_tenant_or_fail, sanitize_prompt_input
@@ -89,6 +93,8 @@ if not JWT_SECRET or len(JWT_SECRET) < 32:
 
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 8
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_MINUTES = 15
 
 security = HTTPBearer()
 router = APIRouter()
@@ -142,6 +148,104 @@ def create_token(data: dict) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
+def _generate_temporary_password(length: int = 12) -> str:
+    alphabet = string.ascii_letters + string.digits
+    while True:
+        candidate = ''.join(secrets.choice(alphabet) for _ in range(length - 2))
+        candidate += secrets.choice(string.ascii_uppercase)
+        candidate += secrets.choice(string.digits)
+        candidate = ''.join(secrets.choice(candidate) for _ in range(len(candidate)))
+        if validate_password(candidate) is None:
+            return candidate
+
+
+def _build_auth_user_payload(user: dict, tenant: dict | None) -> dict:
+    house = user.get("house") or "Lok Sabha"
+    account_context = _account_context_for_user(user)
+    return {
+        "username": user["username"],
+        "display_name": user.get("display_name") or user["username"].title(),
+        "role": user.get("role", "user"),
+        "tenant_id": int(user.get("tenant_id") or 0),
+        "tenant_type": tenant.get("tenant_type", "mp") if tenant else "mp",
+        "account_stage": account_context["account_stage"],
+        "seat_type": account_context["seat_type"],
+        "is_primary_account": _is_primary_workspace_user(user),
+        "account_label": _account_label_for_user(user, tenant),
+        "constituency": tenant.get("constituency", "India") if tenant else "India",
+        "house": house,
+        "theme_color": "#006a4d" if house == "Lok Sabha" else "#8d153a",
+        "must_change_password": bool(user.get("must_change_password")),
+        "force_password_reason": user.get("force_password_reason"),
+    }
+
+
+def _coerce_datetime(value):
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    try:
+        if stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$"):
+            return bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8"))
+    except Exception:
+        logger.warning("bcrypt verification failed — possible hash corruption")
+    return False
+
+
+def _record_failed_login(username: str) -> tuple[int, datetime | None]:
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                """
+                UPDATE users
+                SET failed_login_attempts = COALESCE(failed_login_attempts, 0) + 1
+                WHERE username = :u
+                RETURNING failed_login_attempts
+                """
+            ),
+            {"u": username},
+        ).fetchone()
+        attempts = int(row[0]) if row and row[0] is not None else 0
+        locked_until = None
+        if attempts >= MAX_LOGIN_ATTEMPTS:
+            locked_until = _utcnow() + timedelta(minutes=LOCKOUT_MINUTES)
+            conn.execute(
+                text(
+                    """
+                    UPDATE users
+                    SET locked_until = :locked_until,
+                        failed_login_attempts = 0
+                    WHERE username = :u
+                    """
+                ),
+                {"locked_until": locked_until, "u": username},
+            )
+    return attempts, locked_until
+
+
+def _clear_login_failures(username: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE users
+                SET failed_login_attempts = 0,
+                    locked_until = NULL
+                WHERE username = :u
+                """
+            ),
+            {"u": username},
+        )
+
+
 def is_token_revoked(username: str, token_issued_at: float) -> bool:
     """Check if a user's tokens were revoked after this token was issued."""
     try:
@@ -172,7 +276,7 @@ def revoke_user_tokens(username: str):
         logger.error(f"Token revocation failed for {username}: {e}")
 
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+def get_current_user(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         username = payload.get("sub")
@@ -185,6 +289,14 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         user = _q_one("SELECT * FROM users WHERE username = :u", {"u": username})
         if not user:
             raise HTTPException(401, "User not found")
+        if user.get("must_change_password"):
+            allowed_paths = {
+                "/api/auth/me",
+                "/api/auth/complete-forced-password-reset",
+                "/api/logout",
+            }
+            if request.url.path not in allowed_paths:
+                raise HTTPException(403, "Password reset required")
         return user
     except JWTError:
         if log_security_event:
@@ -204,6 +316,16 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class CompleteForcedPasswordResetRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 @router.post("/auth/login")
 @_limit_login
 def login(req: LoginRequest, request: Request):
@@ -219,16 +341,12 @@ def login(req: LoginRequest, request: Request):
             )
         raise HTTPException(401, "Invalid credentials")
 
-    stored_hash = user.get("password_hash", "")
-    valid = False
+    locked_until = _coerce_datetime(user.get("locked_until"))
+    if locked_until and locked_until > _utcnow():
+        raise HTTPException(423, f"Too many failed attempts. Try again after {locked_until.isoformat()}")
 
-    try:
-        if stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$"):
-            valid = bcrypt.checkpw(req.password.encode(), stored_hash.encode())
-    except Exception:
-        logger.warning("bcrypt verification failed — possible hash corruption for user %s", req.username)
-
-    if not valid:
+    if not verify_password(req.password, user.get("password_hash", "")):
+        _attempts, newly_locked_until = _record_failed_login(req.username)
         if log_security_event:
             log_security_event(
                 "auth_failed",
@@ -237,10 +355,14 @@ def login(req: LoginRequest, request: Request):
                 user_id=req.username,
                 ip_address=request.client.host if request.client else None,
             )
+        if newly_locked_until:
+            raise HTTPException(423, f"Too many failed attempts. Try again after {newly_locked_until.isoformat()}")
         raise HTTPException(401, "Invalid credentials")
 
     if user.get("is_active") is False:
         raise HTTPException(403, "Account suspended. Contact your administrator.")
+
+    _clear_login_failures(req.username)
 
     try:
         with engine.begin() as conn:
@@ -253,26 +375,11 @@ def login(req: LoginRequest, request: Request):
 
     tid = get_tenant_or_fail(user)
     tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
-    house = user.get("house") or "Lok Sabha"
-    account_context = _account_context_for_user(user)
     token = create_token({"sub": user["username"], "tid": tid, "role": user.get("role", "user")})
 
     return {
         "token": token,
-        "user": {
-            "username": user["username"],
-            "display_name": user.get("display_name") or user["username"].title(),
-            "role": user.get("role", "user"),
-            "tenant_id": tid,
-            "tenant_type": tenant.get("tenant_type", "mp") if tenant else "mp",
-            "account_stage": account_context["account_stage"],
-            "seat_type": account_context["seat_type"],
-            "is_primary_account": _is_primary_workspace_user(user),
-            "account_label": _account_label_for_user(user, tenant),
-            "constituency": tenant.get("constituency", "India") if tenant else "India",
-            "house": house,
-            "theme_color": "#006a4d" if house == "Lok Sabha" else "#8d153a",
-        }
+        "user": _build_auth_user_payload(user, tenant),
     }
 
 
@@ -288,22 +395,93 @@ def logout(user=Depends(get_current_user)):
 def get_me(user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
     tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
-    house = user.get("house") or "Lok Sabha"
-    account_context = _account_context_for_user(user)
-    return {
-        "username": user["username"],
-        "display_name": user.get("display_name") or user["username"].title(),
-        "role": user.get("role", "user"),
-        "tenant_id": tid,
-        "tenant_type": tenant.get("tenant_type", "mp") if tenant else "mp",
-        "account_stage": account_context["account_stage"],
-        "seat_type": account_context["seat_type"],
-        "is_primary_account": _is_primary_workspace_user(user),
-        "account_label": _account_label_for_user(user, tenant),
-        "constituency": tenant.get("constituency", "India") if tenant else "India",
-        "house": house,
-        "theme_color": "#006a4d" if house == "Lok Sabha" else "#8d153a",
-    }
+    return _build_auth_user_payload(user, tenant)
+
+
+@router.post("/auth/change-password")
+def change_password(req: ChangePasswordRequest, user=Depends(get_current_user)):
+    if not verify_password(req.current_password, user.get("password_hash", "")):
+        raise HTTPException(400, "Current password is incorrect")
+    pw_err = validate_password(req.new_password)
+    if pw_err:
+        raise HTTPException(400, pw_err)
+    if req.current_password == req.new_password:
+        raise HTTPException(400, "New password must be different from current password")
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE users
+                SET password_hash = :password_hash,
+                    must_change_password = FALSE,
+                    password_reset_by_admin_at = NULL,
+                    password_changed_at = :now,
+                    force_password_reason = NULL
+                WHERE username = :u
+                """
+            ),
+            {
+                "password_hash": hash_password(req.new_password),
+                "now": _utcnow(),
+                "u": user["username"],
+            },
+        )
+
+    revoke_user_tokens(user["username"])
+    return {"success": True, "message": "Password changed. Please sign in again."}
+
+
+@router.post("/auth/complete-forced-password-reset")
+def complete_forced_password_reset(req: CompleteForcedPasswordResetRequest, user=Depends(get_current_user)):
+    try:
+        if not user.get("must_change_password"):
+            raise HTTPException(400, "Password reset is not required for this account")
+        if not verify_password(req.current_password, user.get("password_hash", "")):
+            raise HTTPException(400, "Current password is incorrect")
+        pw_err = validate_password(req.new_password)
+        if pw_err:
+            raise HTTPException(400, pw_err)
+        if req.current_password == req.new_password:
+            raise HTTPException(400, "New password must be different from current password")
+
+        now = _utcnow()
+        new_hash = hash_password(req.new_password)
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    UPDATE users
+                    SET password_hash = :password_hash,
+                        must_change_password = FALSE,
+                        password_reset_by_admin_at = NULL,
+                        password_changed_at = :now,
+                        force_password_reason = NULL
+                    WHERE username = :u
+                    """
+                ),
+                {
+                    "password_hash": new_hash,
+                    "now": now,
+                    "u": user["username"],
+                },
+            )
+
+        revoke_user_tokens(user["username"])
+        refreshed_user = _q_one("SELECT * FROM users WHERE username = :u", {"u": user["username"]})
+        tid = get_tenant_or_fail(refreshed_user)
+        tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
+        token = create_token({"sub": refreshed_user["username"], "tid": tid, "role": refreshed_user.get("role", "user")})
+        return {
+            "success": True,
+            "token": token,
+            "user": _build_auth_user_payload(refreshed_user, tenant),
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Forced password reset completion failed for user=%s", user.get("username"))
+        raise
 
 
 # ─────────────────────────────────────────

@@ -144,6 +144,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 ## API Contract Memory
 
 - Case-facing timestamps from `api_router.py` should be emitted as explicit UTC ISO strings with a trailing `Z`, even when the underlying DB values are naive UTC datetimes or SQLite-style datetime strings. Frontend age/date widgets like Briefcase `received` should not have to guess timezone semantics from raw case timestamps.
+- MP auth now uses an admin-assisted recovery model instead of email/OTP reset. New accounts and admin-reset accounts must be marked `must_change_password = true`, blocked from normal dashboard APIs, and forced through a dedicated password-reset screen before they can continue. Keep this flow shared and tenant-safe: admin resets generate or set a temporary password, revoke active sessions, and the user must set a fresh password on next login.
 
 ## Dashboard UX Memory
 

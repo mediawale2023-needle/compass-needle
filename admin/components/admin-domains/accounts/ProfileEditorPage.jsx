@@ -14,6 +14,8 @@ export default function ProfileEditorPage() {
     const [profileForm, setProfileForm] = useState({});
     const [waForm, setWaForm] = useState({ whatsapp_number: '', phone_number_id: '' });
     const [newPassword, setNewPassword] = useState('');
+    const [resetMode, setResetMode] = useState('generate');
+    const [tempPasswordResult, setTempPasswordResult] = useState('');
     const [deleteConfirm, setDeleteConfirm] = useState('');
     const [msg, setMsg] = useState({ type: '', text: '' });
 
@@ -36,7 +38,8 @@ export default function ProfileEditorPage() {
 
     useEffect(() => {
         if (!selected) return;
-        apiGet(`/api/admin/mps/${selected.tenant_id}/profile`).then(p => {
+        const loadProfile = async () => {
+            const p = await apiGet(`/api/admin/mps/${selected.tenant_id}/profile`);
             setProfile(p);
             setIdentityForm({
                 mp_name: p.mp_name || selected.display_name,
@@ -57,7 +60,8 @@ export default function ProfileEditorPage() {
                 whatsapp_number: p.whatsapp_number || '',
                 phone_number_id: p.phone_number_id || '',
             });
-        }).catch(() => { });
+        };
+        loadProfile().catch(() => { });
         // Load geography data
         apiGet(`/api/admin/mps/${selected.tenant_id}/geography`)
             .then(g => setGeoData(g.assemblies || {}))
@@ -86,6 +90,13 @@ export default function ProfileEditorPage() {
         setTimeout(() => setMsg({ type: '', text: '' }), 4000);
     };
 
+    const refreshSelectedProfile = async () => {
+        if (!selected) return;
+        const p = await apiGet(`/api/admin/mps/${selected.tenant_id}/profile`);
+        setProfile(p);
+        return p;
+    };
+
     const saveIdentity = async () => {
         try {
             const langs = profileForm.languages?.split(',').map(s => s.trim()).filter(Boolean) || ['English', 'Hindi'];
@@ -99,12 +110,24 @@ export default function ProfileEditorPage() {
             if (identityForm.constituency !== selected.parliamentary_constituency) {
                 await apiPatch(`/api/admin/mps/${selected.tenant_id}/constituency`, { constituency: identityForm.constituency });
             }
-            if (newPassword) {
-                await apiPatch(`/api/admin/mps/${selected.tenant_id}/password`, { new_password: newPassword });
-                setNewPassword('');
-            }
             showMsg('success', 'Identity saved successfully');
         } catch (err) { showMsg('error', err.message); }
+    };
+
+    const resetPassword = async (generateTempPassword = false) => {
+        try {
+            setTempPasswordResult('');
+            const payload = generateTempPassword
+                ? { generate_temp_password: true }
+                : { new_password: newPassword };
+            const result = await apiPatch(`/api/admin/mps/${selected.tenant_id}/password`, payload);
+            setTempPasswordResult(result.temporary_password || '');
+            setNewPassword('');
+            await refreshSelectedProfile();
+            showMsg('success', 'Temporary password reset. User must change password on next login.');
+        } catch (err) {
+            showMsg('error', err.message);
+        }
     };
 
     const saveProfileData = async () => {
@@ -219,6 +242,11 @@ export default function ProfileEditorPage() {
                                 <div className="completeness-bar" style={{ height: 7 }}>
                                     <div className={`completeness-fill ${fillClass}`} style={{ width: `${completeness}%` }} />
                                 </div>
+                                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 12, fontSize: '0.8rem', color: '#5b6672' }}>
+                                    <span>Password status: <strong style={{ color: profile?.must_change_password ? '#b45309' : '#166534' }}>{profile?.must_change_password ? 'Must change on next login' : 'Normal'}</strong></span>
+                                    <span>Last reset: <strong>{profile?.password_reset_by_admin_at ? new Date(profile.password_reset_by_admin_at).toLocaleString('en-IN') : 'Never'}</strong></span>
+                                    <span>Last changed: <strong>{profile?.password_changed_at ? new Date(profile.password_changed_at).toLocaleString('en-IN') : 'Unknown'}</strong></span>
+                                </div>
                             </div>
 
                             {msg.text && (
@@ -286,8 +314,40 @@ export default function ProfileEditorPage() {
                                     </div>
                                     <hr className="divider" />
                                     <div className="form-row">
-                                        <label className="form-label">Reset Password <span style={{ fontWeight: 400, color: '#94a3b8' }}>(leave blank to keep current)</span></label>
-                                        <input className="form-input" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="New password" />
+                                        <label className="form-label">Admin-assisted password reset</label>
+                                        <div style={{ display: 'grid', gap: 10 }}>
+                                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: '0.84rem', color: '#5b6672' }}>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    <input type="radio" checked={resetMode === 'generate'} onChange={() => setResetMode('generate')} />
+                                                    Generate temporary password
+                                                </label>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    <input type="radio" checked={resetMode === 'manual'} onChange={() => setResetMode('manual')} />
+                                                    Set temporary password manually
+                                                </label>
+                                            </div>
+                                            {resetMode === 'manual' && (
+                                                <input className="form-input" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Temporary password" />
+                                            )}
+                                            <button
+                                                type="button"
+                                                className="btn-secondary"
+                                                onClick={() => resetPassword(resetMode === 'generate')}
+                                                disabled={resetMode === 'manual' && !newPassword.trim()}
+                                            >
+                                                Reset password
+                                            </button>
+                                            <div style={{ fontSize: '0.8rem', color: '#7c8b97' }}>
+                                                The user will be required to set a new password on next login and all active sessions will be revoked.
+                                            </div>
+                                            {tempPasswordResult && (
+                                                <div style={{ padding: '10px 12px', border: '1px solid #d9c69e', background: '#fff8e8', color: '#5b4613', fontSize: '0.84rem' }}>
+                                                    <div style={{ fontWeight: 700, marginBottom: 4 }}>Temporary password</div>
+                                                    <code style={{ fontSize: '0.95rem' }}>{tempPasswordResult}</code>
+                                                    <div style={{ marginTop: 4 }}>Copy this now. It is only shown once.</div>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                     <button type="button" className="btn-primary" onClick={saveIdentity} style={{ width: '100%' }}>
                                         Save Identity

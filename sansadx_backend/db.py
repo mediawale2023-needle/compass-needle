@@ -124,6 +124,12 @@ class User(Base):
     display_name = Column(String, nullable=True)
     last_login = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
+    must_change_password = Column(Boolean, default=False)
+    password_reset_by_admin_at = Column(DateTime, nullable=True)
+    password_changed_at = Column(DateTime, nullable=True)
+    force_password_reason = Column(String, nullable=True)
+    failed_login_attempts = Column(Integer, default=0)
+    locked_until = Column(DateTime, nullable=True)
 
     tenant = relationship("Tenant", back_populates="users")
 
@@ -1078,6 +1084,12 @@ def init_db():
         "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS parliament_sync_enabled BOOLEAN DEFAULT TRUE",
         "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS parliament_last_synced TIMESTAMP",
         "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS parliament_sync_status VARCHAR DEFAULT 'pending'",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_by_admin_at TIMESTAMP",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS force_password_reason VARCHAR",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP",
     ]
     with engine.connect() as conn:
         for stmt in _migrations:

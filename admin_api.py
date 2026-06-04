@@ -10,6 +10,8 @@ import bcrypt
 import logging
 import re
 import random
+import secrets
+import string
 import requests as http_requests
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -59,6 +61,8 @@ if not JWT_SECRET or len(JWT_SECRET) < 32:
     raise RuntimeError("JWT_SECRET must be set and at least 32 characters long")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 4  # Longer session for admin
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_MINUTES = 15
 
 GEOGRAPHY_BASE_PATH = Path(__file__).parent / "data" / "geography"
 METADATA_PATH = Path(__file__).parent / "data" / "constituency_metadata.json"
@@ -118,6 +122,28 @@ def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
+def generate_temporary_password(length: int = 12) -> str:
+    alphabet = string.ascii_letters + string.digits
+    while True:
+        candidate = ''.join(secrets.choice(alphabet) for _ in range(length - 2))
+        candidate += secrets.choice(string.ascii_uppercase)
+        candidate += secrets.choice(string.digits)
+        candidate = ''.join(secrets.choice(candidate) for _ in range(len(candidate)))
+        if validate_password(candidate) is None:
+            return candidate
+
+
+def _coerce_datetime(value):
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
+
+
 def verify_password(password: str, stored_hash: str) -> bool:
     try:
         if stored_hash.startswith("$2b$") or stored_hash.startswith("$2a$"):
@@ -160,6 +186,52 @@ def _revoke_user_tokens(username: str):
         logger.info(f"Revoked all tokens for user: {username}")
     except Exception as e:
         logger.error(f"Token revocation failed for {username}: {e}")
+
+
+def _record_failed_login(username: str) -> datetime | None:
+    locked_until = None
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                """
+                UPDATE users
+                SET failed_login_attempts = COALESCE(failed_login_attempts, 0) + 1
+                WHERE username = :u
+                RETURNING failed_login_attempts
+                """
+            ),
+            {"u": username},
+        ).fetchone()
+        attempts = int(row[0]) if row and row[0] is not None else 0
+        if attempts >= MAX_LOGIN_ATTEMPTS:
+            locked_until = datetime.utcnow() + timedelta(minutes=LOCKOUT_MINUTES)
+            conn.execute(
+                text(
+                    """
+                    UPDATE users
+                    SET failed_login_attempts = 0,
+                        locked_until = :locked_until
+                    WHERE username = :u
+                    """
+                ),
+                {"u": username, "locked_until": locked_until},
+            )
+    return locked_until
+
+
+def _clear_login_failures(username: str) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE users
+                SET failed_login_attempts = 0,
+                    locked_until = NULL
+                WHERE username = :u
+                """
+            ),
+            {"u": username},
+        )
 
 
 def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -239,7 +311,8 @@ class UpdateProfileRequest(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
-    new_password: str
+    new_password: str = ""
+    generate_temp_password: bool = False
 
 
 class UpdateConstituencyRequest(BaseModel):
@@ -373,11 +446,18 @@ def admin_login(req: AdminLoginRequest, request: Request):
     if user.get("role") not in ADMIN_ROLES:
         raise HTTPException(403, "Admin access required")
 
+    locked_until = _coerce_datetime(user.get("locked_until"))
+    if locked_until and locked_until > datetime.utcnow():
+        raise HTTPException(423, f"Too many failed attempts. Try again after {locked_until.isoformat()}")
+
     if not verify_password(req.password, user.get("password_hash", "")):
+        _record_failed_login(req.username)
         raise HTTPException(401, "Invalid credentials")
 
     if user.get("is_active") is False:
         raise HTTPException(403, "Account suspended. Contact your administrator.")
+
+    _clear_login_failures(req.username)
 
     # Auto-upgrade plain text passwords to bcrypt
     stored_hash = user.get("password_hash", "")
@@ -558,6 +638,8 @@ def create_mp(req: CreateMPRequest, _=Depends(get_admin_user)):
             constituency=req.constituency,
             house=resolved_house,
             display_name=req.display_name or req.name,
+            must_change_password=True,
+            force_password_reason="first_time_setup",
         )
         db.add(new_user)
 
@@ -649,8 +731,15 @@ def get_mp_profile(tenant_id: int, _=Depends(get_admin_user)):
         if not tenant:
             raise HTTPException(404, "Tenant not found")
         profile = db.query(TenantProfile).filter(TenantProfile.tenant_id == tenant_id).first()
+        owner_user = db.query(User).filter(User.tenant_id == tenant_id, User.role.in_(["mp", "owner"])).first()
         if not profile:
-            return {"exists": False}
+            return {
+                "exists": False,
+                "must_change_password": bool(owner_user.must_change_password) if owner_user else False,
+                "password_reset_by_admin_at": owner_user.password_reset_by_admin_at.isoformat() if owner_user and owner_user.password_reset_by_admin_at else None,
+                "password_changed_at": owner_user.password_changed_at.isoformat() if owner_user and owner_user.password_changed_at else None,
+                "force_password_reason": owner_user.force_password_reason if owner_user else None,
+            }
 
         extra = profile.profile_data or {}
         identity = _tenant_identity_dict(tenant, profile)
@@ -671,6 +760,10 @@ def get_mp_profile(tenant_id: int, _=Depends(get_admin_user)):
             "vocabulary_guide": extra.get("vocabulary_guide", {}),
             "whatsapp_number": tenant.whatsapp_number or "",
             "phone_number_id": phone_number_id or "",
+            "must_change_password": bool(owner_user.must_change_password) if owner_user else False,
+            "password_reset_by_admin_at": owner_user.password_reset_by_admin_at.isoformat() if owner_user and owner_user.password_reset_by_admin_at else None,
+            "password_changed_at": owner_user.password_changed_at.isoformat() if owner_user and owner_user.password_changed_at else None,
+            "force_password_reason": owner_user.force_password_reason if owner_user else None,
         }
     finally:
         db.close()
@@ -763,7 +856,10 @@ def update_constituency(tenant_id: int, req: UpdateConstituencyRequest, _=Depend
 
 @router.patch("/mps/{tenant_id}/password")
 def reset_mp_password(tenant_id: int, req: ResetPasswordRequest, _=Depends(get_admin_user)):
-    pw_err = validate_password(req.new_password)
+    temporary_password = req.new_password.strip()
+    if req.generate_temp_password or not temporary_password:
+        temporary_password = generate_temporary_password()
+    pw_err = validate_password(temporary_password)
     if pw_err:
         raise HTTPException(400, pw_err)
     db = SessionLocal()
@@ -771,11 +867,18 @@ def reset_mp_password(tenant_id: int, req: ResetPasswordRequest, _=Depends(get_a
         user = db.query(User).filter(User.tenant_id == tenant_id, User.role.in_(["mp", "owner"])).first()
         if not user:
             raise HTTPException(404, "MP not found")
-        user.password_hash = hash_password(req.new_password)
+        user.password_hash = hash_password(temporary_password)
+        user.must_change_password = True
+        user.password_reset_by_admin_at = datetime.utcnow()
+        user.force_password_reason = "admin_reset"
         db.commit()
         # Revoke all existing tokens for this MP
         _revoke_user_tokens(user.username)
-        return {"success": True}
+        return {
+            "success": True,
+            "temporary_password": temporary_password,
+            "must_change_password": True,
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -1336,6 +1439,8 @@ def create_editor(req: CreateEditorRequest, _=Depends(get_admin_user)):
             password_hash=hash_password(req.password),
             role="editor",
             display_name=req.display_name or req.username,
+            must_change_password=True,
+            force_password_reason="first_time_setup",
         )
         db.add(new_editor)
         db.commit()

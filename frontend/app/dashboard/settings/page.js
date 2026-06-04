@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { useRouter } from 'next/navigation';
 import {
     User, Shield, Info, Lock, LifeBuoy, ExternalLink,
     Users, UserPlus, Trash2, Loader2, CheckCircle2,
@@ -586,7 +587,8 @@ function ProfileCard({ user, color }) {
 /* ── Main Settings Page ──────────────────────────────────────────── */
 
 export default function SettingsPage() {
-    const { user } = useAuth();
+    const router = useRouter();
+    const { user, logout } = useAuth();
     const [currentPw, setCurrentPw] = useState('');
     const [newPw, setNewPw]         = useState('');
     const [confirmPw, setConfirmPw] = useState('');
@@ -611,8 +613,15 @@ export default function SettingsPage() {
                 method: 'POST',
                 body: JSON.stringify({ current_password: currentPw, new_password: newPw }),
             });
-            setPwMsg({ type: 'success', text: 'Password changed successfully.' });
+            setPwMsg({ type: 'success', text: 'Password changed successfully. Signing you out…' });
             setCurrentPw(''); setNewPw(''); setConfirmPw('');
+            setTimeout(async () => {
+                await logout();
+                if (typeof window !== 'undefined') {
+                    sessionStorage.setItem('needle_auth_notice', 'Password changed successfully. Please sign in again.');
+                }
+                router.push('/');
+            }, 700);
         } catch (err) {
             setPwMsg({ type: 'error', text: err.message || 'Failed to change password' });
         } finally {
