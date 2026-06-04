@@ -785,74 +785,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 except Exception as e:
                     logger.warning("Message-grounded geography resolution failed: %s", e)
 
-                # 1. Load the Rulebook from DB (geo_overrides)
-                try:
-                    from sansadx_backend.db import get_geo_overrides
-                    tenant_rules = get_geo_overrides(tenant_id)
-                except Exception:
-                    # Fallback to JSON file
-                    override_path = "tenant_overrides.json"
-                    if not os.path.exists(override_path):
-                        override_path = "/app/tenant_overrides.json"
-                    with open(override_path, "r") as f:
-                        all_overrides = json.load(f)
-                    tenant_rules = all_overrides.get("geo_overrides", {}).get(str(tenant_id), {})
-                
-                # 2. Also build location→assembly mapping from geography JSON files
-                geo_file_rules = {}
-                try:
-                    try:
-                        from sansadx_backend.db import get_geography_data
-                        geo_db_rules = get_geography_data(
-                            tenant_id=tenant_id,
-                            parliamentary_constituency=_tenant_const,
-                        )
-                        for assembly_name, stations in geo_db_rules.items():
-                            for station in stations:
-                                if isinstance(station, dict):
-                                    loc = station.get("locality", "").strip()
-                                    if loc and loc not in geo_file_rules:
-                                        geo_file_rules[loc] = assembly_name
-                    except Exception:
-                        pass
-
-                    if not geo_file_rules and _tenant_const:
-                        for base in ["data/geography", "/app/data/geography"]:
-                            const_dir = os.path.join(base, _tenant_const)
-                            if not os.path.isdir(const_dir):
-                                if os.path.isdir(base):
-                                    for d in os.listdir(base):
-                                        if d.lower() == _tenant_const.lower() and os.path.isdir(os.path.join(base, d)):
-                                            const_dir = os.path.join(base, d)
-                                            break
-                                    else:
-                                        continue
-                                else:
-                                    continue
-
-                            for fpath in glob.glob(os.path.join(const_dir, "*.json")):
-                                assembly_name = os.path.splitext(os.path.basename(fpath))[0]
-                                try:
-                                    with open(fpath, "r") as gf:
-                                        stations = json.load(gf)
-                                    if isinstance(stations, list):
-                                        for station in stations:
-                                            if isinstance(station, dict):
-                                                loc = station.get("locality", "").strip()
-                                                if loc and loc not in geo_file_rules:
-                                                    geo_file_rules[loc] = assembly_name
-                                except Exception:
-                                    pass
-                            break
-                except Exception as e:
-                    logger.warning(f"Geography file scan failed: {e}")
-                
-                # 3. Merge: DB overrides take priority, then geography files
-                combined_rules = {}
-                combined_rules.update(geo_file_rules)
-                combined_rules.update(tenant_rules)  # DB overrides win
-                
-                # 4. Get AI's extracted location
+                # 1. Get AI's extracted location
                 ai_loc = data.get("grievance_data", {}).get("location", "")
                 ai_loc_grounded = _location_is_grounded_in_message(ai_loc, effective_user_message) if ai_loc else False
 
@@ -909,109 +842,42 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         data["grievance_data"]["assembly_constituency"] = "Unknown"
                         data["grievance_data"]["_match_confidence"] = "ungrounded_cleared"
                 elif ai_loc:
-                    ai_loc_clean = ai_loc.lower().strip()
-                    
-                    # 5. SMART MATCHING — STRICT PRIORITY ORDER
-                    # Priority 1: Exact match (highest confidence)
-                    # Priority 2: Exact word boundary match (e.g., "hosur" matches "hosur" but not "gilihosur")
-                    # Priority 3: Substring match only if input CONTAINS the key (not reverse)
-                    # Priority 4: High-confidence fuzzy (85%+ cutoff, minimum 5 chars)
-                    # Priority 5: Mark as "Unknown" for manual review
-                    
-                    match_found = False
-                    final_loc_name = ai_loc_clean
-                    match_confidence = "none"
-                    
-                    # Build lookup dict with lower-case keys
-                    rules_keys_lower = {k.lower(): k for k in combined_rules.keys()}
-                    
-                    # PRIORITY 1: Exact match
-                    if ai_loc_clean in rules_keys_lower:
-                        final_loc_name = rules_keys_lower[ai_loc_clean]
-                        match_found = True
-                        match_confidence = "exact"
-                    
-                    # PRIORITY 2: Word boundary match (prevents "hosur" matching "gilihosur")
-                    if not match_found:
-                        import re
-                        for rk_lower, rk_original in rules_keys_lower.items():
-                            # Check if input is a complete word within the key or vice versa
-                            # "hosur belagavi" should match "hosur" but "gilihosur" should NOT match "hosur"
-                            pattern_key_in_input = r'\b' + re.escape(rk_lower) + r'\b'
-                            
-                            if re.search(pattern_key_in_input, ai_loc_clean):
-                                # The key appears as a complete word in user input
-                                # e.g., user said "hosur village" and key is "hosur"
-                                final_loc_name = rk_original
-                                match_found = True
-                                match_confidence = "word_boundary"
-                                logger.info(f"Word boundary match: '{rk_lower}' found in '{ai_loc_clean}'")
-                                break
-                    
-                    # PRIORITY 3: Substring match ONLY if user input contains the entire key
-                    # (NOT the reverse — prevents "hosur" matching "chandanhosur")
-                    if not match_found:
-                        best_substring_match = None
-                        best_substring_len = 0
-                        for rk_lower, rk_original in rules_keys_lower.items():
-                            # Only match if the KEY is fully contained in user input
-                            # AND the key is at least 5 chars (avoid matching "k" or "pg")
-                            if len(rk_lower) >= 5 and rk_lower in ai_loc_clean:
-                                # Prefer longer matches (more specific)
-                                if len(rk_lower) > best_substring_len:
-                                    best_substring_match = rk_original
-                                    best_substring_len = len(rk_lower)
-                        
-                        if best_substring_match:
-                            final_loc_name = best_substring_match
-                            match_found = True
-                            match_confidence = "substring"
-                            logger.info(f"Substring match: '{best_substring_match}' ({best_substring_len} chars) in '{ai_loc_clean}'")
-                    
-                    # PRIORITY 4: High-confidence fuzzy match (STRICT: 85% cutoff, min 5 chars)
-                    if not match_found and len(ai_loc_clean) >= 5:
-                        # Only consider keys of similar length (±30%) to prevent wild mismatches
-                        candidate_keys = [
-                            k for k in rules_keys_lower.keys() 
-                            if len(k) >= 5 and 0.7 <= len(k)/len(ai_loc_clean) <= 1.3
-                        ]
-                        if candidate_keys:
-                            matches = difflib.get_close_matches(
-                                ai_loc_clean, 
-                                candidate_keys, 
-                                n=1, 
-                                cutoff=0.85  # Increased from 0.6 to 0.85 for safety
-                            )
-                            if matches:
-                                final_loc_name = rules_keys_lower[matches[0]]
-                                match_found = True
-                                match_confidence = "fuzzy_85"
-                                logger.info(f"Fuzzy match (85%): '{ai_loc_clean}' -> '{final_loc_name}'")
-                    
-                    # 6. Apply the mapping OR mark for manual review
-                    if match_found:
-                        correct_constituency = combined_rules[final_loc_name]
-                        data["assembly_constituency"] = correct_constituency
-                        data["constituency"] = correct_constituency
-                        data["_match_confidence"] = match_confidence  # For debugging/audit
-                        
-                        # --- Keep status as "new" so staff must manually triage ---
+                    ai_hint_geo = {"location_resolved": False}
+                    try:
+                        ai_hint_geo = resolve_geography_from_text(
+                            ai_loc,
+                            scope_parliamentary=_tenant_const,
+                            tenant_id=tenant_id,
+                        )
+                    except Exception as e:
+                        logger.warning("AI-hint geography resolution failed: %s", e)
+
+                    if ai_hint_geo.get("location_resolved"):
+                        grounded_loc = ai_hint_geo.get("matched_value") or ai_loc
+                        grounded_constituency = ai_hint_geo.get("assembly_constituency") or "Unknown"
+                        confidence_level = str(ai_hint_geo.get("confidence_level") or ai_hint_geo.get("confidence") or "high").lower()
+                        data["assembly_constituency"] = grounded_constituency
+                        data["constituency"] = grounded_constituency
+                        data["_match_confidence"] = f"ai_hint_{confidence_level}"
+
                         original_status = data.get("status", "").lower()
                         if original_status not in ("emergency", "offensive"):
                             data["status"] = "new"
-                        
-                        # Set is_critical for emergency cases
+
                         if original_status == "emergency":
                             data["is_critical"] = True
-                        
+
                         if "grievance_data" in data:
-                            data["grievance_data"]["assembly_constituency"] = correct_constituency
-                            data["grievance_data"]["location"] = final_loc_name  # Set to official spelling
-                            data["grievance_data"]["_match_confidence"] = match_confidence
-                            
-                        logger.info(f"Location Mapped [{match_confidence}]: {final_loc_name} -> {correct_constituency}")
+                            data["grievance_data"]["assembly_constituency"] = grounded_constituency
+                            data["grievance_data"]["location"] = grounded_loc
+                            data["grievance_data"]["_match_confidence"] = data["_match_confidence"]
+
+                        logger.info(
+                            "Location Mapped [ai_hint]: %s -> %s",
+                            grounded_loc,
+                            grounded_constituency,
+                        )
                     else:
-                        # No confident match — mark for manual review
                         data["assembly_constituency"] = "Unknown"
                         data["constituency"] = "Unknown"
                         data["_match_confidence"] = "unmatched_cleared"
@@ -1032,7 +898,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                             data["grievance_data"]["location"] = None
                             data["grievance_data"]["assembly_constituency"] = "Unknown"
                             data["grievance_data"]["_match_confidence"] = "unmatched_cleared"
-                        logger.info(f"Location UNMATCHED (needs manual review): '{ai_loc_clean}'")
+                        logger.info("Location UNMATCHED after resolver-backed AI hint: '%s'", ai_loc)
                         
             except Exception as e:
                 logger.warning(f"Override Logic Warning: {e}") 

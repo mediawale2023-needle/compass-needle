@@ -128,6 +128,52 @@ def test_ask_chatgpt_agent_prefers_message_grounded_resolution(monkeypatch):
     assert result["_match_confidence"] == "message_grounded_high"
 
 
+def test_ask_chatgpt_agent_uses_shared_resolver_for_grounded_ai_hint(monkeypatch):
+    monkeypatch.setattr(ai_engine, "get_client", lambda: _stub_client({
+        "status": "new",
+        "detected_language": "Kannada",
+        "political_response": "ನಿಮ್ಮ ಅಹವಾಲು ದಾಖಲಿಸಲಾಗಿದೆ.",
+        "grievance_data": {
+            "categories": ["Infrastructure & Utilities"],
+            "problem_domain": "Infrastructure & Utilities",
+            "problem_subdomain": "Water Supply",
+            "convergence_program_type": None,
+            "location": "Teacher Colony",
+            "person": None,
+            "department": None,
+            "scheme": None,
+        },
+    }))
+    monkeypatch.setattr(ai_engine, "get_jurisdiction_context", lambda tenant_id=1: "")
+    monkeypatch.setattr(
+        ai_engine,
+        "_get_tenant_profile",
+        lambda tenant_id: {"mp_name": "Test MP", "constituency": "Belagavi", "state": "", "house": "Lok Sabha"},
+    )
+
+    def _resolver(text, *_args, **_kwargs):
+        if text == "Teacher Colony nalli 3 din neer illa":
+            return {"location_resolved": False}
+        if text == "Teacher Colony":
+            return {
+                "location_resolved": True,
+                "matched_value": "Teachers Colony",
+                "assembly_constituency": "Belgaum Dakshin",
+                "confidence_level": "exact",
+            }
+        return {"location_resolved": False}
+
+    monkeypatch.setattr(ai_engine, "resolve_geography_from_text", _resolver)
+
+    result = ai_engine.ask_chatgpt_agent("Teacher Colony nalli 3 din neer illa", tenant_id=1)
+
+    assert result["status"] == "new"
+    assert result["assembly_constituency"] == "Belgaum Dakshin"
+    assert result["grievance_data"]["location"] == "Teachers Colony"
+    assert result["grievance_data"]["assembly_constituency"] == "Belgaum Dakshin"
+    assert result["_match_confidence"] == "ai_hint_exact"
+
+
 def test_ask_chatgpt_agent_clears_sentence_like_ai_location(monkeypatch):
     monkeypatch.setattr(ai_engine, "get_client", lambda: _stub_client({
         "status": "new",

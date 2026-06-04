@@ -13,6 +13,18 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-04
+- Request: Push the AI-hint geography cleanup to GitHub for deployment.
+- Summary: Pending push from `main` for the `ai_engine.py` cleanup that removes the legacy parallel geography matcher and forces AI-extracted locations back through the shared resolver. This release intentionally excludes the unrelated local `tenant_overrides.json` changes.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: The live behavior depends on the backend EC2 deploy workflow completing after the `main` push, since this change affects backend case classification and geography persistence.
+
+- Date: 2026-06-04
+- Request: Stop the AI classifier from writing wrong geography through a legacy parallel matcher after the shared resolver was fixed.
+- Summary: Removed the duplicate location-matching path from `sansadx_backend/ai_engine.py` that had been scanning raw geography rows and override maps independently of the shared resolver. AI-extracted locations are now treated only as hints and must be re-resolved through `modules/geography_resolver.py` before they can populate `grievance_data.location` or `assembly_constituency`. Added a regression for the `Teacher Colony ... neer illa` shape where message-level grounding misses but the shared resolver can still safely resolve the AI hint. Verified with `venv/bin/python -m pytest tests/test_ai_location_grounding.py -q` and `venv/bin/python -m pytest tests/test_whatsapp_geography_decision.py -q`.
+- Files touched: `sansadx_backend/ai_engine.py`, `tests/test_ai_location_grounding.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This removes classifier-time custom geography guessing on purpose. If any tenant depended on that older parallel matcher, the correct follow-up is to strengthen the shared resolver or shared aliases rather than reintroduce a second geography engine.
+
+- Date: 2026-06-04
 - Request: Push the parent-row geography resolver fix to GitHub for deployment.
 - Summary: Pushed commit `28ba5125` (`Prefer explicit parent locality rows`) to `origin/main`, publishing the seat-generic resolver behavior where explicit standalone parent rows beat inherited parent aliases from sub-locality rows while preserving `sub only` and `parent + sub` matching.
 - Files touched: `TASK_LOG.md`
