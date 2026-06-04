@@ -14,6 +14,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 - Date: 2026-06-04
 - Request: Push the AI-hint geography cleanup to GitHub for deployment.
+- Summary: Pushed commit `9c7d78f1` (`Unify AI geography hint resolution`) to `origin/main`, publishing the removal of the legacy classifier-side geography matcher so AI-extracted locations now go back through the shared resolver before they can save location or assembly.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Production still depends on the backend EC2 deploy workflow completing successfully after this `main` push.
+
+- Date: 2026-06-04
+- Request: Push the AI-hint geography cleanup to GitHub for deployment.
 - Summary: Pending push from `main` for the `ai_engine.py` cleanup that removes the legacy parallel geography matcher and forces AI-extracted locations back through the shared resolver. This release intentionally excludes the unrelated local `tenant_overrides.json` changes.
 - Files touched: `TASK_LOG.md`
 - Risks or follow-ups: The live behavior depends on the backend EC2 deploy workflow completing after the `main` push, since this change affects backend case classification and geography persistence.
