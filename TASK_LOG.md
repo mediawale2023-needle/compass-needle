@@ -14,6 +14,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 - Date: 2026-06-04
 - Request: Push the admin `geo_alias` inspection/deletion tool to GitHub for deployment.
+- Summary: Pushed commit `df13e59c` (`Add admin geo alias cleanup tool`) to `origin/main`, publishing the Shared Geography admin panel for tenant resolver aliases plus the supporting admin API list/delete endpoints.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Production still depends on both the backend EC2 deploy workflow and the admin frontend deployment finishing successfully after this `main` push.
+
+- Date: 2026-06-04
+- Request: Push the admin `geo_alias` inspection/deletion tool to GitHub for deployment.
 - Summary: Pending push from `main` for the Shared Geography admin tooling that lists and deletes tenant-scoped `geo_alias` rows through new admin API endpoints and a tenant-aware `Resolver Aliases` panel. This release intentionally excludes the unrelated local `tenant_overrides.json` changes.
 - Files touched: `TASK_LOG.md`
 - Risks or follow-ups: The live behavior depends on both the backend EC2 deploy workflow and the admin frontend deploy picking up this `main` push, since the feature spans `admin_api.py` and the Next.js admin workspace UI.
