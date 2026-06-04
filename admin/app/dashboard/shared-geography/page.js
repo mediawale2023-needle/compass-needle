@@ -4,16 +4,16 @@ import Link from 'next/link';
 
 const LINKS = [
     {
-        title: 'Seat Geography Upload',
-        body: 'Upload or refine the seat-scoped geography dataset that powers matching, assembly resolution, and map generation.',
+        title: 'Seat Geography Workspace',
+        body: 'Upload or refine the seat-scoped geography dataset, maintain parent/sub-locality structure, and keep geography clean at the source.',
         href: '/dashboard/shared-geography/workspace',
-        cta: 'Open uploader',
+        cta: 'Open workspace',
     },
     {
-        title: 'Geography Rules',
-        body: 'Review seat-scoped routing overrides, conflict handling, and exception rules.',
-        href: '/dashboard/shared-geography/rules',
-        cta: 'Open rules',
+        title: 'Matching Corrections',
+        body: 'Open the same workspace in tenant-aware mode to review manual corrections and resolver cleanup without jumping to a separate tool.',
+        href: '/dashboard/shared-geography/workspace',
+        cta: 'Open workspace',
     },
     {
         title: 'Seat Maps',

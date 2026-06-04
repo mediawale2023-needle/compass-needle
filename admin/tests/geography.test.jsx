@@ -58,6 +58,9 @@ describe('Admin geography page', () => {
                     ],
                 };
             }
+            if (path === '/api/admin/overrides') {
+                return { geo_overrides: {} };
+            }
             if (path === '/api/admin/geography/parliamentary?seat_type=mp') {
                 return { parliamentary_constituencies: ['Bangalore North'] };
             }
@@ -123,6 +126,16 @@ describe('Admin geography page', () => {
                     ],
                 };
             }
+            if (path === '/api/admin/overrides') {
+                return {
+                    geo_overrides: {
+                        '7': {
+                            'teacher colony': 'Belagavi South',
+                            'teachers colony khasbag': 'Belagavi South',
+                        },
+                    },
+                };
+            }
             if (path === '/api/admin/mps/7/detail') {
                 return {
                     tenant_id: 7,
@@ -151,10 +164,13 @@ describe('Admin geography page', () => {
         render(<GeographyUploadPage />);
 
         expect(await screen.findByText('Tenant Geography Setup')).toBeInTheDocument();
+        expect(await screen.findByText('Manual Matching Corrections')).toBeInTheDocument();
         expect(screen.getByText('Shared geography already present')).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Back to launch readiness' })).toHaveAttribute('href', '/dashboard/mps/7/setup');
         expect(screen.getByText('Aspirant A')).toBeInTheDocument();
         expect(screen.getAllByText('Belagavi').length).toBeGreaterThan(0);
         expect(screen.getByRole('button', { name: 'Use existing geography' })).toBeInTheDocument();
+        expect(screen.getByText('teacher colony')).toBeInTheDocument();
+        expect(screen.getByText('2 manual corrections')).toBeInTheDocument();
     });
 });

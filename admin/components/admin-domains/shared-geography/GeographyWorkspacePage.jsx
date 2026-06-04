@@ -349,6 +349,12 @@ export default function GeographyUploadPage() {
     const [geoAliasLoading, setGeoAliasLoading] = useState(false);
     const [geoAliasQuery, setGeoAliasQuery]   = useState('');
     const [geoAliasDeleteTarget, setGeoAliasDeleteTarget] = useState(null);
+    const [overrides, setOverrides]           = useState({});
+    const [manualRules, setManualRules]       = useState({});
+    const [manualRuleInput, setManualRuleInput] = useState('');
+    const [manualRuleAssembly, setManualRuleAssembly] = useState('');
+    const [manualRulesLoading, setManualRulesLoading] = useState(false);
+    const [manualRuleDeleteTarget, setManualRuleDeleteTarget] = useState(null);
     const [tenantContext, setTenantContext]   = useState(null);
     const [tenantLoading, setTenantLoading]   = useState(false);
     const [reuseSeatName, setReuseSeatName]   = useState('');
@@ -372,6 +378,9 @@ export default function GeographyUploadPage() {
                 setTenantOptions(options);
             })
             .catch(() => { });
+        apiGet('/api/admin/overrides')
+            .then((response) => setOverrides(response || {}))
+            .catch(() => { });
         loadSavedFiles();
     }, []);
 
@@ -379,6 +388,7 @@ export default function GeographyUploadPage() {
         if (!tenantId) {
             setTenantContext(null);
             setGeoAliases([]);
+            setManualRules({});
             return;
         }
         setTenantLoading(true);
@@ -416,6 +426,12 @@ export default function GeographyUploadPage() {
         if (!tenantId) return;
         loadGeoAliases(tenantId);
     }, [tenantId]);
+
+    useEffect(() => {
+        if (!tenantId) return;
+        const geoOverrides = overrides?.geo_overrides || {};
+        setManualRules(geoOverrides[String(tenantId)] || {});
+    }, [tenantId, overrides]);
 
     useEffect(() => {
         if (!pConst) { setAssemblies([]); return; }
@@ -473,6 +489,44 @@ export default function GeographyUploadPage() {
         } finally {
             setGeoAliasLoading(false);
         }
+    };
+
+    const persistManualRules = async (nextRules) => {
+        const tenantKey = String(tenantId);
+        const updated = { ...(overrides || {}) };
+        if (!updated.geo_overrides) updated.geo_overrides = {};
+        if (Object.keys(nextRules).length === 0) {
+            delete updated.geo_overrides[tenantKey];
+        } else {
+            updated.geo_overrides[tenantKey] = nextRules;
+        }
+        setManualRulesLoading(true);
+        try {
+            await apiPut('/api/admin/overrides', { data: updated });
+            setOverrides(updated);
+            setManualRules(nextRules);
+            return true;
+        } catch (err) {
+            showMsg('error', err.message || 'Could not save manual geography correction.');
+            return false;
+        } finally {
+            setManualRulesLoading(false);
+        }
+    };
+
+    const addManualRule = async () => {
+        if (!tenantId) return;
+        const nextKey = manualRuleInput.trim().toLowerCase();
+        const nextAssembly = manualRuleAssembly.trim();
+        if (!nextKey || !nextAssembly) return;
+        const success = await persistManualRules({
+            ...manualRules,
+            [nextKey]: nextAssembly,
+        });
+        if (!success) return;
+        setManualRuleInput('');
+        setManualRuleAssembly('');
+        showMsg('success', `Saved manual correction for "${nextKey}".`);
     };
 
     const showMsg = (type, text) => {
@@ -609,6 +663,18 @@ export default function GeographyUploadPage() {
         }
     };
 
+    const confirmManualRuleDelete = async () => {
+        if (!manualRuleDeleteTarget) return;
+        const target = manualRuleDeleteTarget;
+        setManualRuleDeleteTarget(null);
+        const nextRules = { ...manualRules };
+        delete nextRules[target];
+        const success = await persistManualRules(nextRules);
+        if (success) {
+            showMsg('success', `Removed manual correction for "${target}".`);
+        }
+    };
+
     const filteredGeoAliases = geoAliases.filter((item) => {
         const needle = geoAliasQuery.trim().toLowerCase();
         if (!needle) return true;
@@ -620,6 +686,7 @@ export default function GeographyUploadPage() {
             item.source,
         ].some((value) => (value || '').toLowerCase().includes(needle));
     });
+    const manualRuleEntries = Object.entries(manualRules).sort((a, b) => a[0].localeCompare(b[0]));
 
     return (
         <>
@@ -648,6 +715,17 @@ export default function GeographyUploadPage() {
                     variant="danger"
                     onConfirm={confirmGeoAliasDelete}
                     onCancel={() => setGeoAliasDeleteTarget(null)}
+                />
+            )}
+
+            {manualRuleDeleteTarget && (
+                <ConfirmModal
+                    title={`Remove manual correction for "${manualRuleDeleteTarget}"?`}
+                    description="This tenant-specific correction will be deleted. Matching will fall back to the shared seat geography and generated resolver index."
+                    confirmLabel="Remove Correction"
+                    variant="danger"
+                    onConfirm={confirmManualRuleDelete}
+                    onCancel={() => setManualRuleDeleteTarget(null)}
                 />
             )}
 
@@ -680,6 +758,8 @@ export default function GeographyUploadPage() {
                                 <span className={`badge badge-dot ${seatHasSavedGeography ? 'badge-green' : 'badge-amber'}`}>
                                     {seatHasSavedGeography ? 'Shared geography already present' : 'No shared geography yet'}
                                 </span>
+                                <span className="badge badge-slate">{manualRuleEntries.length} manual correction{manualRuleEntries.length === 1 ? '' : 's'}</span>
+                                <span className="badge badge-amber">{geoAliases.length} generated alias{geoAliases.length === 1 ? '' : 'es'}</span>
                             </div>
 
                             <div style={{
@@ -745,6 +825,116 @@ export default function GeographyUploadPage() {
                     ) : (
                         <div style={{ color: '#9a3412', fontSize: '0.8rem' }}>
                             Could not load tenant details for this geography setup flow.
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {tenantId && (
+                <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+                        <div style={{ border: '1px solid #e2ebe5', borderRadius: 12, padding: '14px 16px', background: '#fff' }}>
+                            <div className="section-title" style={{ marginBottom: 6 }}>1. Shared Seat Geography</div>
+                            <div style={{ color: '#6b7f76', fontSize: '0.78rem', lineHeight: 1.5 }}>
+                                Canonical parent-locality and sub-locality data for this seat. Upload and maintain it once, then reuse it safely across same-seat accounts.
+                            </div>
+                        </div>
+                        <div style={{ border: '1px solid #e2ebe5', borderRadius: 12, padding: '14px 16px', background: '#fff' }}>
+                            <div className="section-title" style={{ marginBottom: 6 }}>2. Manual Matching Corrections</div>
+                            <div style={{ color: '#6b7f76', fontSize: '0.78rem', lineHeight: 1.5 }}>
+                                Use only when citizens repeatedly type a nickname, shorthand, or misspelling that the shared geography cannot resolve cleanly on its own.
+                            </div>
+                        </div>
+                        <div style={{ border: '1px solid #e2ebe5', borderRadius: 12, padding: '14px 16px', background: '#fff' }}>
+                            <div className="section-title" style={{ marginBottom: 6 }}>3. Generated Resolver Aliases</div>
+                            <div style={{ color: '#6b7f76', fontSize: '0.78rem', lineHeight: 1.5 }}>
+                                These are internal helper forms built by the system from geography data. Keep them as a debug tool, not the main place to manage geography.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {tenantId && (
+                <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 10, flexWrap: 'wrap' }}>
+                        <div>
+                            <div className="section-title" style={{ marginBottom: 6 }}>Manual Matching Corrections</div>
+                            <p style={{ color: '#6b7f76', fontSize: '0.82rem', margin: 0 }}>
+                                Keep tenant-specific corrections here when real-world citizen wording needs a manual bridge into the shared parent/sub-locality geography.
+                            </p>
+                        </div>
+                        <span className="badge badge-slate">{manualRuleEntries.length} total</span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 2fr) minmax(220px, 2fr) auto', gap: 12, alignItems: 'end', marginBottom: 14 }}>
+                        <div>
+                            <label className="form-label" htmlFor="manual-correction-input">Citizen wording / alias</label>
+                            <input
+                                id="manual-correction-input"
+                                className="form-input"
+                                placeholder="e.g. teacher colony"
+                                value={manualRuleInput}
+                                onChange={(e) => setManualRuleInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && addManualRule()}
+                            />
+                        </div>
+                        <div>
+                            <label className="form-label" htmlFor="manual-correction-target">Maps to assembly / routing area</label>
+                            <input
+                                id="manual-correction-target"
+                                className="form-input"
+                                placeholder={seatType === 'mla' ? 'e.g. North Zone' : 'e.g. Belgaum South'}
+                                value={manualRuleAssembly}
+                                onChange={(e) => setManualRuleAssembly(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && addManualRule()}
+                            />
+                        </div>
+                        <button
+                            className="btn-primary"
+                            disabled={!manualRuleInput.trim() || !manualRuleAssembly.trim() || manualRulesLoading}
+                            onClick={addManualRule}
+                            style={{ whiteSpace: 'nowrap' }}
+                        >
+                            {manualRulesLoading ? 'Saving…' : 'Save Correction'}
+                        </button>
+                    </div>
+
+                    {manualRuleEntries.length > 0 ? (
+                        <div style={{ border: '1px solid #e2ebe5', borderRadius: 12, overflow: 'hidden' }}>
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Citizen wording</th>
+                                        <th>Maps to assembly / routing area</th>
+                                        <th style={{ width: 110, textAlign: 'right' }}></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {manualRuleEntries.map(([loc, ac]) => (
+                                        <tr key={loc}>
+                                            <td>
+                                                <code style={{ fontFamily: 'monospace', fontSize: '0.82rem', background: '#f0f4f1', padding: '2px 7px', borderRadius: 4 }}>{loc}</code>
+                                            </td>
+                                            <td style={{ color: '#1a2e28' }}>{ac}</td>
+                                            <td style={{ textAlign: 'right' }}>
+                                                <button
+                                                    className="btn-danger"
+                                                    style={{ fontSize: '0.72rem', padding: '4px 10px' }}
+                                                    disabled={manualRulesLoading}
+                                                    onClick={() => setManualRuleDeleteTarget(loc)}
+                                                >
+                                                    Remove
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div style={{ border: '1px solid #e2ebe5', borderRadius: 12, padding: '18px 16px', color: '#6b7f76', fontSize: '0.8rem' }}>
+                            No manual corrections yet. Prefer the shared seat geography first; add a correction here only when citizen wording truly needs a tenant-specific bridge.
                         </div>
                     )}
                 </div>

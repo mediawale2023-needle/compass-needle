@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-04
+- Request: Start unifying shared geography so upload, manual corrections, and resolver cleanup behave like one operator workflow while preserving the parent/sub-locality model.
+- Summary: Folded tenant-specific `geo_override` management into the tenant-aware Shared Geography workspace as `Manual Matching Corrections`, added explanatory copy that separates shared seat geography from manual corrections and generated resolver aliases, updated the Shared Geography landing page to point operators to the workspace instead of a separate rules tool, and converted `/dashboard/shared-geography/rules` into a compatibility redirect back to the workspace. Verified with `PATH=/opt/homebrew/bin:$PATH npm run test --prefix admin -- --run tests/geography.test.jsx` and `PATH=/opt/homebrew/bin:$PATH npm run build --prefix admin`.
+- Files touched: `admin/components/admin-domains/shared-geography/GeographyWorkspacePage.jsx`, `admin/app/dashboard/shared-geography/rules/page.js`, `admin/app/dashboard/shared-geography/page.js`, `admin/tests/geography.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This unifies the operator experience first, but `geo_override` still exists under the hood for backward-compatible routing. A later migration can move those manual corrections into a richer canonical locality model without changing the workspace contract again.
+
+- Date: 2026-06-04
 - Request: Push the Shared Geography workspace tenant-picker discoverability fix to GitHub for deployment.
 - Summary: Pushed commit `ca460252` (`Expose tenant alias cleanup workspace`) to `origin/main`, publishing the generic Shared Geography tenant picker/jump flow that surfaces the tenant-scoped `geo_alias` cleanup tools without requiring operators to guess the `tenant_id` URL contract.
 - Files touched: `TASK_LOG.md`
