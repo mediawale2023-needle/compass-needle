@@ -13,6 +13,18 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-04
+- Request: Push the parent-row geography resolver fix to GitHub for deployment.
+- Summary: Pending push from `main` for the standalone parent-locality preference fix in the shared geography resolver. This release intentionally excludes the unrelated local `tenant_overrides.json` changes.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: The live behavior depends on the backend EC2 deploy workflow completing after the `main` push, since this change is entirely in backend geography resolution.
+
+- Date: 2026-06-04
+- Request: Make geography resolution honor standalone parent-locality rows alongside `sub-locality - parent locality` rows so parent-only mentions resolve correctly.
+- Summary: Tightened `modules/geography_resolver.py` so parent-only matches from an explicitly saved parent row now outrank parent aliases inherited from sub-locality rows. This preserves the intended data model where a seat can store `Shahapur` on its own plus rows like `Navi Galli - Shahapur`, and citizens can mention only the parent, only the sub-locality, or both. Added focused regressions for explicit parent-row preference plus `sub only` and `sub + parent` matching on the same seat-scoped geography data. Verified with `venv/bin/python -m pytest tests/test_geography_resolver.py -q` and `venv/bin/python -m pytest tests/test_ai_location_grounding.py -q`.
+- Files touched: `modules/geography_resolver.py`, `tests/test_geography_resolver.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This stays seat-generic and does not hardcode Shahapur/Khasbag. If live operators still see blanks after this, the next step should be reading `case_metadata.geography_diagnostics` on an affected case to see whether the miss is happening before candidate ranking or during tenant-scope filtering.
+
+- Date: 2026-06-04
 - Request: Make geography matching seat-generic and robust when citizens mention only the parent locality, only the sub-locality, or both, including noisy variants.
 - Summary: Extended `modules/geography_resolver.py` so hyphen-delimited seat geography rows like `Teachers Colony - Khasbag` are parsed into structured `sub_locality + parent_locality` at save/index time instead of being treated as one raw string. Alias generation is now seat-scoped and supports parent-only, sub-only, and combined mentions, plus light structured phrase variants for generic Indian-language/operator mistakes, while keeping those variants out of canonical display inference so stored names remain stable. Added focused resolver regressions for sub-only, parent+sub, and parent-only resolution using the same seat data. Verified with `venv/bin/python -m pytest tests/test_geography_resolver.py -q` and `venv/bin/python -m pytest tests/test_ai_location_grounding.py -q`.
 - Files touched: `modules/geography_resolver.py`, `tests/test_geography_resolver.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`

@@ -1496,6 +1496,14 @@ def load_geography_index() -> bool:
             hierarchy_type = str(s.get("hierarchy_type") or "locality").strip()
             parent_locality = (s.get("parent_locality") or "").replace("\n", " ").strip() or None
             sub_locality = (s.get("sub_locality") or "").replace("\n", " ").strip() or None
+            preferred_parent_display = _preferred_parent_display(raw_loc, parl_name)
+            explicit_parent_row = bool(
+                hierarchy_type == "locality"
+                and not parent_locality
+                and not sub_locality
+                and preferred_parent_display
+                and normalize(raw_loc) == normalize(preferred_parent_display)
+            )
 
             norm_loc = normalize(raw_loc)
             raw_loc_en = s.get("locality_en", "").replace("\n", " ").strip()
@@ -1540,6 +1548,7 @@ def load_geography_index() -> bool:
                 "hierarchy_type": hierarchy_type,
                 "parent_locality": parent_locality,
                 "sub_locality": sub_locality,
+                "explicit_parent_row": explicit_parent_row,
             })
             _register_entry_ambiguities(parl_name, assembly, match_forms)
             _register_entry_ambiguities(parl_name, assembly, spaceless_match_forms)
@@ -1869,7 +1878,16 @@ def _rank_location_candidates(
                         break
 
             normalized_matched_name = normalize(matched_name)
-            if entry_parent_forms and normalized_matched_name in entry_parent_forms:
+            matched_parent_alias = bool(entry_parent_forms and normalized_matched_name in entry_parent_forms)
+            if matched_parent_alias:
+                if entry.get("explicit_parent_row"):
+                    score += 18
+                elif entry.get("sub_locality"):
+                    score -= 18
+                else:
+                    score -= 8
+
+            if matched_parent_alias:
                 matched_type = "locality"
                 matched_value = entry.get("parent_locality") or _preferred_parent_display(entry["orig_name"], data.get("parl")) or entry["orig_name"] or matched_name
             else:

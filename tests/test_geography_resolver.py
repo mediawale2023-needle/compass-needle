@@ -62,10 +62,12 @@ def stub_geography_index(monkeypatch):
             "parliamentary_constituency": "Belagavi",
             "assembly": "Belgaum Dakshin",
             "stations": [
-                {"station_number": "1", "locality": "Shahapur Belagavi", "building_name": ""},
+                {"station_number": "1", "locality": "Shahapur", "building_name": ""},
+                {"station_number": "1a", "locality": "Khasbag", "building_name": ""},
                 {"station_number": "2", "locality": "Meerapur Galli, Shahapur Belagavi", "building_name": ""},
                 {"station_number": "2a", "locality": "Teli Patil Galli Shahapur, Belagavi", "building_name": ""},
                 {"station_number": "2b", "locality": "Teachers Colony - Khasbag", "building_name": ""},
+                {"station_number": "2c", "locality": "Navi Galli - Shahapur", "building_name": ""},
                 {"station_number": "3", "locality": "Somawar Peth Tilakwadi, Belagavi", "building_name": ""},
                 {"station_number": "3a", "locality": "Vaccine Depot.Tilakwadi, Belagavi", "building_name": ""},
                 {"station_number": "4", "locality": "Vadagaon Belagavi", "building_name": ""},
@@ -266,6 +268,19 @@ def test_resolve_location_supports_hyphenated_sub_locality_without_parent(stub_g
     assert result["parent_locality"] == "Khasbag"
 
 
+def test_resolve_location_prefers_explicit_parent_row_over_inherited_parent_alias(stub_geography_index):
+    geography_resolver.reload_index()
+
+    candidates = geography_resolver._rank_location_candidates(
+        "Khasbag madhe 3 divasa pasun paani nahi",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert candidates[0]["name"] == "Khasbag"
+    assert candidates[0]["matched_value"] == "Khasbag"
+    assert candidates[0]["matched_type"] == "locality"
+
+
 def test_resolve_location_supports_hyphenated_sub_locality_with_parent(stub_geography_index):
     geography_resolver.reload_index()
 
@@ -293,6 +308,36 @@ def test_resolve_location_supports_parent_only_for_hyphenated_entry(stub_geograp
     assert result["assembly_constituency"] == "Belgaum Dakshin"
     assert result["matched_value"] == "Khasbag"
     assert result["matched_type"] == "locality"
+
+
+def test_resolve_location_supports_explicit_sub_locality_row_without_parent_mention(stub_geography_index):
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "Navi Galli madhe paani nahi",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Dakshin"
+    assert result["matched_value"] == "Navi Galli"
+    assert result["matched_type"] == "sub_locality"
+    assert result["parent_locality"] == "Shahapur"
+
+
+def test_resolve_location_supports_explicit_sub_locality_row_with_parent_mention(stub_geography_index):
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "Navi Galli Shahapur madhe paani nahi",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Dakshin"
+    assert result["matched_value"] == "Navi Galli"
+    assert result["matched_type"] == "sub_locality"
+    assert result["parent_locality"] == "Shahapur"
 
 
 def test_resolve_location_supports_kannada_voice_transcript_for_balekundri(stub_geography_index):
