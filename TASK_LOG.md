@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-04
+- Request: Push the Shared Geography workspace tenant-picker discoverability fix to GitHub for deployment.
+- Summary: Pushed commit `ca460252` (`Expose tenant alias cleanup workspace`) to `origin/main`, publishing the generic Shared Geography tenant picker/jump flow that surfaces the tenant-scoped `geo_alias` cleanup tools without requiring operators to guess the `tenant_id` URL contract.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: The new picker improves discoverability, but the actual alias data still depends on valid tenant context and the admin frontend deployment finishing successfully after the `main` push.
+
+- Date: 2026-06-04
 - Request: Make the Shared Geography workspace expose the tenant-scoped alias cleanup flow instead of hiding it behind an undocumented `tenant_id` query parameter.
 - Summary: Added a tenant picker notice to the generic Shared Geography workspace so operators can jump directly into tenant-aware alias cleanup mode, then tightened the admin page test harness to mock `useRouter`/`/api/admin/mps` and added coverage for that navigation flow. Also fixed the new picker label association for accessibility and testability. Verified with `PATH=/opt/homebrew/bin:$PATH npm run test --prefix admin -- --run tests/geography.test.jsx`.
 - Files touched: `admin/components/admin-domains/shared-geography/GeographyWorkspacePage.jsx`, `admin/tests/geography.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
