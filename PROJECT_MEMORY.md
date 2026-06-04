@@ -141,6 +141,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 ## Classification Memory
 
 - `sansadx_backend/unified_taxonomy.py` now includes a narrow high-confidence override for official-corruption complaints: if the text clearly combines bribery/corruption or payment-demand semantics with office-official context (`talathi`, `patwari`, `tehsildar`, `babu`, etc.), taxonomy normalization must force `Bureaucratic / Administrative -> Bribery/Corruption` even if the model guessed a generic infrastructure/roads label. Keep this override structural and cross-language rather than tied to one exact sentence or script.
+- Taxonomy rescue logic must also protect against locality-name false positives. If the raw text clearly indicates a water outage (`water/paani/neer/neeru` plus outage cues like `illa`, `bandilla`, `nahi`, `not coming`), `sansadx_backend/unified_taxonomy.py` should force `Infrastructure & Utilities -> Water Supply` even when the model guessed something like `Teacher Availability` because the location name contained words such as `Teacher Colony`.
 
 ## API Contract Memory
 

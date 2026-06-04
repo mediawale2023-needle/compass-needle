@@ -10,6 +10,7 @@ This module is the single source of truth for:
 
 from __future__ import annotations
 
+import re
 from typing import Iterable
 
 
@@ -424,7 +425,7 @@ SUBDOMAIN_TO_PROGRAM_TYPE = {
 SUBDOMAIN_SIGNALS = {
     "Roads & Bridges": ("road", "roads", "sadak", "bridge", "culvert", "pothole"),
     "Power & Street Lighting": ("bijli", "electricity", "power", "street light", "transformer", "voltage"),
-    "Water Supply": ("water", "paani", "tap water", "water supply", "tanker", "drinking water"),
+    "Water Supply": ("water", "paani", "pani", "neer", "neeru", "tap water", "water supply", "tanker", "drinking water", "nal", "nalko"),
     "Drainage/Sewage": ("drain", "drainage", "sewage", "sewer", "nala", "water logging"),
     "Solid Waste": ("garbage", "waste", "kachra", "dumping", "cleaning"),
     "Public Transport": ("bus", "transport", "public transport", "route", "auto stand"),
@@ -514,6 +515,27 @@ _WORKFLOW_CONTEXT_MARKERS = (
     "काम", "फाइल", "अर्ज", "प्रमाणपत्र", "साइन", "सेवा",
 )
 
+_WATER_SUPPLY_MARKERS = (
+    "water", "water supply", "tap water", "drinking water",
+    "paani", "pani", "neer", "neeru", "nal", "nalli neer",
+)
+
+_WATER_OUTAGE_MARKERS = (
+    "no water", "not coming", "not available", "supply problem",
+    "illa", "illai", "bandilla", "baralla", "barthilla",
+    "nahi", "nahi aata", "nahin", "band", "stopped",
+)
+
+_LOCATION_CONTAINER_MARKERS = (
+    "colony", "layout", "road", "street", "lane", "camp", "nagar",
+    "galli", "circle", "cross", "extension", "quarters", "wadi", "peth",
+)
+
+_LOCATION_AMBIGUOUS_ISSUE_WORDS = (
+    "teacher", "teachers", "doctor", "doctors", "nurse", "nurses",
+    "police", "school",
+)
+
 
 def _has_any_marker(blob: str, markers: tuple[str, ...]) -> bool:
     return any(marker in blob for marker in markers)
@@ -523,6 +545,24 @@ def _looks_like_payment_demand(blob: str) -> bool:
     has_payment = _has_any_marker(blob, _PAYMENT_MARKERS)
     has_demand = _has_any_marker(blob, _DEMAND_MARKERS)
     return has_payment and has_demand
+
+
+def _strip_location_like_phrases(blob: str) -> str:
+    if not blob:
+        return ""
+
+    cleaned = blob
+    for word in _LOCATION_AMBIGUOUS_ISSUE_WORDS:
+        for suffix in _LOCATION_CONTAINER_MARKERS:
+            cleaned = re.sub(rf"\b{re.escape(word)}\s+{re.escape(suffix)}\b", " ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def _looks_like_water_supply_outage(blob: str) -> bool:
+    cleaned = _strip_location_like_phrases(blob)
+    has_water = _has_any_marker(cleaned, _WATER_SUPPLY_MARKERS)
+    has_outage = _has_any_marker(cleaned, _WATER_OUTAGE_MARKERS)
+    return has_water and has_outage
 
 
 def _infer_strong_taxonomy_override(blob: str) -> tuple[str | None, str | None]:
@@ -535,6 +575,9 @@ def _infer_strong_taxonomy_override(blob: str) -> tuple[str | None, str | None]:
     """
     if not blob:
         return None, None
+
+    if _looks_like_water_supply_outage(blob):
+        return "Infrastructure & Utilities", "Water Supply"
 
     has_explicit_corruption = _has_any_marker(blob, _CORRUPTION_EXPLICIT_MARKERS)
     has_official_context = _has_any_marker(blob, _CORRUPTION_OFFICIAL_MARKERS)

@@ -253,3 +253,39 @@ def test_build_taxonomy_fields_overrides_wrong_road_guess_for_patwari_money_dema
     assert fields["problem_subdomain"] == "Bribery/Corruption"
     assert fields["convergence_program_type"] == "Monitoring & Transparency"
     assert fields["categories"] == ["Bureaucratic / Administrative"]
+
+
+def test_build_taxonomy_fields_overrides_teacher_colony_water_outage():
+    fields = build_taxonomy_fields(
+        problem_domain="Education",
+        problem_subdomain="Teacher Availability",
+        raw_text="Teacher Colony nalli 3 din neer illa",
+    )
+
+    assert fields["problem_domain"] == "Infrastructure & Utilities"
+    assert fields["problem_subdomain"] == "Water Supply"
+    assert fields["convergence_program_type"] == "Public Asset Upgrade"
+    assert fields["categories"] == ["Infrastructure & Utilities"]
+
+
+def test_normalize_grievance_taxonomy_overrides_teacher_colony_water_outage():
+    grievance = {
+        "categories": ["Education"],
+        "problem_domain": "Education",
+        "problem_subdomain": "Teacher Availability",
+        "convergence_program_type": "Service Delivery Strengthening",
+        "location": "Teacher Colony",
+        "person": None,
+        "department": None,
+        "scheme": None,
+    }
+
+    normalized = ai_engine._normalize_grievance_taxonomy(
+        grievance,
+        "Teacher Colony nalli 3 din neer illa",
+    )
+
+    assert normalized["problem_domain"] == "Infrastructure & Utilities"
+    assert normalized["problem_subdomain"] == "Water Supply"
+    assert normalized["convergence_program_type"] == "Public Asset Upgrade"
+    assert normalized["categories"] == ["Infrastructure & Utilities"]

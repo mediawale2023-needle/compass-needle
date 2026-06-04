@@ -12,6 +12,18 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-06-04
+- Request: Fix wrong grievance routing where `Teacher Colony nalli 3 din neer illa` was classified as `Teacher Availability` instead of a water-supply issue.
+- Summary: Hardened taxonomy rescue logic in `sansadx_backend/unified_taxonomy.py` so obvious water-outage language (`water/paani/neer/neeru` plus outage cues like `illa`, `bandilla`, `nahi`, `not coming`) now forces `Infrastructure & Utilities -> Water Supply` even if the upstream model guessed an education label due to locality names like `Teacher Colony`. Also added Kannada/Hinglish water markers and focused regressions proving both `build_taxonomy_fields()` and `_normalize_grievance_taxonomy()` rescue the screenshot case correctly. Verified with `venv/bin/python -m pytest tests/test_ai_location_grounding.py -q`.
+- Files touched: `sansadx_backend/unified_taxonomy.py`, `tests/test_ai_location_grounding.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This rescue path is intentionally narrow and should stay structural. If similar false positives appear for other locality-name patterns (`Doctor Layout`, `Police Quarters`, etc.), extend the location-aware signal cleanup carefully rather than adding constituency-specific special cases.
+
+- Date: 2026-06-04
+- Request: Push the water-outage taxonomy rescue fix to GitHub for deployment.
+- Summary: Pending push from `main` for the `Teacher Colony ... neer illa` classification fix. This release intentionally excludes the unrelated local `tenant_overrides.json` changes.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: The live fix depends on the backend EC2 deploy workflow completing after the `main` push, since this is a backend taxonomy change.
+
 - Date: 2026-06-03
 - Request: Add an internal English-support fallback for media/voice-note geography mapping without making translation the primary source of truth.
 - Summary: Extended voice-note and media normalization to emit `english_support_text`, threaded that support text through inbound WhatsApp media handling, and taught `finalize_geography_decision()` to attempt a second geography resolver pass from the English support text only when the original-language pass fails. Added focused regressions proving voice-note/media normalization returns the new field and that geography diagnostics record when an `english_support` fallback resolved the location.
