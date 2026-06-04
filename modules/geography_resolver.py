@@ -843,6 +843,9 @@ def _station_seed_aliases(station: Dict[str, Any], parliamentary_constituency: O
                 if sub_locality:
                     seeds.add(f"{sub_locality} {parent_locality}")
                     seeds.add(f"{sub_locality}, {parent_locality}")
+                    seeds.add(f"{sub_locality} - {parent_locality}")
+                    seeds.add(f"{parent_locality} {sub_locality}")
+                    seeds.add(f"{parent_locality}, {sub_locality}")
 
     for seed in list(seeds):
         seeds.update(_derive_locality_aliases(seed, parliamentary_constituency))
@@ -856,7 +859,12 @@ def _generated_alias_forms(station: Dict[str, Any], parliamentary_constituency: 
     return {form for form in forms if len(form) >= 4 and not _is_meta_locality(form)}
 
 
-def _derive_locality_aliases(locality: str, parliamentary_constituency: Optional[str] = None) -> Set[str]:
+def _derive_locality_aliases(
+    locality: str,
+    parliamentary_constituency: Optional[str] = None,
+    *,
+    include_structured_variants: bool = True,
+) -> Set[str]:
     """Create safe short aliases from EC roll localities such as "Shahapur Belagavi"."""
     raw = (locality or "").replace("\n", " ").strip()
     if not raw:
@@ -865,6 +873,7 @@ def _derive_locality_aliases(locality: str, parliamentary_constituency: Optional
     parl = normalize(parliamentary_constituency or "")
     candidates = {raw}
     candidates.update(part.strip() for part in re.split(r"[,;/]", raw) if part.strip())
+    candidates.update(part.strip() for part in re.split(r"\s+[-–—]\s+", raw) if part.strip())
     dot_fragments = [fragment.strip() for fragment in raw.split(".") if fragment.strip()]
     if len(dot_fragments) > 1 and len(normalize(dot_fragments[0]).split()) >= 2:
         candidates.update(
@@ -892,6 +901,8 @@ def _derive_locality_aliases(locality: str, parliamentary_constituency: Optional
 
         if len(value) >= 5 and value not in {"east", "west", "north", "south", "ward", "room", "hall"}:
             aliases.add(value)
+            if include_structured_variants:
+                aliases.update(_derive_structured_phrase_variants(value))
             words = value.split()
             if len(words) > 1 and words[-1] in {"kh", "bk", "k", "b"}:
                 code_stripped = " ".join(words[:-1]).strip()
@@ -914,6 +925,50 @@ def _derive_locality_aliases(locality: str, parliamentary_constituency: Optional
     return aliases
 
 
+_LOCATION_CONTAINER_TOKENS = {
+    "area", "camp", "circle", "colony", "cross", "depot", "extension",
+    "galli", "gali", "layout", "lane", "marg", "market", "mohalla",
+    "nagar", "peth", "pet", "quarters", "road", "sector", "street",
+    "wadi", "wada",
+}
+
+
+def _derive_token_variants(token: str) -> Set[str]:
+    normalized = normalize(token)
+    variants = {normalized}
+    if not normalized or len(normalized) < 5 or not re.fullmatch(r"[a-z]+", normalized):
+        return variants
+
+    if normalized.endswith("ies") and len(normalized) > 6:
+        variants.add(normalized[:-3] + "y")
+    elif normalized.endswith("es") and len(normalized) > 5 and not normalized.endswith(("ses", "zes")):
+        variants.add(normalized[:-2])
+    elif normalized.endswith("s") and not normalized.endswith(("ss", "us", "is")):
+        variants.add(normalized[:-1])
+    else:
+        variants.add(normalized + "s")
+
+    return {variant for variant in variants if variant and len(variant) >= 4}
+
+
+def _derive_structured_phrase_variants(value: str) -> Set[str]:
+    words = [word for word in normalize(value).split() if word]
+    if len(words) < 2 or len(words) > 6:
+        return set()
+
+    variants: Set[str] = set()
+    for index, word in enumerate(words[:-1]):
+        if words[index + 1] not in _LOCATION_CONTAINER_TOKENS:
+            continue
+        for token_variant in _derive_token_variants(word):
+            if token_variant == word:
+                continue
+            candidate = list(words)
+            candidate[index] = token_variant
+            variants.add(" ".join(candidate))
+    return variants
+
+
 def _is_meaningful_location_fragment(value: str) -> bool:
     normalized = normalize(value)
     if not normalized or len(normalized) < 4:
@@ -933,7 +988,7 @@ def _is_meaningful_location_fragment(value: str) -> bool:
 
 def _preferred_parent_display(locality: str, parliamentary_constituency: Optional[str] = None) -> Optional[str]:
     aliases = {
-        alias for alias in _derive_locality_aliases(locality, parliamentary_constituency)
+        alias for alias in _derive_locality_aliases(locality, parliamentary_constituency, include_structured_variants=False)
         if _is_meaningful_location_fragment(alias)
     }
     if not aliases:
@@ -980,6 +1035,22 @@ def _build_parent_locality_catalog(
     return catalog
 
 
+def _split_explicit_locality_hierarchy(locality: str) -> tuple[Optional[str], Optional[str]]:
+    raw = (locality or "").replace("\n", " ").strip()
+    if not raw:
+        return None, None
+
+    parts = [part.strip(" ,-/") for part in re.split(r"\s+[-–—:]\s+", raw) if part.strip(" ,-/")]
+    if len(parts) != 2:
+        return None, None
+
+    left, right = parts
+    if not (_is_meaningful_location_fragment(left) and _is_meaningful_location_fragment(right)):
+        return None, None
+
+    return _display_location_name(left), _display_location_name(right)
+
+
 def _infer_station_hierarchy(
     station: Dict[str, Any],
     parent_catalog: dict[str, str],
@@ -992,7 +1063,11 @@ def _infer_station_hierarchy(
     normalized_locality = normalize(locality)
     row_aliases = sorted(
         {
-            alias for alias in _derive_locality_aliases(locality, parliamentary_constituency)
+            alias for alias in _derive_locality_aliases(
+                locality,
+                parliamentary_constituency,
+                include_structured_variants=False,
+            )
             if _is_meaningful_location_fragment(alias)
         },
         key=lambda alias: (-len(alias), alias),
@@ -1004,22 +1079,28 @@ def _infer_station_hierarchy(
     parent_locality: Optional[str] = None
     sub_locality: Optional[str] = None
 
-    for candidate_alias, candidate_display in sorted_candidates:
-        if not candidate_alias:
-            continue
-        for row_alias in row_aliases:
-            if row_alias == candidate_alias:
+    explicit_sub_locality, explicit_parent_locality = _split_explicit_locality_hierarchy(locality)
+    if explicit_sub_locality and explicit_parent_locality:
+        sub_locality = explicit_sub_locality
+        parent_locality = explicit_parent_locality
+
+    if not (parent_locality and sub_locality):
+        for candidate_alias, candidate_display in sorted_candidates:
+            if not candidate_alias:
                 continue
-            if not row_alias.endswith(f" {candidate_alias}"):
-                continue
-            prefix = row_alias[: -len(candidate_alias)].strip(" ,-/")
-            if not _is_meaningful_location_fragment(prefix):
-                continue
-            parent_locality = candidate_display
-            sub_locality = _display_location_name(prefix)
-            break
-        if parent_locality and sub_locality:
-            break
+            for row_alias in row_aliases:
+                if row_alias == candidate_alias:
+                    continue
+                if not row_alias.endswith(f" {candidate_alias}"):
+                    continue
+                prefix = row_alias[: -len(candidate_alias)].strip(" ,-/")
+                if not _is_meaningful_location_fragment(prefix):
+                    continue
+                parent_locality = candidate_display
+                sub_locality = _display_location_name(prefix)
+                break
+            if parent_locality and sub_locality:
+                break
 
     enriched = dict(station)
     if parent_locality and sub_locality:

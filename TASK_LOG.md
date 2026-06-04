@@ -13,6 +13,18 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-04
+- Request: Make geography matching seat-generic and robust when citizens mention only the parent locality, only the sub-locality, or both, including noisy variants.
+- Summary: Extended `modules/geography_resolver.py` so hyphen-delimited seat geography rows like `Teachers Colony - Khasbag` are parsed into structured `sub_locality + parent_locality` at save/index time instead of being treated as one raw string. Alias generation is now seat-scoped and supports parent-only, sub-only, and combined mentions, plus light structured phrase variants for generic Indian-language/operator mistakes, while keeping those variants out of canonical display inference so stored names remain stable. Added focused resolver regressions for sub-only, parent+sub, and parent-only resolution using the same seat data. Verified with `venv/bin/python -m pytest tests/test_geography_resolver.py -q` and `venv/bin/python -m pytest tests/test_ai_location_grounding.py -q`.
+- Files touched: `modules/geography_resolver.py`, `tests/test_geography_resolver.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This is still intentionally seat-scoped and ambiguity-safe. If live seats have duplicate sub-locality names across parents/assemblies, the next hardening step should be surfacing those ambiguity candidates in ops UI rather than guessing through them.
+
+- Date: 2026-06-04
+- Request: Push the seat-generic parent/sub-locality geography resolver upgrade to GitHub for deployment.
+- Summary: Pending push from `main` for the structured `X - Parent` locality parsing and seat-scoped alias expansion fix. This release intentionally excludes the unrelated local `tenant_overrides.json` changes.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: The live fix depends on the backend EC2 deploy workflow completing after the `main` push, since this changes the backend geography resolver.
+
+- Date: 2026-06-04
 - Request: Fix wrong grievance routing where `Teacher Colony nalli 3 din neer illa` was classified as `Teacher Availability` instead of a water-supply issue.
 - Summary: Hardened taxonomy rescue logic in `sansadx_backend/unified_taxonomy.py` so obvious water-outage language (`water/paani/neer/neeru` plus outage cues like `illa`, `bandilla`, `nahi`, `not coming`) now forces `Infrastructure & Utilities -> Water Supply` even if the upstream model guessed an education label due to locality names like `Teacher Colony`. Also added Kannada/Hinglish water markers and focused regressions proving both `build_taxonomy_fields()` and `_normalize_grievance_taxonomy()` rescue the screenshot case correctly. Verified with `venv/bin/python -m pytest tests/test_ai_location_grounding.py -q`.
 - Files touched: `sansadx_backend/unified_taxonomy.py`, `tests/test_ai_location_grounding.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
