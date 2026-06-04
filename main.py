@@ -1092,6 +1092,7 @@ from modules.letterbox import download_meta_media  # noqa: E402
 from modules.whatsapp_media_intake import normalize_media_complaint  # noqa: E402
 from modules.case_query_parser import parse_query
 from modules.case_query_engine import query_cases
+from modules.staff_schedule_parser import parse_staff_schedule_message
 from modules.whatsapp_geography import finalize_geography_decision
 from modules.geography_policy import location_required_for_domain
 from modules.localized_replies import (
@@ -1251,30 +1252,133 @@ def _resolve_tenant(receiver_number: str) -> int | None:
     return None
 
 
-def _is_registered_staff_sender(sender: str, tenant_id: int) -> bool:
-    """Return True when a WhatsApp sender is an active staff/PA user."""
+def _get_registered_staff_sender(sender: str, tenant_id: int) -> dict | None:
+    """Return the matching active staff/PA user for a WhatsApp sender, if any."""
     sender_digits = re.sub(r"\D", "", sender or "")
     sender_bare = sender_digits[2:] if sender_digits.startswith("91") and len(sender_digits) == 12 else sender_digits
     try:
         with engine.connect() as conn:
             rows = conn.execute(
                 text("""
-                    SELECT id, phone FROM users
+                    SELECT id, username, display_name, phone FROM users
                     WHERE tenant_id = :tid
                       AND is_active = true
                       AND phone IS NOT NULL
                 """),
                 {"tid": tenant_id},
             ).fetchall()
-        for _id, phone in rows:
+        for row in rows:
+            _id, username, display_name, phone = row
             staff_digits = re.sub(r"\D", "", phone or "")
             staff_bare = staff_digits[2:] if staff_digits.startswith("91") and len(staff_digits) == 12 else staff_digits
             if sender in {phone, staff_digits, staff_bare} or sender_digits in {staff_digits, staff_bare} or sender_bare == staff_bare:
-                return True
-        return False
+                return {
+                    "id": _id,
+                    "username": username,
+                    "display_name": display_name,
+                    "phone": phone,
+                }
+        return None
     except Exception as exc:
         logger.warning("Staff sender lookup failed: %s", exc)
-        return False
+        return None
+
+
+def _is_registered_staff_sender(sender: str, tenant_id: int) -> bool:
+    """Return True when a WhatsApp sender is an active staff/PA user."""
+    return bool(_get_registered_staff_sender(sender, tenant_id))
+
+
+def _save_staff_schedule_entry(tenant_id: int, created_by: str, parsed: dict) -> dict | None:
+    try:
+        scheduled_for = parsed.get("scheduled_for") or _utcnow().date().isoformat()
+        start_time = parsed.get("start_time")
+        end_time = parsed.get("end_time")
+
+        def _combine(target_date: str, time_text: str | None):
+            if not time_text:
+                return None
+            try:
+                date_part = datetime.fromisoformat(target_date).date()
+                hour_text, minute_text = str(time_text).split(":", 1)
+                return datetime(
+                    date_part.year,
+                    date_part.month,
+                    date_part.day,
+                    int(hour_text),
+                    int(minute_text),
+                )
+            except Exception:
+                return None
+
+        starts_at = None if parsed.get("is_all_day") else _combine(scheduled_for, start_time)
+        ends_at = None if parsed.get("is_all_day") else _combine(scheduled_for, end_time)
+        with engine.begin() as conn:
+            row = conn.execute(
+                text(
+                    """
+                    INSERT INTO dashboard_engagements (
+                        tenant_id, entry_type, title, notes, location, scheduled_for,
+                        starts_at, ends_at, calendar_url, is_all_day, created_by
+                    )
+                    VALUES (
+                        :tenant_id, :entry_type, :title, :notes, :location, :scheduled_for,
+                        :starts_at, :ends_at, :calendar_url, :is_all_day, :created_by
+                    )
+                    RETURNING id, entry_type, title, notes, location, scheduled_for,
+                              starts_at, ends_at, calendar_url, is_all_day, created_by
+                    """
+                ),
+                {
+                    "tenant_id": tenant_id,
+                    "entry_type": parsed.get("entry_type") or "schedule",
+                    "title": parsed.get("title") or "",
+                    "notes": parsed.get("notes"),
+                    "location": parsed.get("location"),
+                    "scheduled_for": scheduled_for,
+                    "starts_at": starts_at,
+                    "ends_at": ends_at,
+                    "calendar_url": parsed.get("calendar_url"),
+                    "is_all_day": bool(parsed.get("is_all_day")),
+                    "created_by": created_by,
+                },
+            ).mappings().first()
+        return dict(row) if row else None
+    except Exception as exc:
+        logger.error("Staff schedule save failed: %s", exc)
+        return None
+
+
+def _format_staff_schedule_confirmation(item: dict | None) -> str:
+    item = item or {}
+    title = item.get("title") or "Schedule item"
+    scheduled_for = item.get("scheduled_for")
+    starts_at = item.get("starts_at")
+    location = item.get("location")
+    entry_type = item.get("entry_type") or "schedule"
+
+    if hasattr(scheduled_for, "strftime"):
+        date_label = scheduled_for.strftime("%d %b")
+    else:
+        date_label = str(scheduled_for) if scheduled_for else "today"
+    if hasattr(starts_at, "strftime"):
+        time_label = starts_at.strftime("%H:%M")
+    else:
+        time_label = ""
+
+    bits = [f"✅ Saved to schedule: {title}"]
+    meta = []
+    if entry_type == "note":
+        meta.append("note")
+    elif time_label:
+        meta.append(f"{date_label}, {time_label}")
+    else:
+        meta.append(date_label)
+    if location:
+        meta.append(str(location))
+    if meta:
+        bits.append(" | ".join(meta))
+    return "\n".join(bits)
 
 
 def _finalize_whatsapp_geography_decision(
@@ -2986,30 +3090,12 @@ def _process_incoming_message(
     # If the sender's phone is a registered staff user for this tenant,
     # treat their message as a case query, not a citizen grievance.
     # Uses the same users.phone lookup as the PA letter intake system.
-    try:
-        with engine.connect() as conn:
-            staff_row = conn.execute(
-                text("""
-                    SELECT id, display_name FROM users
-                    WHERE tenant_id = :tid
-                      AND is_active = true
-                      AND (
-                        phone = :phone
-                        OR phone = :bare
-                        OR regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') IN (:phone_digits, :bare)
-                      )
-                    LIMIT 1
-                """),
-                {"phone": sender, "phone_digits": sender_digits, "bare": sender_bare, "tid": current_tenant},
-            ).fetchone()
-    except Exception as _staff_exc:
-        logger.warning("Staff lookup failed: %s", _staff_exc)
-        staff_row = None
+    staff_row = _get_registered_staff_sender(sender, current_tenant)
 
     if staff_row:
         logger.info(
-            "Staff query from %s (user_id=%s, tenant=%s): %r",
-            sender, staff_row[0], current_tenant, message_body[:80],
+            "Staff message from %s (user_id=%s, tenant=%s): %r",
+            sender, staff_row["id"], current_tenant, message_body[:80],
         )
 
         # Check for emergency cluster acknowledgment (ACK <id> or ACK)
@@ -3020,6 +3106,32 @@ def _process_incoming_message(
                 return
         except Exception as _ack_exc:
             logger.warning("PA ACK check failed (non-blocking): %s", _ack_exc)
+
+        try:
+            parsed_schedule = parse_staff_schedule_message(message_body)
+        except Exception as _schedule_exc:
+            logger.warning("Staff schedule parse failed (non-blocking): %s", _schedule_exc)
+            parsed_schedule = None
+
+        if parsed_schedule:
+            created_item = _save_staff_schedule_entry(
+                current_tenant,
+                staff_row.get("username") or staff_row.get("display_name") or sender,
+                parsed_schedule,
+            )
+            if created_item:
+                send_whatsapp_message(
+                    sender,
+                    _format_staff_schedule_confirmation(created_item),
+                    _wa_phone_id,
+                )
+                return
+            send_whatsapp_message(
+                sender,
+                "⚠️ I understood that as a schedule item, but could not save it. Please try again.",
+                _wa_phone_id,
+            )
+            return
 
         try:
             filters  = parse_query(message_body, tenant_id=current_tenant)

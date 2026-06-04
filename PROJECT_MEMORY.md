@@ -130,6 +130,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - Case enrichment now persists `detected_language` into `case_metadata` (`detected_language` and legacy `language`) so UI surfaces do not have to infer citizen language from raw text on every render.
 - Historical language gaps can be repaired with `scripts/backfill_case_languages.py`, which is tenant-scoped and only backfills rows whose stored language is missing or clearly a bad default-English label compared to the case text.
 - Geography resolution should now use a native-first normalization pipeline rather than constituency-specific patches: generate native-script stem variants, transliterate those variants, then score against seat-scoped geography aliases. This is especially important for Indian-language location inflections such as Kannada `ಪಿರನ್ವಾಡಿನ` / `ಡೆಪೋನಲ್ಲಿ`, where locality suffix stripping must happen before final matching.
+- Staff/PA WhatsApp text should now try a schedule-intake pass before the older case-query path. `main.py` must use the conservative multilingual `modules/staff_schedule_parser.py` to save only clear schedule-like staff messages into `dashboard_engagements`; ambiguous or non-schedule text must still fall back to the existing case-query flow.
 
 ## Media Intake Memory
 
