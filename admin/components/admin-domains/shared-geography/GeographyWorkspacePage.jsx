@@ -353,8 +353,11 @@ export default function GeographyUploadPage() {
     const [manualRules, setManualRules]       = useState({});
     const [manualRuleInput, setManualRuleInput] = useState('');
     const [manualRuleAssembly, setManualRuleAssembly] = useState('');
+    const [manualRuleBulkInput, setManualRuleBulkInput] = useState('');
+    const [manualRuleBulkMode, setManualRuleBulkMode] = useState(false);
     const [manualRulesLoading, setManualRulesLoading] = useState(false);
     const [manualRuleDeleteTarget, setManualRuleDeleteTarget] = useState(null);
+    const [manualRuleDeleteAllTarget, setManualRuleDeleteAllTarget] = useState(false);
     const [manualRuleEditingKey, setManualRuleEditingKey] = useState(null);
     const [tenantContext, setTenantContext]   = useState(null);
     const [tenantLoading, setTenantLoading]   = useState(false);
@@ -547,6 +550,49 @@ export default function GeographyUploadPage() {
         setManualRuleAssembly('');
     };
 
+    const parseBulkManualRules = () => {
+        const entries = [];
+        const errors = [];
+        manualRuleBulkInput
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .forEach((line, index) => {
+                const parts = line.split(/\s*=>\s*/);
+                if (parts.length !== 2 || !parts[0]?.trim() || !parts[1]?.trim()) {
+                    errors.push(`Line ${index + 1}`);
+                    return;
+                }
+                entries.push({
+                    key: parts[0].trim().toLowerCase(),
+                    value: parts[1].trim(),
+                });
+            });
+        return { entries, errors };
+    };
+
+    const saveBulkManualRules = async () => {
+        if (!tenantId) return;
+        const { entries, errors } = parseBulkManualRules();
+        if (errors.length) {
+            showMsg('error', `Bulk format error on ${errors.join(', ')}. Use "alias => assembly" on each line.`);
+            return;
+        }
+        if (!entries.length) {
+            showMsg('error', 'Add at least one correction line before saving.');
+            return;
+        }
+        const nextRules = { ...manualRules };
+        entries.forEach(({ key, value }) => {
+            nextRules[key] = value;
+        });
+        const success = await persistManualRules(nextRules);
+        if (!success) return;
+        setManualRuleBulkInput('');
+        setManualRuleBulkMode(false);
+        showMsg('success', `Saved ${entries.length} manual correction${entries.length === 1 ? '' : 's'}.`);
+    };
+
     const showMsg = (type, text) => {
         setMsg({ type, text });
         setTimeout(() => setMsg({ type: '', text: '' }), 4000);
@@ -696,6 +742,17 @@ export default function GeographyUploadPage() {
         }
     };
 
+    const confirmManualRuleDeleteAll = async () => {
+        setManualRuleDeleteAllTarget(false);
+        const success = await persistManualRules({});
+        if (success) {
+            cancelManualRuleEdit();
+            setManualRuleBulkInput('');
+            setManualRuleBulkMode(false);
+            showMsg('success', 'Removed all manual corrections for this tenant.');
+        }
+    };
+
     const filteredGeoAliases = geoAliases.filter((item) => {
         const needle = geoAliasQuery.trim().toLowerCase();
         if (!needle) return true;
@@ -747,6 +804,17 @@ export default function GeographyUploadPage() {
                     variant="danger"
                     onConfirm={confirmManualRuleDelete}
                     onCancel={() => setManualRuleDeleteTarget(null)}
+                />
+            )}
+
+            {manualRuleDeleteAllTarget && (
+                <ConfirmModal
+                    title="Remove all manual corrections?"
+                    description="This will delete every tenant-specific manual correction for this account. Matching will fall back to shared seat geography and generated resolver aliases."
+                    confirmLabel="Delete All"
+                    variant="danger"
+                    onConfirm={confirmManualRuleDeleteAll}
+                    onCancel={() => setManualRuleDeleteAllTarget(false)}
                 />
             )}
 
@@ -885,43 +953,98 @@ export default function GeographyUploadPage() {
                                 Keep tenant-specific corrections here when real-world citizen wording needs a manual bridge into the shared parent/sub-locality geography.
                             </p>
                         </div>
-                        <span className="badge badge-slate">{manualRuleEntries.length} total</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span className="badge badge-slate">{manualRuleEntries.length} total</span>
+                            <button
+                                className={manualRuleBulkMode ? 'btn-primary' : 'btn-secondary'}
+                                style={{ fontSize: '0.72rem', padding: '4px 10px' }}
+                                disabled={manualRulesLoading}
+                                onClick={() => {
+                                    setManualRuleBulkMode((current) => !current);
+                                    cancelManualRuleEdit();
+                                }}
+                            >
+                                {manualRuleBulkMode ? 'Single Add' : 'Bulk Add'}
+                            </button>
+                            <button
+                                className="btn-danger"
+                                style={{ fontSize: '0.72rem', padding: '4px 10px' }}
+                                disabled={manualRulesLoading || manualRuleEntries.length === 0}
+                                onClick={() => setManualRuleDeleteAllTarget(true)}
+                            >
+                                Delete All
+                            </button>
+                        </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 2fr) minmax(220px, 2fr) auto', gap: 12, alignItems: 'end', marginBottom: 14 }}>
-                        <div>
-                            <label className="form-label" htmlFor="manual-correction-input">Citizen wording / alias</label>
-                            <input
-                                id="manual-correction-input"
+                    {manualRuleBulkMode ? (
+                        <div style={{ marginBottom: 14 }}>
+                            <label className="form-label" htmlFor="manual-correction-bulk-input">Bulk corrections</label>
+                            <textarea
+                                id="manual-correction-bulk-input"
                                 className="form-input"
-                                placeholder="e.g. teacher colony"
-                                value={manualRuleInput}
-                                onChange={(e) => setManualRuleInput(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && addManualRule()}
+                                rows={8}
+                                placeholder={`teacher colony => ${seatType === 'mla' ? 'North Zone' : 'Belgaum South'}\nteachers colony khasbag => ${seatType === 'mla' ? 'North Zone' : 'Belgaum South'}`}
+                                value={manualRuleBulkInput}
+                                onChange={(e) => setManualRuleBulkInput(e.target.value)}
+                                style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
                             />
+                            <div style={{ color: '#6b7f76', fontSize: '0.76rem', marginTop: 8, marginBottom: 12 }}>
+                                Add one correction per line using the format <code style={{ fontFamily: 'monospace' }}>alias =&gt; assembly</code>.
+                            </div>
+                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                <button
+                                    className="btn-primary"
+                                    disabled={!manualRuleBulkInput.trim() || manualRulesLoading}
+                                    onClick={saveBulkManualRules}
+                                >
+                                    {manualRulesLoading ? 'Saving…' : 'Save Bulk Corrections'}
+                                </button>
+                                <button
+                                    className="btn-secondary"
+                                    disabled={manualRulesLoading}
+                                    onClick={() => setManualRuleBulkInput('')}
+                                >
+                                    Clear
+                                </button>
+                            </div>
                         </div>
-                        <div>
-                            <label className="form-label" htmlFor="manual-correction-target">Maps to assembly / routing area</label>
-                            <input
-                                id="manual-correction-target"
-                                className="form-input"
-                                placeholder={seatType === 'mla' ? 'e.g. North Zone' : 'e.g. Belgaum South'}
-                                value={manualRuleAssembly}
-                                onChange={(e) => setManualRuleAssembly(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && addManualRule()}
-                            />
+                    ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 2fr) minmax(220px, 2fr) auto', gap: 12, alignItems: 'end', marginBottom: 14 }}>
+                            <div>
+                                <label className="form-label" htmlFor="manual-correction-input">Citizen wording / alias</label>
+                                <input
+                                    id="manual-correction-input"
+                                    className="form-input"
+                                    placeholder="e.g. teacher colony"
+                                    value={manualRuleInput}
+                                    onChange={(e) => setManualRuleInput(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && addManualRule()}
+                                />
+                            </div>
+                            <div>
+                                <label className="form-label" htmlFor="manual-correction-target">Maps to assembly / routing area</label>
+                                <input
+                                    id="manual-correction-target"
+                                    className="form-input"
+                                    placeholder={seatType === 'mla' ? 'e.g. North Zone' : 'e.g. Belgaum South'}
+                                    value={manualRuleAssembly}
+                                    onChange={(e) => setManualRuleAssembly(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && addManualRule()}
+                                />
+                            </div>
+                            <button
+                                className="btn-primary"
+                                disabled={!manualRuleInput.trim() || !manualRuleAssembly.trim() || manualRulesLoading}
+                                onClick={addManualRule}
+                                style={{ whiteSpace: 'nowrap' }}
+                            >
+                                {manualRulesLoading ? 'Saving…' : manualRuleEditingKey ? 'Update Correction' : 'Save Correction'}
+                            </button>
                         </div>
-                        <button
-                            className="btn-primary"
-                            disabled={!manualRuleInput.trim() || !manualRuleAssembly.trim() || manualRulesLoading}
-                            onClick={addManualRule}
-                            style={{ whiteSpace: 'nowrap' }}
-                        >
-                            {manualRulesLoading ? 'Saving…' : manualRuleEditingKey ? 'Update Correction' : 'Save Correction'}
-                        </button>
-                    </div>
+                    )}
 
-                    {manualRuleEditingKey && (
+                    {manualRuleEditingKey && !manualRuleBulkMode && (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, padding: '10px 12px', border: '1px solid #e2ebe5', borderRadius: 10, background: '#f8fbf9' }}>
                             <div style={{ color: '#6b7f76', fontSize: '0.78rem' }}>
                                 Editing manual correction for <code style={{ fontFamily: 'monospace', fontSize: '0.76rem' }}>{manualRuleEditingKey}</code>

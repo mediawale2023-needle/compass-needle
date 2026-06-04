@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-04
+- Request: Add `Bulk Add` and `Delete All` actions to Manual Matching Corrections in the unified Shared Geography workspace.
+- Summary: Added a bulk-entry mode for tenant-specific manual geography corrections using one line per rule in the format `alias => assembly`, plus a confirmation-gated `Delete All` action that clears every manual correction for the current tenant. Kept the existing in-place edit flow and persisted everything through the same `geo_override` compatibility path. Verified with `PATH=/opt/homebrew/bin:$PATH npm run test --prefix admin -- --run tests/geography.test.jsx` and `PATH=/opt/homebrew/bin:$PATH npm run build --prefix admin`.
+- Files touched: `admin/components/admin-domains/shared-geography/GeographyWorkspacePage.jsx`, `admin/tests/geography.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Bulk parsing intentionally stays strict to avoid malformed saves; if operators later need CSV upload or smarter validation, that should be added as a second bulk-import mode rather than weakening the simple `alias => assembly` contract.
+
+- Date: 2026-06-04
 - Request: Push the manual-correction edit action upgrade to GitHub for deployment.
 - Summary: Pushed commit `09d386f8` (`Add manual correction edit actions`) to `origin/main`, publishing in-place `Edit`, `Update Correction`, and `Cancel` actions for tenant-specific manual geography corrections inside the unified Shared Geography workspace.
 - Files touched: `TASK_LOG.md`
