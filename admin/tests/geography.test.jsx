@@ -1,13 +1,14 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 const { apiGetMock } = vi.hoisted(() => ({
     apiGetMock: vi.fn(),
 }));
 
-const { useSearchParamsMock } = vi.hoisted(() => ({
+const { useSearchParamsMock, useRouterPushMock } = vi.hoisted(() => ({
     useSearchParamsMock: vi.fn(),
+    useRouterPushMock: vi.fn(),
 }));
 
 vi.mock('@/lib/api', () => ({
@@ -20,6 +21,9 @@ vi.mock('@/lib/api', () => ({
 
 vi.mock('next/navigation', () => ({
     useSearchParams: () => useSearchParamsMock(),
+    useRouter: () => ({
+        push: useRouterPushMock,
+    }),
 }));
 
 vi.mock('next/link', () => ({
@@ -34,12 +38,25 @@ import GeographyUploadPage from '@/app/dashboard/shared-geography/workspace/page
 
 describe('Admin geography page', () => {
     beforeEach(() => {
+        useRouterPushMock.mockReset();
         useSearchParamsMock.mockReturnValue({
             get: () => null,
         });
         apiGetMock.mockImplementation(async (path) => {
             if (path === '/api/admin/constituencies') {
                 return { constituencies: ['Bangalore North'] };
+            }
+            if (path === '/api/admin/mps') {
+                return {
+                    mps: [
+                        {
+                            tenant_id: 10,
+                            display_name: 'Sanket',
+                            parliamentary_constituency: 'Belagavi',
+                            seat_label: 'MP Seat',
+                        },
+                    ],
+                };
             }
             if (path === '/api/admin/geography/parliamentary?seat_type=mp') {
                 return { parliamentary_constituencies: ['Bangalore North'] };
@@ -61,7 +78,9 @@ describe('Admin geography page', () => {
         render(<GeographyUploadPage />);
 
         expect(await screen.findByText('Upload Shared Seat Geography')).toBeInTheDocument();
+        expect(await screen.findByText('Tenant Alias Cleanup')).toBeInTheDocument();
         await waitFor(() => {
+            expect(apiGetMock).toHaveBeenCalledWith('/api/admin/mps');
             expect(apiGetMock).toHaveBeenCalledWith('/api/admin/geography/parliamentary?seat_type=mp');
             expect(apiGetMock).toHaveBeenCalledWith('/api/admin/geography/parliamentary?seat_type=mla');
         });
@@ -71,6 +90,19 @@ describe('Admin geography page', () => {
         expect(screen.getAllByText(/MP Seat|MLA Seat/).length).toBeGreaterThan(1);
     });
 
+    it('lets operators jump into tenant-aware alias cleanup from the generic workspace', async () => {
+        render(<GeographyUploadPage />);
+
+        expect(await screen.findByText('Tenant Alias Cleanup')).toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('Account / Tenant'), {
+            target: { value: '10' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Open Tenant Workspace' }));
+
+        expect(useRouterPushMock).toHaveBeenCalledWith('/dashboard/shared-geography/workspace?tenant_id=10');
+    });
+
     it('shows a tenant-aware reuse flow when opened from launch readiness', async () => {
         useSearchParamsMock.mockReturnValue({
             get: (key) => (key === 'tenant_id' ? '7' : null),
@@ -78,6 +110,18 @@ describe('Admin geography page', () => {
         apiGetMock.mockImplementation(async (path) => {
             if (path === '/api/admin/constituencies') {
                 return { constituencies: ['Belagavi'] };
+            }
+            if (path === '/api/admin/mps') {
+                return {
+                    mps: [
+                        {
+                            tenant_id: 7,
+                            display_name: 'Aspirant A',
+                            parliamentary_constituency: 'Belagavi',
+                            seat_label: 'MP Seat',
+                        },
+                    ],
+                };
             }
             if (path === '/api/admin/mps/7/detail') {
                 return {

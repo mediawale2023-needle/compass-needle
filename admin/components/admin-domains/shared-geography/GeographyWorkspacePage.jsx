@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiGet, apiPut, apiDelete, apiUpload, apiPatch } from '@/lib/api';
 import ConfirmModal from '@/components/ConfirmModal';
 
@@ -325,8 +325,11 @@ function ReviewTable({ stations, onChange }) {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 export default function GeographyUploadPage() {
+    const router = useRouter();
     const searchParams = useSearchParams();
     const tenantId = searchParams.get('tenant_id');
+    const [tenantOptions, setTenantOptions]   = useState([]);
+    const [tenantPickerId, setTenantPickerId] = useState('');
     const [constituencies, setConstituencies] = useState([]);
     const [seatType, setSeatType]             = useState('mp');
     const [pConst, setPConst]                 = useState('');
@@ -358,6 +361,17 @@ export default function GeographyUploadPage() {
         apiGet('/api/admin/constituencies')
             .then(r => setConstituencies(r.constituencies || []))
             .catch(() => { });
+        apiGet('/api/admin/mps')
+            .then((r) => {
+                const options = (r.mps || []).map((item) => ({
+                    tenantId: String(item.tenant_id),
+                    label: item.display_name || item.mp_name || item.username || `Tenant ${item.tenant_id}`,
+                    constituency: item.parliamentary_constituency || item.profile?.constituency || '',
+                    seatLabel: item.seat_label || '',
+                }));
+                setTenantOptions(options);
+            })
+            .catch(() => { });
         loadSavedFiles();
     }, []);
 
@@ -373,6 +387,7 @@ export default function GeographyUploadPage() {
                 const profile = detail?.profile || {};
                 const nextSeatType = profile.seat_type || detail?.seat_type || 'mp';
                 const nextSeatName = profile.constituency || '';
+                setTenantPickerId(String(tenantId));
                 setTenantContext({
                     tenantId: String(tenantId),
                     displayName: profile.mp_name || 'Account',
@@ -390,6 +405,11 @@ export default function GeographyUploadPage() {
                 setTenantContext(null);
             })
             .finally(() => setTenantLoading(false));
+    }, [tenantId]);
+
+    useEffect(() => {
+        if (tenantId) return;
+        setTenantPickerId('');
     }, [tenantId]);
 
     useEffect(() => {
@@ -435,6 +455,11 @@ export default function GeographyUploadPage() {
             setSavedSeats(seats);
             setSavedData(data);
         } catch { }
+    };
+
+    const handleTenantPickerOpen = () => {
+        if (!tenantPickerId) return;
+        router.push(`/dashboard/shared-geography/workspace?tenant_id=${encodeURIComponent(tenantPickerId)}`);
     };
 
     const loadGeoAliases = async (tenant) => {
@@ -722,6 +747,41 @@ export default function GeographyUploadPage() {
                             Could not load tenant details for this geography setup flow.
                         </div>
                     )}
+                </div>
+            )}
+
+            {!tenantId && (
+                <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
+                    <div className="section-title" style={{ marginBottom: 8 }}>Tenant Alias Cleanup</div>
+                    <p style={{ color: '#6b7f76', fontSize: '0.82rem', marginTop: 0, marginBottom: 14 }}>
+                        Resolver alias inspection is tenant-scoped. Pick an account here to open the workspace in tenant-aware mode and inspect `geo_alias` rows safely.
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.5fr) auto', gap: 12, alignItems: 'end' }}>
+                        <div className="form-row" style={{ marginBottom: 0 }}>
+                            <label className="form-label" htmlFor="tenant-alias-workspace-picker">Account / Tenant</label>
+                            <select
+                                id="tenant-alias-workspace-picker"
+                                className="form-input"
+                                value={tenantPickerId}
+                                onChange={(e) => setTenantPickerId(e.target.value)}
+                            >
+                                <option value="">Select account…</option>
+                                {tenantOptions.map((option) => (
+                                    <option key={option.tenantId} value={option.tenantId}>
+                                        {option.label}{option.constituency ? ` · ${option.constituency}` : ''}{option.seatLabel ? ` · ${option.seatLabel}` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <button
+                            className="btn-primary"
+                            style={{ minWidth: 180 }}
+                            disabled={!tenantPickerId}
+                            onClick={handleTenantPickerOpen}
+                        >
+                            Open Tenant Workspace
+                        </button>
+                    </div>
                 </div>
             )}
 

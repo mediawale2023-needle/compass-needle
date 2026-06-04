@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-04
+- Request: Make the Shared Geography workspace expose the tenant-scoped alias cleanup flow instead of hiding it behind an undocumented `tenant_id` query parameter.
+- Summary: Added a tenant picker notice to the generic Shared Geography workspace so operators can jump directly into tenant-aware alias cleanup mode, then tightened the admin page test harness to mock `useRouter`/`/api/admin/mps` and added coverage for that navigation flow. Also fixed the new picker label association for accessibility and testability. Verified with `PATH=/opt/homebrew/bin:$PATH npm run test --prefix admin -- --run tests/geography.test.jsx`.
+- Files touched: `admin/components/admin-domains/shared-geography/GeographyWorkspacePage.jsx`, `admin/tests/geography.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This improves discoverability only. Operators still need a valid `tenant_id` context to inspect actual `geo_alias` rows, and the page could later benefit from a richer tenant search or a dedicated tenant selector route if the account list grows large.
+
+- Date: 2026-06-04
 - Request: Push the admin `geo_alias` inspection/deletion tool to GitHub for deployment.
 - Summary: Pushed commit `df13e59c` (`Add admin geo alias cleanup tool`) to `origin/main`, publishing the Shared Geography admin panel for tenant resolver aliases plus the supporting admin API list/delete endpoints.
 - Files touched: `TASK_LOG.md`
