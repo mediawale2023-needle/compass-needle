@@ -14,6 +14,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 - Date: 2026-06-04
 - Request: Push the parent-row geography resolver fix to GitHub for deployment.
+- Summary: Pushed commit `28ba5125` (`Prefer explicit parent locality rows`) to `origin/main`, publishing the seat-generic resolver behavior where explicit standalone parent rows beat inherited parent aliases from sub-locality rows while preserving `sub only` and `parent + sub` matching.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Production still depends on the backend EC2 deploy workflow completing successfully after this `main` push.
+
+- Date: 2026-06-04
+- Request: Push the parent-row geography resolver fix to GitHub for deployment.
 - Summary: Pending push from `main` for the standalone parent-locality preference fix in the shared geography resolver. This release intentionally excludes the unrelated local `tenant_overrides.json` changes.
 - Files touched: `TASK_LOG.md`
 - Risks or follow-ups: The live behavior depends on the backend EC2 deploy workflow completing after the `main` push, since this change is entirely in backend geography resolution.
