@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-04
+- Request: Push the manual-correction edit action upgrade to GitHub for deployment.
+- Summary: Pushed commit `09d386f8` (`Add manual correction edit actions`) to `origin/main`, publishing in-place `Edit`, `Update Correction`, and `Cancel` actions for tenant-specific manual geography corrections inside the unified Shared Geography workspace.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This deploy changes only the admin interaction flow; the backend storage model remains the same `geo_override` compatibility path under the hood until a deeper geography-model migration happens later.
+
+- Date: 2026-06-04
 - Request: Add an edit action to Manual Matching Corrections in the unified Shared Geography workspace.
 - Summary: Added in-place edit support for tenant-specific manual geography corrections inside `GeographyWorkspacePage.jsx`, including `Edit`, `Update Correction`, and `Cancel` flows that reuse the existing `geo_override` persistence path without forcing operators to delete and recreate a correction. Also extended the admin geography test to assert the new edit affordance. Verified with `PATH=/opt/homebrew/bin:$PATH npm run test --prefix admin -- --run tests/geography.test.jsx` and `PATH=/opt/homebrew/bin:$PATH npm run build --prefix admin`.
 - Files touched: `admin/components/admin-domains/shared-geography/GeographyWorkspacePage.jsx`, `admin/tests/geography.test.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
