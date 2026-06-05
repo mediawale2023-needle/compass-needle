@@ -2820,6 +2820,19 @@ def _run_citizen_case_enrichment(
         location_name=location_name,
     )
 
+    # TEMP DIAGNOSTIC (grep: INTENT_DIAG) — remove once voice-note intent routing
+    # is verified in production. Ties the message source to the final ack decision.
+    logger.info(
+        "INTENT_DIAG source=%s media_type=%s status=%s category=%s is_personal=%s ack=%r msg=%r",
+        "media" if media_source else "text",
+        media_source.get("media_type") if media_source else "",
+        status,
+        category,
+        is_personal_request,
+        (citizen_ack_message or "")[:120],
+        (message_body or "")[:240],
+    )
+
     if location_name and not final_constituency:
         lookup_key = str(location_name).lower().strip()
         combined_geo = {}
