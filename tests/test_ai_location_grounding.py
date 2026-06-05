@@ -174,6 +174,109 @@ def test_ask_chatgpt_agent_uses_shared_resolver_for_grounded_ai_hint(monkeypatch
     assert result["_match_confidence"] == "ai_hint_exact"
 
 
+def test_unmatched_location_defaults_to_seat_assembly_for_single_assembly_seat(monkeypatch):
+    """Seat-generic: an MLA (single-assembly) seat keeps the assembly certain even
+    when the ward cannot be matched. No constituency names are hardcoded — the
+    default comes purely from ``get_default_seat_assembly``."""
+    monkeypatch.setattr(ai_engine, "get_client", lambda: _stub_client({
+        "status": "new",
+        "detected_language": "Kannada",
+        "political_response": "ನಿಮ್ಮ ಅಹವಾಲು ದಾಖಲಿಸಲಾಗಿದೆ.",
+        "grievance_data": {
+            "categories": ["Infrastructure & Utilities"],
+            "problem_domain": "Infrastructure & Utilities",
+            "problem_subdomain": "Water Supply",
+            "convergence_program_type": None,
+            "location": "Teacher Colony",
+            "person": None,
+            "department": None,
+            "scheme": None,
+        },
+    }))
+    monkeypatch.setattr(ai_engine, "get_jurisdiction_context", lambda tenant_id=1: "")
+    monkeypatch.setattr(
+        ai_engine,
+        "_get_tenant_profile",
+        lambda tenant_id: {"mp_name": "Test MLA", "constituency": "Belgaum South", "state": "", "house": "Vidhan Sabha"},
+    )
+    # Neither the whole message nor the AI hint resolves to a specific ward.
+    monkeypatch.setattr(
+        ai_engine,
+        "resolve_geography_from_text",
+        lambda *_args, **_kwargs: {"location_resolved": False},
+    )
+    # The seat structurally maps to exactly one assembly.
+    monkeypatch.setattr(ai_engine, "get_default_seat_assembly", lambda **_kwargs: "Belgaum South")
+
+    result = ai_engine.ask_chatgpt_agent("Teacher Colony nalli 3 din neer illa", tenant_id=10)
+
+    assert result["status"] == "new"
+    assert result["assembly_constituency"] == "Belgaum South"
+    assert result["grievance_data"]["location"] is None
+    assert result["grievance_data"]["assembly_constituency"] == "Belgaum South"
+    assert result["_match_confidence"] == "seat_default"
+
+
+def test_unmatched_location_stays_unknown_for_multi_assembly_seat(monkeypatch):
+    """An MP (multi-assembly) seat cannot infer the assembly without a locality
+    signal, so it must remain Unknown."""
+    monkeypatch.setattr(ai_engine, "get_client", lambda: _stub_client({
+        "status": "new",
+        "detected_language": "Kannada",
+        "political_response": "ನಿಮ್ಮ ಅಹವಾಲು ದಾಖಲಿಸಲಾಗಿದೆ.",
+        "grievance_data": {
+            "categories": ["Infrastructure & Utilities"],
+            "problem_domain": "Infrastructure & Utilities",
+            "problem_subdomain": "Water Supply",
+            "convergence_program_type": None,
+            "location": "Teacher Colony",
+            "person": None,
+            "department": None,
+            "scheme": None,
+        },
+    }))
+    monkeypatch.setattr(ai_engine, "get_jurisdiction_context", lambda tenant_id=1: "")
+    monkeypatch.setattr(
+        ai_engine,
+        "_get_tenant_profile",
+        lambda tenant_id: {"mp_name": "Test MP", "constituency": "Belagavi", "state": "", "house": "Lok Sabha"},
+    )
+    monkeypatch.setattr(
+        ai_engine,
+        "resolve_geography_from_text",
+        lambda *_args, **_kwargs: {"location_resolved": False},
+    )
+    # Multi-assembly seat -> no single default.
+    monkeypatch.setattr(ai_engine, "get_default_seat_assembly", lambda **_kwargs: None)
+
+    result = ai_engine.ask_chatgpt_agent("Teacher Colony nalli 3 din neer illa", tenant_id=1)
+
+    assert result["assembly_constituency"] == "Unknown"
+    assert result["grievance_data"]["location"] is None
+    assert result["_match_confidence"] == "unmatched_cleared"
+
+
+def test_get_default_seat_assembly_is_seat_generic(monkeypatch):
+    """The default-assembly helper derives from seat structure, not place names."""
+    import modules.geography_resolver as geo
+
+    # MLA seat -> the seat itself is the single assembly.
+    monkeypatch.setattr(
+        geo,
+        "_get_tenant_seat_context",
+        lambda tid: {"seat_type": "mla", "seat_name": "Belgaum South", "scope_parliamentary": "Belgaum", "constituency": "Belgaum South"},
+    )
+    assert geo.get_default_seat_assembly(tenant_id=10) == "Belgaum South"
+
+    # MP seat spanning multiple assemblies -> cannot infer a single assembly.
+    monkeypatch.setattr(
+        geo,
+        "_get_tenant_seat_context",
+        lambda tid: {"seat_type": "mp", "seat_name": "Belagavi", "scope_parliamentary": "Belagavi", "constituency": "Belagavi"},
+    )
+    assert geo.get_default_seat_assembly(tenant_id=2, scope_parliamentary="Belagavi") is None
+
+
 def test_ask_chatgpt_agent_clears_sentence_like_ai_location(monkeypatch):
     monkeypatch.setattr(ai_engine, "get_client", lambda: _stub_client({
         "status": "new",

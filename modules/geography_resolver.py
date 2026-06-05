@@ -2014,6 +2014,65 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
         "match_type": winner["type"],
     }
 
+
+def get_seat_scope_assemblies(
+    tenant_id: Optional[int] = None,
+    scope_parliamentary: Optional[str] = None,
+) -> Set[str]:
+    """Return the distinct assemblies that fall within a tenant's seat scope.
+
+    Seat-generic and tenant-agnostic: it inspects the loaded geography index using
+    the same scoping rules as the matcher (seat_type + seat_name for a known
+    tenant, else the parliamentary constituency). An MLA seat yields a single
+    assembly; an MP seat yields all assemblies of its parliamentary constituency.
+    """
+    if not _geography_index["loaded"]:
+        load_geography_index()
+
+    tenant_context = _get_tenant_seat_context(tenant_id) if tenant_id is not None else None
+    seat_scope_type = normalize((tenant_context or {}).get("seat_type", ""))
+    seat_scope_name = normalize((tenant_context or {}).get("seat_name", ""))
+    parl = scope_parliamentary or (tenant_context or {}).get("scope_parliamentary")
+
+    assemblies: Set[str] = set()
+    for _, data in _geography_index["assemblies"].items():
+        if tenant_context:
+            if seat_scope_type and normalize(data.get("seat_type", "")) != seat_scope_type:
+                continue
+            if seat_scope_name and normalize(data.get("seat_name", "")) != seat_scope_name:
+                continue
+        elif parl and normalize(data["parl"]) != normalize(parl):
+            continue
+        if data.get("assembly"):
+            assemblies.add(data["assembly"])
+    return assemblies
+
+
+def get_default_seat_assembly(
+    tenant_id: Optional[int] = None,
+    scope_parliamentary: Optional[str] = None,
+) -> Optional[str]:
+    """Return the assembly a seat resolves to when a specific locality is unknown.
+
+    This encodes a purely structural, seat-generic fact: an MLA seat *is* a single
+    assembly, so the assembly is certain even without a ward-level match. A
+    multi-assembly (MP) seat cannot be inferred without a locality signal and
+    returns ``None`` so callers keep it Unknown. No place names are special-cased.
+    """
+    tenant_context = _get_tenant_seat_context(tenant_id) if tenant_id is not None else None
+    if tenant_context and normalize(tenant_context.get("seat_type", "")) == "mla":
+        seat = (tenant_context.get("seat_name") or "").strip()
+        if seat:
+            return seat
+
+    # Structural fallback: if the scope provably contains exactly one assembly,
+    # that assembly is the only possibility regardless of how the seat is labelled.
+    assemblies = get_seat_scope_assemblies(tenant_id=tenant_id, scope_parliamentary=scope_parliamentary)
+    if len(assemblies) == 1:
+        return next(iter(assemblies))
+    return None
+
+
 # --- WRAPPERS ---
 def _get_tenant_constituency(tenant_id):
     """Return the parliamentary constituency for a given tenant_id.

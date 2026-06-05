@@ -9,7 +9,10 @@ import unicodedata  # FIX P1: Used for emoji/symbol detection in detect_input_la
 import re
 from openai import OpenAI
 from openai import RateLimitError, APIError, APIConnectionError
-from modules.geography_resolver import resolve_location as resolve_geography_from_text
+from modules.geography_resolver import (
+    resolve_location as resolve_geography_from_text,
+    get_default_seat_assembly,
+)
 from .prompts import (
     CONVERGENCE_PROGRAM_TYPES_TEXT,
     SYSTEM_PROMPT,
@@ -251,6 +254,73 @@ def _location_is_grounded_in_message(candidate_location: str, raw_message: str) 
 
 def _should_require_location(data: dict) -> bool:
     return location_required_for_grievance(data.get("grievance_data") or {})
+
+
+def _apply_unmatched_geography(
+    data: dict,
+    *,
+    tenant_id,
+    scope_parliamentary,
+    detected_lang: str,
+    effective_user_message: str,
+    base_confidence: str,
+) -> None:
+    """Geography fallback when no specific locality could be matched.
+
+    Seat-generic and multi-tenant: for a single-assembly (MLA) seat the assembly
+    is still certain — the tenant's own seat — even when the ward is unknown, so
+    the assembly is set and the ward is left blank. A multi-assembly (MP) seat
+    cannot be inferred without a locality signal and stays Unknown. The decision
+    is derived entirely from seat structure via ``get_default_seat_assembly`` —
+    no constituency names are hardcoded.
+    """
+    default_assembly = None
+    try:
+        default_assembly = get_default_seat_assembly(
+            tenant_id=tenant_id,
+            scope_parliamentary=scope_parliamentary,
+        )
+    except Exception as e:
+        logger.warning("Seat-default assembly lookup failed: %s", e)
+
+    original_status = data.get("status", "").lower()
+
+    if default_assembly:
+        # Assembly is structurally certain; only the ward stays unknown.
+        data["assembly_constituency"] = default_assembly
+        data["constituency"] = default_assembly
+        data["_match_confidence"] = "seat_default"
+        if original_status not in ("emergency", "offensive", "irrelevant"):
+            data["status"] = "new"
+            data["political_response"] = get_generic_ack_reply(
+                detected_lang,
+                effective_user_message,
+            )
+        if "grievance_data" in data:
+            data["grievance_data"]["location"] = None
+            data["grievance_data"]["assembly_constituency"] = default_assembly
+            data["grievance_data"]["_match_confidence"] = "seat_default"
+        return
+
+    data["assembly_constituency"] = "Unknown"
+    data["constituency"] = "Unknown"
+    data["_match_confidence"] = base_confidence
+    if original_status not in ("emergency", "offensive", "irrelevant") and _should_require_location(data):
+        data["status"] = "awaiting_location"
+        data["political_response"] = get_missing_location_reply(
+            detected_lang,
+            effective_user_message,
+        )
+    elif original_status not in ("emergency", "offensive", "irrelevant"):
+        data["status"] = "new"
+        data["political_response"] = get_generic_ack_reply(
+            detected_lang,
+            effective_user_message,
+        )
+    if "grievance_data" in data:
+        data["grievance_data"]["location"] = None
+        data["grievance_data"]["assembly_constituency"] = "Unknown"
+        data["grievance_data"]["_match_confidence"] = base_confidence
 
 _OFFENSIVE_WARNING_NATIVE = {
     "Hindi": STATIC_RESPONSES["__WARN_HINDI__"],
@@ -819,28 +889,14 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         ai_loc,
                         effective_user_message[:160],
                     )
-                    data["assembly_constituency"] = "Unknown"
-                    data["constituency"] = "Unknown"
-                    data["_match_confidence"] = "ungrounded_cleared"
-
-                    original_status = data.get("status", "").lower()
-                    if original_status not in ("emergency", "offensive", "irrelevant") and _should_require_location(data):
-                        data["status"] = "awaiting_location"
-                        data["political_response"] = get_missing_location_reply(
-                            detected_lang,
-                            effective_user_message,
-                        )
-                    elif original_status not in ("emergency", "offensive", "irrelevant"):
-                        data["status"] = "new"
-                        data["political_response"] = get_generic_ack_reply(
-                            detected_lang,
-                            effective_user_message,
-                        )
-
-                    if "grievance_data" in data:
-                        data["grievance_data"]["location"] = None
-                        data["grievance_data"]["assembly_constituency"] = "Unknown"
-                        data["grievance_data"]["_match_confidence"] = "ungrounded_cleared"
+                    _apply_unmatched_geography(
+                        data,
+                        tenant_id=tenant_id,
+                        scope_parliamentary=_tenant_const,
+                        detected_lang=detected_lang,
+                        effective_user_message=effective_user_message,
+                        base_confidence="ungrounded_cleared",
+                    )
                 elif ai_loc:
                     ai_hint_geo = {"location_resolved": False}
                     try:
@@ -878,26 +934,14 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                             grounded_constituency,
                         )
                     else:
-                        data["assembly_constituency"] = "Unknown"
-                        data["constituency"] = "Unknown"
-                        data["_match_confidence"] = "unmatched_cleared"
-                        original_status = data.get("status", "").lower()
-                        if original_status not in ("emergency", "offensive", "irrelevant") and _should_require_location(data):
-                            data["status"] = "awaiting_location"
-                            data["political_response"] = get_missing_location_reply(
-                                detected_lang,
-                                effective_user_message,
-                            )
-                        elif original_status not in ("emergency", "offensive", "irrelevant"):
-                            data["status"] = "new"
-                            data["political_response"] = get_generic_ack_reply(
-                                detected_lang,
-                                effective_user_message,
-                            )
-                        if "grievance_data" in data:
-                            data["grievance_data"]["location"] = None
-                            data["grievance_data"]["assembly_constituency"] = "Unknown"
-                            data["grievance_data"]["_match_confidence"] = "unmatched_cleared"
+                        _apply_unmatched_geography(
+                            data,
+                            tenant_id=tenant_id,
+                            scope_parliamentary=_tenant_const,
+                            detected_lang=detected_lang,
+                            effective_user_message=effective_user_message,
+                            base_confidence="unmatched_cleared",
+                        )
                         logger.info("Location UNMATCHED after resolver-backed AI hint: '%s'", ai_loc)
                         
             except Exception as e:

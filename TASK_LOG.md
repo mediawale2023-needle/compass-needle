@@ -12,6 +12,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-06-05
+- Request: Geography resolver still maps wrong (case #3345 / tenant 10, "Teacher Colony nalli 3 din neer illa" mapping to "Kariyappa Colony Tilakwadi"). Fix must be seat-generic and multi-tenant, no hardcoding.
+- Summary: Diagnosed the wrong mapping as a poisoned tenant alias/override row that short-circuited the resolver before any matching ran (db_alias path, score 1000/990) — not the matching logic that was tightened. After the user's data reset removed the bad aliases, the same message under-resolved to Unknown. Added a seat-generic fallback so jurisdiction precision is bounded by seat structure: an MLA (single-assembly) seat keeps its assembly certain even when the ward can't be matched, while an MP (multi-assembly) seat stays Unknown. New shared helpers `get_seat_scope_assemblies()` and `get_default_seat_assembly()` derive this purely from the geography index + tenant seat context (no place names hardcoded). The classifier's two "unmatched" branches were de-duplicated into `_apply_unmatched_geography()` which applies the seat default. Verified with `tests/test_ai_location_grounding.py` (16 passed), `tests/test_whatsapp_geography_decision.py` (15), and `tests/test_geography_resolver.py` (28).
+- Files touched: `modules/geography_resolver.py`, `sansadx_backend/ai_engine.py`, `tests/test_ai_location_grounding.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: For an MLA tenant, any in-scope grievance whose ward can't be matched now resolves the assembly to the tenant's own seat (ward left blank) instead of Unknown — correct by definition for a single-assembly seat but it does change which cases show Unknown. The separate case-panel "SAVE GEOGRAPHY" action still only locks a single case and does not create a reusable alias; learned corrections would be a deliberate follow-up.
+
 - Date: 2026-06-04
 - Request: Push the AI-hint geography cleanup to GitHub for deployment.
 - Summary: Pushed commit `9c7d78f1` (`Unify AI geography hint resolution`) to `origin/main`, publishing the removal of the legacy classifier-side geography matcher so AI-extracted locations now go back through the shared resolver before they can save location or assembly.
