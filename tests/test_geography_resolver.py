@@ -406,12 +406,30 @@ def test_resolve_location_supports_voice_note_spelling_drift_for_santibastawad(s
 
 
 def test_resolve_constituency_scopes_lookup_by_tenant(monkeypatch, stub_geography_index):
-    geography_resolver.reload_index()
     monkeypatch.setattr(geography_resolver, "_get_tenant_constituency", lambda tenant_id: "Belagavi")
+    seen = {}
+    monkeypatch.setattr(
+        geography_resolver,
+        "resolve_location",
+        lambda text, scope_parliamentary=None, tenant_id=None: seen.update({
+            "text": text,
+            "scope_parliamentary": scope_parliamentary,
+            "tenant_id": tenant_id,
+        }) or {
+            "location_resolved": True,
+            "matched_value": "Santibastawad",
+            "assembly_constituency": "Belgaum Rural",
+        },
+    )
 
     matched, assembly = geography_resolver.resolve_constituency("shanti baswad road issue", tenant_id=3)
 
-    assert matched in {"Santibastawad", "Santibaswad", "Santi Baswad"}
+    assert seen == {
+        "text": "shanti baswad road issue",
+        "scope_parliamentary": "Belagavi",
+        "tenant_id": 3,
+    }
+    assert matched == "Santibastawad"
     assert assembly == "Belgaum Rural"
 
 
@@ -433,16 +451,13 @@ def test_get_tenant_constituency_resolves_mla_assembly_to_parent_parliamentary(m
     assert resolved_scope == "Belagavi"
 
 
-def test_resolve_location_uses_db_backed_geo_aliases(monkeypatch, stub_geography_index):
+def test_resolve_location_uses_manual_tenant_overrides_before_shared_geography(monkeypatch, stub_geography_index):
     geography_resolver.reload_index()
     monkeypatch.setattr(
         geography_resolver,
-        "_load_tenant_geo_aliases",
+        "_load_tenant_overrides",
         lambda tenant_id: {
-            "ಬಾಳೆಗುಂದ್ರಿ": {
-                "assembly": "Belgaum Rural",
-                "display": "Balekundri",
-            }
+            "ಬಾಳೆಗುಂದ್ರಿ": "Belgaum Rural",
         },
     )
 
@@ -454,7 +469,7 @@ def test_resolve_location_uses_db_backed_geo_aliases(monkeypatch, stub_geography
 
     assert result["location_resolved"] is True
     assert result["assembly_constituency"] == "Belgaum Rural"
-    assert result["matched_value"] == "Balekundri"
+    assert result["matched_value"] == "ಬಾಳೆಗುಂದ್ರಿ".title()
 
 
 def test_resolve_location_filters_by_tenant_seat_context(monkeypatch, stub_geography_index):

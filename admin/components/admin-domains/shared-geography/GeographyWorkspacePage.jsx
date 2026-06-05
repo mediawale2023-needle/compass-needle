@@ -1110,9 +1110,9 @@ export default function GeographyUploadPage() {
 
             {!tenantId && (
                 <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
-                    <div className="section-title" style={{ marginBottom: 8 }}>Advanced Alias Diagnostics</div>
+                    <div className="section-title" style={{ marginBottom: 8 }}>Open Account Workspace</div>
                     <p style={{ color: '#6b7f76', fontSize: '0.82rem', marginTop: 0, marginBottom: 14 }}>
-                        Alias inspection is tenant-scoped and meant for rare cleanup or debugging. Pick an account here only when you need to inspect internal generated helpers.
+                        Shared geography is seat-scoped, but manual corrections are account-scoped. Pick an account here to open its tenant-aware workspace.
                     </p>
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.5fr) auto', gap: 12, alignItems: 'end' }}>
                         <div className="form-row" style={{ marginBottom: 0 }}>
@@ -1140,106 +1140,6 @@ export default function GeographyUploadPage() {
                             Open Tenant Workspace
                         </button>
                     </div>
-                </div>
-            )}
-
-            {tenantId && (
-                <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                        <div>
-                            <div className="section-title" style={{ marginBottom: 6 }}>Advanced Alias Diagnostics</div>
-                            <p style={{ color: '#6b7f76', fontSize: '0.82rem', margin: 0 }}>
-                                Open only for rare debugging or cleanup when internal generated aliases are suspected to be poisoning matching.
-                            </p>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <span className="badge badge-amber">{geoAliases.length} internal alias{geoAliases.length === 1 ? '' : 'es'}</span>
-                            <button
-                                className={showAliasDiagnostics ? 'btn-secondary' : 'btn-primary'}
-                                style={{ fontSize: '0.74rem' }}
-                                onClick={() => setShowAliasDiagnostics((current) => !current)}
-                            >
-                                {showAliasDiagnostics ? 'Hide Diagnostics' : 'Open Diagnostics'}
-                            </button>
-                        </div>
-                    </div>
-
-                    {showAliasDiagnostics && (
-                        <>
-                            <div style={{ color: '#9a3412', fontSize: '0.76rem', lineHeight: 1.5, marginTop: 12, marginBottom: 12 }}>
-                                Deleting an alias takes effect immediately for tenant-scoped resolver lookups, but generated aliases may return after future geography regeneration unless the underlying geography data or alias-generation rules are fixed too.
-                            </div>
-
-                            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-                                <input
-                                    className="form-input"
-                                    style={{ flex: 1, minWidth: 220, marginBottom: 0 }}
-                                    placeholder="Search alias key, display, canonical locality, or assembly…"
-                                    value={geoAliasQuery}
-                                    onChange={(e) => setGeoAliasQuery(e.target.value)}
-                                />
-                                <button
-                                    className="btn-secondary"
-                                    style={{ fontSize: '0.74rem' }}
-                                    onClick={() => loadGeoAliases(tenantId)}
-                                    disabled={geoAliasLoading}
-                                >
-                                    {geoAliasLoading ? 'Refreshing…' : 'Refresh aliases'}
-                                </button>
-                                <span className="badge badge-slate">{filteredGeoAliases.length} shown</span>
-                                <span className="badge badge-amber">{geoAliases.length} total</span>
-                            </div>
-
-                            <div style={{ border: '1px solid #e2ebe5', borderRadius: 12, overflow: 'hidden' }}>
-                                <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                                        <thead style={{ background: '#f4f6f5' }}>
-                                            <tr style={{ borderBottom: '1px solid #e2ebe5' }}>
-                                                <th style={TH}>Alias Key</th>
-                                                <th style={TH}>Display</th>
-                                                <th style={TH}>Assembly</th>
-                                                <th style={TH}>Canonical Locality</th>
-                                                <th style={TH}>Source</th>
-                                                <th style={{ ...TH, width: 90 }}>Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {geoAliasLoading ? (
-                                                <tr>
-                                                    <td colSpan={6} style={{ ...TD, textAlign: 'center', color: '#6b7f76', padding: '18px 12px' }}>
-                                                        Loading aliases…
-                                                    </td>
-                                                </tr>
-                                            ) : filteredGeoAliases.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan={6} style={{ ...TD, textAlign: 'center', color: '#6b7f76', padding: '18px 12px' }}>
-                                                        {geoAliases.length === 0 ? 'No tenant geo aliases found.' : 'No aliases match this search.'}
-                                                    </td>
-                                                </tr>
-                                            ) : filteredGeoAliases.map((item) => (
-                                                <tr key={item.id} style={{ borderBottom: '1px solid #f0f4f1' }}>
-                                                    <td style={{ ...TD, fontFamily: 'monospace', fontSize: '0.76rem' }}>{item.key}</td>
-                                                    <td style={TD}>{item.display || <span style={{ color: '#9ca3af' }}>—</span>}</td>
-                                                    <td style={TD}>{item.assembly || <span style={{ color: '#9ca3af' }}>—</span>}</td>
-                                                    <td style={TD}>{item.canonical_locality || <span style={{ color: '#9ca3af' }}>—</span>}</td>
-                                                    <td style={TD}>{item.source || <span style={{ color: '#9ca3af' }}>—</span>}</td>
-                                                    <td style={{ ...TD, whiteSpace: 'nowrap' }}>
-                                                        <button
-                                                            className="btn-danger"
-                                                            style={{ fontSize: '0.72rem', padding: '4px 10px' }}
-                                                            onClick={() => setGeoAliasDeleteTarget(item)}
-                                                        >
-                                                            Delete
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </>
-                    )}
                 </div>
             )}
 

@@ -81,7 +81,7 @@ describe('Admin geography page', () => {
         render(<GeographyUploadPage />);
 
         expect(await screen.findByText('Core Geography')).toBeInTheDocument();
-        expect(await screen.findByText('Advanced Alias Diagnostics')).toBeInTheDocument();
+        expect(await screen.findByText('Open Account Workspace')).toBeInTheDocument();
         await waitFor(() => {
             expect(apiGetMock).toHaveBeenCalledWith('/api/admin/mps');
             expect(apiGetMock).toHaveBeenCalledWith('/api/admin/geography/parliamentary?seat_type=mp');
@@ -93,10 +93,10 @@ describe('Admin geography page', () => {
         expect(screen.getAllByText(/MP Seat|MLA Seat/).length).toBeGreaterThan(1);
     });
 
-    it('lets operators jump into tenant-aware alias cleanup from the generic workspace', async () => {
+    it('lets operators jump into the tenant-aware workspace from the generic page', async () => {
         render(<GeographyUploadPage />);
 
-        expect(await screen.findByText('Advanced Alias Diagnostics')).toBeInTheDocument();
+        expect(await screen.findByText('Open Account Workspace')).toBeInTheDocument();
 
         fireEvent.change(screen.getByLabelText('Account / Tenant'), {
             target: { value: '10' },

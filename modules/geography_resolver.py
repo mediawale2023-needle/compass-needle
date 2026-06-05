@@ -507,20 +507,13 @@ def _load_tenant_overrides(tenant_id):
 
     Reads tenant-scoped manual corrections from the DB (primary) and falls back
     to tenant_overrides.json if the DB query fails. Legacy `geo_override` rows
-    are only honored when they do not collide with a generated `geo_alias`
-    key for the same tenant.
+    are still treated as manual corrections for backward compatibility, but
+    generated `geo_alias` rows are no longer part of runtime matching.
     """
     try:
         from sansadx_backend.db import SessionLocal, TenantOverride
         _db = SessionLocal()
         try:
-            alias_keys = {
-                str(row.key or "").strip()
-                for row in _db.query(TenantOverride).filter(
-                    TenantOverride.override_type == "geo_alias",
-                    TenantOverride.tenant_id == tenant_id,
-                ).all()
-            }
             rows = _db.query(TenantOverride).filter(
                 TenantOverride.override_type.in_(["geo_manual_override", "geo_override"]),
                 TenantOverride.tenant_id == tenant_id,
@@ -529,8 +522,6 @@ def _load_tenant_overrides(tenant_id):
                 overrides = {}
                 for r in rows:
                     key = str(r.key or "").strip()
-                    if r.override_type == "geo_override" and key in alias_keys:
-                        continue
                     overrides[key] = r.value
                 if overrides:
                     return overrides
@@ -556,37 +547,8 @@ def _load_tenant_overrides(tenant_id):
 
 
 def _load_tenant_geo_aliases(tenant_id: int) -> dict[str, dict[str, str]]:
-    """Load DB-backed generated geography aliases for a tenant."""
-    try:
-        from sansadx_backend.db import SessionLocal, TenantOverride
-        _db = SessionLocal()
-        try:
-            rows = _db.query(TenantOverride).filter(
-                TenantOverride.override_type == "geo_alias",
-                TenantOverride.tenant_id == tenant_id,
-            ).all()
-            aliases: dict[str, dict[str, str]] = {}
-            for row in rows:
-                try:
-                    payload = json.loads(row.value) if isinstance(row.value, str) else row.value
-                except Exception:
-                    payload = {}
-                if isinstance(payload, dict):
-                    assembly = str(payload.get("assembly") or "").strip()
-                    display = str(payload.get("display") or row.key or "").strip()
-                else:
-                    assembly = str(row.value or "").strip()
-                    display = str(row.key or "").strip()
-                if assembly:
-                    aliases[str(row.key or "").strip()] = {
-                        "assembly": assembly,
-                        "display": display or str(row.key or "").strip(),
-                    }
-            return aliases
-        finally:
-            _db.close()
-    except Exception:
-        return {}
+    """Deprecated: generated geo_alias rows are no longer used at runtime."""
+    return {}
 
 
 _geography_index = {
@@ -927,6 +889,10 @@ def _derive_locality_aliases(
                 "bazar", "bazaar", "peth", "pet", "galli", "gali", "wadi", "wada",
                 "nagar", "road", "marg", "maharaj", "depot", "circle", "school",
                 "college", "primary", "high", "govt", "government",
+                # container/layout tokens — single-word suffix aliases from these
+                # are meaningless and cause false-positive geo_alias DB rows
+                "colony", "area", "camp", "cross", "extension", "layout", "lane",
+                "market", "mohalla", "quarters", "sector", "street",
             }
             for index in range(1, len(words)):
                 suffix_words = words[index:]
@@ -1710,49 +1676,6 @@ def _rank_location_candidates(
                     "type": "god_mode",
                 }]
 
-    # 2. GENERATED TENANT ALIASES
-    if tenant_id is not None:
-        tenant_aliases = _load_tenant_geo_aliases(int(tenant_id))
-        for alias_key, payload in tenant_aliases.items():
-            alias_forms = _build_match_forms(alias_key)
-            if not alias_forms:
-                continue
-            if alias_forms & query_forms:
-                return [{
-                    "location_resolved": True,
-                    "assembly_constituency": payload["assembly"],
-                    "matched_value": _display_location_name(payload["display"]),
-                    "confidence": "db_alias_exact",
-                    "confidence_level": "exact",
-                    "match_type": "db_alias_exact",
-                    "assembly": payload["assembly"],
-                    "parl": scope_parliamentary or (tenant_context or {}).get("scope_parliamentary"),
-                    "seat_type": (tenant_context or {}).get("seat_type"),
-                    "seat_name": (tenant_context or {}).get("seat_name"),
-                    "name": payload["display"],
-                    "matched_name": _display_location_name(payload["display"]),
-                    "score": 1000,
-                    "type": "db_alias_exact",
-                }]
-            for alias_form in alias_forms:
-                if len(alias_form) >= 5 and any(re.search(r'\b' + re.escape(alias_form) + r'\b', qf) for qf in query_forms):
-                    return [{
-                        "location_resolved": True,
-                        "assembly_constituency": payload["assembly"],
-                        "matched_value": _display_location_name(payload["display"]),
-                        "confidence": "db_alias_boundary",
-                        "confidence_level": "boundary",
-                        "match_type": "db_alias_boundary",
-                        "assembly": payload["assembly"],
-                        "parl": scope_parliamentary or (tenant_context or {}).get("scope_parliamentary"),
-                        "seat_type": (tenant_context or {}).get("seat_type"),
-                        "seat_name": (tenant_context or {}).get("seat_name"),
-                        "name": payload["display"],
-                        "matched_name": _display_location_name(payload["display"]),
-                        "score": 980,
-                        "type": "db_alias_boundary",
-                    }]
-
     seat_scope_type = normalize((tenant_context or {}).get("seat_type", ""))
     seat_scope_name = normalize((tenant_context or {}).get("seat_name", ""))
 
@@ -2155,132 +2078,20 @@ def reload_index():
 # ==========================================
 def auto_generate_overrides():
     """
-    Scans persisted geography data, extracts locality→assembly mappings, and
-    writes generated helper aliases to the DB as geo_alias rows.
+    Deprecated compatibility hook.
+
+    Generated geo_alias rows are no longer a supported runtime layer because
+    they can become authoritative and poison matching. This function now
+    removes any leftover generated alias rows instead of regenerating them.
     """
-    seat_to_tenants = {}
     try:
-        from sansadx_backend.db import SessionLocal, Tenant, get_all_geography_data, build_seat_key, derive_seat_type
-        db = SessionLocal()
-        tenant_rows = db.query(Tenant).all()
-        for t in tenant_rows:
-            if not t.constituency or t.constituency == "System":
-                continue
-            seat_to_tenants.setdefault(build_seat_key(derive_seat_type(t), t.constituency), []).append(t.id)
-        db.close()
-        geography_rows = get_all_geography_data()
-    except Exception as e:
-        logger.warning(f"Could not load geography data from DB: {e}")
-        geography_rows = []
-
-    if not geography_rows and GEOGRAPHY_BASE_PATH and GEOGRAPHY_BASE_PATH.exists():
-        for parl_dir in sorted(GEOGRAPHY_BASE_PATH.iterdir()):
-            if not parl_dir.is_dir():
-                continue
-            for json_file in sorted(parl_dir.glob("*.json")):
-                try:
-                    with open(json_file, "r", encoding="utf-8") as f:
-                        stations = json.load(f)
-                except Exception:
-                    continue
-                geography_rows.append({
-                    "tenant_id": None,
-                    "seat_type": "mp",
-                    "seat_name": parl_dir.name,
-                    "parliamentary_constituency": parl_dir.name,
-                    "assembly": json_file.stem,
-                    "stations": stations if isinstance(stations, list) else [],
-                })
-
-    if not geography_rows:
-        logger.warning("No geography data available for override generation")
-        return {"error": "No geography data found"}
-
-    stats = {}
-    total_written = 0
-
-    grouped_rows = {}
-    for row in geography_rows:
-        parl_name = row["parliamentary_constituency"]
-        seat_type = row.get("seat_type") or "mp"
-        seat_name = row.get("seat_name") or parl_name
-        tenant_ids = seat_to_tenants.get(build_seat_key(seat_type, seat_name), [])
-        if not tenant_ids:
-            logger.info(f"No tenant found for seat '{seat_type}:{seat_name}', skipping override generation")
-            continue
-        for tenant_id in tenant_ids:
-            grouped_rows.setdefault((seat_type, seat_name, parl_name, tenant_id), []).append(row)
-
-    for (_seat_type, seat_name, parl_name, tenant_id), rows in grouped_rows.items():
-        overrides_map = {}
-        alias_payloads = {}
-        ambiguous_localities: Dict[str, Set[str]] = {}
-        for row in rows:
-            assembly_name = row["assembly"]
-            stations = row.get("stations") or []
-            for station in stations:
-                locality = station.get("locality", "").replace("\n", " ").strip()
-                if not locality or len(locality) < 3 or _is_meta_locality(locality):
-                    continue
-                display = _display_location_name(locality)
-                station_alias_forms = _generated_alias_forms(station, parl_name)
-                for key in sorted(station_alias_forms or {normalize(locality)}):
-                    if not key:
-                        continue
-                    if key in overrides_map and overrides_map[key] != assembly_name:
-                        ambiguous_localities.setdefault(key, {overrides_map[key]}).add(assembly_name)
-                        overrides_map.pop(key, None)
-                        alias_payloads.pop(key, None)
-                        continue
-                    if key in ambiguous_localities:
-                        ambiguous_localities[key].add(assembly_name)
-                        continue
-                    if key not in overrides_map:
-                        overrides_map[key] = assembly_name
-                        alias_payloads[key] = {
-                            "assembly": assembly_name,
-                            "display": display,
-                            "canonical_locality": locality,
-                            "source": "geography_data",
-                        }
-
-        try:
-            from sansadx_backend.db import SessionLocal as SL, TenantOverride
-            from sqlalchemy import text as sa_text
-            db = SL()
-            try:
-                db.execute(
-                    sa_text("DELETE FROM tenant_overrides WHERE tenant_id = :tid AND override_type = 'geo_alias'"),
-                    {"tid": tenant_id}
-                )
-                db.commit()
-                for loc_key, assembly_val in overrides_map.items():
-                    db.add(TenantOverride(
-                        tenant_id=tenant_id,
-                        override_type="geo_alias",
-                        key=loc_key,
-                        value=json.dumps(alias_payloads.get(loc_key) or {
-                            "assembly": assembly_val,
-                            "display": loc_key,
-                            "source": "geography_data",
-                        }),
-                    ))
-                
-                db.commit()
-                total_written += len(overrides_map)
-                logger.info(f"Wrote {len(overrides_map)} geo_alias rows for tenant {tenant_id} ({parl_name})")
-            finally:
-                db.close()
-        except Exception as e:
-            logger.error(f"Failed to write geo_alias rows to DB for {parl_name}: {e}")
-        
-        stats[parl_name] = {
-            "tenant_id": tenant_id,
-            "overrides_written": len(overrides_map),
-            "ambiguous_localities_skipped": {
-                locality: sorted(assemblies)
-                for locality, assemblies in sorted(ambiguous_localities.items())
-            },
+        from sansadx_backend.db import purge_generated_geo_aliases
+        result = purge_generated_geo_aliases()
+        return {
+            "success": True,
+            "aliases_deleted": result.get("deleted", 0),
+            "tenants": result.get("tenants", 0),
         }
-
-    return {"success": True, "total_written": total_written, "stats": stats}
+    except Exception as e:
+        logger.warning("Could not purge deprecated generated geo_alias rows: %s", e)
+        return {"success": False, "error": str(e)}

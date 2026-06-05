@@ -88,19 +88,25 @@ def _production_db_only_geography() -> bool:
 
 
 def _refresh_geography_runtime() -> None:
-    """Regenerate live lookup rows and reload this worker's in-memory index."""
+    """Purge deprecated generated alias rows and reload this worker's index."""
     try:
         from modules.geography_resolver import auto_generate_overrides, reload_index
         from sansadx_backend.db import cleanup_legacy_generated_geo_overrides
 
-        auto_generate_overrides()
+        purge_result = auto_generate_overrides()
+        if purge_result.get("aliases_deleted"):
+            logger.info(
+                "Purged %s deprecated generated geo_alias rows across %s tenants",
+                purge_result.get("aliases_deleted"),
+                purge_result.get("tenants"),
+            )
         cleanup_result = cleanup_legacy_generated_geo_overrides()
         if cleanup_result.get("deleted"):
             logger.info("Cleaned %s legacy generated geo_override rows across %s tenants",
                         cleanup_result.get("deleted"), cleanup_result.get("tenants"))
         reload_index()
     except Exception as exc:
-        logger.warning("Geography override regeneration / index reload failed: %s", exc)
+        logger.warning("Geography alias purge / index reload failed: %s", exc)
 
 
 def _raise_on_blocking_geography_validation(validation: dict) -> None:

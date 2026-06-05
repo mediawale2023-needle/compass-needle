@@ -642,13 +642,6 @@ def get_geo_overrides(tenant_id: int) -> dict:
     """Return manual {location_name: constituency} corrections for a tenant."""
     db = SessionLocal()
     try:
-        alias_keys = {
-            str(row.key or "").strip()
-            for row in db.query(TenantOverride).filter(
-                TenantOverride.override_type == "geo_alias",
-                TenantOverride.tenant_id == tenant_id,
-            ).all()
-        }
         rows = db.query(TenantOverride).filter(
             TenantOverride.override_type.in_(["geo_manual_override", "geo_override"]),
             TenantOverride.tenant_id == tenant_id,
@@ -656,8 +649,6 @@ def get_geo_overrides(tenant_id: int) -> dict:
         overrides = {}
         for row in rows:
             key = str(row.key or "").strip()
-            if row.override_type == "geo_override" and key in alias_keys:
-                continue
             overrides[key] = row.value
         return overrides
     finally:
@@ -805,19 +796,12 @@ def get_all_overrides() -> dict:
     try:
         result = {}
         geo_overrides = {}
-        alias_keys_by_tenant: dict[str, set[str]] = {}
         rows = db.query(TenantOverride).all()
-        for r in rows:
-            if r.override_type == "geo_alias":
-                tid = str(r.tenant_id)
-                alias_keys_by_tenant.setdefault(tid, set()).add(str(r.key or "").strip())
         for r in rows:
             if r.override_type == "phone_mapping":
                 result[r.key] = int(r.value)
             elif r.override_type in ("geo_manual_override", "geo_override"):
                 tid = str(r.tenant_id)
-                if r.override_type == "geo_override" and str(r.key or "").strip() in alias_keys_by_tenant.get(tid, set()):
-                    continue
                 if tid not in geo_overrides:
                     geo_overrides[tid] = {}
                 geo_overrides[tid][r.key] = r.value
@@ -829,7 +813,7 @@ def get_all_overrides() -> dict:
 
 
 def save_overrides_to_db(data: dict):
-    """Bulk replace phone mappings and manual geo corrections without touching shared geography or generated aliases."""
+    """Bulk replace phone mappings and manual geo corrections without touching shared geography."""
     db = SessionLocal()
     try:
         db.query(TenantOverride).filter(
@@ -903,6 +887,124 @@ def cleanup_legacy_generated_geo_overrides() -> dict:
         else:
             db.rollback()
         return {"deleted": deleted, "tenants": len(touched_tenants)}
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def purge_generated_geo_aliases(tenant_id: int | None = None) -> dict:
+    """Delete deprecated generated geo_alias rows.
+
+    Generated aliases are no longer a supported runtime layer. This helper can
+    wipe them globally or for one tenant without touching shared geography or
+    manual corrections.
+    """
+    db = SessionLocal()
+    try:
+        query = db.query(TenantOverride).filter(TenantOverride.override_type == "geo_alias")
+        if tenant_id is not None:
+            query = query.filter(TenantOverride.tenant_id == tenant_id)
+        rows = query.all()
+        touched_tenants = {
+            int(row.tenant_id)
+            for row in rows
+            if row.tenant_id is not None
+        }
+        deleted = len(rows)
+        for row in rows:
+            db.delete(row)
+        if deleted:
+            db.commit()
+        else:
+            db.rollback()
+        return {"deleted": deleted, "tenants": len(touched_tenants)}
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def wipe_all_geography_data() -> dict:
+    """Delete all shared geography rows and tenant-scoped geography helpers.
+
+    This removes:
+    - shared `geography_data`
+    - manual corrections (`geo_manual_override`)
+    - legacy manual/generated overrides (`geo_override`)
+    - deprecated generated aliases (`geo_alias`)
+    """
+    db = SessionLocal()
+    try:
+        rows = db.query(TenantOverride).filter(
+            TenantOverride.override_type.in_([
+                "geography_data",
+                "geo_manual_override",
+                "geo_override",
+                "geo_alias",
+            ])
+        ).all()
+        counts = {
+            "geography_data": 0,
+            "geo_manual_override": 0,
+            "geo_override": 0,
+            "geo_alias": 0,
+        }
+        for row in rows:
+            counts[row.override_type] = counts.get(row.override_type, 0) + 1
+            db.delete(row)
+        if rows:
+            db.commit()
+        else:
+            db.rollback()
+        counts["deleted_total"] = len(rows)
+        return counts
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def run_one_time_geography_reset(reset_key: str) -> dict:
+    """Run a destructive geography reset exactly once for a given migration key."""
+    db = SessionLocal()
+    try:
+        existing = db.query(TenantOverride).filter(
+            TenantOverride.override_type == "system_migration",
+            TenantOverride.key == reset_key,
+        ).first()
+        if existing:
+            return {"applied": False, "reason": "already_applied"}
+
+        rows = db.query(TenantOverride).filter(
+            TenantOverride.override_type.in_([
+                "geography_data",
+                "geo_manual_override",
+                "geo_override",
+                "geo_alias",
+            ])
+        ).all()
+        summary = {
+            "geography_data": 0,
+            "geo_manual_override": 0,
+            "geo_override": 0,
+            "geo_alias": 0,
+            "deleted_total": len(rows),
+        }
+        for row in rows:
+            summary[row.override_type] = summary.get(row.override_type, 0) + 1
+            db.delete(row)
+        db.add(TenantOverride(
+            tenant_id=None,
+            override_type="system_migration",
+            key=reset_key,
+            value=json.dumps(summary),
+        ))
+        db.commit()
+        return {"applied": True, "summary": summary}
     except Exception:
         db.rollback()
         raise

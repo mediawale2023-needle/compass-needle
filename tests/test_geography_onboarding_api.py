@@ -97,13 +97,11 @@ def _seed_database():
             INSERT INTO tenant_overrides (tenant_id, override_type, key, value, created_at)
             VALUES
                 (NULL, 'geography_data', 'mp:Ghaziabad/Ghaziabad', :gzb, :now),
-                (NULL, 'geography_data', 'mp:Ghaziabad/Muradnagar', :mrd, :now),
-                (2, 'geo_alias', 'teacher colony', :alias_payload, :now)
+                (NULL, 'geography_data', 'mp:Ghaziabad/Muradnagar', :mrd, :now)
         """), {
             "now": now,
             "gzb": '[{"station_number":"1","locality":"Lohiya Nagar","building_name":""},{"station_number":"2","locality":"Patel Nagar","building_name":""}]',
             "mrd": '[{"station_number":"1","locality":"Lohiya Nagar","building_name":""}]',
-            "alias_payload": '{"assembly":"Ghaziabad","display":"Teacher Colony","canonical_locality":"Teachers Colony - Shahapur","source":"geography_data"}',
         })
 
 
@@ -144,7 +142,7 @@ def test_save_geography_sanitizes_rows_and_returns_validation():
     assert "Shanti Enclave" in saved
 
 
-def test_bulk_geography_skips_live_override_for_ambiguous_locality():
+def test_bulk_geography_saves_shared_data_without_regenerating_tenant_alias_rows():
     _seed_database()
     headers = _admin_headers()
 
@@ -165,17 +163,18 @@ def test_bulk_geography_skips_live_override_for_ambiguous_locality():
     assert body["validation"]["ambiguous_localities_against_constituency"] == {}
 
     with test_engine.connect() as conn:
-        unique_override = conn.execute(text("""
+        saved = conn.execute(text("""
             SELECT value FROM tenant_overrides
-            WHERE tenant_id = 2 AND override_type = 'geo_alias' AND key = 'unique colony'
-        """)).scalar()
-        second_override = conn.execute(text("""
-            SELECT value FROM tenant_overrides
-            WHERE tenant_id = 2 AND override_type = 'geo_alias' AND key = 'shanti enclave'
-        """)).scalar()
+            WHERE tenant_id IS NULL AND override_type = 'geography_data' AND key = 'mp:Ghaziabad/Loni'
+        """)).scalar_one()
+        alias_count = conn.execute(text("""
+            SELECT COUNT(*) FROM tenant_overrides
+            WHERE tenant_id = 2 AND override_type = 'geo_alias'
+        """)).scalar_one()
 
-    assert '"assembly": "Loni"' in unique_override or '"assembly":"Loni"' in unique_override
-    assert '"assembly": "Loni"' in second_override or '"assembly":"Loni"' in second_override
+    assert "Unique Colony" in saved
+    assert "Shanti Enclave" in saved
+    assert alias_count == 0
 
 
 def test_upload_pdf_returns_sanitized_stations_and_validation(monkeypatch):
@@ -237,33 +236,37 @@ def test_save_geography_blocks_generated_alias_collision():
     assert "lohiya nagar" in body["validation"]["alias_collisions_against_seat"]
 
 
-def test_admin_can_list_tenant_geo_alias_rows():
+def test_bulk_geography_refresh_purges_deprecated_geo_alias_rows():
     _seed_database()
     headers = _admin_headers()
 
-    resp = client.get("/api/admin/mps/2/geo-aliases", headers=headers)
+    with test_engine.begin() as conn:
+        now = datetime.utcnow()
+        conn.execute(
+            text(
+                """
+                INSERT INTO tenant_overrides (tenant_id, override_type, key, value, created_at)
+                VALUES
+                    (2, 'geo_alias', 'teacher colony', :alias_payload, :now)
+                """
+            ),
+            {
+                "now": now,
+                "alias_payload": '{"assembly":"Ghaziabad","display":"Teacher Colony","canonical_locality":"Teachers Colony - Shahapur","source":"geography_data"}',
+            },
+        )
+
+    resp = client.post(
+        "/api/admin/mps/2/geography/bulk",
+        json={
+            "parliamentary_constituency": "Ghaziabad",
+            "assembly_constituency": "Loni",
+            "localities": ["Unique Colony"],
+        },
+        headers=headers,
+    )
 
     assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert body["tenant_id"] == 2
-    assert body["seat_name"] == "Ghaziabad"
-    assert len(body["items"]) == 1
-    assert body["items"][0]["key"] == "teacher colony"
-    assert body["items"][0]["assembly"] == "Ghaziabad"
-    assert body["items"][0]["display"] == "Teacher Colony"
-
-
-def test_admin_can_delete_specific_tenant_geo_alias_row():
-    _seed_database()
-    headers = _admin_headers()
-
-    list_resp = client.get("/api/admin/mps/2/geo-aliases", headers=headers)
-    alias_id = list_resp.json()["items"][0]["id"]
-
-    delete_resp = client.delete(f"/api/admin/mps/2/geo-aliases/{alias_id}", headers=headers)
-
-    assert delete_resp.status_code == 200, delete_resp.text
-    assert delete_resp.json()["deleted_id"] == alias_id
 
     with test_engine.connect() as conn:
         remaining = conn.execute(text("""

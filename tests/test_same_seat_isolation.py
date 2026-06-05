@@ -65,36 +65,38 @@ def _seed_database():
         )
 
 
-def test_auto_generate_overrides_fans_out_shared_seat_geography_per_tenant():
+def test_auto_generate_overrides_purges_deprecated_generated_aliases():
     _seed_database()
+
+    with test_engine.begin() as conn:
+        now = datetime.utcnow()
+        conn.execute(
+            text(
+                """
+                INSERT INTO tenant_overrides (tenant_id, override_type, key, value, created_at)
+                VALUES
+                    (11, 'geo_alias', 'hanuman nagar', '{"assembly":"Belgaum Uttar","display":"Hanuman Nagar"}', :now),
+                    (12, 'geo_alias', 'tilakwadi', '{"assembly":"Belgaum Uttar","display":"Tilakwadi"}', :now),
+                    (21, 'geo_alias', 'sector 1', '{"assembly":"Core Zone","display":"Sector 1"}', :now)
+                """
+            ),
+            {"now": now},
+        )
 
     result = geography_resolver.auto_generate_overrides()
 
     assert result["success"] is True
+    assert result["aliases_deleted"] == 3
 
     with test_engine.connect() as conn:
-        mp_rows = conn.execute(
+        remaining = conn.execute(
             text(
                 """
-                SELECT tenant_id, key, value
+                SELECT COUNT(*)
                 FROM tenant_overrides
                 WHERE override_type = 'geo_alias'
-                ORDER BY tenant_id, key
                 """
             )
-        ).fetchall()
+        ).scalar_one()
 
-    rows_by_tenant = {}
-    for tenant_id, key, value in mp_rows:
-        rows_by_tenant.setdefault(tenant_id, {})[key] = value
-
-    assert "Belgaum Uttar" in rows_by_tenant[11]["hanuman nagar"]
-    assert "Belgaum Uttar" in rows_by_tenant[12]["hanuman nagar"]
-    assert "Belgaum Uttar" in rows_by_tenant[13]["hanuman nagar"]
-    assert "Belgaum Uttar" in rows_by_tenant[11]["tilakwadi"]
-    assert "Belgaum Uttar" in rows_by_tenant[12]["tilakwadi"]
-    assert "Belgaum Uttar" in rows_by_tenant[13]["tilakwadi"]
-    assert "sector 1" not in rows_by_tenant[11]
-    assert "sector 1" not in rows_by_tenant[12]
-    assert "sector 1" not in rows_by_tenant[13]
-    assert "Core Zone" in rows_by_tenant[21]["sector 1"]
+    assert remaining == 0
