@@ -202,9 +202,9 @@ _GENERIC_ACK_LATIN: dict[str, str] = {
 # with a complaint acknowledgement.
 _GREETING_REPLY: dict[str, str] = {
     "Hindi": (
-        "Namaste 🙏\n\n"
-        "Hum aapki kaise sahayata kar sakte hain? "
-        "Kripya apni samasya ya shikayat bataayein."
+        "नमस्ते 🙏\n\n"
+        "हम आपकी कैसे सहायता कर सकते हैं? "
+        "कृपया अपनी समस्या या शिकायत बताएं।"
     ),
     "Hinglish": (
         "Namaste 🙏\n\n"
@@ -243,7 +243,11 @@ _GREETING_REPLY: dict[str, str] = {
 }
 
 _GREETING_REPLY_LATIN: dict[str, str] = {
-    "Hindi": _GREETING_REPLY["Hindi"],
+    "Hindi": (
+        "Namaste 🙏\n\n"
+        "Hum aapki kaise sahayata kar sakte hain? "
+        "Kripya apni samasya ya shikayat bataayein."
+    ),
     "Hinglish": _GREETING_REPLY["Hinglish"],
     "Marathi": _GREETING_REPLY["Marathi"],
     "Kannada": (
