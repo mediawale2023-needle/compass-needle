@@ -965,11 +965,19 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                     data["grievance_data"] = {}
                 data["grievance_data"].update(fields)
 
+            # Personal/private requests (family land disputes, transfers, admissions,
+            # recommendations) are handled by the office in person and do NOT need a
+            # constituency location. The geography pass above may have flagged the case
+            # 'awaiting_location' purely because no location resolved — clear that gate so
+            # the citizen still receives the personal-request reply instead of a generic
+            # grievance acknowledgement.
             personal_request_category = infer_personal_request_category(effective_user_message.lower())
             if (
                 personal_request_category
-                and str(data.get("status", "")).lower() not in {"emergency", "offensive", "irrelevant", "awaiting_location"}
+                and str(data.get("status", "")).lower() not in {"emergency", "offensive", "irrelevant"}
             ):
+                if str(data.get("status", "")).lower() == "awaiting_location":
+                    data["status"] = "new"
                 data["case_category"] = personal_request_category
                 data["is_personal_request"] = True
                 data["political_response"] = get_personal_request_reply(
@@ -977,11 +985,16 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                     effective_user_message,
                 )
 
+            # Non-grievance "silent log" intents (greetings/support, invitations, media
+            # outreach, donations, suggestions, spam) are likewise location-independent;
+            # recognise them even when the missing-location gate fired.
             silent_log_category = infer_silent_log_category(effective_user_message.lower())
             if (
                 silent_log_category
-                and str(data.get("status", "")).lower() not in {"emergency", "offensive", "awaiting_location"}
+                and str(data.get("status", "")).lower() not in {"emergency", "offensive"}
             ):
+                if str(data.get("status", "")).lower() == "awaiting_location":
+                    data["status"] = "new"
                 data["case_category"] = silent_log_category
                 data["is_silent_log_category"] = True
 
