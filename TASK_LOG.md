@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-05
+- Request: Make plain-text locality mapping recover fuller citizen-facing names when the uploaded geography row is abbreviated but the detailed locality exists inside polling-sheet building text.
+- Summary: Extended `modules/geography_resolver.py` so locality-looking `building_name` lines become safe alias seeds for matching, while generic venue/classroom lines are ignored. Also changed resolved display-value selection to prefer the richer matched alias over an abbreviated source locality when the alias is clearly more specific. Added generalized regressions for abbreviated-row recovery, stage-prefix trimming, and generic venue-line rejection, and verified the plain-text `rani chennamma nagar...` case now resolves to `Belgaum Dakshin` with `matched_value = Rani Channamma Nagar`.
+- Files touched: `modules/geography_resolver.py`, `tests/test_geography_resolver.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The new extraction path is intentionally narrow to avoid indexing arbitrary building labels. Before production deploy, live verification should include a few non-Belagavi plain-text cases with abbreviated uploaded localities to confirm the generic heuristics help without creating new `... nagar`/`... colony` false positives.
+
+- Date: 2026-06-05
 - Request: Add a dedicated response path for personal/discretionary requests like transfer, admission, and private family/property help.
 - Summary: Added narrow first-person discretionary-request detection for transfer requests, admission help, recommendation/sifarish asks, and private family/property disputes. Those messages now save as `Personal Request`, skip location-demand behavior, and receive a deterministic office-contact reply from `modules/localized_replies.py` instead of the normal grievance acknowledgment. Also updated the API “other” bucket contract to include `Personal Request` and added focused classifier/end-to-end regressions for land-dispute and transfer examples.
 - Files touched: `sansadx_backend/unified_taxonomy.py`, `sansadx_backend/ai_engine.py`, `modules/localized_replies.py`, `main.py`, `api_router.py`, `tests/test_unified_taxonomy.py`, `tests/test_ai_location_grounding.py`, `tests/test_e2e_core_flow.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`

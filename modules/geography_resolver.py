@@ -809,6 +809,12 @@ def _station_seed_aliases(station: Dict[str, Any], parliamentary_constituency: O
             if value:
                 seeds.add(value)
 
+    for alias in _extract_building_location_seeds(
+        station.get("building_name", ""),
+        parliamentary_constituency,
+    ):
+        seeds.add(alias)
+
     if station.get("sub_locality"):
         seeds.add(str(station.get("sub_locality")).strip())
     if station.get("parent_locality"):
@@ -913,6 +919,10 @@ _LOCATION_CONTAINER_TOKENS = {
     "wadi", "wada",
 }
 
+_BUILDING_LOCATION_LINE_PREFIXES = {
+    "stage", "phase", "sector", "ward", "near", "opp", "opposite",
+}
+
 
 def _derive_token_variants(token: str) -> Set[str]:
     normalized = normalize(token)
@@ -948,6 +958,50 @@ def _derive_structured_phrase_variants(value: str) -> Set[str]:
             candidate[index] = token_variant
             variants.add(" ".join(candidate))
     return variants
+
+
+def _extract_building_location_seeds(
+    building_name: str,
+    parliamentary_constituency: Optional[str] = None,
+) -> Set[str]:
+    """
+    Extract likely locality phrases from building-name lines.
+
+    Polling-sheet `locality` values are sometimes abbreviated (`R.C Nagar`)
+    while the fuller citizen-facing name only appears inside `building_name`
+    (`Rani Channamma Nagar`). We only promote lines that look locality-like
+    to avoid indexing generic venue text like school/class-room labels.
+    """
+    raw = str(building_name or "").strip()
+    if not raw:
+        return set()
+
+    seeds: Set[str] = set()
+    for line in raw.split("\n"):
+        candidate = line.strip(" ,")
+        normalized = normalize(candidate)
+        if not normalized or _is_meta_locality(normalized):
+            continue
+
+        words = normalized.split()
+        if not any(word in _LOCATION_CONTAINER_TOKENS for word in words):
+            continue
+
+        if len(words) > 10:
+            continue
+
+        seeds.add(candidate)
+
+        if words and words[0] in _BUILDING_LOCATION_LINE_PREFIXES and len(words) > 2:
+            trimmed = " ".join(words[1:]).strip()
+            if len(trimmed) >= 5:
+                seeds.add(trimmed)
+
+    aliases: Set[str] = set()
+    for seed in seeds:
+        aliases.add(seed)
+        aliases.update(_derive_locality_aliases(seed, parliamentary_constituency))
+    return {alias for alias in aliases if alias and not _is_meta_locality(alias)}
 
 
 def _is_meaningful_location_fragment(value: str) -> bool:
@@ -1928,6 +1982,7 @@ def _rank_location_candidates(
             else:
                 matched_type = "sub_locality" if entry.get("sub_locality") else "locality"
                 preferred_specific_display = _preferred_specific_display(entry["orig_name"])
+                matched_display_name = _preferred_specific_display(matched_name)
                 preferred_sub_locality = entry.get("sub_locality")
                 if (
                     preferred_specific_display
@@ -1935,6 +1990,12 @@ def _rank_location_candidates(
                     and len(normalize(str(preferred_sub_locality)).split()) == 1
                 ):
                     preferred_sub_locality = preferred_specific_display
+                if (
+                    not preferred_sub_locality
+                    and matched_display_name
+                    and len(normalize(matched_display_name)) > len(normalize(entry["orig_name"]))
+                ):
+                    preferred_sub_locality = matched_display_name
                 matched_value = (
                     preferred_sub_locality
                     or entry.get("parent_locality")

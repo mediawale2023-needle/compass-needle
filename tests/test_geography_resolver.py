@@ -65,6 +65,11 @@ def stub_geography_index(monkeypatch):
                 {"station_number": "1", "locality": "Shahapur", "building_name": ""},
                 {"station_number": "1a", "locality": "Khasbag", "building_name": ""},
                 {"station_number": "1b", "locality": "Kariyappa Colony Tilakwadi", "building_name": ""},
+                {
+                    "station_number": "1c",
+                    "locality": "R.C Nagar, Belagavi",
+                    "building_name": "Community Hall, 2nd Western Side,\nRani Channamma Nagar, Belagavi",
+                },
                 {"station_number": "2", "locality": "Meerapur Galli, Shahapur Belagavi", "building_name": ""},
                 {"station_number": "2a", "locality": "Teli Patil Galli Shahapur, Belagavi", "building_name": ""},
                 {"station_number": "2b", "locality": "Teachers Colony - Khasbag", "building_name": ""},
@@ -229,6 +234,38 @@ def test_resolve_location_supports_marathi_voice_drift_for_vadgaon(stub_geograph
     assert result["location_resolved"] is True
     assert result["assembly_constituency"] == "Belgaum Dakshin"
     assert result["matched_value"] in {"Vadagaon Belagavi", "Vadagaon", "Vadgaon"}
+
+
+def test_resolve_location_uses_building_name_locality_aliases_for_abbreviated_rows(stub_geography_index):
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "rani chennamma nagar madhe khup chori hot aahe",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Dakshin"
+    assert result["matched_value"] == "Rani Channamma Nagar"
+
+
+def test_extract_building_location_seeds_strips_neutral_prefixes():
+    seeds = geography_resolver._extract_building_location_seeds(
+        "Govt School\n2nd Stage Rani Channamma Nagar\nBelagavi",
+        parliamentary_constituency="Belagavi",
+    )
+
+    assert "2nd stage rani channamma nagar" in {geography_resolver.normalize(seed) for seed in seeds}
+    assert "rani channamma nagar" in {geography_resolver.normalize(seed) for seed in seeds}
+
+
+def test_extract_building_location_seeds_ignores_generic_venue_lines():
+    seeds = geography_resolver._extract_building_location_seeds(
+        "Govt Kannada Higher Primary School 4th Std Class Room\nCommunity Hall Western Side",
+        parliamentary_constituency="Belagavi",
+    )
+
+    assert seeds == set()
 
 
 def test_resolve_location_supports_marathi_vadgaon_suffix(stub_geography_index):
