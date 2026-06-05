@@ -21,7 +21,7 @@ HAZARD_KEYWORDS: dict[str, list[str]] = {
         "building fire", "explosion",
         # Hindi / Hinglish
         "aag", "aag lagi", "aag lag gayi", "jal raha", "jal rahi", "jalaa",
-        "dhamaka",
+        "dhamaka", "आग", "आग लगी", "आग लग गई", "आग लग गयी", "धमाका",
         # Marathi
         "aag lagli", "aag lavli", "jalt ahe",
         # Telugu
@@ -51,7 +51,8 @@ HAZARD_KEYWORDS: dict[str, list[str]] = {
         "overflowing river", "dam burst",
         # Hindi / Hinglish
         "baadh", "baarish mein duba", "nadi ubri", "toofan", "bhaagdad",
-        "bhukamp",
+        "bhukamp", "बाढ़", "जलभराव", "तूफान", "चक्रवात", "भूकंप", "भूस्खलन",
+        "रासायनिक रिसाव", "गैस रिसाव", "बांध टूट", "बांध फूट", "इमारत गिर",
         # Marathi
         "paaani bhar", "mahapoor",
         # Telugu
@@ -73,7 +74,9 @@ HAZARD_KEYWORDS: dict[str, list[str]] = {
         "curfew", "stone pelting",
         # Hindi / Hinglish
         "danga", "maar diya", "goli maari", "chaku mara", "goli lagi",
-        "murder ho gaya", "bheed ne mara", "hatya",
+        "murder ho gaya", "bheed ne mara", "hatya", "दंगा", "हत्या",
+        "हमला", "मारपीट", "पथराव", "पत्थरबाजी", "सांप्रदायिक हिंसा", "धार्मिक झड़प",
+        "मॉब", "लिंचिंग", "अपहरण", "धमकी", "फिरौती",
         # Marathi
         "danga", "khoon",
         # Telugu
@@ -98,7 +101,8 @@ HAZARD_KEYWORDS: dict[str, list[str]] = {
         # Hindi / Hinglish
         "mar raha hai", "mar rahi hai", "behosh", "hospital le jao",
         "ambulance bhejo", "khoon nikal raha", "bachao", "dil ka daura",
-        "saans nahi aa rahi", "zehr kha liya",
+        "saans nahi aa rahi", "zehr kha liya", "एंबुलेंस", "एम्बुलेंस",
+        "दिल का दौरा", "सांस नहीं", "ऑक्सीजन", "गंभीर", "खून बह रहा", "बेहोश",
         # Marathi
         "marto ahe", "beshan", "ambulans paathva",
         # Telugu
@@ -136,7 +140,7 @@ HAZARD_KEYWORDS: dict[str, list[str]] = {
         "train accident", "bus accident", "fell down", "fell from building",
         # Hindi / Hinglish
         "accident ho gaya", "gaadi takrayi", "truck ne mara",
-        "train se gir gaya", "gir gaya",
+        "train se gir gaya", "gir gaya", "दुर्घटना", "एक्सीडेंट", "हादसा", "इमारत से गिर",
         # Marathi
         "apghat", "apghat zhala",
         # Telugu
@@ -154,7 +158,7 @@ HAZARD_KEYWORDS: dict[str, list[str]] = {
         "missing", "kidnapped", "abducted", "child missing", "woman missing",
         # Hindi / Hinglish
         "gaayab ho gaya", "apaharan", "bachha gaayab", "kidnap",
-        "ladki gaayab",
+        "ladki gaayab", "बच्चा गायब", "लापता बच्चा", "अपहरण", "मानव तस्करी",
         # Marathi
         "harwala", "harwali",
         # Telugu
@@ -233,7 +237,7 @@ def classify_hazard_type(
 
 
 def _normalise(text: str) -> str:
-    """Lowercase, collapse whitespace, strip punctuation for keyword matching."""
+    """Lowercase and strip ASCII punctuation without breaking Indic-script words."""
     text = text.lower()
-    text = re.sub(r"[^\w\s]", " ", text)
+    text = re.sub(r"[!?,.;:/\\()\\[\\]{}\"'`~@#$%^&*_+=<>|-]", " ", text)
     return re.sub(r"\s+", " ", text).strip()

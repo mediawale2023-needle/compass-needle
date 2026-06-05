@@ -526,6 +526,55 @@ _WATER_OUTAGE_MARKERS = (
     "nahi", "nahi aata", "nahin", "band", "stopped",
 )
 
+_DISASTER_EMERGENCY_MARKERS = (
+    "flood", "flooding", "fire", "burning", "building collapse", "collapsed building",
+    "landslide", "storm", "cyclone", "earthquake", "chemical leak", "gas leak",
+    "dam breach", "dam burst", "industrial accident", "factory blast", "factory explosion",
+    "arson", "major accident", "bridge collapse",
+    "बाढ़", "आग", "आग लगी", "भूकंप", "तूफान", "चक्रवात", "इमारत गिर", "भूस्खलन",
+    "रासायनिक रिसाव", "गैस रिसाव", "बांध टूट", "फैक्ट्री में धमाका",
+)
+
+_LAW_ORDER_EMERGENCY_MARKERS = (
+    "murder", "attempt to murder", "assault in progress", "mob violence", "riot",
+    "lynching", "mob lynching", "armed violence", "death threat", "death threats",
+    "extortion threat", "kidnapping", "kidnap", "human trafficking", "public disorder",
+    "religious clash", "religious clashes", "communal violence", "stone pelting",
+    "attack", "attacking", "beating", "violent clash",
+    "दंगा", "हिंसा", "सांप्रदायिक हिंसा", "भीड़ हिंसा", "मॉब लिंचिंग", "लिंचिंग",
+    "हत्या", "मारपीट", "हमला", "अपहरण", "मानव तस्करी", "फिरौती", "धमकी",
+    "पत्थरबाजी", "पथराव", "मस्जिद पर पत्थर", "धार्मिक झड़प", "सार्वजनिक अशांति",
+)
+
+_WOMEN_CHILD_DANGER_MARKERS = (
+    "child marriage happening now", "child trafficking", "child labour", "child labor",
+    "child abuse", "missing child", "domestic violence in progress", "sexual assault",
+    "rape", "stalking", "immediate threat to woman", "woman in danger", "girl kidnapped",
+    "marital rape", "molestation",
+    "बाल विवाह", "बाल तस्करी", "बाल मजदूरी", "बच्चा गायब", "लापता बच्चा",
+    "बच्चे के साथ मारपीट", "बच्चे के साथ दुर्व्यवहार", "घरेलू हिंसा", "बलात्कार",
+    "यौन उत्पीड़न", "छेड़छाड़", "महिला को जान से खतरा", "महिला पर हमला",
+)
+
+_HEALTH_EMERGENCY_MARKERS = (
+    "ambulance not available", "ambulance needed", "accident victims", "critical patient",
+    "severe bleeding", "maternal emergency", "child medical emergency", "oxygen shortage",
+    "hospital refusing emergency treatment", "not breathing", "heart attack", "stroke",
+    "poisoning", "critical condition", "collapsed", "suicide attempt medical",
+    "ambulance nahi", "ambulance bhejo",
+    "एंबुलेंस नहीं", "एम्बुलेंस नहीं", "एंबुलेंस भेजो", "गंभीर मरीज", "भारी खून बह",
+    "प्रसूति आपातकाल", "बच्चे की तबीयत गंभीर", "ऑक्सीजन की कमी", "अस्पताल ने इमरजेंसी इलाज से मना किया",
+    "सांस नहीं आ रही", "दिल का दौरा", "जहर खा", "बेहोश",
+)
+
+_SUICIDE_RISK_MARKERS = (
+    "suicide threat", "attempted suicide", "self harm", "self-harm",
+    "threatening to end life", "want to die", "will kill myself", "end my life",
+    "farmer suicide risk", "student suicide risk",
+    "आत्महत्या", "खुदकुशी", "जान दे दूंगा", "जान दे दूँगा", "मर जाना चाहता", "अपनी जान ले",
+    "किसान आत्महत्या", "छात्र आत्महत्या",
+)
+
 _LOCATION_CONTAINER_MARKERS = (
     "colony", "layout", "road", "street", "lane", "camp", "nagar",
     "galli", "circle", "cross", "extension", "quarters", "wadi", "peth",
@@ -565,6 +614,30 @@ def _looks_like_water_supply_outage(blob: str) -> bool:
     return has_water and has_outage
 
 
+def infer_emergency_taxonomy_override(blob: str) -> tuple[str | None, str | None]:
+    """Return a high-confidence emergency taxonomy override for no-ack severe cases."""
+    if not blob:
+        return None, None
+
+    if _has_any_marker(blob, _SUICIDE_RISK_MARKERS):
+        return "Health", "Emergency/Ambulance"
+    if _has_any_marker(blob, _HEALTH_EMERGENCY_MARKERS):
+        return "Health", "Emergency/Ambulance"
+    if _has_any_marker(blob, _WOMEN_CHILD_DANGER_MARKERS):
+        if any(marker in blob for marker in ("sexual assault", "rape", "बलात्कार", "यौन उत्पीड़न", "molestation", "छेड़छाड़")):
+            return "Law & Order", "Sexual Crimes"
+        if any(marker in blob for marker in ("missing child", "child trafficking", "girl kidnapped", "बाल तस्करी", "लापता बच्चा", "बच्चा गायब")):
+            return "Law & Order", "Kidnapping/Missing"
+        if any(marker in blob for marker in ("child marriage", "child labour", "child labor", "बाल विवाह", "बाल मजदूरी")):
+            return "Social Issues", "Child Marriage/Child Labour"
+        return "Social Issues", "Gender-based Violence"
+    if _has_any_marker(blob, _LAW_ORDER_EMERGENCY_MARKERS):
+        return "Law & Order", "Theft/Assault/Violent Crime"
+    if _has_any_marker(blob, _DISASTER_EMERGENCY_MARKERS):
+        return "Health", "Emergency/Ambulance"
+    return None, None
+
+
 def _infer_strong_taxonomy_override(blob: str) -> tuple[str | None, str | None]:
     """
     Return a high-confidence taxonomy override only for patterns where the
@@ -575,6 +648,10 @@ def _infer_strong_taxonomy_override(blob: str) -> tuple[str | None, str | None]:
     """
     if not blob:
         return None, None
+
+    emergency_domain, emergency_subdomain = infer_emergency_taxonomy_override(blob)
+    if emergency_domain and emergency_subdomain:
+        return emergency_domain, emergency_subdomain
 
     if _looks_like_water_supply_outage(blob):
         return "Infrastructure & Utilities", "Water Supply"

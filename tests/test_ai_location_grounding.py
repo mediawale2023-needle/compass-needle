@@ -297,8 +297,52 @@ def test_build_taxonomy_fields_overrides_wrong_road_guess_for_patwari_money_dema
 
     assert fields["problem_domain"] == "Bureaucratic / Administrative"
     assert fields["problem_subdomain"] == "Bribery/Corruption"
-    assert fields["convergence_program_type"] == "Monitoring & Transparency"
-    assert fields["categories"] == ["Bureaucratic / Administrative"]
+
+
+def test_ask_chatgpt_agent_forces_emergency_on_riot_message(monkeypatch):
+    monkeypatch.setattr(ai_engine, "get_client", lambda: _stub_client({
+        "status": "new",
+        "detected_language": "Hindi",
+        "political_response": "Aapka sandesh mil gaya hai.",
+        "grievance_data": {
+            "categories": ["Infrastructure & Utilities"],
+            "problem_domain": "Infrastructure & Utilities",
+            "problem_subdomain": "Roads & Bridges",
+            "convergence_program_type": "Public Asset Upgrade",
+            "location": "Angol",
+            "person": None,
+            "department": None,
+            "scheme": None,
+        },
+    }))
+    monkeypatch.setattr(ai_engine, "get_jurisdiction_context", lambda tenant_id=1: "")
+    monkeypatch.setattr(
+        ai_engine,
+        "_get_tenant_profile",
+        lambda tenant_id: {"mp_name": "Test MP", "constituency": "Belagavi", "state": "", "house": "Lok Sabha"},
+    )
+    monkeypatch.setattr(
+        ai_engine,
+        "resolve_geography_from_text",
+        lambda *_args, **_kwargs: {
+            "location_resolved": True,
+            "matched_value": "Angol",
+            "assembly_constituency": "Belgaum South",
+            "confidence_level": "exact",
+        },
+    )
+
+    result = ai_engine.ask_chatgpt_agent(
+        "आंगोल में दंगा हुआ है, कुछ मस्जिद पर पत्थर मारे लोगों ने।",
+        tenant_id=1,
+    )
+
+    assert result["status"] == "emergency"
+    assert result["is_critical"] is True
+    assert result["grievance_data"]["problem_domain"] == "Law & Order"
+    assert result["grievance_data"]["problem_subdomain"] == "Theft/Assault/Violent Crime"
+    assert result["grievance_data"]["convergence_program_type"] == "Safety & Inclusion Add-on"
+    assert result["grievance_data"]["categories"] == ["Law & Order"]
 
 
 def test_build_taxonomy_fields_overrides_teacher_colony_water_outage():

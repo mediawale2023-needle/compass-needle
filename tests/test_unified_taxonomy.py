@@ -13,7 +13,9 @@ from sansadx_backend.unified_taxonomy import (
     canonicalize_category,
     canonicalize_convergence_program_type,
     canonicalize_problem_subdomain,
+    infer_emergency_taxonomy_override,
 )
+from modules.emergency_keywords import detect_emergency_severity
 
 
 def test_prompt_problem_domains_match_canonical_order():
@@ -107,3 +109,32 @@ def test_derive_case_taxonomy_state_leaves_offensive_taxonomy_null():
     assert payload["problem_subdomain"] is None
     assert payload["convergence_program_type"] is None
     assert payload["case_metadata"]["categories"] == []
+
+
+def test_build_taxonomy_fields_rescues_riot_report_into_law_and_order():
+    fields = build_taxonomy_fields(
+        problem_domain="Infrastructure & Utilities",
+        problem_subdomain="Roads & Bridges",
+        raw_text="आंगोल में दंगा हुआ है, कुछ मस्जिद पर पत्थर मारे लोगों ने।",
+    )
+    assert fields["problem_domain"] == "Law & Order"
+    assert fields["problem_subdomain"] == "Theft/Assault/Violent Crime"
+
+
+def test_build_taxonomy_fields_rescues_domestic_violence_in_progress():
+    fields = build_taxonomy_fields(
+        problem_domain="General",
+        raw_text="घरेलू हिंसा अभी चल रही है, महिला को तुरंत खतरा है।",
+    )
+    assert fields["problem_domain"] == "Social Issues"
+    assert fields["problem_subdomain"] == "Gender-based Violence"
+
+
+def test_infer_emergency_taxonomy_override_for_missing_child():
+    domain, subdomain = infer_emergency_taxonomy_override("लापता बच्चा, तुरंत ढूंढने में मदद चाहिए")
+    assert domain == "Law & Order"
+    assert subdomain == "Kidnapping/Missing"
+
+
+def test_detect_emergency_severity_matches_hindi_riot_text():
+    assert detect_emergency_severity("आंगोल में दंगा हुआ है, कुछ मस्जिद पर पत्थर मारे लोगों ने।") is True

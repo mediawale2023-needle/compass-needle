@@ -386,6 +386,50 @@ def test_emergency_webhook_creates_cluster_and_sends_no_ack(monkeypatch):
     assert detail["category"] == "Emergency"
 
 
+def test_hindi_riot_message_sends_no_ack_even_if_ai_misclassifies(monkeypatch):
+    _seed_database()
+    monkeypatch.setattr(main, "META_APP_SECRET", "test-meta-app-secret")
+
+    outbound_messages = []
+    monkeypatch.setattr(
+        main,
+        "ask_chatgpt_agent",
+        lambda prompt, tenant_id=None: {
+            "status": "new",
+            "is_critical": False,
+            "detected_language": "Hindi",
+            "political_response": "Aapka sandesh mil gaya hai.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Roads & Bridges",
+                "convergence_program_type": "Public Asset Upgrade",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "Angol",
+                "department": None,
+                "summary": "Riot report in Angol",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = f"9197733{int(time.time()) % 100000:05d}"
+    webhook_resp = _post_signed_webhook(
+        _whatsapp_payload(sender, "आंगोल में दंगा हुआ है, कुछ मस्जिद पर पत्थर मारे लोगों ने।")
+    )
+    assert webhook_resp.status_code == 200, webhook_resp.text
+    assert webhook_resp.json()["status"] == "received"
+    assert outbound_messages == [], "Hindi riot complaints must not receive citizen acknowledgments"
+
+    created_case = _wait_for(lambda: _fetch_case_by_phone(sender))
+    assert created_case is not None
+    assert created_case["category"] == "Emergency"
+    assert created_case["status"] == "pending_review"
+
+
 def test_abusive_message_gets_warning_reply_without_ai(monkeypatch):
     _seed_database()
     monkeypatch.setattr(main, "META_APP_SECRET", "test-meta-app-secret")

@@ -21,6 +21,7 @@ from .unified_taxonomy import (
     LEGACY_TO_CANONICAL as _LEGACY_TO_CANONICAL,
     VALID_CATEGORIES as _VALID_CATEGORIES,
     build_taxonomy_fields,
+    infer_emergency_taxonomy_override,
 )
 from modules.localized_replies import get_generic_ack_reply, get_missing_location_reply, normalize_language_name
 from modules.geography_policy import location_required_for_grievance
@@ -930,6 +931,31 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         data["grievance_data"],
                         effective_user_message,
                     )
+
+            emergency_blob = " ".join(
+                str(part or "").strip().lower()
+                for part in (
+                    data.get("grievance_data", {}).get("problem_subdomain"),
+                    data.get("grievance_data", {}).get("scheme"),
+                    data.get("grievance_data", {}).get("department"),
+                    effective_user_message,
+                )
+                if str(part or "").strip()
+            )
+            emergency_domain, emergency_subdomain = infer_emergency_taxonomy_override(emergency_blob)
+            if emergency_domain and emergency_subdomain and str(data.get("status", "")).lower() not in {"offensive", "irrelevant"}:
+                fields = build_taxonomy_fields(
+                    problem_domain=emergency_domain,
+                    problem_subdomain=emergency_subdomain,
+                    raw_text=effective_user_message,
+                    scheme=data.get("grievance_data", {}).get("scheme"),
+                    department=data.get("grievance_data", {}).get("department"),
+                )
+                data["status"] = "emergency"
+                data["is_critical"] = True
+                if "grievance_data" not in data or not isinstance(data["grievance_data"], dict):
+                    data["grievance_data"] = {}
+                data["grievance_data"].update(fields)
 
             # Language guardrail: if citizen input was transliterated (mostly ASCII),
             # reject non-ASCII AI replies to avoid Hindi-script swaps for Marathi/Hinglish.

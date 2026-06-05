@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-05
+- Request: Tighten emergency classification so disaster, riot, women/child danger, health emergency, and suicide-risk messages do not send a WhatsApp acknowledgement.
+- Summary: Expanded the high-confidence taxonomy rescue layer to recognize explicit emergency patterns across disaster, law-and-order violence, women/child danger, health emergency, and suicide-risk reports, then forced those cases into the emergency path in `ai_engine.py` even when the model guessed a normal civic category. Also fixed `modules/emergency_keywords.py` normalization so Indic-script terms like `दंगा` survive keyword detection, which restores the existing no-ack emergency behavior for Hindi and other regional-language reports. Added focused unit and end-to-end regressions proving that a Hindi riot message is saved as an emergency case and sends no citizen acknowledgement even if the AI originally misclassifies it.
+- Files touched: `sansadx_backend/unified_taxonomy.py`, `sansadx_backend/ai_engine.py`, `modules/emergency_keywords.py`, `tests/test_unified_taxonomy.py`, `tests/test_ai_location_grounding.py`, `tests/test_e2e_core_flow.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The emergency rescue layer is intentionally explicit rather than fuzzy so ordinary complaints do not lose acknowledgements by accident. If future misses still appear, add narrow markers/tests for that emergency class instead of weakening the boundary between emergency and routine civic complaints.
+
+- Date: 2026-06-05
 - Request: Make manual geography saves teach future resolver matches by using aliases first.
 - Summary: Updated the resolver so tenant manual aliases are evaluated before core geography using exact/boundary/spaceless alias-form matching instead of a crude substring shortcut. Also changed Briefcase manual geography saves to persist a reusable `geo_manual_override` row whenever an operator saves a real location+assembly, so a correction like `Teacher Colony -> Belgaum South` fixes future cases instead of only the current one. Added a regression proving the case save creates the alias and that a later `Teacher Colony...` message resolves through the alias-first path.
 - Files touched: `modules/geography_resolver.py`, `api_router.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
