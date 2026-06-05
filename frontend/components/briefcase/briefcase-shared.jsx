@@ -61,6 +61,12 @@ export const OTHER_CATEGORIES = [
     'Greeting',
     'Spam',
     'Spam (Offensive)',
+    'Political / Support Message',
+    'Community / Event Invitation',
+    'Media / Press Outreach',
+    'Donation / Sponsorship Request',
+    'Suggestion / Idea',
+    'Spam / Promotional / Irrelevant',
 ];
 export const OTHER_STATUSES = ['offensive', 'irrelevant', 'abusive'];
 

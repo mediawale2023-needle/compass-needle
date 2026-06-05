@@ -83,6 +83,7 @@ def _seed_database():
             (104, "Request", "new", "Please call me back"),
             (105, "General", "irrelevant", "hello sir good morning"),
             (106, "Infrastructure & Utilities", "resolved", "Streetlight fixed"),
+            (107, "Political / Support Message", "new", "Thank you sir and happy birthday"),
         ]
         for case_id, category, status, raw_message in rows:
             conn.execute(
@@ -120,7 +121,7 @@ def test_all_cases_excludes_other_bucket_and_other_bucket_includes_moderation_ro
     headers = _auth_headers()
 
     all_resp = client.get(
-        "/api/cases?exclude_status=resolved,closed,offensive,irrelevant&exclude_categories=Request,Greetings,Spam,Spam%20(Offensive)",
+        "/api/cases?exclude_status=resolved,closed,offensive,irrelevant&exclude_categories=Request,Greetings,Spam,Spam%20(Offensive),Political%20/%20Support%20Message",
         headers=headers,
     )
     assert all_resp.status_code == 200, all_resp.text
@@ -130,4 +131,4 @@ def test_all_cases_excludes_other_bucket_and_other_bucket_includes_moderation_ro
     other_resp = client.get("/api/cases?bucket=other", headers=headers)
     assert other_resp.status_code == 200, other_resp.text
     other_ids = {case["id"] for case in other_resp.json()["cases"]}
-    assert other_ids == {102, 103, 104, 105}
+    assert other_ids == {102, 103, 104, 105, 107}

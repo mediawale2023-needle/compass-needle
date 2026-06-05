@@ -1137,6 +1137,15 @@ from modules.localized_replies import (
 )
 from modules.case_query_formatter import format_cases_for_whatsapp, format_clarification_request
 
+_SILENT_LOG_CATEGORIES = {
+    "political / support message",
+    "community / event invitation",
+    "media / press outreach",
+    "donation / sponsorship request",
+    "suggestion / idea",
+    "spam / promotional / irrelevant",
+}
+
 
 # ─────────────────────────────────────────
 # CONTEXT MEMORY (prevents repeated questions)
@@ -2327,7 +2336,7 @@ def _process_citizen_media_complaint(
                                 tenant_id, user_phone, category, raw_message, status,
                                 case_metadata, is_critical, created_at
                             ) VALUES (
-                                :tid, :phone, 'Uncategorised', :msg, 'pending_review',
+                                :tid, :phone, 'Document / Attachment Only', :msg, 'incomplete',
                                 :meta, false, :now
                             ) RETURNING id
                         """),
@@ -2371,7 +2380,8 @@ def _process_citizen_media_complaint(
                             "now": datetime.utcnow(),
                         },
                     )
-                send_whatsapp_message(sender, get_review_ack_reply("English", fallback_text), _wa_phone_id)
+                _fallback_lang = detect_input_language(fallback_text)
+                send_whatsapp_message(sender, get_details_request_reply(_fallback_lang, fallback_text), _wa_phone_id)
             except Exception as exc:
                 logger.error("Failed to save unreadable citizen media case: %s", exc)
                 try:
@@ -2576,8 +2586,14 @@ def _resolve_citizen_ack_message(
     if normalized_status == "offensive":
         return get_offensive_warning_reply(detected_language, message_body)
 
+    if str(category or "").lower().strip() in _SILENT_LOG_CATEGORIES:
+        return ""
+
     if normalized_status == "awaiting_location":
         return get_generic_ack_reply(detected_language, message_body)
+
+    if normalized_status in DETAILS_REQUEST_STATUSES:
+        return get_details_request_reply(detected_language, message_body)
 
     if normalized_status == "irrelevant":
         return get_review_ack_reply(detected_language, message_body)
@@ -2943,6 +2959,7 @@ def _run_citizen_case_enrichment(
         "source_media_english_support_text": media_source.get("english_support_text", "") if media_source else "",
         "source_media_transcript_provider": media_source.get("transcript_provider", "") if media_source else "",
         "source_media_normalization_notes": media_source.get("normalization_notes") if media_source else None,
+        "is_silent_log_category": str(category or "").lower().strip() in _SILENT_LOG_CATEGORIES,
     }
 
     return {
@@ -3039,6 +3056,7 @@ def _save_case_enrichment_and_respond(
             logger.warning("Emergency intake failed (non-blocking): %s", _em_exc)
 
     _is_review_category = category.lower().strip() in _REVIEW_REQUIRED_CATEGORIES
+    _is_silent_log_category = category.lower().strip() in _SILENT_LOG_CATEGORIES
     if (_is_review_category or _is_critical_case) and status not in ("awaiting_location",):
         try:
             with engine.begin() as _rv_conn:
@@ -3077,8 +3095,14 @@ def _save_case_enrichment_and_respond(
         _cancel_case_clarification_follow_up(case_id)
         return
 
+    if _is_silent_log_category and status != "offensive":
+        _cancel_case_clarification_follow_up(case_id)
+        return
+
     try:
-        send_whatsapp_message(sender, citizen_ack_override or enrichment["citizen_ack_message"], wa_phone_id)
+        reply_text = citizen_ack_override or enrichment["citizen_ack_message"]
+        if reply_text:
+            send_whatsapp_message(sender, reply_text, wa_phone_id)
     except Exception as send_exc:
         logger.error(
             "WHATSAPP_SEND_FAILED: could not reply to %s (case=%s) — %s. "
@@ -3253,11 +3277,12 @@ def _process_incoming_message(
             logger.error(f"Spam case DB save failed: {exc}")
 
         _save_spam_flag(current_tenant, sender, flag_type, flag_reason, message_body)
-        send_whatsapp_message(
-            sender,
-            _reply_text,
-            _wa_phone_id,
-        )
+        if is_abuse:
+            send_whatsapp_message(
+                sender,
+                _reply_text,
+                _wa_phone_id,
+            )
         return
 
     # ── Per-phone daily case creation rate limit ─────────────────────────────

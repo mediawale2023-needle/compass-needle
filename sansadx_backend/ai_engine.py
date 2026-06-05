@@ -22,7 +22,9 @@ from .unified_taxonomy import (
     VALID_CATEGORIES as _VALID_CATEGORIES,
     build_taxonomy_fields,
     infer_emergency_taxonomy_override,
+    infer_silent_log_category,
     infer_personal_request_category,
+    looks_like_contextless_media_message,
 )
 from modules.localized_replies import (
     get_generic_ack_reply,
@@ -974,6 +976,22 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                     detected_lang,
                     effective_user_message,
                 )
+
+            silent_log_category = infer_silent_log_category(effective_user_message.lower())
+            if (
+                silent_log_category
+                and str(data.get("status", "")).lower() not in {"emergency", "offensive", "awaiting_location"}
+            ):
+                data["case_category"] = silent_log_category
+                data["is_silent_log_category"] = True
+
+            if (
+                looks_like_contextless_media_message(effective_user_message)
+                and str(data.get("status", "")).lower() not in {"emergency", "offensive", "irrelevant", "awaiting_location"}
+            ):
+                data["status"] = "incomplete"
+                data["case_category"] = data.get("case_category") or "Document / Attachment Only"
+                data["needs_more_details"] = True
 
             # Language guardrail: if citizen input was transliterated (mostly ASCII),
             # reject non-ASCII AI replies to avoid Hindi-script swaps for Marathi/Hinglish.

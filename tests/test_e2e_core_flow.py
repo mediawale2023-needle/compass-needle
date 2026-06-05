@@ -476,6 +476,51 @@ def test_personal_request_gets_special_office_contact_reply(monkeypatch):
     assert created_case["status"] == "new"
 
 
+def test_support_message_is_logged_without_citizen_reply(monkeypatch):
+    _seed_database()
+    monkeypatch.setattr(main, "META_APP_SECRET", "test-meta-app-secret")
+
+    outbound_messages = []
+    monkeypatch.setattr(
+        main,
+        "ask_chatgpt_agent",
+        lambda prompt, tenant_id=None: {
+            "status": "irrelevant",
+            "detected_language": "English",
+            "political_response": "Thank you for reaching out.",
+            "case_category": "Political / Support Message",
+            "is_silent_log_category": True,
+            "grievance_data": {
+                "problem_domain": None,
+                "problem_subdomain": None,
+                "convergence_program_type": None,
+                "categories": [],
+                "location": None,
+                "department": None,
+                "summary": "Support message logged for office review",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = f"9196655{int(time.time()) % 100000:05d}"
+    webhook_resp = _post_signed_webhook(_whatsapp_payload(sender, "Thank you sir and happy birthday to you"))
+
+    assert webhook_resp.status_code == 200, webhook_resp.text
+    assert webhook_resp.json()["status"] == "received"
+    time.sleep(0.3)
+    assert outbound_messages == [], "Support-only messages should be logged silently without a citizen reply"
+
+    created_case = _wait_for(lambda: _fetch_case_by_phone(sender))
+    assert created_case is not None
+    assert created_case["category"] == "Political / Support Message"
+    assert created_case["status"] == "irrelevant"
+
+
 def test_abusive_message_gets_warning_reply_without_ai(monkeypatch):
     _seed_database()
     monkeypatch.setattr(main, "META_APP_SECRET", "test-meta-app-secret")

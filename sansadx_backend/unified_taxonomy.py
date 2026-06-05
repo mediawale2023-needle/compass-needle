@@ -624,6 +624,63 @@ _PERSONAL_REQUEST_CONFLICT_MARKERS = (
     "झगड़ा", "झगडा", "विवाद", "लड़ाई",
 )
 
+_POLITICAL_SUPPORT_MARKERS = (
+    "thank you", "thanks", "thank u", "shukriya", "dhanyavaad", "dhanyavad",
+    "badhai", "congratulations", "congrats", "happy birthday", "janmadin",
+    "best wishes", "support you", "we support you", "samarthan", "volunteer",
+    "join your campaign", "karyakarta banna", "aapka samarthan", "धन्यवाद",
+    "शुक्रिया", "बधाई", "जन्मदिन", "समर्थन", "शुभकामनाएं", "शुभकामनाएँ",
+)
+
+_POLITICAL_SUPPORT_EXCLUSION_MARKERS = (
+    "issue", "problem", "samasya", "complaint", "grievance", "madad", "help",
+    "paani", "water", "road", "bijli", "ration", "hospital", "police", "apply",
+    "status", "update", "problem", "समस्या", "मदद", "शिकायत", "पानी", "सड़क",
+)
+
+_COMMUNITY_INVITATION_MARKERS = (
+    "invite", "invitation", "aamantran", "amantran", "chief guest", "please attend",
+    "program", "function", "event", "ceremony", "inauguration", "meeting request",
+    "kindly attend", "upasthit rahein", "samaroha", "karyakram", "nimantran",
+    "आमंत्रण", "कार्यक्रम", "समारोह", "उद्घाटन", "मुख्य अतिथि", "उपस्थित रहें",
+)
+
+_MEDIA_OUTREACH_MARKERS = (
+    "press", "media", "interview", "press note", "statement", "clarification",
+    "journalist", "reporter", "coverage", "press conference", "news byte",
+    "media query", "पत्रकार", "मीडिया", "इंटरव्यू", "बयान", "स्पष्टीकरण",
+    "प्रेस", "कवरेज",
+)
+
+_DONATION_REQUEST_MARKERS = (
+    "donation", "donate", "sponsorship", "sponsor", "fund", "funding",
+    "financial help", "financial assistance", "chanda", "arthik madad",
+    "arthik sahayata", "raise funds", "CSR support", "डोनेशन", "दान",
+    "सहायता राशि", "आर्थिक मदद", "आर्थिक सहायता", "स्पॉन्सरशिप", "फंड",
+)
+
+_SUGGESTION_MARKERS = (
+    "suggestion", "suggestions", "idea", "ideas", "proposal", "feedback",
+    "sujhav", "salah", "mera sujhav", "hamara sujhav", "citizen proposal",
+    "suggest", "recommendation for improvement", "सुझाव", "सलाह", "प्रस्ताव",
+    "विचार", "फीडबैक",
+)
+
+_SPAM_PROMO_MARKERS = (
+    "buy now", "limited offer", "discount", "sale", "subscribe", "click link",
+    "business proposal", "marketing", "promotion", "promotional", "advertisement",
+    "advt", "earn money", "free recharge", "loan offer", "insurance offer",
+    "chain message", "forward this", "promo", "sponsored post", "ऑफर",
+    "छूट", "प्रमोशन", "विज्ञापन", "लिंक पर क्लिक", "फॉरवर्ड करें",
+)
+
+_CONTEXTLESS_MEDIA_MARKERS = (
+    "photo", "image", "video", "audio", "voice note", "document", "pdf",
+    "see attached", "pls see", "please see", "check this", "dekhiye", "yeh dekho",
+    "attachment", "file", "फोटो", "वीडियो", "ऑडियो", "दस्तावेज", "पीडीएफ",
+    "अटैचमेंट", "फाइल", "देखिए",
+)
+
 _LOCATION_CONTAINER_MARKERS = (
     "colony", "layout", "road", "street", "lane", "camp", "nagar",
     "galli", "circle", "cross", "extension", "quarters", "wadi", "peth",
@@ -708,6 +765,53 @@ def infer_personal_request_category(blob: str) -> str | None:
         return "Personal Request"
 
     return None
+
+
+def infer_silent_log_category(blob: str) -> str | None:
+    """Return non-grievance categories that should be logged without auto-reply."""
+    if not blob:
+        return None
+
+    lowered = blob.lower()
+
+    if _has_any_marker(lowered, _SPAM_PROMO_MARKERS):
+        return "Spam / Promotional / Irrelevant"
+
+    if _has_any_marker(lowered, _MEDIA_OUTREACH_MARKERS):
+        return "Media / Press Outreach"
+
+    if _has_any_marker(lowered, _DONATION_REQUEST_MARKERS):
+        return "Donation / Sponsorship Request"
+
+    if _has_any_marker(lowered, _COMMUNITY_INVITATION_MARKERS):
+        return "Community / Event Invitation"
+
+    if _has_any_marker(lowered, _SUGGESTION_MARKERS):
+        return "Suggestion / Idea"
+
+    if _has_any_marker(lowered, _POLITICAL_SUPPORT_MARKERS) and not _has_any_marker(
+        lowered, _POLITICAL_SUPPORT_EXCLUSION_MARKERS
+    ):
+        return "Political / Support Message"
+
+    return None
+
+
+def looks_like_contextless_media_message(blob: str) -> bool:
+    """Return True for bare attachment-style messages that need more details."""
+    if not blob:
+        return True
+
+    lowered = blob.lower().strip()
+    token_count = len([token for token in re.split(r"\s+", lowered) if token])
+    if token_count <= 4 and _has_any_marker(lowered, _CONTEXTLESS_MEDIA_MARKERS):
+        return True
+
+    generic_phrases = {
+        "photo", "image", "video", "audio", "document", "pdf", "attachment",
+        "see", "please see", "pls see", "check", "check this", "dekhiye", "देखिए",
+    }
+    return lowered in generic_phrases
 
 
 def _infer_strong_taxonomy_override(blob: str) -> tuple[str | None, str | None]:

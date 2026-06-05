@@ -15,6 +15,8 @@ from sansadx_backend.unified_taxonomy import (
     canonicalize_problem_subdomain,
     infer_emergency_taxonomy_override,
     infer_personal_request_category,
+    infer_silent_log_category,
+    looks_like_contextless_media_message,
 )
 from modules.emergency_keywords import detect_emergency_severity
 
@@ -153,3 +155,17 @@ def test_infer_personal_request_category_for_transfer_request():
         infer_personal_request_category("mujhe transfer karwa dijiye please help")
         == "Personal Request"
     )
+
+
+def test_infer_silent_log_category_for_political_support_message():
+    assert infer_silent_log_category("thank you sir and happy birthday to you") == "Political / Support Message"
+
+
+def test_infer_silent_log_category_for_media_outreach():
+    assert infer_silent_log_category("press interview request from local media reporter") == "Media / Press Outreach"
+
+
+def test_contextless_media_message_detection_is_narrow():
+    assert looks_like_contextless_media_message("photo") is True
+    assert looks_like_contextless_media_message("please see attached pdf") is True
+    assert looks_like_contextless_media_message("water problem in tilakwadi") is False

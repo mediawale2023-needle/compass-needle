@@ -846,7 +846,20 @@ def get_cases(
 
     if bucket == "other":
         other_statuses = ["offensive", "irrelevant"]
-        other_categories = ["Request", "Personal Request", "Personal request", "Greetings", "Spam", "Spam (Offensive)"]
+        other_categories = [
+            "Request",
+            "Personal Request",
+            "Personal request",
+            "Greetings",
+            "Spam",
+            "Spam (Offensive)",
+            "Political / Support Message",
+            "Community / Event Invitation",
+            "Media / Press Outreach",
+            "Donation / Sponsorship Request",
+            "Suggestion / Idea",
+            "Spam / Promotional / Irrelevant",
+        ]
         status_placeholders = ", ".join(f":bucket_status_{i}" for i in range(len(other_statuses)))
         category_placeholders = ", ".join(f":bucket_cat_{i}" for i in range(len(other_categories)))
         conditions.append(
@@ -1140,7 +1153,20 @@ def export_cases(
 
     if bucket == "other":
         other_statuses = ["offensive", "irrelevant"]
-        other_categories = ["Request", "Personal Request", "Personal request", "Greetings", "Spam", "Spam (Offensive)"]
+        other_categories = [
+            "Request",
+            "Personal Request",
+            "Personal request",
+            "Greetings",
+            "Spam",
+            "Spam (Offensive)",
+            "Political / Support Message",
+            "Community / Event Invitation",
+            "Media / Press Outreach",
+            "Donation / Sponsorship Request",
+            "Suggestion / Idea",
+            "Spam / Promotional / Irrelevant",
+        ]
         status_placeholders = ", ".join(f":bucket_status_{i}" for i in range(len(other_statuses)))
         category_placeholders = ", ".join(f":bucket_cat_{i}" for i in range(len(other_categories)))
         conditions.append(
