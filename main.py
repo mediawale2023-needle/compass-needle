@@ -1129,6 +1129,7 @@ from modules.localized_replies import (
     get_generic_ack_reply,
     get_location_update_reply,
     get_missing_location_reply,
+    get_personal_request_reply,
     get_rate_limit_reply,
     get_review_ack_reply,
     get_unsupported_message_reply,
@@ -2559,6 +2560,7 @@ def _resolve_citizen_reply_language(message_body: str, ai_result: dict | None = 
 def _resolve_citizen_ack_message(
     *,
     status: str,
+    category: str | None,
     detected_language: str,
     message_body: str,
     location_name: str | None = None,
@@ -2579,6 +2581,9 @@ def _resolve_citizen_ack_message(
 
     if normalized_status == "irrelevant":
         return get_review_ack_reply(detected_language, message_body)
+
+    if str(category or "").lower().strip() == "personal request":
+        return get_personal_request_reply(detected_language, message_body)
 
     return get_generic_ack_reply(detected_language, message_body)
 
@@ -2744,10 +2749,12 @@ def _run_citizen_case_enrichment(
     convergence_program_type = grievance.get("convergence_program_type")
     categories = grievance.get("categories", [problem_domain] if problem_domain else [])
     category = (
-        problem_domain
+        ai_result.get("case_category")
+        or problem_domain
         or (categories[0] if isinstance(categories, list) and categories else None)
         or "Uncategorised"
     )
+    is_personal_request = str(category or "").lower().strip() == "personal request"
 
     _emergency_keyword_match = False
     try:
@@ -2782,7 +2789,7 @@ def _run_citizen_case_enrichment(
         resolver_fallback_message_body=resolver_fallback_message_body,
         current_tenant=current_tenant,
         is_emergency_complaint=is_emergency_complaint,
-        location_required=location_required_for_domain(category),
+        location_required=False if is_personal_request else location_required_for_domain(category),
     )
     grievance = geo_decision["grievance"]
     status = geo_decision["status"]
@@ -2791,6 +2798,7 @@ def _run_citizen_case_enrichment(
     final_constituency = geo_decision["final_constituency"]
     citizen_ack_message = _resolve_citizen_ack_message(
         status=status,
+        category=category,
         detected_language=detected_language,
         message_body=message_body,
         location_name=location_name,
@@ -2947,6 +2955,7 @@ def _run_citizen_case_enrichment(
         "convergence_program_type": convergence_program_type,
         "categories": categories,
         "category": category,
+        "is_personal_request": is_personal_request,
         "is_emergency_complaint": is_emergency_complaint,
         "emergency_keyword_match": _emergency_keyword_match,
         "political_reply": political_reply,

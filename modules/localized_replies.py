@@ -232,6 +232,46 @@ _REVIEW_ACK_LATIN = {
     ),
 }
 
+_PERSONAL_REQUEST_REPLY: dict[str, str] = {
+    "Hindi": (
+        "जनप्रतिनिधि कार्यालय में व्यक्तिगत रूप से संपर्क करें। "
+        "कार्यालय में प्राप्त आवेदन की समीक्षा के बाद आवश्यक मार्गदर्शन अथवा सहायता प्रदान की जाएगी।"
+    ),
+    "Hinglish": (
+        "Janpratinidhi karyalaya mein vyaktigat roop se sampark karein. "
+        "Karyalaya mein prapt aavedan ki samiksha ke baad avashyak margdarshan athva sahayata pradan ki jayegi."
+    ),
+    "Marathi": (
+        "कृपया जनप्रतिनिधी कार्यालयाशी प्रत्यक्ष संपर्क साधा. "
+        "कार्यालयात प्राप्त झालेल्या अर्जाची तपासणी केल्यानंतर आवश्यक मार्गदर्शन किंवा मदत दिली जाईल."
+    ),
+    "Kannada": (
+        "ದಯವಿಟ್ಟು ಜನಪ್ರತಿನಿಧಿ ಕಚೇರಿಯನ್ನು ವೈಯಕ್ತಿಕವಾಗಿ ಸಂಪರ್ಕಿಸಿ. "
+        "ಕಚೇರಿಗೆ ಬಂದ ಅರ್ಜಿಯನ್ನು ಪರಿಶೀಲಿಸಿದ ನಂತರ ಅಗತ್ಯ ಮಾರ್ಗದರ್ಶನ ಅಥವಾ ಸಹಾಯವನ್ನು ನೀಡಲಾಗುತ್ತದೆ."
+    ),
+    "English": (
+        "Please contact the जनप्रतिनिधि office in person. "
+        "After reviewing the application received at the office, the necessary guidance or assistance will be provided."
+    ),
+}
+
+_PERSONAL_REQUEST_REPLY_LATIN: dict[str, str] = {
+    "Hindi": (
+        "Janpratinidhi karyalaya mein vyaktigat roop se sampark karein. "
+        "Karyalaya mein prapt aavedan ki samiksha ke baad avashyak margdarshan athva sahayata pradan ki jayegi."
+    ),
+    "Hinglish": _PERSONAL_REQUEST_REPLY["Hinglish"],
+    "Marathi": (
+        "Kripaya janpratinidhi karyalayashi pratyaksha sampark saadha. "
+        "Karyalayat prapt jhalelya arjachi tapasani kelyanantar aavashyak margadarshan kiwa madat dili jaeel."
+    ),
+    "Kannada": (
+        "Dayavittu janapratinidhi kacheriyaannu vaiyaktikavaagi samparkisi. "
+        "Kacherige banda arjiyannu parishilisida nantara agathya maargadarshana athava sahaayavannu needalaguttade."
+    ),
+    "English": _PERSONAL_REQUEST_REPLY["English"],
+}
+
 _UNSUPPORTED_MESSAGE_REPLY: dict[str, str] = {
     "Hindi": (
         "Aapka sandesh mila 🙏\n\n"
@@ -534,6 +574,13 @@ def get_generic_ack_reply(detected_language: str = "", original_text: str = "") 
 
 def get_review_ack_reply(detected_language: str = "", original_text: str = "") -> str:
     return ensure_ji_prefix(_pick_template(_REVIEW_ACK, _REVIEW_ACK_LATIN, detected_language, original_text) or _REVIEW_ACK["English"])
+
+
+def get_personal_request_reply(detected_language: str = "", original_text: str = "") -> str:
+    return ensure_ji_prefix(
+        _pick_template(_PERSONAL_REQUEST_REPLY, _PERSONAL_REQUEST_REPLY_LATIN, detected_language, original_text)
+        or _PERSONAL_REQUEST_REPLY["Hindi"]
+    )
 
 
 def get_unsupported_message_reply(detected_language: str = "", original_text: str = "") -> str:

@@ -575,6 +575,55 @@ _SUICIDE_RISK_MARKERS = (
     "किसान आत्महत्या", "छात्र आत्महत्या",
 )
 
+_PERSONAL_REQUEST_FIRST_PERSON_MARKERS = (
+    "mera", "meri", "mere", "mujhe", "mere liye", "meri taraf se",
+    "hamara", "hamari", "hamare", "hume", "humare liye",
+    "my", "for me", "for my", "my son", "my daughter", "my brother", "my sister",
+    "मेरी", "मेरा", "मेरे", "मुझे", "हमारा", "हमारी", "हमारे",
+)
+
+_PERSONAL_REQUEST_HELP_MARKERS = (
+    "madad karo", "madad kijiye", "madad kare", "sahayata kijiye", "help karo",
+    "help kijiye", "meri madad", "humari madad", "kripya madad", "please help",
+    "aap meri madad", "office se madad", "guide karo", "margdarshan",
+    "मदद करो", "मदद कीजिए", "मदद करें", "सहायता करें", "मार्गदर्शन",
+)
+
+_PERSONAL_REQUEST_TRANSFER_MARKERS = (
+    "transfer", "transfer request", "tabadla", "badli", "posting", "posting request",
+    "transfer karwa", "badli karwa", "tabadla karwa", "mujhe transfer",
+    "ट्रांसफर", "तबादला", "बदली", "पोस्टिंग",
+)
+
+_PERSONAL_REQUEST_ADMISSION_MARKERS = (
+    "admission", "school admission", "college admission", "dakhila", "pravesh",
+    "seat dilwa", "admission kara", "school me admission", "college me admission",
+    "school mein admission", "college mein admission",
+    "एडमिशन", "दाखिला", "प्रवेश", "सीट दिलवा",
+)
+
+_PERSONAL_REQUEST_RECOMMENDATION_MARKERS = (
+    "sifarish", "shifarish", "recommendation", "recommend", "recommend letter",
+    "job lagwa", "naukri lagwa", "kaam karwa do", "personal favour", "personal favor",
+    "सिफारिश", "नौकरी लगवा", "काम करवा",
+)
+
+_PERSONAL_REQUEST_RELATION_MARKERS = (
+    "bhai", "behen", "beta", "beti", "pita", "maa", "father", "mother",
+    "brother", "sister", "husband", "wife", "family", "parivar", "relative", "rishtedar",
+    "भाई", "बहन", "बेटा", "बेटी", "पिता", "माँ", "मां", "परिवार", "रिश्तेदार",
+)
+
+_PERSONAL_REQUEST_PRIVATE_ASSET_MARKERS = (
+    "zameen", "jameen", "land", "property", "plot", "ghar",
+    "ज़मीन", "जमीन", "मकान", "घर", "प्लॉट", "संपत्ति",
+)
+
+_PERSONAL_REQUEST_CONFLICT_MARKERS = (
+    "jhagda", "dispute", "vivaad", "quarrel", "ladai", "fight",
+    "झगड़ा", "झगडा", "विवाद", "लड़ाई",
+)
+
 _LOCATION_CONTAINER_MARKERS = (
     "colony", "layout", "road", "street", "lane", "camp", "nagar",
     "galli", "circle", "cross", "extension", "quarters", "wadi", "peth",
@@ -636,6 +685,29 @@ def infer_emergency_taxonomy_override(blob: str) -> tuple[str | None, str | None
     if _has_any_marker(blob, _DISASTER_EMERGENCY_MARKERS):
         return "Health", "Emergency/Ambulance"
     return None, None
+
+
+def infer_personal_request_category(blob: str) -> str | None:
+    """Return Personal Request for explicit discretionary/private-help asks."""
+    if not blob:
+        return None
+
+    has_first_person = _has_any_marker(blob, _PERSONAL_REQUEST_FIRST_PERSON_MARKERS)
+    has_help = _has_any_marker(blob, _PERSONAL_REQUEST_HELP_MARKERS)
+    has_transfer = _has_any_marker(blob, _PERSONAL_REQUEST_TRANSFER_MARKERS)
+    has_admission = _has_any_marker(blob, _PERSONAL_REQUEST_ADMISSION_MARKERS)
+    has_recommendation = _has_any_marker(blob, _PERSONAL_REQUEST_RECOMMENDATION_MARKERS)
+    has_relation = _has_any_marker(blob, _PERSONAL_REQUEST_RELATION_MARKERS)
+    has_private_asset = _has_any_marker(blob, _PERSONAL_REQUEST_PRIVATE_ASSET_MARKERS)
+    has_conflict = _has_any_marker(blob, _PERSONAL_REQUEST_CONFLICT_MARKERS)
+
+    if has_first_person and (has_transfer or has_admission or has_recommendation):
+        return "Personal Request"
+
+    if has_relation and has_private_asset and has_conflict and (has_help or has_first_person):
+        return "Personal Request"
+
+    return None
 
 
 def _infer_strong_taxonomy_override(blob: str) -> tuple[str | None, str | None]:

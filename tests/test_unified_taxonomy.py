@@ -14,6 +14,7 @@ from sansadx_backend.unified_taxonomy import (
     canonicalize_convergence_program_type,
     canonicalize_problem_subdomain,
     infer_emergency_taxonomy_override,
+    infer_personal_request_category,
 )
 from modules.emergency_keywords import detect_emergency_severity
 
@@ -138,3 +139,17 @@ def test_infer_emergency_taxonomy_override_for_missing_child():
 
 def test_detect_emergency_severity_matches_hindi_riot_text():
     assert detect_emergency_severity("आंगोल में दंगा हुआ है, कुछ मस्जिद पर पत्थर मारे लोगों ने।") is True
+
+
+def test_infer_personal_request_category_for_private_land_help():
+    assert (
+        infer_personal_request_category("mera mere bhai ke saath zameen ko lekar jhagda hua. aap meri madad karo")
+        == "Personal Request"
+    )
+
+
+def test_infer_personal_request_category_for_transfer_request():
+    assert (
+        infer_personal_request_category("mujhe transfer karwa dijiye please help")
+        == "Personal Request"
+    )

@@ -22,8 +22,14 @@ from .unified_taxonomy import (
     VALID_CATEGORIES as _VALID_CATEGORIES,
     build_taxonomy_fields,
     infer_emergency_taxonomy_override,
+    infer_personal_request_category,
 )
-from modules.localized_replies import get_generic_ack_reply, get_missing_location_reply, normalize_language_name
+from modules.localized_replies import (
+    get_generic_ack_reply,
+    get_missing_location_reply,
+    get_personal_request_reply,
+    normalize_language_name,
+)
 from modules.geography_policy import location_required_for_grievance
 
 # ==========================================
@@ -956,6 +962,18 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 if "grievance_data" not in data or not isinstance(data["grievance_data"], dict):
                     data["grievance_data"] = {}
                 data["grievance_data"].update(fields)
+
+            personal_request_category = infer_personal_request_category(effective_user_message.lower())
+            if (
+                personal_request_category
+                and str(data.get("status", "")).lower() not in {"emergency", "offensive", "irrelevant", "awaiting_location"}
+            ):
+                data["case_category"] = personal_request_category
+                data["is_personal_request"] = True
+                data["political_response"] = get_personal_request_reply(
+                    detected_lang,
+                    effective_user_message,
+                )
 
             # Language guardrail: if citizen input was transliterated (mostly ASCII),
             # reject non-ASCII AI replies to avoid Hindi-script swaps for Marathi/Hinglish.

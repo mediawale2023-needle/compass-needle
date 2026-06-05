@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-05
+- Request: Add a dedicated response path for personal/discretionary requests like transfer, admission, and private family/property help.
+- Summary: Added narrow first-person discretionary-request detection for transfer requests, admission help, recommendation/sifarish asks, and private family/property disputes. Those messages now save as `Personal Request`, skip location-demand behavior, and receive a deterministic office-contact reply from `modules/localized_replies.py` instead of the normal grievance acknowledgment. Also updated the API “other” bucket contract to include `Personal Request` and added focused classifier/end-to-end regressions for land-dispute and transfer examples.
+- Files touched: `sansadx_backend/unified_taxonomy.py`, `sansadx_backend/ai_engine.py`, `modules/localized_replies.py`, `main.py`, `api_router.py`, `tests/test_unified_taxonomy.py`, `tests/test_ai_location_grounding.py`, `tests/test_e2e_core_flow.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The detector is intentionally narrow so generic public complaints are not accidentally downgraded into office-favor requests. If future examples are missed, extend the marker list with similarly explicit first-person/discretionary phrases rather than broadening around generic words like `help` or `dispute`.
+
+- Date: 2026-06-05
 - Request: Push the emergency no-ack classification tightening to GitHub for deployment.
 - Summary: Pushed commit `ba0a2787` (`Tighten emergency no-ack classification`) to `origin/main`, publishing the stronger emergency rescue/classification layer plus the Indic-safe emergency keyword detection that suppresses citizen acknowledgements for severe law-and-order, women/child danger, health-emergency, disaster, and suicide-risk reports.
 - Files touched: `TASK_LOG.md`

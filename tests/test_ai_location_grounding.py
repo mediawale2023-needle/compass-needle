@@ -213,6 +213,45 @@ def test_ask_chatgpt_agent_clears_sentence_like_ai_location(monkeypatch):
     assert result["_match_confidence"] in {"ungrounded_cleared", "unmatched_cleared"}
 
 
+def test_ask_chatgpt_agent_marks_personal_request(monkeypatch):
+    monkeypatch.setattr(ai_engine, "get_client", lambda: _stub_client({
+        "status": "new",
+        "detected_language": "Hindi",
+        "political_response": "Aapka mudda note kiya gaya hai.",
+        "grievance_data": {
+            "categories": ["Housing & Land"],
+            "problem_domain": "Housing & Land",
+            "problem_subdomain": "Encroachment/Dispute",
+            "convergence_program_type": None,
+            "location": None,
+            "person": None,
+            "department": None,
+            "scheme": None,
+        },
+    }))
+    monkeypatch.setattr(ai_engine, "get_jurisdiction_context", lambda tenant_id=1: "")
+    monkeypatch.setattr(
+        ai_engine,
+        "_get_tenant_profile",
+        lambda tenant_id: {"mp_name": "Test MP", "constituency": "Belagavi", "state": "", "house": "Lok Sabha"},
+    )
+    monkeypatch.setattr(
+        ai_engine,
+        "resolve_geography_from_text",
+        lambda *_args, **_kwargs: {"location_resolved": False},
+    )
+
+    result = ai_engine.ask_chatgpt_agent(
+        "Mera mere bhai ke saath zameen ko lekar jhagda hua. AAP meri madad karo",
+        tenant_id=1,
+    )
+
+    assert result["status"] == "new"
+    assert result["case_category"] == "Personal Request"
+    assert result["is_personal_request"] is True
+    assert "Janpratinidhi karyalaya mein vyaktigat roop se sampark karein." in result["political_response"]
+
+
 def test_bureaucratic_case_can_stay_new_without_location(monkeypatch):
     monkeypatch.setattr(ai_engine, "get_client", lambda: _stub_client({
         "status": "new",

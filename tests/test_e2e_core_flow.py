@@ -430,6 +430,52 @@ def test_hindi_riot_message_sends_no_ack_even_if_ai_misclassifies(monkeypatch):
     assert created_case["status"] == "pending_review"
 
 
+def test_personal_request_gets_special_office_contact_reply(monkeypatch):
+    _seed_database()
+    monkeypatch.setattr(main, "META_APP_SECRET", "test-meta-app-secret")
+
+    outbound_messages = []
+    monkeypatch.setattr(
+        main,
+        "ask_chatgpt_agent",
+        lambda prompt, tenant_id=None: {
+            "status": "new",
+            "detected_language": "Hindi",
+            "political_response": "जनप्रतिनिधि कार्यालय में व्यक्तिगत रूप से संपर्क करें।",
+            "case_category": "Personal Request",
+            "is_personal_request": True,
+            "grievance_data": {
+                "problem_domain": "Housing & Land",
+                "problem_subdomain": "Encroachment/Dispute",
+                "convergence_program_type": "Monitoring & Transparency",
+                "categories": ["Housing & Land"],
+                "location": None,
+                "department": None,
+                "summary": "Private land dispute help request",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = f"9196611{int(time.time()) % 100000:05d}"
+    webhook_resp = _post_signed_webhook(
+        _whatsapp_payload(sender, "Mera mere bhai ke saath zameen ko lekar jhagda hua. AAP meri madad karo")
+    )
+    assert webhook_resp.status_code == 200, webhook_resp.text
+    assert webhook_resp.json()["status"] == "received"
+    assert _wait_for(lambda: list(outbound_messages)), "Personal requests should receive the office-contact reply"
+    assert "Janpratinidhi karyalaya mein vyaktigat roop se sampark karein." in outbound_messages[-1][1]
+
+    created_case = _wait_for(lambda: _fetch_case_by_phone(sender))
+    assert created_case is not None
+    assert created_case["category"] == "Personal Request"
+    assert created_case["status"] == "new"
+
+
 def test_abusive_message_gets_warning_reply_without_ai(monkeypatch):
     _seed_database()
     monkeypatch.setattr(main, "META_APP_SECRET", "test-meta-app-secret")
