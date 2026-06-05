@@ -94,6 +94,7 @@ def _normalize_sarvam_transcript(
     media_bytes: bytes,
     mime_type: str,
     *,
+    tenant_id: int,
     media_type: str,
     caption: str,
 ) -> NormalizedMediaComplaint | None:
@@ -194,6 +195,7 @@ def normalize_media_complaint(
     sarvam_audio_result = _normalize_sarvam_transcript(
         media_bytes,
         mime_type,
+        tenant_id=tenant_id,
         media_type=media_type,
         caption=caption,
     )

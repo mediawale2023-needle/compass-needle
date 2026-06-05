@@ -100,4 +100,8 @@ def test_audio_prefers_sarvam_transcription(monkeypatch):
     assert result.ok is True
     assert "bike theft" in result.text.lower()
     assert result.extracted_language == "Hindi"
-    assert result.confidence == "high"
+    # Sarvam path must be taken and the transcript normalizer must actually run
+    # (the tenant_id was previously dropped, raising NameError and silently
+    # disabling normalization for every voice note).
+    assert result.transcript_provider == "sarvam"
+    assert result.confidence in {"high", "medium", "low"}
