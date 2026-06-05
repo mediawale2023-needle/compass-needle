@@ -1145,6 +1145,7 @@ _SILENT_LOG_CATEGORIES = {
     "donation / sponsorship request",
     "suggestion / idea",
     "spam / promotional / irrelevant",
+    "greetings",
 }
 
 

@@ -638,6 +638,54 @@ _POLITICAL_SUPPORT_EXCLUSION_MARKERS = (
     "status", "update", "problem", "समस्या", "मदद", "शिकायत", "पानी", "सड़क",
 )
 
+# Pure greetings / pleasantries with no grievance content. Detected via the
+# residue check in looks_like_pure_greeting() (not raw substring matching) so
+# that "good morning, paani problem" still routes as a grievance.
+_GREETING_PHRASES = (
+    "good morning", "good afternoon", "good evening", "good night", "good day",
+    "very good morning", "gud morning", "gud mrng", "good mrng",
+    "hello", "helo", "hii", "hiii", "hey", "hi",
+    "namaste", "namaskar", "namaskaar", "namaskara", "namaskaram",
+    "pranam", "pranaam", "ram ram", "jai hind", "jai shri ram", "jai shree ram",
+    "jai shri krishna", "radhe radhe", "suprabhat", "shubh prabhat", "subh prabhat",
+    "salaam", "salam", "adaab", "aadab", "sat sri akal", "sat sri akaal",
+    "khamma ghani", "vanakkam", "shubh din", "greetings", "greeting",
+    "नमस्ते", "नमस्कार", "सुप्रभात", "शुभ प्रभात", "राम राम", "जय हिंद",
+    "जय श्री राम", "प्रणाम", "गुड मॉर्निंग", "शुभ दिन", "राधे राधे", "जय श्रीराम",
+)
+
+# Honorifics / filler that may accompany a bare greeting without making it a
+# grievance (e.g. "Good morning sir ji").
+_GREETING_FILLER = {
+    "sir", "madam", "maam", "saheb", "sahab", "sahib", "sirji", "ji", "respected",
+    "dear", "the", "to", "you", "u", "good", "very", "and", "a",
+    "dada", "tai", "bhai", "behen", "saab", "namaste",
+    "सर", "साहेब", "जी", "महोदय", "आदरणीय", "श्रीमान",
+}
+
+
+def looks_like_pure_greeting(blob: str) -> bool:
+    """Return True only when the message is a standalone greeting/pleasantry.
+
+    Greeting phrases are stripped out along with common honorifics/filler; if
+    nothing meaningful remains, the message carries no grievance and should be
+    silently logged rather than acknowledged as a complaint.
+    """
+    if not blob:
+        return False
+    lowered = blob.lower().strip()
+    if not lowered or len(lowered) > 80:
+        return False
+    if not any(phrase in lowered for phrase in _GREETING_PHRASES):
+        return False
+
+    residue = lowered
+    for phrase in sorted(_GREETING_PHRASES, key=len, reverse=True):
+        residue = residue.replace(phrase, " ")
+    residue = re.sub(r"[^\w\s]", " ", residue)
+    tokens = [tok for tok in residue.split() if tok and tok not in _GREETING_FILLER]
+    return len(tokens) == 0
+
 _COMMUNITY_INVITATION_MARKERS = (
     "invite", "invitation", "aamantran", "amantran", "chief guest", "please attend",
     "program", "function", "event", "ceremony", "inauguration", "meeting request",
@@ -793,6 +841,9 @@ def infer_silent_log_category(blob: str) -> str | None:
         lowered, _POLITICAL_SUPPORT_EXCLUSION_MARKERS
     ):
         return "Political / Support Message"
+
+    if looks_like_pure_greeting(blob):
+        return "Greetings"
 
     return None
 
