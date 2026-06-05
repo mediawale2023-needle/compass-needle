@@ -514,7 +514,7 @@ class TenantOverride(Base):
     __tablename__ = "tenant_overrides"
     id = Column(Integer, primary_key=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
-    override_type = Column(String)   # "phone_mapping" or "geo_override"
+    override_type = Column(String)   # e.g. "phone_mapping", "geo_override" (legacy), "geo_manual_override", "geo_alias", "geography_data"
     key = Column(String)             # phone number or location name
     value = Column(String)           # tenant_id or assembly constituency
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -639,14 +639,27 @@ def get_tenant_phone_number_id(tenant_id: int) -> str | None:
 
 
 def get_geo_overrides(tenant_id: int) -> dict:
-    """Return {location_name: constituency} for a tenant."""
+    """Return manual {location_name: constituency} corrections for a tenant."""
     db = SessionLocal()
     try:
+        alias_keys = {
+            str(row.key or "").strip()
+            for row in db.query(TenantOverride).filter(
+                TenantOverride.override_type == "geo_alias",
+                TenantOverride.tenant_id == tenant_id,
+            ).all()
+        }
         rows = db.query(TenantOverride).filter(
-            TenantOverride.override_type == "geo_override",
+            TenantOverride.override_type.in_(["geo_manual_override", "geo_override"]),
             TenantOverride.tenant_id == tenant_id,
         ).all()
-        return {r.key: r.value for r in rows}
+        overrides = {}
+        for row in rows:
+            key = str(row.key or "").strip()
+            if row.override_type == "geo_override" and key in alias_keys:
+                continue
+            overrides[key] = row.value
+        return overrides
     finally:
         db.close()
 
@@ -792,12 +805,19 @@ def get_all_overrides() -> dict:
     try:
         result = {}
         geo_overrides = {}
+        alias_keys_by_tenant: dict[str, set[str]] = {}
         rows = db.query(TenantOverride).all()
+        for r in rows:
+            if r.override_type == "geo_alias":
+                tid = str(r.tenant_id)
+                alias_keys_by_tenant.setdefault(tid, set()).add(str(r.key or "").strip())
         for r in rows:
             if r.override_type == "phone_mapping":
                 result[r.key] = int(r.value)
-            elif r.override_type == "geo_override":
+            elif r.override_type in ("geo_manual_override", "geo_override"):
                 tid = str(r.tenant_id)
+                if r.override_type == "geo_override" and str(r.key or "").strip() in alias_keys_by_tenant.get(tid, set()):
+                    continue
                 if tid not in geo_overrides:
                     geo_overrides[tid] = {}
                 geo_overrides[tid][r.key] = r.value
@@ -809,11 +829,11 @@ def get_all_overrides() -> dict:
 
 
 def save_overrides_to_db(data: dict):
-    """Bulk replace legacy phone/geo overrides without touching shared geography rows."""
+    """Bulk replace phone mappings and manual geo corrections without touching shared geography or generated aliases."""
     db = SessionLocal()
     try:
         db.query(TenantOverride).filter(
-            TenantOverride.override_type.in_(["phone_mapping", "geo_override"])
+            TenantOverride.override_type.in_(["phone_mapping", "geo_override", "geo_manual_override"])
         ).delete(synchronize_session=False)
         # Phone mappings (top-level keys that aren't "geo_overrides")
         for key, value in data.items():
@@ -831,7 +851,7 @@ def save_overrides_to_db(data: dict):
             for loc, constituency in mappings.items():
                 db.add(TenantOverride(
                     tenant_id=tid,
-                    override_type="geo_override",
+                    override_type="geo_manual_override",
                     key=loc,
                     value=constituency,
                 ))

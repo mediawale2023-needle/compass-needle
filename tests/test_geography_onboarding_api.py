@@ -167,15 +167,15 @@ def test_bulk_geography_skips_live_override_for_ambiguous_locality():
     with test_engine.connect() as conn:
         unique_override = conn.execute(text("""
             SELECT value FROM tenant_overrides
-            WHERE tenant_id = 2 AND override_type = 'geo_override' AND key = 'unique colony'
+            WHERE tenant_id = 2 AND override_type = 'geo_alias' AND key = 'unique colony'
         """)).scalar()
         second_override = conn.execute(text("""
             SELECT value FROM tenant_overrides
-            WHERE tenant_id = 2 AND override_type = 'geo_override' AND key = 'shanti enclave'
+            WHERE tenant_id = 2 AND override_type = 'geo_alias' AND key = 'shanti enclave'
         """)).scalar()
 
-    assert unique_override == "Loni"
-    assert second_override == "Loni"
+    assert '"assembly": "Loni"' in unique_override or '"assembly":"Loni"' in unique_override
+    assert '"assembly": "Loni"' in second_override or '"assembly":"Loni"' in second_override
 
 
 def test_upload_pdf_returns_sanitized_stations_and_validation(monkeypatch):

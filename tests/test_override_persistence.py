@@ -72,7 +72,30 @@ def test_save_overrides_to_db_preserves_shared_geography_and_alias_rows():
 
     assert row_map[(None, "geography_data", "mla:Belagavi North/Core Zone")] == "[]"
     assert row_map[(10, "geo_alias", "shahapur")] == '{"assembly":"Belgaum South","display":"Shahapur"}'
-    assert row_map[(10, "geo_override", "shahapur")] == "Belgaum South"
+    assert row_map[(10, "geo_manual_override", "shahapur")] == "Belgaum South"
     assert row_map[(10, "phone_mapping", "whatsapp:+918888888888")] == "10"
     assert (2, "geo_override", "old locality") not in row_map
     assert (2, "phone_mapping", "whatsapp:+919999999999") not in row_map
+
+
+def test_get_all_overrides_ignores_legacy_generated_geo_override_when_alias_exists():
+    _seed_database()
+
+    with test_engine.begin() as conn:
+        now = datetime.utcnow()
+        conn.execute(
+            text(
+                """
+                INSERT INTO tenant_overrides (tenant_id, override_type, key, value, created_at)
+                VALUES
+                    (10, 'geo_override', 'shahapur', 'Wrong Assembly', :now),
+                    (10, 'geo_manual_override', 'teacher colony', 'Belgaum South', :now)
+                """
+            ),
+            {"now": now},
+        )
+
+    overrides = dbmod.get_all_overrides()
+
+    assert overrides["geo_overrides"]["10"]["teacher colony"] == "Belgaum South"
+    assert "shahapur" not in overrides["geo_overrides"]["10"]

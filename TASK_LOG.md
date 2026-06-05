@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-05
+- Request: Simplify the geography architecture so generated geography stops acting like a forced override layer, while keeping manual corrections simple for operators.
+- Summary: Split runtime geography behavior into generated `geo_alias` helpers versus manual corrections. Updated DB override helpers so admin-managed corrections now persist as `geo_manual_override`, legacy `geo_override` rows are only treated as manual when they do not collide with a generated alias, and `auto_generate_overrides()` now writes only `geo_alias` rows instead of regenerating forced `geo_override` rows. Added regressions for the migration/filtering behavior and updated same-seat/onboarding expectations. Verified with `venv/bin/python -m pytest tests/test_override_persistence.py tests/test_same_seat_isolation.py tests/test_geography_onboarding_api.py -q`, `PATH=/opt/homebrew/bin:$PATH npm run test --prefix admin -- --run tests/geography.test.jsx`, and `venv/bin/python -m py_compile sansadx_backend/db.py modules/geography_resolver.py admin_api.py`.
+- Files touched: `sansadx_backend/db.py`, `modules/geography_resolver.py`, `tests/test_override_persistence.py`, `tests/test_same_seat_isolation.py`, `tests/test_geography_onboarding_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This fixes the runtime precedence issue without forcing operators into a new workflow, but older tenants with meaningful legacy `geo_override` rows should still be reviewed and resaved through the admin workspace over time so everything migrates cleanly into `geo_manual_override`.
+
+- Date: 2026-06-05
 - Request: Push the spreadsheet-style bulk correction parser update to GitHub for deployment.
 - Summary: Pushed commit `3d1c223d` (`Accept spreadsheet bulk corrections`) to `origin/main`, publishing tab-separated bulk manual-correction import alongside the existing `alias => assembly` format in the Shared Geography workspace.
 - Files touched: `TASK_LOG.md`

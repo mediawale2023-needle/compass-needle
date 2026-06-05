@@ -503,22 +503,37 @@ _NATIVE_LOCATION_SUFFIXES = (
 # ==========================================
 
 def _load_tenant_overrides(tenant_id):
-    """Load geo_overrides for a tenant.
+    """Load manual geography corrections for a tenant.
 
-    Reads from the DB (primary — survives Railway redeploys) and falls back
-    to tenant_overrides.json if the DB query fails.
+    Reads tenant-scoped manual corrections from the DB (primary) and falls back
+    to tenant_overrides.json if the DB query fails. Legacy `geo_override` rows
+    are only honored when they do not collide with a generated `geo_alias`
+    key for the same tenant.
     """
-    # Primary: read geo_override rows from DB
     try:
         from sansadx_backend.db import SessionLocal, TenantOverride
         _db = SessionLocal()
         try:
+            alias_keys = {
+                str(row.key or "").strip()
+                for row in _db.query(TenantOverride).filter(
+                    TenantOverride.override_type == "geo_alias",
+                    TenantOverride.tenant_id == tenant_id,
+                ).all()
+            }
             rows = _db.query(TenantOverride).filter(
-                TenantOverride.override_type == "geo_override",
+                TenantOverride.override_type.in_(["geo_manual_override", "geo_override"]),
                 TenantOverride.tenant_id == tenant_id,
             ).all()
             if rows:
-                return {r.key: r.value for r in rows}
+                overrides = {}
+                for r in rows:
+                    key = str(r.key or "").strip()
+                    if r.override_type == "geo_override" and key in alias_keys:
+                        continue
+                    overrides[key] = r.value
+                if overrides:
+                    return overrides
         finally:
             _db.close()
     except Exception:
@@ -1646,7 +1661,30 @@ def _rank_location_candidates(
     logger.debug(f"RESOLVING: '{clean_text}' (tenant={tenant_id})")
     tenant_context = _get_tenant_seat_context(tenant_id) if tenant_id is not None else None
 
-    # 1. TENANT-SPECIFIC OVERRIDES (from tenant_overrides.json)
+    # 1. TENANT-SPECIFIC MANUAL CORRECTIONS
+    if tenant_id is not None:
+        tenant_overrides = _load_tenant_overrides(tenant_id)
+        for k, v in tenant_overrides.items():
+            if k.lower() in clean_text:
+                logger.debug(f"   OVERRIDE (tenant {tenant_id}): {k} -> {v}")
+                return [{
+                    "location_resolved": True,
+                    "assembly_constituency": v,
+                    "matched_value": k.title(),
+                    "confidence": "god_mode",
+                    "confidence_level": "exact",
+                    "match_type": "god_mode",
+                    "assembly": v,
+                    "parl": scope_parliamentary or (tenant_context or {}).get("scope_parliamentary"),
+                    "seat_type": (tenant_context or {}).get("seat_type"),
+                    "seat_name": (tenant_context or {}).get("seat_name"),
+                    "name": k.title(),
+                    "matched_name": k.title(),
+                    "score": 990,
+                    "type": "god_mode",
+                }]
+
+    # 2. GENERATED TENANT ALIASES
     if tenant_id is not None:
         tenant_aliases = _load_tenant_geo_aliases(int(tenant_id))
         for alias_key, payload in tenant_aliases.items():
@@ -1688,27 +1726,6 @@ def _rank_location_candidates(
                         "score": 980,
                         "type": "db_alias_boundary",
                     }]
-
-        tenant_overrides = _load_tenant_overrides(tenant_id)
-        for k, v in tenant_overrides.items():
-            if k.lower() in clean_text:
-                logger.debug(f"   OVERRIDE (tenant {tenant_id}): {k} -> {v}")
-                return [{
-                    "location_resolved": True,
-                    "assembly_constituency": v,
-                    "matched_value": k.title(),
-                    "confidence": "god_mode",
-                    "confidence_level": "exact",
-                    "match_type": "god_mode",
-                    "assembly": v,
-                    "parl": scope_parliamentary or (tenant_context or {}).get("scope_parliamentary"),
-                    "seat_type": (tenant_context or {}).get("seat_type"),
-                    "seat_name": (tenant_context or {}).get("seat_name"),
-                    "name": k.title(),
-                    "matched_name": k.title(),
-                    "score": 990,
-                    "type": "god_mode",
-                }]
 
     seat_scope_type = normalize((tenant_context or {}).get("seat_type", ""))
     seat_scope_name = normalize((tenant_context or {}).get("seat_name", ""))
@@ -2104,7 +2121,7 @@ def reload_index():
 def auto_generate_overrides():
     """
     Scans persisted geography data, extracts locality→assembly mappings, and
-    writes them to the DB as geo_override rows.
+    writes generated helper aliases to the DB as geo_alias rows.
     """
     seat_to_tenants = {}
     try:
@@ -2198,18 +2215,11 @@ def auto_generate_overrides():
             db = SL()
             try:
                 db.execute(
-                    sa_text("DELETE FROM tenant_overrides WHERE tenant_id = :tid AND override_type IN ('geo_override', 'geo_alias')"),
+                    sa_text("DELETE FROM tenant_overrides WHERE tenant_id = :tid AND override_type = 'geo_alias'"),
                     {"tid": tenant_id}
                 )
                 db.commit()
                 for loc_key, assembly_val in overrides_map.items():
-                    override = TenantOverride(
-                        tenant_id=tenant_id,
-                        override_type="geo_override",
-                        key=loc_key,
-                        value=assembly_val,
-                    )
-                    db.add(override)
                     db.add(TenantOverride(
                         tenant_id=tenant_id,
                         override_type="geo_alias",
@@ -2223,11 +2233,11 @@ def auto_generate_overrides():
                 
                 db.commit()
                 total_written += len(overrides_map)
-                logger.info(f"Wrote {len(overrides_map)} geo_overrides for tenant {tenant_id} ({parl_name})")
+                logger.info(f"Wrote {len(overrides_map)} geo_alias rows for tenant {tenant_id} ({parl_name})")
             finally:
                 db.close()
         except Exception as e:
-            logger.error(f"Failed to write geo_overrides to DB for {parl_name}: {e}")
+            logger.error(f"Failed to write geo_alias rows to DB for {parl_name}: {e}")
         
         stats[parl_name] = {
             "tenant_id": tenant_id,

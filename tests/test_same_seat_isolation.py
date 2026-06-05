@@ -78,7 +78,7 @@ def test_auto_generate_overrides_fans_out_shared_seat_geography_per_tenant():
                 """
                 SELECT tenant_id, key, value
                 FROM tenant_overrides
-                WHERE override_type = 'geo_override'
+                WHERE override_type = 'geo_alias'
                 ORDER BY tenant_id, key
                 """
             )
@@ -88,14 +88,13 @@ def test_auto_generate_overrides_fans_out_shared_seat_geography_per_tenant():
     for tenant_id, key, value in mp_rows:
         rows_by_tenant.setdefault(tenant_id, {})[key] = value
 
-    assert rows_by_tenant[11]["hanuman nagar"] == "Belgaum Uttar"
-    assert rows_by_tenant[12]["hanuman nagar"] == "Belgaum Uttar"
-    assert rows_by_tenant[13]["hanuman nagar"] == "Belgaum Uttar"
-    assert rows_by_tenant[11]["tilakwadi"] == "Belgaum Uttar"
-    assert rows_by_tenant[12]["tilakwadi"] == "Belgaum Uttar"
-    assert rows_by_tenant[13]["tilakwadi"] == "Belgaum Uttar"
+    assert "Belgaum Uttar" in rows_by_tenant[11]["hanuman nagar"]
+    assert "Belgaum Uttar" in rows_by_tenant[12]["hanuman nagar"]
+    assert "Belgaum Uttar" in rows_by_tenant[13]["hanuman nagar"]
+    assert "Belgaum Uttar" in rows_by_tenant[11]["tilakwadi"]
+    assert "Belgaum Uttar" in rows_by_tenant[12]["tilakwadi"]
+    assert "Belgaum Uttar" in rows_by_tenant[13]["tilakwadi"]
     assert "sector 1" not in rows_by_tenant[11]
     assert "sector 1" not in rows_by_tenant[12]
     assert "sector 1" not in rows_by_tenant[13]
-    assert rows_by_tenant[21]["sector 1"] == "Core Zone"
-
+    assert "Core Zone" in rows_by_tenant[21]["sector 1"]
