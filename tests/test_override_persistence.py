@@ -99,3 +99,43 @@ def test_get_all_overrides_ignores_legacy_generated_geo_override_when_alias_exis
 
     assert overrides["geo_overrides"]["10"]["teacher colony"] == "Belgaum South"
     assert "shahapur" not in overrides["geo_overrides"]["10"]
+
+
+def test_cleanup_legacy_generated_geo_overrides_deletes_alias_collisions_only():
+    _seed_database()
+
+    with test_engine.begin() as conn:
+        now = datetime.utcnow()
+        conn.execute(
+            text(
+                """
+                INSERT INTO tenant_overrides (tenant_id, override_type, key, value, created_at)
+                VALUES
+                    (10, 'geo_override', 'shahapur', 'Wrong Assembly', :now),
+                    (10, 'geo_override', 'teacher colony', 'Wrong Assembly', :now),
+                    (10, 'geo_manual_override', 'teacher colony manual', 'Belgaum South', :now)
+                """
+            ),
+            {"now": now},
+        )
+
+    result = dbmod.cleanup_legacy_generated_geo_overrides()
+
+    assert result["deleted"] == 1
+    assert result["tenants"] == 1
+
+    with test_engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT override_type, key, value
+                FROM tenant_overrides
+                WHERE tenant_id = 10
+                ORDER BY override_type, key
+                """
+            )
+        ).fetchall()
+
+    assert ("geo_override", "shahapur", "Wrong Assembly") not in rows
+    assert ("geo_override", "teacher colony", "Wrong Assembly") in rows
+    assert ("geo_manual_override", "teacher colony manual", "Belgaum South") in rows

@@ -234,9 +234,10 @@ try:
 except Exception as _e:
     logger.warning("Brain schema setup skipped: %s", _e)
 
-# On startup: seed DB from JSON files if present, then sync geo_overrides from
-# persisted geography_data rows. This is useful for first boot and maintenance,
-# but expensive enough that production skips it unless explicitly enabled.
+# On startup: seed DB from JSON files if present, sync generated geo_alias
+# helpers from persisted geography_data rows, and clean stale legacy generated
+# geo_override rows. This is useful for first boot and maintenance, but
+# expensive enough that production skips it unless explicitly enabled.
 _run_geo_startup_sync = os.getenv("RUN_GEO_STARTUP_SYNC", "").lower() in {"1", "true", "yes"}
 if os.getenv("ENV", "development") != "production":
     _run_geo_startup_sync = os.getenv("RUN_GEO_STARTUP_SYNC", "1").lower() in {"1", "true", "yes"}
@@ -286,10 +287,18 @@ try:
     finally:
         _sdb.close()
 
-    # ── Step 2: Sync persisted geography_data → DB geo_override lookup entries ──
+    # ── Step 2: Sync persisted geography_data → DB generated geo_alias entries ──
     from modules.geography_resolver import auto_generate_overrides
+    from sansadx_backend.db import cleanup_legacy_generated_geo_overrides
     _sync_result = auto_generate_overrides()
-    logger.info(f"Geography overrides synced to DB: {_sync_result}")
+    logger.info(f"Geography aliases synced to DB: {_sync_result}")
+    _cleanup_result = cleanup_legacy_generated_geo_overrides()
+    if _cleanup_result.get("deleted"):
+        logger.info(
+            "Geography startup cleanup removed %s legacy generated geo_override rows across %s tenants",
+            _cleanup_result.get("deleted"),
+            _cleanup_result.get("tenants"),
+        )
 
 except Exception as e:
     if str(e) != "__skip_geo_startup_sync__":

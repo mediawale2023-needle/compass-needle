@@ -863,6 +863,53 @@ def save_overrides_to_db(data: dict):
         db.close()
 
 
+def cleanup_legacy_generated_geo_overrides() -> dict:
+    """Delete stale legacy geo_override rows that duplicate generated alias keys.
+
+    These rows were historically produced from shared geography generation and
+    can keep forcing wrong matches even after alias logic is corrected. Manual
+    corrections now live in `geo_manual_override`, so any `geo_override` row
+    that shares the same tenant/key as a generated `geo_alias` is safe to drop.
+    """
+    db = SessionLocal()
+    try:
+        alias_rows = db.query(TenantOverride).filter(
+            TenantOverride.override_type == "geo_alias"
+        ).all()
+        alias_pairs = {
+            (row.tenant_id, str(row.key or "").strip())
+            for row in alias_rows
+            if row.tenant_id is not None and str(row.key or "").strip()
+        }
+        if not alias_pairs:
+            return {"deleted": 0, "tenants": 0}
+
+        legacy_rows = db.query(TenantOverride).filter(
+            TenantOverride.override_type == "geo_override"
+        ).all()
+        deleted = 0
+        touched_tenants: set[int] = set()
+        for row in legacy_rows:
+            key = str(row.key or "").strip()
+            pair = (row.tenant_id, key)
+            if row.tenant_id is None or not key:
+                continue
+            if pair in alias_pairs:
+                db.delete(row)
+                deleted += 1
+                touched_tenants.add(int(row.tenant_id))
+        if deleted:
+            db.commit()
+        else:
+            db.rollback()
+        return {"deleted": deleted, "tenants": len(touched_tenants)}
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 class OpportunityCompanyMatch(Base):
     """
     Multi-dimensional match score between a grievance opportunity and a CSR company.

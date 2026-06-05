@@ -91,8 +91,13 @@ def _refresh_geography_runtime() -> None:
     """Regenerate live lookup rows and reload this worker's in-memory index."""
     try:
         from modules.geography_resolver import auto_generate_overrides, reload_index
+        from sansadx_backend.db import cleanup_legacy_generated_geo_overrides
 
         auto_generate_overrides()
+        cleanup_result = cleanup_legacy_generated_geo_overrides()
+        if cleanup_result.get("deleted"):
+            logger.info("Cleaned %s legacy generated geo_override rows across %s tenants",
+                        cleanup_result.get("deleted"), cleanup_result.get("tenants"))
         reload_index()
     except Exception as exc:
         logger.warning("Geography override regeneration / index reload failed: %s", exc)
