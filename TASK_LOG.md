@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-05
+- Request: Push the emergency no-ack classification tightening to GitHub for deployment.
+- Summary: Pushed commit `ba0a2787` (`Tighten emergency no-ack classification`) to `origin/main`, publishing the stronger emergency rescue/classification layer plus the Indic-safe emergency keyword detection that suppresses citizen acknowledgements for severe law-and-order, women/child danger, health-emergency, disaster, and suicide-risk reports.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This release affects backend intake behavior, so live verification should focus on the EC2 backend commit, health endpoint, and emergency-message flows rather than frontend assets.
+
+- Date: 2026-06-05
 - Request: Tighten emergency classification so disaster, riot, women/child danger, health emergency, and suicide-risk messages do not send a WhatsApp acknowledgement.
 - Summary: Expanded the high-confidence taxonomy rescue layer to recognize explicit emergency patterns across disaster, law-and-order violence, women/child danger, health emergency, and suicide-risk reports, then forced those cases into the emergency path in `ai_engine.py` even when the model guessed a normal civic category. Also fixed `modules/emergency_keywords.py` normalization so Indic-script terms like `दंगा` survive keyword detection, which restores the existing no-ack emergency behavior for Hindi and other regional-language reports. Added focused unit and end-to-end regressions proving that a Hindi riot message is saved as an emergency case and sends no citizen acknowledgement even if the AI originally misclassifies it.
 - Files touched: `sansadx_backend/unified_taxonomy.py`, `sansadx_backend/ai_engine.py`, `modules/emergency_keywords.py`, `tests/test_unified_taxonomy.py`, `tests/test_ai_location_grounding.py`, `tests/test_e2e_core_flow.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
