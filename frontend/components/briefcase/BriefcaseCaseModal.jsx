@@ -84,6 +84,20 @@ const monoLbl = {
     display: 'block',
 };
 
+// ─── Mobile breakpoint hook (matches Tailwind `sm`) ──────────
+function useIsMobile(breakpoint = 640) {
+    const [isMobile, setIsMobile] = useState(false);
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+        const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+        const update = () => setIsMobile(mq.matches);
+        update();
+        mq.addEventListener('change', update);
+        return () => mq.removeEventListener('change', update);
+    }, [breakpoint]);
+    return isMobile;
+}
+
 function normalizeForComparison(text) {
     return String(text || '').replace(/\s+/g, ' ').trim().toLowerCase();
 }
@@ -304,7 +318,7 @@ function AISuggestionBanner({ suggestion, onAccept }) {
                     }}>language · {suggestion.detected_language}</span>
                 )}
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button onClick={onAccept} style={{
                     background: C.saffron, color: '#fff', border: 'none',
                     padding: '8px 16px', fontSize: 11.5, fontWeight: 700,
@@ -391,6 +405,7 @@ function MessageBlock({ rawMessage, summary, media, caseId }) {
 
 // ─── Geography section ────────────────────────────────────────
 function GeographySection({ geoLocation, geoAssembly, setGeoLocation, setGeoAssembly, onSave, saving, locked }) {
+    const isMobile = useIsMobile();
     return (
         <div style={sec}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -406,7 +421,7 @@ function GeographySection({ geoLocation, geoAssembly, setGeoLocation, setGeoAsse
                     </span>
                 )}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 10 }}>
                 <div>
                     <span style={{ ...monoLbl, marginBottom: 4 }}>Location · ward</span>
                     <div style={{
@@ -437,7 +452,7 @@ function GeographySection({ geoLocation, geoAssembly, setGeoLocation, setGeoAsse
                     </div>
                 </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <button onClick={onSave} disabled={saving} style={{
                     padding: '7px 14px', background: C.green, color: '#F5EFE0', border: 'none',
                     fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
@@ -709,9 +724,9 @@ function ResolvedView({ current, activities, loadingActivity, onClose }) {
                 <div style={sec}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                         {fields.map(([label, value]) => (
-                            <div key={label} style={{ border: `1px solid ${C.hair}`, padding: '8px 12px', background: C.surface }}>
+                            <div key={label} style={{ border: `1px solid ${C.hair}`, padding: '8px 12px', background: C.surface, minWidth: 0 }}>
                                 <div style={{ fontSize: 9.5, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"JetBrains Mono", monospace', marginBottom: 3 }}>{label}</div>
-                                <div style={{ fontSize: 13, fontWeight: 500, color: C.ink }}>{value}</div>
+                                <div style={{ fontSize: 13, fontWeight: 500, color: C.ink, overflowWrap: 'anywhere' }}>{value}</div>
                             </div>
                         ))}
                     </div>
@@ -917,7 +932,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
             <Sheet open={!!caseItem} onOpenChange={(open) => { if (!open) onClose(); }}>
                 <SheetContent
                     side="right"
-                    className="w-[600px] sm:max-w-[600px] p-0 flex flex-col overflow-hidden [&>button]:hidden rounded-none"
+                    className="w-full sm:w-[600px] sm:max-w-[600px] p-0 flex flex-col overflow-hidden [&>button]:hidden rounded-none"
                     style={{
                         background: C.paper,
                         fontFamily: '"Inter", "Noto Sans Devanagari", system-ui, sans-serif',
