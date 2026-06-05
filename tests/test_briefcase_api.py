@@ -99,6 +99,7 @@ def _seed_database():
 
         users = [
             ("mp_arun", "mp", 1, "Arun Kumar", "Lok Sabha", "Arun MP"),
+            ("owner_arun", "owner", 1, "Arun Kumar", "Lok Sabha", "Arun Owner"),
             ("pr_meera", "pr", 1, "Bangalore North", "Lok Sabha", "Meera PR"),
             ("staff_raj", "user", 1, "Bangalore North", "Lok Sabha", "Raj Staff"),
             ("mp_priya", "mp", 2, "Mumbai North", "Lok Sabha", "Priya MP"),
@@ -535,6 +536,30 @@ def test_briefcase_delete_restore_and_deleted_list_respect_roles():
     assert 102 in {case["id"] for case in restored_list_resp.json()["cases"]}
 
 
+def test_briefcase_owner_can_delete_view_deleted_and_restore_cases():
+    _seed_database()
+
+    delete_resp = client.delete("/api/cases/103", headers=_auth_headers("owner_arun"))
+    assert delete_resp.status_code == 200, delete_resp.text
+    assert delete_resp.json()["success"] is True
+
+    active_list_resp = client.get("/api/cases", headers=_auth_headers("owner_arun"))
+    assert active_list_resp.status_code == 200, active_list_resp.text
+    assert 103 not in {case["id"] for case in active_list_resp.json()["cases"]}
+
+    deleted_list_resp = client.get("/api/cases/deleted", headers=_auth_headers("owner_arun"))
+    assert deleted_list_resp.status_code == 200, deleted_list_resp.text
+    assert 103 in {case["id"] for case in deleted_list_resp.json()["cases"]}
+
+    restore_resp = client.patch("/api/cases/103/restore", headers=_auth_headers("owner_arun"), json={})
+    assert restore_resp.status_code == 200, restore_resp.text
+    assert restore_resp.json()["success"] is True
+
+    restored_list_resp = client.get("/api/cases", headers=_auth_headers("owner_arun"))
+    assert restored_list_resp.status_code == 200, restored_list_resp.text
+    assert 103 in {case["id"] for case in restored_list_resp.json()["cases"]}
+
+
 def test_briefcase_similar_cases_are_tenant_scoped():
     _seed_database()
 
@@ -778,7 +803,16 @@ def test_audio_media_intake_passes_voice_note_as_source_media(monkeypatch):
         )(),
     )
 
-    def _capture_process(sender, message_body, receiver_number, msg_id, media_source=None, language_hint=None, resolver_message_body=None):
+    def _capture_process(
+        sender,
+        message_body,
+        receiver_number,
+        msg_id,
+        media_source=None,
+        language_hint=None,
+        resolver_message_body=None,
+        resolver_fallback_message_body=None,
+    ):
         captured["sender"] = sender
         captured["message_body"] = message_body
         captured["receiver_number"] = receiver_number
@@ -786,6 +820,7 @@ def test_audio_media_intake_passes_voice_note_as_source_media(monkeypatch):
         captured["media_source"] = media_source
         captured["language_hint"] = language_hint
         captured["resolver_message_body"] = resolver_message_body
+        captured["resolver_fallback_message_body"] = resolver_fallback_message_body
 
     monkeypatch.setattr(main, "_process_incoming_message", _capture_process)
 

@@ -1104,8 +1104,7 @@ def get_summary(
 def get_deleted_cases_mp(user=Depends(get_current_user)):
     """Return soft-deleted cases from the last 7 days. Must be defined BEFORE /cases/{case_id} to avoid int-cast 422."""
     tid = get_tenant_or_fail(user)
-    role = user.get("role", "user")
-    if role not in ("mp", "pr", "admin"):
+    if not (_is_primary_workspace_user(user) or user.get("role") == "pr"):
         raise HTTPException(403, "Only MP/PR accounts can view deleted cases")
     seven_days_ago = _utcnow() - timedelta(days=7)
     cases = _q(
@@ -1499,8 +1498,7 @@ def notify_citizen(case_id: int, user=Depends(get_current_user)):
 @router.delete("/cases/{case_id}")
 def delete_case(case_id: int, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
-    role = user.get("role", "user")
-    if role not in ("mp", "pr", "admin"):
+    if not (_is_primary_workspace_user(user) or user.get("role") == "pr"):
         raise HTTPException(403, "Only MP/PR accounts can delete cases")
 
     with engine.begin() as conn:
@@ -1524,8 +1522,7 @@ def delete_case(case_id: int, user=Depends(get_current_user)):
 def restore_case(case_id: int, user=Depends(get_current_user)):
     """Restore a soft-deleted case (within 7-day window). MP/PR only."""
     tid = get_tenant_or_fail(user)
-    role = user.get("role", "user")
-    if role not in ("mp", "pr", "admin"):
+    if not (_is_primary_workspace_user(user) or user.get("role") == "pr"):
         raise HTTPException(403, "Only MP/PR accounts can restore cases")
 
     with engine.begin() as conn:

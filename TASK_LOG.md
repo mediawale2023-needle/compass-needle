@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-05
+- Request: Fix the Briefcase delete button not working for primary accounts.
+- Summary: Updated Briefcase soft-delete backend permissions so `owner` accounts now share the same delete, deleted-list, and restore access as legacy `mp`/`admin` primary accounts and `pr` users. Added a focused regression proving the full owner delete-view-restore flow, which closes the role-migration gap that was making the frontend delete button fail with a backend 403 for owner tenants.
+- Files touched: `api_router.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This fixes the likely root cause for the broken delete action. If operators still report a dead-feeling button after deploy, the next pass should surface the single-delete API failure as a visible toast in `BriefcaseCasesTable.jsx` instead of only logging to the console.
+
+- Date: 2026-06-05
 - Request: Push the generic-token scorer hardening fix to GitHub for deployment.
 - Summary: Pushed commit `7c436111` (`Harden generic locality scoring`) to `origin/main`, publishing the resolver guard that prevents multi-word sub-locality candidates from winning on generic container overlap alone, which specifically blocks `Teacher Colony` from drifting into unrelated `... Colony ...` localities.
 - Files touched: `TASK_LOG.md`
