@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-05
+- Request: Push the generic-token scorer hardening fix to GitHub for deployment.
+- Summary: Pushed commit `7c436111` (`Harden generic locality scoring`) to `origin/main`, publishing the resolver guard that prevents multi-word sub-locality candidates from winning on generic container overlap alone, which specifically blocks `Teacher Colony` from drifting into unrelated `... Colony ...` localities.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This deploy intentionally prefers unresolved over wrong when only generic overlap exists. If any live locality still misses after this, the follow-up should be better shared geography or an explicit manual correction, not relaxing the generic-token guard.
+
+- Date: 2026-06-05
 - Request: Stop the shared geography scorer from still mapping `Teacher Colony` to `Kariyappa Colony` after alias/override cleanup.
 - Summary: Hardened `modules/geography_resolver.py` so multi-word sub-locality candidates must share at least one meaningful non-generic token with the user message before they can win. This blocks false positives driven only by generic container words like `colony` while preserving valid parent/sub-locality matches such as `Teachers Colony - Khasbag`. Added a focused regression with `Kariyappa Colony Tilakwadi` present in the same seat and verified with `venv/bin/python -m pytest tests/test_geography_resolver.py tests/test_ai_location_grounding.py -q` plus `venv/bin/python -m py_compile modules/geography_resolver.py`.
 - Files touched: `modules/geography_resolver.py`, `tests/test_geography_resolver.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
