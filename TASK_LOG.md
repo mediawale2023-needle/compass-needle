@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-05
+- Request: Push the legacy generated geography-override cleanup path to GitHub for deployment.
+- Summary: Pushed commit `ff9d6ee6` (`Clean legacy generated geography overrides`) to `origin/main`, publishing the startup/admin cleanup path that deletes stale generated `geo_override` rows when the same tenant/key already exists as a generated `geo_alias`.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This deploy finally applies the DB cleanup on live startup/regeneration, but it remains intentionally conservative and will not delete older standalone legacy `geo_override` rows that are not mirrored by a generated alias.
+
+- Date: 2026-06-05
 - Request: Add a one-time cleanup path that actually removes stale legacy generated `geo_override` rows from live data.
 - Summary: Added `cleanup_legacy_generated_geo_overrides()` to delete `geo_override` rows when the same tenant/key already exists as a generated `geo_alias`, then wired that cleanup into both startup geography sync and admin-triggered geography regeneration. Added a regression proving the cleanup deletes only the stale generated-collision rows and preserves manual-only rows. Verified with `venv/bin/python -m pytest tests/test_override_persistence.py tests/test_same_seat_isolation.py tests/test_geography_onboarding_api.py -q` and `venv/bin/python -m py_compile sansadx_backend/db.py modules/geography_resolver.py admin_api.py main.py`.
 - Files touched: `sansadx_backend/db.py`, `admin_api.py`, `main.py`, `tests/test_override_persistence.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
