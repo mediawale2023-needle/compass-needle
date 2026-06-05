@@ -250,7 +250,7 @@ _PERSONAL_REQUEST_REPLY: dict[str, str] = {
         "ಕಚೇರಿಗೆ ಬಂದ ಅರ್ಜಿಯನ್ನು ಪರಿಶೀಲಿಸಿದ ನಂತರ ಅಗತ್ಯ ಮಾರ್ಗದರ್ಶನ ಅಥವಾ ಸಹಾಯವನ್ನು ನೀಡಲಾಗುತ್ತದೆ."
     ),
     "English": (
-        "Please contact the MP office in person. "
+        "Please contact our office in person. "
         "After reviewing the application received at the office, the necessary guidance or assistance will be provided."
     ),
 }
