@@ -363,6 +363,7 @@ export default function GeographyUploadPage() {
     const [tenantLoading, setTenantLoading]   = useState(false);
     const [reuseSeatName, setReuseSeatName]   = useState('');
     const [linkingSeat, setLinkingSeat]       = useState(false);
+    const [showAliasDiagnostics, setShowAliasDiagnostics] = useState(false);
     const fileRef = useRef();
     const seatConfig = getSeatConfig(seatType);
     const assemblyLabel = seatType === 'mla' ? 'Routing Group / Area' : 'Assembly Constituency';
@@ -851,7 +852,6 @@ export default function GeographyUploadPage() {
                                     {seatHasSavedGeography ? 'Shared geography already present' : 'No shared geography yet'}
                                 </span>
                                 <span className="badge badge-slate">{manualRuleEntries.length} manual correction{manualRuleEntries.length === 1 ? '' : 's'}</span>
-                                <span className="badge badge-amber">{geoAliases.length} generated alias{geoAliases.length === 1 ? '' : 'es'}</span>
                             </div>
 
                             <div style={{
@@ -924,9 +924,9 @@ export default function GeographyUploadPage() {
 
             {tenantId && (
                 <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
                         <div style={{ border: '1px solid #e2ebe5', borderRadius: 12, padding: '14px 16px', background: '#fff' }}>
-                            <div className="section-title" style={{ marginBottom: 6 }}>1. Shared Seat Geography</div>
+                            <div className="section-title" style={{ marginBottom: 6 }}>1. Core Geography</div>
                             <div style={{ color: '#6b7f76', fontSize: '0.78rem', lineHeight: 1.5 }}>
                                 Canonical parent-locality and sub-locality data for this seat. Upload and maintain it once, then reuse it safely across same-seat accounts.
                             </div>
@@ -937,12 +937,9 @@ export default function GeographyUploadPage() {
                                 Use only when citizens repeatedly type a nickname, shorthand, or misspelling that the shared geography cannot resolve cleanly on its own.
                             </div>
                         </div>
-                        <div style={{ border: '1px solid #e2ebe5', borderRadius: 12, padding: '14px 16px', background: '#fff' }}>
-                            <div className="section-title" style={{ marginBottom: 6 }}>3. Generated Resolver Aliases</div>
-                            <div style={{ color: '#6b7f76', fontSize: '0.78rem', lineHeight: 1.5 }}>
-                                These are internal helper forms built by the system from geography data. Keep them as a debug tool, not the main place to manage geography.
-                            </div>
-                        </div>
+                    </div>
+                    <div style={{ color: '#6b7f76', fontSize: '0.78rem', lineHeight: 1.5, marginTop: 12 }}>
+                        Generated aliases still exist behind the scenes as runtime helpers, but they are intentionally kept out of the main operator workflow.
                     </div>
                 </div>
             )}
@@ -1113,9 +1110,9 @@ export default function GeographyUploadPage() {
 
             {!tenantId && (
                 <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
-                    <div className="section-title" style={{ marginBottom: 8 }}>Tenant Alias Cleanup</div>
+                    <div className="section-title" style={{ marginBottom: 8 }}>Advanced Alias Diagnostics</div>
                     <p style={{ color: '#6b7f76', fontSize: '0.82rem', marginTop: 0, marginBottom: 14 }}>
-                        Resolver alias inspection is tenant-scoped. Pick an account here to open the workspace in tenant-aware mode and inspect `geo_alias` rows safely.
+                        Alias inspection is tenant-scoped and meant for rare cleanup or debugging. Pick an account here only when you need to inspect internal generated helpers.
                     </p>
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.5fr) auto', gap: 12, alignItems: 'end' }}>
                         <div className="form-row" style={{ marginBottom: 0 }}>
@@ -1148,93 +1145,107 @@ export default function GeographyUploadPage() {
 
             {tenantId && (
                 <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 10, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                         <div>
-                            <div className="section-title" style={{ marginBottom: 6 }}>Resolver Aliases</div>
+                            <div className="section-title" style={{ marginBottom: 6 }}>Advanced Alias Diagnostics</div>
                             <p style={{ color: '#6b7f76', fontSize: '0.82rem', margin: 0 }}>
-                                Inspect and delete tenant-scoped `geo_alias` rows that can short-circuit normal geography matching.
+                                Open only for rare debugging or cleanup when internal generated aliases are suspected to be poisoning matching.
                             </p>
                         </div>
-                        <button
-                            className="btn-secondary"
-                            style={{ fontSize: '0.74rem' }}
-                            onClick={() => loadGeoAliases(tenantId)}
-                            disabled={geoAliasLoading}
-                        >
-                            {geoAliasLoading ? 'Refreshing…' : 'Refresh aliases'}
-                        </button>
-                    </div>
-
-                    <div style={{ color: '#9a3412', fontSize: '0.76rem', lineHeight: 1.5, marginBottom: 12 }}>
-                        Deleting an alias takes effect immediately for tenant-scoped resolver lookups, but generated aliases may return after future geography regeneration unless the underlying geography data or alias-generation rules are fixed too.
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-                        <input
-                            className="form-input"
-                            style={{ flex: 1, minWidth: 220, marginBottom: 0 }}
-                            placeholder="Search alias key, display, canonical locality, or assembly…"
-                            value={geoAliasQuery}
-                            onChange={(e) => setGeoAliasQuery(e.target.value)}
-                        />
-                        <span className="badge badge-slate">{filteredGeoAliases.length} shown</span>
-                        <span className="badge badge-amber">{geoAliases.length} total</span>
-                    </div>
-
-                    <div style={{ border: '1px solid #e2ebe5', borderRadius: 12, overflow: 'hidden' }}>
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                                <thead style={{ background: '#f4f6f5' }}>
-                                    <tr style={{ borderBottom: '1px solid #e2ebe5' }}>
-                                        <th style={TH}>Alias Key</th>
-                                        <th style={TH}>Display</th>
-                                        <th style={TH}>Assembly</th>
-                                        <th style={TH}>Canonical Locality</th>
-                                        <th style={TH}>Source</th>
-                                        <th style={{ ...TH, width: 90 }}>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {geoAliasLoading ? (
-                                        <tr>
-                                            <td colSpan={6} style={{ ...TD, textAlign: 'center', color: '#6b7f76', padding: '18px 12px' }}>
-                                                Loading aliases…
-                                            </td>
-                                        </tr>
-                                    ) : filteredGeoAliases.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={6} style={{ ...TD, textAlign: 'center', color: '#6b7f76', padding: '18px 12px' }}>
-                                                {geoAliases.length === 0 ? 'No tenant geo aliases found.' : 'No aliases match this search.'}
-                                            </td>
-                                        </tr>
-                                    ) : filteredGeoAliases.map((item) => (
-                                        <tr key={item.id} style={{ borderBottom: '1px solid #f0f4f1' }}>
-                                            <td style={{ ...TD, fontFamily: 'monospace', fontSize: '0.76rem' }}>{item.key}</td>
-                                            <td style={TD}>{item.display || <span style={{ color: '#9ca3af' }}>—</span>}</td>
-                                            <td style={TD}>{item.assembly || <span style={{ color: '#9ca3af' }}>—</span>}</td>
-                                            <td style={TD}>{item.canonical_locality || <span style={{ color: '#9ca3af' }}>—</span>}</td>
-                                            <td style={TD}>{item.source || <span style={{ color: '#9ca3af' }}>—</span>}</td>
-                                            <td style={{ ...TD, whiteSpace: 'nowrap' }}>
-                                                <button
-                                                    className="btn-danger"
-                                                    style={{ fontSize: '0.72rem', padding: '4px 10px' }}
-                                                    onClick={() => setGeoAliasDeleteTarget(item)}
-                                                >
-                                                    Delete
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span className="badge badge-amber">{geoAliases.length} internal alias{geoAliases.length === 1 ? '' : 'es'}</span>
+                            <button
+                                className={showAliasDiagnostics ? 'btn-secondary' : 'btn-primary'}
+                                style={{ fontSize: '0.74rem' }}
+                                onClick={() => setShowAliasDiagnostics((current) => !current)}
+                            >
+                                {showAliasDiagnostics ? 'Hide Diagnostics' : 'Open Diagnostics'}
+                            </button>
                         </div>
                     </div>
+
+                    {showAliasDiagnostics && (
+                        <>
+                            <div style={{ color: '#9a3412', fontSize: '0.76rem', lineHeight: 1.5, marginTop: 12, marginBottom: 12 }}>
+                                Deleting an alias takes effect immediately for tenant-scoped resolver lookups, but generated aliases may return after future geography regeneration unless the underlying geography data or alias-generation rules are fixed too.
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+                                <input
+                                    className="form-input"
+                                    style={{ flex: 1, minWidth: 220, marginBottom: 0 }}
+                                    placeholder="Search alias key, display, canonical locality, or assembly…"
+                                    value={geoAliasQuery}
+                                    onChange={(e) => setGeoAliasQuery(e.target.value)}
+                                />
+                                <button
+                                    className="btn-secondary"
+                                    style={{ fontSize: '0.74rem' }}
+                                    onClick={() => loadGeoAliases(tenantId)}
+                                    disabled={geoAliasLoading}
+                                >
+                                    {geoAliasLoading ? 'Refreshing…' : 'Refresh aliases'}
+                                </button>
+                                <span className="badge badge-slate">{filteredGeoAliases.length} shown</span>
+                                <span className="badge badge-amber">{geoAliases.length} total</span>
+                            </div>
+
+                            <div style={{ border: '1px solid #e2ebe5', borderRadius: 12, overflow: 'hidden' }}>
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                        <thead style={{ background: '#f4f6f5' }}>
+                                            <tr style={{ borderBottom: '1px solid #e2ebe5' }}>
+                                                <th style={TH}>Alias Key</th>
+                                                <th style={TH}>Display</th>
+                                                <th style={TH}>Assembly</th>
+                                                <th style={TH}>Canonical Locality</th>
+                                                <th style={TH}>Source</th>
+                                                <th style={{ ...TH, width: 90 }}>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {geoAliasLoading ? (
+                                                <tr>
+                                                    <td colSpan={6} style={{ ...TD, textAlign: 'center', color: '#6b7f76', padding: '18px 12px' }}>
+                                                        Loading aliases…
+                                                    </td>
+                                                </tr>
+                                            ) : filteredGeoAliases.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={6} style={{ ...TD, textAlign: 'center', color: '#6b7f76', padding: '18px 12px' }}>
+                                                        {geoAliases.length === 0 ? 'No tenant geo aliases found.' : 'No aliases match this search.'}
+                                                    </td>
+                                                </tr>
+                                            ) : filteredGeoAliases.map((item) => (
+                                                <tr key={item.id} style={{ borderBottom: '1px solid #f0f4f1' }}>
+                                                    <td style={{ ...TD, fontFamily: 'monospace', fontSize: '0.76rem' }}>{item.key}</td>
+                                                    <td style={TD}>{item.display || <span style={{ color: '#9ca3af' }}>—</span>}</td>
+                                                    <td style={TD}>{item.assembly || <span style={{ color: '#9ca3af' }}>—</span>}</td>
+                                                    <td style={TD}>{item.canonical_locality || <span style={{ color: '#9ca3af' }}>—</span>}</td>
+                                                    <td style={TD}>{item.source || <span style={{ color: '#9ca3af' }}>—</span>}</td>
+                                                    <td style={{ ...TD, whiteSpace: 'nowrap' }}>
+                                                        <button
+                                                            className="btn-danger"
+                                                            style={{ fontSize: '0.72rem', padding: '4px 10px' }}
+                                                            onClick={() => setGeoAliasDeleteTarget(item)}
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
 
             {/* ── Upload form ────────────────────────────────────────────────── */}
             <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
-                <div className="section-title">Upload Shared Seat Geography</div>
+                <div className="section-title">Core Geography</div>
                 <p style={{ color: '#6b7f76', fontSize: '0.8rem', marginTop: -8, marginBottom: '1rem' }}>
                     Upload once per seat. Every tenant on the same seat inherits this base geography automatically.
                 </p>
@@ -1405,7 +1416,7 @@ export default function GeographyUploadPage() {
             <hr className="divider" />
 
             {/* ── Saved geography list ───────────────────────────────────────── */}
-            <div className="section-title" style={{ marginBottom: '1rem' }}>Saved Seat Geography</div>
+            <div className="section-title" style={{ marginBottom: '1rem' }}>Saved Core Geography</div>
 
             {savedSeats.length === 0 ? (
                 <div className="glass-panel">

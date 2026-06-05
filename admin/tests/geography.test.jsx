@@ -80,8 +80,8 @@ describe('Admin geography page', () => {
     it('loads saved seat geography across MP and MLA seat types', async () => {
         render(<GeographyUploadPage />);
 
-        expect(await screen.findByText('Upload Shared Seat Geography')).toBeInTheDocument();
-        expect(await screen.findByText('Tenant Alias Cleanup')).toBeInTheDocument();
+        expect(await screen.findByText('Core Geography')).toBeInTheDocument();
+        expect(await screen.findByText('Advanced Alias Diagnostics')).toBeInTheDocument();
         await waitFor(() => {
             expect(apiGetMock).toHaveBeenCalledWith('/api/admin/mps');
             expect(apiGetMock).toHaveBeenCalledWith('/api/admin/geography/parliamentary?seat_type=mp');
@@ -96,7 +96,7 @@ describe('Admin geography page', () => {
     it('lets operators jump into tenant-aware alias cleanup from the generic workspace', async () => {
         render(<GeographyUploadPage />);
 
-        expect(await screen.findByText('Tenant Alias Cleanup')).toBeInTheDocument();
+        expect(await screen.findByText('Advanced Alias Diagnostics')).toBeInTheDocument();
 
         fireEvent.change(screen.getByLabelText('Account / Tenant'), {
             target: { value: '10' },
@@ -164,6 +164,7 @@ describe('Admin geography page', () => {
         render(<GeographyUploadPage />);
 
         expect(await screen.findByText('Tenant Geography Setup')).toBeInTheDocument();
+        expect(await screen.findByText('1. Core Geography')).toBeInTheDocument();
         expect(await screen.findByText('Manual Matching Corrections')).toBeInTheDocument();
         expect(screen.getByText('Shared geography already present')).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Back to launch readiness' })).toHaveAttribute('href', '/dashboard/mps/7/setup');
