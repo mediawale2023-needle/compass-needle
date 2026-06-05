@@ -558,7 +558,10 @@ export default function GeographyUploadPage() {
             .map((line) => line.trim())
             .filter(Boolean)
             .forEach((line, index) => {
-                const parts = line.split(/\s*=>\s*/);
+                let parts = line.split(/\s*=>\s*/);
+                if (parts.length !== 2) {
+                    parts = line.split('\t');
+                }
                 if (parts.length !== 2 || !parts[0]?.trim() || !parts[1]?.trim()) {
                     errors.push(`Line ${index + 1}`);
                     return;
@@ -575,7 +578,7 @@ export default function GeographyUploadPage() {
         if (!tenantId) return;
         const { entries, errors } = parseBulkManualRules();
         if (errors.length) {
-            showMsg('error', `Bulk format error on ${errors.join(', ')}. Use "alias => assembly" on each line.`);
+            showMsg('error', `Bulk format error on ${errors.join(', ')}. Use "alias => assembly" or paste two tab-separated columns on each line.`);
             return;
         }
         if (!entries.length) {
@@ -984,13 +987,13 @@ export default function GeographyUploadPage() {
                                 id="manual-correction-bulk-input"
                                 className="form-input"
                                 rows={8}
-                                placeholder={`teacher colony => ${seatType === 'mla' ? 'North Zone' : 'Belgaum South'}\nteachers colony khasbag => ${seatType === 'mla' ? 'North Zone' : 'Belgaum South'}`}
+                                placeholder={`teacher colony => ${seatType === 'mla' ? 'North Zone' : 'Belgaum South'}\nteachers colony khasbag\t${seatType === 'mla' ? 'North Zone' : 'Belgaum South'}`}
                                 value={manualRuleBulkInput}
                                 onChange={(e) => setManualRuleBulkInput(e.target.value)}
                                 style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
                             />
                             <div style={{ color: '#6b7f76', fontSize: '0.76rem', marginTop: 8, marginBottom: 12 }}>
-                                Add one correction per line using the format <code style={{ fontFamily: 'monospace' }}>alias =&gt; assembly</code>.
+                                Add one correction per line using <code style={{ fontFamily: 'monospace' }}>alias =&gt; assembly</code> or paste two tab-separated columns from a spreadsheet.
                             </div>
                             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                                 <button
