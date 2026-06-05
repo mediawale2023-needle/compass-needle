@@ -19,6 +19,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Risks or follow-ups: This fixes the likely root cause for the broken delete action. If operators still report a dead-feeling button after deploy, the next pass should surface the single-delete API failure as a visible toast in `BriefcaseCasesTable.jsx` instead of only logging to the console.
 
 - Date: 2026-06-05
+- Request: Push the Briefcase delete permission fix to GitHub for deployment.
+- Summary: Pushed commit `850f4f58` (`Fix Briefcase owner delete access`) to `origin/main`, publishing the backend permission fix that restores Briefcase delete, deleted-list, and restore access for `owner` accounts while preserving the existing staff restriction.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: The backend deploy still needs to finish on AWS EC2 before the live app reflects this change. If the button still appears dead after deploy, the next likely improvement is a visible single-delete failure toast in the Briefcase table UI.
+
+- Date: 2026-06-05
 - Request: Push the generic-token scorer hardening fix to GitHub for deployment.
 - Summary: Pushed commit `7c436111` (`Harden generic locality scoring`) to `origin/main`, publishing the resolver guard that prevents multi-word sub-locality candidates from winning on generic container overlap alone, which specifically blocks `Teacher Colony` from drifting into unrelated `... Colony ...` localities.
 - Files touched: `TASK_LOG.md`
