@@ -252,6 +252,50 @@ def test_ask_chatgpt_agent_marks_personal_request(monkeypatch):
     assert "Janpratinidhi karyalaya mein vyaktigat roop se sampark karein." in result["political_response"]
 
 
+def test_personal_request_survives_missing_location_gate(monkeypatch):
+    # Regression: a private family land dispute classified under a location-required
+    # domain (Housing & Land) with an ungrounded location is flagged 'awaiting_location'
+    # by the geography pass. The personal-request override must still win so the citizen
+    # gets the office-contact reply, not a generic grievance acknowledgement.
+    monkeypatch.setattr(ai_engine, "get_client", lambda: _stub_client({
+        "status": "new",
+        "detected_language": "Hindi",
+        "political_response": "Aapka mudda note kiya gaya hai.",
+        "grievance_data": {
+            "categories": ["Housing & Land"],
+            "problem_domain": "Housing & Land",
+            "problem_subdomain": "Encroachment/Dispute",
+            "convergence_program_type": None,
+            "location": "gaon",
+            "person": None,
+            "department": None,
+            "scheme": None,
+        },
+    }))
+    monkeypatch.setattr(ai_engine, "get_jurisdiction_context", lambda tenant_id=1: "")
+    monkeypatch.setattr(
+        ai_engine,
+        "_get_tenant_profile",
+        lambda tenant_id: {"mp_name": "Test MP", "constituency": "Belagavi", "state": "", "house": "Lok Sabha"},
+    )
+    monkeypatch.setattr(
+        ai_engine,
+        "resolve_geography_from_text",
+        lambda *_args, **_kwargs: {"location_resolved": False},
+    )
+
+    result = ai_engine.ask_chatgpt_agent(
+        "Mera mere bhai ke saath zameen ko lekar jhagda hua. AAP meri madad karo",
+        tenant_id=1,
+    )
+
+    # Location gate must be cleared and the personal-request reply applied.
+    assert result["status"] == "new"
+    assert result["case_category"] == "Personal Request"
+    assert result["is_personal_request"] is True
+    assert "Janpratinidhi karyalaya mein vyaktigat roop se sampark karein." in result["political_response"]
+
+
 def test_ask_chatgpt_agent_marks_silent_support_message(monkeypatch):
     monkeypatch.setattr(ai_engine, "get_client", lambda: _stub_client({
         "status": "irrelevant",
