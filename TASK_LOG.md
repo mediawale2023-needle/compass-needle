@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-05
+- Request: Push the spreadsheet-style bulk correction parser update to GitHub for deployment.
+- Summary: Pushed commit `3d1c223d` (`Accept spreadsheet bulk corrections`) to `origin/main`, publishing tab-separated bulk manual-correction import alongside the existing `alias => assembly` format in the Shared Geography workspace.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This deploy changes only the admin workflow. The parser still stays intentionally strict and line-based so malformed spreadsheet rows fail loudly instead of saving partial garbage.
+
+- Date: 2026-06-05
 - Request: Make bulk manual-correction import accept spreadsheet-style pasted rows.
 - Summary: Extended the Shared Geography bulk manual-correction parser so it now accepts either `alias => assembly` or two tab-separated columns copied directly from a spreadsheet, and updated the inline help/error copy accordingly. Verified with `PATH=/opt/homebrew/bin:$PATH npm run test --prefix admin -- --run tests/geography.test.jsx` and `PATH=/opt/homebrew/bin:$PATH npm run build --prefix admin`.
 - Files touched: `admin/components/admin-domains/shared-geography/GeographyWorkspacePage.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
