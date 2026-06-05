@@ -468,7 +468,7 @@ def test_personal_request_gets_special_office_contact_reply(monkeypatch):
     assert webhook_resp.status_code == 200, webhook_resp.text
     assert webhook_resp.json()["status"] == "received"
     assert _wait_for(lambda: list(outbound_messages)), "Personal requests should receive the office-contact reply"
-    assert "Janpratinidhi karyalaya mein vyaktigat roop se sampark karein." in outbound_messages[-1][1]
+    assert "Hamare karyalaya mein vyaktigat roop se sampark karein." in outbound_messages[-1][1]
 
     created_case = _wait_for(lambda: _fetch_case_by_phone(sender))
     assert created_case is not None
