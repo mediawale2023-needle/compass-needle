@@ -1001,6 +1001,32 @@ def _is_meaningful_location_fragment(value: str) -> bool:
     return True
 
 
+def _meaningful_location_tokens(value: str) -> Set[str]:
+    normalized = normalize(value)
+    if not normalized:
+        return set()
+    generic_only = {
+        "road", "street", "lane", "galli", "gali", "wadi", "wada", "circle",
+        "nagar", "peth", "pet", "area", "colony", "camp", "market", "marg",
+        "depot", "school", "college", "ward", "sector", "layout", "mohalla",
+        "quarters", "extension", "cross",
+    }
+    return {word for word in normalized.split() if len(word) >= 4 and word not in generic_only}
+
+
+def _has_meaningful_token_overlap(entry_forms: Set[str], query_forms: Set[str]) -> bool:
+    query_tokens = set()
+    for form in query_forms:
+        query_tokens |= _meaningful_location_tokens(form)
+    if not query_tokens:
+        return True
+    for form in entry_forms:
+        entry_tokens = _meaningful_location_tokens(form)
+        if entry_tokens & query_tokens:
+            return True
+    return False
+
+
 def _preferred_parent_display(locality: str, parliamentary_constituency: Optional[str] = None) -> Optional[str]:
     aliases = {
         alias for alias in _derive_locality_aliases(locality, parliamentary_constituency, include_structured_variants=False)
@@ -1903,6 +1929,15 @@ def _rank_location_candidates(
                     score -= 18
                 else:
                     score -= 8
+
+            if (
+                score > 0
+                and entry.get("sub_locality")
+                and len(normalize(str(entry.get("sub_locality") or "")).split()) > 1
+                and not _has_meaningful_token_overlap(entry_specific_forms or entry_forms, query_forms)
+            ):
+                score = 0
+                match_type = "generic_overlap_rejected"
 
             if matched_parent_alias:
                 matched_type = "locality"

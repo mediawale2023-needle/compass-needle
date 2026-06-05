@@ -64,6 +64,7 @@ def stub_geography_index(monkeypatch):
             "stations": [
                 {"station_number": "1", "locality": "Shahapur", "building_name": ""},
                 {"station_number": "1a", "locality": "Khasbag", "building_name": ""},
+                {"station_number": "1b", "locality": "Kariyappa Colony Tilakwadi", "building_name": ""},
                 {"station_number": "2", "locality": "Meerapur Galli, Shahapur Belagavi", "building_name": ""},
                 {"station_number": "2a", "locality": "Teli Patil Galli Shahapur, Belagavi", "building_name": ""},
                 {"station_number": "2b", "locality": "Teachers Colony - Khasbag", "building_name": ""},
@@ -266,6 +267,18 @@ def test_resolve_location_supports_hyphenated_sub_locality_without_parent(stub_g
     assert result["matched_value"] == "Teachers Colony"
     assert result["matched_type"] == "sub_locality"
     assert result["parent_locality"] == "Khasbag"
+
+
+def test_resolve_location_rejects_generic_colony_overlap_false_positive(stub_geography_index):
+    geography_resolver.reload_index()
+
+    candidates = geography_resolver._rank_location_candidates(
+        "Teacher Colony nalli 3 din neer illa",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert all(candidate["matched_value"] != "Kariyappa Colony Tilakwadi" for candidate in candidates[:3])
+    assert candidates[0]["matched_value"] == "Teachers Colony"
 
 
 def test_resolve_location_prefers_explicit_parent_row_over_inherited_parent_alias(stub_geography_index):

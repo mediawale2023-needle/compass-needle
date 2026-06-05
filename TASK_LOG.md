@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-05
+- Request: Stop the shared geography scorer from still mapping `Teacher Colony` to `Kariyappa Colony` after alias/override cleanup.
+- Summary: Hardened `modules/geography_resolver.py` so multi-word sub-locality candidates must share at least one meaningful non-generic token with the user message before they can win. This blocks false positives driven only by generic container words like `colony` while preserving valid parent/sub-locality matches such as `Teachers Colony - Khasbag`. Added a focused regression with `Kariyappa Colony Tilakwadi` present in the same seat and verified with `venv/bin/python -m pytest tests/test_geography_resolver.py tests/test_ai_location_grounding.py -q` plus `venv/bin/python -m py_compile modules/geography_resolver.py`.
+- Files touched: `modules/geography_resolver.py`, `tests/test_geography_resolver.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This intentionally prefers unresolved over wrong when only generic overlap exists. If a future real constituency depends on a generic-only multi-word match, that locality should be expressed through cleaner shared geography or a manual correction rather than weakening the scorer again.
+
+- Date: 2026-06-05
 - Request: Push the legacy generated geography-override cleanup path to GitHub for deployment.
 - Summary: Pushed commit `ff9d6ee6` (`Clean legacy generated geography overrides`) to `origin/main`, publishing the startup/admin cleanup path that deletes stale generated `geo_override` rows when the same tenant/key already exists as a generated `geo_alias`.
 - Files touched: `TASK_LOG.md`
