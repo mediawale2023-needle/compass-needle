@@ -1001,3 +1001,9 @@ Chronological log of completed repository work. Read before making changes to un
 - Summary: Pushed commit `9fee757f` (`Reset geography to manual aliases only`) to `origin/main`, publishing the backend removal of generated alias authority, the purge-only compatibility hook for stale `geo_alias` rows, the one-time production geography reset marker in `main.py`, and the admin wording cleanup that removes alias diagnostics from the main shared-geography flow. This `main` push is intended to trigger the EC2 backend deploy workflow plus the connected admin Vercel deploy.
 - Files touched: `TASK_LOG.md`
 - Risks or follow-ups: `tenant_overrides.json` and `data/geography/Ghaziabad/Loni.json` remained intentionally unpushed because they were unrelated local changes. The live wipe only happens after the backend restarts on EC2 and reaches the new one-time reset code path.
+
+- Date: 2026-06-05
+- Request: Push and deploy the personal-request intake flow.
+- Summary: Pushed commit `330c8971` (`Handle personal request intake separately`) to `origin/main`, publishing the new `Personal Request` intake lane for discretionary/private-help asks such as transfer requests, admission help, recommendation asks, and family/property intervention requests. This push includes the narrow classifier hook, the office-contact localized reply path, the no-location-needed intake handling, the admin `Others` bucket alignment, and the focused regression coverage for taxonomy, AI classification, and end-to-end WhatsApp intake. This `main` push is intended to trigger the EC2 backend deploy workflow.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: `tenant_overrides.json` and `data/geography/Ghaziabad/Loni.json` remained intentionally unpushed because they were unrelated local changes. Romanized Hindi citizen messages still receive the romanized office-contact template by design, following the existing localized reply script-selection behavior.
