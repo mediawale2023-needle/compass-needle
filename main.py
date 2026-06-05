@@ -3,6 +3,7 @@ main.py — Needle Parliamentary Intelligence Platform
 Backend Entry Point (FastAPI)
 """
 from sansadx_backend.ai_engine import ask_chatgpt_agent, detect_input_language, detect_input_language_confident, get_offensive_warning_reply
+from sansadx_backend.unified_taxonomy import infer_personal_request_category, infer_silent_log_category
 import os
 import re
 import json
@@ -2788,6 +2789,31 @@ def _run_citizen_case_enrichment(
             categories = ["Emergency", *[c for c in categories if c != "Emergency"]]
         else:
             categories = ["Emergency"]
+
+    # ── Deterministic intent safety net ──────────────────────────────────────
+    # Personal-request / silent-log routing must NOT depend on the AI engine's
+    # internal status gates or on its JSON parsing succeeding. ask_chatgpt_agent
+    # runs these same detectors, but if it raised and fell back to a generic-ack
+    # default, or a status gate skipped them, the citizen would wrongly get the
+    # generic acknowledgement. Re-check the actual transcript here so private/
+    # discretionary asks reliably get the office-contact reply. Emergencies always
+    # take precedence and are never reclassified.
+    if not is_emergency_complaint:
+        try:
+            _intent_blob = (message_body or "").lower()
+            if not is_personal_request and infer_personal_request_category(_intent_blob):
+                category = "Personal Request"
+                is_personal_request = True
+                if str(status).lower() == "awaiting_location":
+                    status = "new"
+            else:
+                _silent_category = infer_silent_log_category(_intent_blob)
+                if _silent_category and str(category or "").lower().strip() not in {"personal request"}:
+                    category = _silent_category
+                    if str(status).lower() == "awaiting_location":
+                        status = "new"
+        except Exception as _intent_exc:
+            logger.warning("Intent safety-net check failed (non-blocking): %s", _intent_exc)
 
     political_reply = ai_result.get("political_response", get_generic_ack_reply(detected_language, message_body))
     ai_language = normalize_language_name(ai_result.get("detected_language", ""), "")
