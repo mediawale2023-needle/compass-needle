@@ -1128,6 +1128,7 @@ from modules.localized_replies import (
     get_awaiting_location_reply,
     get_details_request_reply,
     get_generic_ack_reply,
+    get_greeting_reply,
     get_location_update_reply,
     get_missing_location_reply,
     get_personal_request_reply,
@@ -1145,8 +1146,11 @@ _SILENT_LOG_CATEGORIES = {
     "donation / sponsorship request",
     "suggestion / idea",
     "spam / promotional / irrelevant",
-    "greetings",
 }
+
+# Greetings are non-grievance but DO get a warm reply (not silent), so they are
+# tracked separately from the silent-log categories above.
+_GREETING_CATEGORIES = {"greetings", "greeting"}
 
 
 # ─────────────────────────────────────────
@@ -2587,6 +2591,12 @@ def _resolve_citizen_ack_message(
 
     if normalized_status == "offensive":
         return get_offensive_warning_reply(detected_language, message_body)
+
+    # Greetings are non-grievance but get a warm reply inviting the concern.
+    # Checked before status-based branches so a greeting the AI marked
+    # 'irrelevant' still gets the greeting reply, not the review acknowledgement.
+    if str(category or "").lower().strip() in _GREETING_CATEGORIES:
+        return get_greeting_reply(detected_language, message_body)
 
     if str(category or "").lower().strip() in _SILENT_LOG_CATEGORIES:
         return ""

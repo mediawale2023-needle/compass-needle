@@ -196,6 +196,67 @@ _GENERIC_ACK_LATIN: dict[str, str] = {
     "Bengali": _GENERIC_ACK["Bengali"],
 }
 
+# ── Greeting / Pleasantry ────────────────────────────────────────────────────
+# Sent when a citizen only sends a greeting (e.g. "Good morning") with no
+# grievance. Warmly invites them to share their concern instead of replying
+# with a complaint acknowledgement.
+_GREETING_REPLY: dict[str, str] = {
+    "Hindi": (
+        "Namaste 🙏\n\n"
+        "Hum aapki kaise sahayata kar sakte hain? "
+        "Kripya apni samasya ya shikayat bataayein."
+    ),
+    "Hinglish": (
+        "Namaste 🙏\n\n"
+        "Hum aapki kaise help kar sakte hain? "
+        "Kripya apna issue ya concern share karein."
+    ),
+    "Marathi": (
+        "Namaskar 🙏\n\n"
+        "Aamhi aaplee kashee madat karu shakto? "
+        "Kripya aaplee samasya kiwa takrar sanga."
+    ),
+    "Kannada": (
+        "ನಮಸ್ಕಾರ 🙏\n\n"
+        "ನಾವು ನಿಮಗೆ ಹೇಗೆ ಸಹಾಯ ಮಾಡಬಹುದು? "
+        "ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸಮಸ್ಯೆ ಅಥವಾ ದೂರನ್ನು ತಿಳಿಸಿ."
+    ),
+    "Tamil": (
+        "Vanakkam 🙏\n\n"
+        "Naangal ungalukku eppadi udhava mudiyum? "
+        "Dayavu seidhu ungal pirachanaiyai pagirndhu kollungal."
+    ),
+    "Telugu": (
+        "Namaskaram 🙏\n\n"
+        "Memu meeku ela sahayam cheyagalamu? "
+        "Dayachesi mee samasyanu telupandi."
+    ),
+    "Bengali": (
+        "Namaskar 🙏\n\n"
+        "Amra apnake kibhabe sahajyo korte pari? "
+        "Doya kore apnar samasya ba obhijog janan."
+    ),
+    "English": (
+        "Namaste 🙏\n\n"
+        "How can we help you today? Please share your concern or grievance."
+    ),
+}
+
+_GREETING_REPLY_LATIN: dict[str, str] = {
+    "Hindi": _GREETING_REPLY["Hindi"],
+    "Hinglish": _GREETING_REPLY["Hinglish"],
+    "Marathi": _GREETING_REPLY["Marathi"],
+    "Kannada": (
+        "Namaskara 🙏\n\n"
+        "Naavu nimage hege sahaaya maadabahudu? "
+        "Dayavittu nimma samasye athava dooranu tilisi."
+    ),
+    "Tamil": _GREETING_REPLY["Tamil"],
+    "Telugu": _GREETING_REPLY["Telugu"],
+    "Bengali": _GREETING_REPLY["Bengali"],
+    "English": _GREETING_REPLY["English"],
+}
+
 _REVIEW_ACK: dict[str, str] = {
     "Hindi": (
         "Aapka sandesh mil gaya hai 🙏\n\n"
@@ -570,6 +631,10 @@ def get_missing_location_reply(detected_language: str = "", original_text: str =
 
 def get_generic_ack_reply(detected_language: str = "", original_text: str = "") -> str:
     return ensure_ji_prefix(_pick_template(_GENERIC_ACK, _GENERIC_ACK_LATIN, detected_language, original_text) or _GENERIC_ACK["English"])
+
+
+def get_greeting_reply(detected_language: str = "", original_text: str = "") -> str:
+    return ensure_ji_prefix(_pick_template(_GREETING_REPLY, _GREETING_REPLY_LATIN, detected_language, original_text) or _GREETING_REPLY["English"])
 
 
 def get_review_ack_reply(detected_language: str = "", original_text: str = "") -> str:
