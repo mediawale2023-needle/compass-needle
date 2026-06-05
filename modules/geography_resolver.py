@@ -1657,24 +1657,84 @@ def _rank_location_candidates(
     if tenant_id is not None:
         tenant_overrides = _load_tenant_overrides(tenant_id)
         for k, v in tenant_overrides.items():
-            if k.lower() in clean_text:
-                logger.debug(f"   OVERRIDE (tenant {tenant_id}): {k} -> {v}")
+            alias_seeds = {str(k or "").strip()}
+            alias_seeds.update(
+                _derive_locality_aliases(
+                    str(k or ""),
+                    include_structured_variants=True,
+                )
+            )
+            alias_forms: Set[str] = set()
+            for seed in alias_seeds:
+                alias_forms.update(_build_match_forms(seed))
+            alias_forms = {form for form in alias_forms if form}
+            if not alias_forms:
+                continue
+
+            matched_value = _display_location_name(str(k or "").strip())
+            spaceless_alias_forms = _spaceless_forms(alias_forms)
+            exact_forms = alias_forms & query_forms
+            if exact_forms:
+                matched_form = max(exact_forms, key=len)
+                logger.debug(f"   OVERRIDE EXACT (tenant {tenant_id}): {k} -> {v}")
                 return [{
                     "location_resolved": True,
                     "assembly_constituency": v,
-                    "matched_value": k.title(),
-                    "confidence": "god_mode",
+                    "matched_value": matched_value,
+                    "confidence": "db_alias_exact",
                     "confidence_level": "exact",
-                    "match_type": "god_mode",
+                    "match_type": "db_alias_exact",
                     "assembly": v,
                     "parl": scope_parliamentary or (tenant_context or {}).get("scope_parliamentary"),
                     "seat_type": (tenant_context or {}).get("seat_type"),
                     "seat_name": (tenant_context or {}).get("seat_name"),
-                    "name": k.title(),
-                    "matched_name": k.title(),
-                    "score": 990,
-                    "type": "god_mode",
+                    "name": matched_value,
+                    "matched_name": _display_location_name(matched_form),
+                    "score": 1000,
+                    "type": "db_alias_exact",
                 }]
+            spaceless_hits = spaceless_alias_forms & spaceless_query_forms
+            if spaceless_hits:
+                matched_form = max(spaceless_hits, key=len)
+                logger.debug(f"   OVERRIDE SPACELESS (tenant {tenant_id}): {k} -> {v}")
+                return [{
+                    "location_resolved": True,
+                    "assembly_constituency": v,
+                    "matched_value": matched_value,
+                    "confidence": "db_alias_boundary",
+                    "confidence_level": "boundary",
+                    "match_type": "db_alias_boundary",
+                    "assembly": v,
+                    "parl": scope_parliamentary or (tenant_context or {}).get("scope_parliamentary"),
+                    "seat_type": (tenant_context or {}).get("seat_type"),
+                    "seat_name": (tenant_context or {}).get("seat_name"),
+                    "name": matched_value,
+                    "matched_name": _display_location_name(matched_form),
+                    "score": 995,
+                    "type": "db_alias_boundary",
+                }]
+            for alias_form in sorted(alias_forms, key=len, reverse=True):
+                if len(alias_form) < 4:
+                    continue
+                boundary_pattern = r"\b" + re.escape(alias_form) + r"\b"
+                if any(re.search(boundary_pattern, form) for form in query_forms):
+                    logger.debug(f"   OVERRIDE BOUNDARY (tenant {tenant_id}): {k} -> {v}")
+                    return [{
+                        "location_resolved": True,
+                        "assembly_constituency": v,
+                        "matched_value": matched_value,
+                        "confidence": "db_alias_boundary",
+                        "confidence_level": "boundary",
+                        "match_type": "db_alias_boundary",
+                        "assembly": v,
+                        "parl": scope_parliamentary or (tenant_context or {}).get("scope_parliamentary"),
+                        "seat_type": (tenant_context or {}).get("seat_type"),
+                        "seat_name": (tenant_context or {}).get("seat_name"),
+                        "name": matched_value,
+                        "matched_name": _display_location_name(alias_form),
+                        "score": 990,
+                        "type": "db_alias_boundary",
+                    }]
 
     seat_scope_type = normalize((tenant_context or {}).get("seat_type", ""))
     seat_scope_name = normalize((tenant_context or {}).get("seat_name", ""))

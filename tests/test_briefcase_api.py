@@ -40,6 +40,7 @@ import core.db_helpers as db_helpers
 import main
 import sansadx_backend.db as dbmod
 from sansadx_backend.db import Base, hash_password
+from modules.geography_resolver import resolve_location
 
 
 test_engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
@@ -778,6 +779,42 @@ def test_manual_geography_update_locks_case_metadata():
     assert detail["case_metadata"]["assembly_constituency"] == "Belgaum Rural"
     assert detail["case_metadata"]["geography_confidence"] == "manual"
     assert detail["case_metadata"]["geography_locked"] is True
+
+
+def test_manual_geography_update_creates_reusable_alias_for_future_cases():
+    _seed_database()
+    headers = _auth_headers("mp_arun")
+
+    update_resp = client.patch(
+        "/api/cases/101",
+        headers=headers,
+        json={"location": "Teachers Colony", "assembly": "Belgaum South"},
+    )
+    assert update_resp.status_code == 200, update_resp.text
+    assert update_resp.json()["success"] is True
+
+    with test_engine.begin() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT override_type, key, value
+                FROM tenant_overrides
+                WHERE tenant_id = 1
+                  AND override_type = 'geo_manual_override'
+                  AND key = 'teachers colony'
+                """
+            )
+        ).mappings().first()
+    assert row is not None
+    assert row["value"] == "Belgaum South"
+
+    resolved = resolve_location(
+        "Teacher Colony nalli 3 din neer illa",
+        tenant_id=1,
+    )
+    assert resolved["location_resolved"] is True
+    assert resolved["assembly_constituency"] == "Belgaum South"
+    assert resolved["match_type"] in {"db_alias_exact", "db_alias_boundary"}
 
 
 def test_audio_media_intake_passes_voice_note_as_source_media(monkeypatch):

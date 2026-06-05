@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-05
+- Request: Make manual geography saves teach future resolver matches by using aliases first.
+- Summary: Updated the resolver so tenant manual aliases are evaluated before core geography using exact/boundary/spaceless alias-form matching instead of a crude substring shortcut. Also changed Briefcase manual geography saves to persist a reusable `geo_manual_override` row whenever an operator saves a real location+assembly, so a correction like `Teacher Colony -> Belgaum South` fixes future cases instead of only the current one. Added a regression proving the case save creates the alias and that a later `Teacher Colony...` message resolves through the alias-first path.
+- Files touched: `modules/geography_resolver.py`, `api_router.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This intentionally makes case-screen manual geography more powerful. If operators later want case-only saves sometimes, the next refinement should be an explicit UI choice rather than silently weakening alias-first precedence again.
+
+- Date: 2026-06-05
 - Request: Fix the Briefcase delete button not working for primary accounts.
 - Summary: Updated Briefcase soft-delete backend permissions so `owner` accounts now share the same delete, deleted-list, and restore access as legacy `mp`/`admin` primary accounts and `pr` users. Added a focused regression proving the full owner delete-view-restore flow, which closes the role-migration gap that was making the frontend delete button fail with a backend 403 for owner tenants.
 - Files touched: `api_router.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
