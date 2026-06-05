@@ -165,6 +165,20 @@ def test_infer_silent_log_category_for_media_outreach():
     assert infer_silent_log_category("press interview request from local media reporter") == "Media / Press Outreach"
 
 
+def test_pure_greetings_route_to_silent_greetings_category():
+    for greeting in ("Good morning", "Hello", "Hi", "Namaste", "Good evening sir ji", "शुभ प्रभात", "Jai Hind"):
+        assert infer_silent_log_category(greeting.lower()) == "Greetings", greeting
+
+
+def test_greeting_with_grievance_is_not_silenced():
+    # A greeting attached to an actual issue must still route as a grievance.
+    assert infer_silent_log_category("good morning, paani problem in my area") is None
+    assert infer_silent_log_category("hello sir, road is broken near my house") is None
+    # Substrings like "hi" inside ordinary words must not trigger greeting detection.
+    assert infer_silent_log_category("this is a water issue") is None
+    assert infer_silent_log_category("machine repair needed") is None
+
+
 def test_contextless_media_message_detection_is_narrow():
     assert looks_like_contextless_media_message("photo") is True
     assert looks_like_contextless_media_message("please see attached pdf") is True

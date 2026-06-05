@@ -3,10 +3,25 @@ from modules.localized_replies import (
     ensure_ji_prefix,
     get_awaiting_location_reply,
     get_generic_ack_reply,
+    get_greeting_reply,
     get_location_update_reply,
     get_review_ack_reply,
     normalize_language_name,
 )
+
+
+def test_greeting_reply_invites_concern_and_is_not_a_grievance_ack():
+    reply = get_greeting_reply("English", "Good morning")
+    assert reply.startswith("Ji, Namaste")
+    assert "help you" in reply.lower()
+    # Must NOT reuse the grievance acknowledgement wording.
+    assert "issue has been received" not in reply.lower()
+
+
+def test_greeting_reply_uses_roman_marathi_for_roman_input():
+    reply = get_greeting_reply("Marathi", "Namaskar saheb")
+    assert "Namaskar" in reply
+    assert "madat" in reply.lower()
 from sansadx_backend.ai_engine import (
     detect_input_language,
     detect_input_language_confident,
