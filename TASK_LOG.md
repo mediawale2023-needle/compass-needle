@@ -19,6 +19,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Risks or follow-ups: This intentionally makes case-screen manual geography more powerful. If operators later want case-only saves sometimes, the next refinement should be an explicit UI choice rather than silently weakening alias-first precedence again.
 
 - Date: 2026-06-05
+- Request: Push the alias-first reusable Briefcase geography fix to GitHub for deployment.
+- Summary: Pushed commit `84f0e068` (`Teach reusable geography aliases from Briefcase`) to `origin/main`, publishing the alias-first resolver behavior plus the case-save path that writes tenant-scoped reusable `geo_manual_override` rows for future matching.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: The live change depends on the backend EC2 deploy finishing on this new commit. This release intentionally leaves unrelated local edits in `data/geography/Ghaziabad/Loni.json` and `tenant_overrides.json` unpushed.
+
+- Date: 2026-06-05
 - Request: Fix the Briefcase delete button not working for primary accounts.
 - Summary: Updated Briefcase soft-delete backend permissions so `owner` accounts now share the same delete, deleted-list, and restore access as legacy `mp`/`admin` primary accounts and `pr` users. Added a focused regression proving the full owner delete-view-restore flow, which closes the role-migration gap that was making the frontend delete button fail with a backend 403 for owner tenants.
 - Files touched: `api_router.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
