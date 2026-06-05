@@ -249,7 +249,7 @@ def test_ask_chatgpt_agent_marks_personal_request(monkeypatch):
     assert result["status"] == "new"
     assert result["case_category"] == "Personal Request"
     assert result["is_personal_request"] is True
-    assert "Janpratinidhi karyalaya mein vyaktigat roop se sampark karein." in result["political_response"]
+    assert "Hamare karyalaya mein vyaktigat roop se sampark karein." in result["political_response"]
 
 
 def test_personal_request_survives_missing_location_gate(monkeypatch):
@@ -293,7 +293,7 @@ def test_personal_request_survives_missing_location_gate(monkeypatch):
     assert result["status"] == "new"
     assert result["case_category"] == "Personal Request"
     assert result["is_personal_request"] is True
-    assert "Janpratinidhi karyalaya mein vyaktigat roop se sampark karein." in result["political_response"]
+    assert "Hamare karyalaya mein vyaktigat roop se sampark karein." in result["political_response"]
 
 
 def test_ask_chatgpt_agent_marks_silent_support_message(monkeypatch):
