@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-05
+- Request: Push the generalized building-text locality resolver upgrade to GitHub for deployment.
+- Summary: Pushed commit `929a921b` (`Recover locality aliases from building text`) to `origin/main`, publishing the resolver improvement that safely promotes locality-like `building_name` phrases into match aliases and prefers richer matched locality names over abbreviated polling-sheet labels.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Live verification should focus on plain-text cases where the uploaded geography row is abbreviated but the fuller citizen-facing locality appears in polling building text, and confirm no new false positives appear around generic container words like `nagar` or `colony`.
+
+- Date: 2026-06-05
 - Request: Make plain-text locality mapping recover fuller citizen-facing names when the uploaded geography row is abbreviated but the detailed locality exists inside polling-sheet building text.
 - Summary: Extended `modules/geography_resolver.py` so locality-looking `building_name` lines become safe alias seeds for matching, while generic venue/classroom lines are ignored. Also changed resolved display-value selection to prefer the richer matched alias over an abbreviated source locality when the alias is clearly more specific. Added generalized regressions for abbreviated-row recovery, stage-prefix trimming, and generic venue-line rejection, and verified the plain-text `rani chennamma nagar...` case now resolves to `Belgaum Dakshin` with `matched_value = Rani Channamma Nagar`.
 - Files touched: `modules/geography_resolver.py`, `tests/test_geography_resolver.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
