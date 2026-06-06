@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Push the source-based MP dashboard sidebar logo asset to GitHub for deployment.
+- Summary: Pushed commit `b5ac7392` (`Use source MP sidebar logo asset`) to `origin/main`, publishing the `Needle Logo.zip` `logo.html` geometry as the new `frontend/public/compass-needle-mark.svg` instead of the earlier approximations.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Live verification should confirm Vercel is serving the new asset and that the source-accurate geometry reads cleanly inside the compact sidebar tile.
+
+- Date: 2026-06-06
 - Request: Replace the MP dashboard sidebar logo with the actual source geometry from the provided zip asset and push it live.
 - Summary: Rebuilt `frontend/public/compass-needle-mark.svg` from the real geometry inside `Needle Logo.zip` `logo.html`, replacing the earlier approximations while keeping the `Sidebar.js` integration unchanged. This makes the sidebar logo source-accurate without disturbing the sidebar layout.
 - Files touched: `frontend/public/compass-needle-mark.svg`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
