@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Push the repaired MP dashboard sidebar logo asset to GitHub for deployment.
+- Summary: Pushed commit `8f8aead8` (`Refine MP sidebar logo asset`) to `origin/main`, publishing the cleaner vector replacement for `frontend/public/compass-needle-mark.svg` after the first live logo render looked damaged.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Live review should focus on the rendered logo at the small sidebar size because the code path is unchanged and only the SVG geometry was refined.
+
+- Date: 2026-06-06
 - Request: Repair the MP dashboard sidebar logo because the first SVG asset looked damaged live.
 - Summary: Replaced the initial rough `frontend/public/compass-needle-mark.svg` with a cleaner reference-matched vector while keeping the existing `Sidebar.js` integration unchanged, so only the logo geometry changed and the sidebar layout stayed stable.
 - Files touched: `frontend/public/compass-needle-mark.svg`, `TASK_LOG.md`
