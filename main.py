@@ -1032,6 +1032,18 @@ _FLOOD_THRESHOLD = 20
 _FLOOD_FINGERPRINT_LEN = 60     # chars of normalised text used for matching
 _FLOOD_MIN_MESSAGE_LEN = 20    # messages shorter than this are too vague to match
 
+# Test/QA phone numbers exempt from frequency-based spam gates (content dedup,
+# coordinated-flood, per-phone daily rate limit). Stored as bare 10-digit
+# numbers; matching ignores any country-code prefix. Content-based abuse
+# detection still applies to these numbers.
+_SPAM_EXEMPT_NUMBERS = {"9650787758"}
+
+
+def _is_spam_exempt(phone: str) -> bool:
+    """True if this phone is allowlisted from frequency-based spam checks."""
+    digits = re.sub(r"\D", "", phone or "")
+    return any(digits.endswith(n) for n in _SPAM_EXEMPT_NUMBERS)
+
 
 def _normalise(text: str) -> str:
     """Lowercase, strip punctuation, collapse whitespace."""
@@ -3268,27 +3280,35 @@ def _process_incoming_message(
 
     # ── Content-based dedup (citizens only — staff already returned above) ───
     # Same sender + same text within 10 min = duplicate re-send, ignore it.
-    try:
-        with engine.connect() as _dd_conn:
-            _dup = _dd_conn.execute(
-                text("""
-                    SELECT 1 FROM cases
-                    WHERE user_phone = :phone
-                      AND raw_message = :body
-                      AND created_at >= NOW() - INTERVAL '10 minutes'
-                    LIMIT 1
-                """),
-                {"phone": sender, "body": message_body},
-            ).fetchone()
-        if _dup:
-            logger.info("Content dedup: identical message from %s within 10 min — ignored", sender)
-            return
-    except Exception as _ce:
-        logger.warning("Content dedup check failed (non-blocking): %s", _ce)
+    # Allowlisted test numbers are exempt so repeated test sends are not dropped.
+    if not _is_spam_exempt(sender):
+        try:
+            with engine.connect() as _dd_conn:
+                _dup = _dd_conn.execute(
+                    text("""
+                        SELECT 1 FROM cases
+                        WHERE user_phone = :phone
+                          AND raw_message = :body
+                          AND created_at >= NOW() - INTERVAL '10 minutes'
+                        LIMIT 1
+                    """),
+                    {"phone": sender, "body": message_body},
+                ).fetchone()
+            if _dup:
+                logger.info("Content dedup: identical message from %s within 10 min — ignored", sender)
+                return
+        except Exception as _ce:
+            logger.warning("Content dedup check failed (non-blocking): %s", _ce)
 
     # ── Spam / abuse detection (pre-AI, no token cost) ───────────
+    # Allowlisted test numbers skip the frequency-based coordinated-flood check
+    # but still have content-based abuse detection applied.
+    _spam_exempt = _is_spam_exempt(sender)
     is_abuse, abuse_reason = _is_abusive(message_body)
-    is_flood, flood_reason = _is_coordinated_flood(message_body, current_tenant)
+    is_flood, flood_reason = (
+        (False, "") if _spam_exempt
+        else _is_coordinated_flood(message_body, current_tenant)
+    )
 
     if is_abuse or is_flood:
         flag_type   = "abuse_keyword"    if is_abuse else "coordinated_flood"
@@ -3359,7 +3379,8 @@ def _process_incoming_message(
             ).fetchone()
         _today_count = _count_row[0] if _count_row else 0
 
-        if _today_count >= _daily_limit:
+        # Allowlisted test numbers are exempt from the per-phone daily limit.
+        if not _spam_exempt and _today_count >= _daily_limit:
             logger.warning(
                 "Per-phone rate limit hit: phone=%s tenant=%s count=%d limit=%d",
                 sender, current_tenant, _today_count, _daily_limit
