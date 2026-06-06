@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Push the MP login header spacing refinement to GitHub.
+- Summary: Pushed commit `4f359f2b` (`Refine MP login header spacing`) to `origin/main`, publishing the centered `object-contain` login-logo treatment with slightly more top breathing room and a tighter handoff into the `Compass Needle` heading.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is a visual rhythm deploy only. If the login card still feels too tall after review, the next tweak should trim header spacing before revisiting logo size.
+
+- Date: 2026-06-06
 - Request: Refine the MP login header so the enlarged logo stays centered, slightly lower, and closer to the heading without losing whitespace above.
 - Summary: Tuned the MP login `CardHeader` spacing in `frontend/app/page.js` by adding a little more top padding, reducing the gap below the logo, and explicitly using `object-contain` on the DS-3 logo image. The title and subtitle remain centered, and the logo keeps its aspect ratio on mobile.
 - Files touched: `frontend/app/page.js`, `TASK_LOG.md`
