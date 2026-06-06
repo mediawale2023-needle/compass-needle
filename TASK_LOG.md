@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Push the wide, landscape MP sidebar logo treatment to GitHub for deployment.
+- Summary: Pushed commit `32eb3289` (`Use wide MP sidebar logo treatment`) to `origin/main`, publishing the landscape logo proportions and wider `Sidebar.js` wrapper so the source mark is no longer squeezed into a square badge slot.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Live review should confirm the wider mark now looks correct on both mobile and desktop sidebars and that no future tweak shrinks it back into a square slot.
+
+- Date: 2026-06-06
 - Request: Stop squeezing the MP dashboard logo into a square slot and use a wider source-accurate treatment.
 - Summary: Replaced the sidebar asset with a landscape SVG that follows the original logo proportions and widened the `Sidebar.js` logo wrapper so the arch and compass needle render without square-badge distortion. Kept the rest of the sidebar header layout unchanged.
 - Files touched: `frontend/public/compass-needle-mark.svg`, `frontend/components/Sidebar.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
