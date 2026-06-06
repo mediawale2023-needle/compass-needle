@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Push the aspirant `Schemes` restriction and duplicate `Settings` cleanup to GitHub.
+- Summary: Pushed commit `b0d7af3c` (`Restrict schemes for aspirant accounts`) to `origin/main`, publishing elected-only `Schemes` access in both sidebar navigation and `/dashboard/schemes`, while removing the duplicate module-level `Settings` item so only the `System` copy remains.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is a navigation/access-control deploy. If `Schemes` should later return for aspirants in a limited form, update `canAccessSchemes()` rather than restoring route-specific exceptions.
+
+- Date: 2026-06-06
 - Request: Hide `Schemes` from aspirant logins and remove the duplicate `Settings` tab in the MP sidebar.
 - Summary: Added a shared `canAccessSchemes()` helper, used it to hide `Schemes` for aspirant accounts in `Sidebar.js`, removed the duplicate module-level `Settings` entry so only the `System` copy remains, and guarded `/dashboard/schemes` so aspirants are redirected back to `/dashboard`.
 - Files touched: `frontend/lib/account.js`, `frontend/components/Sidebar.js`, `frontend/app/dashboard/schemes/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
