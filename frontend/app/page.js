@@ -183,9 +183,7 @@ export default function LoginPage() {
                 <Card className="border-0 shadow-xl bg-card/95 backdrop-blur-sm">
                     <CardHeader className="space-y-1 pb-4 pt-8 px-8">
                         <div className="flex items-center justify-center mb-4">
-                            <div className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg bg-primary shadow-primary/20">
-                                <Compass className="h-7 w-7 text-primary-foreground" />
-                            </div>
+                            <img src="/logo-mark.svg" alt="Compass Needle" className="h-14 w-14" style={{ display: 'block' }} />
                         </div>
                         <CardTitle className="text-2xl font-bold text-center text-foreground">
                             Compass Needle

@@ -1,0 +1,22 @@
+<svg viewBox="0 0 160 112" xmlns="http://www.w3.org/2000/svg">
+  <rect width="160" height="112" fill="#EAE6D9"/>
+  <!-- Arch shape with inner circle void (evenodd fills create the hole) -->
+  <path
+    fill-rule="evenodd"
+    fill="#1C1814"
+    d="
+      M 14,104
+      L 14,52
+      A 39,39 0 0,1 92,52
+      L 92,104
+      L 67,104
+      A 20,17 0 0,0 39,104
+      Z
+      M 36,45 a 17,17 0 1,0 34,0 a 17,17 0 1,0 -34,0
+    "
+  />
+  <!-- Needle: tall slim diamond -->
+  <polygon fill="#1C1814" points="120,7 128,56 120,107 112,56"/>
+  <!-- White notch at midpoint (direction indicator, pointing down) -->
+  <polygon fill="#EAE6D9" points="120,53 127,65 113,65"/>
+</svg>

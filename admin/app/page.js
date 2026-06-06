@@ -186,9 +186,7 @@ export default function AdminLoginPage() {
                 <div className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-8 shadow-[var(--shadow-md)] backdrop-blur-sm">
                     <div className="mb-6 text-center">
                         <div className="mb-4 flex items-center justify-center">
-                            <div className="flex h-14 w-14 items-center justify-center rounded-[7px] bg-[var(--sansad-green)] text-white shadow-[var(--shadow-md)]">
-                                <CompassIcon />
-                            </div>
+                            <img src="/logo-mark.svg" alt="Compass Needle" className="h-14 w-14" style={{ display: 'block' }} />
                         </div>
                         <h1 className="cn-display" style={{ fontSize: '26px' }}>Compass Needle</h1>
                         <p className="mt-2 font-[var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--ink-3)]">Administrative Control Panel</p>
