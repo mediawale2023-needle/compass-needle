@@ -67,7 +67,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                 {/* Logo */}
                 <div
                     className={cn(
-                        'px-[18px] py-4 shrink-0',
+                        'px-[18px] pt-3 pb-4 shrink-0',
                         collapsed && 'md:px-2',
                     )}
                     style={{ borderBottom: '1px solid rgba(229,221,200,0.10)' }}
@@ -87,7 +87,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                                 className="h-[38px] w-auto"
                                 priority
                             />
-                            <div className="mt-[10px]">
+                            <div className="mt-[8px]">
                                 <p
                                     className="m-0 font-semibold text-[23px] leading-[0.92] tracking-[-0.03em]"
                                     style={{ color: '#F5EFE0', fontFamily: '"Source Serif 4", serif' }}

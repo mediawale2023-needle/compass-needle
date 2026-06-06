@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Move the `Compass Needle` lockup slightly upward in the MP dashboard sidebar.
+- Summary: Adjusted the MP sidebar header spacing in `frontend/components/Sidebar.js` by trimming the top padding and slightly reducing the gap between the cream logo and the stacked wordmark so the brand block sits a bit higher without changing the overall sidebar structure.
+- Files touched: `frontend/components/Sidebar.js`, `TASK_LOG.md`
+- Risks or follow-ups: This is a very small layout-only tweak. If the header still feels low after deploy, the next step should be another minimal padding adjustment rather than changing typography or logo scale.
+
+- Date: 2026-06-06
 - Request: Push the admin login brand-lockup alignment to GitHub.
 - Summary: Pushed commit `92667037` (`Align admin login brand lockup`) to `origin/main`, publishing the MP-style centered logo treatment and simplified title/subtitle rhythm for the admin login page.
 - Files touched: `TASK_LOG.md`
