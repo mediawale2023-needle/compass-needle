@@ -71,12 +71,16 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                     )}
                     style={{ borderBottom: '1px solid rgba(229,221,200,0.10)' }}
                 >
-                    <img
-                        src="/logo-mark.svg"
-                        alt="Compass Needle"
-                        className="h-8 w-8 shrink-0"
-                        style={{ display: 'block' }}
-                    />
+                    <div
+                        className="h-8 w-8 flex items-center justify-center shrink-0 text-lg font-bold"
+                        style={{
+                            background: '#C76A1A',
+                            color: '#003B2A',
+                            fontFamily: '"Source Serif 4", serif',
+                        }}
+                    >
+                        क
+                    </div>
                     <div className={cn('flex-1 min-w-0', collapsed && 'md:hidden')}>
                         <p
                             className="font-semibold text-sm leading-none"
