@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Push the admin login brand-lockup alignment to GitHub.
+- Summary: Pushed commit `92667037` (`Align admin login brand lockup`) to `origin/main`, publishing the MP-style centered logo treatment and simplified title/subtitle rhythm for the admin login page.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is a login-surface polish deploy only. If the admin sign-in screen now feels too neutral, the next step should add subtle admin-specific tone through color or spacing rather than reopening the shared logo structure.
+
+- Date: 2026-06-06
 - Request: Make the admin login page typography and logo lockup feel similar to the MP login page.
 - Summary: Updated `admin/app/page.js` so the admin login header now uses the same larger centered logo treatment as the MP login page, with a width-controlled `object-contain` logo wrapper and simpler heading/subtitle typography to match the MP product rhythm more closely.
 - Files touched: `admin/app/page.js`, `TASK_LOG.md`
