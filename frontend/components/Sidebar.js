@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -71,15 +72,15 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                     )}
                     style={{ borderBottom: '1px solid rgba(229,221,200,0.10)' }}
                 >
-                    <div
-                        className="h-8 w-8 flex items-center justify-center shrink-0 text-lg font-bold"
-                        style={{
-                            background: '#C76A1A',
-                            color: '#003B2A',
-                            fontFamily: '"Source Serif 4", serif',
-                        }}
-                    >
-                        क
+                    <div className="h-8 w-8 flex items-center justify-center shrink-0 overflow-hidden rounded-[6px]">
+                        <Image
+                            src="/compass-needle-mark.svg"
+                            alt="Compass Needle logo"
+                            width={32}
+                            height={32}
+                            className="h-8 w-8 shrink-0"
+                            priority
+                        />
                     </div>
                     <div className={cn('flex-1 min-w-0', collapsed && 'md:hidden')}>
                         <p

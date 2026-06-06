@@ -12,6 +12,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-06-06
+- Request: Replace the MP dashboard sidebar's orange text badge with the new Compass Needle logo.
+- Summary: Added a reusable sidebar logo asset at `frontend/public/compass-needle-mark.svg` and updated `frontend/components/Sidebar.js` to render it with `next/image` while preserving the existing compact sidebar footprint in both expanded and collapsed states.
+- Files touched: `frontend/public/compass-needle-mark.svg`, `frontend/components/Sidebar.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The logo now depends on the bundled asset path, so any future brand refinement should update the SVG rather than reintroducing inline text styling. Visual QA should confirm the mark feels balanced against the sidebar typography on both desktop and mobile.
+
 - Date: 2026-06-05
 - Request: Push the generalized building-text locality resolver upgrade to GitHub for deployment.
 - Summary: Pushed commit `929a921b` (`Recover locality aliases from building text`) to `origin/main`, publishing the resolver improvement that safely promotes locality-like `building_name` phrases into match aliases and prefers richer matched locality names over abbreviated polling-sheet labels.
