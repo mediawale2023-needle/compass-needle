@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Push the `Compass Needle Design System-3` MP shell pass to GitHub for deployment.
+- Summary: Pushed commit `6e03be58` (`Apply DS-3 MP shell chrome`) to `origin/main`, publishing the DS-3-inspired MP shell updates: cream logo asset, stacked sidebar brand lockup, and top-bar shell polish while preserving existing dashboard cards and data flows.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This deploy intentionally changes shell chrome rather than card internals. If any section still feels visually inconsistent with DS-3, the next pass should target specific dashboard components instead of reopening the shell again.
+
+- Date: 2026-06-06
 - Request: Implement the `Compass Needle Design System-3` dashboard shell for the MP console.
 - Summary: Updated the MP shell to follow the DS-3 console chrome by introducing the cream brand asset, a stacked sidebar lockup, and lighter top-bar polish while preserving the existing dashboard data flows and cards. The change focused on shell-level framing rather than a deep card-by-card redesign.
 - Files touched: `frontend/components/Sidebar.js`, `frontend/app/dashboard/layout.js`, `frontend/public/needle-logo-cream.svg`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
