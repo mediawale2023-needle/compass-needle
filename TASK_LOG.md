@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Push the slight upward adjustment to the MP dashboard sidebar brand lockup.
+- Summary: Pushed commit `1f0d45cd` (`Lift MP sidebar brand lockup`) to `origin/main`, publishing the trimmed top padding and slightly tighter internal gap so the `Compass Needle` sidebar header sits a bit higher.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is a minimal shell-spacing deploy. If the brand block still feels low after refresh, the next pass should make another small padding-only adjustment rather than changing the logo or wordmark scale.
+
+- Date: 2026-06-06
 - Request: Move the `Compass Needle` lockup slightly upward in the MP dashboard sidebar.
 - Summary: Adjusted the MP sidebar header spacing in `frontend/components/Sidebar.js` by trimming the top padding and slightly reducing the gap between the cream logo and the stacked wordmark so the brand block sits a bit higher without changing the overall sidebar structure.
 - Files touched: `frontend/components/Sidebar.js`, `TASK_LOG.md`
