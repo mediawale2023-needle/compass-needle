@@ -177,18 +177,20 @@ export default function AdminLoginPage() {
 
                 <div className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-8 shadow-[var(--shadow-md)] backdrop-blur-sm">
                     <div className="mb-6 text-center">
-                        <div className="mb-5 flex items-center justify-center">
-                            <Image
-                                src="/needle-logo.svg"
-                                alt="Compass Needle"
-                                width={72}
-                                height={44}
-                                className="h-11 w-auto"
-                                priority
-                            />
+                        <div className="mb-2 flex items-center justify-center pt-2">
+                            <div className="flex w-full justify-center">
+                                <Image
+                                    src="/needle-logo.svg"
+                                    alt="Compass Needle"
+                                    width={72}
+                                    height={44}
+                                    className="h-16 w-[7.5rem] object-contain"
+                                    priority
+                                />
+                            </div>
                         </div>
-                        <h1 className="cn-display" style={{ fontSize: '26px' }}>Compass Needle</h1>
-                        <p className="mt-2 font-[var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--ink-3)]">Administrative Control Panel</p>
+                        <h1 className="text-center text-2xl font-bold text-[var(--ink)]">Compass Needle</h1>
+                        <p className="mt-1 text-center text-sm text-[var(--ink-3)]">Administrative Control Panel</p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-4">

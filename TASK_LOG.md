@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Make the admin login page typography and logo lockup feel similar to the MP login page.
+- Summary: Updated `admin/app/page.js` so the admin login header now uses the same larger centered logo treatment as the MP login page, with a width-controlled `object-contain` logo wrapper and simpler heading/subtitle typography to match the MP product rhythm more closely.
+- Files touched: `admin/app/page.js`, `TASK_LOG.md`
+- Risks or follow-ups: This is a UI-only alignment pass. If the admin login page now feels too plain relative to the rest of the admin design language, the next step should tune subtle color/letterspacing rather than reverting the shared lockup structure.
+
+- Date: 2026-06-06
 - Request: Push the shared login logo asset centering fix to GitHub.
 - Summary: Pushed commit `0605269c` (`Center shared login logo asset`) to `origin/main`, publishing the tighter-cropped `needle-logo.svg` canvas for both MP and admin login surfaces so the visible mark can center correctly inside the existing layout.
 - Files touched: `TASK_LOG.md`
