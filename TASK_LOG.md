@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Increase the MP login page logo size to `h-14 w-auto`.
+- Summary: Updated the MP login page logo in `frontend/app/page.js` from `h-11 w-auto` to `h-14 w-auto` so the DS-3 logo has more presence in the sign-in card without changing the asset itself.
+- Files touched: `frontend/app/page.js`, `TASK_LOG.md`
+- Risks or follow-ups: This is a small visual-only tweak. If the login card header feels too tall after deploy, the next adjustment should be spacing around the logo rather than changing the logo asset again.
+
+- Date: 2026-06-06
 - Request: Apply the approved Compass Needle logo system to the admin sidebar, MP login page, and admin login page.
 - Summary: Replaced the remaining placeholder compass/icon treatments with the approved DS-3 brand assets across the admin sidebar and both login pages. The admin rail now uses the cream stacked lockup, and the MP/admin login screens use the ink logo on their light surfaces for consistent cross-surface branding.
 - Files touched: `admin/components/Sidebar.js`, `frontend/app/page.js`, `admin/app/page.js`, `frontend/public/needle-logo.svg`, `admin/public/needle-logo.svg`, `admin/public/needle-logo-cream.svg`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
