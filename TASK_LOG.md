@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Push the enlarged MP login logo update to GitHub.
+- Summary: Pushed commit `04ee64a9` (`Increase MP login logo prominence`) to `origin/main`, publishing the MP login card branding tweak that increases the `needle-logo.svg` treatment from `h-14 w-auto` to `h-16 w-auto`.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is a small visual-only deploy. If the sign-in card feels vertically heavy after refresh, the next refinement should reduce surrounding spacing rather than shrinking the logo again.
+
+- Date: 2026-06-06
 - Request: Increase the MP login page logo to roughly 50% above the original baseline.
 - Summary: Updated the MP login logo in `frontend/app/page.js` from `h-14 w-auto` to `h-16 w-auto`, giving the DS-3 logo more prominence in the sign-in card while keeping its aspect ratio and centered layout intact.
 - Files touched: `frontend/app/page.js`, `TASK_LOG.md`
