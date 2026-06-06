@@ -182,16 +182,18 @@ export default function LoginPage() {
                 )}
 
                 <Card className="border-0 shadow-xl bg-card/95 backdrop-blur-sm">
-                    <CardHeader className="space-y-1 pb-4 pt-9 px-8">
-                        <div className="mb-3 flex items-center justify-center pt-2">
-                            <Image
-                                src="/needle-logo.svg"
-                                alt="Compass Needle"
-                                width={72}
-                                height={44}
-                                className="h-16 w-auto object-contain"
-                                priority
-                            />
+                    <CardHeader className="space-y-0.5 pb-4 pt-9 px-8">
+                        <div className="mb-2 flex items-center justify-center pt-2">
+                            <div className="flex w-full justify-center">
+                                <Image
+                                    src="/needle-logo.svg"
+                                    alt="Compass Needle"
+                                    width={72}
+                                    height={44}
+                                    className="h-16 w-[7.5rem] object-contain"
+                                    priority
+                                />
+                            </div>
                         </div>
                         <CardTitle className="text-2xl font-bold text-center text-foreground">
                             Compass Needle

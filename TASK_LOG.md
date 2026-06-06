@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Correct the MP login header again so the logo is visually centered and the gap to `Compass Needle` is tighter.
+- Summary: Refined the MP login header in `frontend/app/page.js` by placing the logo inside a width-controlled centered wrapper, reducing the logo-to-title gap again, and tightening `CardHeader` vertical spacing so the brand lockup reads more like a single unit on mobile.
+- Files touched: `frontend/app/page.js`, `TASK_LOG.md`
+- Risks or follow-ups: This is still a presentation-only tweak. If the lockup still looks off after deploy, the next step should inspect the SVG's internal whitespace rather than continuing to adjust outer spacing alone.
+
+- Date: 2026-06-06
 - Request: Push the MP login header spacing refinement to GitHub.
 - Summary: Pushed commit `4f359f2b` (`Refine MP login header spacing`) to `origin/main`, publishing the centered `object-contain` login-logo treatment with slightly more top breathing room and a tighter handoff into the `Compass Needle` heading.
 - Files touched: `TASK_LOG.md`
