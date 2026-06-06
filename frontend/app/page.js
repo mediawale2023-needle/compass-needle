@@ -189,7 +189,7 @@ export default function LoginPage() {
                                 alt="Compass Needle"
                                 width={72}
                                 height={44}
-                                className="h-14 w-auto"
+                                className="h-16 w-auto"
                                 priority
                             />
                         </div>

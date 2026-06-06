@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Increase the MP login page logo to roughly 50% above the original baseline.
+- Summary: Updated the MP login logo in `frontend/app/page.js` from `h-14 w-auto` to `h-16 w-auto`, giving the DS-3 logo more prominence in the sign-in card while keeping its aspect ratio and centered layout intact.
+- Files touched: `frontend/app/page.js`, `TASK_LOG.md`
+- Risks or follow-ups: This is a small visual-only tweak, but it makes the login header taller. If the card feels too vertically heavy after deploy, the next adjustment should trim surrounding spacing rather than shrinking the logo asset again.
+
+- Date: 2026-06-06
 - Request: Increase the MP login page logo size to `h-14 w-auto`.
 - Summary: Updated the MP login page logo in `frontend/app/page.js` from `h-11 w-auto` to `h-14 w-auto` so the DS-3 logo has more presence in the sign-in card without changing the asset itself.
 - Files touched: `frontend/app/page.js`, `TASK_LOG.md`
