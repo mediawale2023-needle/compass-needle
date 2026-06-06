@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Push the stacked MP sidebar brand lockup fix to GitHub for deployment.
+- Summary: Pushed commit `72b5ef92` (`Stack MP sidebar brand lockup`) to `origin/main`, publishing the vertical expanded-state brand header so the sidebar no longer clips `Compass Needle` on mobile-width drawers.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Live review should confirm the stacked lockup solves the visual breakage without making the top of the sidebar feel too tall, but future branding changes should preserve this mobile-safe lockup pattern.
+
+- Date: 2026-06-06
 - Request: Fix the MP dashboard header lockup so the logo and wordmark fit cleanly on the mobile-width sidebar.
 - Summary: Reworked the sidebar brand header into a vertical lockup for the expanded state, with the mark above stacked `Compass` / `Needle` lines and the meta line underneath, while keeping a compact icon-only treatment for the collapsed desktop rail. This fixes the mobile clipping that made the sidebar still feel broken after the logo asset was corrected.
 - Files touched: `frontend/components/Sidebar.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
