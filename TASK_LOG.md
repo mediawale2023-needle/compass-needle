@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Push the shared login logo asset centering fix to GitHub.
+- Summary: Pushed commit `0605269c` (`Center shared login logo asset`) to `origin/main`, publishing the tighter-cropped `needle-logo.svg` canvas for both MP and admin login surfaces so the visible mark can center correctly inside the existing layout.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is an asset-bounds deploy. If the logo still feels off after refresh, the next step should inspect the visible geometry or lockup proportions rather than outer wrapper centering.
+
+- Date: 2026-06-06
 - Request: Fix the shared login logo asset so it is truly centered instead of appearing shifted inside a centered wrapper.
 - Summary: Trimmed the oversized SVG canvas on `needle-logo.svg` in both `frontend/public` and `admin/public`, removing the excessive right-side whitespace that was making the MP/admin login logo look off-center even after wrapper-level centering fixes.
 - Files touched: `frontend/public/needle-logo.svg`, `admin/public/needle-logo.svg`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
