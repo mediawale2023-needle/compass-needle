@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Fix the MP dashboard header lockup so the logo and wordmark fit cleanly on the mobile-width sidebar.
+- Summary: Reworked the sidebar brand header into a vertical lockup for the expanded state, with the mark above stacked `Compass` / `Needle` lines and the meta line underneath, while keeping a compact icon-only treatment for the collapsed desktop rail. This fixes the mobile clipping that made the sidebar still feel broken after the logo asset was corrected.
+- Files touched: `frontend/components/Sidebar.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Live review should confirm the new stacked lockup feels balanced against the rest of the sidebar navigation, but future tweaks should now focus on typography/spacing rather than more logo-asset rescues.
+
+- Date: 2026-06-06
 - Request: Push the wide, landscape MP sidebar logo treatment to GitHub for deployment.
 - Summary: Pushed commit `32eb3289` (`Use wide MP sidebar logo treatment`) to `origin/main`, publishing the landscape logo proportions and wider `Sidebar.js` wrapper so the source mark is no longer squeezed into a square badge slot.
 - Files touched: `TASK_LOG.md`
