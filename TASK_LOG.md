@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Push the rollback to the original MP dashboard orange sidebar logo.
+- Summary: Pushed commit `d88968dc` (`Restore original MP sidebar logo`) to `origin/main`, publishing the rollback from the experimental logo/header iterations back to the original orange `क` badge and one-line `Compass Needle` header.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This intentionally restores the known-good baseline. Any future sidebar branding change should start from a complete approved lockup design, not incremental experiments on the live header.
+
+- Date: 2026-06-06
 - Request: Revert the MP dashboard sidebar branding experiments and restore the original orange logo.
 - Summary: Rolled back the sidebar logo and header lockup changes, restoring the original orange `क` badge and the simpler one-line `Compass Needle` header in `frontend/components/Sidebar.js`. Also reset project memory to treat that original badge as the current stable baseline.
 - Files touched: `frontend/components/Sidebar.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
