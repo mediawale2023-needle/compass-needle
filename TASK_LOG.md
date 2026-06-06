@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Push the MP login logo centering refinement to GitHub.
+- Summary: Pushed commit `fc11dd58` (`Center MP login logo lockup`) to `origin/main`, publishing the width-controlled centered logo wrapper and tighter logo-to-heading spacing for the MP login card.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is still a presentation-only deploy. If the logo continues to feel optically off-center after refresh, the next inspection should focus on the SVG's internal whitespace rather than outer layout.
+
+- Date: 2026-06-06
 - Request: Correct the MP login header again so the logo is visually centered and the gap to `Compass Needle` is tighter.
 - Summary: Refined the MP login header in `frontend/app/page.js` by placing the logo inside a width-controlled centered wrapper, reducing the logo-to-title gap again, and tightening `CardHeader` vertical spacing so the brand lockup reads more like a single unit on mobile.
 - Files touched: `frontend/app/page.js`, `TASK_LOG.md`
