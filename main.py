@@ -1033,10 +1033,15 @@ _FLOOD_FINGERPRINT_LEN = 60     # chars of normalised text used for matching
 _FLOOD_MIN_MESSAGE_LEN = 20    # messages shorter than this are too vague to match
 
 # Test/QA phone numbers exempt from frequency-based spam gates (content dedup,
-# coordinated-flood, per-phone daily rate limit). Stored as bare 10-digit
-# numbers; matching ignores any country-code prefix. Content-based abuse
-# detection still applies to these numbers.
-_SPAM_EXEMPT_NUMBERS = {"9650787758"}
+# coordinated-flood, per-phone daily rate limit). Content-based abuse detection
+# still applies. Configured via the SPAM_EXEMPT_NUMBERS env var as a
+# comma-separated list of bare numbers (e.g. "9650787758,9123456789"); any
+# non-digit characters and country-code prefixes are ignored when matching.
+_SPAM_EXEMPT_NUMBERS = {
+    re.sub(r"\D", "", n)
+    for n in os.getenv("SPAM_EXEMPT_NUMBERS", "").split(",")
+    if re.sub(r"\D", "", n)
+}
 
 
 def _is_spam_exempt(phone: str) -> bool:
