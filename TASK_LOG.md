@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Implement the `Compass Needle Design System-3` dashboard shell for the MP console.
+- Summary: Updated the MP shell to follow the DS-3 console chrome by introducing the cream brand asset, a stacked sidebar lockup, and lighter top-bar polish while preserving the existing dashboard data flows and cards. The change focused on shell-level framing rather than a deep card-by-card redesign.
+- Files touched: `frontend/components/Sidebar.js`, `frontend/app/dashboard/layout.js`, `frontend/public/needle-logo-cream.svg`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This is intentionally a shell pass. If any dashboard sections still feel off relative to DS-3, the next work should target specific cards/components instead of reopening the overall chrome again.
+
+- Date: 2026-06-06
 - Request: Push the rollback to the original MP dashboard orange sidebar logo.
 - Summary: Pushed commit `d88968dc` (`Restore original MP sidebar logo`) to `origin/main`, publishing the rollback from the experimental logo/header iterations back to the original orange `क` badge and one-line `Compass Needle` header.
 - Files touched: `TASK_LOG.md`

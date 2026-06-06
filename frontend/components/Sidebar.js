@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -66,44 +67,67 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                 {/* Logo */}
                 <div
                     className={cn(
-                        'flex items-center gap-3 px-[18px] py-4 shrink-0',
-                        collapsed && 'md:justify-center md:px-2',
+                        'px-[18px] py-4 shrink-0',
+                        collapsed && 'md:px-2',
                     )}
                     style={{ borderBottom: '1px solid rgba(229,221,200,0.10)' }}
                 >
                     <div
-                        className="h-8 w-8 flex items-center justify-center shrink-0 text-lg font-bold"
-                        style={{
-                            background: '#C76A1A',
-                            color: '#003B2A',
-                            fontFamily: '"Source Serif 4", serif',
-                        }}
+                        className={cn(
+                            'flex items-start justify-between gap-3',
+                            collapsed && 'md:justify-center',
+                        )}
                     >
-                        क
+                        <div className={cn('min-w-0', collapsed && 'md:hidden')}>
+                            <Image
+                                src="/needle-logo-cream.svg"
+                                alt="Compass Needle"
+                                width={63}
+                                height={38}
+                                className="h-[38px] w-auto"
+                                priority
+                            />
+                            <div className="mt-[10px]">
+                                <p
+                                    className="m-0 font-semibold text-[23px] leading-[0.92] tracking-[-0.03em]"
+                                    style={{ color: '#F5EFE0', fontFamily: '"Source Serif 4", serif' }}
+                                >
+                                    Compass
+                                </p>
+                                <p
+                                    className="m-0 font-semibold text-[23px] leading-[0.92] tracking-[-0.03em]"
+                                    style={{ color: '#F5EFE0', fontFamily: '"Source Serif 4", serif' }}
+                                >
+                                    Needle
+                                </p>
+                                <p
+                                    className="mt-2 text-[9px] tracking-[0.18em] uppercase"
+                                    style={{ color: 'rgba(229,221,200,0.55)', fontFamily: '"JetBrains Mono", monospace' }}
+                                >
+                                    v3 · Operations
+                                </p>
+                            </div>
+                        </div>
+                        <div className={cn('hidden', collapsed && 'md:flex md:items-center md:justify-center')}>
+                            <Image
+                                src="/needle-logo-cream.svg"
+                                alt="Compass Needle"
+                                width={50}
+                                height={30}
+                                className="h-[30px] w-auto"
+                                priority
+                            />
+                        </div>
+                        {setCollapsed && !collapsed && (
+                            <button
+                                className="hidden md:flex h-7 w-7 items-center justify-center opacity-40 hover:opacity-80 transition-opacity shrink-0"
+                                onClick={() => setCollapsed(true)}
+                                aria-label="Collapse sidebar"
+                            >
+                                <ChevronLeft className="h-4 w-4" style={{ color: '#E5DDC8' }} />
+                            </button>
+                        )}
                     </div>
-                    <div className={cn('flex-1 min-w-0', collapsed && 'md:hidden')}>
-                        <p
-                            className="font-semibold text-sm leading-none"
-                            style={{ color: '#F5EFE0', fontFamily: '"Source Serif 4", serif' }}
-                        >
-                            Compass Needle
-                        </p>
-                        <p
-                            className="text-[9px] tracking-[0.12em] uppercase mt-1"
-                            style={{ color: 'rgba(229,221,200,0.55)', fontFamily: '"JetBrains Mono", monospace' }}
-                        >
-                            v3 · Operations
-                        </p>
-                    </div>
-                    {setCollapsed && !collapsed && (
-                        <button
-                            className="hidden md:flex h-7 w-7 items-center justify-center opacity-40 hover:opacity-80 transition-opacity shrink-0"
-                            onClick={() => setCollapsed(true)}
-                            aria-label="Collapse sidebar"
-                        >
-                            <ChevronLeft className="h-4 w-4" style={{ color: '#E5DDC8' }} />
-                        </button>
-                    )}
                 </div>
 
                 {/* Nav */}

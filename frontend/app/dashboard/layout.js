@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/auth';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Sidebar from '@/components/Sidebar';
 import { apiGet } from '@/lib/api';
 import { canAccessSansadAI, getAccountLabel, getSeatBadge } from '@/lib/account';
@@ -172,12 +173,21 @@ export default function DashboardLayout({ children }) {
                     >
                         {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                     </Button>
-                    <span
-                        className="font-semibold text-sm"
-                        style={{ fontFamily: '"Source Serif 4", serif', color: 'var(--cn-ink)' }}
-                    >
-                        Compass Needle
-                    </span>
+                    <div className="flex items-center gap-2 min-w-0">
+                        <Image
+                            src="/needle-logo-cream.svg"
+                            alt="Compass Needle"
+                            width={32}
+                            height={19}
+                            className="h-[19px] w-auto shrink-0"
+                        />
+                        <span
+                            className="font-semibold text-sm truncate"
+                            style={{ fontFamily: '"Source Serif 4", serif', color: 'var(--cn-ink)' }}
+                        >
+                            Compass Needle
+                        </span>
+                    </div>
                 </div>
                 <button
                     className="h-9 w-9 flex items-center justify-center"
@@ -381,7 +391,7 @@ export default function DashboardLayout({ children }) {
                 )}
 
                 {/* Content */}
-                <div className="flex-1 p-4 md:p-[14px] animate-fade-in">
+                <div className="flex-1 p-[14px] md:p-[14px] animate-fade-in">
                     {children}
                 </div>
             </main>
