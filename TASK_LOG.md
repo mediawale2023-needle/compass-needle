@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Refine the MP login header so the enlarged logo stays centered, slightly lower, and closer to the heading without losing whitespace above.
+- Summary: Tuned the MP login `CardHeader` spacing in `frontend/app/page.js` by adding a little more top padding, reducing the gap below the logo, and explicitly using `object-contain` on the DS-3 logo image. The title and subtitle remain centered, and the logo keeps its aspect ratio on mobile.
+- Files touched: `frontend/app/page.js`, `TASK_LOG.md`
+- Risks or follow-ups: This is a visual rhythm adjustment only. If the sign-in card still feels too tall on smaller phones, the next step should be fine-tuning header padding rather than resizing the logo again.
+
+- Date: 2026-06-06
 - Request: Push the enlarged MP login logo update to GitHub.
 - Summary: Pushed commit `04ee64a9` (`Increase MP login logo prominence`) to `origin/main`, publishing the MP login card branding tweak that increases the `needle-logo.svg` treatment from `h-14 w-auto` to `h-16 w-auto`.
 - Files touched: `TASK_LOG.md`
