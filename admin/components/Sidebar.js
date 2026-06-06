@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -172,13 +173,19 @@ export default function Sidebar() {
 
     return (
         <aside className="fixed left-0 top-0 z-50 flex h-screen w-60 flex-col border-r border-[var(--chrome-line)] bg-[var(--chrome)] text-[var(--chrome-text)]">
-            <div className="flex items-center gap-3 border-b border-[var(--chrome-line)] px-4 py-[18px]">
-                <div className="flex h-10 w-10 items-center justify-center rounded-[7px] bg-[var(--sansad-green)] text-white shadow-sm">
-                    <Icons.Compass />
-                </div>
-                <div className="min-w-0">
-                    <h1 className="truncate font-[var(--font-display)] text-[15px] font-semibold leading-none text-[var(--chrome-hi)]">Compass Needle</h1>
-                    <p className="mt-1 truncate font-[var(--font-mono)] text-[9.5px] uppercase tracking-[0.12em] text-[var(--chrome-muted)]">Admin Console</p>
+            <div className="border-b border-[var(--chrome-line)] px-[18px] py-4">
+                <Image
+                    src="/needle-logo-cream.svg"
+                    alt="Compass Needle"
+                    width={63}
+                    height={38}
+                    className="h-[38px] w-auto"
+                    priority
+                />
+                <div className="mt-[10px] min-w-0">
+                    <p className="m-0 font-[var(--font-display)] text-[23px] font-semibold leading-[0.92] tracking-[-0.03em] text-[var(--chrome-hi)]">Compass</p>
+                    <p className="m-0 font-[var(--font-display)] text-[23px] font-semibold leading-[0.92] tracking-[-0.03em] text-[var(--chrome-hi)]">Needle</p>
+                    <p className="mt-2 truncate font-[var(--font-mono)] text-[9px] uppercase tracking-[0.18em] text-[var(--chrome-muted)]">Admin Console</p>
                 </div>
             </div>
 

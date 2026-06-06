@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Apply the approved Compass Needle logo system to the admin sidebar, MP login page, and admin login page.
+- Summary: Replaced the remaining placeholder compass/icon treatments with the approved DS-3 brand assets across the admin sidebar and both login pages. The admin rail now uses the cream stacked lockup, and the MP/admin login screens use the ink logo on their light surfaces for consistent cross-surface branding.
+- Files touched: `admin/components/Sidebar.js`, `frontend/app/page.js`, `admin/app/page.js`, `frontend/public/needle-logo.svg`, `admin/public/needle-logo.svg`, `admin/public/needle-logo-cream.svg`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This is a branding consistency pass only. If any of the auth cards now feel visually unbalanced, the next work should tune spacing/typography around the logo rather than swapping the logo treatment again.
+
+- Date: 2026-06-06
 - Request: Push the `Compass Needle Design System-3` MP shell pass to GitHub for deployment.
 - Summary: Pushed commit `6e03be58` (`Apply DS-3 MP shell chrome`) to `origin/main`, publishing the DS-3-inspired MP shell updates: cream logo asset, stacked sidebar brand lockup, and top-bar shell polish while preserving existing dashboard cards and data flows.
 - Files touched: `TASK_LOG.md`

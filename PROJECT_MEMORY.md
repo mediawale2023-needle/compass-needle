@@ -166,6 +166,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - In that same desktop queue/workload row, the constituency map card must use a compact mode: keep the actual map visible, but suppress the extra hotspot chips and top-category tiles below the map so the card does not spill into the next dashboard row when its height is synced to the queue.
 - The MP dashboard sidebar currently uses the original orange `क` badge in `frontend/components/Sidebar.js`. Treat that as the stable baseline until a full approved brand lockup is ready; do not swap in experimental logo assets piecemeal.
 - `Compass Needle Design System-3` is now the approved MP shell reference. For the MP console chrome, prefer the cream brand asset (`needle-logo-cream.svg`), stacked serif wordmark, mono meta line, and the existing sharp dark-green rail treatment from the DS-3 sidebar rather than the older orange `क` placeholder badge.
+- The same DS-3 logo system should now stay consistent across MP and admin entry chrome: use `needle-logo-cream.svg` on dark sidebars/chrome rails, and `needle-logo.svg` on light login surfaces rather than fallback compass icons or placeholder glyphs.
 
 ## Admin IA Memory
 

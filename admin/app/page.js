@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { apiPost } from '@/lib/api';
@@ -8,15 +9,6 @@ import { apiPost } from '@/lib/api';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 const PROBE_INTERVAL_MS = 4000;
 const PROBE_TIMEOUT_MS = 5000;
-
-function CompassIcon({ className = 'h-7 w-7' }) {
-    return (
-        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-        </svg>
-    );
-}
 
 function SpinnerIcon({ className = 'h-4 w-4' }) {
     return (
@@ -185,10 +177,15 @@ export default function AdminLoginPage() {
 
                 <div className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-8 shadow-[var(--shadow-md)] backdrop-blur-sm">
                     <div className="mb-6 text-center">
-                        <div className="mb-4 flex items-center justify-center">
-                            <div className="flex h-14 w-14 items-center justify-center rounded-[7px] bg-[var(--sansad-green)] text-white shadow-[var(--shadow-md)]">
-                                <CompassIcon />
-                            </div>
+                        <div className="mb-5 flex items-center justify-center">
+                            <Image
+                                src="/needle-logo.svg"
+                                alt="Compass Needle"
+                                width={72}
+                                height={44}
+                                className="h-11 w-auto"
+                                priority
+                            />
                         </div>
                         <h1 className="cn-display" style={{ fontSize: '26px' }}>Compass Needle</h1>
                         <p className="mt-2 font-[var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--ink-3)]">Administrative Control Panel</p>

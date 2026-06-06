@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Compass, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 const PROBE_INTERVAL_MS = 4000;
@@ -182,10 +183,15 @@ export default function LoginPage() {
 
                 <Card className="border-0 shadow-xl bg-card/95 backdrop-blur-sm">
                     <CardHeader className="space-y-1 pb-4 pt-8 px-8">
-                        <div className="flex items-center justify-center mb-4">
-                            <div className="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg bg-primary shadow-primary/20">
-                                <Compass className="h-7 w-7 text-primary-foreground" />
-                            </div>
+                        <div className="mb-5 flex items-center justify-center">
+                            <Image
+                                src="/needle-logo.svg"
+                                alt="Compass Needle"
+                                width={72}
+                                height={44}
+                                className="h-11 w-auto"
+                                priority
+                            />
                         </div>
                         <CardTitle className="text-2xl font-bold text-center text-foreground">
                             Compass Needle
