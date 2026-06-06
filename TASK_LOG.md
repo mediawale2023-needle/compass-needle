@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Revert the MP dashboard sidebar branding experiments and restore the original orange logo.
+- Summary: Rolled back the sidebar logo and header lockup changes, restoring the original orange `क` badge and the simpler one-line `Compass Needle` header in `frontend/components/Sidebar.js`. Also reset project memory to treat that original badge as the current stable baseline.
+- Files touched: `frontend/components/Sidebar.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The experimental `frontend/public/compass-needle-mark.svg` asset may remain in the tree, but it is no longer used by the sidebar. Any future brand refresh should start as a full approved lockup pass rather than incremental asset swaps.
+
+- Date: 2026-06-06
 - Request: Push the stacked MP sidebar brand lockup fix to GitHub for deployment.
 - Summary: Pushed commit `72b5ef92` (`Stack MP sidebar brand lockup`) to `origin/main`, publishing the vertical expanded-state brand header so the sidebar no longer clips `Compass Needle` on mobile-width drawers.
 - Files touched: `TASK_LOG.md`
