@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Stop squeezing the MP dashboard logo into a square slot and use a wider source-accurate treatment.
+- Summary: Replaced the sidebar asset with a landscape SVG that follows the original logo proportions and widened the `Sidebar.js` logo wrapper so the arch and compass needle render without square-badge distortion. Kept the rest of the sidebar header layout unchanged.
+- Files touched: `frontend/public/compass-needle-mark.svg`, `frontend/components/Sidebar.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Live review should confirm the wider mark still balances well against the wordmark on mobile, but future fixes should preserve the landscape treatment rather than returning to square icon framing.
+
+- Date: 2026-06-06
 - Request: Push the transparent standalone MP sidebar logo treatment to GitHub for deployment.
 - Summary: Pushed commit `743d1542` (`Use transparent MP sidebar logo mark`) to `origin/main`, publishing the transparent source-based mark plus the slightly roomier sidebar logo wrapper so the MP sidebar no longer renders the logo as a boxed beige tile.
 - Files touched: `TASK_LOG.md`

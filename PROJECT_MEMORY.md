@@ -167,6 +167,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - The MP dashboard sidebar brand mark now comes from a real asset at `frontend/public/compass-needle-mark.svg` rendered by `frontend/components/Sidebar.js`, not from the old orange text badge. Future branding tweaks should update the asset or its sizing there instead of restyling a glyph block inline.
 - For the MP dashboard sidebar logo, prefer the source geometry from provided brand assets (for example the `Needle Logo.zip` `logo.html` SVG) instead of approximate redraws. If the mark changes again, update `frontend/public/compass-needle-mark.svg` from the source artwork and keep `Sidebar.js` layout untouched unless the brand proportions truly require it.
 - The sidebar logo should be treated as a standalone transparent mark, not an icon tile. Do not bake a beige rounded-square background into `frontend/public/compass-needle-mark.svg`; let the dark sidebar background frame the mark and only adjust the wrapper size in `Sidebar.js` if the proportions need breathing room.
+- The `Compass Needle` sidebar mark is horizontally proportioned, not square. In `frontend/components/Sidebar.js`, render it in a wider landscape wrapper rather than squeezing it into a square badge slot, or the arch-and-needle geometry will look broken even when the source SVG is correct.
 
 ## Admin IA Memory
 
