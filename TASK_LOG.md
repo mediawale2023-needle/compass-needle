@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Repair the MP dashboard sidebar logo because the first SVG asset looked damaged live.
+- Summary: Replaced the initial rough `frontend/public/compass-needle-mark.svg` with a cleaner reference-matched vector while keeping the existing `Sidebar.js` integration unchanged, so only the logo geometry changed and the sidebar layout stayed stable.
+- Files touched: `frontend/public/compass-needle-mark.svg`, `TASK_LOG.md`
+- Risks or follow-ups: The logo should be visually rechecked at the small sidebar size on live Vercel because this fix depends on how the refined geometry reads at roughly `32px`.
+
+- Date: 2026-06-06
 - Request: Push the MP dashboard sidebar logo refresh to GitHub for deployment.
 - Summary: Pushed commit `dae39cbb` (`Replace MP sidebar logo mark`) to `origin/main`, publishing the MP sidebar branding swap from the old orange text badge to the reusable `frontend/public/compass-needle-mark.svg` asset rendered in `Sidebar.js`.
 - Files touched: `TASK_LOG.md`
