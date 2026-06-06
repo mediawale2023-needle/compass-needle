@@ -168,6 +168,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - `Compass Needle Design System-3` is now the approved MP shell reference. For the MP console chrome, prefer the cream brand asset (`needle-logo-cream.svg`), stacked serif wordmark, mono meta line, and the existing sharp dark-green rail treatment from the DS-3 sidebar rather than the older orange `क` placeholder badge.
 - The same DS-3 logo system should now stay consistent across MP and admin entry chrome: use `needle-logo-cream.svg` on dark sidebars/chrome rails, and `needle-logo.svg` on light login surfaces rather than fallback compass icons or placeholder glyphs.
 - The shared light-surface login asset `needle-logo.svg` must stay tightly cropped to the visible mark. A too-wide SVG canvas made the MP/admin login logo look off-center even when the page layout was correctly centered, so future centering fixes should inspect the asset bounds before nudging wrappers again.
+- `Schemes` is now an elected-only MP feature, just like `Sansad AI` and `Convergence`. Aspirant accounts should neither see it in sidebar navigation nor access `/dashboard/schemes` directly; reuse `canAccessSchemes()` from `frontend/lib/account.js` instead of open-coding tenant-type checks.
 
 ## Admin IA Memory
 

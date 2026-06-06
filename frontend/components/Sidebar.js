@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { canAccessConvergence, canAccessSansadAI, getAccountLabel, getSeatBadge } from '@/lib/account';
+import { canAccessConvergence, canAccessSansadAI, canAccessSchemes, getAccountLabel, getSeatBadge } from '@/lib/account';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -29,9 +29,8 @@ const NAV_ITEMS = [
     { name: 'Drafter',     path: '/dashboard/drafter',    icon: PenTool },
     { name: 'Sansad AI',   path: '/dashboard/sansadai',   icon: Bot,         access: canAccessSansadAI },
     { name: 'Convergence', path: '/dashboard/csr',        icon: Users,       access: canAccessConvergence },
-    { name: 'Schemes',     path: '/dashboard/schemes',    icon: Newspaper },
+    { name: 'Schemes',     path: '/dashboard/schemes',    icon: Newspaper,   access: canAccessSchemes },
     { name: 'Archives',    path: '/dashboard/archives',   icon: Archive },
-    { name: 'Settings',    path: '/dashboard/settings',   icon: Settings },
 ];
 
 export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}, collapsed = false, setCollapsed }) {

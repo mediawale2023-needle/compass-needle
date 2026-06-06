@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
 import { apiGet, apiPost, AI_TIMEOUT } from '@/lib/api';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { canAccessSchemes } from '@/lib/account';
 import {
     ChevronRight, ChevronLeft, Loader2, RefreshCw,
     Building2, FileText, TrendingUp, AlertTriangle,
@@ -896,7 +897,19 @@ export function SchemesExperience({
 }
 
 export default function SchemesPage() {
+    const { user, loading } = useAuth();
     const router = useRouter();
+
+    useEffect(() => {
+        if (!loading && !canAccessSchemes(user)) {
+            router.replace('/dashboard');
+        }
+    }, [loading, router, user]);
+
+    if (loading || !canAccessSchemes(user)) {
+        return null;
+    }
+
     const searchParams = useSearchParams();
 
     useEffect(() => {

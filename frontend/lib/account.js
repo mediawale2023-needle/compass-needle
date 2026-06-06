@@ -50,3 +50,7 @@ export function canAccessSansadAI(user) {
 export function canAccessConvergence(user) {
     return isElectedAccount(user);
 }
+
+export function canAccessSchemes(user) {
+    return isElectedAccount(user);
+}

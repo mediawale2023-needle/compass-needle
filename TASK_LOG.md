@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Hide `Schemes` from aspirant logins and remove the duplicate `Settings` tab in the MP sidebar.
+- Summary: Added a shared `canAccessSchemes()` helper, used it to hide `Schemes` for aspirant accounts in `Sidebar.js`, removed the duplicate module-level `Settings` entry so only the `System` copy remains, and guarded `/dashboard/schemes` so aspirants are redirected back to `/dashboard`.
+- Files touched: `frontend/lib/account.js`, `frontend/components/Sidebar.js`, `frontend/app/dashboard/schemes/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This is a navigation and route-access cleanup. If `Schemes` should later return for aspirants in a limited mode, expand `canAccessSchemes()` rather than restoring one-off UI exceptions.
+
+- Date: 2026-06-06
 - Request: Push the slight upward adjustment to the MP dashboard sidebar brand lockup.
 - Summary: Pushed commit `1f0d45cd` (`Lift MP sidebar brand lockup`) to `origin/main`, publishing the trimmed top padding and slightly tighter internal gap so the `Compass Needle` sidebar header sits a bit higher.
 - Files touched: `TASK_LOG.md`
