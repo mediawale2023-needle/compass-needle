@@ -72,13 +72,13 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                     )}
                     style={{ borderBottom: '1px solid rgba(229,221,200,0.10)' }}
                 >
-                    <div className="h-8 w-8 flex items-center justify-center shrink-0 overflow-hidden rounded-[6px]">
+                    <div className="h-10 w-10 flex items-center justify-center shrink-0">
                         <Image
                             src="/compass-needle-mark.svg"
                             alt="Compass Needle logo"
-                            width={32}
-                            height={32}
-                            className="h-8 w-8 shrink-0"
+                            width={40}
+                            height={40}
+                            className="h-10 w-10 shrink-0 object-contain"
                             priority
                         />
                     </div>

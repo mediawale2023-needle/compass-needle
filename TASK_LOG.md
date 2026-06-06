@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-06
+- Request: Fix the MP dashboard logo treatment so it uses the standalone mark instead of a boxed beige tile.
+- Summary: Rebuilt `frontend/public/compass-needle-mark.svg` as a transparent standalone mark based on the source artwork and widened the `Sidebar.js` logo wrapper to let the mark breathe at sidebar size. This removes the faux app-icon tile look that was making the live logo feel wrong even after the source geometry was deployed.
+- Files touched: `frontend/public/compass-needle-mark.svg`, `frontend/components/Sidebar.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Live review should confirm the transparent mark has enough contrast and spacing on both mobile and desktop sidebar states, but future tweaks should start with wrapper sizing rather than reboxing the asset.
+
+- Date: 2026-06-06
 - Request: Push the source-based MP dashboard sidebar logo asset to GitHub for deployment.
 - Summary: Pushed commit `b5ac7392` (`Use source MP sidebar logo asset`) to `origin/main`, publishing the `Needle Logo.zip` `logo.html` geometry as the new `frontend/public/compass-needle-mark.svg` instead of the earlier approximations.
 - Files touched: `TASK_LOG.md`
