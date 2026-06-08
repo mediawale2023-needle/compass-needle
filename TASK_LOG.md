@@ -1170,6 +1170,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Files touched: `api_router.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: Any frontend surface that still hardcodes green instead of reading `user.theme_color` should be migrated in future passes, but the main authenticated MP shell should now pick up the aspirant blue automatically after the next login/session refresh.
 
+- Date: 2026-06-08
+- Request: Push the aspirant theme-color change to GitHub.
+- Summary: Pushed commit `9a1b21c2` (`Add aspirant theme color`) to `origin/main`, publishing the account-stage-aware MP frontend theme assignment so aspirant accounts now receive `#0B3C5D` from the auth/session payload while elected accounts keep the existing Lok Sabha and Rajya Sabha colors.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Unrelated local edits in `data/geography/Ghaziabad/Loni.json`, `frontend/components/Sidebar.js`, and `tenant_overrides.json` remained intentionally unpushed. Users may need to sign out and back in before all surfaces pick up the refreshed `theme_color` from their session payload.
+
 - Date: 2026-06-04
 - Request: Push the dashboard schedule engagements feature to GitHub for deployment.
 - Summary: Pushed commit `fe6915f2` (`Add dashboard schedule engagements`) to `origin/main`, publishing the tenant-scoped `dashboard_engagements` backend, the real `Today · Schedule` dashboard card with inline `Add schedule`, `Add note`, and `Add calendar` actions, and the focused backend/frontend regression coverage for that flow. This `main` push is intended to trigger the backend EC2 deploy workflow and the connected frontend deploys.
