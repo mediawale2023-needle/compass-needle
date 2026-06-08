@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { canAccessConvergence, canAccessSansadAI, canAccessSchemes, getAccountLabel, getSeatBadge } from '@/lib/account';
+import { canAccessConvergence, canAccessSansadAI, canAccessSchemes, getAccountLabel, getSeatBadge, getSidebarTheme } from '@/lib/account';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -35,6 +35,7 @@ const NAV_ITEMS = [
 
 export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}, collapsed = false, setCollapsed }) {
     const pathname = usePathname();
+    const sidebarTheme = getSidebarTheme(user);
 
     const initials = user?.display_name
         ? user.display_name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
@@ -46,9 +47,10 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
             <div
                 className={cn(
                     'fixed inset-0 z-40 md:hidden transition-opacity duration-300',
-                    'bg-[#003B2A]/70 backdrop-blur-sm',
+                    'backdrop-blur-sm',
                     isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none',
                 )}
+                style={{ background: sidebarTheme.backdrop }}
                 onClick={() => setIsOpen?.(false)}
             />
 
@@ -61,7 +63,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                     collapsed ? 'md:w-[60px]' : 'md:w-[220px]',
                     'w-[220px]',
                 )}
-                style={{ background: '#003B2A', color: '#E5DDC8' }}
+                style={{ background: sidebarTheme.background, color: sidebarTheme.text }}
             >
                 {/* Logo */}
                 <div
@@ -69,7 +71,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                         'px-[18px] pt-3 pb-4 shrink-0',
                         collapsed && 'md:px-2',
                     )}
-                    style={{ borderBottom: '1px solid rgba(229,221,200,0.10)' }}
+                    style={{ borderBottom: `1px solid ${sidebarTheme.divider}` }}
                 >
                     <div
                         className={cn(
@@ -89,19 +91,19 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                             <div className="mt-[8px]">
                                 <p
                                     className="m-0 font-semibold text-[23px] leading-[0.92] tracking-[-0.03em]"
-                                    style={{ color: '#F5EFE0', fontFamily: '"Source Serif 4", serif' }}
+                                    style={{ color: sidebarTheme.strongText, fontFamily: '"Source Serif 4", serif' }}
                                 >
                                     Compass
                                 </p>
                                 <p
                                     className="m-0 font-semibold text-[23px] leading-[0.92] tracking-[-0.03em]"
-                                    style={{ color: '#F5EFE0', fontFamily: '"Source Serif 4", serif' }}
+                                    style={{ color: sidebarTheme.strongText, fontFamily: '"Source Serif 4", serif' }}
                                 >
                                     Needle
                                 </p>
                                 <p
                                     className="mt-2 text-[9px] tracking-[0.18em] uppercase"
-                                    style={{ color: 'rgba(229,221,200,0.55)', fontFamily: '"JetBrains Mono", monospace' }}
+                                    style={{ color: sidebarTheme.mutedText, fontFamily: '"JetBrains Mono", monospace' }}
                                 >
                                     v3 · Operations
                                 </p>
@@ -123,7 +125,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                                 onClick={() => setCollapsed(true)}
                                 aria-label="Collapse sidebar"
                             >
-                                <ChevronLeft className="h-4 w-4" style={{ color: '#E5DDC8' }} />
+                                <ChevronLeft className="h-4 w-4" style={{ color: sidebarTheme.text }} />
                             </button>
                         )}
                     </div>
@@ -136,7 +138,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                             'text-[9px] tracking-[0.14em] uppercase px-[18px] pt-3 pb-1',
                             collapsed && 'md:hidden',
                         )}
-                        style={{ color: 'rgba(229,221,200,0.45)', fontFamily: '"JetBrains Mono", monospace' }}
+                        style={{ color: sidebarTheme.faintText, fontFamily: '"JetBrains Mono", monospace' }}
                     >
                         Modules
                     </p>
@@ -157,9 +159,9 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                                         collapsed ? 'md:justify-center md:px-0 md:py-2 px-[18px]' : 'px-[18px]',
                                     )}
                                     style={{
-                                        color: active ? '#F5EFE0' : '#E5DDC8',
-                                        background: active ? 'rgba(2,80,58,0.6)' : 'transparent',
-                                        borderLeft: active ? '2px solid #C76A1A' : '2px solid transparent',
+                                        color: active ? sidebarTheme.strongText : sidebarTheme.text,
+                                        background: active ? sidebarTheme.activeBackground : 'transparent',
+                                        borderLeft: active ? `2px solid ${sidebarTheme.accent}` : '2px solid transparent',
                                         marginLeft: '-1px',
                                         fontWeight: active ? 600 : 500,
                                         opacity: active ? 1 : 0.8,
@@ -168,7 +170,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                                 >
                                     <Icon
                                         className="h-[14px] w-[14px] shrink-0"
-                                        style={{ color: active ? '#F5EFE0' : 'rgba(229,221,200,0.65)' }}
+                                        style={{ color: active ? sidebarTheme.strongText : sidebarTheme.icon }}
                                         strokeWidth={active ? 2 : 1.5}
                                     />
                                     <span className={cn('flex-1 truncate', collapsed && 'md:hidden')}>{item.name}</span>
@@ -177,7 +179,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                                             className={cn('text-[10px] font-bold px-1.5 leading-5', collapsed && 'md:hidden')}
                                             style={{
                                                 background: 'rgba(199,106,26,0.20)',
-                                                color: '#C76A1A',
+                                                color: sidebarTheme.accent,
                                                 fontFamily: '"JetBrains Mono", monospace',
                                             }}
                                         >
@@ -206,18 +208,18 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                     {/* System section */}
                     <div
                         className={cn('mt-2 pt-2', collapsed && 'md:hidden')}
-                        style={{ borderTop: '1px solid rgba(229,221,200,0.10)' }}
+                        style={{ borderTop: `1px solid ${sidebarTheme.divider}` }}
                     >
                         <p
                             className="text-[9px] tracking-[0.14em] uppercase px-[18px] pt-2 pb-1"
-                            style={{ color: 'rgba(229,221,200,0.45)', fontFamily: '"JetBrains Mono", monospace' }}
+                            style={{ color: sidebarTheme.faintText, fontFamily: '"JetBrains Mono", monospace' }}
                         >
                             System
                         </p>
                         <Link
                             href="/dashboard/settings"
                             className="flex items-center gap-3 py-[7px] px-[18px] text-[12.5px] transition-opacity"
-                            style={{ color: '#E5DDC8', opacity: 0.65 }}
+                            style={{ color: sidebarTheme.text, opacity: 0.65 }}
                         >
                             <Settings className="h-[14px] w-[14px] shrink-0" strokeWidth={1.5} />
                             <span>Settings</span>
@@ -228,22 +230,22 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                 {/* Footer */}
                 <div
                     className="shrink-0"
-                    style={{ borderTop: '1px solid rgba(229,221,200,0.10)' }}
+                    style={{ borderTop: `1px solid ${sidebarTheme.divider}` }}
                 >
                     {/* System status */}
                     <div className={cn('px-[18px] py-3', collapsed && 'md:hidden')}>
                         <div className="flex items-center gap-2 mb-1">
                             <span
                                 className="h-2 w-2 rounded-full shrink-0"
-                                style={{ background: '#006A4D', boxShadow: '0 0 0 3px rgba(0,106,77,0.25)' }}
+                                style={{ background: sidebarTheme.statusDot, boxShadow: `0 0 0 3px ${sidebarTheme.statusGlow}` }}
                             />
-                            <span className="text-[11px] font-semibold" style={{ color: '#F5EFE0' }}>
+                            <span className="text-[11px] font-semibold" style={{ color: sidebarTheme.strongText }}>
                                 All systems operational
                             </span>
                         </div>
                         <p
                             className="text-[9.5px] tracking-[0.08em]"
-                            style={{ color: 'rgba(229,221,200,0.5)', fontFamily: '"JetBrains Mono", monospace' }}
+                            style={{ color: sidebarTheme.mutedText, fontFamily: '"JetBrains Mono", monospace' }}
                         >
                             {user?.constituency} · {getSeatBadge(user)}
                         </p>
@@ -255,25 +257,25 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                             'flex items-center gap-3 px-[18px] py-3',
                             collapsed && 'md:justify-center md:px-2',
                         )}
-                        style={{ borderTop: '1px solid rgba(229,221,200,0.10)' }}
+                        style={{ borderTop: `1px solid ${sidebarTheme.divider}` }}
                     >
                         <div
                             className="h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
                             style={{
-                                background: 'rgba(0,106,77,0.5)',
-                                color: '#F5EFE0',
+                                background: sidebarTheme.avatarBackground,
+                                color: sidebarTheme.strongText,
                                 fontFamily: '"Source Serif 4", serif',
                             }}
                         >
                             {initials}
                         </div>
                         <div className={cn('flex-1 min-w-0', collapsed && 'md:hidden')}>
-                            <p className="text-[12px] font-semibold truncate" style={{ color: '#F5EFE0' }}>
+                            <p className="text-[12px] font-semibold truncate" style={{ color: sidebarTheme.strongText }}>
                                 {user?.display_name}
                             </p>
                             <p
                                 className="text-[9.5px] tracking-[0.08em] truncate mt-0.5"
-                                style={{ color: 'rgba(229,221,200,0.55)', fontFamily: '"JetBrains Mono", monospace' }}
+                                style={{ color: sidebarTheme.mutedText, fontFamily: '"JetBrains Mono", monospace' }}
                             >
                                 {getAccountLabel(user)}
                             </p>
@@ -285,7 +287,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                                 onClick={() => setCollapsed(false)}
                                 aria-label="Expand sidebar"
                             >
-                                <ChevronRight className="h-4 w-4" style={{ color: '#E5DDC8' }} />
+                                <ChevronRight className="h-4 w-4" style={{ color: sidebarTheme.text }} />
                             </button>
                         )}
 
@@ -295,7 +297,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                                 onClick={onLogout}
                                 aria-label="Log out"
                             >
-                                <LogOut className="h-4 w-4" style={{ color: '#E5DDC8' }} />
+                                <LogOut className="h-4 w-4" style={{ color: sidebarTheme.text }} />
                             </button>
                         )}
                     </div>
@@ -306,7 +308,7 @@ export default function Sidebar({ user, onLogout, isOpen, setIsOpen, badges = {}
                             variant="ghost"
                             size="sm"
                             className="w-full justify-start gap-2 text-[12px]"
-                            style={{ color: 'rgba(229,221,200,0.7)' }}
+                            style={{ color: sidebarTheme.text, opacity: 0.7 }}
                             onClick={onLogout}
                         >
                             <LogOut className="h-4 w-4" />

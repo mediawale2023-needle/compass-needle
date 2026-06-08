@@ -1165,6 +1165,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Risks or follow-ups: This is intentionally a lightweight schedule system, not a full office calendar platform. The next expansion path, if needed, would be editing/reordering items or syncing external calendars, but the current implementation already removes the mock-only blocker and stays tenant-safe.
 
 - Date: 2026-06-08
+- Request: Make the MP frontend sidebar account-aware so elected Lok Sabha MPs and elected MLAs use `#003B2A`, elected Rajya Sabha MPs use `#800000`, and aspirants use `#0B3C5D`.
+- Summary: Added a shared sidebar theme helper in `frontend/lib/account.js` and updated `frontend/components/Sidebar.js` to derive its rail/backdrop/active/avatar/status colors from account context instead of the previous hardcoded blue. Verified with `PATH=/opt/homebrew/bin:$PATH npm run build --prefix frontend`.
+- Files touched: `frontend/lib/account.js`, `frontend/components/Sidebar.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This currently scopes the account-aware palette to the sidebar chrome only. Other frontend surfaces that still use `user.theme_color` or green defaults should be reviewed separately if you want full cross-app color parity by account type.
+
+- Date: 2026-06-08
 - Request: Give aspirant accounts a distinct blue MP-frontend theme instead of reusing only the Lok Sabha / Rajya Sabha house colors.
 - Summary: Updated the backend auth payload builder so `account_stage = aspirant` now emits `theme_color = #0B3C5D`, while elected accounts keep the existing Lok Sabha green and Rajya Sabha red mapping. Also recorded the new durable theming rule in project memory. Verification: `PATH=/opt/homebrew/bin:$PATH npm run build --prefix frontend`.
 - Files touched: `api_router.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`

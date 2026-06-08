@@ -170,6 +170,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - The shared light-surface login asset `needle-logo.svg` must stay tightly cropped to the visible mark. A too-wide SVG canvas made the MP/admin login logo look off-center even when the page layout was correctly centered, so future centering fixes should inspect the asset bounds before nudging wrappers again.
 - `Schemes` is now an elected-only MP feature, just like `Sansad AI` and `Convergence`. Aspirant accounts should neither see it in sidebar navigation nor access `/dashboard/schemes` directly; reuse `canAccessSchemes()` from `frontend/lib/account.js` instead of open-coding tenant-type checks.
 - MP frontend theming is now account-stage-aware at auth payload time: aspirant accounts should receive `theme_color = #0B3C5D`, while elected accounts keep the existing Lok Sabha green / Rajya Sabha red behavior. New shell/theme work should prefer `user.theme_color` over re-deriving color from `house` alone.
+- The MP sidebar rail is now explicitly account-aware in `frontend/lib/account.js` + `frontend/components/Sidebar.js`: elected Lok Sabha MPs and elected MLAs use `#003B2A`, elected Rajya Sabha MPs use `#800000`, and aspirant accounts across both MP/MLA use `#0B3C5D`. Future sidebar/chrome edits should reuse the shared sidebar theme helper instead of hardcoding one rail color.
 
 ## Admin IA Memory
 
