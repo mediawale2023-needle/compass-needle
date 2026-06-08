@@ -163,7 +163,7 @@ def _build_auth_user_payload(user: dict, tenant: dict | None) -> dict:
     house = user.get("house") or "Lok Sabha"
     account_context = _account_context_for_user(user)
     if account_context["account_stage"] == "aspirant":
-        theme_color = "#DAB433"
+        theme_color = "#272B07"
     else:
         theme_color = "#006a4d" if house == "Lok Sabha" else "#8d153a"
     return {
