@@ -1171,6 +1171,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Risks or follow-ups: This currently scopes the account-aware palette to the sidebar chrome only. Other frontend surfaces that still use `user.theme_color` or green defaults should be reviewed separately if you want full cross-app color parity by account type.
 
 - Date: 2026-06-08
+- Request: Push the account-aware MP sidebar color matrix to GitHub for deployment.
+- Summary: Pushed commit `c6c238f4` (`Add account-aware sidebar colors`) to `origin/main`, publishing the shared sidebar-theme helper and the MP frontend sidebar rail logic that now distinguishes elected Lok Sabha/MLA (`#003B2A`), elected Rajya Sabha (`#800000`), and aspirant MP/MLA (`#0B3C5D`) accounts.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Unrelated local edits in `data/geography/Ghaziabad/Loni.json` and `tenant_overrides.json` remained intentionally unpushed. This release changes the sidebar chrome only; broader app surfaces still using `user.theme_color` may need a separate parity pass later if you want the full product to follow the same account-aware palette.
+
+- Date: 2026-06-08
 - Request: Give aspirant accounts a distinct blue MP-frontend theme instead of reusing only the Lok Sabha / Rajya Sabha house colors.
 - Summary: Updated the backend auth payload builder so `account_stage = aspirant` now emits `theme_color = #0B3C5D`, while elected accounts keep the existing Lok Sabha green and Rajya Sabha red mapping. Also recorded the new durable theming rule in project memory. Verification: `PATH=/opt/homebrew/bin:$PATH npm run build --prefix frontend`.
 - Files touched: `api_router.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
