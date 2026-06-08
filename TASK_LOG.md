@@ -1171,6 +1171,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Risks or follow-ups: Users may need to sign out and back in before all non-sidebar surfaces pick up the refreshed aspirant `theme_color` from their stored session.
 
 - Date: 2026-06-08
+- Request: Push the aspirant olive palette update to GitHub for deployment.
+- Summary: Pushed commit `6be67b6b` (`Set aspirant palette to olive`) to `origin/main`, publishing the aspirant color update so the backend auth/session theme payload and the shared sidebar theme helper now use `#272B07` for aspirant MP/MLA accounts.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Unrelated local edits in `data/geography/Ghaziabad/Loni.json` and `tenant_overrides.json` remained intentionally unpushed. Users may need to sign out and back in before all stored-session surfaces reflect the refreshed aspirant theme color.
+
+- Date: 2026-06-08
 - Request: Change the aspirant MP frontend palette from warm brown to golden `#DAB433` and push it.
 - Summary: Updated both the backend auth/session theme payload and the shared sidebar theme helper so aspirant MP/MLA accounts now use `#DAB433` instead of `#A27246`, while elected Lok Sabha/MLA and Rajya Sabha colors remain unchanged. Also updated project memory to reflect the new durable palette rule. Verification: `PATH=/opt/homebrew/bin:$PATH npm run build --prefix frontend`.
 - Files touched: `api_router.py`, `frontend/lib/account.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
