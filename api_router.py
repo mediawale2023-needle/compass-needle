@@ -162,6 +162,10 @@ def _generate_temporary_password(length: int = 12) -> str:
 def _build_auth_user_payload(user: dict, tenant: dict | None) -> dict:
     house = user.get("house") or "Lok Sabha"
     account_context = _account_context_for_user(user)
+    if account_context["account_stage"] == "aspirant":
+        theme_color = "#0B3C5D"
+    else:
+        theme_color = "#006a4d" if house == "Lok Sabha" else "#8d153a"
     return {
         "username": user["username"],
         "display_name": user.get("display_name") or user["username"].title(),
@@ -174,7 +178,7 @@ def _build_auth_user_payload(user: dict, tenant: dict | None) -> dict:
         "account_label": _account_label_for_user(user, tenant),
         "constituency": tenant.get("constituency", "India") if tenant else "India",
         "house": house,
-        "theme_color": "#006a4d" if house == "Lok Sabha" else "#8d153a",
+        "theme_color": theme_color,
         "must_change_password": bool(user.get("must_change_password")),
         "force_password_reason": user.get("force_password_reason"),
     }

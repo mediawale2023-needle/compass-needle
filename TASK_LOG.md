@@ -1164,6 +1164,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Files touched: `sansadx_backend/db.py`, `api_router.py`, `frontend/components/dashboard/DashboardEngagementsCard.jsx`, `frontend/tests/dashboard.test.jsx`, `tests/test_dashboard_engagements_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: This is intentionally a lightweight schedule system, not a full office calendar platform. The next expansion path, if needed, would be editing/reordering items or syncing external calendars, but the current implementation already removes the mock-only blocker and stays tenant-safe.
 
+- Date: 2026-06-08
+- Request: Give aspirant accounts a distinct blue MP-frontend theme instead of reusing only the Lok Sabha / Rajya Sabha house colors.
+- Summary: Updated the backend auth payload builder so `account_stage = aspirant` now emits `theme_color = #0B3C5D`, while elected accounts keep the existing Lok Sabha green and Rajya Sabha red mapping. Also recorded the new durable theming rule in project memory. Verification: `PATH=/opt/homebrew/bin:$PATH npm run build --prefix frontend`.
+- Files touched: `api_router.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Any frontend surface that still hardcodes green instead of reading `user.theme_color` should be migrated in future passes, but the main authenticated MP shell should now pick up the aspirant blue automatically after the next login/session refresh.
+
 - Date: 2026-06-04
 - Request: Push the dashboard schedule engagements feature to GitHub for deployment.
 - Summary: Pushed commit `fe6915f2` (`Add dashboard schedule engagements`) to `origin/main`, publishing the tenant-scoped `dashboard_engagements` backend, the real `Today · Schedule` dashboard card with inline `Add schedule`, `Add note`, and `Add calendar` actions, and the focused backend/frontend regression coverage for that flow. This `main` push is intended to trigger the backend EC2 deploy workflow and the connected frontend deploys.
