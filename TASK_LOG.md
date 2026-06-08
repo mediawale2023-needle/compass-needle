@@ -1171,6 +1171,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Risks or follow-ups: Users may need to sign out and back in before all non-sidebar surfaces pick up the refreshed aspirant `theme_color` from their stored session.
 
 - Date: 2026-06-08
+- Request: Push the aspirant charcoal palette update to GitHub for deployment.
+- Summary: Pushed commit `97f15162` (`Set aspirant palette to charcoal`) to `origin/main`, publishing the aspirant color update so the backend auth/session theme payload and the shared sidebar theme helper now use `#242424` for aspirant MP/MLA accounts.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Unrelated local edits in `data/geography/Ghaziabad/Loni.json` and `tenant_overrides.json` remained intentionally unpushed. Users may need to sign out and back in before all stored-session surfaces reflect the refreshed aspirant theme color.
+
+- Date: 2026-06-08
 - Request: Make the MP frontend sidebar account-aware so elected Lok Sabha MPs and elected MLAs use `#003B2A`, elected Rajya Sabha MPs use `#800000`, and aspirants use `#0B3C5D`.
 - Summary: Added a shared sidebar theme helper in `frontend/lib/account.js` and updated `frontend/components/Sidebar.js` to derive its rail/backdrop/active/avatar/status colors from account context instead of the previous hardcoded blue. Verified with `PATH=/opt/homebrew/bin:$PATH npm run build --prefix frontend`.
 - Files touched: `frontend/lib/account.js`, `frontend/components/Sidebar.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
