@@ -62,7 +62,7 @@ export function getSidebarTheme(user) {
 
     let background = '#003B2A';
     if (accountStage === 'aspirant') {
-        background = '#272B07';
+        background = '#2A2A2A';
     } else if (seatType === 'mp' && house === 'Rajya Sabha') {
         background = '#800000';
     }

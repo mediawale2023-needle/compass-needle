@@ -1165,6 +1165,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Risks or follow-ups: This is intentionally a lightweight schedule system, not a full office calendar platform. The next expansion path, if needed, would be editing/reordering items or syncing external calendars, but the current implementation already removes the mock-only blocker and stays tenant-safe.
 
 - Date: 2026-06-08
+- Request: Change the aspirant MP frontend palette from deep olive to charcoal `#2A2A2A` and push it.
+- Summary: Updated both the backend auth/session theme payload and the shared sidebar theme helper so aspirant MP/MLA accounts now use `#2A2A2A` instead of `#272B07`, while elected Lok Sabha/MLA and Rajya Sabha colors remain unchanged. Also updated project memory to reflect the new durable palette rule. Verification: `PATH=/opt/homebrew/bin:$PATH npm run build --prefix frontend`.
+- Files touched: `api_router.py`, `frontend/lib/account.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Users may need to sign out and back in before all non-sidebar surfaces pick up the refreshed aspirant `theme_color` from their stored session.
+
+- Date: 2026-06-08
 - Request: Change the aspirant MP frontend palette from gold to deep olive `#272B07` and push it.
 - Summary: Updated both the backend auth/session theme payload and the shared sidebar theme helper so aspirant MP/MLA accounts now use `#272B07` instead of `#DAB433`, while elected Lok Sabha/MLA and Rajya Sabha colors remain unchanged. Also updated project memory to reflect the new durable palette rule. Verification: `PATH=/opt/homebrew/bin:$PATH npm run build --prefix frontend`.
 - Files touched: `api_router.py`, `frontend/lib/account.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
