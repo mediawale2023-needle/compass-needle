@@ -299,8 +299,19 @@ export default function useBriefcaseCases(user) {
     }
 
     function handleStatusChange(caseId, newStatus) {
-        setCases((current) => current.map((item) => item.id === caseId ? { ...item, status: newStatus } : item));
-        setSelected((current) => current && current.id === caseId ? { ...current, status: newStatus } : current);
+        setCases((current) => current.map((item) => {
+            if (item.id === caseId) {
+                return { ...item, status: newStatus };
+            }
+            if (Array.isArray(item.thread_case_ids) && item.thread_case_ids.includes(caseId)) {
+                return { ...item };
+            }
+            return item;
+        }));
+        setSelected((current) => current && (current.id === caseId || (Array.isArray(current.thread_case_ids) && current.thread_case_ids.includes(caseId)))
+            ? { ...current, status: current.id === caseId ? newStatus : current.status }
+            : current);
+        setRefreshToken((value) => value + 1);
     }
 
     async function deleteCase(caseId) {
@@ -312,7 +323,7 @@ export default function useBriefcaseCases(user) {
             next.delete(caseId);
             return next;
         });
-        setTotalCases((current) => Math.max(0, current - 1));
+        setRefreshToken((value) => value + 1);
     }
 
     async function bulkStatusChange(newStatus) {

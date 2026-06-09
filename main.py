@@ -1228,6 +1228,255 @@ def _thread_issue_similarity(message_body: str, issue: dict | None) -> float:
     return best
 
 
+def _contact_thread_id_from_row(row: dict | None) -> str:
+    row = dict(row or {})
+    meta = _parse_case_meta(row.get("case_metadata"))
+    thread_id = str(meta.get("contact_thread_id") or "").strip()
+    if thread_id:
+        return thread_id
+    return f"legacy-case-{row.get('id')}"
+
+
+def _contact_thread_started_at_from_row(row: dict | None) -> str:
+    row = dict(row or {})
+    meta = _parse_case_meta(row.get("case_metadata"))
+    return str(meta.get("contact_thread_started_at") or _iso_or_now(row.get("created_at")))
+
+
+def _thread_sort_timestamp(row: dict | None) -> datetime:
+    row = dict(row or {})
+    value = row.get("updated_at") or row.get("created_at") or _utcnow()
+    if isinstance(value, datetime):
+        return value
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).replace(tzinfo=None)
+    except Exception:
+        return _utcnow()
+
+
+def _recent_contact_thread_cases(phone: str, tenant_id: int, *, now: datetime | None = None) -> list[dict]:
+    now = now or _utcnow()
+    cutoff = now - timedelta(hours=_CONTACT_BUFFER_WINDOW_HOURS)
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text(
+                    """
+                    SELECT id, category, status, raw_message, created_at, updated_at, case_metadata,
+                           problem_domain, problem_subdomain, convergence_program_type, location, assembly
+                    FROM cases
+                    WHERE tenant_id = :tid
+                      AND user_phone = :phone
+                      AND created_at >= :cutoff
+                      AND (is_deleted = false OR is_deleted IS NULL)
+                      AND COALESCE(status, '') != :buffer_status
+                      AND COALESCE(category, '') NOT IN ('Spam', 'Spam (Offensive)')
+                      AND COALESCE(status, '') NOT IN ('offensive', 'closed')
+                    ORDER BY COALESCE(updated_at, created_at) DESC, id DESC
+                    """
+                ),
+                {"tid": tenant_id, "phone": phone, "cutoff": cutoff, "buffer_status": _CONTACT_BUFFER_STATUS},
+            ).mappings().all()
+        return [dict(row) for row in rows]
+    except Exception as exc:
+        logger.warning("Recent contact-window lookup failed for %s/%s: %s", tenant_id, phone, exc)
+        return []
+
+
+def _group_recent_contact_thread_cases(rows: list[dict]) -> list[dict]:
+    grouped: dict[str, list[dict]] = {}
+    for row in rows or []:
+        grouped.setdefault(_contact_thread_id_from_row(row), []).append(dict(row))
+    groups = []
+    for thread_id, cases in grouped.items():
+        cases_sorted = sorted(cases, key=_thread_sort_timestamp, reverse=True)
+        groups.append(
+            {
+                "thread_id": thread_id,
+                "cases": cases_sorted,
+                "latest_case": cases_sorted[0] if cases_sorted else None,
+            }
+        )
+    groups.sort(key=lambda item: _thread_sort_timestamp(item.get("latest_case")), reverse=True)
+    return groups
+
+
+def _aggregate_contact_thread_distinct_count(cases: list[dict]) -> int:
+    if not cases:
+        return 0
+    distinct = len(cases)
+    max_meta_count = distinct
+    for case in cases:
+        meta = _parse_case_meta(case.get("case_metadata"))
+        max_meta_count = max(max_meta_count, int(meta.get("distinct_issue_count") or 0))
+        max_meta_count = max(max_meta_count, len(cases) + len(meta.get("contact_thread_spam_messages") or []))
+    return max_meta_count
+
+
+def _collect_contact_thread_spam_messages(cases: list[dict]) -> list[dict]:
+    messages = []
+    for case in cases or []:
+        meta = _parse_case_meta(case.get("case_metadata"))
+        for item in meta.get("contact_thread_spam_messages") or []:
+            if item:
+                messages.append(dict(item))
+    messages.sort(key=lambda item: str(item.get("created_at") or ""))
+    return messages[-25:]
+
+
+def _set_contact_thread_state_on_meta(
+    meta: dict | None,
+    *,
+    thread_id: str,
+    thread_started_at: str,
+    distinct_issue_count: int,
+    last_activity_at: str | None = None,
+) -> dict:
+    updated = dict(meta or {})
+    updated["contact_thread_id"] = thread_id
+    updated["contact_thread_started_at"] = thread_started_at
+    updated["contact_thread_anchor_case_id"] = updated.get("contact_thread_anchor_case_id")
+    return _update_contact_thread_meta(
+        updated,
+        distinct_issue_count=distinct_issue_count,
+        last_activity_at=last_activity_at,
+    )
+
+
+def _apply_contact_thread_group_state(
+    cases: list[dict],
+    *,
+    thread_id: str,
+    thread_started_at: str,
+    distinct_issue_count: int,
+    last_activity_at: str | None = None,
+) -> None:
+    if not cases:
+        return
+    try:
+        with engine.begin() as conn:
+            for case in cases:
+                meta = _parse_case_meta(case.get("case_metadata"))
+                meta = _set_contact_thread_state_on_meta(
+                    meta,
+                    thread_id=thread_id,
+                    thread_started_at=thread_started_at,
+                    distinct_issue_count=distinct_issue_count,
+                    last_activity_at=last_activity_at,
+                )
+                conn.execute(
+                    text("UPDATE cases SET case_metadata = :meta WHERE id = :cid"),
+                    {"meta": json.dumps(meta), "cid": case["id"]},
+                )
+    except Exception as exc:
+        logger.warning("Failed to update contact thread state for %s: %s", thread_id, exc)
+
+
+def _mark_contact_thread_spam_suppressed(
+    case_row: dict,
+    *,
+    message_body: str,
+    language_hint: str,
+    projected_distinct_count: int,
+) -> None:
+    meta = _parse_case_meta(case_row.get("case_metadata"))
+    now_iso = _utcnow().isoformat()
+    spam_messages = list(meta.get("contact_thread_spam_messages") or [])
+    spam_messages.append(
+        {
+            "message": (message_body or "").strip()[:500],
+            "created_at": now_iso,
+            **({"detected_language": language_hint} if language_hint else {}),
+        }
+    )
+    meta["contact_thread_spam_messages"] = spam_messages[-10:]
+    meta["contact_thread_overflow_count"] = int(meta.get("contact_thread_overflow_count") or 0) + 1
+    meta["contact_thread_spam_flagged"] = True
+    meta["contact_thread_last_overflow_at"] = now_iso
+    meta["contact_intake_action"] = "spam_suspected"
+    meta = _set_contact_thread_state_on_meta(
+        meta,
+        thread_id=_contact_thread_id_from_row(case_row),
+        thread_started_at=_contact_thread_started_at_from_row(case_row),
+        distinct_issue_count=projected_distinct_count,
+        last_activity_at=now_iso,
+    )
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE cases SET raw_message = :msg, case_metadata = :meta, updated_at = :now WHERE id = :cid"),
+            {"msg": message_body, "meta": json.dumps(meta), "now": _utcnow(), "cid": case_row["id"]},
+        )
+
+
+def _create_raw_contact_case(
+    *,
+    tenant_id: int,
+    sender: str,
+    message_body: str,
+    msg_id: str = "",
+    media_source: dict | None = None,
+    thread_meta: dict | None = None,
+) -> int | None:
+    case_id = None
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                INSERT INTO cases
+                (tenant_id, user_phone, category, raw_message, status, case_metadata, is_critical, created_at)
+                VALUES (:tid, :phone, 'Uncategorised', :msg, 'pending', :meta, false, :now)
+                RETURNING id
+                """
+            ),
+            {
+                "tid": tenant_id,
+                "phone": sender,
+                "msg": message_body,
+                "meta": json.dumps(
+                    {
+                        "summary": message_body[:200],
+                        "wa_msg_id": msg_id,
+                        "source_media": bool(media_source),
+                        "source_media_type": media_source.get("media_type") if media_source else "",
+                        **(thread_meta or {}),
+                    }
+                ),
+                "now": datetime.utcnow(),
+            },
+        )
+        row = result.fetchone()
+        case_id = row[0] if row else None
+        if case_id and media_source:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO case_media (
+                        tenant_id, case_id, source, media_type, mime_type,
+                        file_name, media_data, caption, extracted_text,
+                        meta_message_id, created_at
+                    ) VALUES (
+                        :tid, :cid, 'whatsapp', :media_type, :mime_type,
+                        :file_name, :media_data, :caption, :extracted_text,
+                        :meta_message_id, :now
+                    )
+                    """
+                ),
+                {
+                    "tid": tenant_id,
+                    "cid": case_id,
+                    "media_type": media_source.get("media_type", "media"),
+                    "mime_type": media_source.get("mime_type", "application/octet-stream"),
+                    "file_name": f"whatsapp-{media_source.get('media_type', 'media')}-{msg_id or case_id}",
+                    "media_data": media_source.get("media_bytes", b""),
+                    "caption": media_source.get("caption", ""),
+                    "extracted_text": media_source.get("extracted_text", ""),
+                    "meta_message_id": media_source.get("meta_message_id") or msg_id,
+                    "now": datetime.utcnow(),
+                },
+            )
+    return case_id
+
+
 def _recent_contact_thread_case(phone: str, tenant_id: int, *, now: datetime | None = None) -> dict | None:
     now = now or _utcnow()
     cutoff = now - timedelta(hours=_CONTACT_BUFFER_WINDOW_HOURS)
@@ -3973,50 +4222,23 @@ def _process_incoming_message(
         except Exception as _followup_exc:
             logger.error("Failed to process clarification follow-up for case %s: %s", _pending["id"], _followup_exc)
 
-    root_contact_case = _recent_contact_thread_case(sender, current_tenant)
+    recent_contact_cases = _recent_contact_thread_cases(sender, current_tenant)
+    recent_thread_groups = _group_recent_contact_thread_cases(recent_contact_cases)
+    active_thread = recent_thread_groups[0] if recent_thread_groups else None
 
-    if root_contact_case:
+    if active_thread and active_thread.get("latest_case"):
+        root_contact_case = active_thread["latest_case"]
         root_meta = _parse_case_meta(root_contact_case.get("case_metadata"))
         archived_items = list(root_meta.get("contact_thread_items") or [])
-        current_issue = _thread_issue_from_row(root_contact_case)
-        now_iso = _utcnow().isoformat()
 
-        if _is_low_information_followup(message_body):
-            logger.info(
-                "Contact-thread low-information follow-up ignored on case %s for sender=%s tenant=%s",
-                root_contact_case["id"],
-                sender,
-                current_tenant,
-            )
-            _append_contact_message_event(
-                root_contact_case["id"],
-                message_body,
-                event_type="low_information_noise",
-                detected_language=language_hint,
-            )
-            return
+        # Gracefully keep the old metadata-only thread path for already-open legacy threads.
+        if len(active_thread["cases"]) == 1 and archived_items:
+            current_issue = _thread_issue_from_row(root_contact_case)
+            now_iso = _utcnow().isoformat()
 
-        current_score = _thread_issue_similarity(message_body, current_issue)
-        best_archived_index = -1
-        best_archived_score = 0.0
-        for idx, item in enumerate(archived_items):
-            score = _thread_issue_similarity(message_body, item)
-            if score > best_archived_score:
-                best_archived_score = score
-                best_archived_index = idx
-
-        if current_score >= _CONTACT_BUFFER_SIMILARITY or best_archived_score >= _CONTACT_BUFFER_SIMILARITY:
-            if best_archived_score > current_score and best_archived_index >= 0:
+            if _is_low_information_followup(message_body):
                 logger.info(
-                    "Contact-thread follow-up promoted archived issue on case %s for sender=%s tenant=%s",
-                    root_contact_case["id"],
-                    sender,
-                    current_tenant,
-                )
-                _promote_archived_thread_issue(root_contact_case, best_archived_index, message_body, language_hint)
-            else:
-                logger.info(
-                    "Contact-thread duplicate merged into current issue on case %s for sender=%s tenant=%s",
+                    "Contact-thread low-information follow-up ignored on legacy case %s for sender=%s tenant=%s",
                     root_contact_case["id"],
                     sender,
                     current_tenant,
@@ -4024,47 +4246,194 @@ def _process_incoming_message(
                 _append_contact_message_event(
                     root_contact_case["id"],
                     message_body,
-                    event_type="duplicate_followup",
+                    event_type="low_information_noise",
                     detected_language=language_hint,
                 )
-                try:
-                    with engine.begin() as conn:
-                        conn.execute(
-                            text("UPDATE cases SET raw_message = :msg, updated_at = :now WHERE id = :cid"),
-                            {"msg": message_body, "now": _utcnow(), "cid": root_contact_case["id"]},
-                        )
-                except Exception as exc:
-                    logger.warning("Failed to bump latest message timestamp for case %s: %s", root_contact_case["id"], exc)
-            return
+                return
 
-        distinct_count = 1 + len(archived_items)
-        projected_distinct_count = distinct_count + 1
-        if projected_distinct_count >= _CONTACT_THREAD_SPAM_SUSPECTED_DISTINCT:
-            logger.warning(
-                "Contact-thread spam-suspected threshold reached: sender=%s tenant=%s distinct_count=%s",
-                sender,
-                current_tenant,
-                projected_distinct_count,
+            current_score = _thread_issue_similarity(message_body, current_issue)
+            best_archived_index = -1
+            best_archived_score = 0.0
+            for idx, item in enumerate(archived_items):
+                score = _thread_issue_similarity(message_body, item)
+                if score > best_archived_score:
+                    best_archived_score = score
+                    best_archived_index = idx
+
+            if current_score >= _CONTACT_BUFFER_SIMILARITY or best_archived_score >= _CONTACT_BUFFER_SIMILARITY:
+                if best_archived_score > current_score and best_archived_index >= 0:
+                    logger.info(
+                        "Contact-thread follow-up promoted archived issue on legacy case %s for sender=%s tenant=%s",
+                        root_contact_case["id"],
+                        sender,
+                        current_tenant,
+                    )
+                    _promote_archived_thread_issue(root_contact_case, best_archived_index, message_body, language_hint)
+                else:
+                    logger.info(
+                        "Contact-thread duplicate merged into current legacy issue on case %s for sender=%s tenant=%s",
+                        root_contact_case["id"],
+                        sender,
+                        current_tenant,
+                    )
+                    _append_contact_message_event(
+                        root_contact_case["id"],
+                        message_body,
+                        event_type="duplicate_followup",
+                        detected_language=language_hint,
+                    )
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(
+                                text("UPDATE cases SET raw_message = :msg, updated_at = :now WHERE id = :cid"),
+                                {"msg": message_body, "now": _utcnow(), "cid": root_contact_case["id"]},
+                            )
+                    except Exception as exc:
+                        logger.warning("Failed to bump latest message timestamp for legacy case %s: %s", root_contact_case["id"], exc)
+                return
+
+            distinct_count = 1 + len(archived_items)
+            projected_distinct_count = distinct_count + 1
+            if projected_distinct_count >= _CONTACT_THREAD_SPAM_SUSPECTED_DISTINCT:
+                logger.warning(
+                    "Legacy contact-thread spam-suspected threshold reached: sender=%s tenant=%s distinct_count=%s",
+                    sender,
+                    current_tenant,
+                    projected_distinct_count,
+                )
+                try:
+                    _mark_contact_thread_spam_suppressed(
+                        root_contact_case,
+                        message_body=message_body,
+                        language_hint=language_hint,
+                        projected_distinct_count=projected_distinct_count,
+                    )
+                    _save_spam_flag(
+                        current_tenant,
+                        sender,
+                        "contact_thread_spam_suspected",
+                        f"Distinct complaint count reached {projected_distinct_count} in {_CONTACT_BUFFER_WINDOW_HOURS}h thread",
+                        message_body,
+                    )
+                except Exception as exc:
+                    logger.error("Failed to persist legacy contact-thread spam-suspected marker: %s", exc)
+                return
+
+            enrichment = _run_citizen_case_enrichment(
+                sender=sender,
+                message_body=message_body,
+                resolver_message_body=resolver_message_body,
+                resolver_fallback_message_body=resolver_fallback_message_body,
+                current_tenant=current_tenant,
+                language_hint=language_hint,
+                media_source=media_source,
             )
-            root_meta["contact_thread_overflow_count"] = int(root_meta.get("contact_thread_overflow_count") or 0) + 1
-            root_meta["contact_thread_spam_flagged"] = True
-            root_meta["contact_thread_last_overflow_at"] = now_iso
-            root_meta["contact_thread_spam_messages"] = list(root_meta.get("contact_thread_spam_messages") or [])[-9:] + [{
-                "message": (message_body or "").strip()[:500],
-                "created_at": now_iso,
-            }]
-            root_meta["contact_intake_action"] = "spam_suspected"
-            root_meta = _update_contact_thread_meta(
-                root_meta,
+            previous_issue = _thread_issue_from_row(root_contact_case)
+            archived_items.append(previous_issue)
+            enrichment["meta_data"]["contact_thread_started_at"] = str(root_meta.get("contact_thread_started_at") or _iso_or_now(root_contact_case.get("created_at")))
+            enrichment["meta_data"]["contact_thread_items"] = archived_items
+            enrichment["meta_data"]["thread_issue_id"] = f"case-{root_contact_case['id']}-{int(_utcnow().timestamp() * 1000)}"
+            enrichment["meta_data"]["thread_issue_created_at"] = now_iso
+            enrichment["meta_data"]["thread_issue_last_message_at"] = now_iso
+            enrichment["meta_data"]["latest_thread_message_at"] = now_iso
+            enrichment["meta_data"]["contact_message_events"] = []
+            enrichment["meta_data"]["contact_intake_action"] = "thread_distinct_issue"
+            enrichment["meta_data"] = _update_contact_thread_meta(
+                enrichment["meta_data"],
                 distinct_issue_count=projected_distinct_count,
                 last_activity_at=now_iso,
+            )
+            enrichment["citizen_ack_message"] = ""
+
+            _save_case_enrichment_and_respond(
+                case_id=root_contact_case["id"],
+                sender=sender,
+                current_tenant=current_tenant,
+                message_body=message_body,
+                wa_phone_id=_wa_phone_id,
+                enrichment=enrichment,
+                raw_message_override=message_body,
+                citizen_ack_override="",
+            )
+            return
+
+        thread_cases = list(active_thread["cases"])
+        latest_case = root_contact_case
+        thread_id = _contact_thread_id_from_row(latest_case)
+        thread_started_at = _contact_thread_started_at_from_row(latest_case)
+        now_iso = _utcnow().isoformat()
+
+        if _is_low_information_followup(message_body):
+            logger.info(
+                "Contact-thread low-information follow-up ignored on thread=%s sender=%s tenant=%s",
+                thread_id,
+                sender,
+                current_tenant,
+            )
+            _append_contact_message_event(
+                latest_case["id"],
+                message_body,
+                event_type="low_information_noise",
+                detected_language=language_hint,
+            )
+            return
+
+        best_case = None
+        best_score = 0.0
+        for case_row in thread_cases:
+            score = _thread_issue_similarity(message_body, _thread_issue_from_row(case_row))
+            if score > best_score:
+                best_score = score
+                best_case = case_row
+
+        if best_case and best_score >= _CONTACT_BUFFER_SIMILARITY:
+            logger.info(
+                "Contact-thread duplicate merged into case %s on thread=%s sender=%s tenant=%s",
+                best_case["id"],
+                thread_id,
+                sender,
+                current_tenant,
+            )
+            _append_contact_message_event(
+                best_case["id"],
+                message_body,
+                event_type="duplicate_followup",
+                detected_language=language_hint,
             )
             try:
                 with engine.begin() as conn:
                     conn.execute(
-                        text("UPDATE cases SET raw_message = :msg, case_metadata = :meta, updated_at = :now WHERE id = :cid"),
-                        {"msg": message_body, "meta": json.dumps(root_meta), "now": _utcnow(), "cid": root_contact_case["id"]},
+                        text("UPDATE cases SET raw_message = :msg, updated_at = :now WHERE id = :cid"),
+                        {"msg": message_body, "now": _utcnow(), "cid": best_case["id"]},
                     )
+            except Exception as exc:
+                logger.warning("Failed to bump latest message timestamp for case %s: %s", best_case["id"], exc)
+            return
+
+        distinct_count = _aggregate_contact_thread_distinct_count(thread_cases)
+        projected_distinct_count = distinct_count + 1
+        if projected_distinct_count >= _CONTACT_THREAD_SPAM_SUSPECTED_DISTINCT:
+            logger.warning(
+                "Contact-thread spam-suspected threshold reached: sender=%s tenant=%s distinct_count=%s thread=%s",
+                sender,
+                current_tenant,
+                projected_distinct_count,
+                thread_id,
+            )
+            try:
+                _mark_contact_thread_spam_suppressed(
+                    latest_case,
+                    message_body=message_body,
+                    language_hint=language_hint,
+                    projected_distinct_count=projected_distinct_count,
+                )
+                _apply_contact_thread_group_state(
+                    thread_cases,
+                    thread_id=thread_id,
+                    thread_started_at=thread_started_at,
+                    distinct_issue_count=projected_distinct_count,
+                    last_activity_at=now_iso,
+                )
                 _save_spam_flag(
                     current_tenant,
                     sender,
@@ -4085,90 +4454,67 @@ def _process_incoming_message(
             language_hint=language_hint,
             media_source=media_source,
         )
-        previous_issue = _thread_issue_from_row(root_contact_case)
-        archived_items.append(previous_issue)
-        enrichment["meta_data"]["contact_thread_started_at"] = str(root_meta.get("contact_thread_started_at") or _iso_or_now(root_contact_case.get("created_at")))
-        enrichment["meta_data"]["contact_thread_items"] = archived_items
-        enrichment["meta_data"]["thread_issue_id"] = f"case-{root_contact_case['id']}-{int(_utcnow().timestamp() * 1000)}"
-        enrichment["meta_data"]["thread_issue_created_at"] = now_iso
-        enrichment["meta_data"]["thread_issue_last_message_at"] = now_iso
-        enrichment["meta_data"]["latest_thread_message_at"] = now_iso
-        enrichment["meta_data"]["contact_message_events"] = []
         enrichment["meta_data"]["contact_intake_action"] = "thread_distinct_issue"
-        enrichment["meta_data"] = _update_contact_thread_meta(
+        enrichment["meta_data"]["contact_message_events"] = []
+        enrichment["meta_data"] = _set_contact_thread_state_on_meta(
             enrichment["meta_data"],
+            thread_id=thread_id,
+            thread_started_at=thread_started_at,
             distinct_issue_count=projected_distinct_count,
             last_activity_at=now_iso,
         )
         enrichment["citizen_ack_message"] = ""
 
+        new_case_id = _create_raw_contact_case(
+            tenant_id=current_tenant,
+            sender=sender,
+            message_body=message_body,
+            msg_id=msg_id,
+            media_source=media_source,
+            thread_meta={
+                "contact_thread_id": thread_id,
+                "contact_thread_started_at": thread_started_at,
+            },
+        )
+        if not new_case_id:
+            logger.error("Failed to create distinct thread case for sender=%s tenant=%s thread=%s", sender, current_tenant, thread_id)
+            return
+
         _save_case_enrichment_and_respond(
-            case_id=root_contact_case["id"],
+            case_id=new_case_id,
             sender=sender,
             current_tenant=current_tenant,
             message_body=message_body,
             wa_phone_id=_wa_phone_id,
             enrichment=enrichment,
-            raw_message_override=message_body,
-            citizen_ack_override="",
         )
+        refreshed_cases = _recent_contact_thread_cases(sender, current_tenant)
+        for group in _group_recent_contact_thread_cases(refreshed_cases):
+            if group.get("thread_id") == thread_id:
+                _apply_contact_thread_group_state(
+                    group.get("cases") or [],
+                    thread_id=thread_id,
+                    thread_started_at=thread_started_at,
+                    distinct_issue_count=projected_distinct_count,
+                    last_activity_at=now_iso,
+                )
+                break
         return
 
     # ── STEP 1: Save raw grievance to DB immediately ────────────
     # This ensures the message is never lost, even if AI fails.
     case_id = None
     try:
-        with engine.begin() as conn:
-            result = conn.execute(
-                text("""
-                    INSERT INTO cases
-                    (tenant_id, user_phone, category, raw_message, status, case_metadata, is_critical, created_at)
-                    VALUES (:tid, :phone, 'Uncategorised', :msg, 'pending', :meta, false, :now)
-                    RETURNING id
-                """),
-                {
-                    "tid": current_tenant,
-                    "phone": sender,
-                    "msg": message_body,
-                    "meta": json.dumps({
-                        "summary": message_body[:200],
-                        "wa_msg_id": msg_id,
-                        "source_media": bool(media_source),
-                        "source_media_type": media_source.get("media_type") if media_source else "",
-                    }),
-                    "now": datetime.utcnow(),
-                }
-            )
-            row = result.fetchone()
-            case_id = row[0] if row else None
-            logger.info(f"Saved raw grievance: case_id={case_id} tenant={current_tenant}")
-            if case_id and media_source:
-                conn.execute(
-                    text("""
-                        INSERT INTO case_media (
-                            tenant_id, case_id, source, media_type, mime_type,
-                            file_name, media_data, caption, extracted_text,
-                            meta_message_id, created_at
-                        ) VALUES (
-                            :tid, :cid, 'whatsapp', :media_type, :mime_type,
-                            :file_name, :media_data, :caption, :extracted_text,
-                            :meta_message_id, :now
-                        )
-                    """),
-                    {
-                        "tid": current_tenant,
-                        "cid": case_id,
-                        "media_type": media_source.get("media_type", "media"),
-                        "mime_type": media_source.get("mime_type", "application/octet-stream"),
-                        "file_name": f"whatsapp-{media_source.get('media_type', 'media')}-{msg_id or case_id}",
-                        "media_data": media_source.get("media_bytes", b""),
-                        "caption": media_source.get("caption", ""),
-                        "extracted_text": media_source.get("extracted_text", ""),
-                        "meta_message_id": media_source.get("meta_message_id") or msg_id,
-                        "now": datetime.utcnow(),
-                    },
-                )
-                logger.info("Saved source media for case_id=%s type=%s", case_id, media_source.get("media_type"))
+        case_id = _create_raw_contact_case(
+            tenant_id=current_tenant,
+            sender=sender,
+            message_body=message_body,
+            msg_id=msg_id,
+            media_source=media_source,
+        )
+        logger.info(f"Saved raw grievance: case_id={case_id} tenant={current_tenant}")
+        if case_id and media_source:
+            logger.info("Saved source media for case_id=%s type=%s", case_id, media_source.get("media_type"))
     except Exception as e:
         logger.error(f"CRITICAL: DB save failed for raw grievance: {e}")
         # Even if DB fails, still try to acknowledge the citizen
@@ -4187,6 +4533,16 @@ def _process_incoming_message(
             language_hint=language_hint,
             media_source=media_source,
         )
+        sender_digits = re.sub(r"\D", "", sender or "")[-12:] or "anon"
+        thread_id = f"ct-{current_tenant}-{sender_digits}-{case_id}"
+        enrichment["meta_data"] = _set_contact_thread_state_on_meta(
+            enrichment["meta_data"],
+            thread_id=thread_id,
+            thread_started_at=_utcnow().isoformat(),
+            distinct_issue_count=1,
+            last_activity_at=_utcnow().isoformat(),
+        )
+        enrichment["meta_data"]["contact_thread_anchor_case_id"] = case_id
         _save_case_enrichment_and_respond(
             case_id=case_id,
             sender=sender,

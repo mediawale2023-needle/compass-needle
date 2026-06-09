@@ -709,6 +709,103 @@ function PendingContactMessages({ current }) {
     );
 }
 
+function ThreadCasesSection({ threadCases, activeCaseId, onSelectCase, onQuickResolve, updating }) {
+    if (!Array.isArray(threadCases) || threadCases.length <= 1) {
+        return null;
+    }
+
+    return (
+        <div style={sec}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+                <span style={monoLbl}>Complaints in this thread</span>
+                <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                    {threadCases.length} real cases
+                </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {threadCases.map((item, index) => {
+                    const isActive = item.id === activeCaseId;
+                    return (
+                        <div
+                            key={item.id}
+                            style={{
+                                border: `1px solid ${isActive ? C.green : C.hair}`,
+                                background: isActive ? C.greenWash : C.surface,
+                                padding: '10px 12px',
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
+                                <div style={{ minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                                            {index === 0 ? 'Latest complaint' : `Complaint +${index}`}
+                                        </span>
+                                        <span style={{
+                                            fontSize: 10,
+                                            fontWeight: 700,
+                                            letterSpacing: '0.05em',
+                                            textTransform: 'uppercase',
+                                            color: item.status === 'resolved' || item.status === 'completed' ? '#1E8449' : C.ink2,
+                                        }}>
+                                            {(item.status || 'new').replace(/_/g, ' ')}
+                                        </span>
+                                    </div>
+                                    <div style={{ marginTop: 4, fontSize: 12.5, color: C.ink, lineHeight: 1.55 }}>
+                                        {item.raw_message || '—'}
+                                    </div>
+                                    <div style={{ marginTop: 8, display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11, color: C.ink2 }}>
+                                        <span>{item.problem_subdomain || item.problem_domain || item.category || 'Uncategorised'}</span>
+                                        <span>{item.location || 'Unknown location'}</span>
+                                        <span>{item.assembly || 'Unknown assembly'}</span>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                    <button
+                                        onClick={() => onSelectCase(item)}
+                                        style={{
+                                            padding: '5px 10px',
+                                            background: isActive ? C.green : 'transparent',
+                                            color: isActive ? '#F5EFE0' : C.greenInk,
+                                            border: `1px solid ${C.green}`,
+                                            cursor: 'pointer',
+                                            fontSize: 10.5,
+                                            fontWeight: 700,
+                                            letterSpacing: '0.04em',
+                                            textTransform: 'uppercase',
+                                        }}
+                                    >
+                                        {isActive ? 'Open' : 'View'}
+                                    </button>
+                                    {!['resolved', 'completed', 'closed'].includes(String(item.status || '').toLowerCase()) && (
+                                        <button
+                                            onClick={() => onQuickResolve(item.id)}
+                                            disabled={updating === `resolve-${item.id}`}
+                                            style={{
+                                                padding: '5px 10px',
+                                                background: '#D5F5E3',
+                                                color: '#1E8449',
+                                                border: '1px solid #A9DFBF',
+                                                cursor: updating === `resolve-${item.id}` ? 'not-allowed' : 'pointer',
+                                                fontSize: 10.5,
+                                                fontWeight: 700,
+                                                letterSpacing: '0.04em',
+                                                textTransform: 'uppercase',
+                                                opacity: updating === `resolve-${item.id}` ? 0.7 : 1,
+                                            }}
+                                        >
+                                            Resolve
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
 // ─── Notes + response section ─────────────────────────────────
 function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSave, saving, phone, isMp, onNotify }) {
     return (
@@ -918,6 +1015,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const [notifyInput, setNotifyInput] = useState('');
     const [notifySending, setNotifySending] = useState(false);
     const [fullCase, setFullCase] = useState(null);
+    const [activeCaseId, setActiveCaseId] = useState(null);
     const [geoLocation, setGeoLocation] = useState('');
     const [geoAssembly, setGeoAssembly] = useState('');
     const [savingGeo, setSavingGeo] = useState(false);
@@ -925,39 +1023,53 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     useEffect(() => {
         if (!caseItem) return;
         setFullCase(caseItem);
+        setActiveCaseId(caseItem.id);
         apiGet(`/api/cases/${caseItem.id}`)
             .then((result) => {
                 setFullCase({ ...caseItem, ...result });
-                setGeoLocation(result.case_metadata?.matched_value || result.location || '');
-                setGeoAssembly(result.case_metadata?.assembly_constituency || result.assembly || '');
             })
             .catch(() => setFullCase(caseItem));
-
-        const savedNotes = localStorage.getItem(`draft_notes_${caseItem.id}`);
-        const savedResponse = localStorage.getItem(`draft_response_${caseItem.id}`);
-        setNotes(savedNotes !== null ? savedNotes : (caseItem.notes_for_staff || ''));
-        setResponse(savedResponse !== null ? savedResponse : (caseItem.response_to_citizen || ''));
-        setAssignee(caseItem.assigned_to || '');
-        setDraftSaved(savedNotes !== null || savedResponse !== null);
-        setGeoLocation(caseItem.case_metadata?.matched_value || caseItem.location || '');
-        setGeoAssembly(caseItem.case_metadata?.assembly_constituency || caseItem.assembly || '');
-
-        setLoadingActivity(true);
-        apiGet(`/api/cases/${caseItem.id}/activity`)
-            .then((result) => setActivities(result.activities || []))
-            .catch(() => setActivities([]))
-            .finally(() => setLoadingActivity(false));
     }, [caseItem?.id]);
 
     useEffect(() => {
         if (!caseItem) return;
-        localStorage.setItem(`draft_notes_${caseItem.id}`, notes);
-        localStorage.setItem(`draft_response_${caseItem.id}`, response);
-    }, [notes, response, caseItem?.id]);
+        const threadCases = Array.isArray(fullCase?.thread_cases) ? fullCase.thread_cases : [];
+        const selectedCase = threadCases.find((item) => item.id === activeCaseId) || fullCase || caseItem;
+        if (!selectedCase?.id) return;
+
+        const savedNotes = localStorage.getItem(`draft_notes_${selectedCase.id}`);
+        const savedResponse = localStorage.getItem(`draft_response_${selectedCase.id}`);
+        setNotes(savedNotes !== null ? savedNotes : (selectedCase.notes_for_staff || ''));
+        setResponse(savedResponse !== null ? savedResponse : (selectedCase.response_to_citizen || ''));
+        setAssignee(selectedCase.assigned_to || '');
+        setDraftSaved(savedNotes !== null || savedResponse !== null);
+        setGeoLocation(selectedCase.case_metadata?.matched_value || selectedCase.location || '');
+        setGeoAssembly(selectedCase.case_metadata?.assembly_constituency || selectedCase.assembly || '');
+
+        setLoadingActivity(true);
+        apiGet(`/api/cases/${selectedCase.id}/activity`)
+            .then((result) => setActivities(result.activities || []))
+            .catch(() => setActivities([]))
+            .finally(() => setLoadingActivity(false));
+    }, [caseItem?.id, activeCaseId, fullCase]);
+
+    useEffect(() => {
+        if (!activeCaseId) return;
+        localStorage.setItem(`draft_notes_${activeCaseId}`, notes);
+        localStorage.setItem(`draft_response_${activeCaseId}`, response);
+    }, [notes, response, activeCaseId]);
 
     if (!caseItem) return null;
 
-    const current = fullCase || caseItem;
+    const threadCases = Array.isArray(fullCase?.thread_cases) && fullCase.thread_cases.length
+        ? fullCase.thread_cases
+        : [fullCase || caseItem];
+    const selectedThreadCase = threadCases.find((item) => item.id === activeCaseId) || threadCases[0];
+    const current = {
+        ...(fullCase || caseItem),
+        ...(selectedThreadCase || {}),
+        case_metadata: selectedThreadCase?.case_metadata || fullCase?.case_metadata || caseItem.case_metadata || {},
+    };
     const meta = current.case_metadata || {};
     const createdAt = current.created_at ? new Date(current.created_at) : null;
     const currentStatus = (current.status || 'new').toLowerCase();
@@ -971,10 +1083,37 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         setUpdating(newStatus);
         try {
             await apiPatch(`/api/cases/${current.id}/status`, { status: newStatus });
+            setFullCase((existing) => {
+                if (!existing) return existing;
+                const nextThreadCases = (existing.thread_cases || []).map((item) =>
+                    item.id === current.id ? { ...item, status: newStatus } : item
+                );
+                return { ...existing, thread_cases: nextThreadCases };
+            });
             onStatusChange(current.id, newStatus);
             toast.success(`Case marked as ${newStatus}`);
         } catch {
             toast.error('Failed to update status');
+        } finally {
+            setUpdating(null);
+        }
+    };
+
+    const handleQuickResolve = async (targetCaseId) => {
+        setUpdating(`resolve-${targetCaseId}`);
+        try {
+            await apiPatch(`/api/cases/${targetCaseId}/status`, { status: 'resolved' });
+            setFullCase((existing) => {
+                if (!existing) return existing;
+                const nextThreadCases = (existing.thread_cases || []).map((item) =>
+                    item.id === targetCaseId ? { ...item, status: 'resolved' } : item
+                );
+                return { ...existing, thread_cases: nextThreadCases };
+            });
+            onStatusChange(targetCaseId, 'resolved');
+            toast.success('Complaint marked resolved');
+        } catch {
+            toast.error('Failed to resolve complaint');
         } finally {
             setUpdating(null);
         }
@@ -986,6 +1125,13 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
             await apiPatch(`/api/cases/${current.id}`, {
                 notes_for_staff: notes || null,
                 response_to_citizen: response || null,
+            });
+            setFullCase((existing) => {
+                if (!existing) return existing;
+                const nextThreadCases = (existing.thread_cases || []).map((item) =>
+                    item.id === current.id ? { ...item, notes_for_staff: notes || null, response_to_citizen: response || null } : item
+                );
+                return { ...existing, thread_cases: nextThreadCases };
             });
             localStorage.removeItem(`draft_notes_${current.id}`);
             localStorage.removeItem(`draft_response_${current.id}`);
@@ -1006,7 +1152,19 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                 assembly: geoAssembly || null,
             });
             const refreshed = await apiGet(`/api/cases/${current.id}`);
-            setFullCase({ ...current, ...refreshed });
+            setFullCase((existing) => {
+                const nextThreadCases = ((existing?.thread_cases) || []).map((item) =>
+                    item.id === current.id
+                        ? {
+                            ...item,
+                            location: refreshed.location || '',
+                            assembly: refreshed.assembly || '',
+                            case_metadata: refreshed.case_metadata || item.case_metadata || {},
+                          }
+                        : item
+                );
+                return { ...(existing || current), ...refreshed, thread_cases: nextThreadCases };
+            });
             setGeoLocation(refreshed.case_metadata?.matched_value || refreshed.location || '');
             setGeoAssembly(refreshed.case_metadata?.assembly_constituency || refreshed.assembly || '');
             onStatusChange(current.id, refreshed.status || currentStatus);
@@ -1042,6 +1200,13 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         try {
             await apiPatch(`/api/cases/${current.id}`, { assigned_to: username || null });
             setAssignee(username);
+            setFullCase((existing) => {
+                if (!existing) return existing;
+                const nextThreadCases = (existing.thread_cases || []).map((item) =>
+                    item.id === current.id ? { ...item, assigned_to: username || null } : item
+                );
+                return { ...existing, thread_cases: nextThreadCases };
+            });
             onStatusChange(current.id, currentStatus);
             toast.success(username ? `Assigned to ${username}` : 'Unassigned');
         } catch {
@@ -1127,6 +1292,13 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                 <StatusActions
                                     currentStatus={currentStatus}
                                     onStatusChange={handleStatusChange}
+                                    updating={updating}
+                                />
+                                <ThreadCasesSection
+                                    threadCases={threadCases}
+                                    activeCaseId={activeCaseId}
+                                    onSelectCase={(item) => setActiveCaseId(item.id)}
+                                    onQuickResolve={handleQuickResolve}
                                     updating={updating}
                                 />
                                 <PendingContactMessages current={current} />

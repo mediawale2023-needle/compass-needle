@@ -622,17 +622,16 @@ def test_contact_buffering_merges_duplicate_followups(monkeypatch):
     main._process_incoming_message(sender, "Road issue in KR Puram urgent", receiver_number="+15551636821")
 
     rows = _cases_for_phone(sender)
-    assert len(rows) == 1
-    assert "urgent" in rows[0]["raw_message"].lower()
+    assert len(rows) == 2
+    road_case = next(row for row in rows if "kr puram" in (row["raw_message"] or "").lower())
+    water_case = next(row for row in rows if "whitefield" in (row["raw_message"] or "").lower())
 
-    thread_meta = json.loads(rows[0]["case_metadata"] or "{}")
-    thread_items = thread_meta.get("contact_thread_items") or []
-    assert len(thread_items) == 1
-    assert thread_items[0]["matched_value"] == "Whitefield"
-    assert thread_meta["distinct_issue_count"] == 2
-    assert thread_meta["contact_thread_state"] == "valid_multi_issue"
-    assert len(thread_meta.get("contact_message_events") or []) == 1
-    assert "urgent" in thread_meta["contact_message_events"][0]["message"].lower()
+    road_meta = json.loads(road_case["case_metadata"] or "{}")
+    water_meta = json.loads(water_case["case_metadata"] or "{}")
+    assert road_meta["contact_thread_id"] == water_meta["contact_thread_id"]
+    assert len(road_meta.get("contact_message_events") or []) == 1
+    assert "urgent" in road_meta["contact_message_events"][0]["message"].lower()
+    assert water_meta.get("matched_value") == "Whitefield"
 
     assert len(outbound_messages) == 1
 
@@ -688,8 +687,11 @@ def test_contact_thread_high_frequency_and_spam_suspected_thresholds(monkeypatch
         main._process_incoming_message(sender, message, receiver_number="+15551636821")
 
     rows = _cases_for_phone(sender)
-    assert len(rows) == 1
-    meta_after_six = json.loads(rows[0]["case_metadata"] or "{}")
+    assert len(rows) == 6
+    metas_after_six = [json.loads(row["case_metadata"] or "{}") for row in rows]
+    thread_ids = {meta.get("contact_thread_id") for meta in metas_after_six}
+    assert len(thread_ids) == 1
+    meta_after_six = next(meta for meta in metas_after_six if meta.get("contact_thread_state") == "high_frequency")
     assert meta_after_six["distinct_issue_count"] == 6
     assert meta_after_six["contact_thread_state"] == "high_frequency"
     assert len(outbound_messages) == 1
@@ -698,11 +700,9 @@ def test_contact_thread_high_frequency_and_spam_suspected_thresholds(monkeypatch
         main._process_incoming_message(sender, message, receiver_number="+15551636821")
 
     rows = _cases_for_phone(sender)
-    assert len(rows) == 1
-    final_meta = json.loads(rows[0]["case_metadata"] or "{}")
+    assert len(rows) == 9
+    final_metas = [json.loads(row["case_metadata"] or "{}") for row in rows]
+    final_meta = next(meta for meta in final_metas if meta.get("contact_thread_state") == "spam_suspected")
     assert final_meta["distinct_issue_count"] == 10
     assert final_meta["contact_thread_state"] == "spam_suspected"
-    assert final_meta["contact_thread_spam_flagged"] is True
-    assert len(final_meta.get("contact_thread_spam_messages") or []) == 1
-    assert "juliet circle" in final_meta["contact_thread_spam_messages"][0]["message"].lower()
     assert len(outbound_messages) == 1

@@ -822,6 +822,70 @@ def _apply_tenant_safe_case_geography(case: dict, tenant_constituency: str | Non
     return case
 
 
+def _contact_thread_id_for_case(case: dict) -> str:
+    meta = _parse_meta(case.get("case_metadata"))
+    thread_id = str(meta.get("contact_thread_id") or "").strip()
+    if thread_id:
+        return thread_id
+    return f"legacy-case-{case.get('id')}"
+
+
+def _contact_thread_distinct_count(cases: list[dict]) -> int:
+    if not cases:
+        return 0
+    count = len(cases)
+    for case in cases:
+        meta = _parse_meta(case.get("case_metadata"))
+        count = max(count, int(meta.get("distinct_issue_count") or 0))
+        count = max(count, 1 + len(meta.get("contact_thread_items") or []))
+        count = max(count, len(cases) + len(meta.get("contact_thread_spam_messages") or []))
+    return count
+
+
+def _contact_thread_state(cases: list[dict]) -> str:
+    distinct = _contact_thread_distinct_count(cases)
+    for case in cases:
+        meta = _parse_meta(case.get("case_metadata"))
+        if meta.get("contact_thread_spam_flagged") or (meta.get("contact_thread_spam_messages") or []):
+            return "spam_suspected"
+    if distinct >= 10:
+        return "spam_suspected"
+    if distinct >= 6:
+        return "high_frequency"
+    if distinct > 1:
+        return "valid_multi_issue"
+    return "normal"
+
+
+def _thread_sort_value(case: dict) -> tuple:
+    return (str(case.get("updated_at") or case.get("created_at") or ""), int(case.get("id") or 0))
+
+
+def _group_briefcase_cases(cases: list[dict]) -> list[dict]:
+    grouped: dict[str, list[dict]] = {}
+    for case in cases:
+        grouped.setdefault(_contact_thread_id_for_case(case), []).append(case)
+
+    grouped_rows = []
+    for thread_id, members in grouped.items():
+        members_sorted = sorted(members, key=_thread_sort_value, reverse=True)
+        anchor = dict(members_sorted[0])
+        state = _contact_thread_state(members_sorted)
+        distinct = _contact_thread_distinct_count(members_sorted)
+        anchor_meta = _parse_meta(anchor.get("case_metadata"))
+        legacy_pending = len(anchor_meta.get("contact_thread_items") or [])
+        anchor["contact_thread_id"] = thread_id
+        anchor["pending_contact_count"] = max(max(0, len(members_sorted) - 1), legacy_pending)
+        anchor["distinct_issue_count"] = distinct
+        anchor["contact_thread_state"] = state
+        anchor["thread_case_ids"] = [item.get("id") for item in members_sorted if item.get("id") is not None]
+        anchor["thread_case_count"] = len(members_sorted)
+        grouped_rows.append(anchor)
+
+    grouped_rows.sort(key=_thread_sort_value, reverse=True)
+    return grouped_rows
+
+
 @router.get("/cases")
 def get_cases(
     user=Depends(get_current_user),
@@ -940,11 +1004,7 @@ def get_cases(
         "critical": "c.is_critical DESC, c.created_at DESC",
     }.get(sort, "c.created_at DESC")
 
-    count_row = _q_one(f"SELECT COUNT(*) as cnt FROM cases c WHERE {where}", params)  # nosec B608 — where is built from hardcoded predicates; all user input is parameterised
-    total = count_row["cnt"] if count_row else 0
-    pages = (total + limit - 1) // limit if limit > 0 else 0
-
-    cases = _q(  # nosec B608
+    raw_cases = _q(  # nosec B608
         f"""
         SELECT c.id, c.case_ref, c.user_phone, c.category, c.problem_domain,
                c.problem_subdomain, c.convergence_program_type, c.status, c.raw_message,
@@ -954,15 +1014,12 @@ def get_cases(
                c.response_to_citizen, c.notes_for_staff, c.assigned_to
         FROM cases c WHERE {where}
         ORDER BY {order_by}
-        LIMIT :lim OFFSET :off
         """,
-        {**params, "lim": limit, "off": offset}
+        params
     )
 
-    # Attach attachment counts in a single batched query for the whole page.
-    # (Previously a correlated subquery ran once per row — 50 cases => 51 round
-    # trips. One GROUP BY over just this page's ids is O(1) queries.)
-    case_ids = [c["id"] for c in cases]
+    # Attach attachment counts in one batched query before thread grouping.
+    case_ids = [c["id"] for c in raw_cases]
     if case_ids:
         id_placeholders = ", ".join(f":mc_id_{i}" for i in range(len(case_ids)))
         mc_params = {"tid": tid}
@@ -977,10 +1034,8 @@ def get_cases(
     else:
         media_count_map = {}
 
-    for c in cases:
+    for c in raw_cases:
         c["media_count"] = media_count_map.get(c["id"], 0)
-
-    for c in cases:
         meta = c.get("case_metadata")
         c["location"] = c.get("location") or ""
         c["assembly"] = c.get("assembly") or ""
@@ -1007,11 +1062,10 @@ def get_cases(
         for field in ["created_at", "updated_at"]:
             c[field] = _coerce_iso(c.get(field))
 
-    for c in cases:
-        meta = _parse_meta(c.get("case_metadata"))
-        c["pending_contact_count"] = len(meta.get("contact_thread_items") or [])
-        c["distinct_issue_count"] = int(meta.get("distinct_issue_count") or (1 + len(meta.get("contact_thread_items") or [])))
-        c["contact_thread_state"] = meta.get("contact_thread_state") or ("valid_multi_issue" if c["pending_contact_count"] > 0 else "normal")
+    grouped_cases = _group_briefcase_cases(raw_cases)
+    total = len(grouped_cases)
+    pages = (total + limit - 1) // limit if limit > 0 else 0
+    cases = grouped_cases[offset: offset + limit]
 
     return {"cases": cases, "total": total, "page": page, "limit": limit, "pages": pages}
 
@@ -1314,6 +1368,7 @@ def get_case(case_id: int, user=Depends(get_current_user)):
 
     _apply_tenant_safe_case_geography(case, case.get("mp_constituency"), tid)
 
+    raw_case_created_at = case.get("created_at")
     for field in ["created_at", "updated_at", "resolved_at"]:
         case[field] = _coerce_iso(case.get(field))
 
@@ -1334,8 +1389,75 @@ def get_case(case_id: int, user=Depends(get_current_user)):
         case["media_count"] = 0
 
     meta = _parse_meta(case.get("case_metadata"))
-    case["distinct_issue_count"] = int(meta.get("distinct_issue_count") or (1 + len(meta.get("contact_thread_items") or [])))
-    case["contact_thread_state"] = meta.get("contact_thread_state") or ("valid_multi_issue" if meta.get("contact_thread_items") else "normal")
+    thread_id = _contact_thread_id_for_case(case)
+    thread_members = [dict(case)]
+    phone = case.get("user_phone")
+    case_created_at = raw_case_created_at if isinstance(raw_case_created_at, datetime) else None
+    try:
+        if phone:
+            window_start = case_created_at - timedelta(hours=24) if isinstance(case_created_at, datetime) else _utcnow() - timedelta(hours=24)
+            window_end = case_created_at + timedelta(hours=24) if isinstance(case_created_at, datetime) else _utcnow() + timedelta(hours=24)
+            sibling_rows = _q(
+                """
+                SELECT id, case_ref, user_phone, category, problem_domain, problem_subdomain,
+                       convergence_program_type, status, raw_message,
+                       COALESCE(location, case_metadata->>'matched_value') AS location,
+                       COALESCE(assembly, case_metadata->>'assembly_constituency') AS assembly,
+                       case_metadata, is_critical, created_at, updated_at, notes_for_staff,
+                       response_to_citizen, assigned_to
+                FROM cases
+                WHERE tenant_id = :tid
+                  AND user_phone = :phone
+                  AND (is_deleted = false OR is_deleted IS NULL)
+                  AND created_at >= :window_start
+                  AND created_at <= :window_end
+                ORDER BY COALESCE(updated_at, created_at) DESC, id DESC
+                """,
+                {
+                    "tid": tid,
+                    "phone": phone,
+                    "window_start": window_start,
+                    "window_end": window_end,
+                },
+            )
+            thread_members = [member for member in sibling_rows if _contact_thread_id_for_case(member) == thread_id]
+            if not thread_members:
+                thread_members = [dict(case)]
+    except Exception:
+        logger.exception("Failed to load contact thread siblings for case %s", case_id)
+        thread_members = [dict(case)]
+
+    for member in thread_members:
+        _apply_tenant_safe_case_geography(member, case.get("mp_constituency"), tid)
+        for field in ["created_at", "updated_at", "resolved_at"]:
+            member[field] = _coerce_iso(member.get(field))
+
+    case["thread_cases"] = [
+        {
+            "id": member.get("id"),
+            "case_ref": member.get("case_ref") or f"#{member.get('id')}",
+            "status": member.get("status") or "new",
+            "raw_message": member.get("raw_message") or "",
+            "category": member.get("category") or member.get("problem_domain") or "Uncategorised",
+            "problem_domain": member.get("problem_domain"),
+            "problem_subdomain": member.get("problem_subdomain"),
+            "convergence_program_type": member.get("convergence_program_type"),
+            "location": member.get("location") or "",
+            "assembly": member.get("assembly") or "",
+            "created_at": member.get("created_at"),
+            "updated_at": member.get("updated_at"),
+            "is_critical": bool(member.get("is_critical")),
+            "assigned_to": member.get("assigned_to"),
+            "notes_for_staff": member.get("notes_for_staff"),
+            "response_to_citizen": member.get("response_to_citizen"),
+            "case_metadata": _parse_meta(member.get("case_metadata")),
+        }
+        for member in sorted(thread_members, key=_thread_sort_value, reverse=True)
+    ]
+    case["pending_contact_count"] = max(0, len(case["thread_cases"]) - 1)
+    case["thread_case_count"] = len(case["thread_cases"])
+    case["distinct_issue_count"] = _contact_thread_distinct_count(thread_members)
+    case["contact_thread_state"] = _contact_thread_state(thread_members)
     pending_messages = []
     for item in meta.get("contact_thread_items") or []:
         pending_messages.append(
@@ -1355,14 +1477,18 @@ def get_case(case_id: int, user=Depends(get_current_user)):
             }
         )
     case["pending_contact_messages"] = pending_messages
-    case["suppressed_contact_messages"] = [
-        {
-            "message": item.get("message") or "",
-            "created_at": item.get("created_at"),
-            "thread_state": "spam_suspected",
-        }
-        for item in (meta.get("contact_thread_spam_messages") or [])
-    ]
+    suppressed_messages = []
+    for member in thread_members:
+        member_meta = _parse_meta(member.get("case_metadata"))
+        suppressed_messages.extend(
+            {
+                "message": item.get("message") or "",
+                "created_at": item.get("created_at"),
+                "thread_state": "spam_suspected",
+            }
+            for item in (member_meta.get("contact_thread_spam_messages") or [])
+        )
+    case["suppressed_contact_messages"] = suppressed_messages
 
     return case
 
