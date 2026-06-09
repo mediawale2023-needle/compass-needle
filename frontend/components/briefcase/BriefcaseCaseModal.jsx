@@ -1000,7 +1000,7 @@ function ResolvedView({ current, activities, loadingActivity, onClose }) {
 }
 
 // ─── Main export ──────────────────────────────────────────────
-export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusChange, staff, user, onDeleteCase }) {
+export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusChange, statusFilter, staff, user, onDeleteCase }) {
     const toast = useToast();
     const [updating, setUpdating] = useState(null);
     const [notes, setNotes] = useState('');
@@ -1078,6 +1078,45 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const caseRef = current.case_ref || `#${current.id}`;
     const suggestedTriage = getSuggestedTriage(meta, current);
     const displaySummary = getCaseSummary(current, meta);
+    const activeTab = !['resolved', 'deleted', 'clusters'].includes(String(statusFilter || '').toLowerCase());
+
+    const pruneResolvedThreadCase = (targetCaseId, nextStatus) => {
+        const resolvedLike = ['resolved', 'completed', 'closed'].includes(String(nextStatus || '').toLowerCase());
+        if (!resolvedLike || !activeTab) {
+            return;
+        }
+        setFullCase((existing) => {
+            if (!existing) return existing;
+            const remainingThreadCases = (existing.thread_cases || []).filter((item) => item.id !== targetCaseId);
+            if (remainingThreadCases.length === 0) {
+                return existing;
+            }
+            return {
+                ...existing,
+                id: remainingThreadCases[0].id,
+                case_ref: remainingThreadCases[0].case_ref,
+                status: remainingThreadCases[0].status,
+                raw_message: remainingThreadCases[0].raw_message,
+                location: remainingThreadCases[0].location,
+                assembly: remainingThreadCases[0].assembly,
+                problem_domain: remainingThreadCases[0].problem_domain,
+                problem_subdomain: remainingThreadCases[0].problem_subdomain,
+                convergence_program_type: remainingThreadCases[0].convergence_program_type,
+                case_metadata: remainingThreadCases[0].case_metadata || existing.case_metadata,
+                pending_contact_count: Math.max(remainingThreadCases.length - 1, 0),
+                thread_case_count: remainingThreadCases.length,
+                thread_cases: remainingThreadCases,
+            };
+        });
+        const remainingThreadCases = (fullCase?.thread_cases || []).filter((item) => item.id !== targetCaseId);
+        if (remainingThreadCases.length === 0) {
+            onClose();
+            return;
+        }
+        if (activeCaseId === targetCaseId) {
+            setActiveCaseId(remainingThreadCases[0].id);
+        }
+    };
 
     const handleStatusChange = async (newStatus) => {
         setUpdating(newStatus);
@@ -1090,6 +1129,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                 );
                 return { ...existing, thread_cases: nextThreadCases };
             });
+            pruneResolvedThreadCase(current.id, newStatus);
             onStatusChange(current.id, newStatus);
             toast.success(`Case marked as ${newStatus}`);
         } catch {
@@ -1110,6 +1150,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                 );
                 return { ...existing, thread_cases: nextThreadCases };
             });
+            pruneResolvedThreadCase(targetCaseId, 'resolved');
             onStatusChange(targetCaseId, 'resolved');
             toast.success('Complaint marked resolved');
         } catch {

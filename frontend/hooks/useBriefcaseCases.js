@@ -60,6 +60,10 @@ export default function useBriefcaseCases(user) {
     const [deletedCases, setDeletedCases] = useState([]);
     const [loadingDeleted, setLoadingDeleted] = useState(false);
 
+    function isResolvedLikeStatus(status) {
+        return ['resolved', 'completed', 'closed'].includes(String(status || '').toLowerCase());
+    }
+
     useEffect(() => {
         const status = searchParams.get('status') || 'all_cases';
         setStatusFilter(status === 'All' ? 'all_cases' : status);
@@ -116,7 +120,7 @@ export default function useBriefcaseCases(user) {
         if (statusFilter === 'others') {
             params.set('bucket', 'other');
         } else if (statusFilter === 'all_cases') {
-            params.delete('exclude_status');
+            params.set('exclude_status', 'resolved,completed,closed');
             params.delete('exclude_categories');
         } else {
             params.set('status', statusFilter);
@@ -299,18 +303,53 @@ export default function useBriefcaseCases(user) {
     }
 
     function handleStatusChange(caseId, newStatus) {
-        setCases((current) => current.map((item) => {
+        const resolvedLike = isResolvedLikeStatus(newStatus);
+        const activeTab = !['resolved', 'deleted', 'clusters'].includes(String(statusFilter || '').toLowerCase());
+
+        setCases((current) => current.flatMap((item) => {
             if (item.id === caseId) {
-                return { ...item, status: newStatus };
+                return resolvedLike && activeTab ? [] : [{ ...item, status: newStatus }];
             }
             if (Array.isArray(item.thread_case_ids) && item.thread_case_ids.includes(caseId)) {
-                return { ...item };
+                if (resolvedLike && activeTab) {
+                    const remainingIds = item.thread_case_ids.filter((id) => id !== caseId);
+                    if (remainingIds.length === 0) {
+                        return [];
+                    }
+                    return [{
+                        ...item,
+                        thread_case_ids: remainingIds,
+                        thread_case_count: Math.max(remainingIds.length, 1),
+                        pending_contact_count: Math.max(remainingIds.length - 1, 0),
+                    }];
+                }
+                return [{ ...item }];
             }
-            return item;
+            return [item];
         }));
-        setSelected((current) => current && (current.id === caseId || (Array.isArray(current.thread_case_ids) && current.thread_case_ids.includes(caseId)))
-            ? { ...current, status: current.id === caseId ? newStatus : current.status }
-            : current);
+
+        setSelected((current) => {
+            if (!current) return current;
+            if (current.id === caseId) {
+                return resolvedLike && activeTab ? null : { ...current, status: newStatus };
+            }
+            if (Array.isArray(current.thread_case_ids) && current.thread_case_ids.includes(caseId)) {
+                if (resolvedLike && activeTab) {
+                    const remainingIds = current.thread_case_ids.filter((id) => id !== caseId);
+                    if (remainingIds.length === 0) {
+                        return null;
+                    }
+                    return {
+                        ...current,
+                        thread_case_ids: remainingIds,
+                        thread_case_count: Math.max(remainingIds.length, 1),
+                        pending_contact_count: Math.max(remainingIds.length - 1, 0),
+                    };
+                }
+                return { ...current };
+            }
+            return current;
+        });
         setRefreshToken((value) => value + 1);
     }
 
@@ -435,7 +474,9 @@ export default function useBriefcaseCases(user) {
     const resolvedCount = countFrom(statusEntries, (value) => value === 'resolved');
     const escalatedCount = countFrom(statusEntries, (value) => value === 'escalated');
     const activeCaseTotal = statusEntries.length > 0
-        ? statusEntries.reduce((sum, entry) => sum + (entry.count || 0), 0)
+        ? statusEntries
+            .filter((entry) => !isResolvedLikeStatus(entry.value))
+            .reduce((sum, entry) => sum + (entry.count || 0), 0)
         : Math.max(totalCases, cases.length);
     const uncategorisedCount =
         countFrom(categoryEntries, (value) => value === 'uncategorised' || value === 'general' || value === 'general grievance') ||

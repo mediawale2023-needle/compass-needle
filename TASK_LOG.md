@@ -13,6 +13,18 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-09
+- Request: Push and deploy the Briefcase per-complaint resolved-tab behavior fix.
+- Summary: Pushed the frontend-only Briefcase thread refinement that makes `All cases` behave as the active-work queue, removes only the resolved complaint from an active grouped thread, and keeps remaining sibling complaints open in the drawer. The modal now receives tab context, the hook recalculates grouped thread membership after per-complaint resolution, and resolved complaints are expected to appear under `Resolved` instead of lingering inside the active thread view. Verified with a successful `frontend` production build before push.
+- Files touched: `frontend/app/dashboard/sansadx/page.js`, `frontend/hooks/useBriefcaseCases.js`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `TASK_LOG.md`
+- Risks or follow-ups: This release changes MP frontend interaction only; the backend grouped-thread contract is unchanged. If operators later want a true all-status historical thread view, that should be added as a separate filter or mode rather than weakening the active-vs-resolved split.
+
+- Date: 2026-06-09
+- Request: Make resolving one complaint inside a grouped Briefcase thread affect only that complaint and move it out of the active thread immediately.
+- Summary: Updated the MP Briefcase frontend so grouped threads behave per complaint instead of per contact-thread row. `frontend/hooks/useBriefcaseCases.js` now treats `All cases` as the active queue by excluding `resolved/completed/closed`, keeps the active-case subtitle/count aligned to that same interpretation, and removes only the resolved complaint from the active grouped row after a status change. `frontend/components/briefcase/BriefcaseCaseModal.jsx` now receives the current tab context and prunes just the resolved complaint from the open thread drawer, switching focus to the next remaining open complaint or closing the drawer if none remain. Verified with a successful `frontend` production build.
+- Files touched: `frontend/app/dashboard/sansadx/page.js`, `frontend/hooks/useBriefcaseCases.js`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This is a frontend behavior fix only; it relies on the existing grouped-thread backend contract. If operators later want a true “all statuses” cross-thread history view, that should be introduced as a separate tab/filter rather than weakening the current active-vs-resolved separation again.
+
+- Date: 2026-06-09
 - Request: Fix production Briefcase showing `Failed to load cases` after the sibling-thread deploy.
 - Summary: Narrowed the failure to the merged `/api/cases` performance path in `api_router.py`. The list endpoint was grouping correctly, but it was also running batched media counting and geography-safe normalization across the entire tenant-scoped match set before pagination, which could push the request beyond the MP frontend’s 8-second timeout and surface as a generic load failure while other dashboard endpoints still worked. Refactored the endpoint so it still groups the full match set for totals/page slicing, but only enriches and media-counts the visible page rows. Verified with a compile pass and the full `tests/test_briefcase_api.py` suite.
 - Files touched: `api_router.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`

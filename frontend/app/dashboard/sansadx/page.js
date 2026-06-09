@@ -185,6 +185,7 @@ function BriefcaseInner() {
                 color={briefcase.color}
                 onClose={() => briefcase.setSelected(null)}
                 onStatusChange={briefcase.handleStatusChange}
+                statusFilter={briefcase.statusFilter}
                 staff={briefcase.staff}
                 user={user}
                 onDeleteCase={briefcase.deleteCase}
