@@ -504,6 +504,8 @@ for _idx_sql in [
     "CREATE INDEX IF NOT EXISTS idx_cases_tenant_status ON cases (tenant_id, status)",
     "CREATE INDEX IF NOT EXISTS idx_cases_tenant_created ON cases (tenant_id, created_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_cases_user_phone ON cases (user_phone)",
+    # Per-contact lookups: dedup, contact-thread merge, daily rate limit, contact panel
+    "CREATE INDEX IF NOT EXISTS idx_cases_tenant_phone_created ON cases (tenant_id, user_phone, created_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_cases_is_deleted ON cases (is_deleted)",
     "CREATE INDEX IF NOT EXISTS idx_spam_flags_tenant_phone ON spam_flags (tenant_id, phone)",
     "CREATE INDEX IF NOT EXISTS idx_token_blocklist_revoked_at ON token_blocklist (revoked_at)",

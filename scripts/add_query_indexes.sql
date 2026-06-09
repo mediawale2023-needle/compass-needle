@@ -35,6 +35,11 @@ CREATE INDEX IF NOT EXISTS idx_cases_query_composite
     ON cases (tenant_id, created_at DESC, status)
     WHERE is_deleted = false OR is_deleted IS NULL;
 
+-- Per-contact lookups: content dedup, contact-thread merge, daily rate limit,
+-- and the Briefcase contact panel (all filter tenant_id + user_phone by recency)
+CREATE INDEX IF NOT EXISTS idx_cases_tenant_phone_created
+    ON cases (tenant_id, user_phone, created_at DESC);
+
 -- Trigram extension for ILIKE on location (optional but recommended for fuzzy search)
 -- Uncomment if pg_trgm is available on your PostgreSQL instance:
 -- CREATE EXTENSION IF NOT EXISTS pg_trgm;
