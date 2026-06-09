@@ -40,6 +40,35 @@ function StatusPill({ status }) {
     );
 }
 
+function ContactStatePill({ state }) {
+    const normalized = String(state || '').toLowerCase();
+    const tone = {
+        high_frequency: { fg: P.saffron, bg: P.saffronTint, label: 'High frequency' },
+        spam_suspected: { fg: P.red, bg: '#FDEDEC', label: 'Spam suspected' },
+    }[normalized];
+
+    if (!tone) return null;
+
+    return (
+        <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '2px 8px',
+            background: tone.bg,
+            color: tone.fg,
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '0.03em',
+            whiteSpace: 'nowrap',
+            marginTop: 5,
+        }}>
+            <BriefcaseIcon name={normalized === 'spam_suspected' ? 'warn' : 'clock'} size={10} color={tone.fg} stroke={2} />
+            {tone.label}
+        </span>
+    );
+}
+
 function SkeletonRows() {
     return Array.from({ length: 6 }).map((_, i) => (
         <tr key={i} style={{ borderBottom: `1px solid ${P.hair}` }}>
@@ -153,6 +182,7 @@ export default function BriefcaseCasesTable({
                         const citizen = getBriefcaseCitizenName(item);
                         const isUnknownAsm = !item.assembly || item.assembly === 'Unknown';
                         const pendingContactCount = Number(item.pending_contact_count || 0);
+                        const contactThreadState = item.contact_thread_state || 'normal';
 
                         return (
                             <tr
@@ -205,6 +235,9 @@ export default function BriefcaseCasesTable({
                                         {item.user_phone || '—'}
                                         {pendingContactCount > 0 ? ` +${pendingContactCount}` : ''}
                                     </button>
+                                    <div>
+                                        <ContactStatePill state={contactThreadState} />
+                                    </div>
                                 </td>
 
                                 <td style={{ padding: '10px 10px', verticalAlign: 'top' }}>

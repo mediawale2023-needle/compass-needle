@@ -1033,9 +1033,25 @@ _FLOOD_THRESHOLD = 20
 _FLOOD_FINGERPRINT_LEN = 60     # chars of normalised text used for matching
 _FLOOD_MIN_MESSAGE_LEN = 20    # messages shorter than this are too vague to match
 _CONTACT_BUFFER_WINDOW_HOURS = 24
-_CONTACT_BUFFER_MAX_DISTINCT = 5
+_CONTACT_THREAD_HIGH_FREQUENCY_DISTINCT = 6
+_CONTACT_THREAD_SPAM_SUSPECTED_DISTINCT = 10
 _CONTACT_BUFFER_STATUS = "contact_buffered"
 _CONTACT_BUFFER_SIMILARITY = 0.9
+_LOW_INFORMATION_FOLLOWUPS = {
+    "hello",
+    "hi",
+    "hello?",
+    "hi?",
+    "reply",
+    "please reply",
+    "pls reply",
+    "plz reply",
+    "any update",
+    "update",
+    "status",
+    "what happened",
+    "kya hua",
+}
 _contact_buffer_release_timers: dict[int, threading.Timer] = {}
 _contact_buffer_release_lock = threading.Lock()
 
@@ -1070,6 +1086,53 @@ def _contact_issue_fingerprint(text: str) -> str:
     return _normalise(text or "")[:240]
 
 
+def _contact_thread_state_for_count(distinct_issue_count: int) -> str:
+    if distinct_issue_count >= _CONTACT_THREAD_SPAM_SUSPECTED_DISTINCT:
+        return "spam_suspected"
+    if distinct_issue_count >= _CONTACT_THREAD_HIGH_FREQUENCY_DISTINCT:
+        return "high_frequency"
+    if distinct_issue_count > 1:
+        return "valid_multi_issue"
+    return "normal"
+
+
+def _count_contact_thread_messages(meta: dict | None) -> int:
+    payload = dict(meta or {})
+    total = len(payload.get("contact_message_events") or [])
+    for item in payload.get("contact_thread_items") or []:
+        total += 1
+        total += len(item.get("contact_message_events") or [])
+    return total + 1
+
+
+def _update_contact_thread_meta(
+    meta: dict | None,
+    *,
+    distinct_issue_count: int | None = None,
+    last_activity_at: str | None = None,
+) -> dict:
+    updated = dict(meta or {})
+    if distinct_issue_count is None:
+        distinct_issue_count = 1 + len(updated.get("contact_thread_items") or [])
+    state = _contact_thread_state_for_count(int(distinct_issue_count))
+    updated["distinct_issue_count"] = int(distinct_issue_count)
+    updated["contact_thread_state"] = state
+    updated["contact_thread_last_activity_at"] = last_activity_at or _utcnow().isoformat()
+    updated["contact_thread_message_count"] = _count_contact_thread_messages(updated)
+    return updated
+
+
+def _is_low_information_followup(text: str) -> bool:
+    normalised = _normalise(text or "")
+    if not normalised:
+        return True
+    if normalised in _LOW_INFORMATION_FOLLOWUPS:
+        return True
+    if len(normalised) <= 12 and all(tok in {"hi", "hello", "reply", "update", "pls", "plz", "please"} for tok in normalised.split()):
+        return True
+    return False
+
+
 def _message_similarity(left: str, right: str) -> float:
     left_norm = _contact_issue_fingerprint(left)
     right_norm = _contact_issue_fingerprint(right)
@@ -1095,10 +1158,11 @@ def _parse_case_meta(meta_value):
 
 
 def _append_contact_message_event(case_id: int, message_body: str, *, event_type: str, detected_language: str = "") -> None:
+    event_created_at = _utcnow().isoformat()
     event = {
         "message": (message_body or "").strip()[:2000],
         "event_type": event_type,
-        "created_at": _utcnow().isoformat(),
+        "created_at": event_created_at,
     }
     if detected_language:
         event["detected_language"] = detected_language
@@ -1116,6 +1180,7 @@ def _append_contact_message_event(case_id: int, message_body: str, *, event_type
             events.append(event)
             meta["contact_message_events"] = events[-25:]
             meta["contact_last_message_at"] = event["created_at"]
+            meta = _update_contact_thread_meta(meta, last_activity_at=event_created_at)
             conn.execute(
                 text("UPDATE cases SET case_metadata = :meta, updated_at = :now WHERE id = :cid"),
                 {"meta": json.dumps(meta), "now": _utcnow(), "cid": case_id},
@@ -1145,6 +1210,7 @@ def _thread_issue_from_row(row: dict) -> dict:
         "assembly_constituency": meta.get("assembly_constituency") or "",
         "detected_language": meta.get("detected_language") or meta.get("language") or "",
         "summary": meta.get("summary") or "",
+        "thread_state": meta.get("contact_thread_state") or "normal",
         "created_at": str(meta.get("thread_issue_created_at") or _iso_or_now(row.get("created_at"))),
         "last_message_at": str(meta.get("thread_issue_last_message_at") or _iso_or_now(row.get("updated_at") or row.get("created_at"))),
         "contact_message_events": list(meta.get("contact_message_events") or []),
@@ -1221,6 +1287,7 @@ def _promote_archived_thread_issue(case_row: dict, archived_index: int, message_
     meta["detected_language"] = matched_issue.get("detected_language") or meta.get("detected_language") or language_hint
     meta["language"] = meta["detected_language"]
     meta["summary"] = matched_issue.get("summary") or meta.get("summary") or message_body[:100]
+    meta = _update_contact_thread_meta(meta, last_activity_at=now_iso)
 
     try:
         with engine.begin() as conn:
@@ -3362,6 +3429,11 @@ def _run_citizen_case_enrichment(
         "source_media_transcript_provider": media_source.get("transcript_provider", "") if media_source else "",
         "source_media_normalization_notes": media_source.get("normalization_notes") if media_source else None,
         "is_silent_log_category": str(category or "").lower().strip() in _SILENT_LOG_CATEGORIES,
+        "contact_thread_started_at": _utcnow().isoformat(),
+        "contact_thread_last_activity_at": _utcnow().isoformat(),
+        "contact_thread_state": "normal",
+        "distinct_issue_count": 1,
+        "contact_intake_action": "new_case",
     }
 
     return {
@@ -3399,6 +3471,7 @@ def _save_case_enrichment_and_respond(
     status = enrichment["status"]
     category = enrichment["category"]
     detected_language = enrichment["detected_language"]
+    reply_text = citizen_ack_override if citizen_ack_override is not None else enrichment["citizen_ack_message"]
     meta_data, clarification_needed = _apply_clarification_metadata(
         enrichment["meta_data"],
         status=status,
@@ -3412,6 +3485,8 @@ def _save_case_enrichment_and_respond(
     meta_data.pop("contact_buffered", None)
     meta_data.pop("contact_buffer_overflow_flagged", None)
     meta_data["contact_buffer_released_at"] = _utcnow().isoformat()
+    meta_data["citizen_ack_sent"] = bool(reply_text)
+    meta_data["citizen_ack_last_action"] = meta_data.get("contact_intake_action") or "unknown"
     enrichment["meta_data"] = meta_data
 
     try:
@@ -3485,22 +3560,23 @@ def _save_case_enrichment_and_respond(
             _cancel_case_clarification_follow_up(case_id)
             return
 
-        try:
-            send_whatsapp_message(sender, get_review_ack_reply(detected_language, message_body), wa_phone_id)
-        except Exception as _rv_send_exc:
-            logger.error("Failed to send review ack to %s (case=%s): %s", sender, case_id, _rv_send_exc)
+        if reply_text:
             try:
-                with engine.begin() as _ack_conn:
-                    _ack_conn.execute(
-                        text("""
-                            UPDATE cases
-                            SET case_metadata = case_metadata || :patch::jsonb
-                            WHERE id = :cid
-                        """),
-                        {"patch": json.dumps({"citizen_ack_pending": True, "citizen_phone": sender}), "cid": case_id},
-                    )
-            except Exception as _ack_flag_exc:
-                logger.error("Failed to set citizen_ack_pending flag on case %s: %s", case_id, _ack_flag_exc)
+                send_whatsapp_message(sender, reply_text, wa_phone_id)
+            except Exception as _rv_send_exc:
+                logger.error("Failed to send review ack to %s (case=%s): %s", sender, case_id, _rv_send_exc)
+                try:
+                    with engine.begin() as _ack_conn:
+                        _ack_conn.execute(
+                            text("""
+                                UPDATE cases
+                                SET case_metadata = case_metadata || :patch::jsonb
+                                WHERE id = :cid
+                            """),
+                            {"patch": json.dumps({"citizen_ack_pending": True, "citizen_phone": sender}), "cid": case_id},
+                        )
+                except Exception as _ack_flag_exc:
+                    logger.error("Failed to set citizen_ack_pending flag on case %s: %s", case_id, _ack_flag_exc)
         _cancel_case_clarification_follow_up(case_id)
         return
 
@@ -3509,7 +3585,6 @@ def _save_case_enrichment_and_respond(
         return
 
     try:
-        reply_text = citizen_ack_override or enrichment["citizen_ack_message"]
         if reply_text:
             send_whatsapp_message(sender, reply_text, wa_phone_id)
     except Exception as send_exc:
@@ -3872,6 +3947,7 @@ def _process_incoming_message(
             enrichment["meta_data"]["clarification_source_case_id"] = _pending["id"]
             enrichment["meta_data"]["clarification_reply_text"] = _followup_text[:500]
             enrichment["meta_data"]["clarification_reply_at"] = _utcnow().isoformat()
+            enrichment["meta_data"]["contact_intake_action"] = "clarification_reply"
 
             _ack_override = None
             if _followup_kind == "missing_location" and enrichment.get("location_name") and enrichment.get("final_constituency") not in {None, "", "Unknown"}:
@@ -3901,6 +3977,22 @@ def _process_incoming_message(
         root_meta = _parse_case_meta(root_contact_case.get("case_metadata"))
         archived_items = list(root_meta.get("contact_thread_items") or [])
         current_issue = _thread_issue_from_row(root_contact_case)
+        now_iso = _utcnow().isoformat()
+
+        if _is_low_information_followup(message_body):
+            logger.info(
+                "Contact-thread low-information follow-up ignored on case %s for sender=%s tenant=%s",
+                root_contact_case["id"],
+                sender,
+                current_tenant,
+            )
+            _append_contact_message_event(
+                root_contact_case["id"],
+                message_body,
+                event_type="low_information_noise",
+                detected_language=language_hint,
+            )
+            return
 
         current_score = _thread_issue_similarity(message_body, current_issue)
         best_archived_index = -1
@@ -3944,20 +4036,27 @@ def _process_incoming_message(
             return
 
         distinct_count = 1 + len(archived_items)
-        if distinct_count >= _CONTACT_BUFFER_MAX_DISTINCT:
+        projected_distinct_count = distinct_count + 1
+        if projected_distinct_count >= _CONTACT_THREAD_SPAM_SUSPECTED_DISTINCT:
             logger.warning(
-                "Contact-thread overflow flagged as spam: sender=%s tenant=%s distinct_count=%s",
+                "Contact-thread spam-suspected threshold reached: sender=%s tenant=%s distinct_count=%s",
                 sender,
                 current_tenant,
-                distinct_count,
+                projected_distinct_count,
             )
             root_meta["contact_thread_overflow_count"] = int(root_meta.get("contact_thread_overflow_count") or 0) + 1
             root_meta["contact_thread_spam_flagged"] = True
-            root_meta["contact_thread_last_overflow_at"] = _utcnow().isoformat()
-            root_meta["contact_thread_overflow_messages"] = list(root_meta.get("contact_thread_overflow_messages") or [])[-9:] + [{
+            root_meta["contact_thread_last_overflow_at"] = now_iso
+            root_meta["contact_thread_spam_messages"] = list(root_meta.get("contact_thread_spam_messages") or [])[-9:] + [{
                 "message": (message_body or "").strip()[:500],
-                "created_at": _utcnow().isoformat(),
+                "created_at": now_iso,
             }]
+            root_meta["contact_intake_action"] = "spam_suspected"
+            root_meta = _update_contact_thread_meta(
+                root_meta,
+                distinct_issue_count=projected_distinct_count,
+                last_activity_at=now_iso,
+            )
             try:
                 with engine.begin() as conn:
                     conn.execute(
@@ -3967,12 +4066,12 @@ def _process_incoming_message(
                 _save_spam_flag(
                     current_tenant,
                     sender,
-                    "contact_thread_overflow",
-                    f"Distinct complaint count exceeded {_CONTACT_BUFFER_MAX_DISTINCT} in {_CONTACT_BUFFER_WINDOW_HOURS}h thread",
+                    "contact_thread_spam_suspected",
+                    f"Distinct complaint count reached {projected_distinct_count} in {_CONTACT_BUFFER_WINDOW_HOURS}h thread",
                     message_body,
                 )
             except Exception as exc:
-                logger.error("Failed to persist contact-thread overflow marker: %s", exc)
+                logger.error("Failed to persist contact-thread spam-suspected marker: %s", exc)
             return
 
         enrichment = _run_citizen_case_enrichment(
@@ -3989,10 +4088,16 @@ def _process_incoming_message(
         enrichment["meta_data"]["contact_thread_started_at"] = str(root_meta.get("contact_thread_started_at") or _iso_or_now(root_contact_case.get("created_at")))
         enrichment["meta_data"]["contact_thread_items"] = archived_items
         enrichment["meta_data"]["thread_issue_id"] = f"case-{root_contact_case['id']}-{int(_utcnow().timestamp() * 1000)}"
-        enrichment["meta_data"]["thread_issue_created_at"] = _utcnow().isoformat()
-        enrichment["meta_data"]["thread_issue_last_message_at"] = _utcnow().isoformat()
-        enrichment["meta_data"]["latest_thread_message_at"] = _utcnow().isoformat()
+        enrichment["meta_data"]["thread_issue_created_at"] = now_iso
+        enrichment["meta_data"]["thread_issue_last_message_at"] = now_iso
+        enrichment["meta_data"]["latest_thread_message_at"] = now_iso
         enrichment["meta_data"]["contact_message_events"] = []
+        enrichment["meta_data"]["contact_intake_action"] = "thread_distinct_issue"
+        enrichment["meta_data"] = _update_contact_thread_meta(
+            enrichment["meta_data"],
+            distinct_issue_count=projected_distinct_count,
+            last_activity_at=now_iso,
+        )
         enrichment["citizen_ack_message"] = ""
 
         _save_case_enrichment_and_respond(

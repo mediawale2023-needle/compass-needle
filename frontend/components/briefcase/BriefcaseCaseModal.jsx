@@ -566,14 +566,46 @@ function PendingContactMessages({ current }) {
     const meta = current?.case_metadata || {};
     const currentEvents = Array.isArray(meta.contact_message_events) ? meta.contact_message_events : [];
     const bufferedItems = Array.isArray(current?.pending_contact_messages) ? current.pending_contact_messages : [];
+    const suppressedItems = Array.isArray(current?.suppressed_contact_messages) ? current.suppressed_contact_messages : [];
+    const contactThreadState = current?.contact_thread_state || meta.contact_thread_state || 'normal';
+    const distinctIssueCount = Number(current?.distinct_issue_count || meta.distinct_issue_count || (1 + bufferedItems.length));
 
-    if (currentEvents.length === 0 && bufferedItems.length === 0) {
+    if (currentEvents.length === 0 && bufferedItems.length === 0 && suppressedItems.length === 0) {
         return null;
     }
 
+    const stateTone = {
+        high_frequency: { fg: C.saffron, bg: C.saffronTint, label: 'High frequency contact' },
+        spam_suspected: { fg: C.red, bg: '#FDEDEC', label: 'Spam suspected' },
+    }[String(contactThreadState).toLowerCase()];
+
     return (
         <div style={sec}>
-            <span style={monoLbl}>Same contact in queue</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+                <span style={monoLbl}>Same contact in queue</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        {distinctIssueCount} issue{distinctIssueCount === 1 ? '' : 's'} in 24h
+                    </span>
+                    {stateTone && (
+                        <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            padding: '2px 8px',
+                            background: stateTone.bg,
+                            color: stateTone.fg,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            letterSpacing: '0.04em',
+                            textTransform: 'uppercase',
+                        }}>
+                            <Icon name={contactThreadState === 'spam_suspected' ? 'warn' : 'clock'} size={10} color={stateTone.fg} stroke={2} />
+                            {stateTone.label}
+                        </span>
+                    )}
+                </div>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {currentEvents.map((event, idx) => (
                     <div key={`current-${idx}`} style={{
@@ -588,8 +620,8 @@ function PendingContactMessages({ current }) {
                             gap: 12,
                             marginBottom: 6,
                         }}>
-                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                                Follow-up on this issue
+                        <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                                {event.event_type === 'low_information_noise' ? 'Low-information follow-up' : 'Follow-up on this issue'}
                             </span>
                             <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3 }}>
                                 {event.created_at ? new Date(event.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
@@ -615,7 +647,7 @@ function PendingContactMessages({ current }) {
                             marginBottom: 6,
                         }}>
                             <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.greenInk, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                                Queued distinct complaint
+                                Distinct complaint in thread
                             </span>
                             <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3 }}>
                                 {item.created_at ? new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
@@ -644,6 +676,32 @@ function PendingContactMessages({ current }) {
                                 ))}
                             </div>
                         )}
+                    </div>
+                ))}
+
+                {suppressedItems.map((item, idx) => (
+                    <div key={`suppressed-${idx}`} style={{
+                        border: `1px solid ${C.red}`,
+                        background: '#FEF3F2',
+                        padding: '10px 12px',
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                            marginBottom: 6,
+                        }}>
+                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.red, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                                Suppressed after spam threshold
+                            </span>
+                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3 }}>
+                                {item.created_at ? new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                        </div>
+                        <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.55 }}>
+                            {item.message || '—'}
+                        </div>
                     </div>
                 ))}
             </div>

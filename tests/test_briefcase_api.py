@@ -484,10 +484,14 @@ def test_briefcase_exposes_pending_contact_counts_without_listing_buffered_rows(
     assert 101 in ids
     first_case = next(case for case in payload["cases"] if case["id"] == 101)
     assert first_case["pending_contact_count"] == 1
+    assert first_case["distinct_issue_count"] == 2
+    assert first_case["contact_thread_state"] == "valid_multi_issue"
 
     detail_resp = client.get("/api/cases/101", headers=headers)
     assert detail_resp.status_code == 200, detail_resp.text
     detail = detail_resp.json()
+    assert detail["distinct_issue_count"] == 2
+    assert detail["contact_thread_state"] == "valid_multi_issue"
     assert len(detail["pending_contact_messages"]) == 1
     assert detail["pending_contact_messages"][0]["id"] == "thread-101-1"
     assert detail["pending_contact_messages"][0]["contact_message_events"][0]["message"] == "Road issue in KR Puram urgent"

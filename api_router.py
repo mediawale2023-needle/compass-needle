@@ -993,6 +993,8 @@ def get_cases(
     for c in cases:
         meta = _parse_meta(c.get("case_metadata"))
         c["pending_contact_count"] = len(meta.get("contact_thread_items") or [])
+        c["distinct_issue_count"] = int(meta.get("distinct_issue_count") or (1 + len(meta.get("contact_thread_items") or [])))
+        c["contact_thread_state"] = meta.get("contact_thread_state") or ("valid_multi_issue" if c["pending_contact_count"] > 0 else "normal")
 
     return {"cases": cases, "total": total, "page": page, "limit": limit, "pages": pages}
 
@@ -1315,6 +1317,8 @@ def get_case(case_id: int, user=Depends(get_current_user)):
         case["media_count"] = 0
 
     meta = _parse_meta(case.get("case_metadata"))
+    case["distinct_issue_count"] = int(meta.get("distinct_issue_count") or (1 + len(meta.get("contact_thread_items") or [])))
+    case["contact_thread_state"] = meta.get("contact_thread_state") or ("valid_multi_issue" if meta.get("contact_thread_items") else "normal")
     pending_messages = []
     for item in meta.get("contact_thread_items") or []:
         pending_messages.append(
@@ -1330,9 +1334,18 @@ def get_case(case_id: int, user=Depends(get_current_user)):
                 "contact_message_events": item.get("contact_message_events") or [],
                 "matched_value": item.get("matched_value") or "",
                 "assembly_constituency": item.get("assembly_constituency") or "",
+                "thread_state": item.get("thread_state") or meta.get("contact_thread_state") or "valid_multi_issue",
             }
         )
     case["pending_contact_messages"] = pending_messages
+    case["suppressed_contact_messages"] = [
+        {
+            "message": item.get("message") or "",
+            "created_at": item.get("created_at"),
+            "thread_state": "spam_suspected",
+        }
+        for item in (meta.get("contact_thread_spam_messages") or [])
+    ]
 
     return case
 

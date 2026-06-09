@@ -13,6 +13,18 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-09
+- Request: Push the refined contact-thread ack/spam policy to GitHub for deployment.
+- Summary: Pushed the follow-up intake policy pass to `origin/main`, publishing meaningful-action-only acknowledgments, `high_frequency` / `spam_suspected` contact-thread states, `10+` distinct-issue spam suspicion inside the 24-hour window, and the corresponding Briefcase warning/suppressed-message UI.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This deploy depends on the existing 24-hour thread model already being live. Thresholds and low-information phrase rules are still global constants and may need pilot tuning later.
+
+- Date: 2026-06-09
+- Request: Implement the refined 24-hour citizen-thread intake policy with meaningful-ack rules, high-frequency / spam-suspected thresholds, and Briefcase visibility for suppressed thread messages.
+- Summary: Extended the just-pushed contact-thread model so the backend now tracks explicit thread states (`normal`, `valid_multi_issue`, `high_frequency`, `spam_suspected`) and only sends acknowledgments when intake takes a meaningful action. Duplicate or low-information same-contact follow-ups are now appended without extra ack, distinct thread items move the case into `high_frequency` at 6 issues, and the 10th distinct issue in 24 hours is marked `spam_suspected` with the suppressed message retained in metadata for operator review. `/api/cases` and `/api/cases/{id}` now expose `contact_thread_state` / `distinct_issue_count`, and Briefcase shows warning badges plus the suppressed-message timeline in the case drawer. Verified with targeted intake regressions, Briefcase API regression, and a successful `frontend` production build.
+- Files touched: `main.py`, `api_router.py`, `frontend/components/briefcase/BriefcaseCasesTable.jsx`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `tests/test_e2e_core_flow.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The thresholds are still hardcoded globally (`6+`, `10+`, and the low-information follow-up word list). If pilot ops wants tenant-specific tuning, move them into explicit intake policy config rather than branching the flow per constituency.
+
+- Date: 2026-06-09
 - Request: Build the planned staged-intake architecture for repeated citizen WhatsApp messaging, with duplicate merging, delayed release, and Briefcase visibility for queued same-contact complaints.
 - Summary: Reworked the first-pass buffered design into the final 24-hour citizen-thread model before any push. The first citizen message still creates the real case row, but later distinct complaints from that same phone within 24 hours now archive underneath that same visible case via `case_metadata.contact_thread_items` instead of creating extra rows. Near-duplicate follow-ups merge into the matching issue’s message timeline, the visible case row is updated to the latest complaint so Briefcase moves by newest activity, and `/api/cases` plus `/api/cases/{id}` now expose `pending_contact_count` / `pending_contact_messages` for the `+N` UI and drawer timeline. Verified with targeted intake and Briefcase API regressions plus a successful `frontend` production build.
 - Files touched: `main.py`, `api_router.py`, `frontend/components/briefcase/BriefcaseCasesTable.jsx`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `tests/test_e2e_core_flow.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
