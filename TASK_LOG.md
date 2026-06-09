@@ -12,6 +12,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-06-09
+- Request: Build the planned staged-intake architecture for repeated citizen WhatsApp messaging, with duplicate merging, delayed release, and Briefcase visibility for queued same-contact complaints.
+- Summary: Reworked the first-pass buffered design into the final 24-hour citizen-thread model before any push. The first citizen message still creates the real case row, but later distinct complaints from that same phone within 24 hours now archive underneath that same visible case via `case_metadata.contact_thread_items` instead of creating extra rows. Near-duplicate follow-ups merge into the matching issue’s message timeline, the visible case row is updated to the latest complaint so Briefcase moves by newest activity, and `/api/cases` plus `/api/cases/{id}` now expose `pending_contact_count` / `pending_contact_messages` for the `+N` UI and drawer timeline. Verified with targeted intake and Briefcase API regressions plus a successful `frontend` production build.
+- Files touched: `main.py`, `api_router.py`, `frontend/components/briefcase/BriefcaseCasesTable.jsx`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `tests/test_e2e_core_flow.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The 24-hour thread window and max-distinct threshold are hardcoded server-side for now, and extra attached complaints currently suppress additional citizen acknowledgements rather than scheduling a separate delayed ack. If ops wants tenant-specific tuning or per-thread acknowledgment rules later, move that into tenant config and explicit intake policy rather than branching the flow per constituency.
+
 - Date: 2026-06-06
 - Request: Push the aspirant `Schemes` restriction and duplicate `Settings` cleanup to GitHub.
 - Summary: Pushed commit `b0d7af3c` (`Restrict schemes for aspirant accounts`) to `origin/main`, publishing elected-only `Schemes` access in both sidebar navigation and `/dashboard/schemes`, while removing the duplicate module-level `Settings` item so only the `System` copy remains.

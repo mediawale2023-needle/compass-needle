@@ -430,6 +430,69 @@ def test_briefcase_cases_list_supports_filters_search_pagination_and_metadata_fa
     assert "Z" in export_resp.text
 
 
+def test_briefcase_exposes_pending_contact_counts_without_listing_buffered_rows():
+    _seed_database()
+    now = _utcnow()
+    with test_engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE cases
+                SET case_metadata = :meta
+                WHERE id = 101
+                """
+            ),
+            {
+                "meta": json.dumps(
+                    {
+                        "matched_value": "KR Puram",
+                        "assembly_constituency": "KR Puram",
+                        "summary": "Road issue in KR Puram",
+                        "problem_domain": "Infrastructure & Utilities",
+                        "problem_subdomain": "Roads & Bridges",
+                        "convergence_program_type": "Service Delivery Strengthening",
+                        "contact_thread_items": [
+                            {
+                                "issue_id": "thread-101-1",
+                                "raw_message": "No water supply in Whitefield for 3 days",
+                                "category": "Infrastructure & Utilities",
+                                "problem_domain": "Infrastructure & Utilities",
+                                "problem_subdomain": "Water Supply",
+                                "convergence_program_type": "Service Delivery Strengthening",
+                                "status": "new",
+                                "matched_value": "Whitefield",
+                                "assembly_constituency": "Mahadevapura",
+                                "detected_language": "English",
+                                "summary": "Water outage in Whitefield",
+                                "created_at": (now - timedelta(minutes=4)).isoformat(),
+                                "last_message_at": (now - timedelta(minutes=1)).isoformat(),
+                                "contact_message_events": [{"message": "Road issue in KR Puram urgent", "created_at": now.isoformat()}],
+                            }
+                        ],
+                    }
+                ),
+            },
+        )
+
+    headers = _auth_headers("mp_arun")
+    resp = client.get("/api/cases", headers=headers)
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+
+    assert payload["total"] == 5
+    ids = {case["id"] for case in payload["cases"]}
+    assert 101 in ids
+    first_case = next(case for case in payload["cases"] if case["id"] == 101)
+    assert first_case["pending_contact_count"] == 1
+
+    detail_resp = client.get("/api/cases/101", headers=headers)
+    assert detail_resp.status_code == 200, detail_resp.text
+    detail = detail_resp.json()
+    assert len(detail["pending_contact_messages"]) == 1
+    assert detail["pending_contact_messages"][0]["id"] == "thread-101-1"
+    assert detail["pending_contact_messages"][0]["contact_message_events"][0]["message"] == "Road issue in KR Puram urgent"
+
+
 def test_briefcase_status_notes_and_assignment_updates_are_logged():
     _seed_database()
     headers = _auth_headers("mp_arun")

@@ -12,6 +12,7 @@ import hashlib
 import logging
 import threading
 import sentry_sdk
+from difflib import SequenceMatcher
 from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -1031,6 +1032,12 @@ _FLOOD_WINDOW_MINUTES = 60
 _FLOOD_THRESHOLD = 20
 _FLOOD_FINGERPRINT_LEN = 60     # chars of normalised text used for matching
 _FLOOD_MIN_MESSAGE_LEN = 20    # messages shorter than this are too vague to match
+_CONTACT_BUFFER_WINDOW_HOURS = 24
+_CONTACT_BUFFER_MAX_DISTINCT = 5
+_CONTACT_BUFFER_STATUS = "contact_buffered"
+_CONTACT_BUFFER_SIMILARITY = 0.9
+_contact_buffer_release_timers: dict[int, threading.Timer] = {}
+_contact_buffer_release_lock = threading.Lock()
 
 # Test/QA phone numbers exempt from frequency-based spam gates (content dedup,
 # coordinated-flood, per-phone daily rate limit). Content-based abuse detection
@@ -1057,6 +1064,332 @@ def _normalise(text: str) -> str:
     text = text.lower()
     text = re.sub(r"[^\w\s]", "", text)
     return re.sub(r"\s+", " ", text).strip()
+
+
+def _contact_issue_fingerprint(text: str) -> str:
+    return _normalise(text or "")[:240]
+
+
+def _message_similarity(left: str, right: str) -> float:
+    left_norm = _contact_issue_fingerprint(left)
+    right_norm = _contact_issue_fingerprint(right)
+    if not left_norm or not right_norm:
+        return 0.0
+    if left_norm == right_norm:
+        return 1.0
+    if left_norm in right_norm or right_norm in left_norm:
+        shorter = min(len(left_norm), len(right_norm))
+        longer = max(len(left_norm), len(right_norm))
+        if longer > 0 and shorter / longer >= 0.72:
+            return 0.96
+    return SequenceMatcher(None, left_norm, right_norm).ratio()
+
+
+def _parse_case_meta(meta_value):
+    if isinstance(meta_value, dict):
+        return dict(meta_value)
+    try:
+        return json.loads(meta_value or "{}")
+    except Exception:
+        return {}
+
+
+def _append_contact_message_event(case_id: int, message_body: str, *, event_type: str, detected_language: str = "") -> None:
+    event = {
+        "message": (message_body or "").strip()[:2000],
+        "event_type": event_type,
+        "created_at": _utcnow().isoformat(),
+    }
+    if detected_language:
+        event["detected_language"] = detected_language
+
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(
+                text("SELECT case_metadata FROM cases WHERE id = :cid"),
+                {"cid": case_id},
+            ).fetchone()
+            if not row:
+                return
+            meta = _parse_case_meta(row[0])
+            events = list(meta.get("contact_message_events") or [])
+            events.append(event)
+            meta["contact_message_events"] = events[-25:]
+            meta["contact_last_message_at"] = event["created_at"]
+            conn.execute(
+                text("UPDATE cases SET case_metadata = :meta, updated_at = :now WHERE id = :cid"),
+                {"meta": json.dumps(meta), "now": _utcnow(), "cid": case_id},
+            )
+    except Exception as exc:
+        logger.warning("Failed to append contact message event for case %s: %s", case_id, exc)
+
+
+def _iso_or_now(value) -> str:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    text_value = str(value or "").strip()
+    return text_value or _utcnow().isoformat()
+
+
+def _thread_issue_from_row(row: dict) -> dict:
+    meta = _parse_case_meta(row.get("case_metadata"))
+    return {
+        "issue_id": str(meta.get("thread_issue_id") or f"case-{row.get('id')}-root"),
+        "raw_message": row.get("raw_message") or "",
+        "category": row.get("category") or meta.get("problem_domain") or "Uncategorised",
+        "problem_domain": row.get("problem_domain") or meta.get("problem_domain"),
+        "problem_subdomain": row.get("problem_subdomain") or meta.get("problem_subdomain"),
+        "convergence_program_type": row.get("convergence_program_type") or meta.get("convergence_program_type"),
+        "status": row.get("status") or "new",
+        "matched_value": meta.get("matched_value") or "",
+        "assembly_constituency": meta.get("assembly_constituency") or "",
+        "detected_language": meta.get("detected_language") or meta.get("language") or "",
+        "summary": meta.get("summary") or "",
+        "created_at": str(meta.get("thread_issue_created_at") or _iso_or_now(row.get("created_at"))),
+        "last_message_at": str(meta.get("thread_issue_last_message_at") or _iso_or_now(row.get("updated_at") or row.get("created_at"))),
+        "contact_message_events": list(meta.get("contact_message_events") or []),
+    }
+
+
+def _thread_issue_similarity(message_body: str, issue: dict | None) -> float:
+    if not issue:
+        return 0.0
+    best = _message_similarity(message_body, issue.get("raw_message") or "")
+    for event in issue.get("contact_message_events") or []:
+        best = max(best, _message_similarity(message_body, event.get("message") or ""))
+    return best
+
+
+def _recent_contact_thread_case(phone: str, tenant_id: int, *, now: datetime | None = None) -> dict | None:
+    now = now or _utcnow()
+    cutoff = now - timedelta(hours=_CONTACT_BUFFER_WINDOW_HOURS)
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text(
+                    """
+                    SELECT id, category, status, raw_message, created_at, case_metadata,
+                           problem_domain, problem_subdomain, convergence_program_type
+                    FROM cases
+                    WHERE tenant_id = :tid
+                      AND user_phone = :phone
+                      AND created_at >= :cutoff
+                      AND (is_deleted = false OR is_deleted IS NULL)
+                      AND COALESCE(status, '') != :buffer_status
+                      AND COALESCE(category, '') NOT IN ('Spam', 'Spam (Offensive)')
+                      AND COALESCE(status, '') NOT IN ('offensive', 'closed')
+                    ORDER BY COALESCE(updated_at, created_at) DESC, id DESC
+                    LIMIT 1
+                    """
+                ),
+                {"tid": tenant_id, "phone": phone, "cutoff": cutoff, "buffer_status": _CONTACT_BUFFER_STATUS},
+            ).mappings().first()
+        return dict(row) if row else None
+    except Exception as exc:
+        logger.warning("Recent contact-window lookup failed for %s/%s: %s", tenant_id, phone, exc)
+        return None
+
+
+def _promote_archived_thread_issue(case_row: dict, archived_index: int, message_body: str, language_hint: str = "") -> bool:
+    meta = _parse_case_meta(case_row.get("case_metadata"))
+    archived_items = list(meta.get("contact_thread_items") or [])
+    if archived_index < 0 or archived_index >= len(archived_items):
+        return False
+
+    now_iso = _utcnow().isoformat()
+    current_issue = _thread_issue_from_row(case_row)
+    matched_issue = dict(archived_items.pop(archived_index))
+    matched_events = list(matched_issue.get("contact_message_events") or [])
+    matched_events.append({
+        "message": (message_body or "").strip()[:2000],
+        "event_type": "duplicate_followup",
+        "created_at": now_iso,
+        **({"detected_language": language_hint} if language_hint else {}),
+    })
+    matched_issue["contact_message_events"] = matched_events[-25:]
+    matched_issue["last_message_at"] = now_iso
+
+    archived_items.append(current_issue)
+    meta["contact_thread_items"] = archived_items
+    meta["contact_message_events"] = matched_issue["contact_message_events"]
+    meta["thread_issue_id"] = matched_issue.get("issue_id")
+    meta["thread_issue_created_at"] = matched_issue.get("created_at") or now_iso
+    meta["thread_issue_last_message_at"] = now_iso
+    meta["latest_thread_message_at"] = now_iso
+    meta["matched_value"] = matched_issue.get("matched_value") or ""
+    meta["assembly_constituency"] = matched_issue.get("assembly_constituency") or ""
+    meta["detected_language"] = matched_issue.get("detected_language") or meta.get("detected_language") or language_hint
+    meta["language"] = meta["detected_language"]
+    meta["summary"] = matched_issue.get("summary") or meta.get("summary") or message_body[:100]
+
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    UPDATE cases
+                    SET raw_message = :raw_message,
+                        category = :category,
+                        problem_domain = :problem_domain,
+                        problem_subdomain = :problem_subdomain,
+                        convergence_program_type = :convergence_program_type,
+                        status = :status,
+                        case_metadata = :meta,
+                        updated_at = :now
+                    WHERE id = :cid
+                    """
+                ),
+                {
+                    "raw_message": message_body,
+                    "category": matched_issue.get("category") or "Uncategorised",
+                    "problem_domain": matched_issue.get("problem_domain"),
+                    "problem_subdomain": matched_issue.get("problem_subdomain"),
+                    "convergence_program_type": matched_issue.get("convergence_program_type"),
+                    "status": matched_issue.get("status") or "new",
+                    "meta": json.dumps(meta),
+                    "now": _utcnow(),
+                    "cid": case_row["id"],
+                },
+            )
+        return True
+    except Exception as exc:
+        logger.warning("Failed to promote archived thread issue for case %s: %s", case_row.get("id"), exc)
+        return False
+
+
+def _find_matching_contact_issue(recent_cases: list[dict], message_body: str) -> dict | None:
+    best_match = None
+    best_score = 0.0
+    for row in recent_cases:
+        score = _message_similarity(message_body, row.get("raw_message") or "")
+        if score >= _CONTACT_BUFFER_SIMILARITY and score > best_score:
+            best_match = row
+            best_score = score
+    return best_match
+
+
+def _contact_window_root_case(recent_cases: list[dict]) -> dict | None:
+    for row in recent_cases:
+        if str(row.get("status") or "").strip().lower() != _CONTACT_BUFFER_STATUS:
+            return row
+    return recent_cases[0] if recent_cases else None
+
+
+def _buffered_release_epoch(root_case: dict | None, *, now: datetime | None = None) -> int:
+    now = now or _utcnow()
+    root_created = root_case.get("created_at") if root_case else None
+    if isinstance(root_created, str):
+        try:
+            root_created = datetime.fromisoformat(root_created.replace("Z", "+00:00")).replace(tzinfo=None)
+        except Exception:
+            root_created = None
+    if not isinstance(root_created, datetime):
+        root_created = now
+    release_at = root_created + timedelta(hours=_CONTACT_BUFFER_WINDOW_HOURS)
+    return int(release_at.replace(tzinfo=timezone.utc).timestamp())
+
+
+def _cancel_buffered_release(case_id: int | None) -> None:
+    if not case_id:
+        return
+    with _contact_buffer_release_lock:
+        timer = _contact_buffer_release_timers.pop(int(case_id), None)
+    if timer:
+        timer.cancel()
+
+
+def _schedule_buffered_release(case_id: int | None, release_after_epoch: int | None) -> None:
+    if not case_id or not release_after_epoch:
+        return
+    _cancel_buffered_release(case_id)
+    now_epoch = int(datetime.now(timezone.utc).timestamp())
+    delay = max(5, int(release_after_epoch) - now_epoch)
+    timer = threading.Timer(delay, _release_due_buffered_contact_cases, args=(int(case_id),))
+    timer.daemon = True
+    with _contact_buffer_release_lock:
+        _contact_buffer_release_timers[int(case_id)] = timer
+    timer.start()
+
+
+def _release_due_buffered_contact_cases(case_id: int | None = None) -> None:
+    now_epoch = int(datetime.now(timezone.utc).timestamp())
+    params = {"now_epoch": now_epoch}
+    where_case = ""
+    if case_id is not None:
+        params["case_id"] = int(case_id)
+        where_case = "AND id = :case_id"
+
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text(
+                    f"""
+                    SELECT id, tenant_id, user_phone, raw_message, category, status,
+                           problem_domain, problem_subdomain, convergence_program_type,
+                           case_metadata
+                    FROM cases
+                    WHERE status = :buffer_status
+                      AND COALESCE((case_metadata::jsonb ->> 'contact_release_after_epoch')::bigint, 0) <= :now_epoch
+                      AND (is_deleted = false OR is_deleted IS NULL)
+                      {where_case}
+                    ORDER BY created_at ASC
+                    LIMIT 25
+                    """
+                ),
+                {**params, "buffer_status": _CONTACT_BUFFER_STATUS},
+            ).mappings().all()
+    except Exception as exc:
+        logger.warning("Buffered contact-case release sweep failed: %s", exc)
+        return
+
+    for row in rows:
+        _cancel_buffered_release(row["id"])
+        meta = _parse_case_meta(row.get("case_metadata"))
+        if meta.get("contact_buffer_overflow_flagged"):
+            try:
+                with engine.begin() as conn:
+                    meta["contact_buffer_released_at"] = _utcnow().isoformat()
+                    conn.execute(
+                        text(
+                            """
+                            UPDATE cases
+                            SET category = 'Spam',
+                                status = 'new',
+                                case_metadata = :meta,
+                                updated_at = :now
+                            WHERE id = :cid
+                            """
+                        ),
+                        {"meta": json.dumps(meta), "now": _utcnow(), "cid": row["id"]},
+                    )
+            except Exception as exc:
+                logger.warning("Failed to finalise buffered spam case %s: %s", row["id"], exc)
+            continue
+
+        release_status = str(meta.get("contact_buffer_release_status") or "new").strip().lower() or "new"
+        ack_message = str(meta.get("contact_buffer_ack_message") or "")
+        enrichment = {
+            "status": release_status,
+            "category": row.get("category") or meta.get("problem_domain") or "Uncategorised",
+            "detected_language": meta.get("detected_language") or meta.get("language") or "Hindi",
+            "meta_data": {k: v for k, v in meta.items() if not str(k).startswith("contact_buffer_")},
+            "problem_domain": row.get("problem_domain") or meta.get("problem_domain"),
+            "problem_subdomain": row.get("problem_subdomain") or meta.get("problem_subdomain"),
+            "convergence_program_type": row.get("convergence_program_type") or meta.get("convergence_program_type"),
+            "is_emergency_complaint": False,
+            "emergency_keyword_match": False,
+            "political_reply": ack_message,
+            "final_constituency": meta.get("assembly_constituency"),
+            "citizen_ack_message": ack_message,
+        }
+        _save_case_enrichment_and_respond(
+            case_id=row["id"],
+            sender=row["user_phone"],
+            current_tenant=row["tenant_id"],
+            message_body=row.get("raw_message") or "",
+            wa_phone_id=get_tenant_phone_number_id(row["tenant_id"]),
+            enrichment=enrichment,
+        )
 
 
 def _is_abusive(message_body: str) -> tuple:
@@ -3072,6 +3405,13 @@ def _save_case_enrichment_and_respond(
         sender=sender,
         detected_language=detected_language,
     )
+    meta_data.pop("contact_buffer_release_status", None)
+    meta_data.pop("contact_buffer_ack_message", None)
+    meta_data.pop("contact_release_after_epoch", None)
+    meta_data.pop("contact_buffer_root_case_id", None)
+    meta_data.pop("contact_buffered", None)
+    meta_data.pop("contact_buffer_overflow_flagged", None)
+    meta_data["contact_buffer_released_at"] = _utcnow().isoformat()
     enrichment["meta_data"] = meta_data
 
     try:
@@ -3183,6 +3523,88 @@ def _save_case_enrichment_and_respond(
         _schedule_case_clarification_follow_up(case_id)
     else:
         _cancel_case_clarification_follow_up(case_id)
+
+
+def _buffer_distinct_contact_case(
+    *,
+    sender: str,
+    message_body: str,
+    current_tenant: int,
+    wa_phone_id: str,
+    language_hint: str,
+    resolver_message_body: str | None,
+    resolver_fallback_message_body: str | None,
+    root_case: dict | None,
+    media_source: dict | None = None,
+) -> bool:
+    enrichment = _run_citizen_case_enrichment(
+        sender=sender,
+        message_body=message_body,
+        resolver_message_body=resolver_message_body,
+        resolver_fallback_message_body=resolver_fallback_message_body,
+        current_tenant=current_tenant,
+        language_hint=language_hint,
+        media_source=media_source,
+    )
+
+    if enrichment["is_emergency_complaint"]:
+        return False
+
+    buffered_case_id = None
+    release_after_epoch = _buffered_release_epoch(root_case)
+    meta_data = dict(enrichment["meta_data"] or {})
+    meta_data["contact_buffered"] = True
+    meta_data["contact_buffer_root_case_id"] = root_case.get("id") if root_case else None
+    meta_data["contact_release_after_epoch"] = release_after_epoch
+    meta_data["contact_buffer_release_status"] = enrichment["status"]
+    meta_data["contact_buffer_ack_message"] = enrichment["citizen_ack_message"]
+    meta_data.setdefault("contact_message_events", [])
+
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    """
+                    INSERT INTO cases
+                        (tenant_id, user_phone, category, raw_message, status, case_metadata,
+                         is_critical, created_at, problem_domain, problem_subdomain,
+                         convergence_program_type)
+                    VALUES
+                        (:tid, :phone, :cat, :msg, :status, :meta,
+                         false, :now, :problem_domain, :problem_subdomain,
+                         :convergence_program_type)
+                    RETURNING id
+                    """
+                ),
+                {
+                    "tid": current_tenant,
+                    "phone": sender,
+                    "cat": enrichment["category"],
+                    "msg": message_body,
+                    "status": _CONTACT_BUFFER_STATUS,
+                    "meta": json.dumps(meta_data),
+                    "now": _utcnow(),
+                    "problem_domain": enrichment["problem_domain"],
+                    "problem_subdomain": enrichment["problem_subdomain"],
+                    "convergence_program_type": enrichment["convergence_program_type"],
+                },
+            )
+            row = result.fetchone()
+            buffered_case_id = row[0] if row else None
+        logger.info(
+            "Buffered distinct citizen complaint for delayed release: case=%s root_case=%s sender=%s tenant=%s release_after=%s",
+            buffered_case_id,
+            root_case.get("id") if root_case else None,
+            sender,
+            current_tenant,
+            release_after_epoch,
+        )
+        _schedule_buffered_release(buffered_case_id, release_after_epoch)
+    except Exception as exc:
+        logger.error("Failed to create buffered contact case for %s/%s: %s", current_tenant, sender, exc)
+        return False
+
+    return True
 
 
 def _process_incoming_message(
@@ -3472,6 +3894,118 @@ def _process_incoming_message(
             return
         except Exception as _followup_exc:
             logger.error("Failed to process clarification follow-up for case %s: %s", _pending["id"], _followup_exc)
+
+    root_contact_case = _recent_contact_thread_case(sender, current_tenant)
+
+    if root_contact_case:
+        root_meta = _parse_case_meta(root_contact_case.get("case_metadata"))
+        archived_items = list(root_meta.get("contact_thread_items") or [])
+        current_issue = _thread_issue_from_row(root_contact_case)
+
+        current_score = _thread_issue_similarity(message_body, current_issue)
+        best_archived_index = -1
+        best_archived_score = 0.0
+        for idx, item in enumerate(archived_items):
+            score = _thread_issue_similarity(message_body, item)
+            if score > best_archived_score:
+                best_archived_score = score
+                best_archived_index = idx
+
+        if current_score >= _CONTACT_BUFFER_SIMILARITY or best_archived_score >= _CONTACT_BUFFER_SIMILARITY:
+            if best_archived_score > current_score and best_archived_index >= 0:
+                logger.info(
+                    "Contact-thread follow-up promoted archived issue on case %s for sender=%s tenant=%s",
+                    root_contact_case["id"],
+                    sender,
+                    current_tenant,
+                )
+                _promote_archived_thread_issue(root_contact_case, best_archived_index, message_body, language_hint)
+            else:
+                logger.info(
+                    "Contact-thread duplicate merged into current issue on case %s for sender=%s tenant=%s",
+                    root_contact_case["id"],
+                    sender,
+                    current_tenant,
+                )
+                _append_contact_message_event(
+                    root_contact_case["id"],
+                    message_body,
+                    event_type="duplicate_followup",
+                    detected_language=language_hint,
+                )
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(
+                            text("UPDATE cases SET raw_message = :msg, updated_at = :now WHERE id = :cid"),
+                            {"msg": message_body, "now": _utcnow(), "cid": root_contact_case["id"]},
+                        )
+                except Exception as exc:
+                    logger.warning("Failed to bump latest message timestamp for case %s: %s", root_contact_case["id"], exc)
+            return
+
+        distinct_count = 1 + len(archived_items)
+        if distinct_count >= _CONTACT_BUFFER_MAX_DISTINCT:
+            logger.warning(
+                "Contact-thread overflow flagged as spam: sender=%s tenant=%s distinct_count=%s",
+                sender,
+                current_tenant,
+                distinct_count,
+            )
+            root_meta["contact_thread_overflow_count"] = int(root_meta.get("contact_thread_overflow_count") or 0) + 1
+            root_meta["contact_thread_spam_flagged"] = True
+            root_meta["contact_thread_last_overflow_at"] = _utcnow().isoformat()
+            root_meta["contact_thread_overflow_messages"] = list(root_meta.get("contact_thread_overflow_messages") or [])[-9:] + [{
+                "message": (message_body or "").strip()[:500],
+                "created_at": _utcnow().isoformat(),
+            }]
+            try:
+                with engine.begin() as conn:
+                    conn.execute(
+                        text("UPDATE cases SET raw_message = :msg, case_metadata = :meta, updated_at = :now WHERE id = :cid"),
+                        {"msg": message_body, "meta": json.dumps(root_meta), "now": _utcnow(), "cid": root_contact_case["id"]},
+                    )
+                _save_spam_flag(
+                    current_tenant,
+                    sender,
+                    "contact_thread_overflow",
+                    f"Distinct complaint count exceeded {_CONTACT_BUFFER_MAX_DISTINCT} in {_CONTACT_BUFFER_WINDOW_HOURS}h thread",
+                    message_body,
+                )
+            except Exception as exc:
+                logger.error("Failed to persist contact-thread overflow marker: %s", exc)
+            return
+
+        enrichment = _run_citizen_case_enrichment(
+            sender=sender,
+            message_body=message_body,
+            resolver_message_body=resolver_message_body,
+            resolver_fallback_message_body=resolver_fallback_message_body,
+            current_tenant=current_tenant,
+            language_hint=language_hint,
+            media_source=media_source,
+        )
+        previous_issue = _thread_issue_from_row(root_contact_case)
+        archived_items.append(previous_issue)
+        enrichment["meta_data"]["contact_thread_started_at"] = str(root_meta.get("contact_thread_started_at") or _iso_or_now(root_contact_case.get("created_at")))
+        enrichment["meta_data"]["contact_thread_items"] = archived_items
+        enrichment["meta_data"]["thread_issue_id"] = f"case-{root_contact_case['id']}-{int(_utcnow().timestamp() * 1000)}"
+        enrichment["meta_data"]["thread_issue_created_at"] = _utcnow().isoformat()
+        enrichment["meta_data"]["thread_issue_last_message_at"] = _utcnow().isoformat()
+        enrichment["meta_data"]["latest_thread_message_at"] = _utcnow().isoformat()
+        enrichment["meta_data"]["contact_message_events"] = []
+        enrichment["citizen_ack_message"] = ""
+
+        _save_case_enrichment_and_respond(
+            case_id=root_contact_case["id"],
+            sender=sender,
+            current_tenant=current_tenant,
+            message_body=message_body,
+            wa_phone_id=_wa_phone_id,
+            enrichment=enrichment,
+            raw_message_override=message_body,
+            citizen_ack_override="",
+        )
+        return
 
     # ── STEP 1: Save raw grievance to DB immediately ────────────
     # This ensures the message is never lost, even if AI fails.

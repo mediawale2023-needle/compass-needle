@@ -562,6 +562,95 @@ function ActivityTimeline({ activities, loading }) {
     );
 }
 
+function PendingContactMessages({ current }) {
+    const meta = current?.case_metadata || {};
+    const currentEvents = Array.isArray(meta.contact_message_events) ? meta.contact_message_events : [];
+    const bufferedItems = Array.isArray(current?.pending_contact_messages) ? current.pending_contact_messages : [];
+
+    if (currentEvents.length === 0 && bufferedItems.length === 0) {
+        return null;
+    }
+
+    return (
+        <div style={sec}>
+            <span style={monoLbl}>Same contact in queue</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {currentEvents.map((event, idx) => (
+                    <div key={`current-${idx}`} style={{
+                        border: `1px solid ${C.hair}`,
+                        background: C.surface,
+                        padding: '10px 12px',
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                            marginBottom: 6,
+                        }}>
+                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                                Follow-up on this issue
+                            </span>
+                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3 }}>
+                                {event.created_at ? new Date(event.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                        </div>
+                        <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.55 }}>
+                            {event.message || '—'}
+                        </div>
+                    </div>
+                ))}
+
+                {bufferedItems.map((item) => (
+                    <div key={item.id} style={{
+                        border: `1px solid ${C.greenTint}`,
+                        background: C.greenWash,
+                        padding: '10px 12px',
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                            marginBottom: 6,
+                        }}>
+                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.greenInk, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                                Queued distinct complaint
+                            </span>
+                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3 }}>
+                                {item.created_at ? new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                        </div>
+                        <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.55 }}>
+                            {item.raw_message || '—'}
+                        </div>
+                        {(item.problem_subdomain || item.problem_domain) && (
+                            <div style={{ marginTop: 8, fontSize: 11, color: C.ink2 }}>
+                                {item.problem_subdomain || item.problem_domain}
+                            </div>
+                        )}
+                        {Array.isArray(item.contact_message_events) && item.contact_message_events.length > 0 && (
+                            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {item.contact_message_events.map((event, idx) => (
+                                    <div key={`${item.id}-${idx}`} style={{
+                                        borderLeft: `2px solid ${C.green}`,
+                                        paddingLeft: 8,
+                                        fontSize: 11.5,
+                                        color: C.ink2,
+                                        lineHeight: 1.5,
+                                    }}>
+                                        {event.message || '—'}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 // ─── Notes + response section ─────────────────────────────────
 function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSave, saving, phone, isMp, onNotify }) {
     return (
@@ -982,6 +1071,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                     onStatusChange={handleStatusChange}
                                     updating={updating}
                                 />
+                                <PendingContactMessages current={current} />
                                 <ActivityTimeline activities={activities} loading={loadingActivity} />
                                 <NotesSection
                                     notes={notes}

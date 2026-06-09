@@ -183,6 +183,18 @@ def _cluster_rows():
         ).mappings().all()
 
 
+def _cases_for_phone(phone: str):
+    with test_engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT id, user_phone, category, status, raw_message, case_metadata "
+                "FROM cases WHERE user_phone = :phone ORDER BY created_at ASC, id ASC"
+            ),
+            {"phone": phone},
+        ).mappings().all()
+    return [dict(row) for row in rows]
+
+
 def _wait_for(predicate, timeout_seconds: float = 2.0, interval_seconds: float = 0.05):
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
@@ -554,3 +566,70 @@ def test_abusive_message_gets_warning_reply_without_ai(monkeypatch):
     assert created_case["category"] == "Spam (Offensive)"
     assert created_case["status"] == "offensive"
     assert outbound_messages[0][1] == "Maintain decorum. Legal action can be taken for abusive language."
+
+
+def test_contact_buffering_merges_duplicate_followups(monkeypatch):
+    _seed_database()
+    monkeypatch.setattr(main, "META_APP_SECRET", "test-meta-app-secret")
+
+    outbound_messages = []
+
+    def _fake_ai(prompt, tenant_id=None):
+        text_blob = str(prompt or "")
+        if "Road issue in KR Puram" in text_blob:
+            return {
+                "status": "new",
+                "detected_language": "English",
+                "political_response": "Road issue noted.",
+                "grievance_data": {
+                    "problem_domain": "Infrastructure & Utilities",
+                    "problem_subdomain": "Roads & Bridges",
+                    "convergence_program_type": "Service Delivery Strengthening",
+                    "categories": ["Infrastructure & Utilities"],
+                    "location": "KR Puram",
+                    "summary": "Road issue in KR Puram",
+                },
+            }
+        return {
+            "status": "new",
+            "detected_language": "English",
+            "political_response": "Water issue noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "Whitefield",
+                "summary": "Water issue in Whitefield",
+            },
+        }
+
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _fake_ai)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+    monkeypatch.setattr(
+        whatsapp_module,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919912341234"
+    main._process_incoming_message(sender, "Water issue in Whitefield", receiver_number="+15551636821")
+    main._process_incoming_message(sender, "Road issue in KR Puram", receiver_number="+15551636821")
+    main._process_incoming_message(sender, "Road issue in KR Puram urgent", receiver_number="+15551636821")
+
+    rows = _cases_for_phone(sender)
+    assert len(rows) == 1
+    assert "urgent" in rows[0]["raw_message"].lower()
+
+    thread_meta = json.loads(rows[0]["case_metadata"] or "{}")
+    thread_items = thread_meta.get("contact_thread_items") or []
+    assert len(thread_items) == 1
+    assert thread_items[0]["matched_value"] == "Whitefield"
+    assert len(thread_meta.get("contact_message_events") or []) == 1
+    assert "urgent" in thread_meta["contact_message_events"][0]["message"].lower()
+
+    assert len(outbound_messages) == 1

@@ -934,7 +934,7 @@ def get_cases(
     where = " AND ".join(conditions)
     offset = (page - 1) * limit
     order_by = {
-        "newest": "c.created_at DESC",
+        "newest": "COALESCE(c.updated_at, c.created_at) DESC, c.id DESC",
         "oldest": "c.created_at ASC",
         "updated": "c.updated_at DESC NULLS LAST, c.created_at DESC",
         "critical": "c.is_critical DESC, c.created_at DESC",
@@ -989,6 +989,10 @@ def get_cases(
 
         for field in ["created_at", "updated_at"]:
             c[field] = _coerce_iso(c.get(field))
+
+    for c in cases:
+        meta = _parse_meta(c.get("case_metadata"))
+        c["pending_contact_count"] = len(meta.get("contact_thread_items") or [])
 
     return {"cases": cases, "total": total, "page": page, "limit": limit, "pages": pages}
 
@@ -1309,6 +1313,26 @@ def get_case(case_id: int, user=Depends(get_current_user)):
         logger.exception("Failed to load case media metadata")
         case["media"] = []
         case["media_count"] = 0
+
+    meta = _parse_meta(case.get("case_metadata"))
+    pending_messages = []
+    for item in meta.get("contact_thread_items") or []:
+        pending_messages.append(
+            {
+                "id": item.get("issue_id"),
+                "raw_message": item.get("raw_message") or "",
+                "created_at": item.get("created_at"),
+                "category": item.get("category") or item.get("problem_domain") or "Uncategorised",
+                "problem_domain": item.get("problem_domain"),
+                "problem_subdomain": item.get("problem_subdomain"),
+                "detected_language": item.get("detected_language"),
+                "release_after_epoch": None,
+                "contact_message_events": item.get("contact_message_events") or [],
+                "matched_value": item.get("matched_value") or "",
+                "assembly_constituency": item.get("assembly_constituency") or "",
+            }
+        )
+    case["pending_contact_messages"] = pending_messages
 
     return case
 

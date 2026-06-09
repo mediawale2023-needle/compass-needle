@@ -152,6 +152,7 @@ export default function BriefcaseCasesTable({
                         const lang = formatLanguageTag(item);
                         const citizen = getBriefcaseCitizenName(item);
                         const isUnknownAsm = !item.assembly || item.assembly === 'Unknown';
+                        const pendingContactCount = Number(item.pending_contact_count || 0);
 
                         return (
                             <tr
@@ -202,6 +203,7 @@ export default function BriefcaseCasesTable({
                                         }}
                                     >
                                         {item.user_phone || '—'}
+                                        {pendingContactCount > 0 ? ` +${pendingContactCount}` : ''}
                                     </button>
                                 </td>
 
