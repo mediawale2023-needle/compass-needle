@@ -4,6 +4,7 @@ All other files import engine, SessionLocal, and models from here.
 """
 import os
 import json
+import time
 import bcrypt
 import logging
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Text, ForeignKey, JSON, Float, LargeBinary, text as sa_text, UniqueConstraint
@@ -608,14 +609,39 @@ class CSRPipelineEntry(Base):
 # ─────────────────────────────────────────
 # TENANT OVERRIDE HELPERS
 # ─────────────────────────────────────────
+# Inbound WhatsApp routing depends on the phone→tenant mapping. Re-reading it
+# from the DB on every message is wasteful, but caching it forever means an
+# admin's routing change is ignored until the process restarts (and different
+# Railway instances can disagree for that whole window). A short TTL bounds the
+# staleness to a few seconds while keeping the hot path cheap; writes invalidate
+# the cache immediately for good measure.
+_PHONE_MAP_TTL_SECONDS = 60
+_phone_map_cache: dict | None = None
+_phone_map_cached_at: float = 0.0
+
+
+def invalidate_phone_tenant_mapping_cache() -> None:
+    """Force the next get_phone_tenant_mapping() call to re-read from the DB."""
+    global _phone_map_cache, _phone_map_cached_at
+    _phone_map_cache = None
+    _phone_map_cached_at = 0.0
+
+
 def get_phone_tenant_mapping() -> dict:
-    """Return {phone_number: tenant_id} from DB overrides."""
+    """Return {phone_number: tenant_id} from DB overrides (TTL-cached)."""
+    global _phone_map_cache, _phone_map_cached_at
+    now = time.monotonic()
+    if _phone_map_cache is not None and (now - _phone_map_cached_at) < _PHONE_MAP_TTL_SECONDS:
+        return _phone_map_cache
     db = SessionLocal()
     try:
         rows = db.query(TenantOverride).filter(
             TenantOverride.override_type == "phone_mapping"
         ).all()
-        return {r.key: int(r.value) for r in rows}
+        mapping = {r.key: int(r.value) for r in rows}
+        _phone_map_cache = mapping
+        _phone_map_cached_at = now
+        return mapping
     finally:
         db.close()
 
@@ -840,6 +866,7 @@ def save_overrides_to_db(data: dict):
                     value=constituency,
                 ))
         db.commit()
+        invalidate_phone_tenant_mapping_cache()
     except Exception:
         db.rollback()
         raise

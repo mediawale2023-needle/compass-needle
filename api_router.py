@@ -951,17 +951,34 @@ def get_cases(
                COALESCE(c.location, c.case_metadata->>'matched_value') AS location,
                COALESCE(c.assembly, c.case_metadata->>'assembly_constituency') AS assembly,
                c.case_metadata, c.is_critical, c.created_at, c.updated_at,
-               c.response_to_citizen, c.notes_for_staff, c.assigned_to,
-               COALESCE((
-                   SELECT COUNT(*) FROM case_media cm
-                   WHERE cm.tenant_id = c.tenant_id AND cm.case_id = c.id
-               ), 0) AS media_count
+               c.response_to_citizen, c.notes_for_staff, c.assigned_to
         FROM cases c WHERE {where}
         ORDER BY {order_by}
         LIMIT :lim OFFSET :off
         """,
         {**params, "lim": limit, "off": offset}
     )
+
+    # Attach attachment counts in a single batched query for the whole page.
+    # (Previously a correlated subquery ran once per row — 50 cases => 51 round
+    # trips. One GROUP BY over just this page's ids is O(1) queries.)
+    case_ids = [c["id"] for c in cases]
+    if case_ids:
+        id_placeholders = ", ".join(f":mc_id_{i}" for i in range(len(case_ids)))
+        mc_params = {"tid": tid}
+        for i, cid in enumerate(case_ids):
+            mc_params[f"mc_id_{i}"] = cid
+        media_rows = _q(  # nosec B608 — placeholders are generated; ids are bound params
+            f"SELECT case_id, COUNT(*) AS n FROM case_media "
+            f"WHERE tenant_id = :tid AND case_id IN ({id_placeholders}) GROUP BY case_id",
+            mc_params,
+        )
+        media_count_map = {r["case_id"]: r["n"] for r in media_rows}
+    else:
+        media_count_map = {}
+
+    for c in cases:
+        c["media_count"] = media_count_map.get(c["id"], 0)
 
     for c in cases:
         meta = c.get("case_metadata")
