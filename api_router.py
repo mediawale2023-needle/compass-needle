@@ -886,6 +886,37 @@ def _group_briefcase_cases(cases: list[dict]) -> list[dict]:
     return grouped_rows
 
 
+def _prepare_briefcase_list_case(case: dict, tenant_constituency: str | None, tenant_id: int, media_count: int = 0) -> dict:
+    prepared = dict(case)
+    prepared["media_count"] = media_count
+    meta = prepared.get("case_metadata")
+    prepared["location"] = prepared.get("location") or ""
+    prepared["assembly"] = prepared.get("assembly") or ""
+    if (not prepared.get("location") or not prepared.get("assembly")) and meta and isinstance(meta, dict):
+        prepared["location"] = prepared.get("location") or meta.get("matched_value", "")
+        prepared["assembly"] = prepared.get("assembly") or meta.get("assembly_constituency", "")
+    elif (not prepared.get("location") or not prepared.get("assembly")) and meta and isinstance(meta, str):
+        try:
+            m = json.loads(meta)
+            prepared["location"] = prepared.get("location") or m.get("matched_value", "")
+            prepared["assembly"] = prepared.get("assembly") or m.get("assembly_constituency", "")
+        except Exception:
+            pass
+
+    parsed_meta = _parse_meta(meta)
+    if not prepared.get("problem_domain"):
+        prepared["problem_domain"] = parsed_meta.get("problem_domain")
+    if not prepared.get("problem_subdomain"):
+        prepared["problem_subdomain"] = parsed_meta.get("problem_subdomain")
+    if not prepared.get("convergence_program_type"):
+        prepared["convergence_program_type"] = parsed_meta.get("convergence_program_type")
+    _apply_tenant_safe_case_geography(prepared, tenant_constituency, tenant_id)
+
+    for field in ["created_at", "updated_at"]:
+        prepared[field] = _coerce_iso(prepared.get(field))
+    return prepared
+
+
 @router.get("/cases")
 def get_cases(
     user=Depends(get_current_user),
@@ -1018,12 +1049,17 @@ def get_cases(
         params
     )
 
-    # Attach attachment counts in one batched query before thread grouping.
-    case_ids = [c["id"] for c in raw_cases]
-    if case_ids:
-        id_placeholders = ", ".join(f":mc_id_{i}" for i in range(len(case_ids)))
+    grouped_cases = _group_briefcase_cases(raw_cases)
+    total = len(grouped_cases)
+    pages = (total + limit - 1) // limit if limit > 0 else 0
+    page_cases = grouped_cases[offset: offset + limit]
+
+    page_case_ids = [c["id"] for c in page_cases if c.get("id") is not None]
+    media_count_map = {}
+    if page_case_ids:
+        id_placeholders = ", ".join(f":mc_id_{i}" for i in range(len(page_case_ids)))
         mc_params = {"tid": tid}
-        for i, cid in enumerate(case_ids):
+        for i, cid in enumerate(page_case_ids):
             mc_params[f"mc_id_{i}"] = cid
         media_rows = _q(  # nosec B608 — placeholders are generated; ids are bound params
             f"SELECT case_id, COUNT(*) AS n FROM case_media "
@@ -1031,41 +1067,11 @@ def get_cases(
             mc_params,
         )
         media_count_map = {r["case_id"]: r["n"] for r in media_rows}
-    else:
-        media_count_map = {}
 
-    for c in raw_cases:
-        c["media_count"] = media_count_map.get(c["id"], 0)
-        meta = c.get("case_metadata")
-        c["location"] = c.get("location") or ""
-        c["assembly"] = c.get("assembly") or ""
-        if (not c.get("location") or not c.get("assembly")) and meta and isinstance(meta, dict):
-            c["location"] = c.get("location") or meta.get("matched_value", "")
-            c["assembly"] = c.get("assembly") or meta.get("assembly_constituency", "")
-        elif (not c.get("location") or not c.get("assembly")) and meta and isinstance(meta, str):
-            try:
-                m = json.loads(meta)
-                c["location"] = c.get("location") or m.get("matched_value", "")
-                c["assembly"] = c.get("assembly") or m.get("assembly_constituency", "")
-            except Exception:
-                pass
-
-        parsed_meta = _parse_meta(meta)
-        if not c.get("problem_domain"):
-            c["problem_domain"] = parsed_meta.get("problem_domain")
-        if not c.get("problem_subdomain"):
-            c["problem_subdomain"] = parsed_meta.get("problem_subdomain")
-        if not c.get("convergence_program_type"):
-            c["convergence_program_type"] = parsed_meta.get("convergence_program_type")
-        _apply_tenant_safe_case_geography(c, tenant_constituency, tid)
-
-        for field in ["created_at", "updated_at"]:
-            c[field] = _coerce_iso(c.get(field))
-
-    grouped_cases = _group_briefcase_cases(raw_cases)
-    total = len(grouped_cases)
-    pages = (total + limit - 1) // limit if limit > 0 else 0
-    cases = grouped_cases[offset: offset + limit]
+    cases = [
+        _prepare_briefcase_list_case(case, tenant_constituency, tid, media_count_map.get(case.get("id"), 0))
+        for case in page_cases
+    ]
 
     return {"cases": cases, "total": total, "page": page, "limit": limit, "pages": pages}
 

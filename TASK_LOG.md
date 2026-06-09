@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-09
+- Request: Fix production Briefcase showing `Failed to load cases` after the sibling-thread deploy.
+- Summary: Narrowed the failure to the merged `/api/cases` performance path in `api_router.py`. The list endpoint was grouping correctly, but it was also running batched media counting and geography-safe normalization across the entire tenant-scoped match set before pagination, which could push the request beyond the MP frontend’s 8-second timeout and surface as a generic load failure while other dashboard endpoints still worked. Refactored the endpoint so it still groups the full match set for totals/page slicing, but only enriches and media-counts the visible page rows. Verified with a compile pass and the full `tests/test_briefcase_api.py` suite.
+- Files touched: `api_router.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This is a targeted performance fix and should preserve the current grouped-thread contract. If Briefcase still feels slow later, the next step should be moving thread grouping itself closer to the DB layer rather than re-expanding page-row enrichment across the full result set.
+
+- Date: 2026-06-09
 - Request: Push and deploy the real sibling-case Briefcase thread architecture plus the tenant 10 reseed tooling.
 - Summary: Verified the current thread stack before release with backend compile checks, `tests/test_e2e_core_flow.py`, and a successful `frontend` production build. This push ships the sibling-case contact-thread backend/API changes, the independent Briefcase drawer behavior, the updated tenant 10 seed script, and the supporting repo memory/log updates. Production tenant 10 was already reseeded directly in EC2/Postgres beforehand; this `main` push is the missing code deploy needed for the live backend to start returning `thread_cases` and for the MP frontend to render the grouped thread UI correctly.
 - Files touched: `main.py`, `api_router.py`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `frontend/hooks/useBriefcaseCases.js`, `tests/test_e2e_core_flow.py`, `scripts/seed_contact_thread_demo.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
