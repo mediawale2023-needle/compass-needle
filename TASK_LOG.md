@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-10
+- Request: Fix the dashboard still showing the wrong seat/map after tenant 10 was repaired on the backend.
+- Summary: Updated `frontend/lib/auth.js` so the MP frontend no longer trusts cached `needle_user` data indefinitely. On app boot, if a token exists, the auth provider now hydrates from cache only as a temporary placeholder and then refreshes the stored user via `/api/auth/me`, overwriting stale constituency/house/seat metadata after backend-side tenant repairs. Verified with a successful `npm run build` in `frontend/`.
+- Files touched: `frontend/lib/auth.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This is intentionally a frontend-only session-truth fix. If a user still sees the wrong seat after deploy, the next check should be whether the backend `/api/auth/me` payload itself is stale for that account rather than the dashboard map renderer.
+
+- Date: 2026-06-10
 - Request: Push the tenant 10 demo-seed safety fix and production repair log to GitHub.
 - Summary: Pushed commit `5f2d14f5` (`Guard tenant demo seeding`) to `origin/main`, publishing the guarded `scripts/seed_contact_thread_demo.py` behavior, the new focused regression coverage in `tests/test_seed_contact_thread_demo.py`, and the repo memory/log updates documenting the live tenant 10 repair. This push intentionally excludes unrelated local edits in `data/geography/Ghaziabad/Loni.json` and `tenant_overrides.json`.
 - Files touched: `TASK_LOG.md`

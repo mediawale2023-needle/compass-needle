@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect } from 'react';
-import { API_BASE, apiPost, setAuthNotice } from './api';
+import { API_BASE, apiGet, apiPost, setAuthNotice } from './api';
 
 const AuthContext = createContext(null);
 
@@ -38,19 +38,50 @@ export function AuthProvider({ children }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        let cancelled = false;
+
         const token = getStoredValue('needle_token');
         const userStr = getStoredValue('needle_user');
-        if (token && userStr) {
+        let cachedUser = null;
+
+        if (userStr) {
             try {
-                setUser(JSON.parse(userStr));
-                setStoredValue('needle_token', token);
+                cachedUser = JSON.parse(userStr);
+                if (!cancelled) {
+                    setUser(cachedUser);
+                }
                 setStoredValue('needle_user', userStr);
             } catch {
-                clearStoredValue('needle_token');
                 clearStoredValue('needle_user');
             }
         }
-        setLoading(false);
+
+        if (token) {
+            setStoredValue('needle_token', token);
+            apiGet('/api/auth/me', { noRetry: true })
+                .then((freshUser) => {
+                    if (cancelled) return;
+                    setStoredValue('needle_user', JSON.stringify(freshUser));
+                    setUser(freshUser);
+                })
+                .catch(() => {
+                    if (cancelled) return;
+                    if (!cachedUser) {
+                        setUser(null);
+                    }
+                })
+                .finally(() => {
+                    if (!cancelled) {
+                        setLoading(false);
+                    }
+                });
+        } else {
+            setLoading(false);
+        }
+
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     const login = async (username, password, rememberMe = false) => {
