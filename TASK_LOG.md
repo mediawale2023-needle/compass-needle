@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-10
+- Request: Repair tenant 10 after the wrong contact-thread demo seed polluted its seat identity, constituency map, and demo cases.
+- Summary: Hardened `scripts/seed_contact_thread_demo.py` so existing tenant identity is preserved by default, added assembly-scope resolution plus targeted regressions in `tests/test_seed_contact_thread_demo.py`, and verified those tests locally with `venv/bin/python -m pytest tests/test_seed_contact_thread_demo.py`. On production, found that the prior seed had mutated tenant `10` to `Belagavi` / `mp` / `Lok Sabha` and inserted `18` demo cases across `Belagavi North`, `Belagavi South`, and `Belagavi Rural`. Repaired the live tenant by restoring `tenants`, `users`, and `tenant_profiles` back to `Belgaum Dakshin` / `mla` / `Vidhan Sabha`, deleted only the `thread_demo_seed=true` rows plus their single activity-log dependency, then copied the hardened seed script into `ec2-backend-1` and reseeded tenant `10` safely for `Belgaum South` only. Final live verification showed tenant `10` restored to `Belgaum Dakshin` / `mla` and all `18` demo rows scoped only to `Belgaum South`.
+- Files touched: `scripts/seed_contact_thread_demo.py`, `tests/test_seed_contact_thread_demo.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This repair intentionally leaves unrelated local edits in `data/geography/Ghaziabad/Loni.json` and `tenant_overrides.json` untouched. The repo fix still needs the normal GitHub push/deploy so future operational runs use the guarded seed script without a manual `docker cp`.
+
+- Date: 2026-06-10
 - Request: Push and deploy the venue-word taxonomy rescue and parent-only locality mapping fixes.
 - Summary: Pushed commit `bda9457a` (`Harden taxonomy and parent locality mapping`) to `origin/main`, publishing the new venue-context classifier rescue in `sansadx_backend/unified_taxonomy.py`, the broader-fragment locality display safeguard in `modules/geography_resolver.py`, and the focused regression coverage for both behaviors.
 - Files touched: `TASK_LOG.md`

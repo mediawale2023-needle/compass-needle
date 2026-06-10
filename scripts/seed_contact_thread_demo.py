@@ -118,18 +118,26 @@ def _thread_case(
 
 def _ensure_tenant(db: Session, args) -> Tenant:
     tenant = db.query(Tenant).filter(Tenant.id == args.tenant_id).first()
+    tenant_exists = tenant is not None
     if not tenant:
         tenant = Tenant(id=args.tenant_id)
         db.add(tenant)
 
-    tenant.name = args.tenant_name
-    tenant.constituency = args.constituency
-    tenant.whatsapp_number = args.whatsapp_number
-    tenant.subscription_plan = "Demo"
-    tenant.tenant_type = args.tenant_type
-    tenant.account_stage = args.account_stage
-    tenant.seat_type = args.seat_type
-    tenant.is_active = True
+    if not tenant_exists or args.allow_identity_overwrite:
+        tenant.name = args.tenant_name
+        tenant.constituency = args.constituency
+        tenant.whatsapp_number = args.whatsapp_number
+        tenant.subscription_plan = "Demo"
+        tenant.tenant_type = args.tenant_type
+        tenant.account_stage = args.account_stage
+        tenant.seat_type = args.seat_type
+        tenant.is_active = True
+    else:
+        tenant.name = tenant.name or args.tenant_name
+        tenant.whatsapp_number = tenant.whatsapp_number or args.whatsapp_number
+        tenant.subscription_plan = tenant.subscription_plan or "Demo"
+        if tenant.is_active is None:
+            tenant.is_active = True
     tenant.config = {**(tenant.config or {}), "thread_demo_seeded": True}
     if not tenant.created_at:
         tenant.created_at = _utcnow()
@@ -138,15 +146,23 @@ def _ensure_tenant(db: Session, args) -> Tenant:
 
 def _ensure_profile(db: Session, tenant: Tenant, args) -> TenantProfile:
     profile = db.query(TenantProfile).filter(TenantProfile.tenant_id == tenant.id).first()
+    profile_exists = profile is not None
     if not profile:
         profile = TenantProfile(tenant_id=tenant.id)
         db.add(profile)
 
-    profile.mp_name = args.display_name
-    profile.constituency = args.constituency
-    profile.state = args.state
-    profile.house = args.house
-    profile.party = args.party
+    if not profile_exists or args.allow_identity_overwrite:
+        profile.mp_name = args.display_name
+        profile.constituency = args.constituency
+        profile.state = args.state
+        profile.house = args.house
+        profile.party = args.party
+    else:
+        profile.mp_name = profile.mp_name or args.display_name
+        profile.constituency = profile.constituency or tenant.constituency or args.constituency
+        profile.state = profile.state or args.state
+        profile.house = profile.house or args.house
+        profile.party = profile.party or args.party
     profile.profile_data = {**(profile.profile_data or {}), "thread_demo_seeded": True}
     if not profile.created_at:
         profile.created_at = _utcnow()
@@ -155,6 +171,7 @@ def _ensure_profile(db: Session, tenant: Tenant, args) -> TenantProfile:
 
 def _ensure_user(db: Session, tenant: Tenant, args) -> User:
     user = db.query(User).filter(User.username == args.username).first()
+    user_exists = user is not None
     if not user:
         user = User(username=args.username)
         db.add(user)
@@ -162,8 +179,6 @@ def _ensure_user(db: Session, tenant: Tenant, args) -> User:
     user.tenant_id = tenant.id
     user.password_hash = hash_password(args.password)
     user.role = args.role
-    user.constituency = args.constituency
-    user.house = args.house
     user.display_name = args.display_name
     user.phone = args.user_phone
     user.is_active = True
@@ -171,6 +186,12 @@ def _ensure_user(db: Session, tenant: Tenant, args) -> User:
     user.failed_login_attempts = 0
     user.locked_until = None
     user.force_password_reason = None
+    if not user_exists or args.allow_identity_overwrite:
+        user.constituency = args.constituency
+        user.house = args.house
+    else:
+        user.constituency = user.constituency or tenant.constituency or args.constituency
+        user.house = user.house or args.house
     return user
 
 
@@ -188,10 +209,112 @@ def _delete_prior_demo_cases(db: Session, tenant_id: int) -> int:
     return result.rowcount or 0
 
 
-def _build_demo_cases(tenant_id: int) -> list[dict]:
+_ASSEMBLY_LOCATION_PRESETS = {
+    "belgaum south": [
+        "Shahapur",
+        "Khasbag",
+        "Rani Channamma Nagar",
+        "Hindwadi",
+        "Tilakwadi",
+        "Vadgaon",
+        "Nath Pai Circle",
+        "Teachers Colony",
+        "Somawar Peth",
+        "Mahadwar Road",
+    ],
+    "belgaum dakshin": [
+        "Shahapur",
+        "Khasbag",
+        "Rani Channamma Nagar",
+        "Hindwadi",
+        "Tilakwadi",
+        "Vadgaon",
+        "Nath Pai Circle",
+        "Teachers Colony",
+        "Somawar Peth",
+        "Mahadwar Road",
+    ],
+}
+
+
+def _normalize(value: str | None) -> str:
+    return " ".join("".join(ch.lower() if ch.isalnum() else " " for ch in str(value or "")).split())
+
+
+def _get_geo_assemblies_for_tenant(db: Session, tenant: Tenant) -> list[str]:
+    seat_type = str(tenant.seat_type or "").strip() or "mp"
+    seat_name = str(tenant.constituency or "").strip()
+    if not seat_name:
+        return []
+    prefix = f"{seat_type}:{seat_name}/"
+    rows = db.execute(
+        sa_text(
+            """
+            SELECT key
+            FROM tenant_overrides
+            WHERE override_type = 'geography_data'
+              AND (tenant_id = :tenant_id OR tenant_id IS NULL)
+              AND key LIKE :prefix
+            ORDER BY tenant_id NULLS LAST, key
+            """
+        ),
+        {"tenant_id": tenant.id, "prefix": f"{prefix}%"},
+    ).fetchall()
+    assemblies: list[str] = []
+    for (key,) in rows:
+        text_key = str(key or "")
+        assembly = text_key.split("/", 1)[-1].strip()
+        if assembly and assembly not in assemblies:
+            assemblies.append(assembly)
+    return assemblies
+
+
+def _resolve_demo_assembly(db: Session, tenant: Tenant, args) -> str:
+    if args.demo_assembly:
+        return args.demo_assembly
+
+    assemblies = _get_geo_assemblies_for_tenant(db, tenant)
+    if len(assemblies) == 1:
+        return assemblies[0]
+
+    if str(tenant.seat_type or "").strip().lower() == "mla":
+        raise ValueError(
+            f"Tenant {tenant.id} has ambiguous MLA geography assemblies {assemblies or '[]'}. "
+            "Pass --demo-assembly explicitly to keep the seed seat-safe."
+        )
+
+    if assemblies:
+        return assemblies[0]
+
+    if tenant.constituency:
+        return str(tenant.constituency)
+    raise ValueError(f"Tenant {tenant.id} has no constituency/assembly context for demo seeding.")
+
+
+def _locations_for_assembly(assembly: str) -> list[str]:
+    normalized = _normalize(assembly)
+    preset = _ASSEMBLY_LOCATION_PRESETS.get(normalized)
+    if preset:
+        return list(preset)
+    return [
+        "Central Ward",
+        "Market Road",
+        "Station Area",
+        "Main Bazaar",
+        "Old Town",
+        "New Layout",
+        "Bus Stand",
+        "College Circle",
+        "Temple Road",
+        "North Extension",
+    ]
+
+
+def _build_demo_cases(tenant_id: int, *, demo_assembly: str) -> list[dict]:
     now = _utcnow()
     category = "Infrastructure & Utilities"
     cases: list[dict] = []
+    locations = _locations_for_assembly(demo_assembly)
 
     valid_thread_started = now - timedelta(hours=3, minutes=10)
     valid_thread_last = valid_thread_started + timedelta(hours=2, minutes=30)
@@ -199,36 +322,33 @@ def _build_demo_cases(tenant_id: int) -> list[dict]:
     valid_specs = [
         (
             "NDL-T10-001A",
-            "Streetlights are not working in Tilakwadi after 9 pm.",
+            f"Streetlights are not working in {locations[0]} after 9 pm.",
             "Power & Street Lighting",
-            "Tilakwadi",
-            "Belagavi North",
+            locations[0],
             valid_thread_started,
             valid_thread_started + timedelta(minutes=35),
             [{"message": "Lights are still off after 10 pm too.", "event_type": "duplicate_followup", "created_at": (valid_thread_started + timedelta(minutes=28)).isoformat()}],
         ),
         (
             "NDL-T10-001B",
-            "Road near College Road has deep potholes since last week.",
+            f"Road near {locations[1]} has deep potholes since last week.",
             "Roads & Bridges",
-            "College Road",
-            "Belagavi North",
+            locations[1],
             valid_thread_started + timedelta(minutes=50),
             valid_thread_started + timedelta(hours=1, minutes=5),
             [{"message": "Please repair before school traffic starts.", "event_type": "duplicate_followup", "created_at": (valid_thread_started + timedelta(minutes=58)).isoformat()}],
         ),
         (
             "NDL-T10-001",
-            "Garbage has not been picked up in Bhagyanagar for 4 days.",
+            f"Garbage has not been picked up in {locations[2]} for 4 days.",
             "Solid Waste",
-            "Bhagyanagar",
-            "Belagavi North",
+            locations[2],
             valid_thread_started + timedelta(hours=2, minutes=5),
             valid_thread_last,
             [],
         ),
     ]
-    for case_ref, raw_message, subdomain, location, assembly, created_at, updated_at, events in valid_specs:
+    for case_ref, raw_message, subdomain, location, created_at, updated_at, events in valid_specs:
         cases.append(
             _thread_case(
                 tenant_id=tenant_id,
@@ -240,7 +360,7 @@ def _build_demo_cases(tenant_id: int) -> list[dict]:
                 category=category,
                 subdomain=subdomain,
                 location=location,
-                assembly=assembly,
+                assembly=demo_assembly,
                 created_at=created_at,
                 updated_at=updated_at,
                 notes_for_staff="Demo: valid multi-issue thread with independent sibling complaints.",
@@ -256,12 +376,12 @@ def _build_demo_cases(tenant_id: int) -> list[dict]:
     high_thread_last = high_thread_started + timedelta(hours=4)
     high_thread_id = f"ct-demo-{tenant_id}-919811110002"
     high_specs = [
-        ("NDL-T10-002A", "Water tanker has not come to Mahantesh Nagar today either.", "Water Supply", "Mahantesh Nagar"),
-        ("NDL-T10-002B", "Issue number 1 reported from Shahapur.", "Water Supply", "Shahapur"),
-        ("NDL-T10-002C", "Issue number 2 reported from Camp.", "Drainage/Sewage", "Camp"),
-        ("NDL-T10-002D", "Issue number 3 reported from Rani Channamma Nagar.", "Water Supply", "Rani Channamma Nagar"),
-        ("NDL-T10-002E", "Issue number 4 reported from Vadgaon.", "Drainage/Sewage", "Vadgaon"),
-        ("NDL-T10-002", "Issue number 5 reported from Khasbag.", "Water Supply", "Khasbag"),
+        ("NDL-T10-002A", f"Water tanker has not come to {locations[3]} today either.", "Water Supply", locations[3]),
+        ("NDL-T10-002B", f"Issue number 1 reported from {locations[4]}.", "Water Supply", locations[4]),
+        ("NDL-T10-002C", f"Issue number 2 reported from {locations[5]}.", "Drainage/Sewage", locations[5]),
+        ("NDL-T10-002D", f"Issue number 3 reported from {locations[6]}.", "Water Supply", locations[6]),
+        ("NDL-T10-002E", f"Issue number 4 reported from {locations[7]}.", "Drainage/Sewage", locations[7]),
+        ("NDL-T10-002", f"Issue number 5 reported from {locations[8]}.", "Water Supply", locations[8]),
     ]
     for idx, (case_ref, raw_message, subdomain, location) in enumerate(high_specs):
         created_at = high_thread_started + timedelta(minutes=idx * 35)
@@ -284,7 +404,7 @@ def _build_demo_cases(tenant_id: int) -> list[dict]:
                 category=category,
                 subdomain=subdomain,
                 location=location,
-                assembly="Belagavi South",
+                assembly=demo_assembly,
                 created_at=created_at,
                 updated_at=updated_at,
                 notes_for_staff="Demo: high-frequency thread with six distinct sibling complaints.",
@@ -300,15 +420,15 @@ def _build_demo_cases(tenant_id: int) -> list[dict]:
     spam_thread_last = spam_thread_started + timedelta(hours=6)
     spam_thread_id = f"ct-demo-{tenant_id}-919811110003"
     spam_specs = [
-        ("NDL-T10-003A", "Distinct civic complaint 1 from Angol.", "Solid Waste", "Angol"),
-        ("NDL-T10-003B", "Distinct civic complaint 2 from Udyambag.", "Roads & Bridges", "Udyambag"),
-        ("NDL-T10-003C", "Distinct civic complaint 3 from Sadashiv Nagar.", "Solid Waste", "Sadashiv Nagar"),
-        ("NDL-T10-003D", "Distinct civic complaint 4 from Hanuman Nagar.", "Roads & Bridges", "Hanuman Nagar"),
-        ("NDL-T10-003E", "Distinct civic complaint 5 from Nehru Nagar.", "Solid Waste", "Nehru Nagar"),
-        ("NDL-T10-003F", "Distinct civic complaint 6 from Azam Nagar.", "Roads & Bridges", "Azam Nagar"),
-        ("NDL-T10-003G", "Distinct civic complaint 7 from Yellur Road.", "Solid Waste", "Yellur Road"),
-        ("NDL-T10-003H", "Distinct civic complaint 8 from Basavan Galli.", "Roads & Bridges", "Basavan Galli"),
-        ("NDL-T10-003", "There is dumping and road damage near Peeranwadi bus stop too.", "Solid Waste", "Peeranwadi"),
+        ("NDL-T10-003A", f"Distinct civic complaint 1 from {locations[0]}.", "Solid Waste", locations[0]),
+        ("NDL-T10-003B", f"Distinct civic complaint 2 from {locations[1]}.", "Roads & Bridges", locations[1]),
+        ("NDL-T10-003C", f"Distinct civic complaint 3 from {locations[2]}.", "Solid Waste", locations[2]),
+        ("NDL-T10-003D", f"Distinct civic complaint 4 from {locations[3]}.", "Roads & Bridges", locations[3]),
+        ("NDL-T10-003E", f"Distinct civic complaint 5 from {locations[4]}.", "Solid Waste", locations[4]),
+        ("NDL-T10-003F", f"Distinct civic complaint 6 from {locations[5]}.", "Roads & Bridges", locations[5]),
+        ("NDL-T10-003G", f"Distinct civic complaint 7 from {locations[6]}.", "Solid Waste", locations[6]),
+        ("NDL-T10-003H", f"Distinct civic complaint 8 from {locations[7]}.", "Roads & Bridges", locations[7]),
+        ("NDL-T10-003", f"There is dumping and road damage near {locations[9]} bus stop too.", "Solid Waste", locations[9]),
     ]
     for idx, (case_ref, raw_message, subdomain, location) in enumerate(spam_specs):
         created_at = spam_thread_started + timedelta(minutes=idx * 40)
@@ -338,7 +458,7 @@ def _build_demo_cases(tenant_id: int) -> list[dict]:
                 category=category,
                 subdomain=subdomain,
                 location=location,
-                assembly="Belagavi Rural",
+                assembly=demo_assembly,
                 created_at=created_at,
                 updated_at=updated_at,
                 notes_for_staff="Demo: spam-suspected thread after 10 distinct issues in one 24-hour window.",
@@ -429,6 +549,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--role", default="owner")
     parser.add_argument("--user-phone", default="919900001010")
     parser.add_argument("--preserve-existing-cases", action="store_true")
+    parser.add_argument("--demo-assembly", default=None)
+    parser.add_argument("--allow-identity-overwrite", action="store_true")
     return parser.parse_args()
 
 
@@ -439,7 +561,8 @@ def main() -> None:
         tenant = _ensure_tenant(db, args)
         _ensure_profile(db, tenant, args)
         _ensure_user(db, tenant, args)
-        demo_cases = _build_demo_cases(tenant.id)
+        demo_assembly = _resolve_demo_assembly(db, tenant, args)
+        demo_cases = _build_demo_cases(tenant.id, demo_assembly=demo_assembly)
 
         deleted = 0
         if not args.preserve_existing_cases:
@@ -452,7 +575,7 @@ def main() -> None:
         thread_count = len({case["case_metadata"]["contact_thread_id"] for case in demo_cases})
         print(
             f"Seeded tenant {tenant.id} ({args.username}) with {len(demo_cases)} sibling demo cases "
-            f"across {thread_count} contact threads. "
+            f"across {thread_count} contact threads in assembly {demo_assembly}. "
             f"Deleted prior demo cases: {deleted}."
         )
     except Exception:
