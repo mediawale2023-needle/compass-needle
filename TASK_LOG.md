@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-10
+- Request: Push the tenant 10 demo-seed safety fix and production repair log to GitHub.
+- Summary: Pushed commit `5f2d14f5` (`Guard tenant demo seeding`) to `origin/main`, publishing the guarded `scripts/seed_contact_thread_demo.py` behavior, the new focused regression coverage in `tests/test_seed_contact_thread_demo.py`, and the repo memory/log updates documenting the live tenant 10 repair. This push intentionally excludes unrelated local edits in `data/geography/Ghaziabad/Loni.json` and `tenant_overrides.json`.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: The live tenant 10 data has already been repaired directly in production, but operators should still visually verify that the aspirant workspace is back on the Belgaum Dakshin map and that the seeded Briefcase demo shows only Belgaum South complaints.
+
+- Date: 2026-06-10
 - Request: Repair tenant 10 after the wrong contact-thread demo seed polluted its seat identity, constituency map, and demo cases.
 - Summary: Hardened `scripts/seed_contact_thread_demo.py` so existing tenant identity is preserved by default, added assembly-scope resolution plus targeted regressions in `tests/test_seed_contact_thread_demo.py`, and verified those tests locally with `venv/bin/python -m pytest tests/test_seed_contact_thread_demo.py`. On production, found that the prior seed had mutated tenant `10` to `Belagavi` / `mp` / `Lok Sabha` and inserted `18` demo cases across `Belagavi North`, `Belagavi South`, and `Belagavi Rural`. Repaired the live tenant by restoring `tenants`, `users`, and `tenant_profiles` back to `Belgaum Dakshin` / `mla` / `Vidhan Sabha`, deleted only the `thread_demo_seed=true` rows plus their single activity-log dependency, then copied the hardened seed script into `ec2-backend-1` and reseeded tenant `10` safely for `Belgaum South` only. Final live verification showed tenant `10` restored to `Belgaum Dakshin` / `mla` and all `18` demo rows scoped only to `Belgaum South`.
 - Files touched: `scripts/seed_contact_thread_demo.py`, `tests/test_seed_contact_thread_demo.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
