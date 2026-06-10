@@ -1037,6 +1037,7 @@ function CaseFileOverview({ current, meta, caseRef, createdAt, assignee }) {
 // ─── Main export ──────────────────────────────────────────────
 export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusChange, statusFilter, staff, user, onDeleteCase }) {
     const toast = useToast();
+    const isMobile = useIsMobile();
     const [updating, setUpdating] = useState(null);
     const [notes, setNotes] = useState('');
     const [response, setResponse] = useState('');
@@ -1114,7 +1115,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const suggestedTriage = getSuggestedTriage(meta, current);
     const displaySummary = getCaseSummary(current, meta);
     const activeTab = !['resolved', 'deleted', 'clusters'].includes(String(statusFilter || '').toLowerCase());
-    const isMobile = useIsMobile();
 
     const pruneResolvedThreadCase = (targetCaseId, nextStatus) => {
         const resolvedLike = ['resolved', 'completed', 'closed'].includes(String(nextStatus || '').toLowerCase());
