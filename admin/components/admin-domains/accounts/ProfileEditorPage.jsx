@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { apiGet, apiPatch, apiDelete, apiPost } from '@/lib/api';
+import Link from 'next/link';
+import { apiGet, apiPatch, apiDelete } from '@/lib/api';
 
 export default function ProfileEditorPage() {
     const searchParams = useSearchParams();
@@ -12,18 +13,11 @@ export default function ProfileEditorPage() {
     const [constituencies, setConstituencies] = useState([]);
     const [identityForm, setIdentityForm] = useState({});
     const [profileForm, setProfileForm] = useState({});
-    const [waForm, setWaForm] = useState({ whatsapp_number: '', phone_number_id: '' });
     const [newPassword, setNewPassword] = useState('');
     const [resetMode, setResetMode] = useState('generate');
     const [tempPasswordResult, setTempPasswordResult] = useState('');
     const [deleteConfirm, setDeleteConfirm] = useState('');
     const [msg, setMsg] = useState({ type: '', text: '' });
-
-    // Geography
-    const [geoData, setGeoData] = useState({});        // { assembly: [localities] }
-    const [geoAssembly, setGeoAssembly] = useState('');
-    const [geoLocalities, setGeoLocalities] = useState(''); // textarea, one per line
-    const [geoLoading, setGeoLoading] = useState(false);
 
     useEffect(() => {
         apiGet('/api/admin/mps').then(r => setMps(r.mps || [])).catch(() => { });
@@ -56,16 +50,8 @@ export default function ProfileEditorPage() {
                 alt_names: (p.alt_names || []).join(', '),
                 sovereignty_rules: p.sovereignty_rules || '',
             });
-            setWaForm({
-                whatsapp_number: p.whatsapp_number || '',
-                phone_number_id: p.phone_number_id || '',
-            });
         };
         loadProfile().catch(() => { });
-        // Load geography data
-        apiGet(`/api/admin/mps/${selected.tenant_id}/geography`)
-            .then(g => setGeoData(g.assemblies || {}))
-            .catch(() => setGeoData({}));
     }, [selected]);
 
     const completeness = (() => {
@@ -141,50 +127,6 @@ export default function ProfileEditorPage() {
                 vocabulary_guide: profile?.vocabulary_guide || {},
             });
             showMsg('success', 'Profile data saved successfully');
-        } catch (err) { showMsg('error', err.message); }
-    };
-
-    const saveGeo = async () => {
-        if (!geoAssembly.trim()) { showMsg('error', 'Assembly constituency name is required'); return; }
-        const locs = geoLocalities.split('\n').map(l => l.trim()).filter(Boolean);
-        if (!locs.length) { showMsg('error', 'Enter at least one locality'); return; }
-        setGeoLoading(true);
-        try {
-            await apiPost(`/api/admin/mps/${selected.tenant_id}/geography/bulk`, {
-                parliamentary_constituency: selected.parliamentary_constituency || identityForm.constituency,
-                assembly_constituency: geoAssembly.trim(),
-                localities: locs,
-            });
-            showMsg('success', `Saved ${locs.length} localities for ${geoAssembly}`);
-            setGeoAssembly('');
-            setGeoLocalities('');
-            const g = await apiGet(`/api/admin/mps/${selected.tenant_id}/geography`);
-            setGeoData(g.assemblies || {});
-        } catch (err) { showMsg('error', err.message); }
-        finally { setGeoLoading(false); }
-    };
-
-    const deleteGeoAssembly = async (assembly) => {
-        if (!confirm(`Delete all localities for "${assembly}"?`)) return;
-        try {
-            await apiDelete(`/api/admin/mps/${selected.tenant_id}/geography/${encodeURIComponent(assembly)}`);
-            showMsg('success', `Deleted ${assembly}`);
-            const g = await apiGet(`/api/admin/mps/${selected.tenant_id}/geography`);
-            setGeoData(g.assemblies || {});
-        } catch (err) { showMsg('error', err.message); }
-    };
-
-    const saveWhatsApp = async () => {
-        if (!waForm.whatsapp_number.startsWith('+')) {
-            showMsg('error', "WhatsApp number must start with + and include country code (e.g. +919289372849)");
-            return;
-        }
-        try {
-            await apiPatch(`/api/admin/mps/${selected.tenant_id}/whatsapp`, {
-                whatsapp_number: waForm.whatsapp_number,
-                phone_number_id: waForm.phone_number_id || '',
-            });
-            showMsg('success', 'WhatsApp configuration saved');
         } catch (err) { showMsg('error', err.message); }
     };
 
@@ -379,100 +321,19 @@ export default function ProfileEditorPage() {
                                 </div>
                             </div>
 
-                            {/* WhatsApp Configuration */}
-                            <div className="glass-panel" style={{ marginBottom: '1.25rem' }}>
-                                <div className="section-title">WhatsApp Configuration</div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                                    <div>
-                                        <label className="form-label">WhatsApp Number <span style={{ fontWeight: 400, color: '#94a3b8' }}>(+country code)</span></label>
-                                        <input
-                                            className="form-input"
-                                            value={waForm.whatsapp_number}
-                                            onChange={e => setWaForm({ ...waForm, whatsapp_number: e.target.value })}
-                                            placeholder="+919289372849"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="form-label">Meta Phone Number ID</label>
-                                        <input
-                                            className="form-input"
-                                            value={waForm.phone_number_id}
-                                            onChange={e => setWaForm({ ...waForm, phone_number_id: e.target.value })}
-                                            placeholder="e.g. 1089911394213487"
-                                        />
-                                    </div>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    <button type="button" className="btn-primary" onClick={saveWhatsApp}>
-                                        Save WhatsApp Config
-                                    </button>
-                                    {waForm.whatsapp_number && (
-                                        <span style={{ fontSize: '0.8rem', color: waForm.phone_number_id ? '#059669' : '#d97706' }}>
-                                            {waForm.phone_number_id ? '✓ Phone Number ID set' : '⚠ Phone Number ID not set (will use global fallback)'}
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Constituency Geography */}
-                            <div className="glass-panel" style={{ marginBottom: '1.25rem' }}>
-                                <div className="section-title">Constituency Geography</div>
-                                <p style={{ fontSize: '0.82rem', color: '#6b7f76', marginBottom: 14, marginTop: 0 }}>
-                                    Shared seat geography. Upload once for this seat and every tenant on the same seat will inherit it.
-                                    Tenant-specific geography overrides still stay separate.
-                                </p>
-
-                                {/* Existing assemblies */}
-                                {Object.keys(geoData).length > 0 && (
-                                    <div style={{ marginBottom: 16 }}>
-                                        {Object.entries(geoData).map(([assembly, locs]) => (
-                                            <div key={assembly} style={{ background: '#f0f7f4', borderRadius: 8, padding: '10px 14px', marginBottom: 8, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                                                <div style={{ flex: 1 }}>
-                                                    <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1a2e28', marginBottom: 4 }}>{assembly}</div>
-                                                    <div style={{ fontSize: '0.78rem', color: '#6b7f76', lineHeight: 1.6 }}>
-                                                        {locs.slice(0, 8).join(' · ')}{locs.length > 8 ? ` +${locs.length - 8} more` : ''}
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={() => { setGeoAssembly(assembly); setGeoLocalities(locs.join('\n')); }}
-                                                    style={{ fontSize: '0.75rem', color: '#059669', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 4, whiteSpace: 'nowrap' }}>
-                                                    Edit
-                                                </button>
-                                                <button
-                                                    onClick={() => deleteGeoAssembly(assembly)}
-                                                    style={{ fontSize: '0.75rem', color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 4 }}>
-                                                    ✕
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* Add / Edit form */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginBottom: 12 }}>
-                                    <div>
-                                        <label className="form-label">Assembly Constituency Name</label>
-                                        <input
-                                            className="form-input"
-                                            value={geoAssembly}
-                                            onChange={e => setGeoAssembly(e.target.value)}
-                                            placeholder="e.g. Koil"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="form-label">Localities <span style={{ fontWeight: 400, color: '#94a3b8' }}>(one per line — village, mohalla, road, landmark)</span></label>
-                                        <textarea
-                                            className="form-input"
-                                            rows={5}
-                                            value={geoLocalities}
-                                            onChange={e => setGeoLocalities(e.target.value)}
-                                            placeholder={"GT Road\nCivil Lines\nSasni Gate\nQuarsi\nDelhi Gate"}
-                                        />
-                                    </div>
-                                </div>
-                                <button type="button" className="btn-primary" onClick={saveGeo} disabled={geoLoading}>
-                                    {geoLoading ? 'Saving…' : `Save ${geoAssembly ? `"${geoAssembly}"` : 'Assembly'} Localities`}
-                                </button>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: '1.25rem' }}>
+                                <CanonicalLinkCard
+                                    title="WhatsApp Configuration"
+                                    body="WhatsApp routing is now managed from the tenant detail page so operators see it beside staff, notes, activity, and launch readiness."
+                                    href={`/dashboard/mps/${selected.tenant_id}#whatsapp`}
+                                    cta="Open WhatsApp settings"
+                                />
+                                <CanonicalLinkCard
+                                    title="Seat Geography & Tenant Corrections"
+                                    body="Shared geography is seat-scoped. Tenant-specific manual corrections stay in the tenant-aware Shared Geography workspace."
+                                    href={`/dashboard/shared-geography/workspace?tenant_id=${selected.tenant_id}`}
+                                    cta="Open geography workspace"
+                                />
                             </div>
 
                             {/* Danger Zone */}
@@ -497,5 +358,19 @@ export default function ProfileEditorPage() {
                 </>
             )}
         </>
+    );
+}
+
+function CanonicalLinkCard({ title, body, href, cta }) {
+    return (
+        <div className="glass-panel" style={{ marginBottom: 0 }}>
+            <div className="section-title">{title}</div>
+            <p style={{ color: '#6b7f76', fontSize: '0.84rem', lineHeight: 1.55, margin: '0 0 14px' }}>
+                {body}
+            </p>
+            <Link href={href} className="btn-secondary" style={{ textDecoration: 'none', fontSize: '0.8rem', display: 'inline-flex' }}>
+                {cta}
+            </Link>
+        </div>
     );
 }

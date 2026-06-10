@@ -145,7 +145,7 @@ export default function MpDetailPage() {
             </div>
 
             {/* Profile Summary */}
-            <div className="glass-panel" style={{ marginBottom: 16 }}>
+            <div id="profile" className="glass-panel" style={{ marginBottom: 16, scrollMarginTop: 96 }}>
                 <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
                     <div style={{
                         width: 56, height: 56, borderRadius: 14,
@@ -191,6 +191,54 @@ export default function MpDetailPage() {
                 </div>
             </div>
 
+            <div className="glass-panel" style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 14 }}>
+                    <div>
+                        <h3 className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>
+                            Tenant Operations
+                        </h3>
+                        <p style={{ margin: '5px 0 0', color: '#6b7f76', fontSize: '0.8rem' }}>
+                            Manage this tenant from one place. Seat-wide data stays in Shared Geography; tenant-specific routing and staff stay here.
+                        </p>
+                    </div>
+                    <span style={{
+                        fontFamily: 'monospace', fontSize: '0.72rem', fontWeight: 700,
+                        background: '#f0f4f1', color: '#006a4d',
+                        borderRadius: 5, padding: '3px 8px', border: '1px solid #d1e8df',
+                        whiteSpace: 'nowrap',
+                    }}>
+                        Tenant #{tenantId}
+                    </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+                    <OperationLink
+                        href={`/dashboard/accounts/registry?tenant_id=${tenantId}`}
+                        title="Profile & credentials"
+                        detail="Identity, key facts, password reset"
+                    />
+                    <OperationLink
+                        href="#whatsapp"
+                        title="WhatsApp routing"
+                        detail={p.whatsapp_number && p.phone_number_id ? 'Number and Meta ID configured' : 'Configure number and Meta ID'}
+                    />
+                    <OperationLink
+                        href="#staff"
+                        title="Tenant staff"
+                        detail={(data.staff || []).length ? `${data.staff.length} staff account${data.staff.length === 1 ? '' : 's'}` : 'Create the first staff account'}
+                    />
+                    <OperationLink
+                        href={`/dashboard/shared-geography/workspace?tenant_id=${tenantId}`}
+                        title="Geography corrections"
+                        detail="Tenant corrections plus shared seat geography"
+                    />
+                    <OperationLink
+                        href={`/dashboard/mps/${tenantId}/setup`}
+                        title="Launch readiness"
+                        detail={data.onboarding_state?.live ? 'Production traffic enabled' : 'Review blockers and smoke test'}
+                    />
+                </div>
+            </div>
+
             {/* Quick Stats Row */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
                 <QuickStat label="Last Login" value={timeAgo(data.last_login)} />
@@ -201,7 +249,7 @@ export default function MpDetailPage() {
             </div>
 
             {/* WhatsApp Configuration Panel */}
-            <div className="glass-panel" style={{ marginBottom: 16 }}>
+            <div id="whatsapp" className="glass-panel" style={{ marginBottom: 16, scrollMarginTop: 96 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: waEditing ? 14 : 0 }}>
                     <h3 className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>
                         WhatsApp Configuration
@@ -334,7 +382,7 @@ export default function MpDetailPage() {
                 {/* Right: Staff & Notes */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {/* Staff Roster */}
-                    <div className="glass-panel">
+                    <div id="staff" className="glass-panel" style={{ scrollMarginTop: 96 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                             <h3 className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>
                                 Staff Roster
@@ -480,5 +528,29 @@ function QuickStat({ label, value, accent }) {
                 {value ?? '—'}
             </div>
         </div>
+    );
+}
+
+function OperationLink({ href, title, detail }) {
+    return (
+        <Link
+            href={href}
+            className="btn-secondary"
+            style={{
+                display: 'block',
+                textAlign: 'left',
+                textDecoration: 'none',
+                padding: '11px 12px',
+                borderRadius: 8,
+                minHeight: 74,
+            }}
+        >
+            <span style={{ display: 'block', color: '#1a2e28', fontSize: '0.82rem', fontWeight: 800, marginBottom: 4 }}>
+                {title}
+            </span>
+            <span style={{ display: 'block', color: '#6b7f76', fontSize: '0.72rem', lineHeight: 1.45, fontWeight: 500 }}>
+                {detail}
+            </span>
+        </Link>
     );
 }
