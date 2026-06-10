@@ -99,4 +99,36 @@ describe('Admin MP setup checklist', () => {
         const link = await screen.findByRole('link', { name: 'Configure geography →' });
         expect(link).toHaveAttribute('href', '/dashboard/shared-geography/workspace?tenant_id=7');
     });
+
+    it('routes tenant-owned setup tasks back through the tenant detail surface', async () => {
+        apiGetMock.mockImplementation(async (path) => {
+            if (path === '/api/admin/mps/7/detail') {
+                return {
+                    tenant_id: 7,
+                    profile: {
+                        mp_name: '',
+                        constituency: 'Belagavi',
+                        state: '',
+                        house: 'Lok Sabha',
+                        key_facts: [],
+                        whatsapp_number: '',
+                        phone_number_id: '',
+                    },
+                    staff: [],
+                    onboarding_state: {},
+                };
+            }
+            if (path === '/api/admin/mps/7/geography') {
+                return { assemblies: { 'Belgaum Uttar': ['Hanuman Nagar'] } };
+            }
+            return {};
+        });
+
+        render(<SetupChecklistPage />);
+
+        expect(await screen.findByRole('link', { name: 'Edit profile →' })).toHaveAttribute('href', '/dashboard/mps/7#profile');
+        expect(screen.getByRole('link', { name: 'Add key facts →' })).toHaveAttribute('href', '/dashboard/mps/7#profile');
+        expect(screen.getByRole('link', { name: 'Add staff →' })).toHaveAttribute('href', '/dashboard/mps/7#staff');
+        expect(screen.getByRole('link', { name: 'Configure WhatsApp →' })).toHaveAttribute('href', '/dashboard/mps/7#whatsapp');
+    });
 });

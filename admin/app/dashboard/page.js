@@ -120,7 +120,7 @@ const ALERT_STYLES = {
 function alertHref(alert) {
     if (alert.tenant_id) {
         if (alert.type === 'setup_incomplete') return `/dashboard/mps/${alert.tenant_id}/setup`;
-        if (alert.type === 'low_completeness') return `/dashboard/accounts/registry?tenant_id=${alert.tenant_id}`;
+        if (alert.type === 'low_completeness') return `/dashboard/mps/${alert.tenant_id}#profile`;
         return `/dashboard/mps/${alert.tenant_id}`;
     }
     if (alert.type === 'expiring_announcement') return '/dashboard/system/announcements';
