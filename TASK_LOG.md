@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-10
+- Request: Push the Briefcase thread-level `View / Reply / Resolve` update to GitHub.
+- Summary: Pushed commit `5b0ea34f` (`Add thread-level reply actions`) to `origin/main`, publishing row-level `Reply` actions for real complaints inside a grouped Briefcase thread. Each complaint row now supports `View`, `Reply`, and `Resolve`, and `Reply` switches the active complaint, scrolls to the response composer, focuses the textarea, and keeps the existing WhatsApp send flow tied to that selected complaint.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This deploy intentionally leaves unrelated dirty local files in `data/geography/Ghaziabad/Loni.json` and `tenant_overrides.json` untouched. Live verification should open a grouped Briefcase thread and confirm that replying from a non-active complaint selects the correct complaint before sending.
+
+- Date: 2026-06-10
 - Request: Make every complaint row inside a Briefcase case thread support `View`, `Reply`, and `Resolve`, with row-level reply opening the correct WhatsApp composer.
 - Summary: Updated `frontend/components/briefcase/BriefcaseCaseModal.jsx` so each real complaint inside the thread rail now exposes `View`, `Reply`, and `Resolve`. `Reply` no longer behaves like a generic modal-level action: it now switches the active complaint, scrolls to the existing response composer for that exact complaint, focuses the textarea, and preserves the current WhatsApp send flow from the selected complaint context. Verified with a successful `npm run build` in `frontend/`.
 - Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `TASK_LOG.md`
