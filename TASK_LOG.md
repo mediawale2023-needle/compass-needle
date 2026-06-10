@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-10
+- Request: Implement the `Compass Needle Design System-4` Briefcase case modal on top of the live case/thread behavior.
+- Summary: Reworked `frontend/components/briefcase/BriefcaseCaseModal.jsx` into a DS-4-style split detail surface: the modal is now significantly wider on desktop, with the citizen/message/activity/notes flow in the left reading column and a new `Case file` rail on the right for case metadata, geography, status actions, thread complaints, and assignment controls. The implementation keeps the existing live behaviors intact — thread-case switching, per-complaint resolve, geography save/lock, escalation, notes/response drafting, and WhatsApp notification flow — while moving the layout toward the DS-4 visual shell. Verified with a successful `npm run build` in `frontend/`.
+- Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This is a substantial presentation refactor over a behavior-heavy modal. The next verification step should be visual/manual: open a normal case, a grouped thread case, and a resolved case to confirm the new shell still supports case switching, per-complaint resolve, geography edits, and footer actions cleanly at desktop and mobile widths.
+
+- Date: 2026-06-10
 - Request: Push the desktop dashboard queue-height stabilization fix to GitHub.
 - Summary: Pushed commit `44fc24c1` (`Stabilize dashboard queue height`) to `origin/main`, publishing the desktop minimum-height floor for the queue/workload/map row so sparse dashboard tabs like `Escalated` and `In Progress` no longer collapse the right column into a merged-looking layout.
 - Files touched: `TASK_LOG.md`

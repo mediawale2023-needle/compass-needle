@@ -999,6 +999,41 @@ function ResolvedView({ current, activities, loadingActivity, onClose }) {
     );
 }
 
+function CaseFileOverview({ current, meta, caseRef, createdAt, assignee }) {
+    const infoRows = [
+        ['Case number', caseRef],
+        ['Priority', current.is_critical ? 'Critical' : 'Standard'],
+        ['Category', current.problem_subdomain || current.problem_domain || current.category || 'Uncategorised'],
+        ['Channel', 'WhatsApp'],
+        ['Received', createdAt ? `${createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} · ${createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} IST` : '–'],
+        ['Constituency', current.assembly || meta.assembly_constituency || '–'],
+        ['Location', meta.matched_value || current.location || '–'],
+        ['Assignee', assignee || 'Unassigned'],
+    ];
+
+    return (
+        <div style={{ ...sec, background: C.surfaceWarm }}>
+            <div style={{ ...monoLbl, marginBottom: 10 }}>Case file</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {infoRows.map(([label, value], index) => (
+                    <div
+                        key={label}
+                        style={{
+                            padding: '10px 0',
+                            borderTop: index === 0 ? 'none' : `1px solid ${C.hair}`,
+                        }}
+                    >
+                        <div style={{ ...monoLbl, marginBottom: 4, fontSize: 9 }}>{label}</div>
+                        <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.45, fontWeight: 600 }}>
+                            {value}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 // ─── Main export ──────────────────────────────────────────────
 export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusChange, statusFilter, staff, user, onDeleteCase }) {
     const toast = useToast();
@@ -1079,6 +1114,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const suggestedTriage = getSuggestedTriage(meta, current);
     const displaySummary = getCaseSummary(current, meta);
     const activeTab = !['resolved', 'deleted', 'clusters'].includes(String(statusFilter || '').toLowerCase());
+    const isMobile = useIsMobile();
 
     const pruneResolvedThreadCase = (targetCaseId, nextStatus) => {
         const resolvedLike = ['resolved', 'completed', 'closed'].includes(String(nextStatus || '').toLowerCase());
@@ -1285,10 +1321,10 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
             <Sheet open={!!caseItem} onOpenChange={(open) => { if (!open) onClose(); }}>
                 <SheetContent
                     side="right"
-                    className="w-full sm:w-[600px] sm:max-w-[600px] p-0 flex flex-col overflow-hidden [&>button]:hidden rounded-none"
+                    className="w-full sm:w-[min(1120px,calc(100vw-32px))] sm:max-w-[1120px] p-0 flex flex-col overflow-hidden [&>button]:hidden rounded-none"
                     style={{
                         background: C.paper,
-                        fontFamily: '"Inter", "Noto Sans Devanagari", system-ui, sans-serif',
+                        fontFamily: '"IBM Plex Sans", "Noto Sans Devanagari", system-ui, sans-serif',
                         boxShadow: '-16px 0 40px rgba(26,24,18,0.10)',
                         border: 'none',
                     }}
@@ -1304,66 +1340,93 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                 onClose={onClose}
                             />
                             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                                <CitizenCard
-                                    phone={current.user_phone}
-                                    createdAt={createdAt}
-                                    language={meta.detected_language || meta.language}
-                                />
-                                {isUncategorised && suggestedTriage && (
-                                    <AISuggestionBanner
-                                        suggestion={suggestedTriage}
-                                        onAccept={() => handleStatusChange('in_progress')}
-                                    />
-                                )}
-                                <MessageBlock
-                                    rawMessage={current.raw_message}
-                                    summary={displaySummary}
-                                    media={current.media || []}
-                                    caseId={current.id}
-                                />
-                                <GeographySection
-                                    geoLocation={geoLocation}
-                                    geoAssembly={geoAssembly}
-                                    setGeoLocation={setGeoLocation}
-                                    setGeoAssembly={setGeoAssembly}
-                                    onSave={saveGeography}
-                                    saving={savingGeo}
-                                    locked={meta.geography_locked}
-                                />
-                                <StatusActions
-                                    currentStatus={currentStatus}
-                                    onStatusChange={handleStatusChange}
-                                    updating={updating}
-                                />
-                                <ThreadCasesSection
-                                    threadCases={threadCases}
-                                    activeCaseId={activeCaseId}
-                                    onSelectCase={(item) => setActiveCaseId(item.id)}
-                                    onQuickResolve={handleQuickResolve}
-                                    updating={updating}
-                                />
-                                <PendingContactMessages current={current} />
-                                <ActivityTimeline activities={activities} loading={loadingActivity} />
-                                <NotesSection
-                                    notes={notes}
-                                    setNotes={setNotes}
-                                    response={response}
-                                    setResponse={setResponse}
-                                    draftSaved={draftSaved}
-                                    onSave={saveNotes}
-                                    saving={savingNotes}
-                                    phone={current.user_phone}
-                                    isMp={isMp}
-                                    onNotify={() => { setNotifyInput(''); setNotifyOpen(true); }}
-                                />
-                                <AssignSection
-                                    assignee={assignee}
-                                    onAssign={handleAssign}
-                                    staff={staff}
-                                    onEscalate={() => setShowEscalation(true)}
-                                    onDelete={handleDelete}
-                                    userRole={user?.role}
-                                />
+                                <div
+                                    style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 300px',
+                                        alignItems: 'start',
+                                        minHeight: '100%',
+                                    }}
+                                >
+                                    <div style={{ minWidth: 0 }}>
+                                        <CitizenCard
+                                            phone={current.user_phone}
+                                            createdAt={createdAt}
+                                            language={meta.detected_language || meta.language}
+                                        />
+                                        {isUncategorised && suggestedTriage && (
+                                            <AISuggestionBanner
+                                                suggestion={suggestedTriage}
+                                                onAccept={() => handleStatusChange('in_progress')}
+                                            />
+                                        )}
+                                        <MessageBlock
+                                            rawMessage={current.raw_message}
+                                            summary={displaySummary}
+                                            media={current.media || []}
+                                            caseId={current.id}
+                                        />
+                                        <PendingContactMessages current={current} />
+                                        <ActivityTimeline activities={activities} loading={loadingActivity} />
+                                        <NotesSection
+                                            notes={notes}
+                                            setNotes={setNotes}
+                                            response={response}
+                                            setResponse={setResponse}
+                                            draftSaved={draftSaved}
+                                            onSave={saveNotes}
+                                            saving={savingNotes}
+                                            phone={current.user_phone}
+                                            isMp={isMp}
+                                            onNotify={() => { setNotifyInput(''); setNotifyOpen(true); }}
+                                        />
+                                    </div>
+
+                                    <aside
+                                        style={{
+                                            minWidth: 0,
+                                            background: C.surfaceWarm,
+                                            borderLeft: isMobile ? 'none' : `1px solid ${C.hair}`,
+                                        }}
+                                    >
+                                        <CaseFileOverview
+                                            current={current}
+                                            meta={meta}
+                                            caseRef={caseRef}
+                                            createdAt={createdAt}
+                                            assignee={assignee}
+                                        />
+                                        <GeographySection
+                                            geoLocation={geoLocation}
+                                            geoAssembly={geoAssembly}
+                                            setGeoLocation={setGeoLocation}
+                                            setGeoAssembly={setGeoAssembly}
+                                            onSave={saveGeography}
+                                            saving={savingGeo}
+                                            locked={meta.geography_locked}
+                                        />
+                                        <StatusActions
+                                            currentStatus={currentStatus}
+                                            onStatusChange={handleStatusChange}
+                                            updating={updating}
+                                        />
+                                        <ThreadCasesSection
+                                            threadCases={threadCases}
+                                            activeCaseId={activeCaseId}
+                                            onSelectCase={(item) => setActiveCaseId(item.id)}
+                                            onQuickResolve={handleQuickResolve}
+                                            updating={updating}
+                                        />
+                                        <AssignSection
+                                            assignee={assignee}
+                                            onAssign={handleAssign}
+                                            staff={staff}
+                                            onEscalate={() => setShowEscalation(true)}
+                                            onDelete={handleDelete}
+                                            userRole={user?.role}
+                                        />
+                                    </aside>
+                                </div>
                             </div>
                             <ActionBar
                                 onConfirm={() => handleStatusChange(isUncategorised ? 'in_progress' : 'resolved')}
