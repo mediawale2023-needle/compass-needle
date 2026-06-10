@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-10
+- Request: Push and deploy the venue-word taxonomy rescue and parent-only locality mapping fixes.
+- Summary: Pushed commit `bda9457a` (`Harden taxonomy and parent locality mapping`) to `origin/main`, publishing the new venue-context classifier rescue in `sansadx_backend/unified_taxonomy.py`, the broader-fragment locality display safeguard in `modules/geography_resolver.py`, and the focused regression coverage for both behaviors.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This is a backend deploy through the existing EC2 GitHub Actions workflow. Live verification should focus on real cases where landmarks like `school` appear near civic complaints and on parent-only mentions like `Hindwadi` that previously projected an over-specific combined roll label.
+
+- Date: 2026-06-10
 - Request: Fix AI venue-word category mistakes and stop parent-only locality mentions from mapping to arbitrary child labels.
 - Summary: Added a narrow taxonomy rescue layer so venue words like `school`, `college`, `hospital`, and `depot` no longer hijack classification when the complaint clearly indicates nearby civic issues such as garbage, drainage, water, lights, or roads. Tightened the geography resolver so long combined roll labels now prefer the exact broader fragment the citizen actually mentioned instead of projecting the full combined label back into the case as if a random child location were said. Added focused regression tests and verified them with targeted pytest runs.
 - Files touched: `sansadx_backend/unified_taxonomy.py`, `modules/geography_resolver.py`, `tests/test_ai_location_grounding.py`, `tests/test_geography_resolver.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
