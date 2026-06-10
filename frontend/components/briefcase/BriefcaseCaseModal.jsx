@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2, Send } from 'lucide-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
@@ -155,6 +155,13 @@ function getSuggestedTriage(meta, current) {
         ai_subcategory: aiSubcategory,
         detected_language: detectedLanguage,
     };
+}
+
+function getSelectedThreadCaseId(fullCase, caseItem, activeCaseId) {
+    const threadCases = Array.isArray(fullCase?.thread_cases) && fullCase.thread_cases.length
+        ? fullCase.thread_cases
+        : [fullCase || caseItem].filter(Boolean);
+    return threadCases.find((item) => item.id === activeCaseId)?.id || threadCases[0]?.id || null;
 }
 
 // ─── Drawer header ───────────────────────────────────────────
@@ -709,7 +716,7 @@ function PendingContactMessages({ current }) {
     );
 }
 
-function ThreadCasesSection({ threadCases, activeCaseId, onSelectCase, onQuickResolve, updating }) {
+function ThreadCasesSection({ threadCases, activeCaseId, onSelectCase, onReplyCase, onQuickResolve, updating }) {
     if (!Array.isArray(threadCases) || threadCases.length <= 1) {
         return null;
     }
@@ -776,6 +783,22 @@ function ThreadCasesSection({ threadCases, activeCaseId, onSelectCase, onQuickRe
                                     >
                                         {isActive ? 'Open' : 'View'}
                                     </button>
+                                    <button
+                                        onClick={() => onReplyCase(item)}
+                                        style={{
+                                            padding: '5px 10px',
+                                            background: 'transparent',
+                                            color: C.greenInk,
+                                            border: `1px solid ${C.green}`,
+                                            cursor: 'pointer',
+                                            fontSize: 10.5,
+                                            fontWeight: 700,
+                                            letterSpacing: '0.04em',
+                                            textTransform: 'uppercase',
+                                        }}
+                                    >
+                                        Reply
+                                    </button>
                                     {!['resolved', 'completed', 'closed'].includes(String(item.status || '').toLowerCase()) && (
                                         <button
                                             onClick={() => onQuickResolve(item.id)}
@@ -807,9 +830,9 @@ function ThreadCasesSection({ threadCases, activeCaseId, onSelectCase, onQuickRe
 }
 
 // ─── Notes + response section ─────────────────────────────────
-function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSave, saving, phone, isMp, onNotify }) {
+function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSave, saving, phone, isMp, onNotify, responseSectionRef, responseInputRef }) {
     return (
-        <div style={sec}>
+        <div ref={responseSectionRef} style={sec}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span style={monoLbl}>Internal notes</span>
                 {draftSaved && (
@@ -832,7 +855,10 @@ function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSa
                 }} />
 
             <span style={{ ...monoLbl, marginBottom: 6 }}>Response to citizen</span>
-            <textarea value={response} onChange={(e) => setResponse(e.target.value)}
+            <textarea
+                ref={responseInputRef}
+                value={response}
+                onChange={(e) => setResponse(e.target.value)}
                 placeholder="Custom WhatsApp message (optional)…"
                 style={{
                     width: '100%', minHeight: 56, padding: '10px 12px',
@@ -1052,9 +1078,12 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const [notifySending, setNotifySending] = useState(false);
     const [fullCase, setFullCase] = useState(null);
     const [activeCaseId, setActiveCaseId] = useState(null);
+    const [replyIntentCaseId, setReplyIntentCaseId] = useState(null);
     const [geoLocation, setGeoLocation] = useState('');
     const [geoAssembly, setGeoAssembly] = useState('');
     const [savingGeo, setSavingGeo] = useState(false);
+    const responseSectionRef = useRef(null);
+    const responseInputRef = useRef(null);
 
     useEffect(() => {
         if (!caseItem) return;
@@ -1095,6 +1124,19 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         localStorage.setItem(`draft_response_${activeCaseId}`, response);
     }, [notes, response, activeCaseId]);
 
+    useEffect(() => {
+        if (!replyIntentCaseId || getSelectedThreadCaseId(fullCase, caseItem, activeCaseId) !== replyIntentCaseId) {
+            return;
+        }
+        responseSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (responseInputRef.current) {
+            responseInputRef.current.focus();
+            const length = responseInputRef.current.value?.length || 0;
+            responseInputRef.current.setSelectionRange(length, length);
+        }
+        setReplyIntentCaseId(null);
+    }, [replyIntentCaseId, activeCaseId, fullCase, caseItem]);
+
     if (!caseItem) return null;
 
     const threadCases = Array.isArray(fullCase?.thread_cases) && fullCase.thread_cases.length
@@ -1115,6 +1157,11 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const suggestedTriage = getSuggestedTriage(meta, current);
     const displaySummary = getCaseSummary(current, meta);
     const activeTab = !['resolved', 'deleted', 'clusters'].includes(String(statusFilter || '').toLowerCase());
+
+    function handleReplyCase(item) {
+        setActiveCaseId(item.id);
+        setReplyIntentCaseId(item.id);
+    }
 
     const pruneResolvedThreadCase = (targetCaseId, nextStatus) => {
         const resolvedLike = ['resolved', 'completed', 'closed'].includes(String(nextStatus || '').toLowerCase());
@@ -1370,6 +1417,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                             threadCases={threadCases}
                                             activeCaseId={activeCaseId}
                                             onSelectCase={(item) => setActiveCaseId(item.id)}
+                                            onReplyCase={handleReplyCase}
                                             onQuickResolve={handleQuickResolve}
                                             updating={updating}
                                         />
@@ -1385,6 +1433,8 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                             saving={savingNotes}
                                             phone={current.user_phone}
                                             isMp={isMp}
+                                            responseSectionRef={responseSectionRef}
+                                            responseInputRef={responseInputRef}
                                             onNotify={() => { setNotifyInput(''); setNotifyOpen(true); }}
                                         />
                                     </div>

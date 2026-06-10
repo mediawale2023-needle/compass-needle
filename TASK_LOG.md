@@ -13,6 +13,18 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-10
+- Request: Make every complaint row inside a Briefcase case thread support `View`, `Reply`, and `Resolve`, with row-level reply opening the correct WhatsApp composer.
+- Summary: Updated `frontend/components/briefcase/BriefcaseCaseModal.jsx` so each real complaint inside the thread rail now exposes `View`, `Reply`, and `Resolve`. `Reply` no longer behaves like a generic modal-level action: it now switches the active complaint, scrolls to the existing response composer for that exact complaint, focuses the textarea, and preserves the current WhatsApp send flow from the selected complaint context. Verified with a successful `npm run build` in `frontend/`.
+- Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `TASK_LOG.md`
+- Risks or follow-ups: This is a focused UX wiring change only; it reuses the existing send-confirmation dialog instead of introducing a second WhatsApp flow. If operators later want row-level inline send without confirmation, that should be a deliberate follow-up rather than a hidden behavior change.
+
+- Date: 2026-06-10
+- Request: Fix the client-side crash when opening the new DS-4 Briefcase case modal.
+- Summary: Moved the `useIsMobile()` hook in `frontend/components/briefcase/BriefcaseCaseModal.jsx` above the component’s early `if (!caseItem) return null;` path so hook order stays stable between closed and open modal renders. This removes the React client-side exception that appeared only when opening the Briefcase modal after the DS-4 layout refactor. Verified with a successful `npm run build` in `frontend/`.
+- Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `TASK_LOG.md`
+- Risks or follow-ups: This is a narrow runtime fix. If any further modal-only crashes appear, inspect recent client hooks first — behavior-heavy components with conditional early returns are especially easy to break during visual refactors.
+
+- Date: 2026-06-10
 - Request: Push the `Compass Needle Design System-4` Briefcase case modal implementation to GitHub.
 - Summary: Pushed commit `0da4c35a` (`Apply DS-4 briefcase modal`) to `origin/main`, publishing the wider split Briefcase case modal with the new `Case file` rail while preserving the live thread-case, status, geography, escalation, notes, and WhatsApp response behaviors.
 - Files touched: `TASK_LOG.md`
