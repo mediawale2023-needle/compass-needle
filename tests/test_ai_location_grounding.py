@@ -497,3 +497,16 @@ def test_normalize_grievance_taxonomy_overrides_teacher_colony_water_outage():
     assert normalized["problem_subdomain"] == "Water Supply"
     assert normalized["convergence_program_type"] == "Public Asset Upgrade"
     assert normalized["categories"] == ["Infrastructure & Utilities"]
+
+
+def test_build_taxonomy_fields_overrides_school_venue_garbage_false_positive():
+    fields = build_taxonomy_fields(
+        problem_domain="Education",
+        problem_subdomain="School Infrastructure",
+        raw_text="Hindwadi mein school ke paas kachra pada hai. 7 din se wahi hai.",
+    )
+
+    assert fields["problem_domain"] == "Infrastructure & Utilities"
+    assert fields["problem_subdomain"] == "Solid Waste"
+    assert fields["convergence_program_type"] == "Service Delivery Strengthening"
+    assert fields["categories"] == ["Infrastructure & Utilities"]

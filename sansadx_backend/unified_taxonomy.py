@@ -526,6 +526,36 @@ _WATER_OUTAGE_MARKERS = (
     "nahi", "nahi aata", "nahin", "band", "stopped",
 )
 
+_VENUE_CONTEXT_MARKERS = (
+    "school", "college", "hospital", "depot", "office", "market", "temple",
+    "masjid", "mosque", "church", "bus stop", "circle", "peetha", "vidya peetha",
+)
+
+_VENUE_NEARNESS_MARKERS = (
+    "paas", "pass", "ke paas", "near", "outside", "samor", "samore",
+    "baju", "bajula", "hatra", "javal", "javalcha", "adjacent",
+)
+
+_SOLID_WASTE_MARKERS = (
+    "garbage", "kachra", "kacra", "kachara", "khachra", "kachre",
+    "dump", "dumping", "waste", "rubbish", "trash", "litter",
+)
+
+_DRAINAGE_FAILURE_MARKERS = (
+    "drain", "drainage", "sewage", "sewer", "nala", "gutter",
+    "water logging", "waterlogged", "stagnant water", "dirty water",
+)
+
+_POWER_FAILURE_MARKERS = (
+    "street light", "street lights", "light band", "lights band",
+    "bijli", "electricity", "transformer", "voltage", "power cut",
+)
+
+_ROAD_FAILURE_MARKERS = (
+    "road", "roads", "sadak", "rasta", "pothole", "khadda", "khadde",
+    "bridge", "culvert", "road tutla", "road broken",
+)
+
 _DISASTER_EMERGENCY_MARKERS = (
     "flood", "flooding", "fire", "burning", "building collapse", "collapsed building",
     "landslide", "storm", "cyclone", "earthquake", "chemical leak", "gas leak",
@@ -768,6 +798,32 @@ def _looks_like_water_supply_outage(blob: str) -> bool:
     return has_water and has_outage
 
 
+def _looks_like_venue_context_civic_issue(blob: str) -> tuple[str | None, str | None]:
+    """
+    Rescue cases where a venue/locality word like "school" appears in the
+    location context, but the actual grievance is civic infrastructure nearby.
+    """
+    if not blob:
+        return None, None
+
+    has_venue = _has_any_marker(blob, _VENUE_CONTEXT_MARKERS)
+    has_nearness = _has_any_marker(blob, _VENUE_NEARNESS_MARKERS)
+    if not has_venue or not has_nearness:
+        return None, None
+
+    if _has_any_marker(blob, _SOLID_WASTE_MARKERS):
+        return "Infrastructure & Utilities", "Solid Waste"
+    if _has_any_marker(blob, _DRAINAGE_FAILURE_MARKERS):
+        return "Infrastructure & Utilities", "Drainage/Sewage"
+    if _looks_like_water_supply_outage(blob):
+        return "Infrastructure & Utilities", "Water Supply"
+    if _has_any_marker(blob, _POWER_FAILURE_MARKERS):
+        return "Infrastructure & Utilities", "Power & Street Lighting"
+    if _has_any_marker(blob, _ROAD_FAILURE_MARKERS):
+        return "Infrastructure & Utilities", "Roads & Bridges"
+    return None, None
+
+
 def infer_emergency_taxonomy_override(blob: str) -> tuple[str | None, str | None]:
     """Return a high-confidence emergency taxonomy override for no-ack severe cases."""
     if not blob:
@@ -882,6 +938,10 @@ def _infer_strong_taxonomy_override(blob: str) -> tuple[str | None, str | None]:
 
     if _looks_like_water_supply_outage(blob):
         return "Infrastructure & Utilities", "Water Supply"
+
+    venue_domain, venue_subdomain = _looks_like_venue_context_civic_issue(blob)
+    if venue_domain and venue_subdomain:
+        return venue_domain, venue_subdomain
 
     has_explicit_corruption = _has_any_marker(blob, _CORRUPTION_EXPLICIT_MARKERS)
     has_official_context = _has_any_marker(blob, _CORRUPTION_OFFICIAL_MARKERS)

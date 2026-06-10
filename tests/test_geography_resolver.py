@@ -78,6 +78,7 @@ def stub_geography_index(monkeypatch):
                 {"station_number": "3a", "locality": "Vaccine Depot.Tilakwadi, Belagavi", "building_name": ""},
                 {"station_number": "4", "locality": "Vadagaon Belagavi", "building_name": ""},
                 {"station_number": "5", "locality": "Nath Pai Circle\nShahapur, Belagavi", "building_name": ""},
+                {"station_number": "6", "locality": "Gomatesh Vidya Peetha Hindwadi", "building_name": ""},
             ],
         },
         {
@@ -247,6 +248,20 @@ def test_resolve_location_uses_building_name_locality_aliases_for_abbreviated_ro
     assert result["location_resolved"] is True
     assert result["assembly_constituency"] == "Belgaum Dakshin"
     assert result["matched_value"] == "Rani Channamma Nagar"
+
+
+def test_resolve_location_prefers_parent_fragment_over_combined_roll_label(stub_geography_index):
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "Hindwadi mein light problem hai",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum Dakshin"
+    assert result["matched_value"] == "Hindwadi"
+    assert result["matched_type"] == "locality"
 
 
 def test_extract_building_location_seeds_strips_neutral_prefixes():

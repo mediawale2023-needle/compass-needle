@@ -12,6 +12,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-06-10
+- Request: Fix AI venue-word category mistakes and stop parent-only locality mentions from mapping to arbitrary child labels.
+- Summary: Added a narrow taxonomy rescue layer so venue words like `school`, `college`, `hospital`, and `depot` no longer hijack classification when the complaint clearly indicates nearby civic issues such as garbage, drainage, water, lights, or roads. Tightened the geography resolver so long combined roll labels now prefer the exact broader fragment the citizen actually mentioned instead of projecting the full combined label back into the case as if a random child location were said. Added focused regression tests and verified them with targeted pytest runs.
+- Files touched: `sansadx_backend/unified_taxonomy.py`, `modules/geography_resolver.py`, `tests/test_ai_location_grounding.py`, `tests/test_geography_resolver.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: These are intentionally narrow rescue rules. If more classifier mistakes appear, the next expansion should stay structural and multi-seat-safe rather than adding constituency-specific phrases.
+
 - Date: 2026-06-09
 - Request: Push and deploy the Briefcase per-complaint resolved-tab behavior fix.
 - Summary: Pushed the frontend-only Briefcase thread refinement that makes `All cases` behave as the active-work queue, removes only the resolved complaint from an active grouped thread, and keeps remaining sibling complaints open in the drawer. The modal now receives tab context, the hook recalculates grouped thread membership after per-complaint resolution, and resolved complaints are expected to appear under `Resolved` instead of lingering inside the active thread view. Verified with a successful `frontend` production build before push.

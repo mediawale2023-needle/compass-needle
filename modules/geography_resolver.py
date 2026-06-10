@@ -1499,6 +1499,46 @@ def similarity_score(a: str, b: str) -> float:
     """Returns a score between 0 and 100 indicating how similar two strings are."""
     return SequenceMatcher(None, a, b).ratio() * 100
 
+
+def _prefer_matched_fragment_display(
+    *,
+    original_name: str,
+    matched_name: str,
+    parent_locality: Optional[str] = None,
+    sub_locality: Optional[str] = None,
+) -> tuple[Optional[str], Optional[str]]:
+    """
+    When the citizen only mentions a broader parent/locality fragment from a
+    longer polling-roll label, prefer that fragment instead of projecting an
+    arbitrary specific child/locality.
+    """
+    if parent_locality or sub_locality:
+        return None, None
+
+    original_display = _display_location_name(original_name or "")
+    matched_display = _display_location_name(matched_name or "")
+    if not original_display or not matched_display:
+        return None, None
+
+    norm_original = normalize(original_display)
+    norm_matched = normalize(matched_display)
+    if not norm_original or not norm_matched or norm_original == norm_matched:
+        return None, None
+    if len(norm_matched.split()) > len(norm_original.split()):
+        return None, None
+
+    if not (
+        norm_original.endswith(norm_matched)
+        or norm_original.startswith(norm_matched)
+        or f" {norm_matched} " in f" {norm_original} "
+    ):
+        return None, None
+
+    if len(norm_original.split()) - len(norm_matched.split()) < 1:
+        return None, None
+
+    return matched_display, "locality"
+
 # --- LOADER ---
 def load_geography_index() -> bool:
     global _geography_index
@@ -2003,6 +2043,16 @@ def _rank_location_candidates(
                     or entry["orig_name"]
                     or matched_name
                 )
+
+                fragment_display, fragment_type = _prefer_matched_fragment_display(
+                    original_name=str(entry["orig_name"] or ""),
+                    matched_name=str(matched_name or ""),
+                    parent_locality=entry.get("parent_locality"),
+                    sub_locality=entry.get("sub_locality"),
+                )
+                if fragment_display and fragment_type:
+                    matched_value = fragment_display
+                    matched_type = fragment_type
 
             # Only accept matches with score > 70 (raised threshold)
             if score > 70:
