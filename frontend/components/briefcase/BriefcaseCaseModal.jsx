@@ -1366,6 +1366,13 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                             media={current.media || []}
                                             caseId={current.id}
                                         />
+                                        <ThreadCasesSection
+                                            threadCases={threadCases}
+                                            activeCaseId={activeCaseId}
+                                            onSelectCase={(item) => setActiveCaseId(item.id)}
+                                            onQuickResolve={handleQuickResolve}
+                                            updating={updating}
+                                        />
                                         <PendingContactMessages current={current} />
                                         <ActivityTimeline activities={activities} loading={loadingActivity} />
                                         <NotesSection
@@ -1408,13 +1415,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                         <StatusActions
                                             currentStatus={currentStatus}
                                             onStatusChange={handleStatusChange}
-                                            updating={updating}
-                                        />
-                                        <ThreadCasesSection
-                                            threadCases={threadCases}
-                                            activeCaseId={activeCaseId}
-                                            onSelectCase={(item) => setActiveCaseId(item.id)}
-                                            onQuickResolve={handleQuickResolve}
                                             updating={updating}
                                         />
                                         <AssignSection
