@@ -1830,6 +1830,19 @@ def _rank_location_candidates(
                         "type": "db_alias_boundary",
                     }]
 
+    # HARD SEAT SCOPE: when a tenant is known but no seat context can be
+    # resolved and no parliamentary scope was provided, REFUSE to resolve
+    # rather than scanning the nationwide index. An unscoped scan can match a
+    # same-named locality in another seat (seat leakage) — an unresolved
+    # location is always safer than a cross-tenant guess.
+    if tenant_id is not None and tenant_context is None and not scope_parliamentary:
+        logger.warning(
+            "GEO SEAT-SCOPE: refusing unscoped geography resolution for tenant %s "
+            "(no seat context, no parliamentary scope). Returning no candidates.",
+            tenant_id,
+        )
+        return []
+
     seat_scope_type = normalize((tenant_context or {}).get("seat_type", ""))
     seat_scope_name = normalize((tenant_context or {}).get("seat_name", ""))
 
@@ -1989,7 +2002,10 @@ def _rank_location_candidates(
                         if not (0.7 <= len(uk) / len(dk) <= 1.35):
                             continue
                         sim = similarity_score(uk, dk)
-                        if sim > 84:
+                        # FUZZY ABSTAIN: <=90 similarity is a guess, not a match.
+                        # Below this floor the mention stays unresolved (citizen
+                        # is asked / operator reviews) instead of being mapped.
+                        if sim > 90:
                             score = 88 + (sim / 20)
                             match_type = f"fuzzy_specific ({uk}~{dk})"
                             matched_name = dk
@@ -2066,6 +2082,7 @@ def _rank_location_candidates(
                     "matched_value": _display_location_name(str(matched_value)),
                     "matched_type": matched_type,
                     "parent_locality": entry.get("parent_locality"),
+                    "matched_parent_alias": matched_parent_alias,
                     "score": score,
                     "type": match_type
                 })
@@ -2146,8 +2163,62 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
             "confidence_level": "unknown",
         }
 
+    # PARENT/CHILD LEVEL LOCK: the citizen mentioned a PARENT locality (the
+    # match landed on a parent alias of an indexed child entry). The display
+    # value is already the parent, but the assembly comes from the child entry
+    # that happened to score highest. If sibling children of the same parent
+    # sit in DIFFERENT assemblies, picking the winner's assembly would be a
+    # random child mapping — refuse and leave it for review/follow-up.
+    if winner.get("matched_parent_alias"):
+        parent_value_norm = normalize(str(winner.get("matched_value") or ""))
+        sibling_assemblies = sorted({
+            c["assembly"]
+            for c in candidates
+            if c.get("matched_parent_alias")
+            and normalize(str(c.get("matched_value") or "")) == parent_value_norm
+        })
+        if len(sibling_assemblies) > 1:
+            logger.info(
+                "GEO LEVEL-LOCK: parent-only mention '%s' spans assemblies %s — refusing child assembly guess.",
+                winner.get("matched_value"), sibling_assemblies,
+            )
+            return {
+                "location_resolved": False,
+                "reason": "parent_spans_assemblies",
+                "ambiguous_assemblies": sibling_assemblies,
+                "matched_value": winner["matched_value"],
+                "matched_type": "locality",
+                "parent_locality": winner.get("parent_locality"),
+                "parliamentary_constituency": winner["parl"],
+                "confidence_level": "unknown",
+            }
+
+    # NEAR-TIE AMBIGUITY: a runner-up in a DIFFERENT assembly within a small
+    # score margin means the text does not clearly distinguish the two — do
+    # not coin-flip on a few points of lexical score.
+    contenders = [c for c in candidates if c["score"] >= top_score - 5]
+    contender_assemblies = sorted({c["assembly"] for c in contenders})
+    if len(contender_assemblies) > 1:
+        return {
+            "location_resolved": False,
+            "reason": "ambiguous_near_tie",
+            "ambiguous_assemblies": contender_assemblies,
+            "matched_value": winner["matched_value"],
+            "matched_type": winner.get("matched_type"),
+            "parent_locality": winner.get("parent_locality"),
+            "parliamentary_constituency": winner["parl"],
+            "confidence_level": "unknown",
+        }
+
     logger.debug(f"   WINNER: {winner['name']} ({winner['assembly']}) - Score: {winner['score']:.1f} [{winner['type']}]")
-    
+
+    # CONFIDENCE BANDING: fuzzy/phonetic matches are usable hints but never
+    # silent truth — they resolve with confidence "medium" and a
+    # needs_confirmation flag so callers route the case to operator review
+    # (or citizen confirmation) instead of treating it as exact.
+    confidence_level = _confidence_level_for_match_type(winner["type"])
+    is_fuzzy_band = confidence_level in {"fuzzy", "speech_phonetic", "unknown"}
+
     return {
         "location_resolved": True,
         "assembly_constituency": winner["assembly"],
@@ -2155,8 +2226,9 @@ def resolve_location(text: str, scope_parliamentary: Optional[str] = None, tenan
         "matched_value": winner["matched_value"],
         "matched_type": winner.get("matched_type"),
         "parent_locality": winner.get("parent_locality"),
-        "confidence": "high",
-        "confidence_level": _confidence_level_for_match_type(winner["type"]),
+        "confidence": "medium" if is_fuzzy_band else "high",
+        "needs_confirmation": bool(is_fuzzy_band),
+        "confidence_level": confidence_level,
         "match_type": winner["type"],
     }
 

@@ -26,6 +26,11 @@ from .unified_taxonomy import (
     infer_personal_request_category,
     looks_like_contextless_media_message,
 )
+from modules.briefcase_rules import (
+    RULES_VERSION,
+    arbitrate_category,
+    taxonomy_fields_for_decision,
+)
 from modules.localized_replies import (
     get_generic_ack_reply,
     get_missing_location_reply,
@@ -52,9 +57,15 @@ def get_client():
 
 def _normalize_categories(cats: list, raw_message: str) -> list:
     """
-    Validate and correct AI-returned categories against the 9 valid ones.
-    Steps: exact → alias → fuzzy → taxonomy keyword fallback → default.
-    Always returns a non-empty list.
+    Canonicalize AI-returned category LABELS against the 9 valid ones.
+    Steps: exact → alias → fuzzy label correction.
+
+    This is label normalization only — it never invents a category. When no
+    label can be canonicalized it returns an EMPTY list; the arbitration layer
+    (modules.briefcase_rules.arbitrate_category) decides whether deterministic
+    rules / keyword inference apply or the case is UNKNOWN + review. The old
+    behaviour of defaulting to "Infrastructure & Utilities" was a silent guess
+    and has been removed deliberately.
     """
     if not isinstance(cats, list):
         cats = [cats] if cats else []
@@ -98,33 +109,9 @@ def _normalize_categories(cats: list, raw_message: str) -> list:
 
         logger.warning("Unrecognised category dropped: '%s'", cat.strip())
 
-    # 5. Keyword fallback — scan ALL taxonomy rules so multi-category messages
-    #    recover every matching category (not just the first hit).
-    if not result and raw_message:
-        msg_lower = raw_message.lower()
-        _seen_fallback: set = set()
-        try:
-            from sansadx_backend.jurisdiction import TAXONOMY_DB, _keyword_matches
-            for rule in TAXONOMY_DB:
-                for kw in rule.get("keywords", []):
-                    if _keyword_matches(kw, msg_lower):
-                        raw_cat = rule.get("category", "")
-                        mapped = (
-                            raw_cat if raw_cat in _VALID_CATEGORIES
-                            else _CATEGORY_ALIASES.get(raw_cat.lower())
-                        )
-                        if mapped and mapped not in _seen_fallback:
-                            result.append(mapped)
-                            _seen_fallback.add(mapped)
-                            logger.info("Category recovered via taxonomy kw '%s' → '%s'", kw, mapped)
-                        break  # one keyword match per rule is enough; move to next rule
-        except Exception:
-            pass
-
-    # 6. Final default — never return empty
-    if not result:
-        logger.warning("Category recovery failed for message; defaulting to Infrastructure & Utilities")
-        result = ["Infrastructure & Utilities"]
+    # NOTE: keyword fallback and the Infrastructure & Utilities default were
+    # removed on purpose. Recovery now happens in arbitrate_category(), which
+    # is deterministic, venue-aware, and returns UNKNOWN instead of guessing.
 
     # Deduplicate preserving order
     seen: set = set()
@@ -134,9 +121,13 @@ def _normalize_categories(cats: list, raw_message: str) -> list:
 def _default_grievance_data(raw_message: str = "") -> dict:
     """
     Returns a minimal but valid grievance_data dict for error-path returns.
-    Runs keyword fallback so cases are never saved with zero categories.
+
+    Conservative: deterministic rules / keyword inference may classify the
+    message; if they cannot, the category stays UNKNOWN (None) and the case is
+    flagged for operator review instead of being guessed.
     """
-    fields = build_taxonomy_fields(raw_text=raw_message)
+    decision = arbitrate_category(None, None, raw_message)
+    fields = taxonomy_fields_for_decision(decision)
     return {
         **fields,
         "location": None,
@@ -145,6 +136,10 @@ def _default_grievance_data(raw_message: str = "") -> dict:
         "scheme": None,
         "summary": raw_message[:200] if raw_message else "",
         "_ai_fallback": True,
+        "_category_confidence": decision["confidence"],
+        "_category_decided_by": decision["decided_by"],
+        "_rules_version": RULES_VERSION,
+        "needs_review": True,
     }
 
 
@@ -152,6 +147,12 @@ def _normalize_grievance_taxonomy(grievance: dict, raw_message: str) -> dict:
     """
     Canonicalize the 3-layer taxonomy while keeping legacy `categories`
     available for unchanged storage and API code paths.
+
+    The AI's category is treated as a HINT only. Deterministic civic rules
+    always win; an AI hint survives only when confirmed by independent keyword
+    evidence in the citizen's message (venue/landmark words excluded); and if
+    nothing is supported by the citizen's words the category is UNKNOWN
+    (None + needs_review) rather than a guess.
     """
     grievance = dict(grievance or {})
     cats = grievance.get("categories", [])
@@ -162,19 +163,43 @@ def _normalize_grievance_taxonomy(grievance: dict, raw_message: str) -> dict:
     if not candidate_domain and isinstance(cats, list) and cats:
         candidate_domain = cats[0]
 
-    normalized_categories = _normalize_categories(cats, raw_message)
-    if not candidate_domain and normalized_categories:
-        candidate_domain = normalized_categories[0]
-
-    fields = build_taxonomy_fields(
-        problem_domain=candidate_domain,
-        problem_subdomain=grievance.get("problem_subdomain"),
-        convergence_program_type=grievance.get("convergence_program_type"),
-        raw_text=raw_message,
-        scheme=grievance.get("scheme"),
-        department=grievance.get("department"),
+    # Label canonicalization only (alias/fuzzy LABEL fixing — not recovery).
+    normalized_categories = _normalize_categories(
+        [candidate_domain] if candidate_domain else cats, raw_message
     )
-    grievance.update(fields)
+    canonical_ai_domain = normalized_categories[0] if normalized_categories else None
+
+    decision = arbitrate_category(
+        canonical_ai_domain,
+        grievance.get("problem_subdomain"),
+        raw_message,
+    )
+
+    if decision["problem_domain"] is None:
+        # UNKNOWN: store nulls, never a default guess.
+        grievance.update({
+            "problem_domain": None,
+            "problem_subdomain": None,
+            "convergence_program_type": None,
+            "categories": [],
+        })
+    elif decision["confidence"] == "rule_locked":
+        grievance.update(taxonomy_fields_for_decision(decision))
+    else:
+        grievance.update(build_taxonomy_fields(
+            problem_domain=decision["problem_domain"],
+            problem_subdomain=decision["problem_subdomain"] or grievance.get("problem_subdomain"),
+            convergence_program_type=grievance.get("convergence_program_type"),
+            raw_text=raw_message,
+            scheme=grievance.get("scheme"),
+            department=grievance.get("department"),
+        ))
+
+    grievance["_category_confidence"] = decision["confidence"]
+    grievance["_category_decided_by"] = decision["decided_by"]
+    grievance["_rules_version"] = RULES_VERSION
+    if decision["needs_review"]:
+        grievance["needs_review"] = True
     return grievance
 
 
@@ -794,16 +819,29 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 except Exception as e:
                     logger.warning("Message-grounded geography resolution failed: %s", e)
 
-                # 1. Get AI's extracted location
+                # 1. Get AI's extracted location — a HINT only. It is recorded
+                # for audit, must pass the grounding gate (literally present in
+                # the citizen's message), and even then is only accepted after
+                # the deterministic resolver confirms it. AI output never
+                # writes the final location directly.
                 ai_loc = data.get("grievance_data", {}).get("location", "")
                 ai_loc_grounded = _location_is_grounded_in_message(ai_loc, effective_user_message) if ai_loc else False
+                if ai_loc and isinstance(data.get("grievance_data"), dict):
+                    data["grievance_data"]["_ai_location_hint"] = ai_loc
+                    data["grievance_data"]["_ai_location_hint_grounded"] = bool(ai_loc_grounded)
 
                 if message_geo.get("location_resolved"):
-                    grounded_loc = message_geo.get("matched_value") or ai_loc
+                    # Grounding gate: never fall back to an ungrounded AI string.
+                    grounded_loc = message_geo.get("matched_value") or (ai_loc if ai_loc_grounded else None)
                     grounded_constituency = message_geo.get("assembly_constituency") or "Unknown"
                     data["assembly_constituency"] = grounded_constituency
                     data["constituency"] = grounded_constituency
                     data["_match_confidence"] = f"message_grounded_{message_geo.get('confidence', 'high')}"
+                    if message_geo.get("needs_confirmation"):
+                        # Fuzzy/phonetic geo match: keep it, but route to review.
+                        data["needs_review"] = True
+                        if "grievance_data" in data:
+                            data["grievance_data"]["_geo_needs_confirmation"] = True
 
                     original_status = data.get("status", "").lower()
                     if original_status not in ("emergency", "offensive"):
@@ -868,6 +906,10 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         data["assembly_constituency"] = grounded_constituency
                         data["constituency"] = grounded_constituency
                         data["_match_confidence"] = f"ai_hint_{confidence_level}"
+                        if ai_hint_geo.get("needs_confirmation"):
+                            data["needs_review"] = True
+                            if "grievance_data" in data:
+                                data["grievance_data"]["_geo_needs_confirmation"] = True
 
                         original_status = data.get("status", "").lower()
                         if original_status not in ("emergency", "offensive"):
@@ -939,6 +981,9 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                         data["grievance_data"],
                         effective_user_message,
                     )
+                    # Bubble the review flag so case storage/operator queues see it.
+                    if data["grievance_data"].get("needs_review"):
+                        data["needs_review"] = True
 
             emergency_blob = " ".join(
                 str(part or "").strip().lower()
