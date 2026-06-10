@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-10
+- Request: Push the desktop dashboard queue-height stabilization fix to GitHub.
+- Summary: Pushed commit `44fc24c1` (`Stabilize dashboard queue height`) to `origin/main`, publishing the desktop minimum-height floor for the queue/workload/map row so sparse dashboard tabs like `Escalated` and `In Progress` no longer collapse the right column into a merged-looking layout.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This deploy intentionally excludes unrelated local edits in `data/geography/Ghaziabad/Loni.json` and `tenant_overrides.json`. If the dashboard shell gets a major visual redesign later, the shared minimum-height constant should be revisited deliberately rather than left implicit.
+
+- Date: 2026-06-10
 - Request: Stop the dashboard constituency-map/workload column from collapsing awkwardly when sparse queue tabs like `Escalated` or `In Progress` are selected.
 - Summary: Stabilized the desktop overview row in `frontend/app/dashboard/page.js` by adding a minimum synced queue height floor and matching `xl` minimum height on the grievance-queue column. The right-side `Workload + Constituency map` stack still follows the queue for normal states, but empty or low-volume tabs no longer compress the right column into a merged-looking layout. Verified with a successful `npm run build` in `frontend/`.
 - Files touched: `frontend/app/dashboard/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
