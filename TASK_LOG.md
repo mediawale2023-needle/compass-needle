@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-10
+- Request: Push the frontend auth-session refresh fix after tenant 10's seat identity was repaired on the backend.
+- Summary: Pushed commit `e6f02c63` (`Refresh auth session identity`) to `origin/main`, publishing the MP frontend auth boot change that refreshes cached `needle_user` data from `/api/auth/me` whenever a token exists. This was paired with a direct production correction of tenant `10`'s constituency typo so the public auth payload now returns `Belgaum Dakshin`, `Vidhan Sabha`, and `Aspirant MLA` consistently.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: After the frontend deploy completes, the user should hard refresh once so the refreshed boot path can overwrite any stale browser session payload that still says `Belagavi / Lok Sabha`.
+
+- Date: 2026-06-10
 - Request: Fix the dashboard still showing the wrong seat/map after tenant 10 was repaired on the backend.
 - Summary: Updated `frontend/lib/auth.js` so the MP frontend no longer trusts cached `needle_user` data indefinitely. On app boot, if a token exists, the auth provider now hydrates from cache only as a temporary placeholder and then refreshes the stored user via `/api/auth/me`, overwriting stale constituency/house/seat metadata after backend-side tenant repairs. Verified with a successful `npm run build` in `frontend/`.
 - Files touched: `frontend/lib/auth.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
