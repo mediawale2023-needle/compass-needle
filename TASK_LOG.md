@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-10
+- Request: Stop the dashboard constituency-map/workload column from collapsing awkwardly when sparse queue tabs like `Escalated` or `In Progress` are selected.
+- Summary: Stabilized the desktop overview row in `frontend/app/dashboard/page.js` by adding a minimum synced queue height floor and matching `xl` minimum height on the grievance-queue column. The right-side `Workload + Constituency map` stack still follows the queue for normal states, but empty or low-volume tabs no longer compress the right column into a merged-looking layout. Verified with a successful `npm run build` in `frontend/`.
+- Files touched: `frontend/app/dashboard/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This is a desktop-shell layout fix only. If a future dashboard redesign changes the queue’s base visual height, the shared minimum should be tuned intentionally rather than removed.
+
+- Date: 2026-06-10
 - Request: Push the frontend auth-session refresh fix after tenant 10's seat identity was repaired on the backend.
 - Summary: Pushed commit `e6f02c63` (`Refresh auth session identity`) to `origin/main`, publishing the MP frontend auth boot change that refreshes cached `needle_user` data from `/api/auth/me` whenever a token exists. This was paired with a direct production correction of tenant `10`'s constituency typo so the public auth payload now returns `Belgaum Dakshin`, `Vidhan Sabha`, and `Aspirant MLA` consistently.
 - Files touched: `TASK_LOG.md`

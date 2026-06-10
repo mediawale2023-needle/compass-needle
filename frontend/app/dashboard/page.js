@@ -18,6 +18,7 @@ import { canAccessSansadAI } from '@/lib/account';
 
 const MONO = dashboardFonts.mono;
 const SANS = dashboardFonts.sans;
+const MIN_DESKTOP_QUEUE_HEIGHT = 430;
 
 // ─── Main Dashboard ────────────────────────────────────────────
 export default function DashboardPage() {
@@ -41,7 +42,7 @@ export default function DashboardPage() {
                 return;
             }
             const nextHeight = queueRef.current?.getBoundingClientRect?.().height || null;
-            setDesktopQueueHeight(nextHeight ? Math.round(nextHeight) : null);
+            setDesktopQueueHeight(nextHeight ? Math.max(Math.round(nextHeight), MIN_DESKTOP_QUEUE_HEIGHT) : MIN_DESKTOP_QUEUE_HEIGHT);
         };
 
         syncQueueHeight();
@@ -89,7 +90,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Row 2 left: Grievance table */}
-            <div ref={queueRef} className="min-w-0 self-start">
+            <div ref={queueRef} className="min-w-0 self-start xl:min-h-[430px]">
                 <DashboardGrievanceQueue cases={cases} onCaseClick={handleCaseClick} />
             </div>
 
