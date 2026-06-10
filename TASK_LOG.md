@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-10
+- Request: Push the `Compass Needle Design System-4` Briefcase case modal implementation to GitHub.
+- Summary: Pushed commit `0da4c35a` (`Apply DS-4 briefcase modal`) to `origin/main`, publishing the wider split Briefcase case modal with the new `Case file` rail while preserving the live thread-case, status, geography, escalation, notes, and WhatsApp response behaviors.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This deploy intentionally excludes unrelated local edits in `data/geography/Ghaziabad/Loni.json` and `tenant_overrides.json`. After the frontend deploy completes, live verification should open a normal case, a grouped thread case, and a resolved case to confirm the DS-4 shell still supports case switching and per-complaint resolve cleanly.
+
+- Date: 2026-06-10
 - Request: Implement the `Compass Needle Design System-4` Briefcase case modal on top of the live case/thread behavior.
 - Summary: Reworked `frontend/components/briefcase/BriefcaseCaseModal.jsx` into a DS-4-style split detail surface: the modal is now significantly wider on desktop, with the citizen/message/activity/notes flow in the left reading column and a new `Case file` rail on the right for case metadata, geography, status actions, thread complaints, and assignment controls. The implementation keeps the existing live behaviors intact — thread-case switching, per-complaint resolve, geography save/lock, escalation, notes/response drafting, and WhatsApp notification flow — while moving the layout toward the DS-4 visual shell. Verified with a successful `npm run build` in `frontend/`.
 - Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
