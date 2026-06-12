@@ -3,7 +3,11 @@ main.py — Needle Parliamentary Intelligence Platform
 Backend Entry Point (FastAPI)
 """
 from sansadx_backend.ai_engine import ask_chatgpt_agent, detect_input_language, detect_input_language_confident, get_offensive_warning_reply
-from sansadx_backend.unified_taxonomy import infer_personal_request_category, infer_silent_log_category
+from sansadx_backend.unified_taxonomy import (
+    build_taxonomy_fields,
+    infer_personal_request_category,
+    infer_silent_log_category,
+)
 import os
 import re
 import json
@@ -1789,6 +1793,7 @@ from modules.letterbox import download_meta_media  # noqa: E402
 from modules.whatsapp_media_intake import normalize_media_complaint  # noqa: E402
 from modules.case_query_parser import parse_query
 from modules.case_query_engine import query_cases
+from modules.briefcase_rules import apply_civic_rules
 from modules.staff_schedule_parser import parse_staff_schedule_message
 from modules.whatsapp_geography import finalize_geography_decision
 from modules.geography_policy import location_required_for_domain
@@ -3495,6 +3500,32 @@ def _run_citizen_case_enrichment(
                         status = "new"
         except Exception as _intent_exc:
             logger.warning("Intent safety-net check failed (non-blocking): %s", _intent_exc)
+
+    # Civic grievances must never be swallowed by the no-reply "silent log"
+    # lane. The AI/tone detector can occasionally label terse complaints as
+    # media/support traffic, but deterministic civic rules are higher authority
+    # for the final category that drives acknowledgement sending.
+    if not is_emergency_complaint and not is_personal_request and str(status).lower() != "offensive":
+        try:
+            _civic_rule = apply_civic_rules(message_body or "")
+            if _civic_rule:
+                _civic_fields = build_taxonomy_fields(
+                    problem_domain=_civic_rule.get("problem_domain"),
+                    problem_subdomain=_civic_rule.get("problem_subdomain"),
+                    raw_text=message_body or "",
+                    scheme=grievance.get("scheme"),
+                    department=grievance.get("department"),
+                )
+                grievance.update(_civic_fields)
+                problem_domain = _civic_fields.get("problem_domain")
+                problem_subdomain = _civic_fields.get("problem_subdomain")
+                convergence_program_type = _civic_fields.get("convergence_program_type")
+                categories = _civic_fields.get("categories", [problem_domain] if problem_domain else [])
+                category = problem_domain or category
+                if str(status).lower() == "irrelevant":
+                    status = "new"
+        except Exception as _civic_exc:
+            logger.warning("Civic category reconciliation failed (non-blocking): %s", _civic_exc)
 
     political_reply = ai_result.get("political_response", get_generic_ack_reply(detected_language, message_body))
     ai_language = normalize_language_name(ai_result.get("detected_language", ""), "")

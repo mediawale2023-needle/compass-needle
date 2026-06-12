@@ -258,7 +258,8 @@ _CIVIC_RULES: tuple[dict, ...] = (
         "phrases": (
             "water logging", "waterlogging", "jal jamav", "जलजमाव", "जल जमाव",
             "paani bhar jata", "pani bhar jata", "पानी भर जाता", "baarish mein paani bhar",
-            "stagnant water", "sewage overflow",
+            "stagnant water", "sewage overflow", "drainage issue", "drainage problem",
+            "sewer issue", "sewer problem", "gutter issue", "gutter problem",
         ),
     },
     {

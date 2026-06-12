@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-12
+- Request: Fix production WhatsApp intake where a drainage complaint appeared on the dashboard but did not receive a citizen reply.
+- Summary: Found the live inbound message was saved successfully but the final intake category was `Media / Press Outreach`, a silent-log bucket, so outbound WhatsApp sending was intentionally skipped. Added a final civic-rule reconciliation in `main.py` so deterministic grievance evidence overrides silent categories before geography and ack resolution, and expanded the drainage rule to cover explicit `drainage issue/problem` phrasing. Added a regression for the exact `Shivaji colony in Tilakwadi has drainage issue. Needs immediate attention.` case.
+- Files touched: `main.py`, `modules/briefcase_rules.py`, `tests/test_citizen_clarification_flow.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Focused tests passed for the new regression plus taxonomy/briefcase guardrails. The full `tests/test_citizen_clarification_flow.py` file still contains an older incomplete-ack expectation that does not match current details-request behavior; that should be handled separately rather than inside this hotfix.
+
+- Date: 2026-06-12
 - Request: Make future Caddyfile deploys actually reload the running Caddy container.
 - Summary: Updated the EC2 deploy workflow so it rebuilds/restarts the backend first, then force-recreates the Caddy service after installing the repo-owned Caddyfile. This matches the live fix used to make `https://api.theneedle.in` serve a valid Let's Encrypt certificate and pass the Meta webhook challenge.
 - Files touched: `.github/workflows/deploy-aws-ec2.yml`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
