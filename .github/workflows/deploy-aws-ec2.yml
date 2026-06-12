@@ -16,6 +16,7 @@ on:
       - "jobs/**"
       - "scripts/**"
       - "data/**"
+      - "deploy/ec2/**"
       - "tenant_overrides.json"
       - "package.json"
       - "package-lock.json"

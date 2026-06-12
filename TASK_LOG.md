@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-12
+- Request: Retry the `api.theneedle.in` backend cutover after DNS began resolving.
+- Summary: Added `deploy/ec2/**` to the backend deploy workflow path filters so repo-owned Caddyfile changes trigger EC2 deploys automatically. This push is intended to restart Caddy after `api.theneedle.in` began resolving to `3.6.228.105`, allowing Caddy to issue the new TLS certificate.
+- Files touched: `.github/workflows/deploy-aws-ec2.yml`, `TASK_LOG.md`
+- Risks or follow-ups: If TLS still fails after this deploy, inspect Caddy ACME logs on EC2 through the GitHub runner/SSH deploy path because local SSH lacks the EC2 private key.
+
+- Date: 2026-06-12
 - Request: Push the `api.theneedle.in` backend hostname cutover to GitHub.
 - Summary: Pushed commit `2250aa25` (`Move backend hostname to api.theneedle.in`) to `origin/main`, publishing the repo-owned EC2 Caddyfile for `api.theneedle.in`, the deploy workflow change that installs/restarts Caddy, and updated operator docs for the new backend URL.
 - Files touched: `TASK_LOG.md`
