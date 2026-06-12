@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-12
+- Request: Push the `api.theneedle.in` backend hostname cutover to GitHub.
+- Summary: Pushed commit `2250aa25` (`Move backend hostname to api.theneedle.in`) to `origin/main`, publishing the repo-owned EC2 Caddyfile for `api.theneedle.in`, the deploy workflow change that installs/restarts Caddy, and updated operator docs for the new backend URL.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: The deploy workflow can install Caddy routing before DNS is live, but public availability still requires DNS `api.theneedle.in -> 3.6.228.105`, Vercel MP/Admin `NEXT_PUBLIC_API_URL=https://api.theneedle.in`, and Meta webhook callback `https://api.theneedle.in/whatsapp/webhook`.
+
+- Date: 2026-06-12
 - Request: Move the Needle backend production hostname to `api.theneedle.in`.
 - Summary: Updated the repo-side production backend contract so GitHub Actions deploy verification and operator docs now use `https://api.theneedle.in` instead of `https://backend.coinmedia.co.in`. Added a repo-owned EC2 Caddyfile for `api.theneedle.in` plus the old hostname during transition, and updated the deploy workflow to install that Caddyfile and restart Caddy with the backend. The health check now prefers the new hostname but can confirm the EC2 backend route while public DNS/TLS is still pending. Live DNS checks showed `theneedle.in` currently points to a parked/wrong service, `api.theneedle.in` is still NXDOMAIN, and the backend is healthy on EC2 when the old hostname is resolved directly to `3.6.228.105`.
 - Files touched: `.github/workflows/deploy-aws-ec2.yml`, `deploy/ec2/Caddyfile`, `deploy/ec2/README.md`, `DEPLOYMENT_GUIDE.md`, `README.md`, `AGENTS.md`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
