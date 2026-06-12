@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-12
+- Request: Add Caddy ACME contact for `api.theneedle.in` certificate issuance.
+- Summary: Added a global Caddy `email` contact to the repo-owned EC2 Caddyfile after DNS and routing were correct but HTTPS still failed with no served certificate. This is a small ACME-account hardening change before escalating to direct Caddy log inspection.
+- Files touched: `deploy/ec2/Caddyfile`, `TASK_LOG.md`
+- Risks or follow-ups: If the next deploy still cannot serve TLS for `api.theneedle.in`, inspect Caddy logs on EC2 because DNS, A record, HTTP reachability, and Caddy hostname routing have all been verified externally.
+
+- Date: 2026-06-12
 - Request: Fix `api.theneedle.in` TLS after Meta webhook validation failed.
 - Summary: Removed the old `backend.coinmedia.co.in` hostname from the repo-owned EC2 Caddyfile so Caddy can issue a certificate only for `api.theneedle.in`, and simplified the backend deploy health check to require the new public hostname now that DNS resolves to EC2.
 - Files touched: `deploy/ec2/Caddyfile`, `.github/workflows/deploy-aws-ec2.yml`, `PROJECT_MEMORY.md`, `TASK_LOG.md`

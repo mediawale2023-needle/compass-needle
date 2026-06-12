@@ -1,3 +1,7 @@
+{
+	email mediawale2023@gmail.com
+}
+
 api.theneedle.in {
 	reverse_proxy backend:8000
 }
