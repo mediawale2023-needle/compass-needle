@@ -111,15 +111,18 @@ jobs:
             cd /opt/compass-needle/app
             git fetch origin main
             git reset --hard ${{ github.sha }}
-            docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --build backend
+            sudo install -m 0644 /opt/compass-needle/app/deploy/ec2/Caddyfile /opt/compass-needle/Caddyfile
+            docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --build backend caddy
             docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml ps
 
       - name: Verify Backend Health
         shell: bash
+        env:
+          EC2_HOST: ${{ secrets.AWS_EC2_HOST }}
         run: |
           set -euo pipefail
           for attempt in {1..12}; do
-            if curl -fsS https://backend.coinmedia.co.in/health; then
+            if curl -fsS https://api.theneedle.in/health; then
               echo
               echo "Backend health check passed."
               exit 0
@@ -127,6 +130,12 @@ jobs:
             echo "Backend health check not ready (attempt ${attempt}/12); waiting..."
             sleep 10
           done
+          echo "api.theneedle.in is not publicly healthy yet; checking backend through the EC2 Caddy route."
+          if curl -fsS --resolve "backend.coinmedia.co.in:443:${EC2_HOST}" https://backend.coinmedia.co.in/health; then
+            echo
+            echo "Backend app is healthy on EC2. Public api.theneedle.in DNS/TLS may still be pending."
+            exit 0
+          fi
           echo "Backend did not pass health check after deploy." >&2
           exit 1
 

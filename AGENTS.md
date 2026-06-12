@@ -212,10 +212,10 @@ Production source of truth is **AWS EC2**. The backend and PostgreSQL run via Do
 
 | Service | Location | URL |
 |---|---|---|
-| Backend API | EC2 Docker Compose | `backend.coinmedia.co.in` |
+| Backend API | EC2 Docker Compose | `api.theneedle.in` |
 | PostgreSQL | EC2 Docker Compose | internal `postgres:5432/needle` |
-| MP Frontend | Vercel | configured with `NEXT_PUBLIC_API_URL=https://backend.coinmedia.co.in` |
-| Admin Frontend | Vercel | configured with `NEXT_PUBLIC_API_URL=https://backend.coinmedia.co.in` |
+| MP Frontend | Vercel | configured with `NEXT_PUBLIC_API_URL=https://api.theneedle.in` |
+| Admin Frontend | Vercel | configured with `NEXT_PUBLIC_API_URL=https://api.theneedle.in` |
 
 **Before deploying to production**, run through `DEPLOYMENT_GUIDE.md`:
 1. Rotate all credentials (OpenAI, Gemini, Meta, JWT secret)

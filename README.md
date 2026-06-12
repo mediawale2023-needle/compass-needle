@@ -137,7 +137,7 @@ compass-needle/
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `NEXT_PUBLIC_API_URL` | ✅ | Backend URL (e.g. `https://backend.coinmedia.co.in`) |
+| `NEXT_PUBLIC_API_URL` | ✅ | Backend URL (e.g. `https://api.theneedle.in`) |
 
 ---
 
@@ -264,17 +264,17 @@ The backend and production PostgreSQL run on AWS EC2. The MP and Admin dashboard
 
 | Service | Deployment | Production URL |
 |---------|------------|----------------|
-| Backend | EC2 Docker Compose | `https://backend.coinmedia.co.in` |
+| Backend | EC2 Docker Compose | `https://api.theneedle.in` |
 | PostgreSQL | EC2 Docker Compose | internal `postgres:5432/needle` |
-| MP Frontend | Vercel | set `NEXT_PUBLIC_API_URL=https://backend.coinmedia.co.in` |
-| Admin Frontend | Vercel | set `NEXT_PUBLIC_API_URL=https://backend.coinmedia.co.in` |
+| MP Frontend | Vercel | set `NEXT_PUBLIC_API_URL=https://api.theneedle.in` |
+| Admin Frontend | Vercel | set `NEXT_PUBLIC_API_URL=https://api.theneedle.in` |
 
 ### Production Smoke Test
 
 After an EC2 deploy, run the bundled smoke test instead of checking only the home page:
 
 ```bash
-export BACKEND_URL="https://backend.coinmedia.co.in"
+export BACKEND_URL="https://api.theneedle.in"
 export MP_URL="https://<mp-vercel-domain>"
 export ADMIN_URL="https://<admin-vercel-domain>"
 export MP_USERNAME="..."

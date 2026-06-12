@@ -16,7 +16,7 @@ Target: AWS EC2 in Mumbai (`ap-south-1`) running the FastAPI backend with Docker
 /opt/compass-needle/
   app/                  # git checkout of this repo
   .env                  # production secrets, never committed
-  Caddyfile             # domain reverse proxy config
+  Caddyfile             # installed from deploy/ec2/Caddyfile during deploy
 ```
 
 ## Deploy
@@ -28,9 +28,10 @@ The workflow at `.github/workflows/deploy-aws-ec2.yml`:
 1. Temporarily opens SSH only from the GitHub runner IP.
 2. Reboots the instance if SSH is not reachable.
 3. Resets `/opt/compass-needle/app` to the exact pushed commit.
-4. Rebuilds/restarts only the backend service.
-5. Verifies `https://backend.coinmedia.co.in/health`.
-6. Removes the temporary SSH ingress rule.
+4. Installs the repo-owned Caddyfile.
+5. Rebuilds/restarts the backend and Caddy services.
+6. Verifies `https://api.theneedle.in/health`.
+7. Removes the temporary SSH ingress rule.
 
 Add these repository secrets in GitHub:
 
@@ -54,8 +55,8 @@ The workflow temporarily opens SSH only from the GitHub runner's public IP, depl
 ## Health Checks
 
 ```bash
-curl -fsS https://YOUR_API_DOMAIN/health
-curl -fsS https://YOUR_API_DOMAIN/health/db
+curl -fsS https://api.theneedle.in/health
+curl -fsS https://api.theneedle.in/health/db
 ```
 
 ## Frontend Environment
@@ -63,7 +64,7 @@ curl -fsS https://YOUR_API_DOMAIN/health/db
 Set both Vercel projects to:
 
 ```text
-NEXT_PUBLIC_API_URL=https://YOUR_API_DOMAIN
+NEXT_PUBLIC_API_URL=https://api.theneedle.in
 ```
 
 Then update backend `ALLOWED_ORIGINS` to include both Vercel URLs and deploy through GitHub Actions.

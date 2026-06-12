@@ -12,6 +12,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-06-12
+- Request: Move the Needle backend production hostname to `api.theneedle.in`.
+- Summary: Updated the repo-side production backend contract so GitHub Actions deploy verification and operator docs now use `https://api.theneedle.in` instead of `https://backend.coinmedia.co.in`. Added a repo-owned EC2 Caddyfile for `api.theneedle.in` plus the old hostname during transition, and updated the deploy workflow to install that Caddyfile and restart Caddy with the backend. The health check now prefers the new hostname but can confirm the EC2 backend route while public DNS/TLS is still pending. Live DNS checks showed `theneedle.in` currently points to a parked/wrong service, `api.theneedle.in` is still NXDOMAIN, and the backend is healthy on EC2 when the old hostname is resolved directly to `3.6.228.105`.
+- Files touched: `.github/workflows/deploy-aws-ec2.yml`, `deploy/ec2/Caddyfile`, `deploy/ec2/README.md`, `DEPLOYMENT_GUIDE.md`, `README.md`, `AGENTS.md`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: DNS still needs `api.theneedle.in -> 3.6.228.105`; after DNS resolves, deploy `main` so Caddy gets a valid certificate, update Vercel MP/Admin `NEXT_PUBLIC_API_URL`, and move the Meta WhatsApp webhook callback to `https://api.theneedle.in/whatsapp/webhook`.
+
 - Date: 2026-06-10
 - Request: Push the Briefcase thread-level `View / Reply / Resolve` update to GitHub.
 - Summary: Pushed commit `5b0ea34f` (`Add thread-level reply actions`) to `origin/main`, publishing row-level `Reply` actions for real complaints inside a grouped Briefcase thread. Each complaint row now supports `View`, `Reply`, and `Resolve`, and `Reply` switches the active complaint, scrolls to the response composer, focuses the textarea, and keeps the existing WhatsApp send flow tied to that selected complaint.

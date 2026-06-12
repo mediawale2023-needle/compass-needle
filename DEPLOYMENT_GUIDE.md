@@ -116,7 +116,7 @@ docker run -d \
 git push origin main
 
 # Verify after the workflow finishes
-curl https://backend.coinmedia.co.in/health
+curl https://api.theneedle.in/health
 ```
 
 ### Option C: Emergency Manual Server Deployment
@@ -148,7 +148,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 Run the full smoke test once the deploy is live:
 
 ```bash
-export BACKEND_URL="https://backend.coinmedia.co.in"
+export BACKEND_URL="https://api.theneedle.in"
 export MP_URL="https://<mp-vercel-domain>"
 export ADMIN_URL="https://<admin-vercel-domain>"
 export MP_USERNAME="..."

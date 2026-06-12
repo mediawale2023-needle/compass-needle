@@ -1,0 +1,3 @@
+api.theneedle.in, backend.coinmedia.co.in {
+	reverse_proxy backend:8000
+}
