@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-12
+- Request: Push the WhatsApp intake silent-routing hotfix to production.
+- Summary: Pushed commit `099fb068` (`Prevent civic complaints from silent routing`) to `origin/main`, publishing the final-category reconciliation that prevents deterministic civic grievances from being swallowed by silent-log categories before the WhatsApp reply gate.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Backend deploy should run from `main`; after it completes, verify `https://api.theneedle.in/health` and send a fresh drainage-style WhatsApp test to confirm the complainant receives the normal acknowledgment.
+
+- Date: 2026-06-12
 - Request: Fix production WhatsApp intake where a drainage complaint appeared on the dashboard but did not receive a citizen reply.
 - Summary: Found the live inbound message was saved successfully but the final intake category was `Media / Press Outreach`, a silent-log bucket, so outbound WhatsApp sending was intentionally skipped. Added a final civic-rule reconciliation in `main.py` so deterministic grievance evidence overrides silent categories before geography and ack resolution, and expanded the drainage rule to cover explicit `drainage issue/problem` phrasing. Added a regression for the exact `Shivaji colony in Tilakwadi has drainage issue. Needs immediate attention.` case.
 - Files touched: `main.py`, `modules/briefcase_rules.py`, `tests/test_citizen_clarification_flow.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
