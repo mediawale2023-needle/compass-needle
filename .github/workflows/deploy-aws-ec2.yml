@@ -131,12 +131,6 @@ jobs:
             echo "Backend health check not ready (attempt ${attempt}/12); waiting..."
             sleep 10
           done
-          echo "api.theneedle.in is not publicly healthy yet; checking backend through the EC2 Caddy route."
-          if curl -fsS --resolve "backend.coinmedia.co.in:443:${EC2_HOST}" https://backend.coinmedia.co.in/health; then
-            echo
-            echo "Backend app is healthy on EC2. Public api.theneedle.in DNS/TLS may still be pending."
-            exit 0
-          fi
           echo "Backend did not pass health check after deploy." >&2
           exit 1
 

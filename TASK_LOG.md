@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-12
+- Request: Fix `api.theneedle.in` TLS after Meta webhook validation failed.
+- Summary: Removed the old `backend.coinmedia.co.in` hostname from the repo-owned EC2 Caddyfile so Caddy can issue a certificate only for `api.theneedle.in`, and simplified the backend deploy health check to require the new public hostname now that DNS resolves to EC2.
+- Files touched: `deploy/ec2/Caddyfile`, `.github/workflows/deploy-aws-ec2.yml`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: After deploy, verify `https://api.theneedle.in/health` and the Meta-style webhook challenge URL before saving the webhook in Meta.
+
+- Date: 2026-06-12
 - Request: Retry the `api.theneedle.in` backend cutover after DNS began resolving.
 - Summary: Added `deploy/ec2/**` to the backend deploy workflow path filters so repo-owned Caddyfile changes trigger EC2 deploys automatically. This push is intended to restart Caddy after `api.theneedle.in` began resolving to `3.6.228.105`, allowing Caddy to issue the new TLS certificate.
 - Files touched: `.github/workflows/deploy-aws-ec2.yml`, `TASK_LOG.md`
