@@ -23,6 +23,7 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - The platform is multi-tenant. Every data access path must preserve `tenant_id` isolation.
 - Production source of truth is AWS EC2 for backend/Postgres and Vercel for both frontends.
 - The canonical production backend hostname is `https://api.theneedle.in`; EC2 Caddy, MP/Admin Vercel `NEXT_PUBLIC_API_URL`, GitHub Actions backend health checks, Meta webhook callback URLs, and operator docs should use this instead of the old `backend.coinmedia.co.in` hostname.
+- EC2 Caddy uses a bind-mounted `/opt/compass-needle/Caddyfile`; deployment must force-recreate the Caddy container after installing that file, otherwise the running container can keep the old mounted config even though the host file is correct.
 - Primary account identity is now split across `tenants.tenant_type` and `users.role`: new top-level customer accounts are created with `role='owner'` and a `tenant_type` of `mp`, `mla`, or `aspirant`, while older `role='mp'` tenants remain supported for backward compatibility.
 - Auth payloads now expose `tenant_type` to the MP frontend, and primary-account checks should treat both `owner` and legacy `mp` roles as equivalent until the full migration is complete.
 - The MP frontend now centralizes account/session interpretation in `frontend/lib/account.js`; new UI gating and account labels should reuse those helpers instead of re-implementing role checks inline.

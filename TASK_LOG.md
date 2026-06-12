@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-12
+- Request: Make future Caddyfile deploys actually reload the running Caddy container.
+- Summary: Updated the EC2 deploy workflow so it rebuilds/restarts the backend first, then force-recreates the Caddy service after installing the repo-owned Caddyfile. This matches the live fix used to make `https://api.theneedle.in` serve a valid Let's Encrypt certificate and pass the Meta webhook challenge.
+- Files touched: `.github/workflows/deploy-aws-ec2.yml`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Caddy restarts are intentional for backend deploys now. If zero-downtime proxy reload becomes important later, replace this with an explicit `caddy reload` path instead of relying on Docker bind-mount refresh behavior.
+
+- Date: 2026-06-12
 - Request: Add Caddy ACME contact for `api.theneedle.in` certificate issuance.
 - Summary: Added a global Caddy `email` contact to the repo-owned EC2 Caddyfile after DNS and routing were correct but HTTPS still failed with no served certificate. This is a small ACME-account hardening change before escalating to direct Caddy log inspection.
 - Files touched: `deploy/ec2/Caddyfile`, `TASK_LOG.md`
