@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-14
+- Request: Push the admin WhatsApp operations reliability slice to GitHub.
+- Summary: Prepared commit `f07c9e22` (`Add admin WhatsApp operations queue`) on branch `codex-whatsapp-ops-queue`, publishing the first admin reliability slice: durable outbound WhatsApp logging, admin retry/list APIs, richer system-health WhatsApp signals, and the new `System -> WhatsApp Operations` queue surface.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: The branch still needs focused runtime verification in an env with `pytest` and `jwt` installed. This push intentionally stops after the outbound queue slice; real Meta health expansion and shared job-run history remain the next two reliability steps.
+
+- Date: 2026-06-14
 - Request: Start the admin reliability fixes with persistent outbound WhatsApp logging and an operator-visible failed-send queue.
 - Summary: Added a durable `wa_outbound_messages` audit table and wired `modules/whatsapp.py` so every outbound send attempt now records tenant/case context, payload, status, Meta response, and retry count, including local credential failures before a network call. Extended `/api/admin/system-health` with outbound WhatsApp signals, added `/api/admin/whatsapp/outbound` and `/api/admin/whatsapp/outbound/{id}/retry`, surfaced them in a new `System -> WhatsApp Operations` page, and updated the admin overview health widget to highlight failed sends. Also tagged MP-triggered citizen notification sends in `api_router.py` with tenant/case metadata for better queue visibility.
 - Files touched: `sansadx_backend/db.py`, `modules/whatsapp.py`, `api_router.py`, `admin_api.py`, `admin/app/dashboard/page.js`, `admin/app/dashboard/system/page.js`, `admin/app/dashboard/system/whatsapp/page.js`, `admin/components/admin-domains/system/WhatsAppOperationsPage.jsx`, `tests/test_admin_whatsapp_operations.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
