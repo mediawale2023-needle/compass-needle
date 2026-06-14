@@ -67,7 +67,13 @@ function SystemHealthWidget() {
     if (!health) return null;
 
     const services = [
-        { key: 'whatsapp', label: 'WhatsApp API', detail: health.whatsapp?.last_webhook ? `Last webhook: ${timeAgo(health.whatsapp.last_webhook)}` : 'No data' },
+        {
+            key: 'whatsapp',
+            label: 'WhatsApp API',
+            detail: health.whatsapp?.failed_outbound_24h
+                ? `${health.whatsapp.failed_outbound_24h} failed sends in 24h`
+                : (health.whatsapp?.last_webhook ? `Last webhook: ${timeAgo(health.whatsapp.last_webhook)}` : 'No data'),
+        },
         { key: 'openai', label: 'OpenAI API', detail: health.openai?.configured ? 'Key configured' : 'Not configured' },
         { key: 'gemini', label: 'Gemini API', detail: health.gemini?.configured ? 'Key configured' : 'Not configured' },
     ];

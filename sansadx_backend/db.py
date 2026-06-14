@@ -1240,6 +1240,31 @@ class ZeroHourSubmission(Base):
     scraped_at   = Column(DateTime, default=datetime.utcnow)
 
 
+class WAOutboundMessage(Base):
+    """Persistent audit log for outbound WhatsApp sends and retries."""
+    __tablename__ = "wa_outbound_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=True)
+    case_id = Column(Integer, ForeignKey("cases.id"), index=True, nullable=True)
+    to_number = Column(String, index=True, nullable=False)
+    phone_number_id = Column(String, nullable=True)
+    message_body = Column(Text, nullable=False)
+    template_key = Column(String, nullable=True)
+    initiated_by = Column(String, nullable=True)
+    initiated_via = Column(String, nullable=True)
+    status = Column(String, default="pending", index=True)  # pending|sent|failed|retrying
+    attempt_count = Column(Integer, default=0)
+    last_error = Column(Text, nullable=True)
+    meta_message_id = Column(String, nullable=True)
+    request_payload = Column(JSON, default=dict)
+    meta_response = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    last_attempt_at = Column(DateTime, nullable=True)
+    sent_at = Column(DateTime, nullable=True)
+
+
 class ParliamentBackfillJob(Base):
     """Tracks per-tenant per-session backfill progress for the 6-session historical import."""
     __tablename__ = "parliament_backfill_jobs"

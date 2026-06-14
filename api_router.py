@@ -1743,7 +1743,15 @@ def notify_citizen(case_id: int, user=Depends(get_current_user)):
     # Try to send via Meta WhatsApp Cloud API
     try:
         from modules.whatsapp import send_whatsapp_message
-        send_whatsapp_message(phone, message, get_tenant_phone_number_id(tid))
+        send_whatsapp_message(
+            phone,
+            message,
+            get_tenant_phone_number_id(tid),
+            tenant_id=tid,
+            case_id=case_id,
+            initiated_by=user.get("username", ""),
+            initiated_via="mp_case_notify",
+        )
         try:
             _log_case_activity(tid, case_id, user.get("username", ""), "citizen_notified", new_value=status)
         except Exception:
@@ -1902,7 +1910,15 @@ async def notify_citizen(case_id: int, request: Request, body: Optional[CitizenN
 
     try:
         from modules.whatsapp import send_whatsapp_message
-        send_whatsapp_message(phone, message, get_tenant_phone_number_id(tid))
+        send_whatsapp_message(
+            phone,
+            message,
+            get_tenant_phone_number_id(tid),
+            tenant_id=tid,
+            case_id=case_id,
+            initiated_by=user.get("username", ""),
+            initiated_via="mp_case_notify_and_resolve",
+        )
     except ImportError:
         raise HTTPException(500, "WhatsApp module not available")
     except Exception as e:

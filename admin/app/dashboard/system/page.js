@@ -4,6 +4,12 @@ import Link from 'next/link';
 
 const LINKS = [
     {
+        title: 'WhatsApp Operations',
+        body: 'Inspect live Meta readiness, recent delivery failures, and retry outbound citizen replies from one queue.',
+        href: '/dashboard/system/whatsapp',
+        cta: 'Open WhatsApp ops',
+    },
+    {
         title: 'Tenant Health',
         body: 'Monitor platform and tenant health, rollout blockers, and readiness state from one health surface.',
         href: '/dashboard/system/health',

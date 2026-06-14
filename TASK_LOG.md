@@ -12,6 +12,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-06-14
+- Request: Start the admin reliability fixes with persistent outbound WhatsApp logging and an operator-visible failed-send queue.
+- Summary: Added a durable `wa_outbound_messages` audit table and wired `modules/whatsapp.py` so every outbound send attempt now records tenant/case context, payload, status, Meta response, and retry count, including local credential failures before a network call. Extended `/api/admin/system-health` with outbound WhatsApp signals, added `/api/admin/whatsapp/outbound` and `/api/admin/whatsapp/outbound/{id}/retry`, surfaced them in a new `System -> WhatsApp Operations` page, and updated the admin overview health widget to highlight failed sends. Also tagged MP-triggered citizen notification sends in `api_router.py` with tenant/case metadata for better queue visibility.
+- Files touched: `sansadx_backend/db.py`, `modules/whatsapp.py`, `api_router.py`, `admin_api.py`, `admin/app/dashboard/page.js`, `admin/app/dashboard/system/page.js`, `admin/app/dashboard/system/whatsapp/page.js`, `admin/components/admin-domains/system/WhatsAppOperationsPage.jsx`, `tests/test_admin_whatsapp_operations.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Python backend files compile cleanly, but the new focused verification test could not be executed in this clean worktree because the local env here is missing `pytest` and `jwt`. The next slice should build on this table for real Meta health rollups and broader job-run history rather than inventing a second operational log.
+
 - Date: 2026-06-12
 - Request: Push the WhatsApp intake silent-routing hotfix to production.
 - Summary: Pushed commit `099fb068` (`Prevent civic complaints from silent routing`) to `origin/main`, publishing the final-category reconciliation that prevents deterministic civic grievances from being swallowed by silent-log categories before the WhatsApp reply gate.

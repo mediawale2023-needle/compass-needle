@@ -3249,6 +3249,41 @@ def system_health(_=Depends(get_admin_user)):
             wa_status = "green" if delta < 3600 else ("amber" if delta < 86400 else "red")
             wa_ts = wa_ts.isoformat()
 
+    outbound = _q_one(
+        """
+        SELECT
+            MAX(last_attempt_at) AS last_attempt,
+            MAX(sent_at) AS last_sent,
+            SUM(CASE WHEN status = 'failed' AND COALESCE(last_attempt_at, created_at) >= :since THEN 1 ELSE 0 END) AS failed_24h,
+            SUM(CASE WHEN status = 'sent' AND sent_at >= :since THEN 1 ELSE 0 END) AS sent_24h
+        FROM wa_outbound_messages
+        """,
+        {"since": now - timedelta(hours=24)},
+    ) or {}
+    failed_24h = int(outbound.get("failed_24h") or 0)
+    sent_24h = int(outbound.get("sent_24h") or 0)
+    last_attempt = outbound.get("last_attempt")
+    last_sent = outbound.get("last_sent")
+    if last_attempt and hasattr(last_attempt, "isoformat"):
+        last_attempt = last_attempt.isoformat()
+    if last_sent and hasattr(last_sent, "isoformat"):
+        last_sent = last_sent.isoformat()
+
+    access_token = os.getenv("META_ACCESS_TOKEN", "")
+    global_phone_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
+    tenant_phone_ids = _q_one(
+        "SELECT COUNT(*) AS total FROM tenants WHERE config IS NOT NULL AND CAST(config AS TEXT) LIKE '%meta_phone_number_id%'"
+    ) or {}
+    wa_configured = bool(access_token) and (bool(global_phone_id) or int(tenant_phone_ids.get("total") or 0) > 0)
+    if not wa_configured:
+        wa_status = "red"
+    elif failed_24h > 0 and sent_24h == 0:
+        wa_status = "red"
+    elif failed_24h > 0:
+        wa_status = "amber"
+    elif not wa_ts and last_attempt:
+        wa_status = "amber"
+
     # OpenAI: check if API key is configured
     openai_key = os.getenv("OPENAI_API_KEY", "")
     openai_status = "green" if openai_key and len(openai_key) > 10 else "red"
@@ -3258,11 +3293,110 @@ def system_health(_=Depends(get_admin_user)):
     gemini_status = "green" if gemini_key and len(gemini_key) > 10 else "red"
 
     return {
-        "whatsapp": {"status": wa_status, "last_webhook": wa_ts},
+        "whatsapp": {
+            "status": wa_status,
+            "configured": wa_configured,
+            "last_webhook": wa_ts,
+            "last_outbound_attempt": last_attempt,
+            "last_outbound_success": last_sent,
+            "failed_outbound_24h": failed_24h,
+            "sent_outbound_24h": sent_24h,
+        },
         "openai": {"status": openai_status, "configured": bool(openai_key)},
         "gemini": {"status": gemini_status, "configured": bool(gemini_key)},
         "last_checked": now.isoformat(),
     }
+
+
+def _serialize_outbound_row(row: dict) -> dict:
+    data = dict(row or {})
+    for key in ("created_at", "updated_at", "last_attempt_at", "sent_at"):
+        value = data.get(key)
+        if value and hasattr(value, "isoformat"):
+            data[key] = value.isoformat()
+    return data
+
+
+@router.get("/whatsapp/outbound")
+def list_whatsapp_outbound(
+    status: Optional[str] = None,
+    tenant_id: Optional[int] = None,
+    page: int = 1,
+    page_size: int = 50,
+    _=Depends(get_admin_user),
+):
+    page = max(1, int(page))
+    page_size = max(1, min(int(page_size), 200))
+    offset = (page - 1) * page_size
+    conditions = ["1=1"]
+    params = {"limit": page_size, "offset": offset}
+    if status:
+        conditions.append("w.status = :status")
+        params["status"] = status
+    if tenant_id:
+        conditions.append("w.tenant_id = :tenant_id")
+        params["tenant_id"] = tenant_id
+    where = " AND ".join(conditions)
+
+    rows = _q(
+        f"""
+        SELECT
+            w.*,
+            t.name AS tenant_name,
+            t.constituency AS tenant_constituency
+        FROM wa_outbound_messages w
+        LEFT JOIN tenants t ON t.id = w.tenant_id
+        WHERE {where}
+        ORDER BY COALESCE(w.last_attempt_at, w.created_at) DESC, w.id DESC
+        LIMIT :limit OFFSET :offset
+        """,
+        params,
+    )
+    total_row = _q_one(
+        f"SELECT COUNT(*) AS total FROM wa_outbound_messages w WHERE {where}",
+        {k: v for k, v in params.items() if k not in {"limit", "offset"}},
+    ) or {}
+    return {
+        "items": [_serialize_outbound_row(row) for row in rows],
+        "page": page,
+        "page_size": page_size,
+        "total": int(total_row.get("total") or 0),
+    }
+
+
+@router.post("/whatsapp/outbound/{message_id}/retry")
+def retry_whatsapp_outbound(message_id: int, user=Depends(get_admin_user)):
+    existing = _q_one(
+        "SELECT id, tenant_id FROM wa_outbound_messages WHERE id = :id",
+        {"id": message_id},
+    )
+    if not existing:
+        raise HTTPException(404, "Outbound message not found")
+
+    try:
+        from modules.whatsapp import retry_outbound_message
+
+        retry_outbound_message(message_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+    except Exception as exc:
+        logger.error("Outbound WhatsApp retry failed for %s: %s", message_id, exc)
+        raise HTTPException(502, "Retry failed. Review the outbound log entry for the latest error.")
+
+    updated = _q_one(
+        """
+        SELECT
+            w.*,
+            t.name AS tenant_name,
+            t.constituency AS tenant_constituency
+        FROM wa_outbound_messages w
+        LEFT JOIN tenants t ON t.id = w.tenant_id
+        WHERE w.id = :id
+        """,
+        {"id": message_id},
+    )
+    _audit(user, "retried", "wa_outbound_message", f"id={message_id}", f"tenant_id={existing.get('tenant_id')}")
+    return {"success": True, "item": _serialize_outbound_row(updated or {})}
 
 
 # ═══════════════════════════════════════════
