@@ -13,6 +13,18 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-14
+- Request: Push the Meta-aware WhatsApp health slice to GitHub.
+- Summary: Prepared the follow-up WhatsApp reliability update on branch `codex-whatsapp-ops-queue`, adding centralized Meta-aware health evaluation, lightweight WhatsApp alerts, and a clearer `System -> WhatsApp Operations` health surface with tenant routing gaps and exact degradation reasons.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This push still relies on later env-backed verification for the focused test file because the local clean worktree does not have `pytest`/`jwt` installed. The remaining reliability priority after this is shared job-run history for background/admin operations.
+
+- Date: 2026-06-14
+- Request: Implement the second admin reliability slice: real WhatsApp/Meta health and lightweight alerts.
+- Summary: Replaced the shallow WhatsApp `system-health` rollup with a centralized `_collect_whatsapp_health()` model in `admin_api.py` that evaluates live Meta token validity, webhook heartbeat freshness, tenant routing coverage, outbound failure trend, and a single operator-facing status/reason. Fed that model into `/api/admin/system-health`, `/api/admin/debug/whatsapp`, and `/api/admin/alerts`, then upgraded the `System -> WhatsApp Operations` page plus the admin overview widget to show exact degradation reasons and tenant routing gaps instead of only raw check counts.
+- Files touched: `admin_api.py`, `admin/components/admin-domains/system/WhatsAppOperationsPage.jsx`, `admin/app/dashboard/page.js`, `tests/test_admin_whatsapp_operations.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: `python3 -m py_compile admin_api.py` passed. The focused test file was updated to reflect the nested health payload, but I still could not run it in this environment because the local Python env here does not have `pytest`/`jwt` installed. The next reliability slice should build shared job-run history so geography/parliament/backfill operations get the same persistent visibility as WhatsApp.
+
+- Date: 2026-06-14
 - Request: Push the admin WhatsApp operations reliability slice to GitHub.
 - Summary: Prepared commit `f07c9e22` (`Add admin WhatsApp operations queue`) on branch `codex-whatsapp-ops-queue`, publishing the first admin reliability slice: durable outbound WhatsApp logging, admin retry/list APIs, richer system-health WhatsApp signals, and the new `System -> WhatsApp Operations` queue surface.
 - Files touched: `TASK_LOG.md`

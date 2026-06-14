@@ -86,6 +86,8 @@ export default function WhatsAppOperationsPage() {
     const summary = diagnostics?.summary || {};
     const checks = diagnostics?.checks || [];
     const failedChecks = checks.filter((check) => check.status === 'fail');
+    const waHealth = health?.whatsapp || {};
+    const tenantIssues = waHealth?.routing?.tenant_issues || [];
 
     return (
         <div className="space-y-6">
@@ -111,29 +113,112 @@ export default function WhatsAppOperationsPage() {
                 </div>
             </div>
 
+            <div className="glass-panel">
+                <div className="mb-4 flex items-start justify-between gap-4">
+                    <div>
+                        <div className="cn-meta text-xs">Current status</div>
+                        <h3 className="cn-h2 mt-2">{
+                            waHealth?.status === 'red'
+                                ? 'WhatsApp is broken'
+                                : waHealth?.status === 'amber'
+                                    ? 'WhatsApp needs attention'
+                                    : 'WhatsApp is healthy'
+                        }</h3>
+                        <p className="cn-body mt-2 text-sm">{waHealth?.reason || 'Health details unavailable.'}</p>
+                    </div>
+                    <span className={statusBadgeClass(waHealth?.status)}>{waHealth?.status || 'unknown'}</span>
+                </div>
+                <div className="grid gap-3 md:grid-cols-4">
+                    <div className="rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
+                        <div className="cn-meta text-xs">Meta token</div>
+                        <div className="mt-2">
+                            <span className={statusBadgeClass(waHealth?.meta_token?.status)}>{waHealth?.meta_token?.status || 'unknown'}</span>
+                        </div>
+                        <p className="cn-body mt-3 text-sm">{waHealth?.meta_token?.detail || 'No token detail available.'}</p>
+                    </div>
+                    <div className="rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
+                        <div className="cn-meta text-xs">Webhook heartbeat</div>
+                        <div className="mt-2">
+                            <span className={statusBadgeClass(waHealth?.webhook?.status)}>{waHealth?.webhook?.status || 'unknown'}</span>
+                        </div>
+                        <p className="cn-body mt-3 text-sm">{waHealth?.webhook?.detail || 'No webhook detail available.'}</p>
+                    </div>
+                    <div className="rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
+                        <div className="cn-meta text-xs">Routing coverage</div>
+                        <div className="mt-2">
+                            <span className={statusBadgeClass(waHealth?.routing?.status)}>{waHealth?.routing?.status || 'unknown'}</span>
+                        </div>
+                        <p className="cn-body mt-3 text-sm">{waHealth?.routing?.detail || 'No routing detail available.'}</p>
+                    </div>
+                    <div className="rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
+                        <div className="cn-meta text-xs">Outbound delivery</div>
+                        <div className="mt-2">
+                            <span className={statusBadgeClass(waHealth?.outbound?.status)}>{waHealth?.outbound?.status || 'unknown'}</span>
+                        </div>
+                        <p className="cn-body mt-3 text-sm">{waHealth?.outbound?.detail || 'No outbound detail available.'}</p>
+                    </div>
+                </div>
+            </div>
+
             <div className="grid gap-4 md:grid-cols-3">
                 <HealthCard
                     title="Meta stack"
-                    tone={summary.failed ? 'red' : 'green'}
-                    value={summary.failed ? `${summary.failed} failing checks` : 'All checks passing'}
-                    detail={summary.first_failure || 'Token, webhook, and tenant routing checks are healthy right now.'}
+                    tone={waHealth?.meta_token?.status === 'red' ? 'red' : waHealth?.meta_token?.status === 'amber' ? 'amber' : 'green'}
+                    value={waHealth?.meta_token?.status === 'green' ? 'Token validated live' : 'Token needs review'}
+                    detail={waHealth?.meta_token?.detail || summary.first_failure || 'Token, webhook, and tenant routing checks are healthy right now.'}
                 />
                 <HealthCard
                     title="Outbound queue"
-                    tone={(health?.whatsapp?.failed_outbound_24h || 0) > 0 ? 'amber' : 'green'}
+                    tone={waHealth?.outbound?.status === 'red' ? 'red' : waHealth?.outbound?.status === 'amber' ? 'amber' : 'green'}
                     value={`${queue.length} pending or failed`}
                     detail={
-                        health?.whatsapp?.last_outbound_attempt
-                            ? `Last attempt ${timeAgo(health.whatsapp.last_outbound_attempt)}`
+                        waHealth?.outbound?.last_outbound_attempt
+                            ? `Last attempt ${timeAgo(waHealth.outbound.last_outbound_attempt)}`
                             : 'No outbound attempts logged yet.'
                     }
                 />
                 <HealthCard
                     title="Recent webhooks"
-                    tone={health?.whatsapp?.last_webhook ? 'green' : 'red'}
-                    value={health?.whatsapp?.last_webhook ? timeAgo(health.whatsapp.last_webhook) : 'No inbound activity'}
-                    detail="Inbound heartbeat still uses the latest case created from the webhook path."
+                    tone={waHealth?.webhook?.status === 'red' ? 'red' : waHealth?.webhook?.status === 'amber' ? 'amber' : 'green'}
+                    value={waHealth?.webhook?.last_webhook ? timeAgo(waHealth.webhook.last_webhook) : 'No inbound activity'}
+                    detail={waHealth?.webhook?.detail || 'Inbound heartbeat still uses the latest case created from the webhook path.'}
                 />
+            </div>
+
+            <div className="glass-panel">
+                <div className="mb-4 flex items-start justify-between gap-4">
+                    <div>
+                        <h3 className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>Tenant routing gaps</h3>
+                        <p className="cn-body mt-2 text-sm">
+                            Active tenants missing their WhatsApp number or Meta phone number ID show up here so operators can fix routing before sends fail.
+                        </p>
+                    </div>
+                    <span className={`badge ${tenantIssues.length ? 'badge-amber' : 'badge-green'}`}>
+                        {tenantIssues.length ? `${tenantIssues.length} issue${tenantIssues.length === 1 ? '' : 's'}` : 'All covered'}
+                    </span>
+                </div>
+                {tenantIssues.length ? (
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>Tenant</th>
+                                <th>Constituency</th>
+                                <th>Issue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {tenantIssues.map((item) => (
+                                <tr key={item.tenant_id}>
+                                    <td>{item.name}</td>
+                                    <td>{item.constituency || '—'}</td>
+                                    <td>{item.issue}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                ) : (
+                    <p className="cn-body text-sm">All active tenants currently have routing coverage.</p>
+                )}
             </div>
 
             <div className="glass-panel">

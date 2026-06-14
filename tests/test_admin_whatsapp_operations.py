@@ -18,6 +18,8 @@ os.environ["ENV"] = "test"
 os.environ["OPENAI_API_KEY"] = "sk-test-fake-key-for-testing"
 os.environ["META_ACCESS_TOKEN"] = "meta-test-token"
 os.environ["WHATSAPP_PHONE_NUMBER_ID"] = "1234567890"
+os.environ["META_APP_SECRET"] = "meta-app-secret"
+os.environ["META_VERIFY_TOKEN"] = "meta-verify-token"
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -143,6 +145,11 @@ def test_send_logging_and_admin_retry(monkeypatch):
             return {"messages": [{"id": "wamid.retry-success"}]}
 
     monkeypatch.setattr(whatsapp_module.http_requests, "post", lambda *args, **kwargs: SuccessResponse())
+    monkeypatch.setattr(
+        admin_api.http_requests,
+        "get",
+        lambda *args, **kwargs: type("TokenResp", (), {"ok": True, "json": lambda self: {"name": "Needle Meta App"}})(),
+    )
 
     retry_resp = client.post(f"/api/admin/whatsapp/outbound/{items[0]['id']}/retry", json={}, headers=_admin_headers())
     assert retry_resp.status_code == 200
@@ -154,6 +161,8 @@ def test_send_logging_and_admin_retry(monkeypatch):
     health_resp = client.get("/api/admin/system-health", headers=_admin_headers())
     assert health_resp.status_code == 200
     health = health_resp.json()["whatsapp"]
-    assert health["last_outbound_attempt"] is not None
-    assert health["last_outbound_success"] is not None
-    assert health["sent_outbound_24h"] >= 1
+    assert health["meta_token"]["status"] == "green"
+    assert health["outbound"]["last_outbound_attempt"] is not None
+    assert health["outbound"]["last_outbound_success"] is not None
+    assert health["outbound"]["sent_outbound_24h"] >= 1
+    assert health["routing"]["configured_tenants"] >= 1

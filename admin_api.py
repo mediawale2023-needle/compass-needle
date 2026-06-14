@@ -3233,21 +3233,36 @@ def delete_announcement(ann_id: int, _=Depends(get_admin_user)):
 # SYSTEM HEALTH
 # ═══════════════════════════════════════════
 
-@router.get("/system-health")
-def system_health(_=Depends(get_admin_user)):
-    """System health widget — API status checks."""
-    now = datetime.utcnow()
+def _iso_or_none(value):
+    if value and hasattr(value, "isoformat"):
+        return value.isoformat()
+    return value
 
-    # WhatsApp: last webhook = last case created
+
+def _collect_whatsapp_health(now: datetime | None = None, *, live_check: bool = True) -> dict:
+    now = now or datetime.utcnow()
+
+    access_token = os.getenv("META_ACCESS_TOKEN", "")
+    global_phone_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
+    meta_app_secret = os.getenv("META_APP_SECRET", "")
+    meta_verify_token = os.getenv("META_VERIFY_TOKEN", "")
+
     last_case = _q_one("SELECT MAX(created_at) AS ts FROM cases")
-    wa_ts = None
-    wa_status = "red"
-    if last_case and last_case.get("ts"):
-        wa_ts = last_case["ts"]
-        if hasattr(wa_ts, "isoformat"):
-            delta = (now - wa_ts).total_seconds()
-            wa_status = "green" if delta < 3600 else ("amber" if delta < 86400 else "red")
-            wa_ts = wa_ts.isoformat()
+    last_webhook_raw = last_case.get("ts") if last_case else None
+    last_webhook = _iso_or_none(last_webhook_raw)
+    inbound_status = "red"
+    inbound_detail = "No webhook-backed case activity found yet."
+    if last_webhook_raw and hasattr(last_webhook_raw, "isoformat"):
+        delta = (now - last_webhook_raw).total_seconds()
+        if delta < 3600:
+            inbound_status = "green"
+            inbound_detail = "Inbound webhook activity is fresh."
+        elif delta < 86400:
+            inbound_status = "amber"
+            inbound_detail = "Inbound webhook activity is stale but still within 24 hours."
+        else:
+            inbound_status = "red"
+            inbound_detail = "No inbound webhook activity in the last 24 hours."
 
     outbound = _q_one(
         """
@@ -3262,27 +3277,182 @@ def system_health(_=Depends(get_admin_user)):
     ) or {}
     failed_24h = int(outbound.get("failed_24h") or 0)
     sent_24h = int(outbound.get("sent_24h") or 0)
-    last_attempt = outbound.get("last_attempt")
-    last_sent = outbound.get("last_sent")
-    if last_attempt and hasattr(last_attempt, "isoformat"):
-        last_attempt = last_attempt.isoformat()
-    if last_sent and hasattr(last_sent, "isoformat"):
-        last_sent = last_sent.isoformat()
-
-    access_token = os.getenv("META_ACCESS_TOKEN", "")
-    global_phone_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID") or os.getenv("META_PHONE_NUMBER_ID", "")
-    tenant_phone_ids = _q_one(
-        "SELECT COUNT(*) AS total FROM tenants WHERE config IS NOT NULL AND CAST(config AS TEXT) LIKE '%meta_phone_number_id%'"
+    attempts_24h = failed_24h + sent_24h
+    failure_rate_24h = round((failed_24h / attempts_24h) * 100, 1) if attempts_24h else 0.0
+    last_attempt = _iso_or_none(outbound.get("last_attempt"))
+    last_sent = _iso_or_none(outbound.get("last_sent"))
+    top_failure = _q_one(
+        """
+        SELECT last_error, COUNT(*) AS total
+        FROM wa_outbound_messages
+        WHERE status = 'failed'
+          AND COALESCE(last_attempt_at, created_at) >= :since
+        GROUP BY last_error
+        ORDER BY total DESC, MAX(COALESCE(last_attempt_at, created_at)) DESC
+        LIMIT 1
+        """,
+        {"since": now - timedelta(hours=24)},
     ) or {}
-    wa_configured = bool(access_token) and (bool(global_phone_id) or int(tenant_phone_ids.get("total") or 0) > 0)
-    if not wa_configured:
-        wa_status = "red"
-    elif failed_24h > 0 and sent_24h == 0:
-        wa_status = "red"
+    top_failure_reason = (top_failure.get("last_error") or "").strip() or None
+
+    active_tenants = _q(
+        """
+        SELECT id, name, constituency, whatsapp_number, config
+        FROM tenants
+        WHERE is_active = true AND name != 'System Admin'
+        ORDER BY id
+        """,
+        {},
+    )
+    tenant_issues = []
+    configured_tenants = 0
+    for tenant in active_tenants:
+        cfg = tenant.get("config") or {}
+        if isinstance(cfg, str):
+            try:
+                cfg = json.loads(cfg)
+            except Exception:
+                cfg = {}
+        has_wa_number = bool((tenant.get("whatsapp_number") or "").strip())
+        has_phone_id = bool((cfg.get("meta_phone_number_id") or "").strip()) or bool(global_phone_id)
+        if has_wa_number and has_phone_id:
+            configured_tenants += 1
+            continue
+        issue_parts = []
+        if not has_wa_number:
+            issue_parts.append("missing tenant WhatsApp number")
+        if not has_phone_id:
+            issue_parts.append("missing Meta phone number ID")
+        tenant_issues.append({
+            "tenant_id": tenant["id"],
+            "name": tenant.get("name", ""),
+            "constituency": tenant.get("constituency", ""),
+            "issue": ", ".join(issue_parts),
+        })
+
+    token_status = {
+        "configured": bool(access_token),
+        "status": "red" if not access_token else "amber",
+        "detail": "META_ACCESS_TOKEN is missing." if not access_token else "Token not validated yet.",
+    }
+    if access_token and live_check:
+        try:
+            token_resp = http_requests.get(
+                "https://graph.facebook.com/v21.0/me",
+                params={"access_token": access_token},
+                timeout=5,
+            )
+            if token_resp.ok:
+                me = token_resp.json()
+                token_status = {
+                    "configured": True,
+                    "status": "green",
+                    "detail": f"Authenticated as {me.get('name', me.get('id', 'Meta app'))}.",
+                }
+            else:
+                err = token_resp.json().get("error", {})
+                token_status = {
+                    "configured": True,
+                    "status": "red",
+                    "detail": err.get("message", token_resp.text[:200]) or "Meta rejected the token.",
+                }
+        except Exception as exc:
+            token_status = {
+                "configured": True,
+                "status": "amber",
+                "detail": f"Could not validate token live: {exc}",
+            }
+
+    routing_ready = bool(global_phone_id) or configured_tenants > 0
+    routing_status = "green"
+    routing_detail = "Tenant routing looks ready."
+    if not meta_app_secret or not meta_verify_token:
+        routing_status = "red"
+        routing_detail = "Webhook secrets are incomplete."
+    elif not routing_ready:
+        routing_status = "red"
+        routing_detail = "No active tenant can currently send via Meta."
+    elif tenant_issues:
+        routing_status = "amber"
+        routing_detail = f"{len(tenant_issues)} active tenant(s) have incomplete WhatsApp routing."
+
+    outbound_status = "green"
+    outbound_detail = "No recent outbound delivery issues."
+    if failed_24h > 0 and sent_24h == 0:
+        outbound_status = "red"
+        outbound_detail = top_failure_reason or "Recent outbound sends are failing with no successful recovery."
     elif failed_24h > 0:
-        wa_status = "amber"
-    elif not wa_ts and last_attempt:
-        wa_status = "amber"
+        outbound_status = "amber"
+        outbound_detail = top_failure_reason or "Some outbound sends failed in the last 24 hours."
+    elif not last_attempt:
+        outbound_status = "amber"
+        outbound_detail = "No outbound send attempts have been logged yet."
+
+    status = "green"
+    reason = "WhatsApp is healthy."
+    if token_status["status"] == "red":
+        status = "red"
+        reason = "Meta access token is invalid or missing."
+    elif routing_status == "red":
+        status = "red"
+        reason = routing_detail
+    elif outbound_status == "red":
+        status = "red"
+        reason = outbound_detail
+    elif inbound_status == "red":
+        status = "red"
+        reason = inbound_detail
+    elif token_status["status"] == "amber":
+        status = "amber"
+        reason = token_status["detail"]
+    elif routing_status == "amber":
+        status = "amber"
+        reason = routing_detail
+    elif outbound_status == "amber":
+        status = "amber"
+        reason = outbound_detail
+    elif inbound_status == "amber":
+        status = "amber"
+        reason = inbound_detail
+
+    return {
+        "status": status,
+        "reason": reason,
+        "configured": bool(access_token) and routing_ready and bool(meta_app_secret) and bool(meta_verify_token),
+        "meta_token": token_status,
+        "webhook": {
+            "status": inbound_status,
+            "detail": inbound_detail,
+            "last_webhook": last_webhook,
+            "verify_token_configured": bool(meta_verify_token),
+            "app_secret_configured": bool(meta_app_secret),
+        },
+        "routing": {
+            "status": routing_status,
+            "detail": routing_detail,
+            "global_phone_id_configured": bool(global_phone_id),
+            "active_tenants": len(active_tenants),
+            "configured_tenants": configured_tenants,
+            "misconfigured_tenants": len(tenant_issues),
+            "tenant_issues": tenant_issues[:10],
+        },
+        "outbound": {
+            "status": outbound_status,
+            "detail": outbound_detail,
+            "last_outbound_attempt": last_attempt,
+            "last_outbound_success": last_sent,
+            "failed_outbound_24h": failed_24h,
+            "sent_outbound_24h": sent_24h,
+            "failure_rate_24h": failure_rate_24h,
+            "top_failure_reason": top_failure_reason,
+        },
+    }
+
+@router.get("/system-health")
+def system_health(_=Depends(get_admin_user)):
+    """System health widget — API status checks."""
+    now = datetime.utcnow()
+    whatsapp_health = _collect_whatsapp_health(now, live_check=True)
 
     # OpenAI: check if API key is configured
     openai_key = os.getenv("OPENAI_API_KEY", "")
@@ -3293,15 +3463,7 @@ def system_health(_=Depends(get_admin_user)):
     gemini_status = "green" if gemini_key and len(gemini_key) > 10 else "red"
 
     return {
-        "whatsapp": {
-            "status": wa_status,
-            "configured": wa_configured,
-            "last_webhook": wa_ts,
-            "last_outbound_attempt": last_attempt,
-            "last_outbound_success": last_sent,
-            "failed_outbound_24h": failed_24h,
-            "sent_outbound_24h": sent_24h,
-        },
+        "whatsapp": whatsapp_health,
         "openai": {"status": openai_status, "configured": bool(openai_key)},
         "gemini": {"status": gemini_status, "configured": bool(gemini_key)},
         "last_checked": now.isoformat(),
@@ -3587,6 +3749,25 @@ def get_alerts(_=Depends(get_admin_user)):
     now = datetime.utcnow()
     alerts = []
 
+    try:
+        wa_health = _collect_whatsapp_health(now, live_check=True)
+        if wa_health.get("status") == "red":
+            alerts.append({
+                "type": "whatsapp_health",
+                "severity": "critical",
+                "title": "WhatsApp is degraded",
+                "description": wa_health.get("reason") or "WhatsApp health needs immediate attention.",
+            })
+        elif wa_health.get("status") == "amber":
+            alerts.append({
+                "type": "whatsapp_health",
+                "severity": "warning",
+                "title": "WhatsApp needs review",
+                "description": wa_health.get("reason") or "WhatsApp health is partially degraded.",
+            })
+    except Exception as e:
+        logger.warning(f"Alerts - WhatsApp health check failed: {e}")
+
     # 1. Tenants that went inactive (no cases in 7+ days but had activity before)
     try:
         stale_tenants = _q("""
@@ -3698,6 +3879,8 @@ def whatsapp_diagnostics(_=Depends(get_admin_user)):
     Hit this when messages are not being sent or received.
     """
     report = {"checks": [], "tenants": [], "recent_webhooks": []}
+    health = _collect_whatsapp_health(datetime.utcnow(), live_check=True)
+    report["health"] = health
 
     def check(name, ok, detail, fix=None):
         report["checks"].append({
@@ -3815,6 +3998,22 @@ def whatsapp_diagnostics(_=Depends(get_admin_user)):
         )
     except Exception as e:
         check("Recent cases in DB", False, f"Query failed: {e}")
+
+    # ── 5. Outbound delivery trend ──────────────────────────────────────────
+    outbound = health.get("outbound", {})
+    check(
+        "Recent outbound failures are under control",
+        outbound.get("status") != "red",
+        outbound.get("detail") or "No outbound trend available.",
+        fix="Open System → WhatsApp Operations and review the failed-send queue plus the latest Meta error.",
+    )
+    if health.get("routing", {}).get("misconfigured_tenants"):
+        check(
+            "All active tenants have complete WhatsApp routing",
+            False,
+            health["routing"]["detail"],
+            fix="Fill in tenant WhatsApp number and Meta phone number ID from the tenant detail page.",
+        )
 
     # ── Summary ──────────────────────────────────────────────────────────────
     failures = [c for c in report["checks"] if c["status"] == "fail"]
