@@ -4,6 +4,12 @@ import Link from 'next/link';
 
 const LINKS = [
     {
+        title: 'Jobs',
+        body: 'Review shared history for long-running admin operations, failures, and stuck background work.',
+        href: '/dashboard/system/jobs',
+        cta: 'Open jobs',
+    },
+    {
         title: 'WhatsApp Operations',
         body: 'Inspect live Meta readiness, recent delivery failures, and retry outbound citizen replies from one queue.',
         href: '/dashboard/system/whatsapp',

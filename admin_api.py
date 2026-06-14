@@ -26,7 +26,7 @@ from jwt.exceptions import PyJWTError as JWTError
 from sqlalchemy import text, func
 from sqlalchemy.orm.attributes import flag_modified
 
-from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, TenantOverride, validate_password, get_all_overrides, save_overrides_to_db, AdminAuditLog, AdminNote, derive_account_stage, derive_seat_type, build_geography_key, parse_geography_key, get_all_geography_data, seat_label
+from sansadx_backend.db import engine, SessionLocal, Tenant, User, Case, TenantProfile, TenantOverride, JobRun, validate_password, get_all_overrides, save_overrides_to_db, AdminAuditLog, AdminNote, derive_account_stage, derive_seat_type, build_geography_key, parse_geography_key, get_all_geography_data, seat_label
 from core.db_helpers import _q, _q_one, _parse_meta
 from core.gemini_client import get_gemini_client
 from modules.constituencies import ALL_CONSTITUENCIES
@@ -278,6 +278,83 @@ def _audit(admin_user, action: str, target_type: str, target_name: str = "", cha
             )
     except Exception as e:
         logger.warning(f"Audit log write failed: {e}")
+
+
+def _create_job_run(
+    *,
+    job_type: str,
+    scope_type: str | None = None,
+    scope_id: str | None = None,
+    triggered_by: str | None = None,
+    status: str = "queued",
+    summary_json: dict | None = None,
+) -> str:
+    job_key = uuid.uuid4().hex[:16]
+    db = SessionLocal()
+    try:
+        now = datetime.utcnow()
+        row = JobRun(
+            job_key=job_key,
+            job_type=job_type,
+            scope_type=scope_type,
+            scope_id=scope_id,
+            triggered_by=triggered_by,
+            status=status,
+            summary_json=summary_json or {},
+            created_at=now,
+            updated_at=now,
+            started_at=now if status == "running" else None,
+        )
+        db.add(row)
+        db.commit()
+        return job_key
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to create job_run for %s", job_type)
+        raise
+    finally:
+        db.close()
+
+
+def _update_job_run(
+    job_key: str,
+    *,
+    status: str | None = None,
+    summary_json: dict | None = None,
+    error_text: str | None = None,
+    started: bool = False,
+    finished: bool = False,
+) -> None:
+    db = SessionLocal()
+    try:
+        row = db.query(JobRun).filter(JobRun.job_key == job_key).first()
+        if not row:
+            return
+        now = datetime.utcnow()
+        if status:
+            row.status = status
+        if summary_json is not None:
+            row.summary_json = summary_json
+        if error_text is not None:
+            row.error_text = error_text
+        if started and not row.started_at:
+            row.started_at = now
+        if finished:
+            row.finished_at = now
+        row.updated_at = now
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to update job_run %s", job_key)
+    finally:
+        db.close()
+
+
+def _serialize_job_run(row: dict) -> dict:
+    data = dict(row or {})
+    for key in ("created_at", "updated_at", "started_at", "finished_at"):
+        data[key] = _iso_or_none(data.get(key))
+    return data
 
 
 # ─────────────────────────────────────────
@@ -1329,7 +1406,7 @@ def upsert_seat_map(req: SeatMapManifestRequest, admin_user=Depends(get_admin_us
         target_name=payload["seat_key"],
         change_summary=f"{payload['status']} v{manifest.get('version')}",
     )
-    return {"success": True, "manifest": manifest}
+    return {"success": True, "job_key": job_key, "manifest": manifest}
 
 
 @router.post("/seat-maps/generate")
@@ -1337,6 +1414,15 @@ def generate_seat_map(req: GenerateSeatMapRequest, admin_user=Depends(get_admin_
     seat_type = _normalize_seat_type(req.seat_type)
     seat_name = (req.seat_name or "").strip()
     seat_key = (req.seat_key or "").strip() or None
+    effective_seat_key = seat_key or f"{seat_type}:{seat_name}"
+    job_key = _create_job_run(
+        job_type="seat_map_generate",
+        scope_type="seat",
+        scope_id=effective_seat_key,
+        triggered_by=admin_user.get("username", ""),
+        status="running",
+        summary_json={"seat_type": seat_type, "seat_name": seat_name},
+    )
     try:
         manifest_payload = generate_seat_map_manifest(
             seat_type=seat_type,
@@ -1346,9 +1432,24 @@ def generate_seat_map(req: GenerateSeatMapRequest, admin_user=Depends(get_admin_
             seat_key=seat_key,
         )
     except ValueError as exc:
+        _update_job_run(job_key, status="failed", error_text=str(exc), finished=True)
         raise HTTPException(400, str(exc))
 
-    manifest = upsert_db_seat_manifest(manifest_payload)
+    try:
+        manifest = upsert_db_seat_manifest(manifest_payload)
+        _update_job_run(
+            job_key,
+            status="success",
+            summary_json={
+                "seat_key": manifest.get("seat_key"),
+                "features": len(manifest.get("features") or []),
+                "asset_type": ((manifest.get("asset") or {}).get("type") if isinstance(manifest.get("asset"), dict) else None),
+            },
+            finished=True,
+        )
+    except Exception as exc:
+        _update_job_run(job_key, status="failed", error_text=str(exc), finished=True)
+        raise
     _audit(
         admin_user,
         action="generate_seat_map",
@@ -1399,7 +1500,7 @@ def upsert_boundary(req: SeatBoundaryRequest, admin_user=Depends(get_admin_user)
         target_name=seat_key,
         change_summary=boundary.get("status") or "verified",
     )
-    return {"success": True, "boundary": boundary}
+    return {"success": True, "job_key": job_key, "boundary": boundary}
 
 
 @router.post("/seat-boundaries/import-parliamentary")
@@ -1474,6 +1575,14 @@ def import_boundary_auto(req: GenerateSeatMapRequest, admin_user=Depends(get_adm
     seat_name = (req.seat_name or "").strip()
     if not seat_name:
         raise HTTPException(400, "seat_name is required")
+    job_key = _create_job_run(
+        job_type="seat_boundary_import_auto",
+        scope_type="seat",
+        scope_id=f"{seat_type}:{seat_name}",
+        triggered_by=admin_user.get("username", ""),
+        status="running",
+        summary_json={"seat_type": seat_type, "seat_name": seat_name},
+    )
     try:
         if seat_type == "mp":
             boundary = import_builtin_parliamentary_boundary_for_seat(
@@ -1486,7 +1595,22 @@ def import_boundary_auto(req: GenerateSeatMapRequest, admin_user=Depends(get_adm
                 state=(req.state or "").strip(),
             )
     except ValueError as exc:
+        _update_job_run(job_key, status="failed", error_text=str(exc), finished=True)
         raise HTTPException(400, str(exc))
+    except Exception as exc:
+        _update_job_run(job_key, status="failed", error_text=str(exc), finished=True)
+        raise
+
+    _update_job_run(
+        job_key,
+        status="success",
+        summary_json={
+            "seat_key": boundary.get("seat_key"),
+            "asset_type": ((boundary.get("asset") or {}).get("type") if isinstance(boundary.get("asset"), dict) else None),
+            "source": "built-in",
+        },
+        finished=True,
+    )
 
     _audit(
         admin_user,
@@ -3561,6 +3685,74 @@ def retry_whatsapp_outbound(message_id: int, user=Depends(get_admin_user)):
     return {"success": True, "item": _serialize_outbound_row(updated or {})}
 
 
+@router.get("/jobs")
+def list_job_runs(
+    status: Optional[str] = None,
+    job_type: Optional[str] = None,
+    scope_type: Optional[str] = None,
+    scope_id: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
+    _=Depends(get_admin_user),
+):
+    page = max(1, int(page))
+    page_size = max(1, min(int(page_size), 200))
+    offset = (page - 1) * page_size
+    conditions = ["1=1"]
+    params = {"limit": page_size, "offset": offset}
+    if status:
+        conditions.append("status = :status")
+        params["status"] = status
+    if job_type:
+        conditions.append("job_type = :job_type")
+        params["job_type"] = job_type
+    if scope_type:
+        conditions.append("scope_type = :scope_type")
+        params["scope_type"] = scope_type
+    if scope_id:
+        conditions.append("scope_id = :scope_id")
+        params["scope_id"] = scope_id
+    where = " AND ".join(conditions)
+
+    rows = _q(
+        f"""
+        SELECT job_key, job_type, scope_type, scope_id, status, triggered_by,
+               summary_json, error_text, started_at, finished_at, created_at, updated_at
+        FROM job_runs
+        WHERE {where}
+        ORDER BY COALESCE(started_at, created_at) DESC, created_at DESC
+        LIMIT :limit OFFSET :offset
+        """,
+        params,
+    )
+    total_row = _q_one(
+        f"SELECT COUNT(*) AS total FROM job_runs WHERE {where}",
+        {k: v for k, v in params.items() if k not in {"limit", "offset"}},
+    ) or {}
+    summary = _q_one(
+        """
+        SELECT
+            SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) AS running,
+            SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
+            SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS success,
+            SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END) AS queued
+        FROM job_runs
+        """
+    ) or {}
+    return {
+        "items": [_serialize_job_run(row) for row in rows],
+        "page": page,
+        "page_size": page_size,
+        "total": int(total_row.get("total") or 0),
+        "summary": {
+            "running": int(summary.get("running") or 0),
+            "failed": int(summary.get("failed") or 0),
+            "success": int(summary.get("success") or 0),
+            "queued": int(summary.get("queued") or 0),
+        },
+    }
+
+
 # ═══════════════════════════════════════════
 # MP DETAIL (CRM CORE)
 # ═══════════════════════════════════════════
@@ -3767,6 +3959,45 @@ def get_alerts(_=Depends(get_admin_user)):
             })
     except Exception as e:
         logger.warning(f"Alerts - WhatsApp health check failed: {e}")
+
+    try:
+        failed_jobs = _q(
+            """
+            SELECT job_type, scope_type, scope_id, error_text, finished_at
+            FROM job_runs
+            WHERE status = 'failed' AND COALESCE(finished_at, updated_at, created_at) >= :since
+            ORDER BY COALESCE(finished_at, updated_at, created_at) DESC
+            LIMIT 3
+            """,
+            {"since": now - timedelta(hours=24)},
+        )
+        for job in failed_jobs:
+            alerts.append({
+                "type": "job_failed",
+                "severity": "warning",
+                "title": f"{job.get('job_type', 'Job')} failed",
+                "description": (job.get("error_text") or f"{job.get('scope_type') or 'global'} {job.get('scope_id') or ''}").strip(),
+            })
+
+        stuck_jobs = _q(
+            """
+            SELECT job_type, scope_type, scope_id, started_at
+            FROM job_runs
+            WHERE status = 'running' AND started_at <= :threshold
+            ORDER BY started_at ASC
+            LIMIT 3
+            """,
+            {"threshold": now - timedelta(minutes=30)},
+        )
+        for job in stuck_jobs:
+            alerts.append({
+                "type": "job_stuck",
+                "severity": "warning",
+                "title": f"{job.get('job_type', 'Job')} still running",
+                "description": f"Started more than 30 minutes ago for {job.get('scope_type') or 'global'} {job.get('scope_id') or ''}".strip(),
+            })
+    except Exception as e:
+        logger.warning(f"Alerts - job_run checks failed: {e}")
 
     # 1. Tenants that went inactive (no cases in 7+ days but had activity before)
     try:
@@ -4645,15 +4876,26 @@ def trigger_resolve_all(background_tasks: BackgroundTasks, user=Depends(get_admi
     Trigger batch identity resolution for all tenants without a confirmed member_id.
     Runs in the background — poll /parliament/sync/status to see progress.
     """
+    job_key = _create_job_run(
+        job_type="parliament_resolve_all",
+        scope_type="global",
+        scope_id="all",
+        triggered_by=user.get("username", ""),
+        status="queued",
+    )
+
     def _run():
+        _update_job_run(job_key, status="running", started=True)
         try:
             from jobs.parliament_identity_resolver import resolve_all_unmatched
-            resolve_all_unmatched()
+            summary = resolve_all_unmatched()
+            _update_job_run(job_key, status="success", summary_json=summary or {}, finished=True)
         except Exception as e:
             logger.exception("Background parliament resolve-all failed: %s", e)
+            _update_job_run(job_key, status="failed", error_text=str(e), finished=True)
 
     background_tasks.add_task(_run)
-    return {"ok": True, "message": "Identity resolution started in background. Refresh status in 30s."}
+    return {"ok": True, "job_key": job_key, "message": "Identity resolution started in background. Refresh status in 30s."}
 
 
 @router.post("/parliament/sync/{tenant_id}/resolve")
@@ -4662,15 +4904,27 @@ def trigger_resolve_one(tenant_id: int, background_tasks: BackgroundTasks, user=
     Trigger identity resolution for a single tenant.
     Called automatically at onboarding; also available manually.
     """
+    job_key = _create_job_run(
+        job_type="parliament_resolve_tenant",
+        scope_type="tenant",
+        scope_id=str(tenant_id),
+        triggered_by=user.get("username", ""),
+        status="queued",
+        summary_json={"tenant_id": tenant_id},
+    )
+
     def _run():
+        _update_job_run(job_key, status="running", started=True)
         try:
             from jobs.parliament_identity_resolver import resolve_tenant
-            resolve_tenant(tenant_id)
+            summary = resolve_tenant(tenant_id)
+            _update_job_run(job_key, status="success", summary_json=summary or {"tenant_id": tenant_id}, finished=True)
         except Exception as e:
             logger.exception("Background parliament resolve(%d) failed: %s", tenant_id, e)
+            _update_job_run(job_key, status="failed", error_text=str(e), finished=True)
 
     background_tasks.add_task(_run)
-    return {"ok": True, "tenant_id": tenant_id, "message": "Resolution started in background."}
+    return {"ok": True, "job_key": job_key, "tenant_id": tenant_id, "message": "Resolution started in background."}
 
 
 @router.patch("/parliament/sync/{tenant_id}/confirm")
@@ -4745,15 +4999,26 @@ def trigger_backfill_all(background_tasks: BackgroundTasks, user=Depends(get_adm
     Kick off the 6-session historical backfill for ALL confirmed tenants.
     Runs entirely in the background — poll /parliament/backfill/progress to watch.
     """
+    job_key = _create_job_run(
+        job_type="parliament_backfill_all",
+        scope_type="global",
+        scope_id="all",
+        triggered_by=user.get("username", ""),
+        status="queued",
+    )
+
     def _run():
+        _update_job_run(job_key, status="running", started=True)
         try:
             from jobs.parliament_scraper import backfill_all_confirmed_tenants
-            backfill_all_confirmed_tenants()
+            summary = backfill_all_confirmed_tenants()
+            _update_job_run(job_key, status="success", summary_json=summary or {}, finished=True)
         except Exception as e:
             logger.exception("Background backfill-all failed: %s", e)
+            _update_job_run(job_key, status="failed", error_text=str(e), finished=True)
 
     background_tasks.add_task(_run)
-    return {"ok": True, "message": "6-session backfill started for all confirmed MPs. Check progress endpoint."}
+    return {"ok": True, "job_key": job_key, "message": "6-session backfill started for all confirmed MPs. Check progress endpoint."}
 
 
 @router.post("/parliament/backfill/{tenant_id}")
@@ -4762,15 +5027,27 @@ def trigger_backfill_one(tenant_id: int, background_tasks: BackgroundTasks, user
     Kick off the 6-session historical backfill for a single tenant.
     Called automatically after admin confirms identity; also available manually.
     """
+    job_key = _create_job_run(
+        job_type="parliament_backfill_tenant",
+        scope_type="tenant",
+        scope_id=str(tenant_id),
+        triggered_by=user.get("username", ""),
+        status="queued",
+        summary_json={"tenant_id": tenant_id},
+    )
+
     def _run():
+        _update_job_run(job_key, status="running", started=True)
         try:
             from jobs.parliament_scraper import backfill_tenant
-            backfill_tenant(tenant_id)
+            summary = backfill_tenant(tenant_id)
+            _update_job_run(job_key, status="success", summary_json=summary or {"tenant_id": tenant_id}, finished=True)
         except Exception as e:
             logger.exception("Background backfill(%d) failed: %s", tenant_id, e)
+            _update_job_run(job_key, status="failed", error_text=str(e), finished=True)
 
     background_tasks.add_task(_run)
-    return {"ok": True, "tenant_id": tenant_id, "message": "Backfill started in background."}
+    return {"ok": True, "job_key": job_key, "tenant_id": tenant_id, "message": "Backfill started in background."}
 
 
 @router.get("/parliament/backfill/progress")

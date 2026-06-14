@@ -1265,6 +1265,25 @@ class WAOutboundMessage(Base):
     sent_at = Column(DateTime, nullable=True)
 
 
+class JobRun(Base):
+    """Shared admin/background operation history."""
+    __tablename__ = "job_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_key = Column(String, unique=True, index=True, nullable=False)
+    job_type = Column(String, index=True, nullable=False)
+    scope_type = Column(String, index=True, nullable=True)  # tenant|seat|global
+    scope_id = Column(String, index=True, nullable=True)
+    status = Column(String, default="queued", index=True)   # queued|running|success|failed
+    triggered_by = Column(String, nullable=True)
+    summary_json = Column(JSON, default=dict)
+    error_text = Column(Text, nullable=True)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 class ParliamentBackfillJob(Base):
     """Tracks per-tenant per-session backfill progress for the 6-session historical import."""
     __tablename__ = "parliament_backfill_jobs"

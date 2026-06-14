@@ -13,6 +13,18 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-14
+- Request: Push the shared job-runs admin reliability slice to GitHub.
+- Summary: Prepared the follow-up `job_runs` branch update on `codex-whatsapp-ops-queue`, publishing the first shared admin operations history surface for seat-map generation, built-in boundary import, parliament resolution, and parliament backfill, along with the new `System -> Jobs` page and job failure/stuck alerts.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: This push still leaves some older in-memory trackers in place by design. The next migration pass should extend `job_runs` to OCR/profile generation and brain/global intelligence jobs instead of creating more one-off status stores.
+
+- Date: 2026-06-14
+- Request: Implement the third admin reliability slice: shared job run history for important admin operations.
+- Summary: Added a shared `job_runs` table plus helper functions in `admin_api.py`, exposed `/api/admin/jobs`, and created `System -> Jobs` as the first canonical admin surface for recent operations. Wired the first high-value operations into that history: seat-map generation, built-in seat-boundary import, parliament identity resolution, and parliament backfill, and added alerts for failed or long-running jobs. This deliberately leaves older in-memory job trackers in place for now; the slice focuses on the highest-value operational flows first.
+- Files touched: `sansadx_backend/db.py`, `admin_api.py`, `admin/app/dashboard/system/page.js`, `admin/app/dashboard/system/jobs/page.js`, `admin/components/admin-domains/system/JobRunsPage.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: `python3 -m py_compile admin_api.py sansadx_backend/db.py` passed. The next pass should migrate more in-memory job trackers such as OCR/profile generation/brain-global jobs into the same `job_runs` contract instead of creating additional parallel status stores.
+
+- Date: 2026-06-14
 - Request: Push the Meta-aware WhatsApp health slice to GitHub.
 - Summary: Prepared the follow-up WhatsApp reliability update on branch `codex-whatsapp-ops-queue`, adding centralized Meta-aware health evaluation, lightweight WhatsApp alerts, and a clearer `System -> WhatsApp Operations` health surface with tenant routing gaps and exact degradation reasons.
 - Files touched: `TASK_LOG.md`
