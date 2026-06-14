@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-14
+- Request: Push the three admin reliability fixes to `main`.
+- Summary: Fast-forwarded `main` to include the full admin reliability batch from `codex-whatsapp-ops-queue`: outbound WhatsApp logging + retry queue, Meta-aware WhatsApp health and alerts, and shared admin `job_runs` with the new `System -> Jobs` surface. This is the production rollout of the three operational fixes requested for Compass Needle admin reliability.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Live admin verification should confirm `System -> WhatsApp Operations`, `System -> Jobs`, the admin overview WhatsApp health reason, and the new alerts behavior after deploy. Focused pytest coverage was added, but the clean worktree env still lacked `pytest`/`jwt`, so local runtime verification here remained compile-only.
+
+- Date: 2026-06-14
 - Request: Push the shared job-runs admin reliability slice to GitHub.
 - Summary: Prepared the follow-up `job_runs` branch update on `codex-whatsapp-ops-queue`, publishing the first shared admin operations history surface for seat-map generation, built-in boundary import, parliament resolution, and parliament backfill, along with the new `System -> Jobs` page and job failure/stuck alerts.
 - Files touched: `TASK_LOG.md`
