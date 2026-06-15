@@ -9,7 +9,7 @@ import { OTHER_CATEGORIES, OTHER_STATUSES } from '@/components/briefcase/briefca
 export function getBriefcaseRowHighlight(status, category) {
     const normalizedStatus = (status || '').toLowerCase();
     const normalizedCategory = (category || '').toLowerCase();
-    if (normalizedStatus === 'new' || normalizedStatus === 'escalated' || normalizedCategory === 'emergency') {
+    if (normalizedStatus === 'new' || normalizedCategory === 'emergency') {
         return 'border-l-4 border-l-[#C76A1A] bg-[#f9efe0]';
     }
     if (normalizedStatus === 'resolved') {
@@ -472,7 +472,6 @@ export default function useBriefcaseCases(user) {
     const awaitingLocationCount = countFrom(statusEntries, (value) => value === 'awaiting_location');
     const inProgressCount = countFrom(statusEntries, (value) => value === 'in_progress');
     const resolvedCount = countFrom(statusEntries, (value) => value === 'resolved');
-    const escalatedCount = countFrom(statusEntries, (value) => value === 'escalated');
     const activeCaseTotal = statusEntries.length > 0
         ? statusEntries
             .filter((entry) => !isResolvedLikeStatus(entry.value))
@@ -482,7 +481,7 @@ export default function useBriefcaseCases(user) {
         countFrom(categoryEntries, (value) => value === 'uncategorised' || value === 'general' || value === 'general grievance') ||
         cases.filter((item) => !item.category || /general|uncategor/i.test(String(item.category))).length;
     const slaRiskCount = cases.filter((item) => {
-        if (item.is_critical || ['pending_review', 'escalated'].includes((item.status || '').toLowerCase())) {
+        if (item.is_critical || ['pending_review'].includes((item.status || '').toLowerCase())) {
             return true;
         }
         if (!item.created_at) {
@@ -506,8 +505,8 @@ export default function useBriefcaseCases(user) {
         others: othersCount,
     };
     const triage = {
-        needsYou: newCount + pendingReviewCount + awaitingLocationCount + escalatedCount ||
-            cases.filter((item) => ['new', 'pending_review', 'awaiting_location', 'escalated'].includes((item.status || '').toLowerCase())).length,
+        needsYou: newCount + pendingReviewCount + awaitingLocationCount ||
+            cases.filter((item) => ['new', 'pending_review', 'awaiting_location'].includes((item.status || '').toLowerCase())).length,
         newToday: newCount || cases.filter((item) => String(item.created_at || '').startsWith(todayIso)).length,
         uncategorised: uncategorisedCount,
         slaRisk: slaRiskCount,

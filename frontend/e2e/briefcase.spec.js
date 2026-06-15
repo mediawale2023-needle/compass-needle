@@ -84,7 +84,6 @@ async function mockMpBriefcaseWorkflowApi(page) {
             assigned_to: '',
         },
         activities: [],
-        escalations: [],
     };
 
     await page.route('http://127.0.0.1:4010/**', async (route) => {
@@ -100,15 +99,11 @@ async function mockMpBriefcaseWorkflowApi(page) {
         if (url.pathname === '/api/staff') {
             return ok({ staff: [{ username: 'pr_meera', display_name: 'Meera PR', role: 'pr' }] });
         }
-        if (url.pathname === '/api/officers') {
-            return ok({ officers: [{ id: 1, name: 'Asha Rao', designation: 'Executive Engineer', department: 'BWSSB' }] });
-        }
         if (url.pathname === '/api/cases') {
             return ok({ cases: [state.case], total: 1, page: 1, pages: 1 });
         }
         if (url.pathname === '/api/cases/2592/activity') return ok({ activities: state.activities });
         if (url.pathname === '/api/cases/2592/similar') return ok({ cases: [] });
-        if (url.pathname === '/api/escalations' && req.method() === 'GET') return ok({ escalations: state.escalations });
 
         if (url.pathname === '/api/cases/2592' && req.method() === 'PATCH') {
             const payload = JSON.parse(req.postData() || '{}');
@@ -116,23 +111,11 @@ async function mockMpBriefcaseWorkflowApi(page) {
             state.activities.unshift({ id: 1, username: 'mp_arun', action: 'case_updated', created_at: '2026-05-08T02:09:00Z' });
             return ok({ success: true });
         }
-        if (url.pathname === '/api/escalations' && req.method() === 'POST') {
-            state.case.status = 'escalated';
-            state.escalations.unshift({
-                id: 1,
-                officer_name: 'Asha Rao',
-                designation: 'Executive Engineer',
-                deadline: '2026-05-20T00:00:00',
-                created_at: '2026-05-08T02:10:00Z',
-            });
-            state.activities.unshift({ id: 2, username: 'mp_arun', action: 'escalated', created_at: '2026-05-08T02:10:00Z' });
-            return ok({ success: true, id: 1 });
-        }
         if (url.pathname === '/api/cases/2592/notify/send' && req.method() === 'POST') {
             const payload = JSON.parse(req.postData() || '{}');
             state.case.status = 'resolved';
             state.case.response_to_citizen = payload.message || payload.response_to_citizen || state.case.response_to_citizen;
-            state.activities.unshift({ id: 3, username: 'mp_arun', action: 'citizen_notified', new_value: 'resolved', created_at: '2026-05-08T02:11:00Z' });
+            state.activities.unshift({ id: 2, username: 'mp_arun', action: 'citizen_notified', new_value: 'resolved', created_at: '2026-05-08T02:11:00Z' });
             return ok({ success: true, message: 'Notification sent to citizen via WhatsApp' });
         }
 
@@ -151,7 +134,7 @@ test('Briefcase loads and shows case data for an authenticated MP', async ({ pag
     await expect(page.getByText('919650787758')).toBeVisible();
 });
 
-test('Briefcase supports assign note escalate notify and resolved workflow', async ({ page }) => {
+test('Briefcase supports assign note notify and resolved workflow', async ({ page }) => {
     await seedMpSession(page);
     await mockMpBriefcaseWorkflowApi(page);
 
@@ -163,18 +146,9 @@ test('Briefcase supports assign note escalate notify and resolved workflow', asy
     await expect(page.getByRole('heading', { name: 'Infrastructure & Utilities' })).toBeVisible();
     await page.locator('select').last().selectOption('pr_meera');
     await page.getByPlaceholder('Internal notes...').fill('Called ward engineer and assigned to PR.');
-    await page.getByPlaceholder('Response message...').fill('Your water supply complaint has been escalated and is being resolved.');
+    await page.getByPlaceholder('Response message...').fill('Your water supply complaint is being reviewed and we will keep you updated.');
     await page.getByRole('button', { name: 'Save Notes' }).click();
     await expect(page.getByText('Notes saved successfully')).toBeVisible();
-
-    await page.getByRole('button', { name: 'Escalate to Officer' }).click();
-    await page.getByRole('dialog').filter({ hasText: 'Escalate to Officer' }).locator('select').selectOption('1');
-    await page.getByRole('button', { name: 'Escalate Case' }).click();
-    await expect(page.getByText('Case escalated to officer')).toBeVisible();
-    await expect(page.getByText('Asha Rao', { exact: true })).toBeVisible();
-    await expect(page.getByRole('dialog').filter({ hasText: 'Escalation History' }).getByText('Escalated', { exact: true })).toBeVisible();
-
-    await page.getByRole('button', { name: 'Close' }).last().click();
     await page.getByRole('button', { name: /Send Update via WhatsApp/ }).click();
     await page.getByPlaceholder('Type NDL-2026-02592 to confirm').fill('NDL-2026-02592');
     await page.getByRole('button', { name: 'Confirm & Send' }).click();

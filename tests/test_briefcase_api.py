@@ -642,40 +642,18 @@ def test_briefcase_similar_cases_are_tenant_scoped():
     assert payload["source_category"] == "Infrastructure & Utilities"
 
 
-def test_briefcase_escalation_creates_record_and_updates_case_status():
+def test_briefcase_escalation_endpoints_are_removed():
     _seed_database()
     headers = _auth_headers("mp_arun")
 
-    create_resp = client.post(
-        "/api/escalations",
-        headers=headers,
-        json={
-            "case_id": 101,
-            "officer_id": 1,
-            "letter_content": "Please inspect the water supply complaint urgently.",
-            "deadline": "2026-05-20T10:00:00",
-        },
-    )
-    assert create_resp.status_code == 200, create_resp.text
-    assert create_resp.json()["success"] is True
-
-    detail_resp = client.get("/api/cases/101", headers=headers)
-    assert detail_resp.status_code == 200, detail_resp.text
-    assert detail_resp.json()["status"] == "escalated"
+    create_resp = client.post("/api/escalations", headers=headers, json={"case_id": 101})
+    assert create_resp.status_code == 404, create_resp.text
 
     history_resp = client.get("/api/escalations?case_id=101", headers=headers)
-    assert history_resp.status_code == 200, history_resp.text
-    escalations = history_resp.json()["escalations"]
-    assert len(escalations) == 1
-    assert escalations[0]["officer_name"] == "Asha Rao"
-    assert escalations[0]["designation"] == "Executive Engineer"
-
-    activity_resp = client.get("/api/cases/101/activity", headers=headers)
-    assert activity_resp.status_code == 200, activity_resp.text
-    assert activity_resp.json()["activities"][0]["action"] == "escalated"
+    assert history_resp.status_code == 404, history_resp.text
 
 
-def test_briefcase_pilot_flow_assign_note_escalate_notify_resolves(monkeypatch):
+def test_briefcase_pilot_flow_assign_note_notify_resolves(monkeypatch):
     _seed_database()
     headers = _auth_headers("mp_arun")
     outbound = []
@@ -696,8 +674,8 @@ def test_briefcase_pilot_flow_assign_note_escalate_notify_resolves(monkeypatch):
         headers=headers,
         json={
             "assigned_to": "pr_meera",
-            "notes_for_staff": "Pilot E2E: assigned to PR and officer escalation prepared.",
-            "response_to_citizen": "Pilot E2E update: your water supply grievance has been escalated and is being resolved.",
+            "notes_for_staff": "Pilot E2E: assigned to PR for constituency follow-up.",
+            "response_to_citizen": "Pilot E2E update: your water supply grievance is being reviewed by the constituency team.",
         },
     )
     assert assign_note_resp.status_code == 200, assign_note_resp.text
@@ -705,23 +683,7 @@ def test_briefcase_pilot_flow_assign_note_escalate_notify_resolves(monkeypatch):
 
     after_assign = client.get("/api/cases/101", headers=headers).json()
     assert after_assign["assigned_to"] == "pr_meera"
-    assert after_assign["notes_for_staff"] == "Pilot E2E: assigned to PR and officer escalation prepared."
-
-    escalation_resp = client.post(
-        "/api/escalations",
-        headers=headers,
-        json={
-            "case_id": 101,
-            "officer_id": 1,
-            "letter_content": "Pilot E2E: please resolve the Whitefield water supply complaint urgently.",
-            "deadline": "2026-05-20T10:00:00",
-        },
-    )
-    assert escalation_resp.status_code == 200, escalation_resp.text
-    assert escalation_resp.json()["success"] is True
-
-    after_escalation = client.get("/api/cases/101", headers=headers).json()
-    assert after_escalation["status"] == "escalated"
+    assert after_assign["notes_for_staff"] == "Pilot E2E: assigned to PR for constituency follow-up."
 
     notify_resp = client.post(
         "/api/cases/101/notify/send",
@@ -743,16 +705,11 @@ def test_briefcase_pilot_flow_assign_note_escalate_notify_resolves(monkeypatch):
     assert final_detail["assigned_to"] == "pr_meera"
     assert final_detail["response_to_citizen"] == "Pilot E2E update: your complaint has been resolved by the MP office."
 
-    escalation_history = client.get("/api/escalations?case_id=101", headers=headers).json()["escalations"]
-    assert len(escalation_history) == 1
-    assert escalation_history[0]["officer_name"] == "Asha Rao"
-
     activity_actions = [
         activity["action"]
         for activity in client.get("/api/cases/101/activity", headers=headers).json()["activities"]
     ]
     assert "case_updated" in activity_actions
-    assert "escalated" in activity_actions
     assert "citizen_notified" in activity_actions
 
 
@@ -916,6 +873,7 @@ def test_audio_media_intake_passes_voice_note_as_source_media(monkeypatch):
         language_hint=None,
         resolver_message_body=None,
         resolver_fallback_message_body=None,
+        wa_reply_to_msg_id=None,
     ):
         captured["sender"] = sender
         captured["message_body"] = message_body
@@ -925,6 +883,7 @@ def test_audio_media_intake_passes_voice_note_as_source_media(monkeypatch):
         captured["language_hint"] = language_hint
         captured["resolver_message_body"] = resolver_message_body
         captured["resolver_fallback_message_body"] = resolver_fallback_message_body
+        captured["wa_reply_to_msg_id"] = wa_reply_to_msg_id
 
     monkeypatch.setattr(main, "_process_incoming_message", _capture_process)
 

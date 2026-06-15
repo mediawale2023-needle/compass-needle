@@ -12,6 +12,18 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-06-15
+- Request: Remove escalation completely from the Briefcase system.
+- Summary: Retired the Briefcase escalation workflow end to end. Removed the MP frontend escalation button/modal, removed the live MP API routes for officers/escalations/AI escalation drafts, removed `escalated` as a live dashboard/Briefcase status concept, updated queue/KPI/admin status styling, and added a startup migration in `main.py` that remaps any legacy case rows still marked `escalated` back to `in_progress`. Kept the old officer/escalation tables in the schema for backward-compatibility cleanup safety, but they are no longer part of the supported product contract. Verified with `frontend` production build and Python AST parsing of `api_router.py` and `main.py`.
+- Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `frontend/components/briefcase/BriefcaseCasesTable.jsx`, `frontend/components/briefcase/briefcase-shared.jsx`, `frontend/hooks/useBriefcaseCases.js`, `frontend/components/dashboard/DashboardGrievanceQueue.jsx`, `frontend/components/dashboard/DashboardKpiTiles.jsx`, `frontend/lib/dashboard-theme.js`, `frontend/app/globals.css`, `frontend/e2e/briefcase.spec.js`, `admin/components/admin-domains/cases-intelligence/CaseIntelligencePage.jsx`, `api_router.py`, `main.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Existing `officers` / `escalations` tables are intentionally preserved for compatibility, so a future cleanup can drop them in a deliberate migration after production has soaked on the no-escalation workflow. Any operator docs or audits that still describe escalation should now be treated as historical context, not current product behavior.
+
+- Date: 2026-06-12
+- Request: Move the Needle backend production hostname to `api.theneedle.in`.
+- Summary: Updated the repo-side production backend contract so GitHub Actions deploy verification and operator docs now use `https://api.theneedle.in` instead of `https://backend.coinmedia.co.in`. Added a repo-owned EC2 Caddyfile for `api.theneedle.in` plus the old hostname during transition, and updated the deploy workflow to install that Caddyfile and restart Caddy with the backend. The health check now prefers the new hostname but can confirm the EC2 backend route while public DNS/TLS is still pending. Live DNS checks showed `theneedle.in` currently points to a parked/wrong service, `api.theneedle.in` is still NXDOMAIN, and the backend is healthy on EC2 when the old hostname is resolved directly to `3.6.228.105`.
+- Files touched: `.github/workflows/deploy-aws-ec2.yml`, `deploy/ec2/Caddyfile`, `deploy/ec2/README.md`, `DEPLOYMENT_GUIDE.md`, `README.md`, `AGENTS.md`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: DNS still needs `api.theneedle.in -> 3.6.228.105`; after DNS resolves, deploy `main` so Caddy gets a valid certificate, update Vercel MP/Admin `NEXT_PUBLIC_API_URL`, and move the Meta WhatsApp webhook callback to `https://api.theneedle.in/whatsapp/webhook`.
+
 - Date: 2026-06-10
 - Request: Push the Briefcase thread-level `View / Reply / Resolve` update to GitHub.
 - Summary: Pushed commit `5b0ea34f` (`Add thread-level reply actions`) to `origin/main`, publishing row-level `Reply` actions for real complaints inside a grouped Briefcase thread. Each complaint row now supports `View`, `Reply`, and `Resolve`, and `Reply` switches the active complaint, scrolls to the response composer, focuses the textarea, and keeps the existing WhatsApp send flow tied to that selected complaint.

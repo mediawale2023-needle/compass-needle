@@ -31,7 +31,6 @@ export function getDashboardStatusStyle(status) {
     const norm = (status || '').toLowerCase();
     if (norm === 'new') return { bg: dashboardPalette.saffronTint, fg: dashboardPalette.saffron, dot: dashboardPalette.saffron };
     if (norm === 'in_progress') return { bg: dashboardPalette.blueTint, fg: dashboardPalette.blue, dot: dashboardPalette.blue };
-    if (norm === 'escalated') return { bg: dashboardPalette.redTint, fg: dashboardPalette.red, dot: dashboardPalette.red };
     if (norm === 'resolved') return { bg: dashboardPalette.greenTint, fg: dashboardPalette.greenInk, dot: dashboardPalette.green };
     return { bg: dashboardPalette.neutralTint, fg: dashboardPalette.ink2, dot: dashboardPalette.ink2 };
 }
@@ -40,7 +39,6 @@ export function getDashboardStatusLabel(status) {
     const norm = (status || '').toLowerCase();
     if (norm === 'new') return 'Open';
     if (norm === 'in_progress') return 'In Progress';
-    if (norm === 'escalated') return 'Escalated';
     if (norm === 'resolved') return 'Resolved';
     return status || '—';
 }
