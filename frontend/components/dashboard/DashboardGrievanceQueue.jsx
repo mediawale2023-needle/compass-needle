@@ -15,14 +15,14 @@ function formatAge(createdAt) {
 
 export default function DashboardGrievanceQueue({ cases, onCaseClick }) {
     const [filter, setFilter] = useState('All');
-    const tabs = ['All', 'Open', 'Escalated', 'In Progress', 'Resolved'];
+    const tabs = ['All', 'Open', 'Needs Review', 'In Progress', 'Resolved'];
 
     const filtered = cases
         .filter((caseItem) => {
             if (filter === 'All') return true;
             const status = (caseItem.status || '').toLowerCase();
             if (filter === 'Open') return status === 'new';
-            if (filter === 'Escalated') return status === 'escalated';
+            if (filter === 'Needs Review') return status === 'pending_review';
             if (filter === 'In Progress') return status === 'in_progress';
             if (filter === 'Resolved') return status === 'resolved';
             return true;

@@ -19,7 +19,6 @@ const STATUS_MAP = {
     pending_review:    { fg: P.saffron,   bg: P.saffronTint, icon: 'clock',   label: 'Needs review' },
     resolved:          { fg: P.greenInk,  bg: P.greenTint,   icon: 'check',   label: 'Resolved' },
     completed:         { fg: P.greenInk,  bg: P.greenTint,   icon: 'check',   label: 'Completed' },
-    escalated:         { fg: '#fff',      bg: P.red,         icon: 'warn',    label: 'Escalated' },
     awaiting_location: { fg: P.ink,       bg: P.neutralTint, icon: 'pin',     label: 'Needs location' },
     closed:            { fg: P.ink3,      bg: P.neutralTint, icon: 'x',       label: 'Closed' },
     irrelevant:        { fg: P.ink3,      bg: P.neutralTint, icon: 'x',       label: 'Irrelevant' },

@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
-import BriefcaseEscalationModal from '@/components/briefcase/BriefcaseEscalationModal';
 import BriefcaseSourceMediaViewer from '@/components/briefcase/BriefcaseSourceMediaViewer';
 import { STATUS_OPTIONS } from '@/components/briefcase/briefcase-shared';
 import { isPrimaryAccount } from '@/lib/account';
@@ -37,7 +36,6 @@ function Icon({ name, size = 14, color = 'currentColor', stroke = 1.5 }) {
         bolt:     <><path d="M13 2L4 14h7l-2 8 9-12h-7z" /></>,
         cluster:  <><circle cx="7" cy="7" r="3" /><circle cx="17" cy="8" r="2.5" /><circle cx="9" cy="17" r="2.5" /><circle cx="18" cy="16" r="2.5" /><path d="M7 7l10 1M9 17l9-1M7 7l2 10" /></>,
         user:     <><circle cx="12" cy="9" r="4" /><path d="M4 21c0-5 4-7 8-7s8 2 8 7" /></>,
-        escalate: <><path d="M12 3l10 17H2z" /><path d="M12 10v5" /></>,
         trash:    <><path d="M4 6h16M9 6V4h6v2M5 6l1 14h12l1-14" /></>,
     };
     return (
@@ -172,7 +170,6 @@ function DrawerHeader({ caseRef, status, isUncategorised, onClose }) {
         in_progress: { bg: '#E0F0FF',     fg: '#1A5276' },
         resolved:    { bg: '#D5F5E3',     fg: '#1E8449' },
         completed:   { bg: '#D5F5E3',     fg: '#1E8449' },
-        escalated:   { bg: '#FDEDEC',     fg: C.red },
         closed:      { bg: C.paperDeep,   fg: C.ink3 },
     }[status] || { bg: C.saffronTint, fg: C.saffron };
 
@@ -482,7 +479,6 @@ function StatusActions({ currentStatus, onStatusChange, updating }) {
         in_progress: { background: '#E0F0FF',      color: '#1A5276',  border: '1px solid #AED6F1' },
         resolved:    { background: '#D5F5E3',      color: '#1E8449',  border: '1px solid #A9DFBF' },
         completed:   { background: '#D5F5E3',      color: '#1E8449',  border: '1px solid #A9DFBF' },
-        escalated:   { background: '#FDEDEC',      color: C.red,      border: '1px solid #F5B7B1' },
         closed:      { background: C.paperDeep,    color: C.ink3,     border: `1px solid ${C.hair}` },
         pending:     { background: C.saffronTint,  color: C.saffron,  border: `1px solid #EDBB99` },
         irrelevant:  { background: C.paperDeep,    color: C.ink3,     border: `1px solid ${C.hair}` },
@@ -896,8 +892,8 @@ function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSa
     );
 }
 
-// ─── Assign + escalate + delete ───────────────────────────────
-function AssignSection({ assignee, onAssign, staff, onEscalate, onDelete, userRole }) {
+// ─── Assign + delete ───────────────────────────────────────────
+function AssignSection({ assignee, onAssign, staff, onDelete, userRole }) {
     const canDelete = ['mp', 'owner', 'pr'].includes(userRole);
     return (
         <div style={{ ...sec, borderBottom: 'none' }}>
@@ -915,14 +911,6 @@ function AssignSection({ assignee, onAssign, staff, onEscalate, onDelete, userRo
                 ))}
             </select>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button onClick={onEscalate} style={{
-                    padding: '6px 12px', border: '1px solid #EDBB99',
-                    background: '#FEF9EC', color: '#9A4F0E',
-                    fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                }}>
-                    <Icon name="escalate" size={12} color="#9A4F0E" /> Escalate to Officer
-                </button>
                 {canDelete && (
                     <button onClick={onDelete} style={{
                         padding: '6px 12px', border: '1px solid #F5B7B1',
@@ -1071,7 +1059,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const [assignee, setAssignee] = useState('');
     const [activities, setActivities] = useState([]);
     const [loadingActivity, setLoadingActivity] = useState(false);
-    const [showEscalation, setShowEscalation] = useState(false);
     const [draftSaved, setDraftSaved] = useState(false);
     const [notifyOpen, setNotifyOpen] = useState(false);
     const [notifyInput, setNotifyInput] = useState('');
@@ -1353,7 +1340,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         const msgs = {
             new:         `Your grievance (${caseRef}) has been received and is being reviewed.`,
             in_progress: `Update on your grievance (${caseRef}): We are actively working on this.`,
-            escalated:   `Update on your grievance (${caseRef}): This has been escalated to the relevant authority.`,
             resolved:    `Good news! Your grievance (${caseRef}) has been resolved. Reply 'NO' to reopen.`,
             completed:   `Good news! Your grievance (${caseRef}) has been resolved. Reply 'NO' to reopen.`,
             closed:      `Your grievance (${caseRef}) has been closed. Thank you for reaching out.`,
@@ -1471,7 +1457,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                             assignee={assignee}
                                             onAssign={handleAssign}
                                             staff={staff}
-                                            onEscalate={() => setShowEscalation(true)}
                                             onDelete={handleDelete}
                                             userRole={user?.role}
                                         />
@@ -1487,16 +1472,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                     )}
                 </SheetContent>
             </Sheet>
-
-            {showEscalation && (
-                <BriefcaseEscalationModal
-                    caseItem={current}
-                    color="#b45309"
-                    open={showEscalation}
-                    onClose={() => setShowEscalation(false)}
-                    toast={toast}
-                />
-            )}
 
             <Dialog open={notifyOpen} onOpenChange={(open) => { setNotifyOpen(open); if (!open) setNotifyInput(''); }}>
                 <DialogContent className="max-w-sm" style={{ background: C.paper, fontFamily: 'inherit' }}>

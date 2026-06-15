@@ -526,6 +526,17 @@ for _idx_sql in [
         pass
 logger.info("Performance indexes verified.")
 
+# ─── Migration: retire legacy escalated case status ───
+try:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("UPDATE cases SET status = 'in_progress' WHERE status = 'escalated'")
+        )
+        if result.rowcount:
+            logger.info("Migration: remapped legacy escalated cases to in_progress (rows updated: %d)", result.rowcount)
+except Exception as e:
+    logger.warning("legacy escalated-status remap skipped: %s", e)
+
 # ─── Migration: create officers table (idempotent) ───
 try:
     with engine.begin() as conn:
@@ -1043,6 +1054,12 @@ _CONTACT_THREAD_HIGH_FREQUENCY_DISTINCT = 6
 _CONTACT_THREAD_SPAM_SUSPECTED_DISTINCT = 10
 _CONTACT_BUFFER_STATUS = "contact_buffered"
 _CONTACT_BUFFER_SIMILARITY = 0.9
+# Tiered follow-up thresholds: citizens who send messages quickly are more
+# likely continuing a conversation than filing an unrelated complaint.
+_FOLLOWUP_SIMILARITY_SHORT_WINDOW = 0.55   # within 30 min
+_FOLLOWUP_SIMILARITY_MEDIUM_WINDOW = 0.70  # within 2 h
+_FOLLOWUP_SHORT_WINDOW_MINUTES = 30
+_FOLLOWUP_MEDIUM_WINDOW_HOURS = 2
 _LOW_INFORMATION_FOLLOWUPS = {
     "hello",
     "hi",
@@ -1595,6 +1612,65 @@ def _contact_window_root_case(recent_cases: list[dict]) -> dict | None:
         if str(row.get("status") or "").strip().lower() != _CONTACT_BUFFER_STATUS:
             return row
     return recent_cases[0] if recent_cases else None
+
+
+def _effective_similarity_threshold(latest_case_row: dict | None) -> float:
+    """
+    Return a lower similarity threshold when the most recent case in this thread
+    is very recent.  Citizens who send follow-up messages quickly are more likely
+    to be contextually continuing a conversation than filing an unrelated complaint.
+
+    Thresholds:
+      ≤ 30 min  → 0.55  (short-burst follow-up)
+      ≤ 2 h    → 0.70  (medium-window follow-up)
+      > 2 h    → 0.90  (standard dedup gate)
+    """
+    if not latest_case_row:
+        return _CONTACT_BUFFER_SIMILARITY
+    try:
+        case_time = latest_case_row.get("updated_at") or latest_case_row.get("created_at")
+        if isinstance(case_time, str):
+            case_time = datetime.fromisoformat(case_time.replace("Z", "+00:00")).replace(tzinfo=None)
+        if isinstance(case_time, datetime):
+            age_minutes = (_utcnow() - case_time).total_seconds() / 60
+            if age_minutes <= _FOLLOWUP_SHORT_WINDOW_MINUTES:
+                return _FOLLOWUP_SIMILARITY_SHORT_WINDOW
+            if age_minutes <= _FOLLOWUP_MEDIUM_WINDOW_HOURS * 60:
+                return _FOLLOWUP_SIMILARITY_MEDIUM_WINDOW
+    except Exception:
+        pass
+    return _CONTACT_BUFFER_SIMILARITY
+
+
+def _get_thread_context_summary(recent_cases: list[dict]) -> str:
+    """
+    Build a brief plain-text summary of the 1–2 most recent distinct complaints
+    in this citizen's thread.  Injected into the AI classification prompt so
+    follow-up messages are classified with conversational context rather than
+    in isolation.
+    """
+    if not recent_cases:
+        return ""
+    snippets: list[str] = []
+    for case in recent_cases[:2]:
+        raw = (case.get("raw_message") or "").strip()[:200]
+        if not raw:
+            continue
+        domain = case.get("problem_domain") or ""
+        subdomain = case.get("problem_subdomain") or ""
+        location = ""
+        try:
+            meta = _parse_case_meta(case.get("case_metadata"))
+            location = meta.get("matched_value") or ""
+        except Exception:
+            pass
+        line = f'- "{raw}"'
+        if domain:
+            line += f"  [{domain}" + (f" / {subdomain}" if subdomain else "") + "]"
+        if location:
+            line += f"  (location: {location})"
+        snippets.append(line)
+    return "\n".join(snippets)
 
 
 def _buffered_release_epoch(root_case: dict | None, *, now: datetime | None = None) -> int:
@@ -2963,6 +3039,7 @@ def _process_citizen_media_complaint(
     caption: str = "",
     media_type: str = "media",
     msg_id: str = "",
+    wa_reply_to_msg_id: str = "",
 ):
     """
     Citizen sent image/PDF/audio. Download, normalize to grievance text, then
@@ -3127,6 +3204,7 @@ def _process_citizen_media_complaint(
         language_hint=normalized.extracted_language,
         resolver_message_body=resolver_message_body,
         resolver_fallback_message_body=resolver_fallback_message_body,
+        wa_reply_to_msg_id=wa_reply_to_msg_id,
     )
 
 
@@ -3433,9 +3511,25 @@ def _run_citizen_case_enrichment(
     current_tenant: int,
     language_hint: str,
     media_source: dict | None = None,
+    thread_context: str = "",
 ) -> dict:
     user_context = get_user_context(sender)
-    full_prompt = f"{user_context}\n\nUSER MESSAGE: {message_body}"
+    context_parts: list[str] = []
+    if user_context:
+        context_parts.append(user_context)
+    if thread_context:
+        context_parts.append(
+            "PRIOR COMPLAINTS FROM THIS CITIZEN (same 24h thread):\n"
+            + thread_context
+            + "\n\nUse this context to improve classification — if the new message "
+            "continues or references a prior complaint, align the category and domain accordingly."
+        )
+    full_context = "\n\n".join(context_parts)
+    full_prompt = (
+        f"{full_context}\n\nUSER MESSAGE: {message_body}"
+        if full_context
+        else f"USER MESSAGE: {message_body}"
+    )
     ai_result = ask_chatgpt_agent(full_prompt, tenant_id=current_tenant)
 
     if isinstance(ai_result, str):
@@ -3973,6 +4067,7 @@ def _process_incoming_message(
     language_hint: str = "",
     resolver_message_body: str | None = None,
     resolver_fallback_message_body: str | None = None,
+    wa_reply_to_msg_id: str = "",
 ):
     """Background task: AI processing + DB save + reply. Runs after 200 is returned to Meta."""
     if not receiver_number:

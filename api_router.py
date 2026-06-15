@@ -1523,6 +1523,13 @@ class StatusUpdate(BaseModel):
     status: str
 
 
+def _normalize_case_status_value(status: str | None) -> str:
+    normalized = str(status or "").strip().lower()
+    if normalized == "escalated":
+        return "in_progress"
+    return normalized
+
+
 def _log_case_activity(tenant_id, case_id, username, action, old_value=None, new_value=None, details=None):
     """Log an activity entry for a case."""
     try:
@@ -1541,16 +1548,17 @@ def update_case_status(case_id: int, body: StatusUpdate, user=Depends(get_curren
     tid = get_tenant_or_fail(user)
     current = _q_one("SELECT status FROM cases WHERE id = :cid AND tenant_id = :tid", {"cid": case_id, "tid": tid})
     old_status = current["status"] if current else None
+    next_status = _normalize_case_status_value(body.status)
 
     with engine.begin() as conn:
         result = conn.execute(text(
             "UPDATE cases SET status = :st, updated_at = :now WHERE id = :cid AND tenant_id = :tid"
-        ), {"st": body.status, "now": _utcnow(), "cid": case_id, "tid": tid})
+        ), {"st": next_status, "now": _utcnow(), "cid": case_id, "tid": tid})
     if result.rowcount == 0:
         raise HTTPException(404, "Case not found")
 
     try:
-        _log_case_activity(tid, case_id, user.get("username", ""), "status_change", old_value=old_status, new_value=body.status)
+        _log_case_activity(tid, case_id, user.get("username", ""), "status_change", old_value=old_status, new_value=next_status)
     except Exception:
         pass  # nosec B110
 
@@ -1622,12 +1630,13 @@ def _resolve_citizen_notification_message(case: dict, requested_message: str = "
     status_messages = {
         "new":         f"Your grievance ({case_ref}) has been received and is being reviewed.",
         "in_progress": f"Update on your grievance ({case_ref}): We are actively working on this.",
-        "escalated":   f"Update on your grievance ({case_ref}): This has been escalated to the relevant authority.",
         "resolved":    f"Good news! Your grievance ({case_ref}) has been resolved. If unsatisfied, reply 'NO' to reopen.",
         "completed":   f"Good news! Your grievance ({case_ref}) has been resolved. If unsatisfied, reply 'NO' to reopen.",
         "closed":      f"Your grievance ({case_ref}) has been closed. Thank you for reaching out.",
     }
-    return status_messages.get(status, f"Update on your grievance ({case_ref}): Status is now '{status}'.")
+    if status == "escalated":
+        status = "in_progress"
+    return status_messages.get(status, f"Update on your grievance ({case_ref}): Status is now '{status}'." )
 
 
 @router.patch("/cases/{case_id}")
@@ -2105,223 +2114,6 @@ def delete_team_member(member_id: int, user=Depends(get_current_user)):
 
     logger.info("Team member deactivated: id=%s tenant=%s by=%s", member_id, tid, user.get("username"))
     return {"success": True}
-
-
-# ─────────────────────────────────────────
-# OFFICERS
-# ─────────────────────────────────────────
-class OfficerCreate(BaseModel):
-    name: str
-    designation: str
-    department: str = ""
-    email: str = ""
-    phone: str = ""
-    jurisdiction: str = ""
-    categories: list = []
-
-
-@router.get("/officers")
-def get_officers(user=Depends(get_current_user)):
-    tid = get_tenant_or_fail(user)
-    logger.info(f"[DEBUG] GET /officers — tenant_id={tid}, user={user.get('username')}")
-    officers = _q("SELECT * FROM officers WHERE tenant_id = :tid AND is_active = true ORDER BY name", {"tid": tid})
-    logger.info(f"[DEBUG] GET /officers — returned {len(officers)} officers")
-    for o in officers:
-        if o.get("created_at") and hasattr(o["created_at"], "isoformat"):
-            o["created_at"] = o["created_at"].isoformat()
-    return {"officers": officers}
-
-
-@router.post("/officers")
-def create_officer(body: OfficerCreate, user=Depends(get_current_user)):
-    tid = get_tenant_or_fail(user)
-    role = user.get("role", "user")
-    if role not in ("mp", "pr", "admin"):
-        raise HTTPException(403, "Only MP/PR accounts can manage officers")
-
-    with engine.begin() as conn:
-        result = conn.execute(text(
-            "INSERT INTO officers (tenant_id, name, designation, department, email, phone, jurisdiction, categories, is_active, created_at) "
-            "VALUES (:tid, :name, :desg, :dept, :email, :phone, :juris, :cats, true, :now) RETURNING id"
-        ), {"tid": tid, "name": body.name, "desg": body.designation, "dept": body.department,
-            "email": body.email, "phone": body.phone, "juris": body.jurisdiction,
-            "cats": json.dumps(body.categories), "now": _utcnow()})
-        officer_id = result.fetchone()[0]
-    return {"success": True, "id": officer_id}
-
-
-@router.delete("/officers/{officer_id}")
-def delete_officer(officer_id: int, user=Depends(get_current_user)):
-    tid = get_tenant_or_fail(user)
-    role = user.get("role", "user")
-    if role not in ("mp", "pr", "admin"):
-        raise HTTPException(403, "Only MP/PR accounts can manage officers")
-    with engine.begin() as conn:
-        conn.execute(text("UPDATE officers SET is_active = false WHERE id = :oid AND tenant_id = :tid"), {"oid": officer_id, "tid": tid})
-    return {"success": True}
-
-
-# ─────────────────────────────────────────
-# ESCALATIONS
-# ─────────────────────────────────────────
-class EscalationCreate(BaseModel):
-    case_id: int
-    officer_id: int
-    letter_content: str
-    deadline: str = ""
-
-
-@router.post("/escalations")
-def create_escalation(body: EscalationCreate, user=Depends(get_current_user)):
-    tid = get_tenant_or_fail(user)
-    deadline_dt = None
-    if body.deadline:
-        try:
-            deadline_dt = datetime.fromisoformat(body.deadline)
-        except Exception:
-            pass  # nosec B110
-
-    with engine.begin() as conn:
-        result = conn.execute(text(
-            "INSERT INTO escalations (tenant_id, case_id, officer_id, letter_content, deadline, created_by, created_at) "
-            "VALUES (:tid, :cid, :oid, :letter, :deadline, :by, :now) RETURNING id"
-        ), {"tid": tid, "cid": body.case_id, "oid": body.officer_id, "letter": body.letter_content,
-            "deadline": deadline_dt, "by": user.get("username", ""), "now": _utcnow()})
-        esc_id = result.fetchone()[0]
-
-    with engine.begin() as conn:
-        conn.execute(text(
-            "UPDATE cases SET status = 'escalated', updated_at = :now WHERE id = :cid AND tenant_id = :tid"
-        ), {"now": _utcnow(), "cid": body.case_id, "tid": tid})
-
-    try:
-        _log_case_activity(tid, body.case_id, user.get("username", ""), "escalated", new_value=str(body.officer_id))
-    except Exception:
-        pass  # nosec B110
-
-    return {"success": True, "id": esc_id}
-
-
-@router.get("/escalations")
-def get_escalations(case_id: Optional[int] = None, user=Depends(get_current_user)):
-    tid = get_tenant_or_fail(user)
-    if case_id:
-        escalations = _q(
-            "SELECT e.*, o.name as officer_name, o.designation, o.email as officer_email "
-            "FROM escalations e LEFT JOIN officers o ON e.officer_id = o.id "
-            "WHERE e.tenant_id = :tid AND e.case_id = :cid ORDER BY e.created_at DESC",
-            {"tid": tid, "cid": case_id}
-        )
-    else:
-        escalations = _q(
-            "SELECT e.*, o.name as officer_name, o.designation, o.email as officer_email "
-            "FROM escalations e LEFT JOIN officers o ON e.officer_id = o.id "
-            "WHERE e.tenant_id = :tid ORDER BY e.created_at DESC LIMIT 100",
-            {"tid": tid}
-        )
-    for e in escalations:
-        for field in ["created_at", "updated_at", "email_sent_at", "deadline"]:
-            val = e.get(field)
-            if val and hasattr(val, "isoformat"):
-                e[field] = val.isoformat()
-    return {"escalations": escalations}
-
-
-class EscalationDraftRequest(BaseModel):
-    case_id: int
-    officer_id: int
-    language: str = "English"
-
-
-@router.post("/escalations/ai-draft")
-@_limit_ai
-def generate_escalation_draft(body: EscalationDraftRequest, request: Request, user=Depends(get_current_user)):
-    """Generate an AI draft escalation letter for a case → officer pair."""
-    tid = get_tenant_or_fail(user)
-
-    case = _q_one(
-        "SELECT * FROM cases WHERE id = :cid AND tenant_id = :tid",
-        {"cid": body.case_id, "tid": tid}
-    )
-    if not case:
-        raise HTTPException(404, "Case not found")
-
-    officer = _q_one(
-        "SELECT * FROM officers WHERE id = :oid AND tenant_id = :tid",
-        {"oid": body.officer_id, "tid": tid}
-    )
-    if not officer:
-        raise HTTPException(404, "Officer not found")
-
-    tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
-    mp_name   = (tenant or {}).get("display_name") or (tenant or {}).get("name") or "The Representative"
-    mp_office = (tenant or {}).get("office_name") or "Office of the Representative"
-
-    ref        = case.get("case_ref") or f"#{case['id']}"
-    category   = case.get("category") or "Civic Matter"
-    location   = case.get("location") or ""
-    message    = (case.get("raw_message") or "")[:500]
-    officer_name = officer.get("name") or "Concerned Officer"
-    designation  = officer.get("designation") or "Officer"
-    department   = officer.get("department") or ""
-    from datetime import timedelta
-    deadline_str = (_utcnow() + timedelta(days=7)).strftime("%d %B %Y")
-    is_hindi = body.language == "Hindi"
-
-    lang_instruction = """
-LANGUAGE: Hindi (Devanagari script)
-- Use formal Rajbhasha (राजभाषा), NOT conversational Hindi
-- Use: "कृपया" (please), "अनुरोध" (request), "संबंधित" (related to), "विभाग" (department)
-- Use "आवश्यक कार्यवाही" for "necessary action", "तत्काल ध्यान" for "immediate attention"
-- Honorific: "श्री/श्रीमती" for officers
-- Formal sentence endings: "...किया जाए।", "...की जाए।"
-- Subject line in Hindi
-- Date in Hindi format is acceptable""" if is_hindi else "LANGUAGE: English — formal government correspondence style"
-
-    prompt = f"""You are drafting a formal escalation letter on behalf of {mp_name} ({mp_office}).
-
-TASK: Write a concise, professional escalation letter to a government officer regarding a citizen grievance.
-
-{lang_instruction}
-
-CASE DETAILS:
-- Reference: {ref}
-- Category: {category}
-- Location: {location if location else "the constituency"}
-- Citizen's Complaint: "{message}"
-
-RECIPIENT:
-- Name: {officer_name}
-- Designation: {designation}{f", {department}" if department else ""}
-
-LETTER REQUIREMENTS:
-- Formal tone, government correspondence style
-- Subject line referencing the case and category
-- Briefly summarise the citizen's complaint in 2-3 sentences
-- Request the officer to investigate and take necessary action
-- Set a response deadline of {deadline_str}
-- Close with office name: {mp_office}
-- Length: 150–250 words maximum
-- Output ONLY the letter text, no explanations or metadata
-
-DO NOT invent any statistics, case numbers, or facts not provided above."""
-
-    try:
-        client = get_gemini_client()
-        if not client:
-            raise HTTPException(500, "GEMINI_API_KEY not configured")
-        from google.genai import types as _gt
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=_gt.GenerateContentConfig(temperature=0.2),
-        )
-        return {"draft": response.text}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Escalation AI draft failed")
-        raise HTTPException(500, "Failed to generate draft")
 
 
 # ─────────────────────────────────────────
@@ -5472,13 +5264,13 @@ def download_grievance_report(
     story.append(HRFlowable(width="100%", thickness=1, color=BRAND, spaceAfter=12))
 
     # Stat tiles (single-row table)
-    stat_labels = ["Total Cases", "New / Open", "In Progress", "Resolved", "Escalated"]
+    stat_labels = ["Total Cases", "New / Open", "In Progress", "Resolved", "Critical"]
     stat_values = [
         str(total),
         str(status_counts.get("new", 0)),
         str(status_counts.get("in_progress", 0)),
         str(status_counts.get("resolved", 0)),
-        str(status_counts.get("escalated", 0)),
+        str(report.get("critical_count", 0) or 0),
     ]
     tile_w = (A4[0] - 36*mm) / len(stat_labels)
     stat_data = [

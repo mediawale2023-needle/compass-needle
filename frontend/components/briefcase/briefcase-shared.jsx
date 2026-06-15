@@ -48,7 +48,6 @@ export const STATUS_OPTIONS = [
     { value: 'pending_review', label: 'Needs Review', className: 'bg-purple-100 text-purple-700' },
     { value: 'in_progress', label: 'In Progress', className: 'bg-amber-100 text-amber-700' },
     { value: 'resolved', label: 'Resolved', className: 'bg-green-100 text-green-700' },
-    { value: 'escalated', label: 'Escalated', className: 'bg-red-100 text-red-700' },
     { value: 'closed', label: 'Closed', className: 'bg-slate-100 text-slate-600' },
     { value: 'irrelevant', label: 'Irrelevant', className: 'bg-slate-100 text-slate-500' },
 ];
@@ -119,7 +118,6 @@ export function BriefcaseStatusPill({ status }) {
     const map = {
         new: { fg: briefcasePalette.blue, bg: briefcasePalette.blueTint, icon: 'dot', label: 'New' },
         pending_review: { fg: briefcasePalette.saffron, bg: briefcasePalette.saffronTint, icon: 'clock', label: 'Pending' },
-        escalated: { fg: '#fff', bg: briefcasePalette.red, icon: 'warn', label: 'Escalated' },
         in_progress: { fg: briefcasePalette.greenInk, bg: briefcasePalette.greenTint, icon: 'sparkle', label: 'In progress' },
         resolved: { fg: briefcasePalette.greenInk, bg: briefcasePalette.greenTint, icon: 'check', label: 'Resolved' },
         awaiting_location: { fg: briefcasePalette.ink, bg: briefcasePalette.neutralTint, icon: 'pin', label: 'Needs location' },

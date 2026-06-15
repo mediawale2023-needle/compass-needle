@@ -49,12 +49,12 @@ export default function DashboardKpiTiles({ summary }) {
             href: '/dashboard/sansadx',
         },
         {
-            label: 'Critical / escalated',
-            value: statuses.escalated || (summary?.critical_count ?? 0),
+            label: 'Critical cases',
+            value: summary?.critical_count ?? 0,
             detail: `${(summary?.red_zones || []).length} red zones`,
             color: P.red,
-            data: synthesizeSeries(statuses.escalated || 0),
-            href: '/dashboard/sansadx?status=escalated',
+            data: synthesizeSeries(summary?.critical_count ?? 0),
+            href: '/dashboard/sansadx?critical=true',
         },
     ];
 

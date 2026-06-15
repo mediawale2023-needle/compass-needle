@@ -149,10 +149,6 @@
   @apply bg-emerald-50 text-emerald-700 border border-emerald-200;
 }
 
-.status-escalated {
-  @apply bg-red-50 text-red-700 border border-red-200;
-}
-
 .status-closed {
   @apply bg-slate-50 text-slate-600 border border-slate-200;
 }

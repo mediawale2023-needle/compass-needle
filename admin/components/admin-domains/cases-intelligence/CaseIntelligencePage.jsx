@@ -210,7 +210,7 @@ function CaseExplorer() {
                                     <td style={{ color: '#6b7f76', fontSize: '0.8rem' }}>{c.phone}</td>
                                     <td>{c.category}</td>
                                     <td>
-                                        <span className={`badge ${c.status === 'resolved' ? 'badge-green' : c.status === 'in_progress' ? 'badge-amber' : c.status === 'escalated' ? 'badge-red' : 'badge-slate'}`}>
+                                        <span className={`badge ${c.status === 'resolved' ? 'badge-green' : c.status === 'in_progress' ? 'badge-amber' : 'badge-slate'}`}>
                                             {c.status}
                                         </span>
                                     </td>
@@ -333,7 +333,7 @@ function GrievanceAnalytics() {
                                 {data.status_distribution.map(s => (
                                     <tr key={s.status}>
                                         <td>
-                                            <span className={`badge ${s.status === 'resolved' ? 'badge-green' : s.status === 'in_progress' ? 'badge-amber' : s.status === 'escalated' ? 'badge-red' : 'badge-slate'}`}>
+                                            <span className={`badge ${s.status === 'resolved' ? 'badge-green' : s.status === 'in_progress' ? 'badge-amber' : 'badge-slate'}`}>
                                                 {s.status}
                                             </span>
                                         </td>
