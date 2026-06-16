@@ -65,6 +65,7 @@ def _seed_database():
             "case_activity_log",
             "case_media",
             "cases",
+            "tenant_overrides",
             "token_blocklist",
             "users",
             "tenant_profiles",
@@ -805,7 +806,7 @@ def test_manual_geography_update_locks_case_metadata():
     assert detail["case_metadata"]["geography_locked"] is True
 
 
-def test_manual_geography_update_creates_reusable_alias_for_future_cases():
+def test_manual_geography_update_does_not_create_reusable_alias():
     _seed_database()
     headers = _auth_headers("mp_arun")
 
@@ -829,16 +830,15 @@ def test_manual_geography_update_creates_reusable_alias_for_future_cases():
                 """
             )
         ).mappings().first()
-    assert row is not None
-    assert row["value"] == "Belgaum South"
+    assert row is None
 
-    resolved = resolve_location(
-        "Teacher Colony nalli 3 din neer illa",
-        tenant_id=1,
-    )
-    assert resolved["location_resolved"] is True
-    assert resolved["assembly_constituency"] == "Belgaum South"
-    assert resolved["match_type"] in {"db_alias_exact", "db_alias_boundary"}
+    detail_resp = client.get("/api/cases/101", headers=headers)
+    assert detail_resp.status_code == 200, detail_resp.text
+    detail = detail_resp.json()
+    assert detail["location"] == "Teachers Colony"
+    assert detail["assembly"] == "Belgaum South"
+    assert detail["case_metadata"]["geography_confidence"] == "manual"
+    assert detail["case_metadata"]["geography_locked"] is True
 
 
 def test_audio_media_intake_passes_voice_note_as_source_media(monkeypatch):

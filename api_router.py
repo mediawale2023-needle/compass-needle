@@ -1583,40 +1583,6 @@ def _normalize_manual_alias_key(value: str) -> str:
     return cleaned
 
 
-def _persist_reusable_manual_geography_alias(tenant_id: int, alias_text: str, assembly_name: str) -> None:
-    alias_key = _normalize_manual_alias_key(alias_text)
-    assembly_value = str(assembly_name or "").strip()
-    if not alias_key or not assembly_value or assembly_value == "Unknown":
-        return
-
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                """
-                DELETE FROM tenant_overrides
-                WHERE tenant_id = :tid
-                  AND override_type IN ('geo_manual_override', 'geo_override')
-                  AND LOWER(COALESCE(key, '')) = :alias_key
-                """
-            ),
-            {"tid": tenant_id, "alias_key": alias_key},
-        )
-        conn.execute(
-            text(
-                """
-                INSERT INTO tenant_overrides (tenant_id, override_type, key, value, created_at)
-                VALUES (:tid, 'geo_manual_override', :alias_key, :assembly_value, :now)
-                """
-            ),
-            {
-                "tid": tenant_id,
-                "alias_key": alias_key,
-                "assembly_value": assembly_value,
-                "now": _utcnow(),
-            },
-        )
-
-
 def _resolve_citizen_notification_message(case: dict, requested_message: str = "") -> str:
     status = case.get("status", "new")
     case_id = case.get("id")
@@ -1701,12 +1667,6 @@ def update_case(case_id: int, body: CaseNotesUpdate, user=Depends(get_current_us
         result = conn.execute(text(
             f"UPDATE cases SET {set_clause} WHERE id = :cid AND tenant_id = :tid"  # nosec B608 — set_clause built from hardcoded column names only
         ), params)
-
-    if body.location is not None or body.assembly is not None:
-        try:
-            _persist_reusable_manual_geography_alias(tid, manual_location, manual_assembly)
-        except Exception:
-            logger.exception("Failed to persist reusable manual geography alias for case %s", case_id)
 
     try:
         _log_case_activity(tid, case_id, user.get("username", ""), "case_updated", details=str({k: v for k, v in params.items() if k not in ("cid", "tid", "now")}))

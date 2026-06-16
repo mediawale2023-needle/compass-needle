@@ -12,6 +12,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-06-16
+- Request: Stop case-level manual geography fixes from auto-creating reusable matching aliases.
+- Summary: Removed the Briefcase backend behavior that auto-promoted every case-level geography edit into a tenant-scoped `geo_manual_override`. Manual geography edits still lock the edited case immediately, but only admin-created Shared Geography manual corrections now remain part of future auto-matching. Updated the focused Briefcase regression accordingly.
+- Files touched: `api_router.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Operators who relied on “fix one case, teach the resolver forever” will now need to add reusable corrections through the admin Shared Geography workspace. If desired later, add a reviewed `suggest alias` workflow instead of restoring silent auto-learning.
+
 - Date: 2026-06-15
 - Request: Remove escalation completely from the Briefcase system.
 - Summary: Retired the Briefcase escalation workflow end to end. Removed the MP frontend escalation button/modal, removed the live MP API routes for officers/escalations/AI escalation drafts, removed `escalated` as a live dashboard/Briefcase status concept, updated queue/KPI/admin status styling, and added a startup migration in `main.py` that remaps any legacy case rows still marked `escalated` back to `in_progress`. Kept the old officer/escalation tables in the schema for backward-compatibility cleanup safety, but they are no longer part of the supported product contract. Verified with `frontend` production build and Python AST parsing of `api_router.py` and `main.py`.
