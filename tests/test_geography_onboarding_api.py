@@ -141,6 +141,19 @@ def test_save_geography_sanitizes_rows_and_returns_validation():
     assert "Unique Colony" in saved
     assert "Shanti Enclave" in saved
 
+    with test_engine.connect() as conn:
+        audit_row = conn.execute(text("""
+            SELECT action, target_type, target_name, change_summary
+            FROM admin_audit_log
+            ORDER BY id DESC
+            LIMIT 1
+        """)).mappings().first()
+    assert audit_row["action"] == "updated"
+    assert audit_row["target_type"] == "shared_geography"
+    assert audit_row["target_name"] == "mp:Ghaziabad/Loni"
+    assert '"mode": "full_save"' in audit_row["change_summary"]
+    assert '"stations": 2' in audit_row["change_summary"]
+
 
 def test_bulk_geography_saves_shared_data_without_regenerating_tenant_alias_rows():
     _seed_database()
@@ -175,6 +188,62 @@ def test_bulk_geography_saves_shared_data_without_regenerating_tenant_alias_rows
     assert "Unique Colony" in saved
     assert "Shanti Enclave" in saved
     assert alias_count == 0
+
+
+def test_save_overrides_writes_audit_rows_for_seat_manual_alias_changes():
+    _seed_database()
+    headers = _admin_headers()
+
+    first = client.put(
+        "/api/admin/overrides",
+        json={
+            "data": {
+                "seat_geo_overrides": {
+                    "mp:Ghaziabad": {
+                        "teacher colony": "Loni",
+                    }
+                }
+            }
+        },
+        headers=headers,
+    )
+    assert first.status_code == 200, first.text
+
+    second = client.put(
+        "/api/admin/overrides",
+        json={
+            "data": {
+                "seat_geo_overrides": {
+                    "mp:Ghaziabad": {
+                        "teacher colony": "Muradnagar",
+                    }
+                }
+            }
+        },
+        headers=headers,
+    )
+    assert second.status_code == 200, second.text
+
+    with test_engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT action, target_type, target_name, change_summary
+            FROM admin_audit_log
+            WHERE target_type = 'seat_manual_alias'
+            ORDER BY id ASC
+        """)).mappings().all()
+        phone_mapping_count = conn.execute(text("""
+            SELECT COUNT(*) FROM tenant_overrides
+            WHERE override_type = 'phone_mapping' AND key = 'seat_geo_overrides'
+        """)).scalar_one()
+
+    assert len(rows) == 2
+    assert rows[0]["action"] == "created"
+    assert rows[0]["target_name"] == "mp:Ghaziabad::teacher colony"
+    assert '"after_assembly": "Loni"' in rows[0]["change_summary"]
+    assert rows[1]["action"] == "updated"
+    assert '"before_assembly": "Loni"' in rows[1]["change_summary"]
+    assert '"after_assembly": "Muradnagar"' in rows[1]["change_summary"]
+    assert phone_mapping_count == 0
 
 
 def test_upload_pdf_returns_sanitized_stations_and_validation(monkeypatch):

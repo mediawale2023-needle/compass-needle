@@ -280,6 +280,154 @@ def _audit(admin_user, action: str, target_type: str, target_name: str = "", cha
         logger.warning(f"Audit log write failed: {e}")
 
 
+def _audit_structured(admin_user, action: str, target_type: str, target_name: str = "", **payload):
+    """Write a compact JSON summary so audit rows stay reviewable in UI/API."""
+    cleaned_payload = {k: v for k, v in payload.items() if v not in (None, "", [], {})}
+    summary = ""
+    if cleaned_payload:
+        try:
+            summary = json.dumps(cleaned_payload, ensure_ascii=False, sort_keys=True)
+        except Exception:
+            summary = str(cleaned_payload)
+    _audit(admin_user, action, target_type, target_name, summary)
+
+
+def _safe_json_loads(value):
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        return value
+    try:
+        return json.loads(value)
+    except Exception:
+        return None
+
+
+def _summarize_station_rows(rows):
+    rows = rows if isinstance(rows, list) else []
+    localities = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        locality = str(row.get("locality") or "").strip()
+        if locality:
+            localities.append(locality)
+    unique_localities = []
+    seen = set()
+    for locality in localities:
+        lowered = locality.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        unique_localities.append(locality)
+    return {
+        "stations": len(rows),
+        "unique_localities": len(unique_localities),
+        "sample_localities": unique_localities[:5],
+    }
+
+
+def _diff_mapping(before_map, after_map):
+    before_map = before_map if isinstance(before_map, dict) else {}
+    after_map = after_map if isinstance(after_map, dict) else {}
+    created = []
+    updated = []
+    deleted = []
+
+    for key in sorted(after_map.keys()):
+        if key not in before_map:
+            created.append((key, None, after_map[key]))
+        elif before_map[key] != after_map[key]:
+            updated.append((key, before_map[key], after_map[key]))
+    for key in sorted(before_map.keys()):
+        if key not in after_map:
+            deleted.append((key, before_map[key], None))
+    return created, updated, deleted
+
+
+def _audit_manual_override_diffs(admin_user, before_overrides: dict, after_overrides: dict):
+    before_overrides = before_overrides if isinstance(before_overrides, dict) else {}
+    after_overrides = after_overrides if isinstance(after_overrides, dict) else {}
+
+    before_seat = before_overrides.get("seat_geo_overrides") or {}
+    after_seat = after_overrides.get("seat_geo_overrides") or {}
+    for seat_key in sorted(set(before_seat.keys()) | set(after_seat.keys())):
+        created, updated, deleted = _diff_mapping(before_seat.get(seat_key), after_seat.get(seat_key))
+        for alias_key, _old_value, new_value in created:
+            _audit_structured(
+                admin_user,
+                "created",
+                "seat_manual_alias",
+                f"{seat_key}::{alias_key}",
+                scope="seat",
+                seat_key=seat_key,
+                alias=alias_key,
+                after_assembly=new_value,
+            )
+        for alias_key, old_value, new_value in updated:
+            _audit_structured(
+                admin_user,
+                "updated",
+                "seat_manual_alias",
+                f"{seat_key}::{alias_key}",
+                scope="seat",
+                seat_key=seat_key,
+                alias=alias_key,
+                before_assembly=old_value,
+                after_assembly=new_value,
+            )
+        for alias_key, old_value, _new_value in deleted:
+            _audit_structured(
+                admin_user,
+                "deleted",
+                "seat_manual_alias",
+                f"{seat_key}::{alias_key}",
+                scope="seat",
+                seat_key=seat_key,
+                alias=alias_key,
+                before_assembly=old_value,
+            )
+
+    before_tenant = before_overrides.get("geo_overrides") or {}
+    after_tenant = after_overrides.get("geo_overrides") or {}
+    for tenant_key in sorted(set(before_tenant.keys()) | set(after_tenant.keys())):
+        created, updated, deleted = _diff_mapping(before_tenant.get(tenant_key), after_tenant.get(tenant_key))
+        for alias_key, _old_value, new_value in created:
+            _audit_structured(
+                admin_user,
+                "created",
+                "tenant_manual_alias",
+                f"tenant:{tenant_key}::{alias_key}",
+                scope="tenant",
+                tenant_id=tenant_key,
+                alias=alias_key,
+                after_assembly=new_value,
+            )
+        for alias_key, old_value, new_value in updated:
+            _audit_structured(
+                admin_user,
+                "updated",
+                "tenant_manual_alias",
+                f"tenant:{tenant_key}::{alias_key}",
+                scope="tenant",
+                tenant_id=tenant_key,
+                alias=alias_key,
+                before_assembly=old_value,
+                after_assembly=new_value,
+            )
+        for alias_key, old_value, _new_value in deleted:
+            _audit_structured(
+                admin_user,
+                "deleted",
+                "tenant_manual_alias",
+                f"tenant:{tenant_key}::{alias_key}",
+                scope="tenant",
+                tenant_id=tenant_key,
+                alias=alias_key,
+                before_assembly=old_value,
+            )
+
+
 # ─────────────────────────────────────────
 # REQUEST MODELS
 # ─────────────────────────────────────────
@@ -1026,7 +1174,7 @@ def get_mp_geography(tenant_id: int, _=Depends(get_admin_user)):
 
 
 @router.post("/mps/{tenant_id}/geography")
-def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(get_admin_user)):
+def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, admin_user=Depends(get_admin_user)):
     """Add a single locality → assembly mapping for this seat.
 
     If the assembly JSON already exists in the shared seat DB entry, the locality is appended.
@@ -1055,6 +1203,7 @@ def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(g
                 stations = json.loads(existing.value) if isinstance(existing.value, str) else existing.value
             except Exception:
                 stations = []
+            before_summary = _summarize_station_rows(stations)
             # Don't duplicate
             existing_locs = {s.get("locality", "").lower() for s in stations}
             if locality_clean.lower() not in existing_locs:
@@ -1071,6 +1220,7 @@ def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(g
             existing.value = json.dumps(stations, ensure_ascii=False)
             flag_modified(existing, "value")
         else:
+            before_summary = _summarize_station_rows([])
             stations, validation = sanitize_and_validate_stations(
                 [{"station_number": "1", "locality": locality_clean, "building_name": locality_clean}],
                 parliamentary_constituency=parl,
@@ -1089,6 +1239,21 @@ def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(g
         db.commit()
 
         _refresh_geography_runtime()
+        _audit_structured(
+            admin_user,
+            "updated",
+            "shared_geography",
+            db_key,
+            mode="single_locality_add",
+            tenant_id=tenant_id,
+            seat_type=seat_type,
+            seat_name=seat_name,
+            assembly=req.assembly_constituency,
+            added_locality=locality_clean,
+            before=before_summary,
+            after=_summarize_station_rows(stations),
+            validation_warnings=list(validation.get("warnings") or []),
+        )
 
         return {"success": True, "locality": locality_clean, "assembly": req.assembly_constituency, "validation": validation}
     except HTTPException:
@@ -1102,7 +1267,7 @@ def add_mp_geography_locality(tenant_id: int, req: GeoLocalityEntry, _=Depends(g
 
 
 @router.post("/mps/{tenant_id}/geography/bulk")
-def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, _=Depends(get_admin_user)):
+def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, admin_user=Depends(get_admin_user)):
     """Bulk-upsert an entire assembly constituency's localities.
 
     Replaces the existing assembly entry in the DB. Use this to import
@@ -1132,6 +1297,7 @@ def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, _=Depends(get_ad
             TenantOverride.override_type == "geography_data",
             TenantOverride.key == db_key,
         ).first()
+        before_rows = _safe_json_loads(existing.value) if existing else []
         if existing:
             existing.value = json.dumps(stations, ensure_ascii=False)
             existing.tenant_id = None
@@ -1146,6 +1312,20 @@ def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, _=Depends(get_ad
         db.commit()
 
         _refresh_geography_runtime()
+        _audit_structured(
+            admin_user,
+            "updated",
+            "shared_geography",
+            db_key,
+            mode="bulk_replace",
+            tenant_id=tenant_id,
+            seat_type=seat_type,
+            seat_name=seat_name,
+            assembly=req.assembly_constituency,
+            before=_summarize_station_rows(before_rows),
+            after=_summarize_station_rows(stations),
+            validation_warnings=list(validation.get("warnings") or []),
+        )
 
         return {
             "success": True,
@@ -1164,13 +1344,18 @@ def bulk_add_mp_geography(tenant_id: int, req: GeoAssemblyBulk, _=Depends(get_ad
 
 
 @router.delete("/mps/{tenant_id}/geography/{assembly}")
-def delete_mp_geography_assembly(tenant_id: int, assembly: str, _=Depends(get_admin_user)):
+def delete_mp_geography_assembly(tenant_id: int, assembly: str, admin_user=Depends(get_admin_user)):
     """Delete all geography data for one assembly constituency of this MP."""
     from sansadx_backend.db import TenantOverride
     db = SessionLocal()
     try:
         _, seat_type, seat_name = _tenant_seat_context(db, tenant_id)
         db_key = build_geography_key(seat_type, seat_name, assembly)
+        existing = db.query(TenantOverride).filter(
+            TenantOverride.override_type == "geography_data",
+            TenantOverride.key == db_key,
+        ).first()
+        before_rows = _safe_json_loads(existing.value) if existing else []
         deleted = db.query(TenantOverride).filter(
             TenantOverride.override_type == "geography_data",
             TenantOverride.key == db_key,
@@ -1178,6 +1363,18 @@ def delete_mp_geography_assembly(tenant_id: int, assembly: str, _=Depends(get_ad
         db.commit()
         if deleted:
             _refresh_geography_runtime()
+            _audit_structured(
+                admin_user,
+                "deleted",
+                "shared_geography",
+                db_key,
+                mode="assembly_delete",
+                tenant_id=tenant_id,
+                seat_type=seat_type,
+                seat_name=seat_name,
+                assembly=assembly,
+                before=_summarize_station_rows(before_rows),
+            )
         return {"success": True, "deleted": deleted}
     finally:
         db.close()
@@ -1248,12 +1445,15 @@ def delete_tenant_geo_alias(tenant_id: int, alias_id: int, admin=Depends(get_adm
         db.delete(row)
         db.commit()
 
-        _audit(
+        _audit_structured(
             admin,
             "deleted",
             "geo_alias",
             alias_key or f"id={alias_id}",
-            f"tenant_id={tenant_id} display={display} assembly={assembly}",
+            tenant_id=tenant_id,
+            alias=alias_key,
+            display=display,
+            assembly=assembly,
         )
         return {"success": True, "deleted_id": alias_id, "key": alias_key}
     except HTTPException:
@@ -1720,7 +1920,7 @@ def save_geography(
     ac: str,
     req: SaveGeographyRequest,
     seat_type: str = Query("mp"),
-    _=Depends(get_admin_user),
+    admin_user=Depends(get_admin_user),
 ):
     pc = _sanitize_path_param(pc)
     ac = _sanitize_path_param(ac)
@@ -1746,6 +1946,7 @@ def save_geography(
                 TenantOverride.override_type == "geography_data",
                 TenantOverride.key == db_key,
             ).first()
+            before_rows = _safe_json_loads(existing.value) if existing else []
             payload = json.dumps(cleaned_data, ensure_ascii=False)
             if existing:
                 existing.value = payload
@@ -1769,6 +1970,20 @@ def save_geography(
                 json.dump(cleaned_data, f, indent=2, ensure_ascii=False)
 
         _refresh_geography_runtime()
+        _audit_structured(
+            admin_user,
+            "updated",
+            "shared_geography",
+            build_geography_key(seat_type, pc, ac),
+            mode="full_save",
+            seat_type=seat_type,
+            seat_name=pc,
+            assembly=ac,
+            before=_summarize_station_rows(before_rows),
+            after=_summarize_station_rows(cleaned_data),
+            validation_warnings=list(validation.get("warnings") or []),
+            validation_meta_rows_removed=validation.get("meta_rows_removed"),
+        )
         return {"success": True, "stations_saved": len(cleaned_data), "validation": validation}
     except HTTPException:
         raise
@@ -1782,7 +1997,7 @@ def delete_geography(
     pc: str,
     ac: str,
     seat_type: str = Query("mp"),
-    _=Depends(get_admin_user),
+    admin_user=Depends(get_admin_user),
 ):
     pc = _sanitize_path_param(pc)
     ac = _sanitize_path_param(ac)
@@ -1798,9 +2013,15 @@ def delete_geography(
         from sansadx_backend.db import TenantOverride
         db = SessionLocal()
         try:
+            db_key = build_geography_key(seat_type, pc, ac)
+            existing = db.query(TenantOverride).filter(
+                TenantOverride.override_type == "geography_data",
+                TenantOverride.key == db_key,
+            ).first()
+            before_rows = _safe_json_loads(existing.value) if existing else []
             deleted += db.query(TenantOverride).filter(
                 TenantOverride.override_type == "geography_data",
-                TenantOverride.key == build_geography_key(seat_type, pc, ac),
+                TenantOverride.key == db_key,
             ).delete()
             db.commit()
         finally:
@@ -1810,6 +2031,17 @@ def delete_geography(
 
     if deleted:
         _refresh_geography_runtime()
+        _audit_structured(
+            admin_user,
+            "deleted",
+            "shared_geography",
+            build_geography_key(seat_type, pc, ac),
+            mode="full_delete",
+            seat_type=seat_type,
+            seat_name=pc,
+            assembly=ac,
+            before=_summarize_station_rows(before_rows if 'before_rows' in locals() else []),
+        )
         return {"success": True, "deleted": deleted}
     raise HTTPException(404, "Geography data not found")
 
@@ -2185,9 +2417,12 @@ def load_overrides(_=Depends(get_admin_user)):
 
 
 @router.put("/overrides")
-def save_overrides(req: SaveOverridesRequest, _=Depends(get_admin_user)):
+def save_overrides(req: SaveOverridesRequest, admin_user=Depends(get_admin_user)):
     try:
+        before_overrides = get_all_overrides()
         save_overrides_to_db(req.data)
+        after_overrides = get_all_overrides()
+        _audit_manual_override_diffs(admin_user, before_overrides, after_overrides)
         return {"success": True}
     except Exception as e:
         logger.exception("Admin operation failed")
