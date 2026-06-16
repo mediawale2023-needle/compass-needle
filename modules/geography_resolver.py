@@ -505,28 +505,18 @@ _NATIVE_LOCATION_SUFFIXES = (
 def _load_tenant_overrides(tenant_id):
     """Load manual geography corrections for a tenant.
 
-    Reads tenant-scoped manual corrections from the DB (primary) and falls back
-    to tenant_overrides.json if the DB query fails. Legacy `geo_override` rows
-    are still treated as manual corrections for backward compatibility, but
-    generated `geo_alias` rows are no longer part of runtime matching.
+    Reads merged manual corrections from the DB (primary) and falls back to
+    tenant_overrides.json if the DB query fails. Seat-scoped approved manual
+    corrections are shared across same-seat tenants; older tenant-scoped
+    manual overrides remain a compatibility layer and take precedence when the
+    same alias key exists in both places. Generated `geo_alias` rows are no
+    longer part of runtime matching.
     """
     try:
-        from sansadx_backend.db import SessionLocal, TenantOverride
-        _db = SessionLocal()
-        try:
-            rows = _db.query(TenantOverride).filter(
-                TenantOverride.override_type.in_(["geo_manual_override", "geo_override"]),
-                TenantOverride.tenant_id == tenant_id,
-            ).all()
-            if rows:
-                overrides = {}
-                for r in rows:
-                    key = str(r.key or "").strip()
-                    overrides[key] = r.value
-                if overrides:
-                    return overrides
-        finally:
-            _db.close()
+        from sansadx_backend.db import get_geo_overrides, build_seat_key
+        overrides = get_geo_overrides(tenant_id)
+        if overrides:
+            return overrides
     except Exception:
         pass
 
@@ -540,7 +530,13 @@ def _load_tenant_overrides(tenant_id):
             try:
                 with open(op, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                return data.get("geo_overrides", {}).get(str(tenant_id), {})
+                merged = {}
+                context = _get_tenant_seat_context(tenant_id)
+                if context:
+                    seat_key = build_seat_key(context.get("seat_type"), context.get("seat_name"))
+                    merged.update(data.get("seat_geo_overrides", {}).get(seat_key, {}))
+                merged.update(data.get("geo_overrides", {}).get(str(tenant_id), {}))
+                return merged
             except Exception:
                 pass
     return {}

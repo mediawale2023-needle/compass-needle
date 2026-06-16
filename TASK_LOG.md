@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-16
+- Request: Make approved reusable manual geography aliases seat-scoped instead of account-scoped.
+- Summary: Added a seat-scoped reusable alias layer (`geo_seat_manual_override`) in `tenant_overrides`, updated the resolver to share approved manual corrections across same-seat tenants while preserving older tenant-specific overrides as a precedence fallback, and switched the Shared Geography workspace to save reusable manual corrections at the seat layer by default. The tenant-aware workspace now loads seat-scoped rules plus any legacy tenant-specific rules for that account and migrates those legacy entries into seat scope on save. Verified with focused override/resolver/Briefcase pytest coverage plus a successful `admin` production build.
+- Files touched: `sansadx_backend/db.py`, `modules/geography_resolver.py`, `admin/components/admin-domains/shared-geography/GeographyWorkspacePage.jsx`, `tests/test_override_persistence.py`, `tests/test_same_seat_isolation.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Existing tenant-specific reusable corrections are still honored until operators resave them through Shared Geography, so this is a backward-compatible rollout rather than a destructive migration. A later cleanup pass can add explicit seat-vs-tenant source badges in the admin UI and a deliberate migration script once live data has been reviewed.
+
+- Date: 2026-06-16
 - Request: Stop case-level manual geography fixes from auto-creating reusable matching aliases.
 - Summary: Removed the Briefcase backend behavior that auto-promoted every case-level geography edit into a tenant-scoped `geo_manual_override`. Manual geography edits still lock the edited case immediately, but only admin-created Shared Geography manual corrections now remain part of future auto-matching. Updated the focused Briefcase regression accordingly.
 - Files touched: `api_router.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
