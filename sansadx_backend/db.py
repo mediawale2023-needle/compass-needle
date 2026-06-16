@@ -901,9 +901,9 @@ def save_overrides_to_db(data: dict):
         db.query(TenantOverride).filter(
             TenantOverride.override_type.in_(["phone_mapping", "geo_override", "geo_manual_override", "geo_seat_manual_override"])
         ).delete(synchronize_session=False)
-        # Phone mappings (top-level keys that aren't "geo_overrides")
+        # Phone mappings (top-level keys that aren't structured override buckets)
         for key, value in data.items():
-            if key == "geo_overrides":
+            if key in {"geo_overrides", "seat_geo_overrides"}:
                 continue
             db.add(TenantOverride(
                 tenant_id=int(value) if isinstance(value, (int, str)) and str(value).isdigit() else 1,

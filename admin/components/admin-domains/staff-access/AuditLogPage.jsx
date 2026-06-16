@@ -16,6 +16,40 @@ const actionColors = {
     suspended: { bg: '#fffbeb', color: '#92400e' },
 };
 
+function parseSummary(summary) {
+    if (!summary) return null;
+    if (typeof summary === 'object') return summary;
+    try {
+        return JSON.parse(summary);
+    } catch {
+        return null;
+    }
+}
+
+function summarizeDetails(entry) {
+    const parsed = parseSummary(entry.change_summary);
+    if (!parsed) return { summary: entry.change_summary || '—', parsed: null };
+
+    const parts = [];
+    if (parsed.alias) parts.push(`alias: ${parsed.alias}`);
+    if (parsed.assembly) parts.push(`assembly: ${parsed.assembly}`);
+    if (parsed.before_assembly || parsed.after_assembly) {
+        parts.push(`assembly: ${parsed.before_assembly || '—'} -> ${parsed.after_assembly || '—'}`);
+    }
+    if (parsed.before?.stations !== undefined || parsed.after?.stations !== undefined) {
+        parts.push(`stations: ${parsed.before?.stations ?? '—'} -> ${parsed.after?.stations ?? '—'}`);
+    }
+    if (parsed.seat_key) parts.push(`seat: ${parsed.seat_key}`);
+    if (parsed.tenant_id) parts.push(`tenant: ${parsed.tenant_id}`);
+    if (parsed.added_locality) parts.push(`added: ${parsed.added_locality}`);
+    if (parsed.mode) parts.push(`mode: ${parsed.mode}`);
+
+    return {
+        summary: parts.join(' • ') || 'View details',
+        parsed,
+    };
+}
+
 export default function AuditLogPage() {
     const [entries, setEntries] = useState([]);
     const [filterOptions, setFilterOptions] = useState({ actors: [], actions: [], target_types: [] });
@@ -113,6 +147,7 @@ export default function AuditLogPage() {
                         <tbody>
                             {entries.map((e, i) => {
                                 const ac = actionColors[e.action] || { bg: '#f8fafc', color: '#64748b' };
+                                const detail = summarizeDetails(e);
                                 return (
                                     <tr key={e.id || i}>
                                         <td style={{ fontSize: '0.72rem', color: '#6b7f76', whiteSpace: 'nowrap' }}>
@@ -134,8 +169,28 @@ export default function AuditLogPage() {
                                                 </span>
                                             )}
                                         </td>
-                                        <td style={{ fontSize: '0.72rem', color: '#6b7f76', maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                            {e.change_summary || '—'}
+                                        <td style={{ fontSize: '0.72rem', color: '#6b7f76', maxWidth: 340 }}>
+                                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {detail.summary}
+                                            </div>
+                                            {detail.parsed && (
+                                                <details style={{ marginTop: 6 }}>
+                                                    <summary style={{ cursor: 'pointer', color: '#456357' }}>View payload</summary>
+                                                    <pre style={{
+                                                        marginTop: 8,
+                                                        padding: '0.75rem',
+                                                        background: '#f6f8f7',
+                                                        border: '1px solid #e2ebe5',
+                                                        borderRadius: 8,
+                                                        whiteSpace: 'pre-wrap',
+                                                        wordBreak: 'break-word',
+                                                        color: '#456357',
+                                                        fontSize: '0.68rem',
+                                                    }}>
+                                                        {JSON.stringify(detail.parsed, null, 2)}
+                                                    </pre>
+                                                </details>
+                                            )}
                                         </td>
                                     </tr>
                                 );
