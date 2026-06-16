@@ -11,6 +11,7 @@ import logging
 import re
 import secrets
 import string
+import uuid
 from datetime import datetime, timedelta, timezone, date
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, Request, Response, Form
@@ -73,6 +74,85 @@ logger = logging.getLogger("needle.api")
 def _utcnow():
     """Naive UTC timestamp for DB compatibility without deprecated utcnow()."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _append_admin_audit_log(actor: str, action: str, target_type: str, target_name: str = "", payload: dict | None = None) -> None:
+    try:
+        summary = json.dumps(payload or {}, ensure_ascii=False, sort_keys=True) if payload else ""
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO admin_audit_log (admin_username, action, target_type, target_name, change_summary, created_at) "
+                    "VALUES (:u, :a, :tt, :tn, :cs, :now)"
+                ),
+                {"u": actor, "a": action, "tt": target_type, "tn": target_name, "cs": summary, "now": _utcnow()},
+            )
+    except Exception:
+        logger.exception("Failed to append support access audit event")
+
+
+def _expire_support_access_requests() -> None:
+    now = _utcnow()
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    UPDATE support_access_requests
+                    SET status = 'expired', updated_at = :now
+                    WHERE status = 'pending' AND requested_at < :pending_cutoff
+                    """
+                ),
+                {"now": now, "pending_cutoff": now - timedelta(hours=24)},
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE support_access_requests
+                    SET status = 'expired', updated_at = :now
+                    WHERE status = 'approved'
+                      AND launch_token_expires_at IS NOT NULL
+                      AND launch_token_expires_at < :now
+                      AND launch_token_consumed_at IS NULL
+                    """
+                ),
+                {"now": now},
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE support_access_requests
+                    SET status = 'ended', session_ended_at = COALESCE(session_ended_at, :now), updated_at = :now
+                    WHERE status = 'active'
+                      AND session_expires_at IS NOT NULL
+                      AND session_expires_at < :now
+                    """
+                ),
+                {"now": now},
+            )
+    except Exception:
+        logger.exception("Failed to expire stale support access requests")
+
+
+def _serialize_support_access_row(row: dict | None) -> dict | None:
+    if not row:
+        return None
+    data = dict(row)
+    for key in (
+        "requested_at",
+        "approved_at",
+        "rejected_at",
+        "launch_token_expires_at",
+        "launch_token_consumed_at",
+        "session_started_at",
+        "session_expires_at",
+        "session_ended_at",
+        "revoked_at",
+        "updated_at",
+    ):
+        value = data.get(key)
+        data[key] = value.isoformat() if hasattr(value, "isoformat") else value
+    return data
 
 # ─── Rate limiting (optional) ───
 try:
@@ -143,8 +223,9 @@ def _require_feature_access(user: dict | None, feature: str) -> None:
 # ─────────────────────────────────────────
 # JWT HELPERS
 # ─────────────────────────────────────────
-def create_token(data: dict) -> str:
-    payload = {**data, "iat": _utcnow().timestamp(), "exp": _utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)}
+def create_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    expiry = _utcnow() + (expires_delta or timedelta(hours=JWT_EXPIRE_HOURS))
+    payload = {**data, "iat": _utcnow().timestamp(), "exp": expiry}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -159,13 +240,14 @@ def _generate_temporary_password(length: int = 12) -> str:
             return candidate
 
 
-def _build_auth_user_payload(user: dict, tenant: dict | None) -> dict:
+def _build_auth_user_payload(user: dict, tenant: dict | None, support_context: dict | None = None) -> dict:
     house = user.get("house") or "Lok Sabha"
     account_context = _account_context_for_user(user)
     if account_context["account_stage"] == "aspirant":
         theme_color = "#2A2A2A"
     else:
         theme_color = "#006a4d" if house == "Lok Sabha" else "#8d153a"
+    support_context = support_context or {}
     return {
         "username": user["username"],
         "display_name": user.get("display_name") or user["username"].title(),
@@ -181,6 +263,13 @@ def _build_auth_user_payload(user: dict, tenant: dict | None) -> dict:
         "theme_color": theme_color,
         "must_change_password": bool(user.get("must_change_password")),
         "force_password_reason": user.get("force_password_reason"),
+        "is_support_access_session": bool(support_context.get("is_support_access_session")),
+        "support_access_request_key": support_context.get("support_access_request_key"),
+        "support_access_requested_by": support_context.get("support_access_requested_by"),
+        "support_access_approved_by": support_context.get("support_access_approved_by"),
+        "support_access_reason": support_context.get("support_access_reason"),
+        "support_access_scope": support_context.get("support_access_scope"),
+        "support_access_expires_at": support_context.get("support_access_expires_at"),
     }
 
 
@@ -283,6 +372,7 @@ def revoke_user_tokens(username: str):
 def get_current_user(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        request.state.jwt_payload = payload
         username = payload.get("sub")
         if not username:
             raise HTTPException(401, "Invalid token")
@@ -328,6 +418,11 @@ class ChangePasswordRequest(BaseModel):
 class CompleteForcedPasswordResetRequest(BaseModel):
     current_password: str
     new_password: str
+
+
+class SupportAccessConsumeRequest(BaseModel):
+    request_key: str
+    launch_token: str
 
 
 class DashboardEngagementCreateRequest(BaseModel):
@@ -408,10 +503,22 @@ def logout(user=Depends(get_current_user)):
 
 
 @router.get("/auth/me")
-def get_me(user=Depends(get_current_user)):
+def get_me(request: Request, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
     tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": tid})
-    return _build_auth_user_payload(user, tenant)
+    claims = getattr(request.state, "jwt_payload", {}) or {}
+    support_context = None
+    if claims.get("support_access"):
+        support_context = {
+            "is_support_access_session": True,
+            "support_access_request_key": claims.get("support_access_request_key"),
+            "support_access_requested_by": claims.get("support_access_requested_by"),
+            "support_access_approved_by": claims.get("support_access_approved_by"),
+            "support_access_reason": claims.get("support_access_reason"),
+            "support_access_scope": claims.get("support_access_scope"),
+            "support_access_expires_at": claims.get("support_access_expires_at"),
+        }
+    return _build_auth_user_payload(user, tenant, support_context)
 
 
 @router.post("/auth/change-password")
@@ -498,6 +605,326 @@ def complete_forced_password_reset(req: CompleteForcedPasswordResetRequest, user
     except Exception:
         logger.exception("Forced password reset completion failed for user=%s", user.get("username"))
         raise
+
+
+# ─────────────────────────────────────────
+# SUPPORT ACCESS
+# ─────────────────────────────────────────
+@router.get("/support-access/inbox")
+def get_support_access_inbox(user=Depends(get_current_user)):
+    _expire_support_access_requests()
+    if not _is_primary_workspace_user(user):
+        return {"pending_requests": [], "active_sessions": []}
+
+    tid = get_tenant_or_fail(user)
+    pending_rows = _q(
+        """
+        SELECT request_key, tenant_id, requested_by_admin_username, approved_by_username, reason, scope,
+               status, duration_minutes, requested_at, approved_at, session_started_at, session_expires_at,
+               session_ended_at, revoked_at, updated_at
+        FROM support_access_requests
+        WHERE tenant_id = :tid
+          AND target_username = :username
+          AND status = 'pending'
+        ORDER BY requested_at DESC
+        LIMIT 5
+        """,
+        {"tid": tid, "username": user.get("username")},
+    )
+    active_rows = _q(
+        """
+        SELECT request_key, tenant_id, requested_by_admin_username, approved_by_username, reason, scope,
+               status, duration_minutes, requested_at, approved_at, session_started_at, session_expires_at,
+               session_ended_at, revoked_at, updated_at
+        FROM support_access_requests
+        WHERE tenant_id = :tid
+          AND status = 'active'
+        ORDER BY session_started_at DESC
+        LIMIT 5
+        """,
+        {"tid": tid},
+    )
+    return {
+        "pending_requests": [_serialize_support_access_row(row) for row in pending_rows],
+        "active_sessions": [_serialize_support_access_row(row) for row in active_rows],
+    }
+
+
+@router.post("/support-access/{request_key}/approve")
+def approve_support_access(request_key: str, user=Depends(get_current_user)):
+    _expire_support_access_requests()
+    if not _is_primary_workspace_user(user):
+        raise HTTPException(403, "Only the primary tenant account can approve support access")
+    tid = get_tenant_or_fail(user)
+    row = _q_one(
+        """
+        SELECT * FROM support_access_requests
+        WHERE request_key = :request_key AND tenant_id = :tid
+        """,
+        {"request_key": request_key, "tid": tid},
+    )
+    if not row:
+        raise HTTPException(404, "Support access request not found")
+    if row.get("target_username") != user.get("username"):
+        raise HTTPException(403, "Only the target tenant account can approve this request")
+    if row.get("status") != "pending":
+        raise HTTPException(400, "Support access request is no longer pending")
+
+    now = _utcnow()
+    launch_token = secrets.token_urlsafe(32)
+    launch_expires = now + timedelta(minutes=15)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE support_access_requests
+                SET status = 'approved',
+                    approved_by_username = :approved_by,
+                    approved_at = :approved_at,
+                    launch_token = :launch_token,
+                    launch_token_expires_at = :launch_expires,
+                    updated_at = :updated_at
+                WHERE request_key = :request_key
+                """
+            ),
+            {
+                "approved_by": user.get("username"),
+                "approved_at": now,
+                "launch_token": launch_token,
+                "launch_expires": launch_expires,
+                "updated_at": now,
+                "request_key": request_key,
+            },
+        )
+    _append_admin_audit_log(
+        user.get("username", "unknown"),
+        "approved",
+        "support_access",
+        request_key,
+        {
+            "tenant_id": tid,
+            "requested_by": row.get("requested_by_admin_username"),
+            "duration_minutes": row.get("duration_minutes"),
+            "scope": row.get("scope"),
+        },
+    )
+    updated = _q_one("SELECT * FROM support_access_requests WHERE request_key = :request_key", {"request_key": request_key})
+    return {"success": True, "request": _serialize_support_access_row(updated)}
+
+
+@router.post("/support-access/{request_key}/reject")
+def reject_support_access(request_key: str, user=Depends(get_current_user)):
+    _expire_support_access_requests()
+    if not _is_primary_workspace_user(user):
+        raise HTTPException(403, "Only the primary tenant account can reject support access")
+    tid = get_tenant_or_fail(user)
+    row = _q_one(
+        """
+        SELECT * FROM support_access_requests
+        WHERE request_key = :request_key AND tenant_id = :tid
+        """,
+        {"request_key": request_key, "tid": tid},
+    )
+    if not row:
+        raise HTTPException(404, "Support access request not found")
+    if row.get("target_username") != user.get("username"):
+        raise HTTPException(403, "Only the target tenant account can reject this request")
+    if row.get("status") != "pending":
+        raise HTTPException(400, "Support access request is no longer pending")
+
+    now = _utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE support_access_requests
+                SET status = 'rejected',
+                    approved_by_username = :approved_by,
+                    rejected_at = :rejected_at,
+                    updated_at = :updated_at
+                WHERE request_key = :request_key
+                """
+            ),
+            {
+                "approved_by": user.get("username"),
+                "rejected_at": now,
+                "updated_at": now,
+                "request_key": request_key,
+            },
+        )
+    _append_admin_audit_log(
+        user.get("username", "unknown"),
+        "rejected",
+        "support_access",
+        request_key,
+        {"tenant_id": tid, "requested_by": row.get("requested_by_admin_username")},
+    )
+    return {"success": True}
+
+
+@router.post("/support-access/{request_key}/revoke")
+def revoke_support_access(request_key: str, user=Depends(get_current_user)):
+    _expire_support_access_requests()
+    if not _is_primary_workspace_user(user):
+        raise HTTPException(403, "Only the primary tenant account can revoke support access")
+    tid = get_tenant_or_fail(user)
+    row = _q_one(
+        """
+        SELECT * FROM support_access_requests
+        WHERE request_key = :request_key AND tenant_id = :tid
+        """,
+        {"request_key": request_key, "tid": tid},
+    )
+    if not row:
+        raise HTTPException(404, "Support access request not found")
+    if row.get("status") not in {"approved", "active"}:
+        raise HTTPException(400, "Support access request cannot be revoked in its current state")
+    now = _utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE support_access_requests
+                SET status = 'revoked',
+                    revoked_at = :revoked_at,
+                    session_ended_at = CASE WHEN status = 'active' THEN :revoked_at ELSE session_ended_at END,
+                    updated_at = :updated_at
+                WHERE request_key = :request_key
+                """
+            ),
+            {"revoked_at": now, "updated_at": now, "request_key": request_key},
+        )
+    _append_admin_audit_log(
+        user.get("username", "unknown"),
+        "revoked",
+        "support_access",
+        request_key,
+        {"tenant_id": tid, "requested_by": row.get("requested_by_admin_username")},
+    )
+    return {"success": True}
+
+
+@router.post("/support-access/consume")
+def consume_support_access(req: SupportAccessConsumeRequest):
+    _expire_support_access_requests()
+    row = _q_one(
+        """
+        SELECT * FROM support_access_requests
+        WHERE request_key = :request_key
+        """,
+        {"request_key": req.request_key},
+    )
+    if not row:
+        raise HTTPException(404, "Support access request not found")
+    if row.get("status") != "approved":
+        raise HTTPException(400, "Support access request is not approved")
+    if row.get("launch_token") != req.launch_token:
+        raise HTTPException(401, "Invalid support launch token")
+    if row.get("launch_token_consumed_at"):
+        raise HTTPException(400, "Support launch token has already been used")
+    if row.get("launch_token_expires_at") and row["launch_token_expires_at"] < _utcnow():
+        raise HTTPException(400, "Support launch token has expired")
+
+    target_user = _q_one("SELECT * FROM users WHERE username = :u", {"u": row.get("target_username")})
+    if not target_user:
+        raise HTTPException(404, "Target user not found")
+    tenant = _q_one("SELECT * FROM tenants WHERE id = :tid", {"tid": row.get("tenant_id")})
+    if not tenant:
+        raise HTTPException(404, "Tenant not found")
+
+    now = _utcnow()
+    session_expires_at = now + timedelta(minutes=int(row.get("duration_minutes") or 30))
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE support_access_requests
+                SET status = 'active',
+                    launch_token_consumed_at = :consumed_at,
+                    session_started_at = :started_at,
+                    session_expires_at = :session_expires_at,
+                    updated_at = :updated_at
+                WHERE request_key = :request_key
+                """
+            ),
+            {
+                "consumed_at": now,
+                "started_at": now,
+                "session_expires_at": session_expires_at,
+                "updated_at": now,
+                "request_key": req.request_key,
+            },
+        )
+
+    support_context = {
+        "support_access": True,
+        "support_access_request_key": req.request_key,
+        "support_access_requested_by": row.get("requested_by_admin_username"),
+        "support_access_approved_by": row.get("approved_by_username"),
+        "support_access_reason": row.get("reason"),
+        "support_access_scope": row.get("scope"),
+        "support_access_expires_at": session_expires_at.isoformat(),
+    }
+    token = create_token(
+        {
+            "sub": target_user["username"],
+            "tid": int(row.get("tenant_id")),
+            "role": target_user.get("role", "user"),
+            **support_context,
+        },
+        expires_delta=timedelta(minutes=int(row.get("duration_minutes") or 30)),
+    )
+    _append_admin_audit_log(
+        row.get("requested_by_admin_username") or "unknown",
+        "session_started",
+        "support_access",
+        req.request_key,
+        {
+            "tenant_id": row.get("tenant_id"),
+            "approved_by": row.get("approved_by_username"),
+            "session_expires_at": session_expires_at.isoformat(),
+        },
+    )
+    return {
+        "success": True,
+        "token": token,
+        "user": _build_auth_user_payload(target_user, tenant, support_context),
+    }
+
+
+@router.post("/support-access/end")
+def end_support_access(request: Request, user=Depends(get_current_user)):
+    claims = getattr(request.state, "jwt_payload", {}) or {}
+    request_key = claims.get("support_access_request_key")
+    if not claims.get("support_access") or not request_key:
+        raise HTTPException(400, "Not a support access session")
+    row = _q_one("SELECT * FROM support_access_requests WHERE request_key = :request_key", {"request_key": request_key})
+    if not row:
+        raise HTTPException(404, "Support access request not found")
+    if row.get("status") != "active":
+        return {"success": True}
+    now = _utcnow()
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE support_access_requests
+                SET status = 'ended',
+                    session_ended_at = :ended_at,
+                    updated_at = :updated_at
+                WHERE request_key = :request_key
+                """
+            ),
+            {"ended_at": now, "updated_at": now, "request_key": request_key},
+        )
+    _append_admin_audit_log(
+        claims.get("support_access_requested_by") or user.get("username") or "unknown",
+        "session_ended",
+        "support_access",
+        request_key,
+        {"tenant_id": row.get("tenant_id"), "ended_by": user.get("username")},
+    )
+    return {"success": True}
 
 
 # ─────────────────────────────────────────

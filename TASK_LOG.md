@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-16
+- Request: Add tenant-approved admin support access into the MP dashboard instead of silent direct viewing.
+- Summary: Added a first-class `support_access_requests` backend model and API flow for admin-requested, tenant-approved temporary MP dashboard access. The admin tenant detail page can now request/cancel/open support sessions, the primary tenant account sees pending approval banners in the MP dashboard and can approve/reject/revoke access, and approved sessions open through a dedicated `/support-access` exchange route that creates a temporary support JWT. Also updated MP auth/logout so support sessions end cleanly through `/api/support-access/end` without revoking the tenant's real sessions. Verified with Python syntax compilation plus successful `frontend` and `admin` production builds.
+- Files touched: `sansadx_backend/db.py`, `api_router.py`, `admin_api.py`, `frontend/lib/auth.js`, `frontend/app/support-access/page.js`, `frontend/app/dashboard/layout.js`, `admin/app/dashboard/mps/[tenant_id]/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This is the first safe support-access slice, not a full compliance workflow yet. If policy later requires explicit tenant-granted scopes, reasons on revoke, or approval notifications outside the dashboard, add those on top of this request/session spine rather than reintroducing silent admin impersonation.
+
+- Date: 2026-06-16
 - Request: Add a reviewable audit trail for shared geography and manual alias changes.
 - Summary: Wired the existing admin audit log into the silent Shared Geography mutation paths. Shared seat geography saves/deletes and reusable manual-correction create/update/delete actions now write structured JSON summaries into `admin_audit_log`, and the admin Audit Log screen now surfaces compact geography details with an expandable payload view. Also fixed the generic override saver so `seat_geo_overrides` is no longer accidentally persisted as a bogus phone mapping key. Verified with focused geography onboarding API pytest coverage and a successful `admin` production build.
 - Files touched: `admin_api.py`, `sansadx_backend/db.py`, `admin/components/admin-domains/staff-access/AuditLogPage.jsx`, `tests/test_geography_onboarding_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`

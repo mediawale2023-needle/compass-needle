@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { apiGet, apiPost, apiPatch, apiPut } from '@/lib/api';
+import { apiGet, apiPost, apiPatch } from '@/lib/api';
 
 function timeAgo(isoStr) {
     if (!isoStr || isoStr === 'Never') return isoStr || '—';
@@ -28,6 +28,11 @@ export default function MpDetailPage() {
     const [newNote, setNewNote] = useState('');
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState('');
+    const [supportAccess, setSupportAccess] = useState([]);
+    const [supportReason, setSupportReason] = useState('Investigating an operator issue in the tenant workspace.');
+    const [supportDuration, setSupportDuration] = useState(30);
+    const [supportLoading, setSupportLoading] = useState(false);
+    const [launchingKey, setLaunchingKey] = useState('');
 
     // WhatsApp config edit state
     const [waEditing, setWaEditing] = useState(false);
@@ -40,6 +45,13 @@ export default function MpDetailPage() {
     const [staffForm, setStaffForm] = useState({ username: '', password: '', display_name: '', role: 'staff', phone: '' });
     const [staffSaving, setStaffSaving] = useState(false);
 
+    const loadSupportAccess = async () => {
+        try {
+            const result = await apiGet(`/api/admin/mps/${tenantId}/support-access`);
+            setSupportAccess(result.requests || []);
+        } catch {}
+    };
+
     useEffect(() => {
         apiGet(`/api/admin/mps/${tenantId}/detail`).then(d => {
             setData(d);
@@ -47,6 +59,14 @@ export default function MpDetailPage() {
             setWaPhoneId(d?.profile?.phone_number_id || '');
         }).catch(() => {});
         apiGet(`/api/admin/mps/${tenantId}/notes`).then(r => setNotes(r.notes || [])).catch(() => {});
+        loadSupportAccess();
+    }, [tenantId]);
+
+    useEffect(() => {
+        const intervalId = window.setInterval(() => {
+            loadSupportAccess();
+        }, 15000);
+        return () => window.clearInterval(intervalId);
     }, [tenantId]);
 
     const saveWhatsApp = async () => {
@@ -115,6 +135,60 @@ export default function MpDetailPage() {
             setTimeout(() => setToast(''), 3000);
         }
         setSaving(false);
+    };
+
+    const createSupportRequest = async () => {
+        const reason = supportReason.trim();
+        if (!reason) {
+            setToast('Support reason is required');
+            setTimeout(() => setToast(''), 3000);
+            return;
+        }
+        setSupportLoading(true);
+        try {
+            await apiPost(`/api/admin/mps/${tenantId}/support-access/request`, {
+                reason,
+                duration_minutes: supportDuration,
+            });
+            await loadSupportAccess();
+            setToast('Support request sent to tenant for approval');
+            setTimeout(() => setToast(''), 3000);
+        } catch (e) {
+            setToast(e.message || 'Failed to send support request');
+            setTimeout(() => setToast(''), 4000);
+        }
+        setSupportLoading(false);
+    };
+
+    const launchSupportSession = async (requestKey) => {
+        setLaunchingKey(requestKey);
+        try {
+            const launch = await apiPost(`/api/admin/support-access/${requestKey}/launch`, {});
+            const mpBase = process.env.NEXT_PUBLIC_MP_DASHBOARD_URL || 'http://localhost:3000';
+            const url = `${mpBase}/support-access?request=${encodeURIComponent(launch.request_key)}&launch_token=${encodeURIComponent(launch.launch_token)}`;
+            window.open(url, '_blank', 'noopener,noreferrer');
+            setToast('Support session opened in a new tab');
+            setTimeout(() => setToast(''), 3000);
+            await loadSupportAccess();
+        } catch (e) {
+            setToast(e.message || 'Failed to open support session');
+            setTimeout(() => setToast(''), 4000);
+        }
+        setLaunchingKey('');
+    };
+
+    const cancelSupportRequest = async (requestKey) => {
+        setLaunchingKey(requestKey);
+        try {
+            await apiPost(`/api/admin/support-access/${requestKey}/cancel`, {});
+            setToast('Support request cancelled');
+            setTimeout(() => setToast(''), 3000);
+            await loadSupportAccess();
+        } catch (e) {
+            setToast(e.message || 'Failed to cancel support request');
+            setTimeout(() => setToast(''), 4000);
+        }
+        setLaunchingKey('');
     };
 
     if (!data) {
@@ -236,6 +310,125 @@ export default function MpDetailPage() {
                         title="Launch readiness"
                         detail={data.onboarding_state?.live ? 'Production traffic enabled' : 'Review blockers and smoke test'}
                     />
+                </div>
+            </div>
+
+            <div className="glass-panel" style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 14 }}>
+                    <div>
+                        <h3 className="section-title" style={{ margin: 0, border: 'none', padding: 0 }}>
+                            Support Access
+                        </h3>
+                        <p style={{ margin: '5px 0 0', color: '#6b7f76', fontSize: '0.8rem' }}>
+                            Request tenant-approved admin viewing access instead of opening the MP dashboard directly.
+                        </p>
+                    </div>
+                    <span className="badge badge-slate">Tenant-approved</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 140px auto', gap: 10, alignItems: 'end', marginBottom: 14 }}>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3a0', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 4 }}>
+                            Reason shown to tenant
+                        </label>
+                        <textarea
+                            className="form-input"
+                            rows={2}
+                            value={supportReason}
+                            onChange={(e) => setSupportReason(e.target.value)}
+                            placeholder="Explain why admin needs temporary workspace access"
+                            style={{ minHeight: 58 }}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.65rem', color: '#94a3a0', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 4 }}>
+                            Duration
+                        </label>
+                        <select
+                            className="form-input"
+                            value={supportDuration}
+                            onChange={(e) => setSupportDuration(Number(e.target.value))}
+                        >
+                            <option value={15}>15 min</option>
+                            <option value={30}>30 min</option>
+                            <option value={60}>60 min</option>
+                        </select>
+                    </div>
+                    <button
+                        className="btn-primary"
+                        style={{ fontSize: '0.78rem', padding: '7px 14px' }}
+                        disabled={supportLoading}
+                        onClick={createSupportRequest}
+                    >
+                        {supportLoading ? 'Sending…' : 'Request access'}
+                    </button>
+                </div>
+
+                <div style={{ display: 'grid', gap: 10 }}>
+                    {supportAccess.length === 0 ? (
+                        <div style={{ fontSize: '0.78rem', color: '#6b7f76' }}>
+                            No recent support-access requests for this tenant.
+                        </div>
+                    ) : supportAccess.map((request) => {
+                        const canLaunch = request.status === 'approved';
+                        const canCancel = request.status === 'pending' || request.status === 'approved';
+                        return (
+                            <div
+                                key={request.request_key}
+                                style={{
+                                    border: '1px solid #e2e8e5',
+                                    borderRadius: 10,
+                                    padding: '12px 14px',
+                                    background: canLaunch ? '#f6fbf7' : '#fbfcfc',
+                                }}
+                            >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+                                    <div>
+                                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 5, flexWrap: 'wrap' }}>
+                                            <span className={`badge ${request.status === 'approved' ? 'badge-green' : request.status === 'active' ? 'badge-slate' : request.status === 'rejected' || request.status === 'revoked' || request.status === 'cancelled' || request.status === 'expired' ? 'badge-red' : 'badge-slate'}`}>
+                                                {request.status}
+                                            </span>
+                                            <span style={{ fontSize: '0.72rem', color: '#6b7f76' }}>
+                                                {request.duration_minutes || 30} min
+                                            </span>
+                                            <span style={{ fontSize: '0.72rem', color: '#6b7f76' }}>
+                                                Requested {formatDate(request.requested_at)}
+                                            </span>
+                                        </div>
+                                        <div style={{ fontSize: '0.82rem', color: '#1a2e28', lineHeight: 1.5 }}>
+                                            {request.reason || 'No reason provided.'}
+                                        </div>
+                                        <div style={{ fontSize: '0.68rem', color: '#94a3a0', marginTop: 6 }}>
+                                            Target account: @{request.target_username}
+                                            {request.approved_by_username ? ` · Tenant response by ${request.approved_by_username}` : ''}
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                                        {canCancel && (
+                                            <button
+                                                className="btn-secondary"
+                                                style={{ fontSize: '0.74rem', padding: '6px 12px' }}
+                                                disabled={launchingKey === request.request_key}
+                                                onClick={() => cancelSupportRequest(request.request_key)}
+                                            >
+                                                Cancel
+                                            </button>
+                                        )}
+                                        {canLaunch && (
+                                            <button
+                                                className="btn-primary"
+                                                style={{ fontSize: '0.74rem', padding: '6px 12px' }}
+                                                disabled={launchingKey === request.request_key}
+                                                onClick={() => launchSupportSession(request.request_key)}
+                                            >
+                                                {launchingKey === request.request_key ? 'Opening…' : 'Open tenant view'}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 
