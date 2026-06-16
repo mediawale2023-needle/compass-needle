@@ -164,7 +164,7 @@ export default function MpDetailPage() {
         setLaunchingKey(requestKey);
         try {
             const launch = await apiPost(`/api/admin/support-access/${requestKey}/launch`, {});
-            const mpBase = process.env.NEXT_PUBLIC_MP_DASHBOARD_URL || 'http://localhost:3000';
+            const mpBase = process.env.NEXT_PUBLIC_MP_DASHBOARD_URL || 'https://dashboard.theneedle.in';
             const url = `${mpBase}/support-access?request=${encodeURIComponent(launch.request_key)}&launch_token=${encodeURIComponent(launch.launch_token)}`;
             window.open(url, '_blank', 'noopener,noreferrer');
             setToast('Support session opened in a new tab');
