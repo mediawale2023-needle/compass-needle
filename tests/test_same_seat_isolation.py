@@ -100,3 +100,35 @@ def test_auto_generate_overrides_purges_deprecated_generated_aliases():
         ).scalar_one()
 
     assert remaining == 0
+
+
+def test_same_seat_tenants_share_seat_scoped_manual_corrections():
+    _seed_database()
+    geography_resolver.reload_index()
+
+    with test_engine.begin() as conn:
+        now = datetime.utcnow()
+        conn.execute(
+            text(
+                """
+                INSERT INTO tenant_overrides (tenant_id, override_type, key, value, created_at)
+                VALUES
+                    (NULL, 'geo_seat_manual_override', 'mp:Belagavi::hanuman colony', 'Belgaum Uttar', :now)
+                """
+            ),
+            {"now": now},
+        )
+
+    tenant_a = geography_resolver.resolve_location("Hanuman Colony drainage issue", tenant_id=11)
+    tenant_b = geography_resolver.resolve_location("Hanuman Colony water problem", tenant_id=12)
+    mla_tenant = geography_resolver.resolve_location("Hanuman Colony drainage issue", tenant_id=21)
+
+    assert tenant_a["location_resolved"] is True
+    assert tenant_a["assembly_constituency"] == "Belgaum Uttar"
+    assert tenant_a["match_type"] in {"db_alias_exact", "db_alias_boundary"}
+
+    assert tenant_b["location_resolved"] is True
+    assert tenant_b["assembly_constituency"] == "Belgaum Uttar"
+    assert tenant_b["match_type"] in {"db_alias_exact", "db_alias_boundary"}
+
+    assert mla_tenant["location_resolved"] is False

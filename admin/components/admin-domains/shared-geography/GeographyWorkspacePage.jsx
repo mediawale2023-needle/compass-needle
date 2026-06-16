@@ -434,9 +434,13 @@ export default function GeographyUploadPage() {
 
     useEffect(() => {
         if (!tenantId) return;
+        const seatGeoOverrides = overrides?.seat_geo_overrides || {};
         const geoOverrides = overrides?.geo_overrides || {};
-        setManualRules(geoOverrides[String(tenantId)] || {});
-    }, [tenantId, overrides]);
+        const seatKey = tenantContext?.constituency ? `${tenantContext?.seatType || seatType}:${tenantContext.constituency}` : '';
+        const seatRules = seatKey ? (seatGeoOverrides[seatKey] || {}) : {};
+        const tenantLegacyRules = geoOverrides[String(tenantId)] || {};
+        setManualRules({ ...seatRules, ...tenantLegacyRules });
+    }, [tenantId, tenantContext, overrides, seatType]);
 
     useEffect(() => {
         if (!pConst) { setAssemblies([]); return; }
@@ -498,12 +502,27 @@ export default function GeographyUploadPage() {
 
     const persistManualRules = async (nextRules) => {
         const tenantKey = String(tenantId);
+        const activeSeatType = tenantContext?.seatType || seatType;
+        const activeSeatName = tenantContext?.constituency || pConst;
+        const activeSeatKey = activeSeatName ? `${activeSeatType}:${activeSeatName}` : '';
+        if (!activeSeatKey) {
+            showMsg('error', 'Open a tenant seat context before saving reusable manual corrections.');
+            return false;
+        }
         const updated = { ...(overrides || {}) };
-        if (!updated.geo_overrides) updated.geo_overrides = {};
+        if (!updated.seat_geo_overrides) updated.seat_geo_overrides = {};
         if (Object.keys(nextRules).length === 0) {
-            delete updated.geo_overrides[tenantKey];
+            delete updated.seat_geo_overrides[activeSeatKey];
         } else {
-            updated.geo_overrides[tenantKey] = nextRules;
+            updated.seat_geo_overrides[activeSeatKey] = nextRules;
+        }
+        // Legacy tenant-scoped manual corrections are migrated into seat scope
+        // the next time an operator saves from the tenant-aware workspace.
+        if (updated.geo_overrides && updated.geo_overrides[tenantKey]) {
+            delete updated.geo_overrides[tenantKey];
+            if (Object.keys(updated.geo_overrides).length === 0) {
+                delete updated.geo_overrides;
+            }
         }
         setManualRulesLoading(true);
         try {
@@ -753,7 +772,7 @@ export default function GeographyUploadPage() {
             cancelManualRuleEdit();
             setManualRuleBulkInput('');
             setManualRuleBulkMode(false);
-            showMsg('success', 'Removed all manual corrections for this tenant.');
+            showMsg('success', 'Removed all manual corrections for this seat.');
         }
     };
 
@@ -814,7 +833,7 @@ export default function GeographyUploadPage() {
             {manualRuleDeleteAllTarget && (
                 <ConfirmModal
                     title="Remove all manual corrections?"
-                    description="This will delete every tenant-specific manual correction for this account. Matching will fall back to shared seat geography and generated resolver aliases."
+                    description="This will delete every reusable manual correction saved for this seat. Matching will fall back to shared seat geography plus any older tenant-specific legacy overrides that have not yet been migrated."
                     confirmLabel="Delete All"
                     variant="danger"
                     onConfirm={confirmManualRuleDeleteAll}
@@ -1102,7 +1121,7 @@ export default function GeographyUploadPage() {
                         </div>
                     ) : (
                         <div style={{ border: '1px solid #e2ebe5', borderRadius: 12, padding: '18px 16px', color: '#6b7f76', fontSize: '0.8rem' }}>
-                            No manual corrections yet. Prefer the shared seat geography first; add a correction here only when citizen wording truly needs a tenant-specific bridge.
+                            No manual corrections yet. Prefer the shared seat geography first; add a correction here only when citizen wording truly needs a reusable seat-level bridge.
                         </div>
                     )}
                 </div>
@@ -1112,7 +1131,7 @@ export default function GeographyUploadPage() {
                 <div className="glass-panel" style={{ marginBottom: '1.5rem' }}>
                     <div className="section-title" style={{ marginBottom: 8 }}>Open Account Workspace</div>
                     <p style={{ color: '#6b7f76', fontSize: '0.82rem', marginTop: 0, marginBottom: 14 }}>
-                        Shared geography is seat-scoped, but manual corrections are account-scoped. Pick an account here to open its tenant-aware workspace.
+                        Shared geography and approved reusable manual corrections are now seat-scoped. Pick an account here to open a workspace in that seat context.
                     </p>
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.5fr) auto', gap: 12, alignItems: 'end' }}>
                         <div className="form-row" style={{ marginBottom: 0 }}>

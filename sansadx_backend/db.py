@@ -521,6 +521,25 @@ class TenantOverride(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+def build_seat_manual_override_key(
+    seat_type: str | None,
+    seat_name: str | None,
+    alias_key: str | None,
+) -> str:
+    return f"{build_seat_key(seat_type, seat_name)}::{(alias_key or '').strip()}"
+
+
+def parse_seat_manual_override_key(key: str | None) -> tuple[str | None, str | None, str | None]:
+    raw = (key or "").strip()
+    if "::" not in raw:
+        return None, None, None
+    seat_key, alias_key = raw.split("::", 1)
+    if ":" not in seat_key:
+        return None, None, None
+    seat_type, seat_name = seat_key.split(":", 1)
+    return (seat_type or "mp").strip().lower(), seat_name.strip(), alias_key.strip()
+
+
 class SpamFlag(Base):
     """Tracks messages flagged by abuse or coordinated-flood detection."""
     __tablename__ = "spam_flags"
@@ -665,14 +684,40 @@ def get_tenant_phone_number_id(tenant_id: int) -> str | None:
 
 
 def get_geo_overrides(tenant_id: int) -> dict:
-    """Return manual {location_name: constituency} corrections for a tenant."""
+    """Return merged manual corrections for a tenant.
+
+    Seat-scoped approved manual aliases are shared across tenants on the same
+    seat, while tenant-scoped manual overrides remain a narrower compatibility
+    layer and take precedence when the same key exists in both places.
+    """
     db = SessionLocal()
     try:
+        seat_type = None
+        seat_name = None
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if tenant:
+            seat_type = derive_seat_type(tenant)
+            seat_name = tenant.constituency
+
+        overrides = {}
+        if seat_name:
+            seat_rows = db.query(TenantOverride).filter(
+                TenantOverride.override_type == "geo_seat_manual_override"
+            ).all()
+            for row in seat_rows:
+                row_seat_type, row_seat_name, alias_key = parse_seat_manual_override_key(row.key)
+                if not row_seat_name or not alias_key:
+                    continue
+                if row_seat_type != seat_type:
+                    continue
+                if row_seat_name.strip().lower() != str(seat_name or "").strip().lower():
+                    continue
+                overrides[alias_key] = row.value
+
         rows = db.query(TenantOverride).filter(
             TenantOverride.override_type.in_(["geo_manual_override", "geo_override"]),
             TenantOverride.tenant_id == tenant_id,
         ).all()
-        overrides = {}
         for row in rows:
             key = str(row.key or "").strip()
             overrides[key] = row.value
@@ -822,6 +867,7 @@ def get_all_overrides() -> dict:
     try:
         result = {}
         geo_overrides = {}
+        seat_geo_overrides = {}
         rows = db.query(TenantOverride).all()
         for r in rows:
             if r.override_type == "phone_mapping":
@@ -831,8 +877,18 @@ def get_all_overrides() -> dict:
                 if tid not in geo_overrides:
                     geo_overrides[tid] = {}
                 geo_overrides[tid][r.key] = r.value
+            elif r.override_type == "geo_seat_manual_override":
+                row_seat_type, row_seat_name, alias_key = parse_seat_manual_override_key(r.key)
+                if not row_seat_name or not alias_key:
+                    continue
+                seat_key = build_seat_key(row_seat_type, row_seat_name)
+                if seat_key not in seat_geo_overrides:
+                    seat_geo_overrides[seat_key] = {}
+                seat_geo_overrides[seat_key][alias_key] = r.value
         if geo_overrides:
             result["geo_overrides"] = geo_overrides
+        if seat_geo_overrides:
+            result["seat_geo_overrides"] = seat_geo_overrides
         return result
     finally:
         db.close()
@@ -843,7 +899,7 @@ def save_overrides_to_db(data: dict):
     db = SessionLocal()
     try:
         db.query(TenantOverride).filter(
-            TenantOverride.override_type.in_(["phone_mapping", "geo_override", "geo_manual_override"])
+            TenantOverride.override_type.in_(["phone_mapping", "geo_override", "geo_manual_override", "geo_seat_manual_override"])
         ).delete(synchronize_session=False)
         # Phone mappings (top-level keys that aren't "geo_overrides")
         for key, value in data.items():
@@ -863,6 +919,20 @@ def save_overrides_to_db(data: dict):
                     tenant_id=tid,
                     override_type="geo_manual_override",
                     key=loc,
+                    value=constituency,
+                ))
+        for seat_key, mappings in data.get("seat_geo_overrides", {}).items():
+            if ":" not in str(seat_key or ""):
+                continue
+            seat_type, seat_name = str(seat_key).split(":", 1)
+            for loc, constituency in mappings.items():
+                alias_key = str(loc or "").strip()
+                if not alias_key:
+                    continue
+                db.add(TenantOverride(
+                    tenant_id=None,
+                    override_type="geo_seat_manual_override",
+                    key=build_seat_manual_override_key(seat_type, seat_name, alias_key),
                     value=constituency,
                 ))
         db.commit()
@@ -959,6 +1029,7 @@ def wipe_all_geography_data() -> dict:
 
     This removes:
     - shared `geography_data`
+    - seat-scoped approved manual corrections (`geo_seat_manual_override`)
     - manual corrections (`geo_manual_override`)
     - legacy manual/generated overrides (`geo_override`)
     - deprecated generated aliases (`geo_alias`)
@@ -968,6 +1039,7 @@ def wipe_all_geography_data() -> dict:
         rows = db.query(TenantOverride).filter(
             TenantOverride.override_type.in_([
                 "geography_data",
+                "geo_seat_manual_override",
                 "geo_manual_override",
                 "geo_override",
                 "geo_alias",
@@ -975,6 +1047,7 @@ def wipe_all_geography_data() -> dict:
         ).all()
         counts = {
             "geography_data": 0,
+            "geo_seat_manual_override": 0,
             "geo_manual_override": 0,
             "geo_override": 0,
             "geo_alias": 0,
@@ -1009,6 +1082,7 @@ def run_one_time_geography_reset(reset_key: str) -> dict:
         rows = db.query(TenantOverride).filter(
             TenantOverride.override_type.in_([
                 "geography_data",
+                "geo_seat_manual_override",
                 "geo_manual_override",
                 "geo_override",
                 "geo_alias",
@@ -1016,6 +1090,7 @@ def run_one_time_geography_reset(reset_key: str) -> dict:
         ).all()
         summary = {
             "geography_data": 0,
+            "geo_seat_manual_override": 0,
             "geo_manual_override": 0,
             "geo_override": 0,
             "geo_alias": 0,
