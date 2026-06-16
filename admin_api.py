@@ -464,6 +464,74 @@ def _audit_manual_override_diffs(admin_user, before_overrides: dict, after_overr
                 before_assembly=old_value,
             )
 
+
+def _support_access_now() -> datetime:
+    return datetime.utcnow()
+
+
+def _expire_support_access_requests() -> None:
+    now = _support_access_now()
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    UPDATE support_access_requests
+                    SET status = 'expired', updated_at = :now
+                    WHERE status = 'pending' AND requested_at < :pending_cutoff
+                    """
+                ),
+                {"now": now, "pending_cutoff": now - timedelta(hours=24)},
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE support_access_requests
+                    SET status = 'expired', updated_at = :now
+                    WHERE status = 'approved'
+                      AND launch_token_expires_at IS NOT NULL
+                      AND launch_token_expires_at < :now
+                      AND launch_token_consumed_at IS NULL
+                    """
+                ),
+                {"now": now},
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE support_access_requests
+                    SET status = 'ended', session_ended_at = COALESCE(session_ended_at, :now), updated_at = :now
+                    WHERE status = 'active'
+                      AND session_expires_at IS NOT NULL
+                      AND session_expires_at < :now
+                    """
+                ),
+                {"now": now},
+            )
+    except Exception:
+        logger.exception("Failed to expire support access requests")
+
+
+def _serialize_support_access_row(row: dict | None) -> dict | None:
+    if not row:
+        return None
+    data = dict(row)
+    for key in (
+        "requested_at",
+        "approved_at",
+        "rejected_at",
+        "launch_token_expires_at",
+        "launch_token_consumed_at",
+        "session_started_at",
+        "session_expires_at",
+        "session_ended_at",
+        "revoked_at",
+        "updated_at",
+    ):
+        value = data.get(key)
+        data[key] = value.isoformat() if hasattr(value, "isoformat") else value
+    return data
+
     before_tenant = before_overrides.get("geo_overrides") or {}
     after_tenant = after_overrides.get("geo_overrides") or {}
     for tenant_key in sorted(set(before_tenant.keys()) | set(after_tenant.keys())):
@@ -571,6 +639,11 @@ class SaveGeographyRequest(BaseModel):
 
 class SaveOverridesRequest(BaseModel):
     data: dict
+
+
+class SupportAccessRequestCreate(BaseModel):
+    reason: str
+    duration_minutes: int = 30
 
 
 class AddRuleRequest(BaseModel):
@@ -4084,6 +4157,200 @@ def mp_detail(tenant_id: int, _=Depends(get_admin_user)):
         "onboarding_state": onboarding,
         "activity": activity,
     }
+
+
+# ═══════════════════════════════════════════
+# SUPPORT ACCESS
+# ═══════════════════════════════════════════
+
+@router.get("/mps/{tenant_id}/support-access")
+def list_support_access_requests(tenant_id: int, admin_user=Depends(get_admin_user)):
+    _expire_support_access_requests()
+    tenant = _q_one("SELECT id, name, constituency FROM tenants WHERE id = :t", {"t": tenant_id})
+    if not tenant:
+        raise HTTPException(404, "Tenant not found")
+    rows = _q(
+        """
+        SELECT request_key, tenant_id, target_username, requested_by_admin_username, approved_by_username,
+               reason, scope, status, duration_minutes, requested_at, approved_at, rejected_at,
+               launch_token_expires_at, launch_token_consumed_at, session_started_at, session_expires_at,
+               session_ended_at, revoked_at, updated_at
+        FROM support_access_requests
+        WHERE tenant_id = :tenant_id
+        ORDER BY requested_at DESC
+        LIMIT 20
+        """,
+        {"tenant_id": tenant_id},
+    )
+    return {
+        "tenant_id": tenant_id,
+        "tenant_name": tenant.get("name"),
+        "requests": [_serialize_support_access_row(row) for row in rows],
+    }
+
+
+@router.post("/mps/{tenant_id}/support-access/request")
+def create_support_access_request(tenant_id: int, req: SupportAccessRequestCreate, admin_user=Depends(get_admin_user)):
+    _expire_support_access_requests()
+    reason = (req.reason or "").strip()
+    if not reason:
+        raise HTTPException(400, "Reason is required")
+    duration_minutes = int(req.duration_minutes or 30)
+    if duration_minutes not in {15, 30, 60}:
+        raise HTTPException(400, "duration_minutes must be 15, 30, or 60")
+
+    tenant = _q_one("SELECT id, name, constituency FROM tenants WHERE id = :t", {"t": tenant_id})
+    if not tenant:
+        raise HTTPException(404, "Tenant not found")
+    target_user = _q_one(
+        """
+        SELECT username, role FROM users
+        WHERE tenant_id = :tenant_id AND role IN ('owner', 'mp')
+        ORDER BY CASE WHEN role = 'owner' THEN 0 ELSE 1 END, id ASC
+        LIMIT 1
+        """,
+        {"tenant_id": tenant_id},
+    )
+    if not target_user:
+        raise HTTPException(400, "No primary tenant account is available to approve support access")
+
+    requester = admin_user.get("username", "admin")
+    open_request = _q_one(
+        """
+        SELECT * FROM support_access_requests
+        WHERE tenant_id = :tenant_id
+          AND requested_by_admin_username = :requester
+          AND status IN ('pending', 'approved', 'active')
+        ORDER BY requested_at DESC
+        LIMIT 1
+        """,
+        {"tenant_id": tenant_id, "requester": requester},
+    )
+    if open_request:
+        return {"success": True, "request": _serialize_support_access_row(open_request), "reused": True}
+
+    request_key = uuid.uuid4().hex
+    now = _support_access_now()
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO support_access_requests (
+                    request_key, tenant_id, target_username, requested_by_admin_username,
+                    reason, scope, status, duration_minutes, requested_at, updated_at
+                ) VALUES (
+                    :request_key, :tenant_id, :target_username, :requested_by,
+                    :reason, 'full_view', 'pending', :duration_minutes, :requested_at, :updated_at
+                )
+                """
+            ),
+            {
+                "request_key": request_key,
+                "tenant_id": tenant_id,
+                "target_username": target_user.get("username"),
+                "requested_by": requester,
+                "reason": reason,
+                "duration_minutes": duration_minutes,
+                "requested_at": now,
+                "updated_at": now,
+            },
+        )
+    _audit_structured(
+        admin_user,
+        "created",
+        "support_access",
+        request_key,
+        tenant_id=tenant_id,
+        tenant_name=tenant.get("name"),
+        target_username=target_user.get("username"),
+        duration_minutes=duration_minutes,
+        reason=reason,
+        scope="full_view",
+        status="pending",
+    )
+    row = _q_one("SELECT * FROM support_access_requests WHERE request_key = :request_key", {"request_key": request_key})
+    return {"success": True, "request": _serialize_support_access_row(row)}
+
+
+@router.post("/support-access/{request_key}/launch")
+def create_support_access_launch_token(request_key: str, admin_user=Depends(get_admin_user)):
+    _expire_support_access_requests()
+    requester = admin_user.get("username", "admin")
+    row = _q_one(
+        """
+        SELECT * FROM support_access_requests
+        WHERE request_key = :request_key
+        """,
+        {"request_key": request_key},
+    )
+    if not row:
+        raise HTTPException(404, "Support access request not found")
+    if row.get("requested_by_admin_username") != requester:
+        raise HTTPException(403, "Only the requesting admin can open this support session")
+    if row.get("status") == "active":
+        raise HTTPException(400, "Support session is already active")
+    if row.get("status") != "approved":
+        raise HTTPException(400, "Support access request is not approved yet")
+
+    launch_token = secrets.token_urlsafe(32)
+    launch_expires = _support_access_now() + timedelta(minutes=15)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE support_access_requests
+                SET launch_token = :launch_token,
+                    launch_token_expires_at = :launch_expires,
+                    launch_token_consumed_at = NULL,
+                    updated_at = :updated_at
+                WHERE request_key = :request_key
+                """
+            ),
+            {
+                "launch_token": launch_token,
+                "launch_expires": launch_expires,
+                "updated_at": _support_access_now(),
+                "request_key": request_key,
+            },
+        )
+    return {
+        "success": True,
+        "request_key": request_key,
+        "launch_token": launch_token,
+        "launch_token_expires_at": launch_expires.isoformat(),
+    }
+
+
+@router.post("/support-access/{request_key}/cancel")
+def cancel_support_access_request(request_key: str, admin_user=Depends(get_admin_user)):
+    _expire_support_access_requests()
+    requester = admin_user.get("username", "admin")
+    row = _q_one("SELECT * FROM support_access_requests WHERE request_key = :request_key", {"request_key": request_key})
+    if not row:
+        raise HTTPException(404, "Support access request not found")
+    if row.get("requested_by_admin_username") != requester:
+        raise HTTPException(403, "Only the requesting admin can cancel this request")
+    if row.get("status") not in {"pending", "approved"}:
+        raise HTTPException(400, "Support access request can no longer be cancelled")
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE support_access_requests
+                SET status = 'cancelled', updated_at = :updated_at
+                WHERE request_key = :request_key
+                """
+            ),
+            {"updated_at": _support_access_now(), "request_key": request_key},
+        )
+    _audit_structured(
+        admin_user,
+        "cancelled",
+        "support_access",
+        request_key,
+        tenant_id=row.get("tenant_id"),
+    )
+    return {"success": True}
 
 
 # ═══════════════════════════════════════════

@@ -1190,6 +1190,33 @@ class AdminNote(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class SupportAccessRequest(Base):
+    """Tenant-approved temporary support access into the MP dashboard."""
+    __tablename__ = "support_access_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    request_key = Column(String, unique=True, index=True, nullable=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True, nullable=False)
+    target_username = Column(String, nullable=False, index=True)
+    requested_by_admin_username = Column(String, nullable=False, index=True)
+    approved_by_username = Column(String, nullable=True, index=True)
+    reason = Column(Text, nullable=False)
+    scope = Column(String, default="full_view")
+    status = Column(String, default="pending", index=True)  # pending|approved|rejected|active|expired|ended|revoked|cancelled
+    duration_minutes = Column(Integer, default=30)
+    launch_token = Column(String, nullable=True)
+    launch_token_expires_at = Column(DateTime, nullable=True)
+    launch_token_consumed_at = Column(DateTime, nullable=True)
+    requested_at = Column(DateTime, default=datetime.utcnow, index=True)
+    approved_at = Column(DateTime, nullable=True)
+    rejected_at = Column(DateTime, nullable=True)
+    session_started_at = Column(DateTime, nullable=True)
+    session_expires_at = Column(DateTime, nullable=True)
+    session_ended_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 class IncidentCluster(Base):
     """
     Rolling incident window for emergency surge detection.

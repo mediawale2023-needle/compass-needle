@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Sidebar from '@/components/Sidebar';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiPost } from '@/lib/api';
 import { canAccessSansadAI, getAccountLabel, getSeatBadge } from '@/lib/account';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -50,6 +50,8 @@ export default function DashboardLayout({ children }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [announcements, setAnnouncements] = useState([]);
     const [dismissedIds, setDismissedIds] = useState([]);
+    const [supportInbox, setSupportInbox] = useState({ pending_requests: [], active_sessions: [] });
+    const [supportBusyKey, setSupportBusyKey] = useState('');
     const isBriefcaseRoute = pathname?.startsWith('/dashboard/sansadx');
 
     useEffect(() => { setIsMobileMenuOpen(false); }, [pathname]);
@@ -93,6 +95,34 @@ export default function DashboardLayout({ children }) {
         return () => { cancelled = true; clearTimeout(timer); };
     }, [user]);
 
+    useEffect(() => {
+        if (!user?.is_primary_account) {
+            setSupportInbox({ pending_requests: [], active_sessions: [] });
+            return;
+        }
+        let cancelled = false;
+
+        const load = () => {
+            apiGet('/api/support-access/inbox')
+                .then((data) => {
+                    if (!cancelled) {
+                        setSupportInbox({
+                            pending_requests: data?.pending_requests || [],
+                            active_sessions: data?.active_sessions || [],
+                        });
+                    }
+                })
+                .catch(() => {});
+        };
+
+        load();
+        const intervalId = window.setInterval(load, 15000);
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+        };
+    }, [user?.is_primary_account]);
+
     const dismissAnnouncement = (id) => {
         const next = [...dismissedIds, id];
         setDismissedIds(next);
@@ -131,6 +161,39 @@ export default function DashboardLayout({ children }) {
             setHistory(data.items || []);
         } catch { setHistory([]); }
         finally { setHistoryLoading(false); }
+    };
+
+    const refreshSupportInbox = async () => {
+        if (!user?.is_primary_account) return;
+        try {
+            const data = await apiGet('/api/support-access/inbox');
+            setSupportInbox({
+                pending_requests: data?.pending_requests || [],
+                active_sessions: data?.active_sessions || [],
+            });
+        } catch {}
+    };
+
+    const respondToSupportRequest = async (requestKey, action) => {
+        setSupportBusyKey(`${action}:${requestKey}`);
+        try {
+            await apiPost(`/api/support-access/${requestKey}/${action}`, {});
+            await refreshSupportInbox();
+        } catch {
+        } finally {
+            setSupportBusyKey('');
+        }
+    };
+
+    const revokeSupportSession = async (requestKey) => {
+        setSupportBusyKey(`revoke:${requestKey}`);
+        try {
+            await apiPost(`/api/support-access/${requestKey}/revoke`, {});
+            await refreshSupportInbox();
+        } catch {
+        } finally {
+            setSupportBusyKey('');
+        }
     };
 
     if (loading) return (
@@ -384,6 +447,115 @@ export default function DashboardLayout({ children }) {
                                     style={{ color: 'var(--cn-ink2)' }}
                                 >
                                     <X className="h-4 w-4" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {user?.is_support_access_session && (
+                    <div className="px-4 md:px-6 pt-4">
+                        <div
+                            className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between px-4 py-3"
+                            style={{
+                                background: '#fff4dc',
+                                border: '1px solid rgba(199,106,26,0.35)',
+                            }}
+                        >
+                            <div>
+                                <div style={{ fontSize: '0.72rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9a5b12', fontWeight: 700 }}>
+                                    Admin Support Session
+                                </div>
+                                <div style={{ marginTop: 4, color: '#5f4317', fontSize: '0.86rem', lineHeight: 1.5 }}>
+                                    Viewing this tenant with approved support access.
+                                    {user?.support_access_requested_by ? ` Requested by ${user.support_access_requested_by}.` : ''}
+                                    {user?.support_access_expires_at ? ` Expires ${new Date(user.support_access_expires_at).toLocaleString('en-IN')}.` : ''}
+                                </div>
+                            </div>
+                            <button
+                                className="btn-secondary"
+                                style={{ fontSize: '0.78rem', padding: '7px 14px', alignSelf: 'flex-start' }}
+                                onClick={async () => {
+                                    await logout();
+                                    router.push('/');
+                                }}
+                            >
+                                End support session
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {!user?.is_support_access_session && user?.is_primary_account && supportInbox.pending_requests.length > 0 && (
+                    <div className="px-4 md:px-6 pt-4 space-y-2">
+                        {supportInbox.pending_requests.map((request) => (
+                            <div
+                                key={request.request_key}
+                                className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between px-4 py-3"
+                                style={{
+                                    background: '#eef8f1',
+                                    border: '1px solid rgba(0,106,77,0.24)',
+                                }}
+                            >
+                                <div>
+                                    <div style={{ fontSize: '0.72rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: '#006a4d', fontWeight: 700 }}>
+                                        Admin access approval requested
+                                    </div>
+                                    <div style={{ marginTop: 4, color: '#1a2e28', fontSize: '0.86rem', lineHeight: 1.5 }}>
+                                        {request.requested_by_admin_username} wants to view this workspace for {request.duration_minutes || 30} minutes.
+                                        {request.reason ? ` Reason: ${request.reason}` : ''}
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        className="btn-secondary"
+                                        style={{ fontSize: '0.78rem', padding: '7px 14px' }}
+                                        disabled={supportBusyKey === `reject:${request.request_key}`}
+                                        onClick={() => respondToSupportRequest(request.request_key, 'reject')}
+                                    >
+                                        Reject
+                                    </button>
+                                    <button
+                                        className="btn-primary"
+                                        style={{ fontSize: '0.78rem', padding: '7px 14px' }}
+                                        disabled={supportBusyKey === `approve:${request.request_key}`}
+                                        onClick={() => respondToSupportRequest(request.request_key, 'approve')}
+                                    >
+                                        {supportBusyKey === `approve:${request.request_key}` ? 'Approving…' : 'Approve'}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {!user?.is_support_access_session && user?.is_primary_account && supportInbox.active_sessions.length > 0 && (
+                    <div className="px-4 md:px-6 pt-4 space-y-2">
+                        {supportInbox.active_sessions.map((request) => (
+                            <div
+                                key={request.request_key}
+                                className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between px-4 py-3"
+                                style={{
+                                    background: '#f6f7f8',
+                                    border: '1px solid rgba(26,46,40,0.12)',
+                                }}
+                            >
+                                <div>
+                                    <div style={{ fontSize: '0.72rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: '#4a5f58', fontWeight: 700 }}>
+                                        Active admin support session
+                                    </div>
+                                    <div style={{ marginTop: 4, color: '#1a2e28', fontSize: '0.86rem', lineHeight: 1.5 }}>
+                                        {request.requested_by_admin_username} is currently viewing this workspace.
+                                        {request.session_expires_at ? ` Session ends ${new Date(request.session_expires_at).toLocaleString('en-IN')}.` : ''}
+                                    </div>
+                                </div>
+                                <button
+                                    className="btn-secondary"
+                                    style={{ fontSize: '0.78rem', padding: '7px 14px', alignSelf: 'flex-start' }}
+                                    disabled={supportBusyKey === `revoke:${request.request_key}`}
+                                    onClick={() => revokeSupportSession(request.request_key)}
+                                >
+                                    {supportBusyKey === `revoke:${request.request_key}` ? 'Revoking…' : 'End access'}
                                 </button>
                             </div>
                         ))}

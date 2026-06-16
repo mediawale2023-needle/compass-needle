@@ -84,24 +84,29 @@ export function AuthProvider({ children }) {
         };
     }, []);
 
-    const login = async (username, password, rememberMe = false) => {
-        const data = await apiPost('/api/auth/login', { username, password });
-        setStoredValuePersistent('needle_token', data.token, rememberMe);
-        setStoredValuePersistent('needle_user', JSON.stringify(data.user), rememberMe);
-        if (data.user?.must_change_password) {
+    const establishSession = (nextUser, token, rememberMe = false) => {
+        setStoredValuePersistent('needle_token', token, rememberMe);
+        setStoredValuePersistent('needle_user', JSON.stringify(nextUser), rememberMe);
+        if (nextUser?.must_change_password) {
             sessionStorage.setItem('needle_force_reset_required', '1');
         } else {
             sessionStorage.removeItem('needle_force_reset_required');
         }
-        setUser(data.user);
-        return data.user;
+        setUser(nextUser);
+        return nextUser;
+    };
+
+    const login = async (username, password, rememberMe = false) => {
+        const data = await apiPost('/api/auth/login', { username, password });
+        return establishSession(data.user, data.token, rememberMe);
     };
 
     const logout = async () => {
         const token = getStoredValue('needle_token');
         if (token) {
             try {
-                await fetch(`${API_BASE}/api/logout`, {
+                const logoutPath = user?.is_support_access_session ? '/api/support-access/end' : '/api/logout';
+                await fetch(`${API_BASE}${logoutPath}`, {
                     method: 'POST',
                     headers: { Authorization: `Bearer ${token}` },
                 });
@@ -119,15 +124,11 @@ export function AuthProvider({ children }) {
             current_password: currentPassword,
             new_password: newPassword,
         });
-        setStoredValue('needle_token', data.token);
-        setStoredValue('needle_user', JSON.stringify(data.user));
-        sessionStorage.removeItem('needle_force_reset_required');
-        setUser(data.user);
-        return data.user;
+        return establishSession(data.user, data.token, false);
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, logout, loading, completeForcedPasswordReset }}>
+        <AuthContext.Provider value={{ user, login, logout, loading, completeForcedPasswordReset, establishSession }}>
             {children}
         </AuthContext.Provider>
     );
