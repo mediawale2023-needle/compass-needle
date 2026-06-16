@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-06-16
+- Request: Fix tenant support-session launch opening `localhost:3000` instead of the live MP dashboard host.
+- Summary: Updated the admin tenant-detail support launcher so `Open tenant view` now falls back to `https://dashboard.theneedle.in` when `NEXT_PUBLIC_MP_DASHBOARD_URL` is missing, instead of trying to open `http://localhost:3000`. This keeps production support-access links pointed at the real MP dashboard host even before the Vercel env var is updated. Verified with a successful `admin` production build.
+- Files touched: `admin/app/dashboard/mps/[tenant_id]/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: The fallback is now production-safe, but the preferred contract is still to set `NEXT_PUBLIC_MP_DASHBOARD_URL=https://dashboard.theneedle.in` in the admin Vercel project so the target stays explicit across environments.
+
+- Date: 2026-06-16
 - Request: Add tenant-approved admin support access into the MP dashboard instead of silent direct viewing.
 - Summary: Added a first-class `support_access_requests` backend model and API flow for admin-requested, tenant-approved temporary MP dashboard access. The admin tenant detail page can now request/cancel/open support sessions, the primary tenant account sees pending approval banners in the MP dashboard and can approve/reject/revoke access, and approved sessions open through a dedicated `/support-access` exchange route that creates a temporary support JWT. Also updated MP auth/logout so support sessions end cleanly through `/api/support-access/end` without revoking the tenant's real sessions. Verified with Python syntax compilation plus successful `frontend` and `admin` production builds.
 - Files touched: `sansadx_backend/db.py`, `api_router.py`, `admin_api.py`, `frontend/lib/auth.js`, `frontend/app/support-access/page.js`, `frontend/app/dashboard/layout.js`, `admin/app/dashboard/mps/[tenant_id]/page.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
