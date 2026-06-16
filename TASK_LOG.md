@@ -19,6 +19,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Risks or follow-ups: This is the first safe support-access slice, not a full compliance workflow yet. If policy later requires explicit tenant-granted scopes, reasons on revoke, or approval notifications outside the dashboard, add those on top of this request/session spine rather than reintroducing silent admin impersonation.
 
 - Date: 2026-06-16
+- Request: Push and deploy the tenant-approved support-access flow.
+- Summary: Committed the support-access implementation as `bb511cc1` on `claude/briefcase-reliability-fixes`, pushed that branch to origin, then cherry-picked it onto `main` as `e6901988` (`Add tenant-approved support access`). GitHub Actions started both `Deploy Backend To AWS EC2` run `27607168610` and `Product Tests` run `27607168632` for the `main` push.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Deployment was in progress at log time, so final production smoke verification should confirm the new `/support-access` route works end to end: admin request, tenant approval banner, launch into MP dashboard, and clean support-session exit without revoking the tenant's own normal login.
+
+- Date: 2026-06-16
 - Request: Add a reviewable audit trail for shared geography and manual alias changes.
 - Summary: Wired the existing admin audit log into the silent Shared Geography mutation paths. Shared seat geography saves/deletes and reusable manual-correction create/update/delete actions now write structured JSON summaries into `admin_audit_log`, and the admin Audit Log screen now surfaces compact geography details with an expandable payload view. Also fixed the generic override saver so `seat_geo_overrides` is no longer accidentally persisted as a bogus phone mapping key. Verified with focused geography onboarding API pytest coverage and a successful `admin` production build.
 - Files touched: `admin_api.py`, `sansadx_backend/db.py`, `admin/components/admin-domains/staff-access/AuditLogPage.jsx`, `tests/test_geography_onboarding_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
