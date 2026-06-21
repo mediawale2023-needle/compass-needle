@@ -569,6 +569,101 @@ def test_resolve_location_fails_closed_on_ambiguous_locality(stub_geography_inde
     assert result["ambiguous_assemblies"] == ["Ghaziabad", "Muradnagar"]
 
 
+@pytest.fixture
+def stub_sub_parent_geography_index(monkeypatch):
+    """A seat whose only Khasbag rows are SPECIFIC sub-localities written in the
+    "<sub-locality> - <parent>" form (so the parent ends up being the city, not
+    "Khasbag"). Mirrors the production polling roll that mapped a parent-only
+    "khasbag" mention to the full "Waddar Chavani Khasbag" sub-locality."""
+    rows = [
+        {
+            "tenant_id": 70,
+            "seat_type": "mp",
+            "seat_name": "Belagavi",
+            "parliamentary_constituency": "Belagavi",
+            "assembly": "Belgaum South",
+            "stations": [
+                {"station_number": "1", "locality": "Waddar Chavani Khasbag - Belagavi", "building_name": ""},
+                {"station_number": "2", "locality": "Gandhi Nagar Khasbag - Belagavi", "building_name": ""},
+            ],
+        },
+    ]
+    monkeypatch.setattr(dbmod, "get_all_geography_data", lambda: rows)
+    monkeypatch.setattr(geography_resolver, "GEOGRAPHY_BASE_PATH", None)
+    monkeypatch.setattr(geography_resolver, "_geography_index", {"assemblies": {}, "loaded": False})
+    yield rows
+    monkeypatch.setattr(geography_resolver, "_geography_index", {"assemblies": {}, "loaded": False})
+
+
+def test_resolve_location_parent_only_mention_is_not_mapped_to_sub_locality(stub_sub_parent_geography_index):
+    """A citizen who names only the parent area "Khasbag" must map to "Khasbag",
+    not to a specific child sub-locality like "Waddar Chavani Khasbag"."""
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "Sir, khasbag madhe 2 diwasan padun light nahi",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is True
+    assert result["assembly_constituency"] == "Belgaum South"
+    assert result["matched_value"] == "Khasbag"
+    assert result["matched_type"] == "locality"
+
+
+def test_resolve_location_full_sub_locality_mention_is_preserved(stub_sub_parent_geography_index):
+    """Naming the full specific sub-locality must still resolve to that child."""
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "waddar chavani khasbag madhe light nahi",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is True
+    assert result["matched_value"] == "Waddar Chavani Khasbag"
+    assert result["matched_type"] == "sub_locality"
+
+
+def test_resolve_location_parent_only_mention_refuses_cross_assembly_children(monkeypatch):
+    """When the parent fragment's children sit in DIFFERENT assemblies, a
+    parent-only mention must refuse rather than guess a random child assembly."""
+    rows = [
+        {
+            "tenant_id": 71,
+            "seat_type": "mp",
+            "seat_name": "Belagavi",
+            "parliamentary_constituency": "Belagavi",
+            "assembly": "Belgaum South",
+            "stations": [
+                {"station_number": "1", "locality": "Waddar Chavani Khasbag - Belagavi", "building_name": ""},
+            ],
+        },
+        {
+            "tenant_id": 71,
+            "seat_type": "mp",
+            "seat_name": "Belagavi",
+            "parliamentary_constituency": "Belagavi",
+            "assembly": "Belgaum North",
+            "stations": [
+                {"station_number": "1", "locality": "Gandhi Nagar Khasbag - Belagavi", "building_name": ""},
+            ],
+        },
+    ]
+    monkeypatch.setattr(dbmod, "get_all_geography_data", lambda: rows)
+    monkeypatch.setattr(geography_resolver, "GEOGRAPHY_BASE_PATH", None)
+    monkeypatch.setattr(geography_resolver, "_geography_index", {"assemblies": {}, "loaded": False})
+    geography_resolver.reload_index()
+
+    result = geography_resolver.resolve_location(
+        "khasbag madhe light nahi",
+        scope_parliamentary="Belagavi",
+    )
+
+    assert result["location_resolved"] is False
+    assert sorted(result["ambiguous_assemblies"]) == ["Belgaum North", "Belgaum South"]
+
+
 def test_sanitize_and_validate_stations_reports_meta_and_ambiguity(stub_geography_index):
     incoming = [
         {"station_number": "1", "locality": "District", "building_name": "Aligarh"},

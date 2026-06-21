@@ -2066,6 +2066,40 @@ def _rank_location_candidates(
                     matched_value = fragment_display
                     matched_type = fragment_type
 
+                # PARENT-LEVEL FRAGMENT GUARD: the citizen named only a coarser
+                # fragment of a longer specific sub-locality (e.g. said "Khasbag"
+                # when the indexed sub-locality is "Waddar Chavani Khasbag", which
+                # happens when a polling row is stored as "<sub> - <parent>" and the
+                # parent ends up being a city/other token rather than the fragment).
+                # Mapping the citizen to the full specific sub-locality would be a
+                # random child guess. Decide from what the CITIZEN actually wrote
+                # (query tokens), NOT the indexed alias that matched — that alias can
+                # be a partial form even when the citizen named the whole sub-locality.
+                # If the message mentions only some of the sub-locality's meaningful
+                # words, map just that fragment and treat it as a parent-level mention
+                # so cross-assembly siblings are refused downstream by the level lock.
+                if matched_type == "sub_locality" and entry.get("sub_locality"):
+                    sub_display_words = _display_location_name(str(entry.get("sub_locality") or "")).split()
+                    sub_meaningful = _meaningful_location_tokens(str(entry.get("sub_locality") or ""))
+                    mentioned = {
+                        token
+                        for token in sub_meaningful
+                        if any(re.search(r"\b" + re.escape(token) + r"\b", form) for form in query_forms)
+                    }
+                    if mentioned and mentioned != sub_meaningful:
+                        mentioned_indices = [
+                            index for index, word in enumerate(sub_display_words)
+                            if normalize(word) in mentioned
+                        ]
+                        if mentioned_indices:
+                            fragment = " ".join(
+                                sub_display_words[min(mentioned_indices): max(mentioned_indices) + 1]
+                            ).strip()
+                            if _is_meaningful_location_fragment(fragment):
+                                matched_value = _display_location_name(fragment)
+                                matched_type = "locality"
+                                matched_parent_alias = True
+
             # Only accept matches with score > 70 (raised threshold)
             if score > 70:
                 candidates.append({
