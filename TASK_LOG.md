@@ -12,6 +12,18 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-06-22
+- Request: Push and deploy the EC2 Postgres backup automation.
+- Summary: Published the new backup/restore automation slice for the EC2 backend: nightly S3-targeted Postgres dumps, host cron installation, and a rehearsable restore script. This push is intended to make off-box backups part of the normal production contract instead of an operator-only manual checklist.
+- Files touched: `deploy/ec2/backup.env.example`, `deploy/ec2/backup_postgres_to_s3.sh`, `deploy/ec2/restore_postgres_backup.sh`, `deploy/ec2/install_backup_cron.sh`, `deploy/ec2/bootstrap_ubuntu.sh`, `.github/workflows/deploy-aws-ec2.yml`, `deploy/ec2/README.md`, `DEPLOYMENT_GUIDE.md`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Production still needs the host-side `/opt/compass-needle/backup.env`, S3 bucket/lifecycle setup, IAM access, one manual backup run, and one restore drill into a scratch database to fully close the loop.
+
+- Date: 2026-06-22
+- Request: Build a real production Postgres backup + restore path for the EC2 deployment.
+- Summary: Added repo-owned EC2 backup ops tooling instead of relying on manual checklist commands. The deploy stack now includes `deploy/ec2/backup_postgres_to_s3.sh` for nightly `pg_dump` + gzip + S3 upload from the Docker `postgres` container, `deploy/ec2/install_backup_cron.sh` to install a host cron under `/etc/cron.d`, `deploy/ec2/restore_postgres_backup.sh` for restore drills into a fresh database, and `deploy/ec2/backup.env.example` for the host-side config contract. Updated the EC2 bootstrap script to install `cron` and `awscli`, updated the backend deploy workflow to install/chown the backup helpers on every deploy, and documented the required `backup.env`, IAM/S3 expectations, and restore drill steps in `deploy/ec2/README.md` plus `DEPLOYMENT_GUIDE.md`. Verified shell syntax with `bash -n` across the new scripts.
+- Files touched: `deploy/ec2/backup.env.example`, `deploy/ec2/backup_postgres_to_s3.sh`, `deploy/ec2/restore_postgres_backup.sh`, `deploy/ec2/install_backup_cron.sh`, `deploy/ec2/bootstrap_ubuntu.sh`, `.github/workflows/deploy-aws-ec2.yml`, `deploy/ec2/README.md`, `DEPLOYMENT_GUIDE.md`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This lands the automation and restore tooling, but it still needs real infra hookup on the EC2 side: a writable S3 bucket, instance IAM role or equivalent AWS credentials, a populated `/opt/compass-needle/backup.env`, one successful manual backup run, and one actual restore drill into a scratch database. S3 retention is still best enforced with an S3 lifecycle rule; the script only prunes older local files.
+
 - Date: 2026-06-14
 - Request: Push the three admin reliability fixes to `main`.
 - Summary: Fast-forwarded `main` to include the full admin reliability batch from `codex-whatsapp-ops-queue`: outbound WhatsApp logging + retry queue, Meta-aware WhatsApp health and alerts, and shared admin `job_runs` with the new `System -> Jobs` surface. This is the production rollout of the three operational fixes requested for Compass Needle admin reliability.

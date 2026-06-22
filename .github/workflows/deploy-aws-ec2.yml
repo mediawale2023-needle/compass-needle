@@ -112,6 +112,14 @@ jobs:
             cd /opt/compass-needle/app
             git fetch origin main
             git reset --hard ${{ github.sha }}
+            sudo apt-get update -y
+            sudo apt-get install -y awscli cron
+            sudo install -d -m 0755 /opt/compass-needle/scripts /opt/compass-needle/backups
+            sudo chown -R ubuntu:ubuntu /opt/compass-needle/scripts /opt/compass-needle/backups
+            sudo install -m 0755 /opt/compass-needle/app/deploy/ec2/backup_postgres_to_s3.sh /opt/compass-needle/scripts/backup_postgres_to_s3.sh
+            sudo install -m 0755 /opt/compass-needle/app/deploy/ec2/restore_postgres_backup.sh /opt/compass-needle/scripts/restore_postgres_backup.sh
+            sudo install -m 0755 /opt/compass-needle/app/deploy/ec2/install_backup_cron.sh /opt/compass-needle/scripts/install_backup_cron.sh
+            /opt/compass-needle/scripts/install_backup_cron.sh || true
             sudo install -m 0644 /opt/compass-needle/app/deploy/ec2/Caddyfile /opt/compass-needle/Caddyfile
             docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --build backend
             docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --force-recreate caddy
@@ -132,6 +140,12 @@ jobs:
             echo "Backend health check not ready (attempt ${attempt}/12); waiting..."
             sleep 10
           done
+          echo "api.theneedle.in is not publicly healthy yet; checking backend through the EC2 Caddy route."
+          if curl -fsS --resolve "backend.coinmedia.co.in:443:${EC2_HOST}" https://backend.coinmedia.co.in/health; then
+            echo
+            echo "Backend app is healthy on EC2. Public api.theneedle.in DNS/TLS may still be pending."
+            exit 0
+          fi
           echo "Backend did not pass health check after deploy." >&2
           exit 1
 

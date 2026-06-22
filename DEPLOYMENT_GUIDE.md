@@ -244,8 +244,8 @@ df -h
 ### Weekly Tasks
 
 ```bash
-# Backup database
-pg_dump -U postgres database_name | gzip > backup_$(date +%Y%m%d).sql.gz
+# Backup database (manual sanity run; production should already have nightly cron + S3)
+/opt/compass-needle/scripts/backup_postgres_to_s3.sh
 
 # Review security logs
 grep "ERROR\|WARN" /var/log/needle/app.log
