@@ -133,6 +133,8 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 
 ## Citizen Intake Memory
 
+- Inbound WhatsApp transport now has a first-class durable ledger in `wa_inbound_messages`. The webhook should persist each inbound payload before returning `200`, background processing should run from that ledger row, and startup/background sweeps should rescue rows stuck in `received` or stale `processing` state instead of relying on live webhook execution alone.
+- Admin System health and ops visibility should now read WhatsApp intake from `wa_inbound_messages`, not from `cases`. Operational visibility for inbound transport belongs under `admin/app/dashboard/system/whatsapp-inbound/page.js` plus `/api/admin/whatsapp/inbound*`, with failed/stale rows exposed for retry.
 - WhatsApp citizen intake now follows an `ack first, clarify later` rule: even when a case is missing location or is otherwise incomplete, the first reply should stay a normal acknowledgment instead of immediately asking follow-up questions.
 - Missing-location and missing-details clarification now use delayed follow-ups driven by case metadata (`clarification_follow_up_*`) and background timers/startup sweeps, rather than sending the clarification inline during the original webhook request.
 - Clarification replies from the same citizen should enrich the original recent incomplete case instead of creating a second case row; the intake flow now treats recent clarification-pending cases as update targets.

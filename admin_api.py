@@ -3663,11 +3663,111 @@ def delete_announcement(ann_id: int, _=Depends(get_admin_user)):
 # ═══════════════════════════════════════════
 # SYSTEM HEALTH
 # ═══════════════════════════════════════════
+_WA_INBOUND_RECEIVED_STALE_MINUTES = 5
+_WA_INBOUND_PROCESSING_STALE_MINUTES = 10
+
 
 def _iso_or_none(value):
     if value and hasattr(value, "isoformat"):
         return value.isoformat()
     return value
+
+
+def _serialize_inbound_row(row: dict) -> dict:
+    payload = {}
+    try:
+        payload = json.loads(row.get("raw_payload") or "{}")
+    except Exception:
+        payload = {}
+    message = payload.get("message") if isinstance(payload, dict) else {}
+    text_preview = ""
+    if isinstance(message, dict):
+        text_preview = ((message.get("text") or {}).get("body") or "").strip()
+    if len(text_preview) > 160:
+        text_preview = f"{text_preview[:157]}..."
+
+    serialized = dict(row)
+    for key in (
+        "created_at",
+        "updated_at",
+        "claimed_at",
+        "last_attempt_at",
+        "processed_at",
+        "last_received_at",
+    ):
+        value = serialized.get(key)
+        if value and hasattr(value, "isoformat"):
+            serialized[key] = value.isoformat()
+    serialized["text_preview"] = text_preview or None
+    return serialized
+
+
+def _whatsapp_inbound_health_snapshot(now: datetime | None = None) -> dict:
+    now = now or datetime.utcnow()
+    received_cutoff = now - timedelta(minutes=_WA_INBOUND_RECEIVED_STALE_MINUTES)
+    processing_cutoff = now - timedelta(minutes=_WA_INBOUND_PROCESSING_STALE_MINUTES)
+
+    last_webhook_row = _q_one("SELECT MAX(last_received_at) AS ts FROM wa_inbound_messages")
+    summary = _q_one(
+        """
+        SELECT
+            COALESCE(SUM(CASE WHEN status = 'received' THEN 1 ELSE 0 END), 0) AS received_count,
+            COALESCE(SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END), 0) AS processing_count,
+            COALESCE(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END), 0) AS failed_count,
+            COALESCE(SUM(CASE WHEN status = 'processed' THEN 1 ELSE 0 END), 0) AS processed_count,
+            COALESCE(SUM(CASE WHEN status = 'received' AND last_received_at <= :received_cutoff THEN 1 ELSE 0 END), 0) AS stale_received_count,
+            COALESCE(SUM(CASE WHEN status = 'processing' AND claimed_at IS NOT NULL AND claimed_at <= :processing_cutoff THEN 1 ELSE 0 END), 0) AS stale_processing_count
+        FROM wa_inbound_messages
+        """,
+        {
+            "received_cutoff": received_cutoff,
+            "processing_cutoff": processing_cutoff,
+        },
+    ) or {}
+
+    last_webhook = last_webhook_row.get("ts") if last_webhook_row else None
+    if isinstance(last_webhook, str):
+        try:
+            last_webhook = datetime.fromisoformat(last_webhook)
+        except Exception:
+            last_webhook = None
+    last_webhook_iso = last_webhook.isoformat() if last_webhook and hasattr(last_webhook, "isoformat") else None
+    last_webhook_age_seconds = None
+    if last_webhook and hasattr(last_webhook, "isoformat"):
+        last_webhook_age_seconds = max(0, int((now - last_webhook).total_seconds()))
+
+    failed_count = int(summary.get("failed_count") or 0)
+    stale_received_count = int(summary.get("stale_received_count") or 0)
+    stale_processing_count = int(summary.get("stale_processing_count") or 0)
+
+    if failed_count or stale_received_count or stale_processing_count:
+        status = "red"
+    elif last_webhook_age_seconds is None:
+        status = "amber"
+    elif last_webhook_age_seconds < 3600:
+        status = "green"
+    elif last_webhook_age_seconds < 86400:
+        status = "amber"
+    else:
+        status = "red"
+
+    return {
+        "status": status,
+        "last_webhook": last_webhook_iso,
+        "last_webhook_age_seconds": last_webhook_age_seconds,
+        "received_count": int(summary.get("received_count") or 0),
+        "processing_count": int(summary.get("processing_count") or 0),
+        "failed_count": failed_count,
+        "processed_count": int(summary.get("processed_count") or 0),
+        "stale_received_count": stale_received_count,
+        "stale_processing_count": stale_processing_count,
+    }
+
+
+def _retry_inbound_whatsapp_row(inbound_id: int) -> None:
+    import main as main_app
+
+    main_app._process_inbound_ledger_row(int(inbound_id))
 
 
 def _collect_whatsapp_health(now: datetime | None = None, *, live_check: bool = True) -> dict:
@@ -3678,22 +3778,24 @@ def _collect_whatsapp_health(now: datetime | None = None, *, live_check: bool = 
     meta_app_secret = os.getenv("META_APP_SECRET", "")
     meta_verify_token = os.getenv("META_VERIFY_TOKEN", "")
 
-    last_case = _q_one("SELECT MAX(created_at) AS ts FROM cases")
-    last_webhook_raw = last_case.get("ts") if last_case else None
-    last_webhook = _iso_or_none(last_webhook_raw)
-    inbound_status = "red"
-    inbound_detail = "No webhook-backed case activity found yet."
-    if last_webhook_raw and hasattr(last_webhook_raw, "isoformat"):
-        delta = (now - last_webhook_raw).total_seconds()
-        if delta < 3600:
-            inbound_status = "green"
-            inbound_detail = "Inbound webhook activity is fresh."
-        elif delta < 86400:
-            inbound_status = "amber"
-            inbound_detail = "Inbound webhook activity is stale but still within 24 hours."
-        else:
-            inbound_status = "red"
-            inbound_detail = "No inbound webhook activity in the last 24 hours."
+    inbound_health = _whatsapp_inbound_health_snapshot(now)
+    last_webhook = inbound_health.get("last_webhook")
+    inbound_status = inbound_health.get("status") or "red"
+    if inbound_health.get("failed_count"):
+        inbound_detail = f"{inbound_health['failed_count']} inbound WhatsApp message(s) failed."
+    elif inbound_health.get("stale_received_count") or inbound_health.get("stale_processing_count"):
+        inbound_detail = (
+            f"{inbound_health.get('stale_received_count', 0)} received and "
+            f"{inbound_health.get('stale_processing_count', 0)} processing rows are stuck."
+        )
+    elif inbound_health.get("last_webhook_age_seconds") is None:
+        inbound_detail = "No inbound webhook activity has been logged yet."
+    elif inbound_health["last_webhook_age_seconds"] < 3600:
+        inbound_detail = "Inbound webhook activity is fresh."
+    elif inbound_health["last_webhook_age_seconds"] < 86400:
+        inbound_detail = "Inbound webhook activity is stale but still within 24 hours."
+    else:
+        inbound_detail = "No inbound webhook activity in the last 24 hours."
 
     outbound = _q_one(
         """
@@ -3857,6 +3959,7 @@ def _collect_whatsapp_health(now: datetime | None = None, *, live_check: bool = 
             "last_webhook": last_webhook,
             "verify_token_configured": bool(meta_verify_token),
             "app_secret_configured": bool(meta_app_secret),
+            "inbound_queue": inbound_health,
         },
         "routing": {
             "status": routing_status,
@@ -3878,6 +3981,7 @@ def _collect_whatsapp_health(now: datetime | None = None, *, live_check: bool = 
             "top_failure_reason": top_failure_reason,
         },
     }
+
 
 @router.get("/system-health")
 def system_health(_=Depends(get_admin_user)):
@@ -3908,6 +4012,88 @@ def _serialize_outbound_row(row: dict) -> dict:
         if value and hasattr(value, "isoformat"):
             data[key] = value.isoformat()
     return data
+
+
+@router.get("/whatsapp/inbound")
+def list_whatsapp_inbound_rows(
+    status: Optional[str] = None,
+    tenant_id: Optional[int] = None,
+    q: Optional[str] = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    _=Depends(get_admin_user),
+):
+    filters = ["1=1"]
+    params = {"limit": limit, "offset": offset}
+
+    if status:
+        filters.append("status = :status")
+        params["status"] = status.strip().lower()
+    if tenant_id is not None:
+        filters.append("tenant_id = :tenant_id")
+        params["tenant_id"] = tenant_id
+    if q:
+        filters.append("(LOWER(sender_phone) LIKE LOWER(:query) OR LOWER(meta_message_id) LIKE LOWER(:query))")
+        params["query"] = f"%{q.strip()}%"
+
+    where = " AND ".join(filters)
+    rows = _q(
+        f"""
+        SELECT id, meta_message_id, tenant_id, sender_phone, receiver_number, message_type,
+               status, delivery_attempts, retry_count, case_id, raw_payload, last_error,
+               claimed_at, last_attempt_at, processed_at, created_at, updated_at, last_received_at
+        FROM wa_inbound_messages
+        WHERE {where}
+        ORDER BY last_received_at DESC, id DESC
+        LIMIT :limit OFFSET :offset
+        """,
+        params,
+    )
+    total_row = _q_one(
+        f"SELECT COUNT(*) AS total FROM wa_inbound_messages WHERE {where}",
+        {k: v for k, v in params.items() if k not in {"limit", "offset"}},
+    ) or {"total": 0}
+
+    return {
+        "rows": [_serialize_inbound_row(row) for row in rows],
+        "total": int(total_row.get("total") or 0),
+        "limit": limit,
+        "offset": offset,
+        "summary": _whatsapp_inbound_health_snapshot(),
+    }
+
+
+@router.post("/whatsapp/inbound/{inbound_id}/retry")
+def retry_whatsapp_inbound_row(
+    inbound_id: int,
+    background_tasks: BackgroundTasks,
+    admin_user=Depends(get_admin_user),
+):
+    row = _q_one(
+        """
+        SELECT id, tenant_id, status, sender_phone, meta_message_id
+        FROM wa_inbound_messages
+        WHERE id = :inbound_id
+        """,
+        {"inbound_id": inbound_id},
+    )
+    if not row:
+        raise HTTPException(404, "Inbound message not found")
+    if row.get("status") == "processed":
+        raise HTTPException(400, "Processed inbound messages do not need retry")
+
+    background_tasks.add_task(_retry_inbound_whatsapp_row, inbound_id)
+    _audit_structured(
+        admin_user,
+        "retried",
+        "whatsapp_inbound",
+        str(inbound_id),
+        tenant_id=row.get("tenant_id"),
+        status_before=row.get("status"),
+        sender_phone=row.get("sender_phone"),
+        meta_message_id=row.get("meta_message_id"),
+    )
+    return {"success": True, "queued": True, "inbound_id": inbound_id}
 
 
 @router.get("/whatsapp/outbound")
@@ -4460,6 +4646,29 @@ def get_alerts(_=Depends(get_admin_user)):
             })
     except Exception as e:
         logger.warning(f"Alerts - WhatsApp health check failed: {e}")
+
+    inbound_health = _whatsapp_inbound_health_snapshot(now)
+    if inbound_health.get("failed_count"):
+        alerts.append({
+            "type": "whatsapp_inbound_failed",
+            "severity": "error",
+            "title": f"{inbound_health['failed_count']} inbound WhatsApp messages failed",
+            "description": "Open System → WhatsApp inbound operations to inspect errors and retry delivery.",
+        })
+    if inbound_health.get("stale_received_count"):
+        alerts.append({
+            "type": "whatsapp_inbound_stale_received",
+            "severity": "warning",
+            "title": f"{inbound_health['stale_received_count']} inbound WhatsApp messages are stuck in received",
+            "description": "The webhook acknowledged these messages, but business processing has not completed yet.",
+        })
+    if inbound_health.get("stale_processing_count"):
+        alerts.append({
+            "type": "whatsapp_inbound_stale_processing",
+            "severity": "warning",
+            "title": f"{inbound_health['stale_processing_count']} inbound WhatsApp messages are stuck in processing",
+            "description": "These rows were claimed but did not finish. Review the inbound operations queue.",
+        })
 
     try:
         failed_jobs = _q(

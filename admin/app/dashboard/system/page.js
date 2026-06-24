@@ -39,6 +39,12 @@ const LINKS = [
         href: '/dashboard/system/parliament-sync',
         cta: 'Open sync tools',
     },
+    {
+        title: 'WhatsApp Inbound',
+        body: 'Inspect the durable inbound WhatsApp queue, failed rows, stuck processing, and manual retries.',
+        href: '/dashboard/system/whatsapp-inbound',
+        cta: 'Open inbound ops',
+    },
 ];
 
 function Card({ title, body, href, cta }) {

@@ -1260,6 +1260,35 @@ class WAMessageDedup(Base):
     processed_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 
+class WAInboundMessage(Base):
+    """
+    Durable inbound WhatsApp ledger.
+
+    Stores every inbound Meta message before business logic runs so the webhook
+    path can be retried safely and operations can inspect stuck/failed intake.
+    """
+    __tablename__ = "wa_inbound_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    meta_message_id = Column(String, unique=True, nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    sender_phone = Column(String, nullable=False, index=True)
+    receiver_number = Column(String, nullable=True)
+    message_type = Column(String, nullable=False, index=True)
+    status = Column(String, default="received", nullable=False, index=True)  # received|processing|processed|failed
+    delivery_attempts = Column(Integer, default=1, nullable=False)
+    retry_count = Column(Integer, default=0, nullable=False)
+    case_id = Column(Integer, ForeignKey("cases.id"), nullable=True, index=True)
+    raw_payload = Column(Text, nullable=False)
+    last_error = Column(Text, nullable=True)
+    claimed_at = Column(DateTime, nullable=True, index=True)
+    last_attempt_at = Column(DateTime, nullable=True)
+    processed_at = Column(DateTime, nullable=True, index=True)
+    last_received_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 # ─────────────────────────────────────────
 # PARLIAMENTARY DATA MODELS (18th Lok Sabha)
 # ─────────────────────────────────────────
@@ -1461,6 +1490,20 @@ def init_db():
         "ALTER TABLE dashboard_engagements ADD COLUMN IF NOT EXISTS is_all_day BOOLEAN DEFAULT FALSE",
         "ALTER TABLE dashboard_engagements ADD COLUMN IF NOT EXISTS created_by VARCHAR",
         "ALTER TABLE dashboard_engagements ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP",
+        "ALTER TABLE wa_inbound_messages ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id)",
+        "ALTER TABLE wa_inbound_messages ADD COLUMN IF NOT EXISTS receiver_number VARCHAR",
+        "ALTER TABLE wa_inbound_messages ADD COLUMN IF NOT EXISTS message_type VARCHAR NOT NULL DEFAULT 'unknown'",
+        "ALTER TABLE wa_inbound_messages ADD COLUMN IF NOT EXISTS status VARCHAR NOT NULL DEFAULT 'received'",
+        "ALTER TABLE wa_inbound_messages ADD COLUMN IF NOT EXISTS delivery_attempts INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE wa_inbound_messages ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE wa_inbound_messages ADD COLUMN IF NOT EXISTS case_id INTEGER REFERENCES cases(id)",
+        "ALTER TABLE wa_inbound_messages ADD COLUMN IF NOT EXISTS raw_payload TEXT NOT NULL DEFAULT '{}'",
+        "ALTER TABLE wa_inbound_messages ADD COLUMN IF NOT EXISTS last_error TEXT",
+        "ALTER TABLE wa_inbound_messages ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMP",
+        "ALTER TABLE wa_inbound_messages ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMP",
+        "ALTER TABLE wa_inbound_messages ADD COLUMN IF NOT EXISTS processed_at TIMESTAMP",
+        "ALTER TABLE wa_inbound_messages ADD COLUMN IF NOT EXISTS last_received_at TIMESTAMP DEFAULT NOW()",
+        "ALTER TABLE wa_inbound_messages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()",
     ]
     with engine.connect() as conn:
         for stmt in _migrations:

@@ -364,6 +364,47 @@ try:
 except Exception as e:
     logger.warning("wa_message_dedup migration skipped: %s", e)
 
+# ─── Migration: durable inbound WhatsApp ledger ─────────────────────────────
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS wa_inbound_messages (
+                id SERIAL PRIMARY KEY,
+                meta_message_id VARCHAR NOT NULL UNIQUE,
+                tenant_id INTEGER REFERENCES tenants(id),
+                sender_phone VARCHAR NOT NULL,
+                receiver_number VARCHAR,
+                message_type VARCHAR NOT NULL,
+                status VARCHAR NOT NULL DEFAULT 'received',
+                delivery_attempts INTEGER NOT NULL DEFAULT 1,
+                retry_count INTEGER NOT NULL DEFAULT 0,
+                case_id INTEGER REFERENCES cases(id),
+                raw_payload TEXT NOT NULL,
+                last_error TEXT,
+                claimed_at TIMESTAMP,
+                last_attempt_at TIMESTAMP,
+                processed_at TIMESTAMP,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                last_received_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_wa_inbound_status_received
+            ON wa_inbound_messages (status, last_received_at DESC)
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_wa_inbound_tenant_status
+            ON wa_inbound_messages (tenant_id, status, created_at DESC)
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_wa_inbound_claimed_at
+            ON wa_inbound_messages (claimed_at)
+        """))
+        logger.info("Migration: wa_inbound_messages table ready")
+except Exception as e:
+    logger.warning("wa_inbound_messages migration skipped: %s", e)
+
 # ─── Startup: prune wa_message_dedup entries older than 30 days ───
 # Meta never retries messages older than a few hours; 30 days is very conservative.
 try:
@@ -377,6 +418,19 @@ try:
             logger.info("Pruned %d stale wa_message_dedup entries", _dedup_del.rowcount)
 except Exception as _dedup_prune_exc:
     logger.warning("wa_message_dedup prune failed (non-critical): %s", _dedup_prune_exc)
+
+# ─── Startup: prune inbound WhatsApp ledger entries older than 45 days ──────
+try:
+    with engine.begin() as conn:
+        _inbound_cutoff = _utcnow() - timedelta(days=45)
+        _inbound_del = conn.execute(
+            text("DELETE FROM wa_inbound_messages WHERE created_at < :cutoff"),
+            {"cutoff": _inbound_cutoff},
+        )
+        if _inbound_del.rowcount:
+            logger.info("Pruned %d stale wa_inbound_messages entries", _inbound_del.rowcount)
+except Exception as _inbound_prune_exc:
+    logger.warning("wa_inbound_messages prune failed (non-critical): %s", _inbound_prune_exc)
 
 # ─── Migration: source media attachments for citizen WhatsApp cases ───
 try:
@@ -3040,6 +3094,8 @@ def _process_citizen_media_complaint(
     media_type: str = "media",
     msg_id: str = "",
     wa_reply_to_msg_id: str = "",
+    inbound_ledger_id: int | None = None,
+    existing_case_id: int | None = None,
 ):
     """
     Citizen sent image/PDF/audio. Download, normalize to grievance text, then
@@ -3087,57 +3143,94 @@ def _process_citizen_media_complaint(
                 or f"WhatsApp {media_type} complaint received. Text could not be extracted automatically."
             )
             try:
+                case_id = existing_case_id
                 with engine.begin() as conn:
-                    result = conn.execute(
+                    if not case_id:
+                        result = conn.execute(
+                            text("""
+                                INSERT INTO cases (
+                                    tenant_id, user_phone, category, raw_message, status,
+                                    case_metadata, is_critical, created_at
+                                ) VALUES (
+                                    :tid, :phone, 'Document / Attachment Only', :msg, 'incomplete',
+                                    :meta, false, :now
+                                ) RETURNING id
+                            """),
+                            {
+                                "tid": current_tenant,
+                                "phone": sender,
+                                "msg": fallback_text,
+                                "meta": json.dumps({
+                                    "summary": fallback_text[:200],
+                                    "wa_msg_id": msg_id,
+                                    "source_media": True,
+                                    "source_media_type": media_type,
+                                    "media_extraction_failed": True,
+                                    "media_extraction_error": normalized.error,
+                                }),
+                                "now": datetime.utcnow(),
+                            },
+                        )
+                        case_id = result.fetchone()[0]
+                    else:
+                        conn.execute(
+                            text("""
+                                UPDATE cases
+                                SET category = 'Document / Attachment Only',
+                                    raw_message = :msg,
+                                    status = 'incomplete',
+                                    case_metadata = :meta
+                                WHERE id = :cid
+                            """),
+                            {
+                                "cid": case_id,
+                                "msg": fallback_text,
+                                "meta": json.dumps({
+                                    "summary": fallback_text[:200],
+                                    "wa_msg_id": msg_id,
+                                    "source_media": True,
+                                    "source_media_type": media_type,
+                                    "media_extraction_failed": True,
+                                    "media_extraction_error": normalized.error,
+                                }),
+                            },
+                        )
+
+                    existing_media = conn.execute(
                         text("""
-                            INSERT INTO cases (
-                                tenant_id, user_phone, category, raw_message, status,
-                                case_metadata, is_critical, created_at
-                            ) VALUES (
-                                :tid, :phone, 'Document / Attachment Only', :msg, 'incomplete',
-                                :meta, false, :now
-                            ) RETURNING id
+                            SELECT id FROM case_media
+                            WHERE case_id = :cid AND meta_message_id = :meta_message_id
+                            LIMIT 1
                         """),
-                        {
-                            "tid": current_tenant,
-                            "phone": sender,
-                            "msg": fallback_text,
-                            "meta": json.dumps({
-                                "summary": fallback_text[:200],
-                                "wa_msg_id": msg_id,
-                                "source_media": True,
-                                "source_media_type": media_type,
-                                "media_extraction_failed": True,
-                                "media_extraction_error": normalized.error,
-                            }),
-                            "now": datetime.utcnow(),
-                        },
-                    )
-                    case_id = result.fetchone()[0]
-                    conn.execute(
-                        text("""
-                            INSERT INTO case_media (
-                                tenant_id, case_id, source, media_type, mime_type,
-                                file_name, media_data, caption, extracted_text,
-                                meta_message_id, created_at
-                            ) VALUES (
-                                :tid, :cid, 'whatsapp', :media_type, :mime_type,
-                                :file_name, :media_data, :caption, '',
-                                :meta_message_id, :now
-                            )
-                        """),
-                        {
-                            "tid": current_tenant,
-                            "cid": case_id,
-                            "media_type": media_type,
-                            "mime_type": resolved_mime or mime_type or "application/octet-stream",
-                            "file_name": f"whatsapp-{media_type}-{msg_id or case_id}",
-                            "media_data": media_bytes,
-                            "caption": caption,
-                            "meta_message_id": msg_id,
-                            "now": datetime.utcnow(),
-                        },
-                    )
+                        {"cid": case_id, "meta_message_id": msg_id},
+                    ).fetchone()
+                    if not existing_media:
+                        conn.execute(
+                            text("""
+                                INSERT INTO case_media (
+                                    tenant_id, case_id, source, media_type, mime_type,
+                                    file_name, media_data, caption, extracted_text,
+                                    meta_message_id, created_at
+                                ) VALUES (
+                                    :tid, :cid, 'whatsapp', :media_type, :mime_type,
+                                    :file_name, :media_data, :caption, '',
+                                    :meta_message_id, :now
+                                )
+                            """),
+                            {
+                                "tid": current_tenant,
+                                "cid": case_id,
+                                "media_type": media_type,
+                                "mime_type": resolved_mime or mime_type or "application/octet-stream",
+                                "file_name": f"whatsapp-{media_type}-{msg_id or case_id}",
+                                "media_data": media_bytes,
+                                "caption": caption,
+                                "meta_message_id": msg_id,
+                                "now": datetime.utcnow(),
+                            },
+                        )
+                if inbound_ledger_id and case_id:
+                    _set_inbound_ledger_case_id(inbound_ledger_id, case_id)
                 _fallback_lang = detect_input_language(fallback_text)
                 send_whatsapp_message(sender, get_details_request_reply(_fallback_lang, fallback_text), _wa_phone_id)
             except Exception as exc:
@@ -3205,6 +3298,8 @@ def _process_citizen_media_complaint(
         resolver_message_body=resolver_message_body,
         resolver_fallback_message_body=resolver_fallback_message_body,
         wa_reply_to_msg_id=wa_reply_to_msg_id,
+        inbound_ledger_id=inbound_ledger_id,
+        existing_case_id=existing_case_id,
     )
 
 
@@ -4068,6 +4163,8 @@ def _process_incoming_message(
     resolver_message_body: str | None = None,
     resolver_fallback_message_body: str | None = None,
     wa_reply_to_msg_id: str = "",
+    inbound_ledger_id: int | None = None,
+    existing_case_id: int | None = None,
 ):
     """Background task: AI processing + DB save + reply. Runs after 200 is returned to Meta."""
     if not receiver_number:
@@ -4629,24 +4726,27 @@ def _process_incoming_message(
 
     # ── STEP 1: Save raw grievance to DB immediately ────────────
     # This ensures the message is never lost, even if AI fails.
-    case_id = None
-    try:
-        case_id = _create_raw_contact_case(
-            tenant_id=current_tenant,
-            sender=sender,
-            message_body=message_body,
-            msg_id=msg_id,
-            media_source=media_source,
-        )
-        logger.info(f"Saved raw grievance: case_id={case_id} tenant={current_tenant}")
-        if case_id and media_source:
-            logger.info("Saved source media for case_id=%s type=%s", case_id, media_source.get("media_type"))
-    except Exception as e:
-        logger.error(f"CRITICAL: DB save failed for raw grievance: {e}")
-        # Even if DB fails, still try to acknowledge the citizen
-        _detected_lang = detect_input_language(message_body)
-        send_whatsapp_message(sender, get_generic_ack_reply(_detected_lang, message_body), _wa_phone_id)
-        return
+    case_id = existing_case_id
+    if not case_id:
+        try:
+            case_id = _create_raw_contact_case(
+                tenant_id=current_tenant,
+                sender=sender,
+                message_body=message_body,
+                msg_id=msg_id,
+                media_source=media_source,
+            )
+            logger.info(f"Saved raw grievance: case_id={case_id} tenant={current_tenant}")
+            if case_id and media_source:
+                logger.info("Saved source media for case_id=%s type=%s", case_id, media_source.get("media_type"))
+            if inbound_ledger_id and case_id:
+                _set_inbound_ledger_case_id(inbound_ledger_id, case_id)
+        except Exception as e:
+            logger.error(f"CRITICAL: DB save failed for raw grievance: {e}")
+            # Even if DB fails, still try to acknowledge the citizen
+            _detected_lang = detect_input_language(message_body)
+            send_whatsapp_message(sender, get_generic_ack_reply(_detected_lang, message_body), _wa_phone_id)
+            raise
 
     # ── STEP 2: AI classification (if this fails, the grievance is still saved) ──
     try:
@@ -4697,6 +4797,367 @@ def _process_incoming_message(
             )
 
 
+_INBOUND_RECEIVED_RETRY_SECONDS = 30
+_INBOUND_PROCESSING_STALE_SECONDS = 10 * 60
+_INBOUND_SWEEP_INTERVAL_SECONDS = 2 * 60
+
+
+def _build_inbound_payload_snapshot(entry: dict, msg: dict) -> dict:
+    metadata = dict((entry or {}).get("metadata") or {})
+    return {
+        "entry_metadata": metadata,
+        "message": dict(msg or {}),
+    }
+
+
+def _parse_inbound_payload_snapshot(raw_payload: str | dict | None) -> dict:
+    if isinstance(raw_payload, dict):
+        return dict(raw_payload)
+    try:
+        parsed = json.loads(raw_payload or "{}")
+    except Exception:
+        parsed = {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _record_inbound_ledger_row(
+    *,
+    meta_message_id: str,
+    tenant_id: int | None,
+    sender_phone: str,
+    receiver_number: str,
+    message_type: str,
+    payload_snapshot: dict,
+) -> dict | None:
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(
+                text(
+                    """
+                    INSERT INTO wa_inbound_messages (
+                        meta_message_id, tenant_id, sender_phone, receiver_number,
+                        message_type, status, delivery_attempts, retry_count,
+                        raw_payload, created_at, updated_at, last_received_at
+                    ) VALUES (
+                        :meta_message_id, :tenant_id, :sender_phone, :receiver_number,
+                        :message_type, 'received', 1, 0,
+                        :raw_payload, :now, :now, :now
+                    )
+                    ON CONFLICT (meta_message_id) DO UPDATE
+                    SET tenant_id = COALESCE(EXCLUDED.tenant_id, wa_inbound_messages.tenant_id),
+                        sender_phone = EXCLUDED.sender_phone,
+                        receiver_number = EXCLUDED.receiver_number,
+                        message_type = EXCLUDED.message_type,
+                        raw_payload = EXCLUDED.raw_payload,
+                        delivery_attempts = wa_inbound_messages.delivery_attempts + 1,
+                        updated_at = EXCLUDED.updated_at,
+                        last_received_at = EXCLUDED.last_received_at
+                    RETURNING id, meta_message_id, tenant_id, sender_phone, receiver_number,
+                              message_type, status, delivery_attempts, retry_count, case_id
+                    """
+                ),
+                {
+                    "meta_message_id": meta_message_id,
+                    "tenant_id": tenant_id,
+                    "sender_phone": sender_phone,
+                    "receiver_number": receiver_number,
+                    "message_type": message_type,
+                    "raw_payload": json.dumps(payload_snapshot, ensure_ascii=False),
+                    "now": _utcnow(),
+                },
+            ).mappings().first()
+        return dict(row) if row else None
+    except Exception as exc:
+        logger.error("Failed to persist inbound WhatsApp ledger row for %s: %s", meta_message_id, exc)
+        raise
+
+
+def _set_inbound_ledger_case_id(inbound_ledger_id: int, case_id: int) -> None:
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    UPDATE wa_inbound_messages
+                    SET case_id = COALESCE(case_id, :case_id),
+                        updated_at = :now
+                    WHERE id = :inbound_id
+                    """
+                ),
+                {"case_id": case_id, "inbound_id": inbound_ledger_id, "now": _utcnow()},
+            )
+    except Exception as exc:
+        logger.warning("Failed to attach case_id=%s to inbound ledger row %s: %s", case_id, inbound_ledger_id, exc)
+
+
+def _claim_inbound_ledger_row(inbound_ledger_id: int) -> dict | None:
+    stale_cutoff = _utcnow() - timedelta(seconds=_INBOUND_PROCESSING_STALE_SECONDS)
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(
+                text(
+                    """
+                    UPDATE wa_inbound_messages
+                    SET status = 'processing',
+                        claimed_at = :now,
+                        last_attempt_at = :now,
+                        updated_at = :now,
+                        last_error = NULL,
+                        retry_count = CASE
+                            WHEN status = 'received' THEN COALESCE(retry_count, 0)
+                            ELSE COALESCE(retry_count, 0) + 1
+                        END
+                    WHERE id = :inbound_id
+                      AND (
+                          status = 'received'
+                          OR status = 'failed'
+                          OR (status = 'processing' AND claimed_at IS NOT NULL AND claimed_at < :stale_cutoff)
+                      )
+                    RETURNING *
+                    """
+                ),
+                {"inbound_id": inbound_ledger_id, "now": _utcnow(), "stale_cutoff": stale_cutoff},
+            ).mappings().first()
+        return dict(row) if row else None
+    except Exception as exc:
+        logger.warning("Failed to claim inbound ledger row %s: %s", inbound_ledger_id, exc)
+        return None
+
+
+def _mark_inbound_ledger_processed(inbound_ledger_id: int) -> None:
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    UPDATE wa_inbound_messages
+                    SET status = 'processed',
+                        processed_at = :now,
+                        updated_at = :now,
+                        last_error = NULL
+                    WHERE id = :inbound_id
+                    """
+                ),
+                {"inbound_id": inbound_ledger_id, "now": _utcnow()},
+            )
+    except Exception as exc:
+        logger.warning("Failed to mark inbound ledger row %s processed: %s", inbound_ledger_id, exc)
+
+
+def _mark_inbound_ledger_failed(inbound_ledger_id: int, error_text: str) -> None:
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    UPDATE wa_inbound_messages
+                    SET status = 'failed',
+                        updated_at = :now,
+                        last_error = :error_text
+                    WHERE id = :inbound_id
+                    """
+                ),
+                {
+                    "inbound_id": inbound_ledger_id,
+                    "now": _utcnow(),
+                    "error_text": (error_text or "")[:4000],
+                },
+            )
+    except Exception as exc:
+        logger.warning("Failed to mark inbound ledger row %s failed: %s", inbound_ledger_id, exc)
+
+
+def _dispatch_inbound_ledger_row(row: dict) -> None:
+    payload = _parse_inbound_payload_snapshot(row.get("raw_payload"))
+    message = dict(payload.get("message") or {})
+    metadata = dict(payload.get("entry_metadata") or {})
+
+    sender = str(row.get("sender_phone") or message.get("from") or "").strip()
+    if not sender:
+        return
+
+    receiver_number = str(row.get("receiver_number") or metadata.get("display_phone_number") or "").strip()
+    if receiver_number and not receiver_number.startswith("+"):
+        receiver_number = f"+{receiver_number}"
+
+    current_tenant = row.get("tenant_id")
+    if current_tenant is None and receiver_number:
+        current_tenant = _resolve_tenant(receiver_number)
+
+    msg_type = str(row.get("message_type") or message.get("type") or "").strip().lower()
+    msg_id = str(row.get("meta_message_id") or message.get("id") or "").strip()
+    inbound_ledger_id = int(row["id"])
+    existing_case_id = row.get("case_id")
+
+    if msg_type == "text":
+        message_body = str(message.get("text", {}).get("body", "")).strip()
+        if message_body.upper() == "DONE":
+            _handle_pa_done_command(sender, receiver_number)
+            return
+
+        move_match = _MOVE_PATTERN.match(message_body)
+        if move_match:
+            _handle_pa_move_command(sender, move_match.group(1), move_match.group(2), receiver_number)
+            return
+
+        _process_incoming_message(
+            sender,
+            message_body,
+            receiver_number,
+            msg_id,
+            inbound_ledger_id=inbound_ledger_id,
+            existing_case_id=existing_case_id,
+        )
+        return
+
+    if msg_type == "image":
+        media_id = message.get("image", {}).get("id")
+        resolved_mime = message.get("image", {}).get("mime_type", "image/jpeg")
+        caption = message.get("image", {}).get("caption", "") or ""
+        if media_id and current_tenant is not None and _is_registered_staff_sender(sender, current_tenant):
+            _process_pa_letter(sender, media_id, resolved_mime, receiver_number, caption)
+            return
+        if media_id:
+            _process_citizen_media_complaint(
+                sender,
+                media_id,
+                resolved_mime,
+                receiver_number,
+                caption,
+                "image",
+                msg_id,
+                inbound_ledger_id=inbound_ledger_id,
+                existing_case_id=existing_case_id,
+            )
+            return
+        _handle_unsupported_message_type(sender, msg_type, receiver_number)
+        return
+
+    if msg_type == "document":
+        document = message.get("document", {}) or {}
+        media_id = document.get("id")
+        resolved_mime = document.get("mime_type", "application/octet-stream")
+        caption = document.get("caption", "") or ""
+        if (
+            media_id
+            and resolved_mime == "application/pdf"
+            and current_tenant is not None
+            and _is_registered_staff_sender(sender, current_tenant)
+        ):
+            _process_pa_letter_pdf(sender, media_id, resolved_mime, receiver_number, caption)
+            return
+        if media_id and resolved_mime == "application/pdf":
+            _process_citizen_media_complaint(
+                sender,
+                media_id,
+                resolved_mime,
+                receiver_number,
+                caption,
+                "document",
+                msg_id,
+                inbound_ledger_id=inbound_ledger_id,
+                existing_case_id=existing_case_id,
+            )
+            return
+        _handle_unsupported_message_type(sender, msg_type, receiver_number)
+        return
+
+    if msg_type == "audio":
+        audio = message.get("audio", {}) or {}
+        media_id = audio.get("id")
+        resolved_mime = audio.get("mime_type", "audio/ogg")
+        if media_id:
+            _process_citizen_media_complaint(
+                sender,
+                media_id,
+                resolved_mime,
+                receiver_number,
+                "",
+                "audio",
+                msg_id,
+                inbound_ledger_id=inbound_ledger_id,
+                existing_case_id=existing_case_id,
+            )
+            return
+        _handle_unsupported_message_type(sender, msg_type, receiver_number)
+        return
+
+    _handle_unsupported_message_type(sender, msg_type or "unknown", receiver_number)
+
+
+def _process_inbound_ledger_row(inbound_ledger_id: int) -> bool:
+    claimed_row = _claim_inbound_ledger_row(inbound_ledger_id)
+    if not claimed_row:
+        return False
+
+    try:
+        _dispatch_inbound_ledger_row(claimed_row)
+        _mark_inbound_ledger_processed(inbound_ledger_id)
+        return True
+    except Exception as exc:
+        logger.exception("Inbound ledger processing failed for row %s", inbound_ledger_id)
+        _mark_inbound_ledger_failed(inbound_ledger_id, str(exc))
+        return False
+
+
+def _sweep_pending_inbound_ledger_rows(limit: int = 25) -> int:
+    now = _utcnow()
+    received_cutoff = now - timedelta(seconds=_INBOUND_RECEIVED_RETRY_SECONDS)
+    stale_processing_cutoff = now - timedelta(seconds=_INBOUND_PROCESSING_STALE_SECONDS)
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text(
+                    """
+                    SELECT id
+                    FROM wa_inbound_messages
+                    WHERE (
+                        status = 'received'
+                        AND last_received_at <= :received_cutoff
+                    ) OR (
+                        status = 'processing'
+                        AND claimed_at IS NOT NULL
+                        AND claimed_at <= :stale_processing_cutoff
+                    )
+                    ORDER BY last_received_at ASC, id ASC
+                    LIMIT :limit
+                    """
+                ),
+                {
+                    "received_cutoff": received_cutoff,
+                    "stale_processing_cutoff": stale_processing_cutoff,
+                    "limit": int(limit),
+                },
+            ).fetchall()
+    except Exception as exc:
+        logger.warning("Inbound ledger sweep query failed: %s", exc)
+        return 0
+
+    rescued = 0
+    for (inbound_id,) in rows:
+        if _process_inbound_ledger_row(int(inbound_id)):
+            rescued += 1
+    if rescued:
+        logger.info("Inbound ledger sweep rescued %d rows", rescued)
+    return rescued
+
+
+def _schedule_inbound_ledger_sweep() -> None:
+    try:
+        _sweep_pending_inbound_ledger_rows()
+    finally:
+        timer = threading.Timer(_INBOUND_SWEEP_INTERVAL_SECONDS, _schedule_inbound_ledger_sweep)
+        timer.daemon = True
+        timer.start()
+
+
+def _start_inbound_ledger_sweeper() -> None:
+    logger.info("Inbound WhatsApp ledger sweeper enabled — checking every %ds", _INBOUND_SWEEP_INTERVAL_SECONDS)
+    timer = threading.Timer(_INBOUND_SWEEP_INTERVAL_SECONDS, _schedule_inbound_ledger_sweep)
+    timer.daemon = True
+    timer.start()
+
+
 @app.post("/whatsapp/webhook")
 @_webhook_decorate
 async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
@@ -4734,124 +5195,31 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         return {"status": "ignored"}  # delivery receipt / status update
 
     msg = messages[0]
-    msg_id = msg.get("id", "")  # Meta message ID — unique per message
-
-    # ── Deduplication: atomic INSERT gate on wa_message_dedup ───────────────
-    # Uses INSERT ON CONFLICT DO NOTHING + rowcount check instead of a
-    # SELECT-then-INSERT pattern, which has a race window during the 5-7s
-    # background task execution.  Two simultaneous webhook calls for the same
-    # msg_id will both attempt the INSERT; exactly one will get rowcount=1
-    # (the winner) and the other will get rowcount=0 (duplicate — rejected here,
-    # before a background task is ever dispatched).
-    if msg_id:
-        try:
-            with engine.begin() as _dg_conn:
-                _dg_ins = _dg_conn.execute(
-                    text("""
-                        INSERT INTO wa_message_dedup (message_id, processed_at)
-                        VALUES (:mid, :now)
-                        ON CONFLICT (message_id) DO NOTHING
-                    """),
-                    {"mid": msg_id, "now": datetime.utcnow()},
-                )
-            if _dg_ins.rowcount == 0:
-                logger.info("Webhook dedup: message_id=%s already claimed — ignoring retry", msg_id)
-                return {"status": "ignored"}
-        except Exception as dedup_exc:
-            logger.warning("Dedup gate insert failed (non-blocking): %s", dedup_exc)
-
-    msg_type = msg.get("type")
+    msg_id = str(msg.get("id") or "").strip()
+    msg_type = str(msg.get("type") or "unknown").strip().lower()
     sender = msg.get("from", "").strip()  # bare number e.g. "919876543210"
     if not sender:
         return {"status": "ignored"}
-
-    # Content-based dedup is handled inside _process_incoming_message,
-    # after staff identification — so staff/PA senders are never blocked.
 
     # Extract business phone number for tenant routing
     display_number = entry.get("metadata", {}).get("display_phone_number", "")
     if display_number and not display_number.startswith("+"):
         display_number = f"+{display_number}"
+    current_tenant = _resolve_tenant(display_number) if display_number else None
+    synthetic_msg_id = msg_id or f"synthetic:{hashlib.sha256(raw_body).hexdigest()}"
+    inbound_row = _record_inbound_ledger_row(
+        meta_message_id=synthetic_msg_id,
+        tenant_id=current_tenant,
+        sender_phone=sender,
+        receiver_number=display_number,
+        message_type=msg_type or "unknown",
+        payload_snapshot=_build_inbound_payload_snapshot(entry, msg),
+    )
+    if not inbound_row:
+        raise HTTPException(status_code=500, detail="Failed to persist inbound message")
 
-    if msg_type == "text":
-        message_body = str(msg.get("text", {}).get("body", "")).strip()
-        if not message_body:
-            return {"status": "ignored"}
-        # DONE command — immediately flush any pending batch for this PA
-        if message_body.upper() == "DONE":
-            background_tasks.add_task(_handle_pa_done_command, sender, display_number)
-            return {"status": "received"}
-        # MOVE correction command
-        move_match = _MOVE_PATTERN.match(message_body)
-        if move_match:
-            background_tasks.add_task(
-                _handle_pa_move_command,
-                sender, move_match.group(1), move_match.group(2), display_number
-            )
-        else:
-            background_tasks.add_task(_process_incoming_message, sender, message_body, display_number, msg_id)
-        return {"status": "received"}
-
-    elif msg_type == "image":
-        current_tenant = _resolve_tenant(display_number)
-        media_id = msg.get("image", {}).get("id")
-        resolved_mime = msg.get("image", {}).get("mime_type", "image/jpeg")
-        caption = msg.get("image", {}).get("caption", "") or ""
-        if media_id and current_tenant is not None and _is_registered_staff_sender(sender, current_tenant):
-            # PA/office Briefcase intake — staff photographs a physical letter.
-            background_tasks.add_task(_process_pa_letter, sender, media_id, resolved_mime, display_number, caption)
-        elif media_id:
-            # Citizen grievance media — OCR/vision first, then normal grievance pipeline.
-            background_tasks.add_task(
-                _process_citizen_media_complaint,
-                sender, media_id, resolved_mime, display_number, caption, "image", msg_id
-            )
-        return {"status": "received"}
-
-    elif msg_type == "document":
-        current_tenant = _resolve_tenant(display_number)
-        document = msg.get("document", {}) or {}
-        media_id = document.get("id")
-        resolved_mime = document.get("mime_type", "application/octet-stream")
-        caption = document.get("caption", "") or ""
-        if (
-            media_id
-            and resolved_mime == "application/pdf"
-            and current_tenant is not None
-            and _is_registered_staff_sender(sender, current_tenant)
-        ):
-            # PA/office PDF goes to Briefcase/Letterbox.
-            background_tasks.add_task(_process_pa_letter_pdf, sender, media_id, resolved_mime, display_number, caption)
-            return {"status": "received"}
-        if media_id and resolved_mime == "application/pdf":
-            # Citizen PDF/document complaint goes through OCR, then the grievance pipeline.
-            background_tasks.add_task(
-                _process_citizen_media_complaint,
-                sender, media_id, resolved_mime, display_number, caption, "document", msg_id
-            )
-            return {"status": "received"}
-        background_tasks.add_task(_handle_unsupported_message_type, sender, msg_type, display_number)
-        return {"status": "received"}
-
-    elif msg_type == "audio":
-        audio = msg.get("audio", {}) or {}
-        media_id = audio.get("id")
-        resolved_mime = audio.get("mime_type", "audio/ogg")
-        if media_id:
-            background_tasks.add_task(
-                _process_citizen_media_complaint,
-                sender, media_id, resolved_mime, display_number, "", "audio", msg_id
-            )
-            return {"status": "received"}
-        background_tasks.add_task(_handle_unsupported_message_type, sender, msg_type, display_number)
-        return {"status": "received"}
-
-    else:
-        # ── Non-text/image/PDF/audio message (video, sticker, etc.) ──
-        # Previously these were silently ignored — citizens got no response.
-        # Now we send a polite prompt to re-send as text so they're not lost.
-        background_tasks.add_task(_handle_unsupported_message_type, sender, msg_type, display_number)
-        return {"status": "received"}
+    background_tasks.add_task(_process_inbound_ledger_row, int(inbound_row["id"]))
+    return {"status": "received"}
 
 
 # ─────────────────────────────────────────
@@ -4950,6 +5318,8 @@ async def startup_jobs():
     await run_in_threadpool(_sweep_stale_batches)
     await run_in_threadpool(_sweep_pending_citizen_acks)
     await run_in_threadpool(_send_due_case_clarification_followups)
+    await run_in_threadpool(_sweep_pending_inbound_ledger_rows)
+    _start_inbound_ledger_sweeper()
     _start_keep_alive()
 
 
