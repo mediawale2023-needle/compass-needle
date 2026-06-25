@@ -1611,6 +1611,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Files touched: `main.py`, `sansadx_backend/db.py`, `admin_api.py`, `admin/app/dashboard/system/page.js`, `admin/app/dashboard/system/whatsapp-inbound/page.js`, `admin/components/admin-domains/system/WhatsAppInboundPage.jsx`, `tests/test_whatsapp_inbound_ledger.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: This closes the silent-loss gap for acknowledged inbound webhook traffic, but it does not yet create a separate long-term outbound ledger or a full generic jobs platform. Failed inbound rows now have manual retry and alerting, which is the highest-value first operational slice.
 
+- Date: 2026-06-25
+- Request: Fix the inbound-ledger bug where burst/sibling-thread complaints were not always linked back to their own `case_id`.
+- Summary: Patched `_process_incoming_message()` so inbound ledger rows are linked not only on the first raw case insert, but also when intake resolves into an existing case (clarification, duplicate, low-information follow-up, spam-suppressed overflow, legacy-thread reuse) and when a new sibling complaint is created inside an active contact thread. Added a regression test that inserts three inbound ledger rows for one sender, runs the threaded distinct-issue path, and verifies all three ledger rows get non-null `case_id` links. Verified with `venv/bin/python -m pytest tests/test_e2e_core_flow.py -k "thread_distinct_issue_links_each_inbound_ledger_row_to_its_case or contact_thread_high_frequency_and_spam_suspected_thresholds"` and `venv/bin/python -m pytest tests/test_whatsapp_inbound_ledger.py`.
+- Files touched: `main.py`, `tests/test_e2e_core_flow.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: This fixes the core linkage gap for intake auditability, but production should still get one live re-check after deploy to confirm the same case-link behavior on real burst traffic through the full webhook path.
+
 - Date: 2026-06-22
 - Request: Push the durable inbound WhatsApp ledger slice to `main` for deployment.
 - Summary: Cherry-picked the verified inbound-ledger commit onto a clean `origin/main` worktree and prepared it for push so production receives only the inbound WhatsApp durability/admin-ops slice, not the unrelated feature-branch history. This `main` push is intended to trigger the backend deploy workflow and the connected admin frontend deployment.

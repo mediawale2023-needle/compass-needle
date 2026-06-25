@@ -4185,6 +4185,10 @@ def _process_incoming_message(
     sender_digits = re.sub(r"\D", "", sender or "")
     sender_bare = sender_digits[2:] if sender_digits.startswith("91") and len(sender_digits) == 12 else sender_digits
 
+    def _link_inbound_to_case(case_id: int | None) -> None:
+        if inbound_ledger_id and case_id:
+            _set_inbound_ledger_case_id(inbound_ledger_id, case_id)
+
     # ── Staff query routing (check BEFORE spam / citizen flow) ───────────────
     # If the sender's phone is a registered staff user for this tenant,
     # treat their message as a case query, not a citizen grievance.
@@ -4441,6 +4445,7 @@ def _process_incoming_message(
                 raw_message_override=_combined_message,
                 citizen_ack_override=_ack_override,
             )
+            _link_inbound_to_case(_pending["id"])
             return
         except Exception as _followup_exc:
             logger.error("Failed to process clarification follow-up for case %s: %s", _pending["id"], _followup_exc)
@@ -4472,6 +4477,7 @@ def _process_incoming_message(
                     event_type="low_information_noise",
                     detected_language=language_hint,
                 )
+                _link_inbound_to_case(root_contact_case["id"])
                 return
 
             current_score = _thread_issue_similarity(message_body, current_issue)
@@ -4513,6 +4519,7 @@ def _process_incoming_message(
                             )
                     except Exception as exc:
                         logger.warning("Failed to bump latest message timestamp for legacy case %s: %s", root_contact_case["id"], exc)
+                _link_inbound_to_case(root_contact_case["id"])
                 return
 
             distinct_count = 1 + len(archived_items)
@@ -4538,6 +4545,7 @@ def _process_incoming_message(
                         f"Distinct complaint count reached {projected_distinct_count} in {_CONTACT_BUFFER_WINDOW_HOURS}h thread",
                         message_body,
                     )
+                    _link_inbound_to_case(root_contact_case["id"])
                 except Exception as exc:
                     logger.error("Failed to persist legacy contact-thread spam-suspected marker: %s", exc)
                 return
@@ -4578,6 +4586,7 @@ def _process_incoming_message(
                 raw_message_override=message_body,
                 citizen_ack_override="",
             )
+            _link_inbound_to_case(root_contact_case["id"])
             return
 
         thread_cases = list(active_thread["cases"])
@@ -4599,6 +4608,7 @@ def _process_incoming_message(
                 event_type="low_information_noise",
                 detected_language=language_hint,
             )
+            _link_inbound_to_case(latest_case["id"])
             return
 
         best_case = None
@@ -4631,6 +4641,7 @@ def _process_incoming_message(
                     )
             except Exception as exc:
                 logger.warning("Failed to bump latest message timestamp for case %s: %s", best_case["id"], exc)
+            _link_inbound_to_case(best_case["id"])
             return
 
         distinct_count = _aggregate_contact_thread_distinct_count(thread_cases)
@@ -4664,6 +4675,7 @@ def _process_incoming_message(
                     f"Distinct complaint count reached {projected_distinct_count} in {_CONTACT_BUFFER_WINDOW_HOURS}h thread",
                     message_body,
                 )
+                _link_inbound_to_case(latest_case["id"])
             except Exception as exc:
                 logger.error("Failed to persist contact-thread spam-suspected marker: %s", exc)
             return
@@ -4702,6 +4714,7 @@ def _process_incoming_message(
         if not new_case_id:
             logger.error("Failed to create distinct thread case for sender=%s tenant=%s thread=%s", sender, current_tenant, thread_id)
             return
+        _link_inbound_to_case(new_case_id)
 
         _save_case_enrichment_and_respond(
             case_id=new_case_id,
@@ -4739,8 +4752,7 @@ def _process_incoming_message(
             logger.info(f"Saved raw grievance: case_id={case_id} tenant={current_tenant}")
             if case_id and media_source:
                 logger.info("Saved source media for case_id=%s type=%s", case_id, media_source.get("media_type"))
-            if inbound_ledger_id and case_id:
-                _set_inbound_ledger_case_id(inbound_ledger_id, case_id)
+            _link_inbound_to_case(case_id)
         except Exception as e:
             logger.error(f"CRITICAL: DB save failed for raw grievance: {e}")
             # Even if DB fails, still try to acknowledge the citizen

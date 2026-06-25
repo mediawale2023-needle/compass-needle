@@ -195,6 +195,18 @@ def _cases_for_phone(phone: str):
     return [dict(row) for row in rows]
 
 
+def _inbound_rows_for_sender(phone: str):
+    with test_engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT id, meta_message_id, status, case_id "
+                "FROM wa_inbound_messages WHERE sender_phone = :phone ORDER BY id ASC"
+            ),
+            {"phone": phone},
+        ).mappings().all()
+    return [dict(row) for row in rows]
+
+
 def _wait_for(predicate, timeout_seconds: float = 2.0, interval_seconds: float = 0.05):
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
@@ -705,4 +717,100 @@ def test_contact_thread_high_frequency_and_spam_suspected_thresholds(monkeypatch
     final_meta = next(meta for meta in final_metas if meta.get("contact_thread_state") == "spam_suspected")
     assert final_meta["distinct_issue_count"] == 10
     assert final_meta["contact_thread_state"] == "spam_suspected"
+    assert len(outbound_messages) == 1
+
+
+def test_thread_distinct_issue_links_each_inbound_ledger_row_to_its_case(monkeypatch):
+    _seed_database()
+    outbound_messages = []
+
+    def _fake_ai(prompt, tenant_id=None):
+        user_message = prompt.split("USER MESSAGE:", 1)[-1].strip()
+        summary = user_message.splitlines()[0][:120]
+        return {
+            "status": "new",
+            "detected_language": "English",
+            "political_response": "Your grievance has been noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Service Issue",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "Whitefield",
+                "summary": summary,
+            },
+        }
+
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _fake_ai)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+    monkeypatch.setattr(
+        whatsapp_module,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919955551111"
+    messages = [
+        ("wamid.thread.1", "Water issue in Whitefield"),
+        ("wamid.thread.2", "Road issue in KR Puram"),
+        ("wamid.thread.3", "Garbage issue in Indiranagar"),
+    ]
+
+    with test_engine.begin() as conn:
+        now = datetime.utcnow()
+        for idx, (msg_id, body) in enumerate(messages, start=1):
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO wa_inbound_messages (
+                        meta_message_id, tenant_id, sender_phone, receiver_number, message_type,
+                        status, delivery_attempts, retry_count, raw_payload, created_at, updated_at, last_received_at
+                    ) VALUES (
+                        :msg_id, 1, :sender_phone, '+15551636821', 'text',
+                        'processing', 1, 0, :payload, :now, :now, :now
+                    )
+                    """
+                ),
+                {
+                    "msg_id": msg_id,
+                    "sender_phone": sender,
+                    "payload": json.dumps(
+                        {
+                            "entry_metadata": {"display_phone_number": "15551636821"},
+                            "message": {
+                                "id": msg_id,
+                                "from": sender,
+                                "type": "text",
+                                "text": {"body": body},
+                            },
+                        }
+                    ),
+                    "now": now + timedelta(seconds=idx),
+                },
+            )
+
+    inbound_rows = _inbound_rows_for_sender(sender)
+    inbound_ids = [int(row["id"]) for row in inbound_rows]
+
+    for inbound_id, (_, body) in zip(inbound_ids, messages):
+        main._process_incoming_message(
+            sender,
+            body,
+            receiver_number="+15551636821",
+            msg_id=f"manual-{inbound_id}",
+            inbound_ledger_id=inbound_id,
+        )
+
+    cases = _cases_for_phone(sender)
+    inbound_after = _inbound_rows_for_sender(sender)
+
+    assert len(cases) == 3
+    assert len(inbound_after) == 3
+    assert all(row["status"] == "processing" for row in inbound_after)
+    assert all(row["case_id"] is not None for row in inbound_after)
+    assert len({row["case_id"] for row in inbound_after}) == 3
     assert len(outbound_messages) == 1
