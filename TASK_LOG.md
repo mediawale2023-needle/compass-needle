@@ -1617,6 +1617,12 @@ Chronological log of completed repository work. Read before making changes to un
 - Files touched: `main.py`, `tests/test_e2e_core_flow.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Risks or follow-ups: This fixes the core linkage gap for intake auditability, but production should still get one live re-check after deploy to confirm the same case-link behavior on real burst traffic through the full webhook path.
 
+- Date: 2026-06-25
+- Request: Push and deploy the threaded inbound-ledger `case_id` linkage fix to production.
+- Summary: Pushed commit `6f3c4cee` (`Fix inbound ledger case links for threaded intake`) to `origin/main`, then manually rebuilt the EC2 backend container on top of that exact commit. Verified `https://api.theneedle.in/health` after restart, replayed two signed synthetic burst checks through the live Meta webhook endpoint, and confirmed the production-specific threaded path now backfills `wa_inbound_messages.case_id` correctly for sibling complaints (`3435`, `3436`, `3437`) instead of leaving later burst rows blank. Removed the synthetic probe rows from `wa_inbound_messages`, `wa_outbound_messages`, and `cases` afterward.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: The specific linkage bug is fixed and live. The remaining pilot hardening work is separate: finish real S3 backup wiring on EC2 and do one true handset-side WhatsApp smoke test.
+
 - Date: 2026-06-22
 - Request: Push the durable inbound WhatsApp ledger slice to `main` for deployment.
 - Summary: Cherry-picked the verified inbound-ledger commit onto a clean `origin/main` worktree and prepared it for push so production receives only the inbound WhatsApp durability/admin-ops slice, not the unrelated feature-branch history. This `main` push is intended to trigger the backend deploy workflow and the connected admin frontend deployment.
