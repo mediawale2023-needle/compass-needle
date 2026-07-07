@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-07-07
+- Request: Retry backend deployment for the durable WhatsApp burst-intake fix.
+- Summary: The first EC2 deploy run for commit `262c0434` started but failed inside the `Deploy Over SSH` step before the health check. GitHub job logs require authenticated access from this environment, and direct SSH to `api.theneedle.in` timed out because SSH is runner-IP gated. Added a small Dockerfile proxy-header comment to retrigger the backend deploy workflow from `main`.
+- Files touched: `Dockerfile`, `TASK_LOG.md`
+- Risks or follow-ups: Watch the retriggered `Deploy Backend To AWS EC2` run and verify `https://api.theneedle.in/health` after it completes.
+
+- Date: 2026-07-07
 - Request: Push and deploy the durable WhatsApp burst-intake fix.
 - Summary: Pushed commit `262c0434` (`Make WhatsApp intake durable under bursts`) to `origin/main`, publishing the webhook no-loss intake changes, per-sender ledger-stage throttling, batched Meta message persistence, admin throttled-row visibility, and uvicorn proxy-header flags. This `main` push should trigger the EC2 backend deploy workflow.
 - Files touched: `TASK_LOG.md`

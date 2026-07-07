@@ -25,4 +25,6 @@ ENV WEB_CONCURRENCY=1
 #   before the worker is killed on Railway redeploy (prevents mid-request drops).
 # --timeout-keep-alive 75         — keeps idle connections alive for 75s
 #   (Railway's load balancer uses 80s keep-alive; matching avoids premature resets).
+# --proxy-headers / forwarded IPs — trust Caddy inside the private Docker network
+#   so anonymous endpoint limits see the original client instead of Caddy's IP.
 CMD uvicorn main:app --host 0.0.0.0 --port $PORT --workers $WEB_CONCURRENCY --proxy-headers --forwarded-allow-ips='*' --timeout-graceful-shutdown 30 --timeout-keep-alive 75
