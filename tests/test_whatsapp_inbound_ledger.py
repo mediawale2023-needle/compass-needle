@@ -155,6 +155,28 @@ def _make_webhook_payload(message_id="wamid.test.001", body="Water problem in Wh
     }
 
 
+def _make_batched_webhook_payload(messages):
+    return {
+        "object": "whatsapp_business_account",
+        "entry": [{
+            "changes": [{
+                "value": {
+                    "metadata": {"display_phone_number": "15551636821"},
+                    "messages": [
+                        {
+                            "id": message_id,
+                            "from": sender,
+                            "type": "text",
+                            "text": {"body": body},
+                        }
+                        for message_id, sender, body in messages
+                    ],
+                }
+            }]
+        }],
+    }
+
+
 def _post_signed_webhook(payload):
     body = json.dumps(payload).encode("utf-8")
     signature = "sha256=" + hmac.new(TEST_META_APP_SECRET.encode(), body, hashlib.sha256).hexdigest()
@@ -213,6 +235,105 @@ def test_webhook_persists_inbound_row_and_processes(monkeypatch):
     assert row["status"] == "processed"
     assert len(calls) == 1
     assert calls[0]["inbound_ledger_id"] is not None
+
+
+def test_webhook_has_no_shared_slowapi_limit(monkeypatch):
+    calls = []
+
+    def fake_process(sender, message_body, wa_phone_id, msg_id, inbound_ledger_id=None, existing_case_id=None, **kwargs):
+        calls.append((sender, msg_id, inbound_ledger_id))
+
+    monkeypatch.setattr(main, "_process_incoming_message", fake_process)
+
+    for idx in range(25):
+        resp = _post_signed_webhook(
+            _make_webhook_payload(
+                message_id=f"wamid.burst.{idx}",
+                body=f"Water problem {idx}",
+                sender=f"91999912{idx:04d}",
+            )
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["status"] == "received"
+
+    with test_engine.connect() as conn:
+        count = conn.execute(text("SELECT COUNT(*) FROM wa_inbound_messages")).scalar()
+
+    assert count == 25
+    assert len(calls) == 25
+
+
+def test_webhook_persists_every_message_in_meta_batch(monkeypatch):
+    calls = []
+
+    def fake_process(sender, message_body, wa_phone_id, msg_id, inbound_ledger_id=None, existing_case_id=None, **kwargs):
+        calls.append((sender, message_body, msg_id, inbound_ledger_id))
+
+    monkeypatch.setattr(main, "_process_incoming_message", fake_process)
+
+    payload = _make_batched_webhook_payload(
+        [
+            ("wamid.batch.001", "919999111001", "Water issue"),
+            ("wamid.batch.002", "919999111002", "Road issue"),
+            ("wamid.batch.003", "919999111003", "Garbage issue"),
+        ]
+    )
+    resp = _post_signed_webhook(payload)
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"status": "received", "received_count": 3}
+
+    with test_engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT meta_message_id, sender_phone, status
+                FROM wa_inbound_messages
+                ORDER BY meta_message_id ASC
+                """
+            )
+        ).mappings().all()
+
+    assert [row["meta_message_id"] for row in rows] == ["wamid.batch.001", "wamid.batch.002", "wamid.batch.003"]
+    assert [row["sender_phone"] for row in rows] == ["919999111001", "919999111002", "919999111003"]
+    assert all(row["status"] == "processed" for row in rows)
+    assert len(calls) == 3
+
+
+def test_sender_throttle_happens_after_ledger_persistence(monkeypatch):
+    calls = []
+
+    def fake_process(sender, message_body, wa_phone_id, msg_id, inbound_ledger_id=None, existing_case_id=None, **kwargs):
+        calls.append((sender, msg_id, inbound_ledger_id))
+
+    monkeypatch.setattr(main, "_process_incoming_message", fake_process)
+
+    sender = "919999222333"
+    payload = _make_batched_webhook_payload(
+        [
+            (f"wamid.sender-throttle.{idx}", sender, f"Repeated issue {idx}")
+            for idx in range(12)
+        ]
+    )
+    resp = _post_signed_webhook(payload)
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"status": "received", "received_count": 12}
+
+    with test_engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT status, COUNT(*) AS count
+                FROM wa_inbound_messages
+                WHERE sender_phone = :sender
+                GROUP BY status
+                """
+            ),
+            {"sender": sender},
+        ).mappings().all()
+
+    status_counts = {row["status"]: row["count"] for row in rows}
+    assert status_counts == {"processed": 10, "throttled": 2}
+    assert len(calls) == 10
 
 
 def test_inbound_retry_endpoint_queues_processing(monkeypatch):
@@ -329,5 +450,6 @@ def test_system_health_uses_inbound_ledger():
     resp = client.get("/api/admin/system-health", headers=_make_admin_headers())
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["whatsapp"]["failed_count"] == 1
-    assert body["whatsapp"]["last_webhook"] is not None
+    inbound_queue = body["whatsapp"]["webhook"]["inbound_queue"]
+    assert inbound_queue["failed_count"] == 1
+    assert inbound_queue["last_webhook"] is not None

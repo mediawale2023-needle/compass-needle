@@ -12,6 +12,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-07-07
+- Request: Make WhatsApp webhook intake durable under large bursts without losing messages, then push and deploy.
+- Summary: Removed the SlowAPI limiter from `POST /whatsapp/webhook` so valid Meta deliveries are not rejected before persistence, changed the webhook to persist every message in every Meta entry/change batch, and kept HMAC validation as the intake gate. Added per-sender processing throttling after ledger claim so noisy senders are marked `throttled` in `wa_inbound_messages` instead of blocking ingestion, surfaced throttled rows in admin inbound health/filters, and added uvicorn proxy-header flags in `Dockerfile` and `entrypoint.sh` so IP-based limits like login see real forwarded client IPs behind Caddy. Added focused tests for >20 webhook deliveries, batched Meta messages, and sender throttling after durable ledger insert.
+- Files touched: `main.py`, `admin_api.py`, `sansadx_backend/db.py`, `admin/components/admin-domains/system/WhatsAppInboundPage.jsx`, `Dockerfile`, `entrypoint.sh`, `tests/test_whatsapp_inbound_ledger.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Verified with focused inbound-ledger pytest and Python compile checks. This makes intake loss-resistant, but sustained 1000/minute bursts still require database/EC2 sizing and worker throughput monitoring; processing may lag while ledger persistence remains durable.
+
 - Date: 2026-06-22
 - Request: Push and deploy the EC2 Postgres backup automation.
 - Summary: Published the new backup/restore automation slice for the EC2 backend: nightly S3-targeted Postgres dumps, host cron installation, and a rehearsable restore script. This push is intended to make off-box backups part of the normal production contract instead of an operator-only manual checklist.

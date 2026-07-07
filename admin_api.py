@@ -3714,6 +3714,7 @@ def _whatsapp_inbound_health_snapshot(now: datetime | None = None) -> dict:
             COALESCE(SUM(CASE WHEN status = 'received' THEN 1 ELSE 0 END), 0) AS received_count,
             COALESCE(SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END), 0) AS processing_count,
             COALESCE(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END), 0) AS failed_count,
+            COALESCE(SUM(CASE WHEN status = 'throttled' THEN 1 ELSE 0 END), 0) AS throttled_count,
             COALESCE(SUM(CASE WHEN status = 'processed' THEN 1 ELSE 0 END), 0) AS processed_count,
             COALESCE(SUM(CASE WHEN status = 'received' AND last_received_at <= :received_cutoff THEN 1 ELSE 0 END), 0) AS stale_received_count,
             COALESCE(SUM(CASE WHEN status = 'processing' AND claimed_at IS NOT NULL AND claimed_at <= :processing_cutoff THEN 1 ELSE 0 END), 0) AS stale_processing_count
@@ -3758,6 +3759,7 @@ def _whatsapp_inbound_health_snapshot(now: datetime | None = None) -> dict:
         "received_count": int(summary.get("received_count") or 0),
         "processing_count": int(summary.get("processing_count") or 0),
         "failed_count": failed_count,
+        "throttled_count": int(summary.get("throttled_count") or 0),
         "processed_count": int(summary.get("processed_count") or 0),
         "stale_received_count": stale_received_count,
         "stale_processing_count": stale_processing_count,

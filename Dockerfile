@@ -25,4 +25,4 @@ ENV WEB_CONCURRENCY=1
 #   before the worker is killed on Railway redeploy (prevents mid-request drops).
 # --timeout-keep-alive 75         — keeps idle connections alive for 75s
 #   (Railway's load balancer uses 80s keep-alive; matching avoids premature resets).
-CMD uvicorn main:app --host 0.0.0.0 --port $PORT --workers $WEB_CONCURRENCY --timeout-graceful-shutdown 30 --timeout-keep-alive 75
+CMD uvicorn main:app --host 0.0.0.0 --port $PORT --workers $WEB_CONCURRENCY --proxy-headers --forwarded-allow-ips='*' --timeout-graceful-shutdown 30 --timeout-keep-alive 75

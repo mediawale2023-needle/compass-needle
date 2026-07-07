@@ -82,11 +82,12 @@ export default function WhatsAppInboundPage() {
                 </p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
                 {[
                     ['Received', summary?.received_count ?? 0],
                     ['Processing', summary?.processing_count ?? 0],
                     ['Failed', summary?.failed_count ?? 0],
+                    ['Throttled', summary?.throttled_count ?? 0],
                     ['Stale', (summary?.stale_received_count ?? 0) + (summary?.stale_processing_count ?? 0)],
                 ].map(([label, value]) => (
                     <div key={label} className="stat-card">
@@ -106,6 +107,7 @@ export default function WhatsAppInboundPage() {
                         <option value="received">Received</option>
                         <option value="processing">Processing</option>
                         <option value="failed">Failed</option>
+                        <option value="throttled">Throttled</option>
                         <option value="processed">Processed</option>
                     </select>
                 </label>

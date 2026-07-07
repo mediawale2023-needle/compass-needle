@@ -3,7 +3,7 @@
 # 1. Start the Backend (FastAPI) in the background
 # We use '&' to tell it to run in the background so the script continues.
 echo "Starting Backend API..."
-uvicorn main:app --host 0.0.0.0 --port 8000 &
+uvicorn main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*' &
 
 # 2. Wait 5 seconds to ensure API is ready
 sleep 5

@@ -47,7 +47,7 @@ except Exception:
 try:
     from slowapi import _rate_limit_exceeded_handler
     from slowapi.errors import RateLimitExceeded
-    from core.rate_limiter import limiter, RATE_WEBHOOK
+    from core.rate_limiter import limiter
     _rate_limiting_enabled = True
 except Exception:
     _rate_limiting_enabled = False
@@ -2030,12 +2030,6 @@ def get_pending_incomplete_case(phone: str, tenant_id: int):
     except Exception as e:
         logger.warning("Pending incomplete case lookup failed: %s", e)
     return None
-
-
-# ─────────────────────────────────────────
-# WHATSAPP WEBHOOK (Meta Cloud API)
-# ─────────────────────────────────────────
-_webhook_decorate = limiter.limit(RATE_WEBHOOK) if _rate_limiting_enabled else (lambda f: f)
 
 
 @app.get("/whatsapp/webhook")
@@ -4812,6 +4806,12 @@ def _process_incoming_message(
 _INBOUND_RECEIVED_RETRY_SECONDS = 30
 _INBOUND_PROCESSING_STALE_SECONDS = 10 * 60
 _INBOUND_SWEEP_INTERVAL_SECONDS = 2 * 60
+_INBOUND_SENDER_THROTTLE_MAX_MESSAGES = int(os.getenv("WA_INBOUND_SENDER_THROTTLE_MAX", "10"))
+_INBOUND_SENDER_THROTTLE_WINDOW_SECONDS = int(os.getenv("WA_INBOUND_SENDER_THROTTLE_WINDOW_SECONDS", "300"))
+_INBOUND_SENDER_THROTTLE_ERROR = (
+    f"sender throttle exceeded: more than {_INBOUND_SENDER_THROTTLE_MAX_MESSAGES} "
+    f"messages in {_INBOUND_SENDER_THROTTLE_WINDOW_SECONDS} seconds"
+)
 
 
 def _build_inbound_payload_snapshot(entry: dict, msg: dict) -> dict:
@@ -4923,6 +4923,7 @@ def _claim_inbound_ledger_row(inbound_ledger_id: int) -> dict | None:
                       AND (
                           status = 'received'
                           OR status = 'failed'
+                          OR status = 'throttled'
                           OR (status = 'processing' AND claimed_at IS NOT NULL AND claimed_at < :stale_cutoff)
                       )
                     RETURNING *
@@ -4934,6 +4935,62 @@ def _claim_inbound_ledger_row(inbound_ledger_id: int) -> dict | None:
     except Exception as exc:
         logger.warning("Failed to claim inbound ledger row %s: %s", inbound_ledger_id, exc)
         return None
+
+
+def _is_inbound_sender_over_throttle(row: dict) -> bool:
+    sender = str(row.get("sender_phone") or "").strip()
+    if not sender or _INBOUND_SENDER_THROTTLE_MAX_MESSAGES <= 0:
+        return False
+
+    tenant_id = row.get("tenant_id")
+    try:
+        if tenant_id is not None and _is_registered_staff_sender(sender, int(tenant_id)):
+            return False
+    except Exception as exc:
+        logger.warning("Failed staff throttle exemption check for sender=%s tenant=%s: %s", sender, tenant_id, exc)
+
+    cutoff = _utcnow() - timedelta(seconds=_INBOUND_SENDER_THROTTLE_WINDOW_SECONDS)
+    try:
+        with engine.connect() as conn:
+            count = conn.execute(
+                text(
+                    """
+                    SELECT COUNT(*) AS count
+                    FROM wa_inbound_messages
+                    WHERE sender_phone = :sender_phone
+                      AND last_received_at >= :cutoff
+                      AND status IN ('processing', 'processed', 'failed', 'throttled')
+                    """
+                ),
+                {"sender_phone": sender, "cutoff": cutoff},
+            ).scalar() or 0
+        return int(count) > _INBOUND_SENDER_THROTTLE_MAX_MESSAGES
+    except Exception as exc:
+        logger.warning("Inbound sender throttle check failed for sender=%s: %s", sender, exc)
+        return False
+
+
+def _mark_inbound_ledger_throttled(inbound_ledger_id: int, error_text: str = _INBOUND_SENDER_THROTTLE_ERROR) -> None:
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    UPDATE wa_inbound_messages
+                    SET status = 'throttled',
+                        updated_at = :now,
+                        last_error = :error_text
+                    WHERE id = :inbound_id
+                    """
+                ),
+                {
+                    "inbound_id": inbound_ledger_id,
+                    "now": _utcnow(),
+                    "error_text": (error_text or "")[:4000],
+                },
+            )
+    except Exception as exc:
+        logger.warning("Failed to mark inbound ledger row %s throttled: %s", inbound_ledger_id, exc)
 
 
 def _mark_inbound_ledger_processed(inbound_ledger_id: int) -> None:
@@ -5102,6 +5159,10 @@ def _process_inbound_ledger_row(inbound_ledger_id: int) -> bool:
     if not claimed_row:
         return False
 
+    if _is_inbound_sender_over_throttle(claimed_row):
+        _mark_inbound_ledger_throttled(inbound_ledger_id)
+        return True
+
     try:
         _dispatch_inbound_ledger_row(claimed_row)
         _mark_inbound_ledger_processed(inbound_ledger_id)
@@ -5171,7 +5232,6 @@ def _start_inbound_ledger_sweeper() -> None:
 
 
 @app.post("/whatsapp/webhook")
-@_webhook_decorate
 async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     # ── Validate Meta signature (X-Hub-Signature-256) — MANDATORY ──
     meta_app_secret = _get_meta_app_secret()
@@ -5196,42 +5256,45 @@ async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
         logger.warning("Webhook rejected: invalid JSON body")
         raise HTTPException(status_code=400, detail="Invalid JSON body")
 
-    # Meta sends a status update or a real message — ignore status pings
-    try:
-        entry = data["entry"][0]["changes"][0]["value"]
-    except (KeyError, IndexError):
+    received_count = 0
+    for entry_item in data.get("entry") or []:
+        for change in entry_item.get("changes") or []:
+            entry = change.get("value") or {}
+            messages = entry.get("messages") or []
+            if not messages:
+                continue
+
+            display_number = entry.get("metadata", {}).get("display_phone_number", "")
+            if display_number and not display_number.startswith("+"):
+                display_number = f"+{display_number}"
+            current_tenant = _resolve_tenant(display_number) if display_number else None
+
+            for msg in messages:
+                msg_id = str(msg.get("id") or "").strip()
+                msg_type = str(msg.get("type") or "unknown").strip().lower()
+                sender = str(msg.get("from") or "").strip()
+                if not sender:
+                    continue
+
+                synthetic_seed = raw_body + sender.encode() + str(received_count).encode()
+                synthetic_msg_id = msg_id or f"synthetic:{hashlib.sha256(synthetic_seed).hexdigest()}"
+                inbound_row = _record_inbound_ledger_row(
+                    meta_message_id=synthetic_msg_id,
+                    tenant_id=current_tenant,
+                    sender_phone=sender,
+                    receiver_number=display_number,
+                    message_type=msg_type or "unknown",
+                    payload_snapshot=_build_inbound_payload_snapshot(entry, msg),
+                )
+                if not inbound_row:
+                    raise HTTPException(status_code=500, detail="Failed to persist inbound message")
+
+                received_count += 1
+                background_tasks.add_task(_process_inbound_ledger_row, int(inbound_row["id"]))
+
+    if not received_count:
         return {"status": "ignored"}
-
-    messages = entry.get("messages")
-    if not messages:
-        return {"status": "ignored"}  # delivery receipt / status update
-
-    msg = messages[0]
-    msg_id = str(msg.get("id") or "").strip()
-    msg_type = str(msg.get("type") or "unknown").strip().lower()
-    sender = msg.get("from", "").strip()  # bare number e.g. "919876543210"
-    if not sender:
-        return {"status": "ignored"}
-
-    # Extract business phone number for tenant routing
-    display_number = entry.get("metadata", {}).get("display_phone_number", "")
-    if display_number and not display_number.startswith("+"):
-        display_number = f"+{display_number}"
-    current_tenant = _resolve_tenant(display_number) if display_number else None
-    synthetic_msg_id = msg_id or f"synthetic:{hashlib.sha256(raw_body).hexdigest()}"
-    inbound_row = _record_inbound_ledger_row(
-        meta_message_id=synthetic_msg_id,
-        tenant_id=current_tenant,
-        sender_phone=sender,
-        receiver_number=display_number,
-        message_type=msg_type or "unknown",
-        payload_snapshot=_build_inbound_payload_snapshot(entry, msg),
-    )
-    if not inbound_row:
-        raise HTTPException(status_code=500, detail="Failed to persist inbound message")
-
-    background_tasks.add_task(_process_inbound_ledger_row, int(inbound_row["id"]))
-    return {"status": "received"}
+    return {"status": "received", "received_count": received_count}
 
 
 # ─────────────────────────────────────────

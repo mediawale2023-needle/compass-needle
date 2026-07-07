@@ -1275,7 +1275,7 @@ class WAInboundMessage(Base):
     sender_phone = Column(String, nullable=False, index=True)
     receiver_number = Column(String, nullable=True)
     message_type = Column(String, nullable=False, index=True)
-    status = Column(String, default="received", nullable=False, index=True)  # received|processing|processed|failed
+    status = Column(String, default="received", nullable=False, index=True)  # received|processing|processed|failed|throttled
     delivery_attempts = Column(Integer, default=1, nullable=False)
     retry_count = Column(Integer, default=0, nullable=False)
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=True, index=True)
