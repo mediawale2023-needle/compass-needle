@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-07-07
+- Request: Push and deploy the durable WhatsApp burst-intake fix.
+- Summary: Pushed commit `262c0434` (`Make WhatsApp intake durable under bursts`) to `origin/main`, publishing the webhook no-loss intake changes, per-sender ledger-stage throttling, batched Meta message persistence, admin throttled-row visibility, and uvicorn proxy-header flags. This `main` push should trigger the EC2 backend deploy workflow.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Deployment was starting after the push; verify the GitHub Actions backend deploy run and then smoke-check `/health` plus a signed webhook/burst path if available.
+
+- Date: 2026-07-07
 - Request: Make WhatsApp webhook intake durable under large bursts without losing messages, then push and deploy.
 - Summary: Removed the SlowAPI limiter from `POST /whatsapp/webhook` so valid Meta deliveries are not rejected before persistence, changed the webhook to persist every message in every Meta entry/change batch, and kept HMAC validation as the intake gate. Added per-sender processing throttling after ledger claim so noisy senders are marked `throttled` in `wa_inbound_messages` instead of blocking ingestion, surfaced throttled rows in admin inbound health/filters, and added uvicorn proxy-header flags in `Dockerfile` and `entrypoint.sh` so IP-based limits like login see real forwarded client IPs behind Caddy. Added focused tests for >20 webhook deliveries, batched Meta messages, and sender throttling after durable ledger insert.
 - Files touched: `main.py`, `admin_api.py`, `sansadx_backend/db.py`, `admin/components/admin-domains/system/WhatsAppInboundPage.jsx`, `Dockerfile`, `entrypoint.sh`, `tests/test_whatsapp_inbound_ledger.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
