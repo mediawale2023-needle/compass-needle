@@ -1,0 +1,99 @@
+name: Smoke Check WhatsApp Intake
+
+# Read-only check of recent WhatsApp intake state after a manual phone
+# smoke test. Logs are public — phone numbers are masked to last 4
+# digits and message text is never printed.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: aws-ec2-backend-production
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Recent Inbound Rows And Cases
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions smoke check'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
+
+      - name: Query Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 8m
+          script: |
+            set -euo pipefail
+            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
+            PSQL='docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml exec -T postgres sh -c'
+
+            echo "== tenants matching adhav =="
+            $PSQL 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F" | " -c "
+              SELECT id, name, constituency FROM tenants WHERE name ILIKE '\''%adhav%'\'' OR constituency ILIKE '\''%adhav%'\'';"' | sed 's/^/  /'
+
+            echo "== inbound rows, last 6 hours (phone masked) =="
+            $PSQL 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F" | " -c "
+              SELECT id, tenant_id, '\''***'\''||RIGHT(sender_phone,4) AS sender, message_type, status,
+                     retry_count, case_id, to_char(last_received_at, '\''HH24:MI:SS'\'') AS received
+              FROM wa_inbound_messages
+              WHERE last_received_at > NOW() - INTERVAL '\''6 hours'\''
+              ORDER BY id;"' | sed 's/^/  /'
+
+            echo "== inbound status summary, last 6 hours =="
+            $PSQL 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F" | " -c "
+              SELECT status, COUNT(*) FROM wa_inbound_messages
+              WHERE last_received_at > NOW() - INTERVAL '\''6 hours'\'' GROUP BY status;"' | sed 's/^/  /'
+
+            echo "== cases created last 6 hours (phone masked, no text) =="
+            $PSQL 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F" | " -c "
+              SELECT c.id, c.tenant_id, '\''***'\''||RIGHT(c.user_phone,4) AS phone, c.category, c.status,
+                     COALESCE(c.location,'\''-'\''), LENGTH(c.raw_message) AS msg_len,
+                     to_char(c.created_at, '\''HH24:MI:SS'\'') AS created
+              FROM cases c
+              WHERE c.created_at > NOW() - INTERVAL '\''6 hours'\''
+              ORDER BY c.id;"' | sed 's/^/  /'
+
+            echo "== outbound replies last 6 hours (phone masked, no text) =="
+            $PSQL 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F" | " -c "
+              SELECT id, tenant_id, '\''***'\''||RIGHT(to_number,4) AS to_num, status, attempt_count,
+                     to_char(created_at, '\''HH24:MI:SS'\'') AS created
+              FROM wa_outbound_messages
+              WHERE created_at > NOW() - INTERVAL '\''6 hours'\''
+              ORDER BY id;"' | sed 's/^/  /'
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true
