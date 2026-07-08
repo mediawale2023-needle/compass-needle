@@ -1,0 +1,121 @@
+name: Verify Host Ops
+
+# Manually triggered pilot-readiness verification of the EC2 host:
+# backup config + a real backup run + S3 object confirmation, cron
+# installation, inbound ledger state, and Meta token expiry.
+# Logs are public — print presence/dates/counts only, never values.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: aws-ec2-backend-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify Backup, Crons, Ledger, Meta Token
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions verify'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
+
+      - name: Verify Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 12m
+          script: |
+            set -euo pipefail
+            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
+
+            echo "== 1. backup.env =="
+            if [ -f /opt/compass-needle/backup.env ]; then
+              echo "backup.env: PRESENT with keys:"
+              grep -oE '^[A-Z_]+=' /opt/compass-needle/backup.env | tr -d '=' | sed 's/^/  - /'
+            else
+              echo "backup.env: MISSING"
+            fi
+
+            echo "== 2. scripts and crons =="
+            ls /opt/compass-needle/scripts/ 2>/dev/null | sed 's/^/  script: /' || echo "  scripts dir MISSING"
+            for c in /etc/cron.d/compass-needle-postgres-backup /etc/cron.d/compass-needle-jobs; do
+              [ -f "$c" ] && echo "  cron PRESENT: $c" || echo "  cron MISSING: $c"
+            done
+
+            echo "== 3. run backup now =="
+            if [ -f /opt/compass-needle/backup.env ] && [ -x /opt/compass-needle/scripts/backup_postgres_to_s3.sh ]; then
+              if /opt/compass-needle/scripts/backup_postgres_to_s3.sh > /tmp/verify_backup.log 2>&1; then
+                echo "  backup script: EXIT 0"
+              else
+                echo "  backup script: FAILED — last lines (paths masked):"
+                tail -5 /tmp/verify_backup.log | sed -E 's/s3:\/\/[^ ]+/s3:\/\/***MASKED***/g'
+              fi
+            else
+              echo "  SKIPPED (backup.env or script missing)"
+            fi
+
+            echo "== 4. S3 objects (dates/sizes only) =="
+            if [ -f /opt/compass-needle/backup.env ]; then
+              set -a; . /opt/compass-needle/backup.env; set +a
+              if [ -n "${BACKUP_S3_URI:-}" ] && command -v aws >/dev/null; then
+                COUNT=$(aws s3 ls "$BACKUP_S3_URI" --recursive | wc -l)
+                echo "  object count: $COUNT"
+                echo "  latest (date time size):"
+                aws s3 ls "$BACKUP_S3_URI" --recursive | sort | tail -3 | awk '{print "   ", $1, $2, $3}'
+              else
+                echo "  BACKUP_S3_URI unset or aws CLI missing"
+              fi
+            else
+              echo "  SKIPPED (no backup.env)"
+            fi
+
+            echo "== 5. inbound ledger =="
+            docker compose -f "$COMPOSE" exec -T postgres sh -c \
+              'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "SELECT status, COUNT(*) FROM wa_inbound_messages GROUP BY status ORDER BY status;"' \
+              | sed 's/^/  /' || echo "  wa_inbound_messages MISSING"
+
+            echo "== 6. Meta token expiry =="
+            TOKEN=$(docker compose -f "$COMPOSE" exec -T backend printenv META_ACCESS_TOKEN 2>/dev/null | tr -d '\r\n' || true)
+            if [ -n "$TOKEN" ]; then
+              curl -s "https://graph.facebook.com/debug_token?input_token=${TOKEN}&access_token=${TOKEN}" \
+                | python3 -c 'import json,sys,datetime; d=json.load(sys.stdin).get("data",{}); exp=d.get("expires_at"); print("  valid:", d.get("is_valid")); print("  type:", d.get("type")); print("  expires_at:", "NEVER (permanent)" if exp==0 else (datetime.datetime.utcfromtimestamp(exp).isoformat()+"Z" if exp else "unknown"))' \
+                || echo "  debug_token call failed"
+            else
+              echo "  META_ACCESS_TOKEN not set in backend container"
+            fi
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true
