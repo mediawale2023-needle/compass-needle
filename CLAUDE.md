@@ -269,6 +269,32 @@ Incoming WA message → case_query_parser.py (NLP → filters)
 
 ---
 
+## Citizen Text Intake — Debounced Buffering
+
+Citizens often split one grievance across several rapid WhatsApp messages, or send
+several distinct grievances back to back. Incoming citizen texts are therefore NOT
+classified per-message. Instead (`main.py`):
+
+1. Each text is appended to a per-(sender, tenant) `wa_text_buffer` row and a debounce
+   timer is (re)armed — flush after `WA_TEXT_BUFFER_FLUSH_SECONDS` (default 35s) of
+   silence, hard-capped at `WA_TEXT_BUFFER_MAX_WAIT_SECONDS` (default 120s).
+2. On flush, `segment_citizen_messages()` (`sansadx_backend/ai_engine.py`) asks GPT
+   whether the burst is one grievance or several — fragments merge, distinct issues
+   split (falls back to one combined segment on any AI failure).
+3. Each segment runs through the normal `_process_incoming_message` pipeline → one
+   case + one acknowledgement per distinct grievance.
+
+**Bypasses the buffer:** staff/PA messages (need instant query replies), emergency
+keyword matches, retried ledger rows, media messages, and any buffering failure
+(falls back to immediate processing — a message is never dropped).
+
+Same-sender messages are serialized via a per-phone Postgres advisory lock so
+follow-ups cannot race the first message's clarification/thread state. Stale buffers
+are recovered by a startup + periodic sweep (deploy-safe, mirrors `letterbox_batches`).
+Set `WA_TEXT_BUFFER_ENABLED=0` to disable buffering entirely.
+
+---
+
 ## Localized System Replies (`modules/localized_replies.py`)
 
 WhatsApp-ready reply templates for system flow states (not AI-generated). Currently covers:
