@@ -2,7 +2,7 @@
 main.py — Needle Parliamentary Intelligence Platform
 Backend Entry Point (FastAPI)
 """
-from sansadx_backend.ai_engine import ask_chatgpt_agent, detect_input_language, detect_input_language_confident, get_offensive_warning_reply
+from sansadx_backend.ai_engine import ask_chatgpt_agent, detect_input_language, detect_input_language_confident, get_offensive_warning_reply, segment_citizen_messages
 from sansadx_backend.unified_taxonomy import (
     build_taxonomy_fields,
     infer_personal_request_category,
@@ -757,6 +757,34 @@ try:
         logger.info("Migration: letterbox_batches table ready")
 except Exception as e:
     logger.warning(f"letterbox_batches migration skipped: {e}")
+
+# ─── Migration: wa_text_buffer table (debounced citizen text aggregation) ───
+# Citizens often split one grievance across several rapid WhatsApp messages.
+# Incoming citizen texts are appended here and flushed as one unit after a
+# short inactivity window (same pattern as letterbox_batches for images).
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS wa_text_buffer (
+                id               SERIAL PRIMARY KEY,
+                tenant_id        INTEGER NOT NULL REFERENCES tenants(id),
+                sender_phone     VARCHAR NOT NULL,
+                receiver_number  VARCHAR NOT NULL DEFAULT '',
+                messages         JSONB   NOT NULL DEFAULT '[]',
+                status           VARCHAR NOT NULL DEFAULT 'pending',
+                first_message_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                last_message_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+                created_at       TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_text_buffer_active
+            ON wa_text_buffer (sender_phone, tenant_id)
+            WHERE status = 'pending'
+        """))
+        logger.info("Migration: wa_text_buffer table ready")
+except Exception as e:
+    logger.warning(f"wa_text_buffer migration skipped: {e}")
 
 # ─── Migration: parliamentary data tables (18th Lok Sabha intelligence feed) ───
 try:
@@ -4483,7 +4511,11 @@ def _process_incoming_message(
                     best_archived_score = score
                     best_archived_index = idx
 
-            if current_score >= _CONTACT_BUFFER_SIMILARITY or best_archived_score >= _CONTACT_BUFFER_SIMILARITY:
+            # Messages sent shortly after the previous one are far more likely a
+            # continuation of the same conversation — lower the merge gate
+            # accordingly (0.55 within 30 min, 0.70 within 2 h, 0.90 beyond).
+            _merge_threshold = _effective_similarity_threshold(root_contact_case)
+            if current_score >= _merge_threshold or best_archived_score >= _merge_threshold:
                 if best_archived_score > current_score and best_archived_index >= 0:
                     logger.info(
                         "Contact-thread follow-up promoted archived issue on legacy case %s for sender=%s tenant=%s",
@@ -4508,8 +4540,16 @@ def _process_incoming_message(
                     try:
                         with engine.begin() as conn:
                             conn.execute(
-                                text("UPDATE cases SET raw_message = :msg, updated_at = :now WHERE id = :cid"),
-                                {"msg": message_body, "now": _utcnow(), "cid": root_contact_case["id"]},
+                                text("""
+                                    UPDATE cases
+                                    SET raw_message = CASE
+                                            WHEN COALESCE(raw_message, '') = '' THEN :msg
+                                            ELSE substr(raw_message || :sep || :msg, 1, 12000)
+                                        END,
+                                        updated_at = :now
+                                    WHERE id = :cid
+                                """),
+                                {"msg": message_body, "sep": "\n\n[Follow-up] ", "now": _utcnow(), "cid": root_contact_case["id"]},
                             )
                     except Exception as exc:
                         logger.warning("Failed to bump latest message timestamp for legacy case %s: %s", root_contact_case["id"], exc)
@@ -4552,6 +4592,7 @@ def _process_incoming_message(
                 current_tenant=current_tenant,
                 language_hint=language_hint,
                 media_source=media_source,
+                thread_context=_get_thread_context_summary(recent_contact_cases),
             )
             previous_issue = _thread_issue_from_row(root_contact_case)
             archived_items.append(previous_issue)
@@ -4613,7 +4654,10 @@ def _process_incoming_message(
                 best_score = score
                 best_case = case_row
 
-        if best_case and best_score >= _CONTACT_BUFFER_SIMILARITY:
+        # Tiered merge gate: quick follow-ups merge more easily (0.55 within
+        # 30 min, 0.70 within 2 h, 0.90 beyond).
+        _merge_threshold = _effective_similarity_threshold(latest_case)
+        if best_case and best_score >= _merge_threshold:
             logger.info(
                 "Contact-thread duplicate merged into case %s on thread=%s sender=%s tenant=%s",
                 best_case["id"],
@@ -4630,8 +4674,16 @@ def _process_incoming_message(
             try:
                 with engine.begin() as conn:
                     conn.execute(
-                        text("UPDATE cases SET raw_message = :msg, updated_at = :now WHERE id = :cid"),
-                        {"msg": message_body, "now": _utcnow(), "cid": best_case["id"]},
+                        text("""
+                            UPDATE cases
+                            SET raw_message = CASE
+                                    WHEN COALESCE(raw_message, '') = '' THEN :msg
+                                    ELSE substr(raw_message || :sep || :msg, 1, 12000)
+                                END,
+                                updated_at = :now
+                            WHERE id = :cid
+                        """),
+                        {"msg": message_body, "sep": "\n\n[Follow-up] ", "now": _utcnow(), "cid": best_case["id"]},
                     )
             except Exception as exc:
                 logger.warning("Failed to bump latest message timestamp for case %s: %s", best_case["id"], exc)
@@ -4682,6 +4734,7 @@ def _process_incoming_message(
             current_tenant=current_tenant,
             language_hint=language_hint,
             media_source=media_source,
+            thread_context=_get_thread_context_summary(recent_contact_cases),
         )
         enrichment["meta_data"]["contact_intake_action"] = "thread_distinct_issue"
         enrichment["meta_data"]["contact_message_events"] = []
@@ -4764,6 +4817,7 @@ def _process_incoming_message(
             current_tenant=current_tenant,
             language_hint=language_hint,
             media_source=media_source,
+            thread_context=_get_thread_context_summary(recent_contact_cases),
         )
         sender_digits = re.sub(r"\D", "", sender or "")[-12:] or "anon"
         thread_id = f"ct-{current_tenant}-{sender_digits}-{case_id}"
@@ -4812,6 +4866,342 @@ _INBOUND_SENDER_THROTTLE_ERROR = (
     f"sender throttle exceeded: more than {_INBOUND_SENDER_THROTTLE_MAX_MESSAGES} "
     f"messages in {_INBOUND_SENDER_THROTTLE_WINDOW_SECONDS} seconds"
 )
+# Throttled rows are retried by the sweeper once the throttle window has passed,
+# but never replayed if older than this cap (protects against ancient backlog).
+_INBOUND_THROTTLED_RETRY_MAX_AGE_HOURS = 24
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PER-SENDER PROCESSING LOCK
+# Messages from the same phone number must be processed in order — otherwise a
+# citizen's second fragment races the first one's clarification/thread state
+# and both take the "brand new case" path. Best-effort Postgres advisory lock:
+# if the lock backend is unavailable (e.g. SQLite in tests) we proceed
+# unserialized rather than fail.
+# ─────────────────────────────────────────────────────────────────────────────
+_SENDER_LOCK_TIMEOUT_SECONDS = int(os.getenv("WA_SENDER_LOCK_TIMEOUT_SECONDS", "45"))
+
+
+def _sender_lock_key(sender: str) -> int:
+    digits = re.sub(r"\D", "", sender or "") or (sender or "")
+    digest = hashlib.sha256(f"wa-sender:{digits}".encode()).digest()
+    return int.from_bytes(digest[:8], "big", signed=True)
+
+
+def _acquire_sender_processing_lock(sender: str, timeout_seconds: float | None = None):
+    """
+    Acquire the per-sender advisory lock. Returns (conn, acquired, key).
+    Never raises — on any failure returns acquired=False so processing
+    continues without serialization.
+    """
+    timeout = _SENDER_LOCK_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
+    key = _sender_lock_key(sender)
+    conn = None
+    try:
+        conn = engine.connect()
+        deadline = _time.monotonic() + timeout
+        while True:
+            got = conn.execute(
+                sa_text("SELECT pg_try_advisory_lock(:key)"), {"key": key}
+            ).scalar()
+            if got:
+                return conn, True, key
+            if _time.monotonic() >= deadline:
+                logger.warning(
+                    "Sender lock timeout (%ss) for %s — proceeding without serialization",
+                    timeout, sender,
+                )
+                return conn, False, key
+            _time.sleep(0.2)
+    except Exception as exc:
+        logger.warning("Sender lock unavailable for %s (%s) — proceeding without serialization", sender, exc)
+        return conn, False, key
+
+
+def _release_sender_processing_lock(conn, key: int, acquired: bool) -> None:
+    try:
+        if conn is not None:
+            if acquired:
+                conn.execute(sa_text("SELECT pg_advisory_unlock(:key)"), {"key": key})
+            conn.close()
+    except Exception as exc:
+        logger.warning("Sender lock release failed (auto-releases on connection close): %s", exc)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CITIZEN TEXT BUFFER (debounced aggregation)
+# Citizens split one grievance across rapid messages, or send several distinct
+# grievances back to back. Instead of classifying each message in isolation,
+# citizen texts are appended to a per-(sender, tenant) buffer and flushed as a
+# unit after _TEXT_BUFFER_FLUSH_SECONDS of silence (hard-capped at
+# _TEXT_BUFFER_MAX_WAIT_SECONDS from the first message). At flush time the
+# burst is segmented into distinct grievances and each segment goes through the
+# normal _process_incoming_message pipeline.
+# Staff messages, emergencies and retried rows bypass the buffer.
+# ─────────────────────────────────────────────────────────────────────────────
+_TEXT_BUFFER_ENABLED = os.getenv("WA_TEXT_BUFFER_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
+_TEXT_BUFFER_FLUSH_SECONDS = int(os.getenv("WA_TEXT_BUFFER_FLUSH_SECONDS", "35"))
+_TEXT_BUFFER_MAX_WAIT_SECONDS = int(os.getenv("WA_TEXT_BUFFER_MAX_WAIT_SECONDS", "120"))
+_TEXT_BUFFER_MAX_MESSAGES = int(os.getenv("WA_TEXT_BUFFER_MAX_MESSAGES", "12"))
+_TEXT_BUFFER_STALE_PROCESSING_SECONDS = 10 * 60
+_text_buffer_timers: dict[tuple[str, int], threading.Timer] = {}
+_text_buffer_timer_lock = threading.Lock()
+
+
+def _coerce_buffer_datetime(value) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).replace(tzinfo=None)
+    except Exception:
+        return _utcnow()
+
+
+def _parse_buffer_messages(raw) -> list[dict]:
+    if isinstance(raw, list):
+        return [dict(item) for item in raw if isinstance(item, dict)]
+    try:
+        parsed = json.loads(raw or "[]")
+    except Exception:
+        parsed = []
+    return [dict(item) for item in parsed if isinstance(item, dict)] if isinstance(parsed, list) else []
+
+
+def _should_buffer_citizen_text(sender: str, tenant_id, message_body: str) -> bool:
+    """True when this text should go through the debounce buffer."""
+    if not _TEXT_BUFFER_ENABLED or tenant_id is None:
+        return False
+    try:
+        if _is_registered_staff_sender(sender, int(tenant_id)):
+            return False  # staff queries need immediate replies
+    except Exception as exc:
+        logger.warning("Staff check failed for buffering decision (%s) — processing immediately", exc)
+        return False
+    try:
+        from modules.emergency_keywords import detect_emergency_severity
+        if detect_emergency_severity(message_body):
+            return False  # emergencies must not wait out the debounce window
+    except Exception:
+        pass
+    return True
+
+
+def _add_to_text_buffer(
+    tenant_id: int,
+    sender: str,
+    receiver_number: str,
+    message_body: str,
+    msg_id: str,
+    inbound_ledger_id: int | None,
+) -> dict:
+    """
+    Append one citizen text to the pending buffer for this sender, creating the
+    buffer row if needed. Returns {"count": n, "first_message_at": datetime}.
+    Raises on failure — callers fall back to immediate processing.
+    """
+    now = _utcnow()
+    item = {
+        "body": message_body,
+        "msg_id": msg_id or "",
+        "inbound_ledger_id": inbound_ledger_id,
+        "received_at": now.isoformat(),
+    }
+    for _attempt in range(2):
+        with engine.begin() as conn:
+            row = conn.execute(
+                text("""
+                    SELECT id, messages, first_message_at FROM wa_text_buffer
+                    WHERE sender_phone = :phone AND tenant_id = :tid AND status = 'pending'
+                    LIMIT 1
+                """),
+                {"phone": sender, "tid": tenant_id},
+            ).fetchone()
+
+            if row:
+                items = _parse_buffer_messages(row[1])
+                items.append(item)
+                updated = conn.execute(
+                    text("""
+                        UPDATE wa_text_buffer
+                        SET messages = :msgs, last_message_at = :now
+                        WHERE id = :id AND status = 'pending'
+                    """),
+                    {"msgs": json.dumps(items, ensure_ascii=False), "now": now, "id": row[0]},
+                )
+                if updated.rowcount:
+                    return {"count": len(items), "first_message_at": _coerce_buffer_datetime(row[2])}
+                # Buffer was claimed by a concurrent flush between our SELECT and
+                # UPDATE — retry once, which will create a fresh buffer.
+                continue
+
+            try:
+                conn.execute(
+                    text("""
+                        INSERT INTO wa_text_buffer
+                            (tenant_id, sender_phone, receiver_number, messages,
+                             status, first_message_at, last_message_at, created_at)
+                        VALUES (:tid, :phone, :recv, :msgs, 'pending', :now, :now, :now)
+                    """),
+                    {
+                        "tid": tenant_id,
+                        "phone": sender,
+                        "recv": receiver_number or "",
+                        "msgs": json.dumps([item], ensure_ascii=False),
+                        "now": now,
+                    },
+                )
+                return {"count": 1, "first_message_at": now}
+            except Exception:
+                if _attempt == 0:
+                    continue  # concurrent insert won the unique index — retry as append
+                raise
+    raise RuntimeError(f"Could not append to text buffer for {sender} (tenant={tenant_id})")
+
+
+def _cancel_text_buffer_timer(sender: str, tenant_id: int) -> None:
+    key = (sender, int(tenant_id))
+    with _text_buffer_timer_lock:
+        timer = _text_buffer_timers.pop(key, None)
+    if timer:
+        timer.cancel()
+
+
+def _schedule_text_buffer_flush(sender: str, tenant_id: int, receiver_number: str, buffer_info: dict) -> None:
+    """
+    (Re)arm the debounce timer for this sender's buffer. Each new message
+    pushes the flush out to FLUSH_SECONDS of silence, but never beyond
+    MAX_WAIT_SECONDS from the first buffered message.
+    """
+    count = int(buffer_info.get("count") or 1)
+    first_at = _coerce_buffer_datetime(buffer_info.get("first_message_at"))
+    if count >= _TEXT_BUFFER_MAX_MESSAGES:
+        delay = 1.0
+    else:
+        age = max(0.0, (_utcnow() - first_at).total_seconds())
+        delay = max(1.0, min(float(_TEXT_BUFFER_FLUSH_SECONDS), _TEXT_BUFFER_MAX_WAIT_SECONDS - age))
+
+    key = (sender, int(tenant_id))
+    timer = threading.Timer(delay, _flush_text_buffer, args=(sender, int(tenant_id), receiver_number))
+    timer.daemon = True
+    with _text_buffer_timer_lock:
+        old = _text_buffer_timers.pop(key, None)
+        if old:
+            old.cancel()
+        _text_buffer_timers[key] = timer
+    timer.start()
+
+
+def _flush_text_buffer(sender: str, tenant_id: int, receiver_number: str) -> None:
+    """
+    Claim and process this sender's pending text buffer: segment the burst into
+    distinct grievances and run each through the normal intake pipeline.
+    Called by the debounce timer or the stale-buffer sweep.
+    """
+    _cancel_text_buffer_timer(sender, tenant_id)
+
+    lock_conn, lock_acquired, lock_key = _acquire_sender_processing_lock(sender)
+    try:
+        try:
+            with engine.begin() as conn:
+                row = conn.execute(
+                    text("""
+                        UPDATE wa_text_buffer SET status = 'processing'
+                        WHERE sender_phone = :phone AND tenant_id = :tid AND status = 'pending'
+                        RETURNING id, messages, receiver_number
+                    """),
+                    {"phone": sender, "tid": tenant_id},
+                ).fetchone()
+        except Exception as exc:
+            logger.error("Failed to claim text buffer for %s (tenant=%s): %s", sender, tenant_id, exc)
+            return
+        if not row:
+            return  # already flushed or nothing pending
+
+        buffer_id = row[0]
+        items = _parse_buffer_messages(row[1])
+        receiver_number = receiver_number or str(row[2] or "")
+        bodies = [str(i.get("body") or "").strip() for i in items]
+        bodies = [b for b in bodies if b]
+        if not bodies:
+            _mark_text_buffer_status(buffer_id, "done")
+            return
+
+        try:
+            if len(bodies) == 1:
+                segments = [bodies[0]]
+            else:
+                segments = segment_citizen_messages(bodies)
+                if not segments:
+                    segments = ["\n".join(bodies)]
+            logger.info(
+                "Text buffer %s flushed: %d message(s) → %d grievance segment(s) from %s (tenant=%s)",
+                buffer_id, len(bodies), len(segments), sender, tenant_id,
+            )
+            for idx, segment_text in enumerate(segments):
+                source = items[idx] if idx < len(items) else items[-1]
+                _process_incoming_message(
+                    sender,
+                    segment_text,
+                    receiver_number,
+                    str(source.get("msg_id") or ""),
+                    inbound_ledger_id=source.get("inbound_ledger_id"),
+                )
+            _mark_text_buffer_status(buffer_id, "done")
+        except Exception:
+            logger.exception("Text buffer %s processing failed for %s (tenant=%s)", buffer_id, sender, tenant_id)
+            _mark_text_buffer_status(buffer_id, "failed")
+    finally:
+        _release_sender_processing_lock(lock_conn, lock_key, lock_acquired)
+
+
+def _mark_text_buffer_status(buffer_id: int, status: str) -> None:
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE wa_text_buffer SET status = :status WHERE id = :id"),
+                {"status": status, "id": buffer_id},
+            )
+    except Exception as exc:
+        logger.warning("Failed to mark text buffer %s as %s: %s", buffer_id, status, exc)
+
+
+def _sweep_stale_text_buffers() -> int:
+    """
+    Recover text buffers whose in-process timer was lost (deploy/crash) and
+    reset buffers stuck in 'processing'. Runs at startup and on the periodic
+    inbound sweep.
+    """
+    now = _utcnow()
+    flushed = 0
+    try:
+        stuck_cutoff = now - timedelta(seconds=_TEXT_BUFFER_STALE_PROCESSING_SECONDS)
+        with engine.begin() as conn:
+            conn.execute(
+                text("""
+                    UPDATE wa_text_buffer SET status = 'pending'
+                    WHERE status = 'processing' AND last_message_at <= :cutoff
+                """),
+                {"cutoff": stuck_cutoff},
+            )
+
+        pending_cutoff = now - timedelta(seconds=_TEXT_BUFFER_FLUSH_SECONDS + 10)
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text("""
+                    SELECT sender_phone, tenant_id, receiver_number FROM wa_text_buffer
+                    WHERE status = 'pending' AND last_message_at <= :cutoff
+                    LIMIT 25
+                """),
+                {"cutoff": pending_cutoff},
+            ).fetchall()
+        for sender_phone, tid, recv in rows:
+            _flush_text_buffer(str(sender_phone), int(tid), str(recv or ""))
+            flushed += 1
+        if flushed:
+            logger.info("Text buffer sweep flushed %d stale buffer(s)", flushed)
+    except Exception as exc:
+        logger.warning("Text buffer sweep failed (non-critical): %s", exc)
+    return flushed
 
 
 def _build_inbound_payload_snapshot(entry: dict, msg: dict) -> dict:
@@ -5069,6 +5459,23 @@ def _dispatch_inbound_ledger_row(row: dict) -> None:
             _handle_pa_move_command(sender, move_match.group(1), move_match.group(2), receiver_number)
             return
 
+        # Citizen texts go through the debounce buffer so a grievance split
+        # across rapid messages is classified as one unit. Staff messages,
+        # emergencies, and retries of already-linked rows bypass it.
+        if not existing_case_id and _should_buffer_citizen_text(sender, current_tenant, message_body):
+            try:
+                buffer_info = _add_to_text_buffer(
+                    int(current_tenant), sender, receiver_number,
+                    message_body, msg_id, inbound_ledger_id,
+                )
+                _schedule_text_buffer_flush(sender, int(current_tenant), receiver_number, buffer_info)
+                return
+            except Exception as exc:
+                logger.warning(
+                    "Text buffering failed for %s (tenant=%s): %s — processing immediately",
+                    sender, current_tenant, exc,
+                )
+
         _process_incoming_message(
             sender,
             message_body,
@@ -5163,6 +5570,11 @@ def _process_inbound_ledger_row(inbound_ledger_id: int) -> bool:
         _mark_inbound_ledger_throttled(inbound_ledger_id)
         return True
 
+    sender_for_lock = str(claimed_row.get("sender_phone") or "").strip()
+    lock_conn = lock_key = None
+    lock_acquired = False
+    if sender_for_lock:
+        lock_conn, lock_acquired, lock_key = _acquire_sender_processing_lock(sender_for_lock)
     try:
         _dispatch_inbound_ledger_row(claimed_row)
         _mark_inbound_ledger_processed(inbound_ledger_id)
@@ -5171,12 +5583,17 @@ def _process_inbound_ledger_row(inbound_ledger_id: int) -> bool:
         logger.exception("Inbound ledger processing failed for row %s", inbound_ledger_id)
         _mark_inbound_ledger_failed(inbound_ledger_id, str(exc))
         return False
+    finally:
+        if sender_for_lock:
+            _release_sender_processing_lock(lock_conn, lock_key, lock_acquired)
 
 
 def _sweep_pending_inbound_ledger_rows(limit: int = 25) -> int:
     now = _utcnow()
     received_cutoff = now - timedelta(seconds=_INBOUND_RECEIVED_RETRY_SECONDS)
     stale_processing_cutoff = now - timedelta(seconds=_INBOUND_PROCESSING_STALE_SECONDS)
+    throttle_retry_cutoff = now - timedelta(seconds=_INBOUND_SENDER_THROTTLE_WINDOW_SECONDS)
+    throttle_max_age_cutoff = now - timedelta(hours=_INBOUND_THROTTLED_RETRY_MAX_AGE_HOURS)
     try:
         with engine.connect() as conn:
             rows = conn.execute(
@@ -5191,6 +5608,10 @@ def _sweep_pending_inbound_ledger_rows(limit: int = 25) -> int:
                         status = 'processing'
                         AND claimed_at IS NOT NULL
                         AND claimed_at <= :stale_processing_cutoff
+                    ) OR (
+                        status = 'throttled'
+                        AND last_received_at <= :throttle_retry_cutoff
+                        AND last_received_at >= :throttle_max_age_cutoff
                     )
                     ORDER BY last_received_at ASC, id ASC
                     LIMIT :limit
@@ -5199,6 +5620,8 @@ def _sweep_pending_inbound_ledger_rows(limit: int = 25) -> int:
                 {
                     "received_cutoff": received_cutoff,
                     "stale_processing_cutoff": stale_processing_cutoff,
+                    "throttle_retry_cutoff": throttle_retry_cutoff,
+                    "throttle_max_age_cutoff": throttle_max_age_cutoff,
                     "limit": int(limit),
                 },
             ).fetchall()
@@ -5218,6 +5641,7 @@ def _sweep_pending_inbound_ledger_rows(limit: int = 25) -> int:
 def _schedule_inbound_ledger_sweep() -> None:
     try:
         _sweep_pending_inbound_ledger_rows()
+        _sweep_stale_text_buffers()
     finally:
         timer = threading.Timer(_INBOUND_SWEEP_INTERVAL_SECONDS, _schedule_inbound_ledger_sweep)
         timer.daemon = True
@@ -5394,6 +5818,7 @@ async def startup_jobs():
     await run_in_threadpool(_sweep_pending_citizen_acks)
     await run_in_threadpool(_send_due_case_clarification_followups)
     await run_in_threadpool(_sweep_pending_inbound_ledger_rows)
+    await run_in_threadpool(_sweep_stale_text_buffers)
     _start_inbound_ledger_sweeper()
     _start_keep_alive()
 
