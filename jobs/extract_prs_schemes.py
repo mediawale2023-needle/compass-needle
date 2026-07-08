@@ -132,7 +132,7 @@ def _gpt_extract_batch(subjects: list[str]) -> list[dict]:
     """
     try:
         import openai
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"), timeout=60.0)
     except Exception as e:
         logger.warning("OpenAI not available: %s", e)
         return []

@@ -674,7 +674,7 @@ def _openai_tag_batch(subjects: list[dict]) -> Optional[list[dict]]:
         key = os.environ.get("OPENAI_API_KEY")
         if not key:
             return None
-        client = OpenAI(api_key=key)
+        client = OpenAI(api_key=key, timeout=60.0)
         batch_json = json.dumps(subjects, ensure_ascii=False)
 
         def _call():

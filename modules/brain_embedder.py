@@ -68,9 +68,9 @@ def _get_client():
 
     try:
         if base_url:
-            _client = OpenAI(api_key=key, base_url=base_url)
+            _client = OpenAI(api_key=key, base_url=base_url, timeout=30.0)
         else:
-            _client = OpenAI(api_key=key)
+            _client = OpenAI(api_key=key, timeout=30.0)
     except Exception as e:
         logger.exception("Failed to construct OpenAI client: %s", e)
         return None

@@ -67,7 +67,7 @@ def get_valid_model():
     
     try:
         # Initialize OpenAI Client
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=api_key, timeout=60.0)
         return client
             
     except Exception as e:

@@ -11,7 +11,7 @@ def get_openai_client():
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         return None
-    return OpenAI(api_key=api_key)
+    return OpenAI(api_key=api_key, timeout=60.0)
 
 
 def ask_openai(prompt, temperature=0.7):

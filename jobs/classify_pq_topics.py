@@ -84,7 +84,7 @@ def _classify_batch(rows: list[dict]) -> dict[int, str]:
     """
     try:
         import openai
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"), timeout=60.0)
     except Exception as e:
         logger.error("OpenAI init failed: %s", e)
         return {r["id"]: "Other" for r in rows}
