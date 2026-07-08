@@ -59,6 +59,12 @@ except Exception:
 JWT_SECRET = os.getenv("JWT_SECRET", "")
 if not JWT_SECRET or len(JWT_SECRET) < 32:
     raise RuntimeError("JWT_SECRET must be set and at least 32 characters long")
+# Admin tokens sign with their own secret when ADMIN_JWT_SECRET is set, so an
+# MP-plane token can never pass admin verification (and vice versa). Falls back
+# to the shared JWT_SECRET so existing deployments keep working unchanged.
+ADMIN_JWT_SECRET = os.getenv("ADMIN_JWT_SECRET") or JWT_SECRET
+if len(ADMIN_JWT_SECRET) < 32:
+    raise RuntimeError("ADMIN_JWT_SECRET must be at least 32 characters long")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 4  # Longer session for admin
 MAX_LOGIN_ATTEMPTS = 5
@@ -166,7 +172,7 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 def create_admin_token(data: dict) -> str:
     payload = {**data, "iat": datetime.utcnow().timestamp(), "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)}
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return jwt.encode(payload, ADMIN_JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 def _is_token_revoked(username: str, token_issued_at: float) -> bool:
@@ -248,7 +254,7 @@ def _clear_login_failures(username: str) -> None:
 def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Verify JWT and ensure user has an admin role."""
     try:
-        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(credentials.credentials, ADMIN_JWT_SECRET, algorithms=[JWT_ALGORITHM])
         username = payload.get("sub")
         role = payload.get("role", "")
         if not username or role not in ADMIN_ROLES:
