@@ -113,7 +113,15 @@ jobs:
             git fetch origin main
             git reset --hard ${{ github.sha }}
             sudo apt-get update -y
-            sudo apt-get install -y awscli cron
+            sudo apt-get install -y cron
+            if ! command -v aws >/dev/null 2>&1; then
+              ARCH="$(uname -m)"
+              curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" -o /tmp/awscliv2.zip
+              sudo apt-get install -y unzip
+              unzip -q -o /tmp/awscliv2.zip -d /tmp
+              sudo /tmp/aws/install
+              rm -rf /tmp/awscliv2.zip /tmp/aws
+            fi
             sudo install -d -m 0755 /opt/compass-needle/scripts /opt/compass-needle/backups
             sudo chown -R ubuntu:ubuntu /opt/compass-needle/scripts /opt/compass-needle/backups
             sudo install -m 0755 /opt/compass-needle/app/deploy/ec2/backup_postgres_to_s3.sh /opt/compass-needle/scripts/backup_postgres_to_s3.sh
