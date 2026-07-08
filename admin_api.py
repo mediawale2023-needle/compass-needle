@@ -4633,6 +4633,101 @@ def get_audit_log(
 
 
 # ═══════════════════════════════════════════
+# DPDP — CITIZEN DATA ERASURE
+# ═══════════════════════════════════════════
+
+class DPDPErasureRequest(BaseModel):
+    phone: str
+    confirm: bool = False
+
+
+@router.post("/dpdp/erase-citizen")
+def dpdp_erase_citizen(req: DPDPErasureRequest, admin_user=Depends(get_admin_user)):
+    """Erase a citizen's personal data across all tenants (DPDP Act erasure request).
+
+    Redacts free text and phone on cases and WhatsApp ledgers (keeping
+    category/status/location for aggregate analytics), deletes contact
+    profiles and attached source media. Irreversible.
+    """
+    digits = re.sub(r"\D", "", req.phone or "")
+    if len(digits) < 10:
+        raise HTTPException(400, "phone must contain at least 10 digits")
+    last10 = digits[-10:]
+    if not req.confirm:
+        raise HTTPException(400, "Set confirm=true to erase. This is irreversible.")
+
+    masked = f"******{last10[-4:]}"
+    counts = {}
+    try:
+        with engine.begin() as conn:
+            case_ids = [
+                r[0]
+                for r in conn.execute(
+                    text("SELECT id FROM cases WHERE user_phone LIKE :suffix"),
+                    {"suffix": f"%{last10}"},
+                )
+            ]
+            if case_ids:
+                counts["case_media"] = conn.execute(
+                    text("DELETE FROM case_media WHERE case_id = ANY(:ids)"),
+                    {"ids": case_ids},
+                ).rowcount
+                counts["cases"] = conn.execute(
+                    text(
+                        """
+                        UPDATE cases
+                        SET user_phone = 'ERASED',
+                            raw_message = '[erased under DPDP request]',
+                            response_to_citizen = NULL,
+                            case_metadata = NULL
+                        WHERE id = ANY(:ids)
+                        """
+                    ),
+                    {"ids": case_ids},
+                ).rowcount
+            else:
+                counts["case_media"] = 0
+                counts["cases"] = 0
+            counts["contacts"] = conn.execute(
+                text("DELETE FROM contacts WHERE phone LIKE :suffix"),
+                {"suffix": f"%{last10}"},
+            ).rowcount
+            counts["wa_inbound_messages"] = conn.execute(
+                text(
+                    """
+                    UPDATE wa_inbound_messages
+                    SET sender_phone = 'ERASED', payload_snapshot = NULL
+                    WHERE sender_phone LIKE :suffix
+                    """
+                ),
+                {"suffix": f"%{last10}"},
+            ).rowcount
+            counts["wa_outbound_messages"] = conn.execute(
+                text(
+                    """
+                    UPDATE wa_outbound_messages
+                    SET to_number = 'ERASED', message_body = '[erased]',
+                        request_payload = NULL, meta_response = NULL
+                    WHERE to_number LIKE :suffix
+                    """
+                ),
+                {"suffix": f"%{last10}"},
+            ).rowcount
+    except Exception:
+        logger.exception("DPDP erasure failed for %s", masked)
+        raise HTTPException(500, "Erasure failed — no partial changes were committed")
+
+    _audit(
+        admin_user,
+        "dpdp_erase_citizen",
+        "citizen",
+        masked,
+        f"Erased citizen data: {json.dumps(counts)}",
+    )
+    return {"success": True, "phone": masked, "erased": counts}
+
+
+# ═══════════════════════════════════════════
 # OPERATIONAL ALERTS (NOTIFICATION TRAY)
 # ═══════════════════════════════════════════
 
