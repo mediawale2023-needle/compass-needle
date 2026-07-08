@@ -1,0 +1,131 @@
+name: Fix Backup Host Config
+
+# One-shot repair of /opt/compass-needle/backup.env on the EC2 host:
+# quotes the cron schedule (unquoted value breaks sourcing), ensures the
+# backup S3 bucket exists and BACKUP_S3_URI is set, ensures the host has
+# working S3 credentials, then runs a real backup and confirms the object.
+# Logs are public — never print secret values or full object keys.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: aws-ec2-backend-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-south-1
+  EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+  BACKUP_BUCKET: compass-needle-db-backups-997622531355
+
+jobs:
+  fix:
+    name: Repair backup.env And Prove One Backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Ensure Backup Bucket Exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if aws s3api head-bucket --bucket "$BACKUP_BUCKET" 2>/dev/null; then
+            echo "bucket exists"
+          else
+            aws s3api create-bucket --bucket "$BACKUP_BUCKET" \
+              --region "$AWS_REGION" \
+              --create-bucket-configuration LocationConstraint="$AWS_REGION"
+            aws s3api put-public-access-block --bucket "$BACKUP_BUCKET" \
+              --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+            echo "bucket created (private, public access blocked)"
+          fi
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions backup fix'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
+
+      - name: Repair And Run Backup Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 12m
+          envs: BACKUP_BUCKET,INJECT_AWS_ACCESS_KEY_ID,INJECT_AWS_SECRET_ACCESS_KEY
+          script: |
+            set -euo pipefail
+            ENVF=/opt/compass-needle/backup.env
+
+            echo "== quote unquoted values (cron schedule broke sourcing) =="
+            sudo sed -i -E 's/^([A-Z_]+=)([^"'"'"'].* .*)$/\1"\2"/' "$ENVF"
+            if bash -c "set -a; . $ENVF" 2>/dev/null; then
+              echo "  backup.env now sources cleanly"
+            else
+              echo "  backup.env STILL BROKEN after quoting"; exit 1
+            fi
+
+            echo "== ensure BACKUP_S3_URI =="
+            if grep -q '^BACKUP_S3_URI=' "$ENVF"; then
+              echo "  already set"
+            else
+              echo "BACKUP_S3_URI=\"s3://${BACKUP_BUCKET}/postgres/\"" | sudo tee -a "$ENVF" > /dev/null
+              echo "  added"
+            fi
+
+            echo "== ensure host S3 credentials =="
+            set -a; . "$ENVF"; set +a
+            if aws sts get-caller-identity >/dev/null 2>&1; then
+              echo "  instance/env credentials already work"
+            else
+              if [ -n "${INJECT_AWS_ACCESS_KEY_ID:-}" ]; then
+                { echo "AWS_ACCESS_KEY_ID=\"${INJECT_AWS_ACCESS_KEY_ID}\""; \
+                  echo "AWS_SECRET_ACCESS_KEY=\"${INJECT_AWS_SECRET_ACCESS_KEY}\""; } | sudo tee -a "$ENVF" > /dev/null
+                echo "  injected deploy credentials into backup.env (values not shown)"
+              else
+                echo "  NO CREDENTIALS AVAILABLE"; exit 1
+              fi
+            fi
+            sudo chmod 600 "$ENVF"
+
+            echo "== run backup =="
+            if /opt/compass-needle/scripts/backup_postgres_to_s3.sh > /tmp/fix_backup.log 2>&1; then
+              echo "  backup script: EXIT 0"
+            else
+              echo "  backup script FAILED — last lines (masked):"
+              tail -8 /tmp/fix_backup.log | sed -E 's/s3:\/\/[^ ]+/s3:\/\/***MASKED***/g; s/[0-9]{10,}/***/g'
+              exit 1
+            fi
+
+            echo "== confirm S3 object (dates/sizes only) =="
+            set -a; . "$ENVF"; set +a
+            aws s3 ls "$BACKUP_S3_URI" --recursive | sort | tail -3 | awk '{print "  ", $1, $2, $3}'
+        env:
+          INJECT_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          INJECT_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true
