@@ -3109,6 +3109,9 @@ def _delete_existing_seeded_cases(db, tenant_id: int) -> int:
 @router.post("/seed-constituency-cases")
 def seed_constituency_cases(req: ConstituencyCaseSeedRequest, _=Depends(get_admin_user)):
     """Seed synthetic grievances for one tenant using shared seat geography when available."""
+    if os.getenv("ENV", "development").lower() == "production":
+        raise HTTPException(403, "Test data seeding is disabled in production")
+
     if req.count < 1 or req.count > 500:
         raise HTTPException(400, "count must be between 1 and 500")
 
@@ -3222,6 +3225,9 @@ def seed_constituency_cases(req: ConstituencyCaseSeedRequest, _=Depends(get_admi
 def seed_test_cases(tid: int = 0, _=Depends(get_admin_user)):
     """Seed test cases for CSR pipeline testing. Requires admin JWT.
     Pass tid=0 (default) to target the first tenant."""
+    if os.getenv("ENV", "development").lower() == "production":
+        raise HTTPException(403, "Test data seeding is disabled in production")
+
     import random
 
     db = SessionLocal()
