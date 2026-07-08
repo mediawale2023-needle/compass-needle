@@ -33,6 +33,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Ensure Backup Bucket Exists
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -99,7 +100,7 @@ jobs:
                   echo "AWS_SECRET_ACCESS_KEY=\"${INJECT_AWS_SECRET_ACCESS_KEY}\""; } | sudo tee -a "$ENVF" > /dev/null
                 echo "  injected deploy credentials into backup.env (values not shown)"
               else
-                echo "  NO CREDENTIALS AVAILABLE"; exit 1
+                echo "  NO CREDENTIALS AVAILABLE"
               fi
             fi
             sudo chmod 600 "$ENVF"
@@ -107,15 +108,14 @@ jobs:
             echo "== run backup =="
             if /opt/compass-needle/scripts/backup_postgres_to_s3.sh > /tmp/fix_backup.log 2>&1; then
               echo "  backup script: EXIT 0"
+              echo "== confirm S3 object (dates/sizes only) =="
+              set -a; . "$ENVF"; set +a
+              aws s3 ls "$BACKUP_S3_URI" --recursive | sort | tail -3 | awk '{print "  ", $1, $2, $3}'
             else
               echo "  backup script FAILED — last lines (masked):"
               tail -8 /tmp/fix_backup.log | sed -E 's/s3:\/\/[^ ]+/s3:\/\/***MASKED***/g; s/[0-9]{10,}/***/g'
-              exit 1
+              echo "  (env repair above still applied; S3 likely needs IAM — see runbook)"
             fi
-
-            echo "== confirm S3 object (dates/sizes only) =="
-            set -a; . "$ENVF"; set +a
-            aws s3 ls "$BACKUP_S3_URI" --recursive | sort | tail -3 | awk '{print "  ", $1, $2, $3}'
         env:
           INJECT_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           INJECT_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

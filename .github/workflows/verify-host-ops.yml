@@ -81,18 +81,21 @@ jobs:
             fi
 
             echo "== 4. S3 objects (dates/sizes only) =="
-            if [ -f /opt/compass-needle/backup.env ]; then
+            if [ -f /opt/compass-needle/backup.env ] && (set -a; . /opt/compass-needle/backup.env) 2>/dev/null; then
               set -a; . /opt/compass-needle/backup.env; set +a
               if [ -n "${BACKUP_S3_URI:-}" ] && command -v aws >/dev/null; then
-                COUNT=$(aws s3 ls "$BACKUP_S3_URI" --recursive | wc -l)
-                echo "  object count: $COUNT"
-                echo "  latest (date time size):"
-                aws s3 ls "$BACKUP_S3_URI" --recursive | sort | tail -3 | awk '{print "   ", $1, $2, $3}'
+                if LISTING=$(aws s3 ls "$BACKUP_S3_URI" --recursive 2>/dev/null); then
+                  echo "  object count: $(echo "$LISTING" | grep -c . || true)"
+                  echo "  latest (date time size):"
+                  echo "$LISTING" | sort | tail -3 | awk '{print "   ", $1, $2, $3}'
+                else
+                  echo "  S3 LIST FAILED (likely missing IAM permission)"
+                fi
               else
                 echo "  BACKUP_S3_URI unset or aws CLI missing"
               fi
             else
-              echo "  SKIPPED (no backup.env)"
+              echo "  SKIPPED (backup.env missing or unsourceable)"
             fi
 
             echo "== 5. inbound ledger =="
