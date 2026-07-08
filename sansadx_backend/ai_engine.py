@@ -50,7 +50,9 @@ def get_client():
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         return None
-    return OpenAI(api_key=api_key)
+    # timeout=30s caps a hung call well below the SDK's 600s default; max_retries=0
+    # avoids stacking the SDK's own retries under the manual backoff loop below.
+    return OpenAI(api_key=api_key, timeout=30.0, max_retries=0)
 
 # ── Category validation ───────────────────────────────────────────────────────
 
