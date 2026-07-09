@@ -1926,7 +1926,8 @@ from modules.case_query_engine import query_cases
 from modules.briefcase_rules import apply_civic_rules
 from modules.staff_schedule_parser import parse_staff_schedule_message
 from modules.whatsapp_geography import finalize_geography_decision
-from modules.geography_policy import location_required_for_domain
+from modules.geography_policy import location_required_for_domain, location_required_for_grievance
+from modules.classification_policy import classification_writes_enabled, get_classification_mode
 from modules.localized_replies import (
     DETAILS_REQUEST_STATUSES,
     ensure_ji_prefix,
@@ -3688,25 +3689,36 @@ def _run_citizen_case_enrichment(
     # lane. The AI/tone detector can occasionally label terse complaints as
     # media/support traffic, but deterministic civic rules are higher authority
     # for the final category that drives acknowledgement sending.
+    # In shadow classification mode the rule hit still rescues the REPLY
+    # routing (status/silent-log), but never writes taxonomy fields — the
+    # rule's own decision is already recorded in classification_shadow.
     if not is_emergency_complaint and not is_personal_request and str(status).lower() != "offensive":
         try:
             _civic_rule = apply_civic_rules(message_body or "")
             if _civic_rule:
-                _civic_fields = build_taxonomy_fields(
-                    problem_domain=_civic_rule.get("problem_domain"),
-                    problem_subdomain=_civic_rule.get("problem_subdomain"),
-                    raw_text=message_body or "",
-                    scheme=grievance.get("scheme"),
-                    department=grievance.get("department"),
-                )
-                grievance.update(_civic_fields)
-                problem_domain = _civic_fields.get("problem_domain")
-                problem_subdomain = _civic_fields.get("problem_subdomain")
-                convergence_program_type = _civic_fields.get("convergence_program_type")
-                categories = _civic_fields.get("categories", [problem_domain] if problem_domain else [])
-                category = problem_domain or category
                 if str(status).lower() == "irrelevant":
                     status = "new"
+                if classification_writes_enabled(current_tenant):
+                    _civic_fields = build_taxonomy_fields(
+                        problem_domain=_civic_rule.get("problem_domain"),
+                        problem_subdomain=_civic_rule.get("problem_subdomain"),
+                        raw_text=message_body or "",
+                        scheme=grievance.get("scheme"),
+                        department=grievance.get("department"),
+                    )
+                    grievance.update(_civic_fields)
+                    problem_domain = _civic_fields.get("problem_domain")
+                    problem_subdomain = _civic_fields.get("problem_subdomain")
+                    convergence_program_type = _civic_fields.get("convergence_program_type")
+                    categories = _civic_fields.get("categories", [problem_domain] if problem_domain else [])
+                    category = problem_domain or category
+                else:
+                    _category_key = str(category or "").lower().strip()
+                    if _category_key in _SILENT_LOG_CATEGORIES or _category_key in _GREETING_CATEGORIES:
+                        # Rule says this is a real grievance — pull it out of the
+                        # silent lane so the citizen still gets an acknowledgement,
+                        # but leave it Uncategorised for manual triage.
+                        category = "Uncategorised"
         except Exception as _civic_exc:
             logger.warning("Civic category reconciliation failed (non-blocking): %s", _civic_exc)
 
@@ -3715,6 +3727,19 @@ def _run_citizen_case_enrichment(
     if language_hint and ai_language and ai_language != detected_language:
         political_reply = get_generic_ack_reply(detected_language, message_body)
 
+    # Location policy: intent lanes (personal requests, greetings/silent-log,
+    # document-only, offensive/irrelevant) never require a location. For real
+    # grievances the domain decides — and when the domain is unknown (always
+    # true in shadow classification mode) we conservatively ASK for location
+    # rather than silently skipping the follow-up.
+    _category_key = str(category or "").lower().strip()
+    _non_grievance_lane = (
+        is_personal_request
+        or _category_key in _SILENT_LOG_CATEGORIES
+        or _category_key in _GREETING_CATEGORIES
+        or _category_key == "document / attachment only"
+        or str(status).lower() in {"offensive", "irrelevant"}
+    )
     geo_decision = _finalize_whatsapp_geography_decision(
         grievance=grievance,
         ai_result=ai_result,
@@ -3726,7 +3751,7 @@ def _run_citizen_case_enrichment(
         resolver_fallback_message_body=resolver_fallback_message_body,
         current_tenant=current_tenant,
         is_emergency_complaint=is_emergency_complaint,
-        location_required=False if is_personal_request else location_required_for_domain(category),
+        location_required=False if _non_grievance_lane else location_required_for_grievance(grievance),
     )
     grievance = geo_decision["grievance"]
     status = geo_decision["status"]
@@ -3840,6 +3865,10 @@ def _run_citizen_case_enrichment(
                 if matches:
                     final_constituency = combined_lower[matches[0]]
 
+    _classification_shadow = grievance.get("classification_shadow") or {}
+    if not isinstance(_classification_shadow, dict):
+        _classification_shadow = {}
+
     raw_summary = (grievance.get("summary") or "").strip()
     fallback_summary = ""
     if not raw_summary or raw_summary.lower() == (message_body or "").strip().lower():
@@ -3876,9 +3905,17 @@ def _run_citizen_case_enrichment(
         "geography_review_reason": grievance.get("geography_review_reason", ""),
         "geography_diagnostics": grievance.get("geography_diagnostics", {}),
         "summary": effective_summary,
-        "ai_category": problem_domain,
-        "ai_subcategory": problem_subdomain,
-        "ai_confidence": grievance.get("ai_confidence"),
+        # ai_category/ai_subcategory feed the Briefcase suggested-triage
+        # banner. In shadow classification mode the case columns stay null,
+        # so the suggestion comes from the shadow decision instead.
+        "ai_category": problem_domain or _classification_shadow.get("problem_domain"),
+        "ai_subcategory": problem_subdomain or _classification_shadow.get("problem_subdomain"),
+        "ai_confidence": grievance.get("_category_confidence"),
+        "category_decided_by": grievance.get("_category_decided_by"),
+        "rules_version": grievance.get("_rules_version"),
+        "needs_review": bool(grievance.get("needs_review")),
+        "classification_mode": get_classification_mode(current_tenant),
+        "classification_shadow": _classification_shadow or None,
         "categories": categories if isinstance(categories, list) else [category],
         "problem_domain": problem_domain,
         "problem_subdomain": problem_subdomain,

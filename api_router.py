@@ -1998,6 +1998,11 @@ class CaseNotesUpdate(BaseModel):
     assigned_to: Optional[str] = None
     location: Optional[str] = None
     assembly: Optional[str] = None
+    # Manual/confirmed categorisation, validated against the canonical
+    # taxonomy. problem_subdomain is only honoured together with
+    # problem_domain.
+    problem_domain: Optional[str] = None
+    problem_subdomain: Optional[str] = None
 
 
 class CitizenNotifyRequest(BaseModel):
@@ -2036,7 +2041,8 @@ def _resolve_citizen_notification_message(case: dict, requested_message: str = "
 def update_case(case_id: int, body: CaseNotesUpdate, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
     current_case = _q_one(
-        "SELECT location, assembly, case_metadata FROM cases WHERE id = :cid AND tenant_id = :tid",
+        "SELECT location, assembly, category, problem_domain, case_metadata "
+        "FROM cases WHERE id = :cid AND tenant_id = :tid",
         {"cid": case_id, "tid": tid},
     )
     if not current_case:
@@ -2045,6 +2051,46 @@ def update_case(case_id: int, body: CaseNotesUpdate, user=Depends(get_current_us
     updates = []
     params = {"cid": case_id, "tid": tid, "now": _utcnow()}
     meta = _parse_meta(current_case.get("case_metadata"))
+    meta_dirty = False
+    confirmed_domain = None
+    confirmed_subdomain = None
+
+    if body.problem_subdomain is not None and body.problem_domain is None:
+        raise HTTPException(400, "problem_subdomain requires problem_domain")
+    if body.problem_domain is not None:
+        from sansadx_backend.unified_taxonomy import (
+            PROBLEM_SUBDOMAINS_BY_DOMAIN,
+            SUBDOMAIN_TO_PROGRAM_TYPE,
+            VALID_CATEGORIES,
+        )
+
+        confirmed_domain = body.problem_domain.strip()
+        if confirmed_domain not in VALID_CATEGORIES:
+            raise HTTPException(400, "Invalid problem domain")
+        confirmed_subdomain = (body.problem_subdomain or "").strip() or None
+        if confirmed_subdomain and confirmed_subdomain not in PROBLEM_SUBDOMAINS_BY_DOMAIN.get(confirmed_domain, ()):
+            raise HTTPException(400, "Invalid problem subdomain for this domain")
+
+        updates.append("problem_domain = :pd")
+        params["pd"] = confirmed_domain
+        updates.append("problem_subdomain = :psd")
+        params["psd"] = confirmed_subdomain
+        updates.append("convergence_program_type = :cpt")
+        params["cpt"] = SUBDOMAIN_TO_PROGRAM_TYPE.get(confirmed_subdomain) if confirmed_subdomain else None
+        updates.append("category = :cat")
+        params["cat"] = confirmed_domain
+
+        meta["problem_domain"] = confirmed_domain
+        meta["problem_subdomain"] = confirmed_subdomain
+        meta["convergence_program_type"] = params["cpt"]
+        meta["categories"] = [confirmed_domain]
+        meta["needs_review"] = False
+        meta["classification_confirmed"] = {
+            "by": user.get("username", ""),
+            "at": _utcnow().isoformat(),
+            "source": "manual",
+        }
+        meta_dirty = True
 
     if body.notes_for_staff is not None:
         updates.append("notes_for_staff = :notes")
@@ -2081,6 +2127,9 @@ def update_case(case_id: int, body: CaseNotesUpdate, user=Depends(get_current_us
         meta["geography_locked"] = True
         meta["needs_geography_review"] = False
         meta.pop("geography_review_reason", None)
+        meta_dirty = True
+
+    if meta_dirty:
         updates.append("case_metadata = :meta")
         params["meta"] = json.dumps(meta)
 
@@ -2096,7 +2145,13 @@ def update_case(case_id: int, body: CaseNotesUpdate, user=Depends(get_current_us
         ), params)
 
     try:
-        _log_case_activity(tid, case_id, user.get("username", ""), "case_updated", details=str({k: v for k, v in params.items() if k not in ("cid", "tid", "now")}))
+        if confirmed_domain:
+            _log_case_activity(
+                tid, case_id, user.get("username", ""), "category_confirmed",
+                old_value=str(current_case.get("problem_domain") or current_case.get("category") or ""),
+                new_value=f"{confirmed_domain}" + (f" · {confirmed_subdomain}" if confirmed_subdomain else ""),
+            )
+        _log_case_activity(tid, case_id, user.get("username", ""), "case_updated", details=str({k: v for k, v in params.items() if k not in ("cid", "tid", "now", "meta")}))
     except Exception:
         pass  # nosec B110
 

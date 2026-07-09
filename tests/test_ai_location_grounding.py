@@ -383,7 +383,8 @@ def test_build_taxonomy_fields_overrides_wrong_road_guess_for_talathi_bribe():
     assert fields["categories"] == ["Bureaucratic / Administrative"]
 
 
-def test_normalize_grievance_taxonomy_overrides_wrong_road_guess_for_talathi_bribe():
+def test_normalize_grievance_taxonomy_overrides_wrong_road_guess_for_talathi_bribe(monkeypatch):
+    monkeypatch.setenv("CLASSIFICATION_MODE", "on")
     grievance = {
         "categories": ["Infrastructure & Utilities"],
         "problem_domain": "Infrastructure & Utilities",
@@ -476,7 +477,8 @@ def test_build_taxonomy_fields_overrides_teacher_colony_water_outage():
     assert fields["categories"] == ["Infrastructure & Utilities"]
 
 
-def test_normalize_grievance_taxonomy_overrides_teacher_colony_water_outage():
+def test_normalize_grievance_taxonomy_overrides_teacher_colony_water_outage(monkeypatch):
+    monkeypatch.setenv("CLASSIFICATION_MODE", "on")
     grievance = {
         "categories": ["Education"],
         "problem_domain": "Education",

@@ -238,6 +238,7 @@ Static JSON loaded at startup (not in DB):
 
 ## AI Integration Notes
 
+- **Classification mode switch** (`modules/classification_policy.py`): `CLASSIFICATION_MODE` env var — `shadow` (the default) still runs the taxonomy pipeline on every message but stores its decision **only** in `case_metadata.classification_shadow` (plus the `ai_category` suggested-triage banner); the case taxonomy columns stay null and staff categorise manually via the Briefcase modal's "Accept & assign" or `PATCH /api/cases/{id}` with `problem_domain`/`problem_subdomain` (validated against the canonical taxonomy). `on` restores automatic taxonomy writes. Per-tenant override: a `tenant_overrides` row with `override_type='classification_mode'`, `key='<tenant_id>'`, `value='on'|'shadow'`. Intent lanes (emergency, personal request, greetings/silent-log, offensive) are NOT governed by this switch — they always stay on.
 - **GPT-4o-mini** (`sansadx_backend/ai_engine.py`): Grievance classification, multi-language support (includes exponential backoff retry logic)
 - **GPT-4o-mini** (`modules/case_query_parser.py`): NLP parsing of MP/PA WhatsApp queries into structured filters; falls back to regex if OpenAI is unavailable
 - **Gemini** (`core/gemini_client.py`): Singleton client wrapped with a Circuit Breaker (halts requests for 60s upon 3 consecutive failures). Used for letter drafting, letterbox OCR, copilot research

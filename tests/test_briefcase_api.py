@@ -533,6 +533,51 @@ def test_briefcase_status_notes_and_assignment_updates_are_logged():
     assert "case_updated" in actions
 
 
+def test_briefcase_manual_category_confirmation_validates_and_logs():
+    _seed_database()
+    headers = _auth_headers("mp_arun")
+
+    bad_domain = client.patch("/api/cases/101", headers=headers, json={"problem_domain": "Not A Real Domain"})
+    assert bad_domain.status_code == 400
+
+    orphan_subdomain = client.patch("/api/cases/101", headers=headers, json={"problem_subdomain": "Water Supply"})
+    assert orphan_subdomain.status_code == 400
+
+    wrong_pair = client.patch(
+        "/api/cases/101",
+        headers=headers,
+        json={"problem_domain": "Infrastructure & Utilities", "problem_subdomain": "Pension"},
+    )
+    assert wrong_pair.status_code == 400
+
+    ok = client.patch(
+        "/api/cases/101",
+        headers=headers,
+        json={"problem_domain": "Infrastructure & Utilities", "problem_subdomain": "Water Supply"},
+    )
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["success"] is True
+
+    detail = client.get("/api/cases/101", headers=headers).json()
+    assert detail["problem_domain"] == "Infrastructure & Utilities"
+    assert detail["problem_subdomain"] == "Water Supply"
+    assert detail["category"] == "Infrastructure & Utilities"
+    assert detail["convergence_program_type"] == "Public Asset Upgrade"
+
+    meta = detail.get("case_metadata")
+    if isinstance(meta, str):
+        meta = json.loads(meta)
+    assert meta["problem_domain"] == "Infrastructure & Utilities"
+    assert meta["problem_subdomain"] == "Water Supply"
+    assert meta["needs_review"] is False
+    assert meta["classification_confirmed"]["by"] == "mp_arun"
+    assert meta["classification_confirmed"]["source"] == "manual"
+
+    activity_resp = client.get("/api/cases/101/activity", headers=headers)
+    actions = [activity["action"] for activity in activity_resp.json()["activities"]]
+    assert "category_confirmed" in actions
+
+
 def test_briefcase_notify_send_is_mp_only_and_auto_resolves(monkeypatch):
     _seed_database()
     outbound = []

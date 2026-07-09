@@ -31,6 +31,10 @@ from modules.briefcase_rules import (
     arbitrate_category,
     taxonomy_fields_for_decision,
 )
+from modules.classification_policy import (
+    classification_writes_enabled,
+    get_classification_mode,
+)
 from modules.localized_replies import (
     get_generic_ack_reply,
     get_missing_location_reply,
@@ -120,16 +124,49 @@ def _normalize_categories(cats: list, raw_message: str) -> list:
     return [c for c in result if not (c in seen or seen.add(c))]  # type: ignore[func-returns-value]
 
 
-def _default_grievance_data(raw_message: str = "") -> dict:
+def _build_classification_shadow(decision: dict, fields: dict, tenant_id=None) -> dict:
+    """Audit record of what the taxonomy pipeline WOULD have written.
+
+    Persisted into case_metadata in shadow mode so manual categorisation by
+    staff produces labelled data to evaluate the pipeline against before it
+    is switched back on.
+    """
+    return {
+        "mode": get_classification_mode(tenant_id),
+        "problem_domain": fields.get("problem_domain"),
+        "problem_subdomain": fields.get("problem_subdomain"),
+        "convergence_program_type": fields.get("convergence_program_type"),
+        "confidence": decision.get("confidence"),
+        "decided_by": decision.get("decided_by"),
+        "rule_id": decision.get("rule_id"),
+        "venue_suppressed": bool(decision.get("venue_suppressed")),
+        "rules_version": RULES_VERSION,
+    }
+
+
+_NULL_TAXONOMY_FIELDS = {
+    "problem_domain": None,
+    "problem_subdomain": None,
+    "convergence_program_type": None,
+    "categories": [],
+}
+
+
+def _default_grievance_data(raw_message: str = "", tenant_id=None) -> dict:
     """
     Returns a minimal but valid grievance_data dict for error-path returns.
 
     Conservative: deterministic rules / keyword inference may classify the
     message; if they cannot, the category stays UNKNOWN (None) and the case is
-    flagged for operator review instead of being guessed.
+    flagged for operator review instead of being guessed. In shadow mode the
+    decision is recorded in `classification_shadow` only and the taxonomy
+    fields stay null.
     """
     decision = arbitrate_category(None, None, raw_message)
     fields = taxonomy_fields_for_decision(decision)
+    shadow = _build_classification_shadow(decision, fields, tenant_id)
+    if not classification_writes_enabled(tenant_id):
+        fields = dict(_NULL_TAXONOMY_FIELDS)
     return {
         **fields,
         "location": None,
@@ -141,11 +178,12 @@ def _default_grievance_data(raw_message: str = "") -> dict:
         "_category_confidence": decision["confidence"],
         "_category_decided_by": decision["decided_by"],
         "_rules_version": RULES_VERSION,
+        "classification_shadow": shadow,
         "needs_review": True,
     }
 
 
-def _normalize_grievance_taxonomy(grievance: dict, raw_message: str) -> dict:
+def _normalize_grievance_taxonomy(grievance: dict, raw_message: str, tenant_id=None) -> dict:
     """
     Canonicalize the 3-layer taxonomy while keeping legacy `categories`
     available for unchanged storage and API code paths.
@@ -155,6 +193,12 @@ def _normalize_grievance_taxonomy(grievance: dict, raw_message: str) -> dict:
     evidence in the citizen's message (venue/landmark words excluded); and if
     nothing is supported by the citizen's words the category is UNKNOWN
     (None + needs_review) rather than a guess.
+
+    Classification mode (modules.classification_policy):
+      on     — the decision is written to the taxonomy fields (below).
+      shadow — the decision is recorded in `classification_shadow` only; the
+               taxonomy fields are stored null and staff categorise manually
+               (the decision still surfaces as the suggested-triage banner).
     """
     grievance = dict(grievance or {})
     cats = grievance.get("categories", [])
@@ -179,23 +223,27 @@ def _normalize_grievance_taxonomy(grievance: dict, raw_message: str) -> dict:
 
     if decision["problem_domain"] is None:
         # UNKNOWN: store nulls, never a default guess.
-        grievance.update({
-            "problem_domain": None,
-            "problem_subdomain": None,
-            "convergence_program_type": None,
-            "categories": [],
-        })
+        applied_fields = dict(_NULL_TAXONOMY_FIELDS)
     elif decision["confidence"] == "rule_locked":
-        grievance.update(taxonomy_fields_for_decision(decision))
+        applied_fields = taxonomy_fields_for_decision(decision)
     else:
-        grievance.update(build_taxonomy_fields(
+        applied_fields = build_taxonomy_fields(
             problem_domain=decision["problem_domain"],
             problem_subdomain=decision["problem_subdomain"] or grievance.get("problem_subdomain"),
             convergence_program_type=grievance.get("convergence_program_type"),
             raw_text=raw_message,
             scheme=grievance.get("scheme"),
             department=grievance.get("department"),
-        ))
+        )
+
+    grievance["classification_shadow"] = _build_classification_shadow(
+        decision, applied_fields, tenant_id
+    )
+    if not classification_writes_enabled(tenant_id):
+        # Shadow mode: taxonomy columns stay null; every case is manual triage.
+        applied_fields = dict(_NULL_TAXONOMY_FIELDS)
+        grievance["needs_review"] = True
+    grievance.update(applied_fields)
 
     grievance["_category_confidence"] = decision["confidence"]
     grievance["_category_decided_by"] = decision["decided_by"]
@@ -758,7 +806,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                     "status": "pending",
                     "detected_language": detected_lang,
                     "political_response": get_generic_ack_reply(detected_lang, effective_user_message),
-                    "grievance_data": _default_grievance_data(effective_user_message),
+                    "grievance_data": _default_grievance_data(effective_user_message, tenant_id=tenant_id),
                     "is_critical": False,
                     "_ai_retry_exhausted": True,
                 }
@@ -768,7 +816,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 "status": "pending",
                 "detected_language": detected_lang,
                 "political_response": get_generic_ack_reply(detected_lang, effective_user_message),
-                "grievance_data": _default_grievance_data(effective_user_message),
+                "grievance_data": _default_grievance_data(effective_user_message, tenant_id=tenant_id),
                 "is_critical": False,
                 "_ai_retry_exhausted": True,
             }
@@ -982,6 +1030,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                     data["grievance_data"] = _normalize_grievance_taxonomy(
                         data["grievance_data"],
                         effective_user_message,
+                        tenant_id=tenant_id,
                     )
                     # Bubble the review flag so case storage/operator queues see it.
                     if data["grievance_data"].get("needs_review"):
@@ -1082,7 +1131,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 "status": "pending",
                 "detected_language": detected_lang,
                 "political_response": get_generic_ack_reply(detected_lang, effective_user_message),
-                "grievance_data": _default_grievance_data(effective_user_message),
+                "grievance_data": _default_grievance_data(effective_user_message, tenant_id=tenant_id),
                 "is_critical": False,
             }
 
@@ -1092,6 +1141,6 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             "status": "pending",
             "detected_language": detected_lang,
             "political_response": get_generic_ack_reply(detected_lang, effective_user_message),
-            "grievance_data": _default_grievance_data(effective_user_message),
+            "grievance_data": _default_grievance_data(effective_user_message, tenant_id=tenant_id),
             "is_critical": False,
         }

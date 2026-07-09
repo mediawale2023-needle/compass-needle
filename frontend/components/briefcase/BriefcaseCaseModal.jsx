@@ -285,7 +285,7 @@ function CitizenCard({ phone, createdAt, language }) {
 }
 
 // ─── AI suggestion banner ─────────────────────────────────────
-function AISuggestionBanner({ suggestion, onAccept }) {
+function AISuggestionBanner({ suggestion, onAccept, accepting }) {
     if (!suggestion?.ai_category) return null;
     return (
         <div style={{
@@ -323,23 +323,18 @@ function AISuggestionBanner({ suggestion, onAccept }) {
                 )}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button onClick={onAccept} style={{
+                <button onClick={onAccept} disabled={accepting} style={{
                     background: C.saffron, color: '#fff', border: 'none',
                     padding: '8px 16px', fontSize: 11.5, fontWeight: 700,
                     letterSpacing: '0.06em', textTransform: 'uppercase',
-                    cursor: 'pointer', fontFamily: 'inherit',
+                    cursor: accepting ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                     display: 'inline-flex', alignItems: 'center', gap: 6,
+                    opacity: accepting ? 0.7 : 1,
                 }}>
-                    Accept &amp; assign <Icon name="check" size={12} color="#fff" stroke={2.5} />
-                </button>
-                <button style={{
-                    background: 'transparent', color: '#F5EFE0',
-                    border: '1px solid rgba(245,239,224,0.3)',
-                    padding: '6px 14px', fontSize: 11, fontWeight: 500,
-                    cursor: 'pointer', fontFamily: 'inherit',
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                }}>
-                    <Icon name="edit" size={11} color="#F5EFE0" /> Edit
+                    {accepting
+                        ? <Loader2 size={12} className="animate-spin" />
+                        : <Icon name="check" size={12} color="#fff" stroke={2.5} />}
+                    Accept &amp; assign
                 </button>
             </div>
         </div>
@@ -1053,6 +1048,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const toast = useToast();
     const isMobile = useIsMobile();
     const [updating, setUpdating] = useState(null);
+    const [acceptingSuggestion, setAcceptingSuggestion] = useState(false);
     const [notes, setNotes] = useState('');
     const [response, setResponse] = useState('');
     const [savingNotes, setSavingNotes] = useState(false);
@@ -1185,6 +1181,47 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         }
         if (activeCaseId === targetCaseId) {
             setActiveCaseId(remainingThreadCases[0].id);
+        }
+    };
+
+    const acceptSuggestion = async () => {
+        if (!suggestedTriage?.ai_category || acceptingSuggestion) return;
+        setAcceptingSuggestion(true);
+        try {
+            try {
+                await apiPatch(`/api/cases/${current.id}`, {
+                    problem_domain: suggestedTriage.ai_category,
+                    problem_subdomain: suggestedTriage.ai_subcategory || null,
+                });
+            } catch (error) {
+                if (!suggestedTriage.ai_subcategory) throw error;
+                // Stale/legacy subdomain suggestions can fail validation —
+                // the domain alone is still worth confirming.
+                await apiPatch(`/api/cases/${current.id}`, {
+                    problem_domain: suggestedTriage.ai_category,
+                });
+            }
+            await apiPatch(`/api/cases/${current.id}/status`, { status: 'in_progress' });
+            const patch = {
+                category: suggestedTriage.ai_category,
+                problem_domain: suggestedTriage.ai_category,
+                problem_subdomain: suggestedTriage.ai_subcategory || null,
+                status: 'in_progress',
+            };
+            setFullCase((existing) => {
+                if (!existing) return existing;
+                const nextThreadCases = (existing.thread_cases || []).map((item) =>
+                    item.id === current.id ? { ...item, ...patch } : item
+                );
+                const base = existing.id === current.id ? { ...existing, ...patch } : { ...existing };
+                return { ...base, thread_cases: nextThreadCases };
+            });
+            onStatusChange(current.id, 'in_progress');
+            toast.success(`Categorised as ${suggestedTriage.ai_category}`);
+        } catch (error) {
+            toast.error(error.message || 'Failed to apply category');
+        } finally {
+            setAcceptingSuggestion(false);
         }
     };
 
@@ -1390,7 +1427,8 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                         {isUncategorised && suggestedTriage && (
                                             <AISuggestionBanner
                                                 suggestion={suggestedTriage}
-                                                onAccept={() => handleStatusChange('in_progress')}
+                                                onAccept={acceptSuggestion}
+                                                accepting={acceptingSuggestion}
                                             />
                                         )}
                                         <MessageBlock
@@ -1464,7 +1502,13 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                 </div>
                             </div>
                             <ActionBar
-                                onConfirm={() => handleStatusChange(isUncategorised ? 'in_progress' : 'resolved')}
+                                onConfirm={() => {
+                                    if (isUncategorised && suggestedTriage?.ai_category) {
+                                        acceptSuggestion();
+                                    } else {
+                                        handleStatusChange(isUncategorised ? 'in_progress' : 'resolved');
+                                    }
+                                }}
                                 onReply={() => { setNotifyInput(''); setNotifyOpen(true); }}
                                 isUncategorised={isUncategorised}
                             />
