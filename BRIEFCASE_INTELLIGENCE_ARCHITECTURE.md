@@ -233,7 +233,7 @@ Composite case action = f(category band, geography band). Exact policy table —
 | HIGH | UNRESOLVED | Case created with category; location **blank** (never a guess). Citizen asked for location via `localized_replies` template (existing `get_awaiting_location_reply`). If no reply in 24h → operator review queue. |
 | MEDIUM | any | **Operator review** before routing. Case visible in Briefcase "Needs Review" lane with `why_chosen`, `why_not_other_top_candidates`, and geo suggestions pre-filled. Citizen gets neutral acknowledgment (no category echoed). |
 | LOW / UNKNOWN | any | Operator review, classification fields blank. Reply: neutral acknowledgment only. |
-| EMERGENCY lexicon hit (any band) | any | Immediate operator alert + case created with whatever is known. Never blocked on review. |
+| EMERGENCY lexicon hit (any band) | any | Immediate operator alert + case created with whatever is known. Never blocked on review. **No citizen acknowledgement is sent for emergencies** — an automated reply would create false hope of immediate rescue capacity the office cannot guarantee; staff contact the citizen directly. This is deliberate policy, not a missing reply. |
 
 Hard numbers (initial; tuned in shadow mode, Section 10):
 

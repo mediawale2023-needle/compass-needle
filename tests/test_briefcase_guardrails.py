@@ -12,6 +12,9 @@ Guardrail tests for the Briefcase intelligence hardening:
    context.
 8. Fuzzy abstain: fuzzy geo matches resolve as medium confidence with
    needs_confirmation, never as silent truth.
+9. Classification mode switch: shadow mode (the default) never writes
+   taxonomy fields to the case — the decision is recorded only in
+   `classification_shadow` metadata; CLASSIFICATION_MODE=on restores writes.
 """
 
 import json
@@ -24,6 +27,7 @@ import pytest
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-fake-key-for-testing")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import modules.classification_policy as classification_policy
 import modules.geography_resolver as geography_resolver
 import sansadx_backend.ai_engine as ai_engine
 import sansadx_backend.db as dbmod
@@ -32,6 +36,16 @@ from modules.briefcase_rules import (
     arbitrate_category,
     detect_venue_context,
 )
+
+
+@pytest.fixture(autouse=True)
+def _classification_on_by_default(monkeypatch):
+    """Legacy guardrail tests assert write-mode behaviour; run them with the
+    switch ON. Shadow-mode tests override this env var themselves."""
+    monkeypatch.setenv("CLASSIFICATION_MODE", "on")
+    classification_policy.clear_classification_mode_cache()
+    yield
+    classification_policy.clear_classification_mode_cache()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -154,6 +168,61 @@ def test_default_grievance_data_uses_rules_not_default_guess():
     data = ai_engine._default_grievance_data("sir kuch baat karni thi")
     assert data["problem_domain"] is None
     assert data["categories"] == []
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 9. Classification mode switch
+# ──────────────────────────────────────────────────────────────────────────────
+def test_shadow_mode_keeps_taxonomy_null_but_records_decision(monkeypatch):
+    monkeypatch.delenv("CLASSIFICATION_MODE", raising=False)  # default = shadow
+    grievance = ai_engine._normalize_grievance_taxonomy(
+        {"categories": ["Infrastructure & Utilities"], "problem_domain": "Infrastructure & Utilities"},
+        "naali bhar gayi hai pura mohalla pareshan",
+    )
+    # Case fields stay null — staff categorise manually.
+    assert grievance["problem_domain"] is None
+    assert grievance["problem_subdomain"] is None
+    assert grievance["convergence_program_type"] is None
+    assert grievance["categories"] == []
+    assert grievance["needs_review"] is True
+    # …but the decision is preserved as an auditable hint.
+    shadow = grievance["classification_shadow"]
+    assert shadow["mode"] == "shadow"
+    assert shadow["problem_domain"] == "Infrastructure & Utilities"
+    assert shadow["problem_subdomain"] == "Drainage/Sewage"
+    assert shadow["decided_by"].startswith("rule:")
+    assert shadow["rules_version"]
+
+
+def test_on_mode_writes_taxonomy_and_still_records_shadow():
+    grievance = ai_engine._normalize_grievance_taxonomy(
+        {"categories": [], "problem_domain": None},
+        "naali bhar gayi hai pura mohalla pareshan",
+    )
+    assert grievance["problem_domain"] == "Infrastructure & Utilities"
+    assert grievance["problem_subdomain"] == "Drainage/Sewage"
+    assert grievance["classification_shadow"]["mode"] == "on"
+
+
+def test_mode_aliases_and_unknown_values(monkeypatch):
+    monkeypatch.setenv("CLASSIFICATION_MODE", "off")
+    assert classification_policy.get_classification_mode() == "shadow"
+    monkeypatch.setenv("CLASSIFICATION_MODE", "ON")
+    assert classification_policy.get_classification_mode() == "on"
+    monkeypatch.setenv("CLASSIFICATION_MODE", "not-a-mode")
+    assert classification_policy.get_classification_mode() == "shadow"
+    monkeypatch.delenv("CLASSIFICATION_MODE", raising=False)
+    assert classification_policy.get_classification_mode() == "shadow"
+
+
+def test_default_grievance_data_shadow_mode_records_hint_only(monkeypatch):
+    monkeypatch.delenv("CLASSIFICATION_MODE", raising=False)
+    data = ai_engine._default_grievance_data("paani nahi aa raha 3 din se")
+    assert data["problem_domain"] is None
+    assert data["categories"] == []
+    assert data["needs_review"] is True
+    assert data["classification_shadow"]["problem_domain"] == "Infrastructure & Utilities"
+    assert data["classification_shadow"]["problem_subdomain"] == "Water Supply"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
