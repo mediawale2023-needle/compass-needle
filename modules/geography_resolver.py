@@ -895,6 +895,12 @@ def _derive_locality_aliases(
                 # are meaningless and cause false-positive geo_alias DB rows
                 "colony", "area", "camp", "cross", "extension", "layout", "lane",
                 "market", "mohalla", "quarters", "sector", "street",
+                # additional generic container/administrative words: a row like
+                # "Rajwada Compound, Vadagaon" was wrongly inferring "Compound"
+                # (not "Vadagaon") as the parent locality because "compound" was
+                # missing here, so it looked like a legitimate standalone
+                # locality name and hijacked the parent-locality catalog.
+                "compound", "towers", "basti", "kacheri",
             }
             for index in range(1, len(words)):
                 suffix_words = words[index:]
@@ -1008,6 +1014,8 @@ def _is_meaningful_location_fragment(value: str) -> bool:
         "road", "street", "lane", "galli", "gali", "wadi", "wada", "circle",
         "nagar", "peth", "pet", "area", "colony", "camp", "market", "road",
         "marg", "depot", "school", "college", "ward", "sector",
+        "compound", "towers", "basti", "kacheri", "quarters", "layout",
+        "mohalla", "extension", "cross",
     }
     words = [word for word in normalized.split() if word]
     if not words:
@@ -1025,7 +1033,8 @@ def _meaningful_location_tokens(value: str) -> Set[str]:
         "road", "street", "lane", "galli", "gali", "wadi", "wada", "circle",
         "nagar", "peth", "pet", "area", "colony", "camp", "market", "marg",
         "depot", "school", "college", "ward", "sector", "layout", "mohalla",
-        "quarters", "extension", "cross",
+        "quarters", "extension", "cross", "compound", "towers", "basti",
+        "kacheri",
     }
     return {word for word in normalized.split() if len(word) >= 4 and word not in generic_only}
 
