@@ -1091,11 +1091,37 @@ def _preferred_specific_display(locality: str) -> Optional[str]:
     return _display_location_name(ranked[0])
 
 
+_MIN_PARENT_CATALOG_CORROBORATION = 2
+
+
 def _build_parent_locality_catalog(
     stations: Iterable[Dict[str, Any]],
     parliamentary_constituency: Optional[str] = None,
 ) -> dict[str, str]:
-    catalog: dict[str, str] = {}
+    """Build the seat's parent-locality lookup from cross-row corroboration.
+
+    A candidate fragment only becomes a recognized parent locality when it is
+    derived independently from at least _MIN_PARENT_CATALOG_CORROBORATION
+    DISTINCT source rows — e.g. "Vadagaon" is shared by 15 different
+    street-level rows in a real dataset, so it corroborates easily. This is a
+    region/language-agnostic signal: it does not require knowing in advance
+    which words ("compound", "apartment", or some other region's local
+    administrative/settlement suffix we haven't seen yet) are generic
+    descriptors rather than real place names. A single row's own fragment
+    (e.g. "Compound" from "Rajwada Compound, Vadagaon") is never corroborated
+    by any other row and is excluded, regardless of language or region.
+    _is_meaningful_location_fragment's explicit blocklist stays as a fast
+    defense-in-depth layer for already-known generic words on top of this,
+    not the primary mechanism.
+
+    Note this only affects the catalog-based fallback inference used for
+    comma/space-separated localities (e.g. "Rajwada Compound, Vadagaon").
+    Explicit hyphen-delimited rows ("Teachers Colony - Khasbag") are split by
+    _split_explicit_locality_hierarchy and never consult this catalog, so a
+    genuinely new small parent group entered in that format is unaffected
+    even with only one row so far.
+    """
+    candidate_sources: dict[str, tuple[str, Set[str]]] = {}
     for station in stations or []:
         locality = (station.get("locality") or "").replace("\n", " ").strip()
         if not locality or _is_meta_locality(locality):
@@ -1103,11 +1129,21 @@ def _build_parent_locality_catalog(
         preferred_display = _preferred_parent_display(locality, parliamentary_constituency)
         if not preferred_display:
             continue
+        source_key = normalize(locality)
         for alias in _derive_locality_aliases(preferred_display, parliamentary_constituency) | {preferred_display}:
             if not _is_meaningful_location_fragment(alias):
                 continue
-            catalog.setdefault(normalize(alias), preferred_display)
-    return catalog
+            key = normalize(alias)
+            if not key:
+                continue
+            _, sources = candidate_sources.setdefault(key, (preferred_display, set()))
+            sources.add(source_key)
+
+    return {
+        key: display
+        for key, (display, sources) in candidate_sources.items()
+        if len(sources) >= _MIN_PARENT_CATALOG_CORROBORATION
+    }
 
 
 def _split_explicit_locality_hierarchy(locality: str) -> tuple[Optional[str], Optional[str]]:
