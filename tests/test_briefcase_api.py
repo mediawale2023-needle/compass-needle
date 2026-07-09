@@ -533,6 +533,66 @@ def test_briefcase_status_notes_and_assignment_updates_are_logged():
     assert "case_updated" in actions
 
 
+def test_emergency_case_sends_no_citizen_ack_and_flag_says_so(monkeypatch):
+    """Policy: emergencies alert staff but never auto-reply to the citizen
+    (no false hope of immediate rescue). citizen_ack_sent must reflect that."""
+    _seed_database()
+    sent = []
+    monkeypatch.setattr(main, "send_whatsapp_message", lambda *args, **kwargs: sent.append(args))
+    monkeypatch.setattr(main, "_schedule_case_clarification_follow_up", lambda *a, **k: None)
+    monkeypatch.setattr(main, "_cancel_case_clarification_follow_up", lambda *a, **k: None)
+    import modules.emergency_intake as emergency_intake
+    monkeypatch.setattr(emergency_intake, "process_emergency_case", lambda **kwargs: None)
+
+    def _enrichment(is_emergency):
+        return {
+            "status": "emergency" if is_emergency else "new",
+            "category": "Emergency" if is_emergency else "Infrastructure & Utilities",
+            "detected_language": "English",
+            "citizen_ack_message": "Acknowledgement text",
+            "meta_data": {},
+            "problem_domain": None,
+            "problem_subdomain": None,
+            "convergence_program_type": None,
+            "is_emergency_complaint": is_emergency,
+            "emergency_keyword_match": is_emergency,
+            "final_constituency": "Unknown",
+            "political_reply": "Held AI reply",
+        }
+
+    main._save_case_enrichment_and_respond(
+        case_id=101,
+        sender="919810000101",
+        current_tenant=1,
+        message_body="Accident hua hai, ambulance bhejo jaldi",
+        wa_phone_id="15550001111",
+        enrichment=_enrichment(True),
+    )
+    assert sent == []  # nothing goes to the citizen
+    with test_engine.connect() as conn:
+        meta_raw = conn.execute(
+            text("SELECT case_metadata FROM cases WHERE id = 101")
+        ).scalar()
+    meta = meta_raw if isinstance(meta_raw, dict) else json.loads(meta_raw)
+    assert meta["citizen_ack_sent"] is False
+
+    main._save_case_enrichment_and_respond(
+        case_id=102,
+        sender="919810000102",
+        current_tenant=1,
+        message_body="Streetlight kharab hai",
+        wa_phone_id="15550001111",
+        enrichment=_enrichment(False),
+    )
+    assert len(sent) == 1  # ordinary grievances still get the ack
+    with test_engine.connect() as conn:
+        meta_raw = conn.execute(
+            text("SELECT case_metadata FROM cases WHERE id = 102")
+        ).scalar()
+    meta = meta_raw if isinstance(meta_raw, dict) else json.loads(meta_raw)
+    assert meta["citizen_ack_sent"] is True
+
+
 def test_briefcase_manual_category_confirmation_validates_and_logs():
     _seed_database()
     headers = _auth_headers("mp_arun")

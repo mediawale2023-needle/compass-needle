@@ -3987,7 +3987,17 @@ def _save_case_enrichment_and_respond(
     meta_data.pop("contact_buffered", None)
     meta_data.pop("contact_buffer_overflow_flagged", None)
     meta_data["contact_buffer_released_at"] = _utcnow().isoformat()
-    meta_data["citizen_ack_sent"] = bool(reply_text)
+    # citizen_ack_sent must mirror the actual send policy below: critical
+    # cases deliberately get NO citizen acknowledgement (policy — see
+    # BRIEFCASE_INTELLIGENCE_ARCHITECTURE.md §5) and silent-log categories
+    # are never replied to. Stamping True for those made audits claim we
+    # replied when we did not.
+    _is_critical_case = enrichment["is_emergency_complaint"]
+    _is_review_category = category.lower().strip() in _REVIEW_REQUIRED_CATEGORIES
+    _is_silent_log_category = category.lower().strip() in _SILENT_LOG_CATEGORIES
+    _ack_withheld_critical = _is_critical_case and status not in ("awaiting_location",)
+    _ack_withheld_silent = _is_silent_log_category and status != "offensive"
+    meta_data["citizen_ack_sent"] = bool(reply_text) and not _ack_withheld_critical and not _ack_withheld_silent
     meta_data["citizen_ack_last_action"] = meta_data.get("contact_intake_action") or "unknown"
     enrichment["meta_data"] = meta_data
 
@@ -4023,7 +4033,6 @@ def _save_case_enrichment_and_respond(
     except Exception as e:
         logger.error(f"DB update failed for case {case_id}: {e}")
 
-    _is_critical_case = enrichment["is_emergency_complaint"]
     if _is_critical_case or status == "emergency" or enrichment["emergency_keyword_match"]:
         try:
             from modules.emergency_intake import process_emergency_case
@@ -4041,8 +4050,6 @@ def _save_case_enrichment_and_respond(
         except Exception as _em_exc:
             logger.warning("Emergency intake failed (non-blocking): %s", _em_exc)
 
-    _is_review_category = category.lower().strip() in _REVIEW_REQUIRED_CATEGORIES
-    _is_silent_log_category = category.lower().strip() in _SILENT_LOG_CATEGORIES
     if (_is_review_category or _is_critical_case) and status not in ("awaiting_location",):
         try:
             with engine.begin() as _rv_conn:
@@ -4059,6 +4066,12 @@ def _save_case_enrichment_and_respond(
             logger.error("Failed to set pending_review status for case %s: %s", case_id, _rv_exc)
 
         if _is_critical_case:
+            # DELIBERATE: no citizen acknowledgement for emergencies. An
+            # automated reply would imply immediate rescue capacity the MP's
+            # office cannot guarantee. Staff are alerted via
+            # process_emergency_case and contact the citizen directly.
+            # Do not add a send here — policy in
+            # BRIEFCASE_INTELLIGENCE_ARCHITECTURE.md §5.
             _cancel_case_clarification_follow_up(case_id)
             return
 
