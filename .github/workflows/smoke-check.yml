@@ -88,6 +88,32 @@ jobs:
               WHERE created_at > NOW() - INTERVAL '\''6 hours'\''
               ORDER BY id;"' | sed 's/^/  /'
 
+            echo "== text buffer flushes, last 24h (message counts only, no text) =="
+            $PSQL 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F" | " -c "
+              SELECT id, tenant_id, '\''***'\''||RIGHT(sender_phone,4) AS sender, status,
+                     jsonb_array_length(messages) AS msg_count,
+                     to_char(first_message_at, '\''HH24:MI:SS'\'') AS first_msg,
+                     to_char(last_message_at, '\''HH24:MI:SS'\'') AS last_msg
+              FROM wa_text_buffer
+              WHERE first_message_at > NOW() - INTERVAL '\''24 hours'\''
+              ORDER BY id;"' | sed 's/^/  /'
+
+            echo "== awaiting_location cases, last 24h (phone masked, no text) =="
+            $PSQL 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F" | " -c "
+              SELECT c.id, c.tenant_id, '\''***'\''||RIGHT(c.user_phone,4) AS phone,
+                     LENGTH(c.raw_message) AS msg_len, c.category,
+                     to_char(c.created_at, '\''HH24:MI:SS'\'') AS created
+              FROM cases c
+              WHERE c.status = '\''awaiting_location'\''
+                AND c.created_at > NOW() - INTERVAL '\''24 hours'\''
+              ORDER BY c.id;"' | sed 's/^/  /'
+
+            echo "== segmentation log lines, last 24h (counts only, phone masked) =="
+            docker compose -f "$COMPOSE" logs backend --since 24h 2>/dev/null \
+              | grep -oE "Text buffer [0-9]+ flushed: [0-9]+ message\(s\).*grievance segment\(s\) from [0-9]+ \(tenant=[0-9]+\)" \
+              | sed -E 's/from [0-9]+ \(tenant/from ***\(tenant/' \
+              | sed 's/^/  /' || echo "  (no matches / logs unavailable)"
+
       - name: Remove GitHub Runner SSH Access
         if: always() && steps.ssh_ip.outputs.runner_ip != ''
         shell: bash
