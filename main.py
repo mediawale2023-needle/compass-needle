@@ -1954,7 +1954,7 @@ from modules.case_query_engine import query_cases
 from modules.briefcase_rules import apply_civic_rules
 from modules.staff_schedule_parser import parse_staff_schedule_message
 from modules.whatsapp_geography import finalize_geography_decision
-from modules.geography_policy import location_required_for_domain, location_required_for_grievance
+from modules.geography_policy import location_required_for_grievance
 from modules.classification_policy import classification_writes_enabled, get_classification_mode
 from modules.localized_replies import (
     DETAILS_REQUEST_STATUSES,
