@@ -72,7 +72,7 @@ function SkeletonRows() {
     return Array.from({ length: 6 }).map((_, i) => (
         <tr key={i} style={{ borderBottom: `1px solid ${P.hair}` }}>
             <td style={{ padding: 0, width: 3 }} />
-            {[38, 72, 155, 160, 130, 148, undefined, 95, 76].map((w, j) => (
+            {[38, 72, 155, 130, 148, undefined, 95, 76].map((w, j) => (
                 <td key={j} style={{ padding: '14px 10px' }}>
                     <div style={{ height: 10, width: w ? Math.round(w * 0.55) : '70%', background: P.hairStrong, opacity: 0.35, borderRadius: 2 }} />
                 </td>
@@ -127,7 +127,6 @@ export default function BriefcaseCasesTable({
                     <col style={{ width: 38 }} />
                     <col style={{ width: 72 }} />
                     <col style={{ width: 155 }} />
-                    <col style={{ width: 160 }} />
                     <col style={{ width: 130 }} />
                     <col style={{ width: 148 }} />
                     <col />
@@ -151,7 +150,7 @@ export default function BriefcaseCasesTable({
                                 {allSelected && <BriefcaseIcon name="check" size={11} color="#fff" stroke={2.5} />}
                             </div>
                         </th>
-                        {['Ref', 'Citizen', 'Category', 'Location', 'Status', 'Message', 'Received', ''].map((h, i) => (
+                        {['Ref', 'Citizen', 'Location', 'Status', 'Message', 'Received', ''].map((h, i) => (
                             <th key={i} style={thStyle}>{h}</th>
                         ))}
                     </tr>
@@ -162,7 +161,7 @@ export default function BriefcaseCasesTable({
                         <SkeletonRows />
                     ) : cases.length === 0 ? (
                         <tr>
-                            <td colSpan={10} style={{ padding: '56px 22px', textAlign: 'center', color: P.ink3, fontSize: 13 }}>
+                            <td colSpan={9} style={{ padding: '56px 22px', textAlign: 'center', color: P.ink3, fontSize: 13 }}>
                                 No cases found
                                 {categoryFilter ? ` in "${categoryFilter}"` : ''}
                                 {statusFilter && statusFilter !== 'all_cases' ? ` with status "${statusFilter}"` : ''}
@@ -174,7 +173,6 @@ export default function BriefcaseCasesTable({
                         const hover = hoverIdx === idx;
                         const isCritical = item.is_critical;
                         const clusterTag = item.case_metadata?.cluster_id;
-                        const sub = item.problem_subdomain || item.problem_domain;
                         const ref = item.case_ref || `#${item.id}`;
                         const age = formatBriefcaseAge(item.created_at);
                         const lang = formatLanguageTag(item);
@@ -236,21 +234,6 @@ export default function BriefcaseCasesTable({
                                     </button>
                                     <div>
                                         <ContactStatePill state={contactThreadState} />
-                                    </div>
-                                </td>
-
-                                <td style={{ padding: '10px 10px', verticalAlign: 'top' }}>
-                                    {sub ? (
-                                        <div style={{ fontSize: 12, color: P.ink, fontWeight: 500 }}>{sub}</div>
-                                    ) : (
-                                        <span style={{
-                                            display: 'inline-flex', padding: '1px 7px',
-                                            background: P.saffronTint, color: P.saffron,
-                                            fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
-                                        }}>Uncategorised</span>
-                                    )}
-                                    <div style={{ fontSize: 10, color: P.ink3, marginTop: 2, fontFamily: MONO, letterSpacing: '0.04em' }}>
-                                        {item.category || '—'}
                                     </div>
                                 </td>
 
