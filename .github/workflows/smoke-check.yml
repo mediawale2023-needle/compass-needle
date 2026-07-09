@@ -114,6 +114,28 @@ jobs:
               | sed -E 's/from [0-9]+ \(tenant/from ***\(tenant/' \
               | sed 's/^/  /' || echo "  (no matches / logs unavailable)"
 
+            echo "== tenant 5 and 10: seat_type / tenant_type / constituency =="
+            $PSQL 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F" | " -c "
+              SELECT id, name, constituency,
+                     COALESCE(seat_type, '\''(null)'\'') AS seat_type,
+                     COALESCE(tenant_type, '\''(null)'\'') AS tenant_type
+              FROM tenants WHERE id IN (5, 10);"' | sed 's/^/  /'
+
+            echo "== total geography_data rows in tenant_overrides (DB-backed source) =="
+            $PSQL 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "
+              SELECT COUNT(*) FROM tenant_overrides WHERE override_type = '\''geography_data'\'';"' | sed 's/^/  count: /'
+
+            echo "== geography_data keys matching belgaum/belagavi (any tenant) =="
+            $PSQL 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "
+              SELECT tenant_id, key FROM tenant_overrides
+              WHERE override_type = '\''geography_data'\''
+                AND (key ILIKE '\''%elgaum%'\'' OR key ILIKE '\''%elagavi%'\'');"' | sed 's/^/  /'
+
+            echo "== any geography_data rows scoped to tenant 10 specifically =="
+            $PSQL 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "
+              SELECT tenant_id, key FROM tenant_overrides
+              WHERE override_type = '\''geography_data'\'' AND tenant_id = 10;"' | sed 's/^/  /'
+
       - name: Remove GitHub Runner SSH Access
         if: always() && steps.ssh_ip.outputs.runner_ip != ''
         shell: bash
