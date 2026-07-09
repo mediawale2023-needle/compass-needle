@@ -1535,6 +1535,74 @@ def _prefer_matched_fragment_display(
 
     return matched_display, "locality"
 
+
+def _build_index_entry(s: Dict[str, Any], parl_name: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Build a scorable index entry from a (hierarchy-annotated) station dict.
+
+    Shared by the core geography_data loader and the tenant manual-override
+    matcher so both paths score candidates identically instead of the manual
+    path picking a winner via unscored first-match order.
+    """
+    raw_loc = s.get("locality", "").replace("\n", " ").strip()
+    raw_bldg = s.get("building_name", "").replace("\n", " ").strip()
+    station = str(s.get("station_number", "")).strip()
+    hierarchy_type = str(s.get("hierarchy_type") or "locality").strip()
+    parent_locality = (s.get("parent_locality") or "").replace("\n", " ").strip() or None
+    sub_locality = (s.get("sub_locality") or "").replace("\n", " ").strip() or None
+    preferred_parent_display = _preferred_parent_display(raw_loc, parl_name)
+    explicit_parent_row = bool(
+        hierarchy_type == "locality"
+        and not parent_locality
+        and not sub_locality
+        and preferred_parent_display
+        and normalize(raw_loc) == normalize(preferred_parent_display)
+    )
+
+    norm_loc = normalize(raw_loc)
+    if not norm_loc or _is_meta_locality(raw_loc):
+        return None
+
+    match_forms = _generated_alias_forms(s, parl_name)
+    specific_station = dict(s)
+    if parent_locality:
+        specific_station["parent_locality"] = None
+    specific_match_forms = _generated_alias_forms(specific_station, parl_name)
+    parent_match_forms: Set[str] = set()
+    if parent_locality:
+        parent_station = {
+            "locality": parent_locality,
+            "locality_en": parent_locality,
+            "building_name": parent_locality,
+        }
+        parent_match_forms = _generated_alias_forms(parent_station, parl_name)
+    spaceless_match_forms = _spaceless_forms(match_forms)
+    speech_match_forms = _speech_location_keys(match_forms)
+    keywords = set()
+    for form in match_forms:
+        keywords |= get_keywords(form)
+    specific_keywords = set()
+    for form in specific_match_forms:
+        specific_keywords |= get_keywords(form, allow_generic_locations=True)
+    keywords |= get_keywords(raw_bldg)
+    speech_match_forms.update(_speech_location_keys(keywords))
+    speech_match_forms.update(_speech_location_keys(specific_keywords))
+
+    return {
+        "orig_name": raw_loc,
+        "match_forms": match_forms,
+        "specific_match_forms": specific_match_forms,
+        "parent_match_forms": parent_match_forms,
+        "spaceless_match_forms": spaceless_match_forms,
+        "speech_match_forms": speech_match_forms,
+        "station": station,
+        "keywords": keywords,
+        "specific_keywords": specific_keywords,
+        "hierarchy_type": hierarchy_type,
+        "parent_locality": parent_locality,
+        "sub_locality": sub_locality,
+        "explicit_parent_row": explicit_parent_row,
+    }
+
 # --- LOADER ---
 def load_geography_index() -> bool:
     global _geography_index
@@ -1587,68 +1655,12 @@ def load_geography_index() -> bool:
             }
 
         for s in annotated_stations:
-            raw_loc = s.get("locality", "").replace("\n", " ").strip()
-            raw_bldg = s.get("building_name", "").replace("\n", " ").strip()
-            station = str(s.get("station_number", "")).strip()
-            hierarchy_type = str(s.get("hierarchy_type") or "locality").strip()
-            parent_locality = (s.get("parent_locality") or "").replace("\n", " ").strip() or None
-            sub_locality = (s.get("sub_locality") or "").replace("\n", " ").strip() or None
-            preferred_parent_display = _preferred_parent_display(raw_loc, parl_name)
-            explicit_parent_row = bool(
-                hierarchy_type == "locality"
-                and not parent_locality
-                and not sub_locality
-                and preferred_parent_display
-                and normalize(raw_loc) == normalize(preferred_parent_display)
-            )
-
-            norm_loc = normalize(raw_loc)
-            raw_loc_en = s.get("locality_en", "").replace("\n", " ").strip()
-            if not norm_loc or _is_meta_locality(raw_loc):
+            entry = _build_index_entry(s, parl_name)
+            if entry is None:
                 continue
-
-            match_forms = _generated_alias_forms(s, parl_name)
-            specific_station = dict(s)
-            if parent_locality:
-                specific_station["parent_locality"] = None
-            specific_match_forms = _generated_alias_forms(specific_station, parl_name)
-            parent_match_forms: Set[str] = set()
-            if parent_locality:
-                parent_station = {
-                    "locality": parent_locality,
-                    "locality_en": parent_locality,
-                    "building_name": parent_locality,
-                }
-                parent_match_forms = _generated_alias_forms(parent_station, parl_name)
-            spaceless_match_forms = _spaceless_forms(match_forms)
-            speech_match_forms = _speech_location_keys(match_forms)
-            keywords = set()
-            for form in match_forms:
-                keywords |= get_keywords(form)
-            specific_keywords = set()
-            for form in specific_match_forms:
-                specific_keywords |= get_keywords(form, allow_generic_locations=True)
-            keywords |= get_keywords(raw_bldg)
-            speech_match_forms.update(_speech_location_keys(keywords))
-            speech_match_forms.update(_speech_location_keys(specific_keywords))
-
-            _geography_index["assemblies"][bucket_key]["entries"].append({
-                "orig_name": raw_loc,
-                "match_forms": match_forms,
-                "specific_match_forms": specific_match_forms,
-                "parent_match_forms": parent_match_forms,
-                "spaceless_match_forms": spaceless_match_forms,
-                "speech_match_forms": speech_match_forms,
-                "station": station,
-                "keywords": keywords,
-                "specific_keywords": specific_keywords,
-                "hierarchy_type": hierarchy_type,
-                "parent_locality": parent_locality,
-                "sub_locality": sub_locality,
-                "explicit_parent_row": explicit_parent_row,
-            })
-            _register_entry_ambiguities(parl_name, assembly, match_forms)
-            _register_entry_ambiguities(parl_name, assembly, spaceless_match_forms)
+            _geography_index["assemblies"][bucket_key]["entries"].append(entry)
+            _register_entry_ambiguities(parl_name, assembly, entry["match_forms"])
+            _register_entry_ambiguities(parl_name, assembly, entry["spaceless_match_forms"])
         files_loaded += 1
         logger.debug(f"   Indexed {assembly}: {len(stations)} locations")
 
@@ -1713,6 +1725,300 @@ def _get_tenant_seat_context(tenant_id: int | None) -> Optional[Dict[str, str]]:
 
     return None
 
+
+# Manual admin corrections must keep winning over geography_data candidates
+# for the same text (see _load_tenant_overrides docstring). Core geography
+# scores top out around 150-180, so this boost keeps overrides ahead while
+# still letting them be ranked/refused relative to EACH OTHER using the same
+# precedence rules as geography_data, instead of "first DB row wins".
+_MANUAL_OVERRIDE_SCORE_BOOST = 900
+
+
+def _score_entry(
+    entry: Dict[str, Any],
+    parl_name: Optional[str],
+    query_forms: Set[str],
+    spaceless_query_forms: Set[str],
+    spaceless_query_phrase_forms: Set[str],
+    speech_query_forms: Set[str],
+    user_keywords: Set[str],
+    specific_user_keywords: Set[str],
+) -> Optional[Dict[str, Any]]:
+    """Score one index entry against a query's match forms/keywords.
+
+    Shared by the core geography_data ranking loop and the tenant
+    manual-override matcher so both paths apply identical exact/boundary/
+    fuzzy tiers and identical parent-vs-child precedence, instead of the
+    manual-override path picking a winner by unscored iteration order.
+    Returns a candidate fragment (no assembly/parl/seat tagging — the
+    caller attaches that) or None if nothing scored above threshold.
+    """
+    score = 0
+    match_type = "none"
+    matched_name = entry["orig_name"]
+    matched_type = str(entry.get("hierarchy_type") or "locality")
+    matched_value = entry.get("sub_locality") or entry["orig_name"]
+    entry_forms = entry.get("match_forms", set())
+    entry_specific_forms = entry.get("specific_match_forms", set()) or entry_forms
+    entry_parent_forms = entry.get("parent_match_forms", set())
+    entry_spaceless_forms = entry.get("spaceless_match_forms", set())
+    entry_speech_forms = entry.get("speech_match_forms", set())
+    entry_specific_keywords = entry.get("specific_keywords", set())
+
+    # A. EXACT MATCH — highest priority (full string match)
+    exact_forms = entry_forms & query_forms
+    if exact_forms:
+        matched_form = max(exact_forms, key=len)
+        score = 150 + len(matched_form)
+        match_type = "exact_full"
+        matched_name = matched_form
+
+    # B. WORD BOUNDARY MATCH — entry name appears as complete word(s) in user text
+    # Prevents "hosur" matching "gilihosur" or "chandanhosur"
+    elif entry_forms:
+        boundary_matches = []
+        for entry_form in entry_forms:
+            if len(entry_form) < 4:
+                continue
+            word_pattern = r'\b' + re.escape(entry_form) + r'\b'
+            if any(re.search(word_pattern, query_form) for query_form in query_forms):
+                boundary_matches.append(entry_form)
+        if boundary_matches:
+            matched_form = max(boundary_matches, key=len)
+            score = 120 + len(matched_form)
+            match_type = "word_boundary"
+            matched_name = matched_form
+
+    # C. EXACT SUBSTRING — entry name contained in user text (min 5 chars)
+    # Score based on length to prefer longer/more specific matches
+    if score == 0 and entry_forms:
+        substring_matches = []
+        for entry_form in entry_forms:
+            if len(entry_form) < 5:
+                continue
+            if any(entry_form in query_form for query_form in query_forms):
+                substring_matches.append(entry_form)
+        if substring_matches:
+            matched_form = max(substring_matches, key=len)
+            score = 100 + len(matched_form)
+            match_type = "exact_substring"
+            matched_name = matched_form
+
+    # E. SPACELESS MATCH — original (Fixes "Shahunagar" vs "Shahu Nagar")
+    # Only if the spaceless version is significantly long (avoid false positives)
+    if score == 0 and entry_spaceless_forms:
+        spaceless_matches = []
+        for entry_form in entry_spaceless_forms:
+            if len(entry_form) < 6:
+                continue
+            if any(entry_form in query_form for query_form in spaceless_query_forms):
+                spaceless_matches.append(entry_form)
+        if spaceless_matches:
+            matched_form = max(spaceless_matches, key=len)
+            score = 112 + len(matched_form)
+            match_type = "spaceless"
+            for form in entry_forms:
+                if form.replace(" ", "") == matched_form:
+                    matched_name = form
+                    break
+
+    # F. FUZZY SPACELESS PHRASE MATCH — for voice-note drift such as
+    # "shanti baswad" vs indexed "Santibastawad". This is restricted
+    # to adjacent multi-word user phrases and longer indexed names.
+    # Gated on score == 0 like the other fallback tiers (C, E, G): without
+    # this guard, a near-100% phrase similarity (130 + sim/10, up to 140)
+    # can outscore — and silently overwrite — an already-exact tier A/B
+    # match (120-150ish for short names), downgrading a literal exact/
+    # word-boundary hit to "fuzzy_phrase" and its lower confidence banding.
+    if score == 0 and entry_spaceless_forms and spaceless_query_phrase_forms:
+        best_phrase_match = None
+        best_phrase_score = 0.0
+        for query_phrase in spaceless_query_phrase_forms:
+            for entry_form in entry_spaceless_forms:
+                if len(entry_form) < 8:
+                    continue
+                if not (0.75 <= len(query_phrase) / len(entry_form) <= 1.25):
+                    continue
+                sim = similarity_score(query_phrase, entry_form)
+                if sim >= 94 and sim > best_phrase_score:
+                    best_phrase_score = sim
+                    best_phrase_match = entry_form
+        if best_phrase_match:
+            phrase_score = 130 + best_phrase_score / 10
+            if phrase_score > score:
+                score = phrase_score
+                match_type = f"fuzzy_phrase ({best_phrase_score:.1f})"
+                for form in entry_forms:
+                    if form.replace(" ", "") == best_phrase_match:
+                        matched_name = form
+                        break
+
+    # F2. SPEECH PHONETIC MATCH — tenant-scoped and accepted only
+    # through normal candidate ambiguity checks. Handles ASR drift like
+    # "फळगावच्या" when the known locality is a *gaon/*gav village.
+    if score == 0 and entry_speech_forms and speech_query_forms:
+        speech_matches = entry_speech_forms & speech_query_forms
+        if speech_matches:
+            matched_form = max(speech_matches, key=len)
+            score = 86 + len(matched_form)
+            match_type = "speech_phonetic"
+            matching_names = [
+                form for form in entry_forms
+                if _speech_location_key(form) == matched_form
+            ]
+            matched_name = min(matching_names, key=len) if matching_names else entry["orig_name"]
+
+    # G. FUZZY KEYWORD MATCH — STRICT (93% similarity, min 6 char keywords)
+    # Catches common Indian spelling variants like "Budhwar"/"Budhawar"
+    # and "Tilkwadi"/"Tilakwadi" without opening the gate too wide.
+    if score == 0:
+        for uk in user_keywords:
+            if len(uk) < 6: continue
+            for dk in entry["keywords"]:
+                if len(dk) < 6: continue
+                # Only consider if lengths are similar (±25%)
+                if not (0.75 <= len(uk)/len(dk) <= 1.25):
+                    continue
+                sim = similarity_score(uk, dk)
+                if sim > 90:  # lowered from 93: pan-India scripts produce
+                    # slightly imperfect romanizations; 90% still rejects
+                    # genuinely-different-romanization cases (Delhi, Mumbai)
+                    # which score 67-74% and need the alias DB instead.
+                    score = sim
+                    match_type = f"fuzzy_strict ({uk}~{dk})"
+                    matched_name = dk
+                    break
+            if score > 0:
+                break
+
+    if score == 0 and entry_specific_keywords:
+        for uk in specific_user_keywords:
+            if len(uk) < 4:
+                continue
+            for dk in entry_specific_keywords:
+                if len(dk) < 4:
+                    continue
+                if not (0.7 <= len(uk) / len(dk) <= 1.35):
+                    continue
+                sim = similarity_score(uk, dk)
+                # FUZZY ABSTAIN: <=90 similarity is a guess, not a match.
+                # Below this floor the mention stays unresolved (citizen
+                # is asked / operator reviews) instead of being mapped.
+                if sim > 90:
+                    score = 88 + (sim / 20)
+                    match_type = f"fuzzy_specific ({uk}~{dk})"
+                    matched_name = dk
+                    break
+            if score > 0:
+                break
+
+    normalized_matched_name = normalize(matched_name)
+    matched_parent_alias = bool(entry_parent_forms and normalized_matched_name in entry_parent_forms)
+    if matched_parent_alias:
+        if entry.get("explicit_parent_row"):
+            score += 18
+        elif entry.get("sub_locality"):
+            score -= 18
+        else:
+            score -= 8
+
+    if (
+        score > 0
+        and entry.get("sub_locality")
+        and len(normalize(str(entry.get("sub_locality") or "")).split()) > 1
+        and not _has_meaningful_token_overlap(entry_specific_forms or entry_forms, query_forms)
+    ):
+        score = 0
+        match_type = "generic_overlap_rejected"
+
+    if matched_parent_alias:
+        matched_type = "locality"
+        matched_value = entry.get("parent_locality") or _preferred_parent_display(entry["orig_name"], parl_name) or entry["orig_name"] or matched_name
+    else:
+        matched_type = "sub_locality" if entry.get("sub_locality") else "locality"
+        preferred_specific_display = _preferred_specific_display(entry["orig_name"])
+        matched_display_name = _preferred_specific_display(matched_name)
+        preferred_sub_locality = entry.get("sub_locality")
+        if (
+            preferred_specific_display
+            and preferred_sub_locality
+            and len(normalize(str(preferred_sub_locality)).split()) == 1
+        ):
+            preferred_sub_locality = preferred_specific_display
+        if (
+            not preferred_sub_locality
+            and matched_display_name
+            and len(normalize(matched_display_name)) > len(normalize(entry["orig_name"]))
+        ):
+            preferred_sub_locality = matched_display_name
+        matched_value = (
+            preferred_sub_locality
+            or entry.get("parent_locality")
+            or _preferred_parent_display(entry["orig_name"], parl_name)
+            or entry["orig_name"]
+            or matched_name
+        )
+
+        fragment_display, fragment_type = _prefer_matched_fragment_display(
+            original_name=str(entry["orig_name"] or ""),
+            matched_name=str(matched_name or ""),
+            parent_locality=entry.get("parent_locality"),
+            sub_locality=entry.get("sub_locality"),
+        )
+        if fragment_display and fragment_type:
+            matched_value = fragment_display
+            matched_type = fragment_type
+
+        # PARENT-LEVEL FRAGMENT GUARD: the citizen named only a coarser
+        # fragment of a longer specific sub-locality (e.g. said "Khasbag"
+        # when the indexed sub-locality is "Waddar Chavani Khasbag", which
+        # happens when a polling row is stored as "<sub> - <parent>" and the
+        # parent ends up being a city/other token rather than the fragment).
+        # Mapping the citizen to the full specific sub-locality would be a
+        # random child guess. Decide from what the CITIZEN actually wrote
+        # (query tokens), NOT the indexed alias that matched — that alias can
+        # be a partial form even when the citizen named the whole sub-locality.
+        # If the message mentions only some of the sub-locality's meaningful
+        # words, map just that fragment and treat it as a parent-level mention
+        # so cross-assembly siblings are refused downstream by the level lock.
+        if matched_type == "sub_locality" and entry.get("sub_locality"):
+            sub_display_words = _display_location_name(str(entry.get("sub_locality") or "")).split()
+            sub_meaningful = _meaningful_location_tokens(str(entry.get("sub_locality") or ""))
+            mentioned = {
+                token
+                for token in sub_meaningful
+                if any(re.search(r"\b" + re.escape(token) + r"\b", form) for form in query_forms)
+            }
+            if mentioned and mentioned != sub_meaningful:
+                mentioned_indices = [
+                    index for index, word in enumerate(sub_display_words)
+                    if normalize(word) in mentioned
+                ]
+                if mentioned_indices:
+                    fragment = " ".join(
+                        sub_display_words[min(mentioned_indices): max(mentioned_indices) + 1]
+                    ).strip()
+                    if _is_meaningful_location_fragment(fragment):
+                        matched_value = _display_location_name(fragment)
+                        matched_type = "locality"
+                        matched_parent_alias = True
+
+    # Only accept matches with score > 70 (raised threshold)
+    if score <= 70:
+        return None
+
+    return {
+        "name": entry["orig_name"],
+        "matched_name": _display_location_name(matched_name),
+        "matched_value": _display_location_name(str(matched_value)),
+        "matched_type": matched_type,
+        "parent_locality": entry.get("parent_locality"),
+        "matched_parent_alias": matched_parent_alias,
+        "score": score,
+        "type": match_type,
+    }
+
+
 # --- RESOLVER ---
 def _rank_location_candidates(
     text: str,
@@ -1743,106 +2049,89 @@ def _rank_location_candidates(
     logger.debug(f"RESOLVING: '{clean_text}' (tenant={tenant_id})")
     tenant_context = _get_tenant_seat_context(tenant_id) if tenant_id is not None else None
 
+    candidates: list[Dict[str, Any]] = []
+
     # 1. TENANT-SPECIFIC MANUAL CORRECTIONS
+    #
+    # Score every override row through the shared _score_entry scorer and
+    # collect ALL of them as candidates, instead of returning on the first
+    # row that matches while iterating the override dict. The DB query
+    # behind _load_tenant_overrides() has no ORDER BY, so "first match
+    # wins" was effectively picking a winner by arbitrary row order, not by
+    # relevance: a hyphenated sub-locality row like "Waddar Chavani -
+    # Khasbag" always derives a parent-only alias "khasbag" (see
+    # _derive_locality_aliases' hyphen split), which could out-race an
+    # actual standalone "Khasbag" row just because it happened to sort
+    # first in an unordered scan. Routing overrides through the same
+    # _build_index_entry/_score_entry pipeline used for geography_data
+    # restores identical exact/boundary/fuzzy tiers and identical
+    # parent-vs-child precedence (parent matches scored lower on child
+    # rows, standalone parent rows win), and lets the existing
+    # ambiguous_match/parent_spans_assemblies/ambiguous_near_tie guardrails
+    # in resolve_location() see the full candidate set instead of a single
+    # hard-coded winner. The score boost keeps manual corrections ranked
+    # above geography_data candidates whenever both exist for the same text.
+    manual_override_scope = scope_parliamentary or (tenant_context or {}).get("scope_parliamentary")
     if tenant_id is not None:
         tenant_overrides = _load_tenant_overrides(tenant_id)
-        for k, v in tenant_overrides.items():
-            alias_seeds = {str(k or "").strip()}
-            alias_seeds.update(
-                _derive_locality_aliases(
-                    str(k or ""),
-                    include_structured_variants=True,
-                )
-            )
-            alias_forms: Set[str] = set()
-            for seed in alias_seeds:
-                alias_forms.update(_build_match_forms(seed))
-            alias_forms = {form for form in alias_forms if form}
-            if not alias_forms:
+        override_keys = list(tenant_overrides.keys())
+        override_stations = [{"locality": str(k or "").strip()} for k in override_keys]
+        annotated_overrides = _annotate_station_hierarchy(override_stations, manual_override_scope)
+        for k, station in zip(override_keys, annotated_overrides):
+            v = tenant_overrides[k]
+            entry = _build_index_entry(station, manual_override_scope)
+            if entry is None:
                 continue
-
-            matched_value = _display_location_name(str(k or "").strip())
-            spaceless_alias_forms = _spaceless_forms(alias_forms)
-            exact_forms = alias_forms & query_forms
-            if exact_forms:
-                matched_form = max(exact_forms, key=len)
-                logger.debug(f"   OVERRIDE EXACT (tenant {tenant_id}): {k} -> {v}")
-                return [{
-                    "location_resolved": True,
-                    "assembly_constituency": v,
-                    "matched_value": matched_value,
-                    "confidence": "db_alias_exact",
-                    "confidence_level": "exact",
-                    "match_type": "db_alias_exact",
-                    "assembly": v,
-                    "parl": scope_parliamentary or (tenant_context or {}).get("scope_parliamentary"),
-                    "seat_type": (tenant_context or {}).get("seat_type"),
-                    "seat_name": (tenant_context or {}).get("seat_name"),
-                    "name": matched_value,
-                    "matched_name": _display_location_name(matched_form),
-                    "score": 1000,
-                    "type": "db_alias_exact",
-                }]
-            spaceless_hits = spaceless_alias_forms & spaceless_query_forms
-            if spaceless_hits:
-                matched_form = max(spaceless_hits, key=len)
-                logger.debug(f"   OVERRIDE SPACELESS (tenant {tenant_id}): {k} -> {v}")
-                return [{
-                    "location_resolved": True,
-                    "assembly_constituency": v,
-                    "matched_value": matched_value,
-                    "confidence": "db_alias_boundary",
-                    "confidence_level": "boundary",
-                    "match_type": "db_alias_boundary",
-                    "assembly": v,
-                    "parl": scope_parliamentary or (tenant_context or {}).get("scope_parliamentary"),
-                    "seat_type": (tenant_context or {}).get("seat_type"),
-                    "seat_name": (tenant_context or {}).get("seat_name"),
-                    "name": matched_value,
-                    "matched_name": _display_location_name(matched_form),
-                    "score": 995,
-                    "type": "db_alias_boundary",
-                }]
-            for alias_form in sorted(alias_forms, key=len, reverse=True):
-                if len(alias_form) < 4:
-                    continue
-                boundary_pattern = r"\b" + re.escape(alias_form) + r"\b"
-                if any(re.search(boundary_pattern, form) for form in query_forms):
-                    logger.debug(f"   OVERRIDE BOUNDARY (tenant {tenant_id}): {k} -> {v}")
-                    return [{
-                        "location_resolved": True,
-                        "assembly_constituency": v,
-                        "matched_value": matched_value,
-                        "confidence": "db_alias_boundary",
-                        "confidence_level": "boundary",
-                        "match_type": "db_alias_boundary",
-                        "assembly": v,
-                        "parl": scope_parliamentary or (tenant_context or {}).get("scope_parliamentary"),
-                        "seat_type": (tenant_context or {}).get("seat_type"),
-                        "seat_name": (tenant_context or {}).get("seat_name"),
-                        "name": matched_value,
-                        "matched_name": _display_location_name(alias_form),
-                        "score": 990,
-                        "type": "db_alias_boundary",
-                    }]
+            candidate = _score_entry(
+                entry,
+                manual_override_scope,
+                query_forms,
+                spaceless_query_forms,
+                spaceless_query_phrase_forms,
+                speech_query_forms,
+                user_keywords,
+                specific_user_keywords,
+            )
+            if candidate is None:
+                continue
+            candidate["score"] += _MANUAL_OVERRIDE_SCORE_BOOST
+            # NOTE: keep candidate["type"] as the raw _score_entry tier name
+            # (e.g. "word_boundary", "exact_full") rather than tagging it with
+            # a "manual_override:" prefix. api_router.py, whatsapp_geography.py,
+            # and scripts/backfill_case_geography.py all hardcode confidence
+            # gating against these exact tier strings (plus the legacy
+            # "db_alias_exact"/"db_alias_boundary" names) — a prefixed type
+            # would silently fall through to "unknown" confidence everywhere
+            # downstream and mark every manual-override match as needing
+            # confirmation.
+            candidate["source"] = "manual_override"
+            candidate["assembly"] = v
+            candidate["parl"] = manual_override_scope
+            candidate["seat_type"] = (tenant_context or {}).get("seat_type")
+            candidate["seat_name"] = (tenant_context or {}).get("seat_name")
+            logger.debug(
+                f"   OVERRIDE CANDIDATE (tenant {tenant_id}): {k} -> {v} "
+                f"score={candidate['score']} matched_value={candidate['matched_value']}"
+            )
+            candidates.append(candidate)
 
     # HARD SEAT SCOPE: when a tenant is known but no seat context can be
-    # resolved and no parliamentary scope was provided, REFUSE to resolve
-    # rather than scanning the nationwide index. An unscoped scan can match a
-    # same-named locality in another seat (seat leakage) — an unresolved
-    # location is always safer than a cross-tenant guess.
+    # resolved and no parliamentary scope was provided, REFUSE to scan the
+    # nationwide geography_data index (an unscoped scan can match a
+    # same-named locality in another seat — seat leakage). This only skips
+    # the core geography_data scan below; any manual-override candidates
+    # already collected above are still returned, matching prior behavior
+    # where a manual match could resolve even without a known seat context.
     if tenant_id is not None and tenant_context is None and not scope_parliamentary:
         logger.warning(
-            "GEO SEAT-SCOPE: refusing unscoped geography resolution for tenant %s "
-            "(no seat context, no parliamentary scope). Returning no candidates.",
+            "GEO SEAT-SCOPE: refusing unscoped geography_data scan for tenant %s "
+            "(no seat context, no parliamentary scope). Returning manual-override candidates only.",
             tenant_id,
         )
-        return []
+        return candidates
 
     seat_scope_type = normalize((tenant_context or {}).get("seat_type", ""))
     seat_scope_name = normalize((tenant_context or {}).get("seat_name", ""))
-
-    candidates = []
 
     for _, data in _geography_index["assemblies"].items():
         if tenant_context:
@@ -1854,268 +2143,23 @@ def _rank_location_candidates(
             continue
 
         for entry in data["entries"]:
-            score = 0
-            match_type = "none"
-            matched_name = entry["orig_name"]
-            matched_type = str(entry.get("hierarchy_type") or "locality")
-            matched_value = entry.get("sub_locality") or entry["orig_name"]
-            entry_forms = entry.get("match_forms", set())
-            entry_specific_forms = entry.get("specific_match_forms", set()) or entry_forms
-            entry_parent_forms = entry.get("parent_match_forms", set())
-            entry_spaceless_forms = entry.get("spaceless_match_forms", set())
-            entry_speech_forms = entry.get("speech_match_forms", set())
-            entry_specific_keywords = entry.get("specific_keywords", set())
-            entry_name = max(entry_forms, key=len) if entry_forms else ""
-
-            # A. EXACT MATCH — highest priority (full string match)
-            exact_forms = entry_forms & query_forms
-            if exact_forms:
-                matched_form = max(exact_forms, key=len)
-                score = 150 + len(matched_form)
-                match_type = "exact_full"
-                matched_name = matched_form
-
-            # B. WORD BOUNDARY MATCH — entry name appears as complete word(s) in user text
-            # Prevents "hosur" matching "gilihosur" or "chandanhosur"
-            elif entry_forms:
-                boundary_matches = []
-                for entry_form in entry_forms:
-                    if len(entry_form) < 4:
-                        continue
-                    word_pattern = r'\b' + re.escape(entry_form) + r'\b'
-                    if any(re.search(word_pattern, query_form) for query_form in query_forms):
-                        boundary_matches.append(entry_form)
-                if boundary_matches:
-                    matched_form = max(boundary_matches, key=len)
-                    score = 120 + len(matched_form)
-                    match_type = "word_boundary"
-                    matched_name = matched_form
-
-            # C. EXACT SUBSTRING — entry name contained in user text (min 5 chars)
-            # Score based on length to prefer longer/more specific matches
-            if score == 0 and entry_forms:
-                substring_matches = []
-                for entry_form in entry_forms:
-                    if len(entry_form) < 5:
-                        continue
-                    if any(entry_form in query_form for query_form in query_forms):
-                        substring_matches.append(entry_form)
-                if substring_matches:
-                    matched_form = max(substring_matches, key=len)
-                    score = 100 + len(matched_form)
-                    match_type = "exact_substring"
-                    matched_name = matched_form
-
-            # E. SPACELESS MATCH — original (Fixes "Shahunagar" vs "Shahu Nagar")
-            # Only if the spaceless version is significantly long (avoid false positives)
-            if score == 0 and entry_spaceless_forms:
-                spaceless_matches = []
-                for entry_form in entry_spaceless_forms:
-                    if len(entry_form) < 6:
-                        continue
-                    if any(entry_form in query_form for query_form in spaceless_query_forms):
-                        spaceless_matches.append(entry_form)
-                if spaceless_matches:
-                    matched_form = max(spaceless_matches, key=len)
-                    score = 112 + len(matched_form)
-                    match_type = "spaceless"
-                    for form in entry_forms:
-                        if form.replace(" ", "") == matched_form:
-                            matched_name = form
-                            break
-
-            # F. FUZZY SPACELESS PHRASE MATCH — for voice-note drift such as
-            # "shanti baswad" vs indexed "Santibastawad". This is restricted
-            # to adjacent multi-word user phrases and longer indexed names.
-            if entry_spaceless_forms and spaceless_query_phrase_forms:
-                best_phrase_match = None
-                best_phrase_score = 0.0
-                for query_phrase in spaceless_query_phrase_forms:
-                    for entry_form in entry_spaceless_forms:
-                        if len(entry_form) < 8:
-                            continue
-                        if not (0.75 <= len(query_phrase) / len(entry_form) <= 1.25):
-                            continue
-                        sim = similarity_score(query_phrase, entry_form)
-                        if sim >= 94 and sim > best_phrase_score:
-                            best_phrase_score = sim
-                            best_phrase_match = entry_form
-                if best_phrase_match:
-                    phrase_score = 130 + best_phrase_score / 10
-                    if phrase_score > score:
-                        score = phrase_score
-                        match_type = f"fuzzy_phrase ({best_phrase_score:.1f})"
-                        for form in entry_forms:
-                            if form.replace(" ", "") == best_phrase_match:
-                                matched_name = form
-                                break
-
-            # F2. SPEECH PHONETIC MATCH — tenant-scoped and accepted only
-            # through normal candidate ambiguity checks. Handles ASR drift like
-            # "फळगावच्या" when the known locality is a *gaon/*gav village.
-            if score == 0 and entry_speech_forms and speech_query_forms:
-                speech_matches = entry_speech_forms & speech_query_forms
-                if speech_matches:
-                    matched_form = max(speech_matches, key=len)
-                    score = 86 + len(matched_form)
-                    match_type = "speech_phonetic"
-                    matching_names = [
-                        form for form in entry_forms
-                        if _speech_location_key(form) == matched_form
-                    ]
-                    matched_name = min(matching_names, key=len) if matching_names else entry["orig_name"]
-
-            # G. FUZZY KEYWORD MATCH — STRICT (93% similarity, min 6 char keywords)
-            # Catches common Indian spelling variants like "Budhwar"/"Budhawar"
-            # and "Tilkwadi"/"Tilakwadi" without opening the gate too wide.
-            if score == 0:
-                for uk in user_keywords:
-                    if len(uk) < 6: continue
-                    for dk in entry["keywords"]:
-                        if len(dk) < 6: continue
-                        # Only consider if lengths are similar (±25%)
-                        if not (0.75 <= len(uk)/len(dk) <= 1.25):
-                            continue
-                        sim = similarity_score(uk, dk)
-                        if sim > 90:  # lowered from 93: pan-India scripts produce
-                            # slightly imperfect romanizations; 90% still rejects
-                            # genuinely-different-romanization cases (Delhi, Mumbai)
-                            # which score 67-74% and need the alias DB instead.
-                            score = sim
-                            match_type = f"fuzzy_strict ({uk}~{dk})"
-                            matched_name = dk
-                            break
-                    if score > 0:
-                        break
-
-            if score == 0 and entry_specific_keywords:
-                for uk in specific_user_keywords:
-                    if len(uk) < 4:
-                        continue
-                    for dk in entry_specific_keywords:
-                        if len(dk) < 4:
-                            continue
-                        if not (0.7 <= len(uk) / len(dk) <= 1.35):
-                            continue
-                        sim = similarity_score(uk, dk)
-                        # FUZZY ABSTAIN: <=90 similarity is a guess, not a match.
-                        # Below this floor the mention stays unresolved (citizen
-                        # is asked / operator reviews) instead of being mapped.
-                        if sim > 90:
-                            score = 88 + (sim / 20)
-                            match_type = f"fuzzy_specific ({uk}~{dk})"
-                            matched_name = dk
-                            break
-                    if score > 0:
-                        break
-
-            normalized_matched_name = normalize(matched_name)
-            matched_parent_alias = bool(entry_parent_forms and normalized_matched_name in entry_parent_forms)
-            if matched_parent_alias:
-                if entry.get("explicit_parent_row"):
-                    score += 18
-                elif entry.get("sub_locality"):
-                    score -= 18
-                else:
-                    score -= 8
-
-            if (
-                score > 0
-                and entry.get("sub_locality")
-                and len(normalize(str(entry.get("sub_locality") or "")).split()) > 1
-                and not _has_meaningful_token_overlap(entry_specific_forms or entry_forms, query_forms)
-            ):
-                score = 0
-                match_type = "generic_overlap_rejected"
-
-            if matched_parent_alias:
-                matched_type = "locality"
-                matched_value = entry.get("parent_locality") or _preferred_parent_display(entry["orig_name"], data.get("parl")) or entry["orig_name"] or matched_name
-            else:
-                matched_type = "sub_locality" if entry.get("sub_locality") else "locality"
-                preferred_specific_display = _preferred_specific_display(entry["orig_name"])
-                matched_display_name = _preferred_specific_display(matched_name)
-                preferred_sub_locality = entry.get("sub_locality")
-                if (
-                    preferred_specific_display
-                    and preferred_sub_locality
-                    and len(normalize(str(preferred_sub_locality)).split()) == 1
-                ):
-                    preferred_sub_locality = preferred_specific_display
-                if (
-                    not preferred_sub_locality
-                    and matched_display_name
-                    and len(normalize(matched_display_name)) > len(normalize(entry["orig_name"]))
-                ):
-                    preferred_sub_locality = matched_display_name
-                matched_value = (
-                    preferred_sub_locality
-                    or entry.get("parent_locality")
-                    or _preferred_parent_display(entry["orig_name"], data.get("parl"))
-                    or entry["orig_name"]
-                    or matched_name
-                )
-
-                fragment_display, fragment_type = _prefer_matched_fragment_display(
-                    original_name=str(entry["orig_name"] or ""),
-                    matched_name=str(matched_name or ""),
-                    parent_locality=entry.get("parent_locality"),
-                    sub_locality=entry.get("sub_locality"),
-                )
-                if fragment_display and fragment_type:
-                    matched_value = fragment_display
-                    matched_type = fragment_type
-
-                # PARENT-LEVEL FRAGMENT GUARD: the citizen named only a coarser
-                # fragment of a longer specific sub-locality (e.g. said "Khasbag"
-                # when the indexed sub-locality is "Waddar Chavani Khasbag", which
-                # happens when a polling row is stored as "<sub> - <parent>" and the
-                # parent ends up being a city/other token rather than the fragment).
-                # Mapping the citizen to the full specific sub-locality would be a
-                # random child guess. Decide from what the CITIZEN actually wrote
-                # (query tokens), NOT the indexed alias that matched — that alias can
-                # be a partial form even when the citizen named the whole sub-locality.
-                # If the message mentions only some of the sub-locality's meaningful
-                # words, map just that fragment and treat it as a parent-level mention
-                # so cross-assembly siblings are refused downstream by the level lock.
-                if matched_type == "sub_locality" and entry.get("sub_locality"):
-                    sub_display_words = _display_location_name(str(entry.get("sub_locality") or "")).split()
-                    sub_meaningful = _meaningful_location_tokens(str(entry.get("sub_locality") or ""))
-                    mentioned = {
-                        token
-                        for token in sub_meaningful
-                        if any(re.search(r"\b" + re.escape(token) + r"\b", form) for form in query_forms)
-                    }
-                    if mentioned and mentioned != sub_meaningful:
-                        mentioned_indices = [
-                            index for index, word in enumerate(sub_display_words)
-                            if normalize(word) in mentioned
-                        ]
-                        if mentioned_indices:
-                            fragment = " ".join(
-                                sub_display_words[min(mentioned_indices): max(mentioned_indices) + 1]
-                            ).strip()
-                            if _is_meaningful_location_fragment(fragment):
-                                matched_value = _display_location_name(fragment)
-                                matched_type = "locality"
-                                matched_parent_alias = True
-
-            # Only accept matches with score > 70 (raised threshold)
-            if score > 70:
-                candidates.append({
-                    "assembly": data["assembly"],
-                    "parl": data["parl"],
-                    "seat_type": data.get("seat_type"),
-                    "seat_name": data.get("seat_name"),
-                    "name": entry["orig_name"],
-                    "matched_name": _display_location_name(matched_name),
-                    "matched_value": _display_location_name(str(matched_value)),
-                    "matched_type": matched_type,
-                    "parent_locality": entry.get("parent_locality"),
-                    "matched_parent_alias": matched_parent_alias,
-                    "score": score,
-                    "type": match_type
-                })
+            candidate = _score_entry(
+                entry,
+                data.get("parl"),
+                query_forms,
+                spaceless_query_forms,
+                spaceless_query_phrase_forms,
+                speech_query_forms,
+                user_keywords,
+                specific_user_keywords,
+            )
+            if candidate is None:
+                continue
+            candidate["assembly"] = data["assembly"]
+            candidate["parl"] = data["parl"]
+            candidate["seat_type"] = data.get("seat_type")
+            candidate["seat_name"] = data.get("seat_name")
+            candidates.append(candidate)
 
     candidates.sort(
         key=lambda x: (

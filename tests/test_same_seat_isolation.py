@@ -123,12 +123,18 @@ def test_same_seat_tenants_share_seat_scoped_manual_corrections():
     tenant_b = geography_resolver.resolve_location("Hanuman Colony water problem", tenant_id=12)
     mla_tenant = geography_resolver.resolve_location("Hanuman Colony drainage issue", tenant_id=21)
 
+    # Manual/seat-scoped corrections now share the same exact/boundary/fuzzy
+    # match_type vocabulary as core geography_data (see geography_resolver's
+    # _score_entry) instead of the old coarse "db_alias_exact"/
+    # "db_alias_boundary" labels. Assert on confidence_level — the actual
+    # behavioral contract other callers (api_router.py, whatsapp_geography.py)
+    # rely on — rather than the specific tier name.
     assert tenant_a["location_resolved"] is True
     assert tenant_a["assembly_constituency"] == "Belgaum Uttar"
-    assert tenant_a["match_type"] in {"db_alias_exact", "db_alias_boundary"}
+    assert tenant_a["confidence_level"] in {"exact", "boundary"}
 
     assert tenant_b["location_resolved"] is True
     assert tenant_b["assembly_constituency"] == "Belgaum Uttar"
-    assert tenant_b["match_type"] in {"db_alias_exact", "db_alias_boundary"}
+    assert tenant_b["confidence_level"] in {"exact", "boundary"}
 
     assert mla_tenant["location_resolved"] is False
