@@ -802,7 +802,11 @@ def _station_seed_aliases(station: Dict[str, Any], parliamentary_constituency: O
     if isinstance(raw_aliases, (list, tuple, set)):
         for alias in raw_aliases:
             value = str(alias or "").replace("\n", " ").strip()
-            if value:
+            # Reject aliases made only of generic container words ("Compound",
+            # "Apartment", "Towers"): rows saved by older inference code carry
+            # such derived aliases, and a bare generic word as a match seed
+            # lets any message containing that word hit this one row.
+            if value and _is_meaningful_location_fragment(value):
                 seeds.add(value)
 
     for alias in _extract_building_location_seeds(
@@ -1240,7 +1244,20 @@ def _annotate_station_hierarchy(
     stations: Iterable[Dict[str, Any]],
     parliamentary_constituency: Optional[str] = None,
 ) -> list[Dict[str, Any]]:
-    station_list = [dict(station) for station in (stations or [])]
+    # Hierarchy fields are DERIVED data: saved geography rows carry whatever
+    # parent/sub inference produced at save time, which can be stale after
+    # inference improvements. Strip them before re-annotating so a stored
+    # snapshot from older inference code can never survive into the runtime
+    # index or a re-save — _infer_station_hierarchy only overwrites these keys
+    # when it finds a parent/sub pair, and would otherwise leave stale values
+    # in place.
+    station_list = []
+    for station in (stations or []):
+        cleaned = dict(station)
+        cleaned.pop("parent_locality", None)
+        cleaned.pop("sub_locality", None)
+        cleaned.pop("hierarchy_type", None)
+        station_list.append(cleaned)
     parent_catalog = _build_parent_locality_catalog(station_list, parliamentary_constituency)
     return [
         _infer_station_hierarchy(station, parent_catalog, parliamentary_constituency)

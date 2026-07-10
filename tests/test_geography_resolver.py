@@ -682,3 +682,54 @@ def test_sanitize_and_validate_stations_reports_meta_and_ambiguity(stub_geograph
     assert report["meta_rows_removed"] == 1
     assert report["meta_row_samples"] == ["District"]
     assert report["ambiguous_localities_against_constituency"] == {"Lohiya Nagar": ["Ghaziabad", "Muradnagar"]}
+
+
+def test_reannotation_strips_stale_persisted_hierarchy():
+    """Stored rows carry parent/sub inferred at save time; older inference code
+    produced generic-word parents like 'Compound'. Re-annotation must discard
+    the stale snapshot and recompute with current rules."""
+    stations = [
+        {
+            "station_number": "1",
+            "locality": "rajwada compound, vadagaon",
+            "building_name": "",
+            # Stale snapshot from pre-fix inference:
+            "parent_locality": "Compound",
+            "sub_locality": "Rajwada",
+            "hierarchy_type": "sub_locality",
+        },
+        {"station_number": "2", "locality": "yallur road vadagaon", "building_name": ""},
+        {"station_number": "3", "locality": "nazar camp vadagaon", "building_name": ""},
+        {"station_number": "4", "locality": "shri hari apartment", "building_name": "",
+         "parent_locality": "Apartment", "sub_locality": "Shri Hari", "hierarchy_type": "sub_locality"},
+    ]
+
+    annotated = geography_resolver._annotate_station_hierarchy(stations, "Belagavi")
+    by_locality = {row["locality"]: row for row in annotated}
+
+    rajwada = by_locality["rajwada compound, vadagaon"]
+    assert rajwada.get("parent_locality") == "Vadagaon"
+    assert rajwada.get("sub_locality") == "Rajwada Compound"
+
+    # Single generic-word parent from the stale snapshot must not survive when
+    # current inference finds no parent at all.
+    apartment = by_locality["shri hari apartment"]
+    assert apartment.get("parent_locality") is None
+    assert apartment.get("sub_locality") is None
+    assert apartment.get("hierarchy_type") == "locality"
+
+
+def test_generic_only_stored_alias_does_not_seed_match_forms():
+    """A persisted derived alias that is just a generic container word must not
+    become a match seed, or any message containing that word hits the row."""
+    station = {
+        "station_number": "1",
+        "locality": "rajwada compound, vadagaon",
+        "building_name": "",
+        "aliases": ["Compound", "Rajwada Compound"],
+    }
+
+    forms = geography_resolver._generated_alias_forms(station, "Belagavi")
+
+    assert "compound" not in forms
+    assert any("rajwada" in form for form in forms)
