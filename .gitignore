@@ -51,7 +51,8 @@ _archive/
 # Claude Code local config (contains API tokens)
 .claude/settings.local.json
 .claude/settings.json
--e 
+.claude/worktrees/
+
 # Environment and credential files
 .env
 .env.*
