@@ -1901,6 +1901,135 @@ def import_boundary_auto(req: GenerateSeatMapRequest, admin_user=Depends(get_adm
 
 
 # ═══════════════════════════════════════════
+# SEAT REGISTRY
+# ═══════════════════════════════════════════
+
+def _light_manifest_summary(manifest):
+    """Registry rows must stay light: manifests can carry a full inline SVG."""
+    if not isinstance(manifest, dict):
+        return None
+    return {
+        "status": manifest.get("status"),
+        "source": manifest.get("source"),
+        "version": manifest.get("version"),
+    }
+
+
+@router.get("/seats")
+def list_seats_registry(_=Depends(get_admin_user)):
+    """Aggregated seat registry: geography, corrections, map, and tenant usage per seat."""
+    seats = list_seat_map_workflows()
+
+    correction_counts: dict[str, int] = {}
+    legacy_counts_by_tenant: dict[int, int] = {}
+    db = SessionLocal()
+    try:
+        seat_rows = db.execute(text(
+            "SELECT key FROM tenant_overrides WHERE override_type = 'geo_seat_manual_override'"
+        )).fetchall()
+        for (key,) in seat_rows:
+            seat_key = str(key or "").split("::", 1)[0].strip()
+            if seat_key:
+                lookup = seat_key.lower()
+                correction_counts[lookup] = correction_counts.get(lookup, 0) + 1
+
+        legacy_rows = db.execute(text(
+            """
+            SELECT tenant_id, COUNT(*)
+            FROM tenant_overrides
+            WHERE override_type IN ('geo_manual_override', 'geo_override')
+              AND tenant_id IS NOT NULL
+            GROUP BY tenant_id
+            """
+        )).fetchall()
+        for tenant_id, count in legacy_rows:
+            legacy_counts_by_tenant[int(tenant_id)] = int(count)
+    finally:
+        db.close()
+
+    items = []
+    for seat in seats:
+        seat_key = str(seat.get("seat_key") or "")
+        seat_corrections = correction_counts.get(seat_key.lower(), 0)
+        legacy_corrections = sum(
+            legacy_counts_by_tenant.get(int(t.get("tenant_id") or 0), 0)
+            for t in seat.get("tenants") or []
+        )
+        item = dict(seat)
+        item["manifest"] = _light_manifest_summary(seat.get("manifest"))
+        item["manual_correction_count"] = seat_corrections
+        item["legacy_correction_count"] = legacy_corrections
+        items.append(item)
+
+    items.sort(key=lambda s: (s.get("seat_type") or "", (s.get("seat_name") or "").lower()))
+    return {"items": items}
+
+
+@router.get("/seats/geography-decisions")
+def seat_geography_decisions(
+    seat_key: str = Query(...),
+    limit: int = Query(30, ge=1, le=100),
+    _=Depends(get_admin_user),
+):
+    """Recent geography resolution outcomes for a seat, read from case diagnostics.
+
+    Surfaces what the resolver actually did per inbound case (matched value,
+    confidence, refusal reason) so matching problems are visible in the
+    dashboard instead of requiring DB forensics.
+    """
+    seat_type, _sep, seat_name = seat_key.partition(":")
+    seat_type = (seat_type or "mp").strip().lower()
+    seat_name = seat_name.strip()
+    if not seat_name:
+        raise HTTPException(400, "seat_key must look like 'mla:Belgaum Dakshin'")
+
+    db = SessionLocal()
+    try:
+        tenants = db.query(Tenant).filter(
+            func.lower(func.trim(Tenant.constituency)) == seat_name.lower()
+        ).all()
+        tenant_ids = [t.id for t in tenants if derive_seat_type(t) == seat_type]
+        if not tenant_ids:
+            return {"items": [], "tenant_ids": []}
+
+        cases = (
+            db.query(Case)
+            .filter(Case.tenant_id.in_(tenant_ids), Case.is_deleted.isnot(True))
+            .order_by(Case.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
+        items = []
+        for c in cases:
+            meta = _parse_meta(c.case_metadata)
+            diag = meta.get("geography_diagnostics") or {}
+            final = diag.get("final") or {}
+            resolved = bool((c.location or "").strip()) and bool((c.assembly or "").strip())
+            items.append({
+                "case_id": c.id,
+                "case_ref": c.case_ref,
+                "tenant_id": c.tenant_id,
+                "created_at": c.created_at.isoformat() + "Z" if c.created_at else None,
+                "status": c.status,
+                "location": c.location or "",
+                "assembly": c.assembly or "",
+                "message_excerpt": (diag.get("message_excerpt") or c.raw_message or "")[:160],
+                "resolved": resolved,
+                "matched_value": final.get("matched_value") or meta.get("matched_value") or "",
+                "confidence": final.get("geography_confidence") or meta.get("geography_confidence") or "",
+                "source": final.get("geography_source") or meta.get("geography_source") or "",
+                "needs_review": bool(final.get("needs_geography_review") or meta.get("needs_geography_review")),
+                "review_reason": final.get("review_reason") or meta.get("geography_review_reason") or "",
+                "has_diagnostics": bool(diag),
+                "attempts": diag.get("attempts") or [],
+            })
+        return {"items": items, "tenant_ids": tenant_ids}
+    finally:
+        db.close()
+
+
+# ═══════════════════════════════════════════
 # EDITORS
 # ═══════════════════════════════════════════
 

@@ -153,7 +153,6 @@ const NAV_GROUPS = [
     {
         label: 'Configure',
         items: [
-            { href: '/dashboard/shared-geography', label: 'Shared Geography', Icon: Icons.Geography },
             { href: '/dashboard/seat-maps', label: 'Seat Maps', Icon: Icons.Geography },
             { href: '/dashboard/cases-intelligence', label: 'Cases & Intelligence', Icon: Icons.Cases },
         ],
