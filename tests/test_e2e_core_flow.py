@@ -250,7 +250,9 @@ def test_citizen_webhook_to_notify_and_resolve_flow(monkeypatch):
     monkeypatch.setattr(
         whatsapp_module,
         "send_whatsapp_message",
-        lambda phone, message, phone_number_id=None: citizen_notifications.append((phone, message, phone_number_id)),
+        # Accept the audit kwargs (tenant_id, case_id, initiated_by, …) the
+        # notify path now passes alongside the positional args.
+        lambda phone, message, phone_number_id=None, **kwargs: citizen_notifications.append((phone, message, phone_number_id)),
     )
 
     sender = f"9198800{int(time.time()) % 100000:05d}"

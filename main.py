@@ -3476,7 +3476,13 @@ def _resolve_citizen_ack_message(
         return get_generic_ack_reply(detected_language, message_body)
 
     if normalized_status in DETAILS_REQUEST_STATUSES:
-        return get_details_request_reply(detected_language, message_body)
+        # Immediate details-request is only for the contextless-media lane
+        # (image/document with no usable text). Text complaints follow the
+        # "ack first, clarify later" policy: a warm generic ack now, with the
+        # details ask arriving via the delayed clarification follow-up.
+        if str(category or "").lower().strip() == "document / attachment only":
+            return get_details_request_reply(detected_language, message_body)
+        return get_generic_ack_reply(detected_language, message_body)
 
     if normalized_status == "irrelevant":
         return get_review_ack_reply(detected_language, message_body)
