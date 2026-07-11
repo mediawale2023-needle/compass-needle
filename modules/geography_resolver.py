@@ -1175,6 +1175,34 @@ def _infer_station_hierarchy(
     if not locality or _is_meta_locality(locality):
         return station
 
+    # Operator-set hierarchy is canonical input, not a derived guess: skip
+    # inference entirely and just rebuild match-form aliases from the
+    # operator's own parent/sub pair (or leave it flat if they explicitly
+    # cleared both). This is the one case _annotate_station_hierarchy does
+    # NOT strip before calling in here — see its docstring.
+    if station.get("hierarchy_source") == "manual":
+        manual_parent = (station.get("parent_locality") or "").strip() or None
+        manual_sub = (station.get("sub_locality") or "").strip() or None
+        enriched = dict(station)
+        if manual_parent and manual_sub:
+            enriched["hierarchy_type"] = "sub_locality"
+            raw_aliases = enriched.get("aliases") or []
+            if isinstance(raw_aliases, str):
+                raw_aliases = re.split(r"[,;|]", raw_aliases)
+            aliases = {str(alias or "").strip() for alias in raw_aliases if str(alias or "").strip()}
+            aliases.update({
+                manual_sub,
+                manual_parent,
+                f"{manual_sub} {manual_parent}",
+                f"{manual_sub}, {manual_parent}",
+            })
+            enriched["aliases"] = sorted(aliases)
+        else:
+            enriched["parent_locality"] = None
+            enriched["sub_locality"] = None
+            enriched["hierarchy_type"] = "locality"
+        return enriched
+
     normalized_locality = normalize(locality)
     row_aliases = sorted(
         {
@@ -1244,19 +1272,23 @@ def _annotate_station_hierarchy(
     stations: Iterable[Dict[str, Any]],
     parliamentary_constituency: Optional[str] = None,
 ) -> list[Dict[str, Any]]:
-    # Hierarchy fields are DERIVED data: saved geography rows carry whatever
-    # parent/sub inference produced at save time, which can be stale after
-    # inference improvements. Strip them before re-annotating so a stored
-    # snapshot from older inference code can never survive into the runtime
-    # index or a re-save — _infer_station_hierarchy only overwrites these keys
-    # when it finds a parent/sub pair, and would otherwise leave stale values
-    # in place.
+    # Hierarchy fields are DERIVED data unless an operator set them
+    # explicitly: saved geography rows carry whatever parent/sub inference
+    # produced at save time, which can be stale after inference improvements.
+    # Strip them before re-annotating so a stored snapshot from older
+    # inference code can never survive into the runtime index or a re-save —
+    # _infer_station_hierarchy only overwrites these keys when it finds a
+    # parent/sub pair, and would otherwise leave stale values in place.
+    # Rows with hierarchy_source == "manual" are operator input, not a stale
+    # guess, so they are left untouched here and short-circuit inference
+    # inside _infer_station_hierarchy instead.
     station_list = []
     for station in (stations or []):
         cleaned = dict(station)
-        cleaned.pop("parent_locality", None)
-        cleaned.pop("sub_locality", None)
-        cleaned.pop("hierarchy_type", None)
+        if cleaned.get("hierarchy_source") != "manual":
+            cleaned.pop("parent_locality", None)
+            cleaned.pop("sub_locality", None)
+            cleaned.pop("hierarchy_type", None)
         station_list.append(cleaned)
     parent_catalog = _build_parent_locality_catalog(station_list, parliamentary_constituency)
     return [
@@ -1460,6 +1492,13 @@ def sanitize_and_validate_stations(
         }
         if locality_en:
             cleaned_station["locality_en"] = locality_en
+        # Operator-set parent/sub is canonical input, not a derived guess —
+        # carry it through the sanitize pass so a manual edit round-trips
+        # through a full re-save instead of being silently discarded.
+        if raw_station.get("hierarchy_source") == "manual":
+            cleaned_station["hierarchy_source"] = "manual"
+            cleaned_station["parent_locality"] = (raw_station.get("parent_locality") or "").strip() or None
+            cleaned_station["sub_locality"] = (raw_station.get("sub_locality") or "").strip() or None
         cleaned.append(cleaned_station)
 
     for station in cleaned:

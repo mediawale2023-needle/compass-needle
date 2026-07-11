@@ -643,6 +643,13 @@ class SaveGeographyRequest(BaseModel):
     data: list
 
 
+class SetStationHierarchyRequest(BaseModel):
+    locality: str
+    mode: str  # "set" | "clear_to_flat" | "reset_to_auto"
+    parent_locality: Optional[str] = None
+    sub_locality: Optional[str] = None
+
+
 class SaveOverridesRequest(BaseModel):
     data: dict
 
@@ -2321,6 +2328,124 @@ def save_geography(
     except Exception as e:
         logger.exception("Admin operation failed")
         raise HTTPException(500, "Internal server error")
+
+
+@router.patch("/geography/{pc}/{ac}/hierarchy")
+def set_station_hierarchy(
+    pc: str,
+    ac: str,
+    req: SetStationHierarchyRequest,
+    seat_type: str = Query("mp"),
+    admin_user=Depends(get_admin_user),
+):
+    """Set, clear, or reset one station's parent/sub-locality pairing.
+
+    Operator input here is canonical, not a derived guess: it is stored with
+    hierarchy_source="manual" so modules.geography_resolver's re-annotation
+    (which otherwise strips and recomputes parent/sub on every reload to
+    avoid stale auto-inferred data) leaves it untouched. "reset_to_auto"
+    removes that marker so normal inference resumes for the row.
+    """
+    pc = _sanitize_path_param(pc)
+    ac = _sanitize_path_param(ac)
+    seat_type = _normalize_seat_type(seat_type)
+    target_locality = req.locality.strip()
+    if not target_locality:
+        raise HTTPException(400, "locality is required")
+    if req.mode not in {"set", "clear_to_flat", "reset_to_auto"}:
+        raise HTTPException(400, "mode must be one of: set, clear_to_flat, reset_to_auto")
+    if req.mode == "set":
+        parent = (req.parent_locality or "").strip()
+        sub = (req.sub_locality or "").strip()
+        if not parent or not sub:
+            raise HTTPException(400, "parent_locality and sub_locality are both required for mode=set")
+
+    from sansadx_backend.db import TenantOverride
+    from modules.geography_resolver import sanitize_and_validate_stations, normalize as geo_normalize
+
+    db = SessionLocal()
+    try:
+        db_key = build_geography_key(seat_type, pc, ac)
+        existing = db.query(TenantOverride).filter(
+            TenantOverride.override_type == "geography_data",
+            TenantOverride.key == db_key,
+        ).first()
+        if not existing:
+            raise HTTPException(404, "No saved geography for this seat/assembly")
+
+        stations = _safe_json_loads(existing.value) or []
+        target_norm = geo_normalize(target_locality)
+        match_index = next(
+            (i for i, s in enumerate(stations) if geo_normalize(str(s.get("locality") or "")) == target_norm),
+            None,
+        )
+        if match_index is None:
+            raise HTTPException(404, f"No station with locality '{target_locality}' in this saved geography")
+
+        station = dict(stations[match_index])
+        before = {"parent_locality": station.get("parent_locality"), "sub_locality": station.get("sub_locality"), "hierarchy_source": station.get("hierarchy_source")}
+
+        if req.mode == "reset_to_auto":
+            station.pop("hierarchy_source", None)
+            station.pop("parent_locality", None)
+            station.pop("sub_locality", None)
+            station.pop("hierarchy_type", None)
+        elif req.mode == "clear_to_flat":
+            station["hierarchy_source"] = "manual"
+            station["parent_locality"] = None
+            station["sub_locality"] = None
+        else:  # set
+            station["hierarchy_source"] = "manual"
+            station["parent_locality"] = req.parent_locality.strip()
+            station["sub_locality"] = req.sub_locality.strip()
+
+        stations[match_index] = station
+
+        cleaned_data, validation = sanitize_and_validate_stations(
+            stations,
+            parliamentary_constituency=pc,
+            assembly=ac,
+            seat_type=seat_type,
+            seat_name=pc,
+            other_rows=get_all_geography_data(),
+        )
+        _raise_on_blocking_geography_validation(validation)
+
+        existing.value = json.dumps(cleaned_data, ensure_ascii=False)
+        flag_modified(existing, "value")
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        logger.exception("Admin operation failed")
+        raise HTTPException(500, "Internal server error")
+    finally:
+        db.close()
+
+    if seat_type == "mp" and not _production_db_only_geography():
+        path = GEOGRAPHY_BASE_PATH / pc
+        path.mkdir(parents=True, exist_ok=True)
+        with open(path / f"{ac}.json", "w", encoding="utf-8") as f:
+            json.dump(cleaned_data, f, indent=2, ensure_ascii=False)
+
+    _refresh_geography_runtime()
+
+    saved = next((s for s in cleaned_data if geo_normalize(str(s.get("locality") or "")) == target_norm), {})
+    _audit_structured(
+        admin_user,
+        "updated",
+        "shared_geography_hierarchy",
+        f"{db_key}::{target_locality}",
+        mode=req.mode,
+        seat_type=seat_type,
+        seat_name=pc,
+        assembly=ac,
+        before=before,
+        after={"parent_locality": saved.get("parent_locality"), "sub_locality": saved.get("sub_locality")},
+    )
+    return {"success": True, "station": saved}
 
 
 @router.delete("/geography/{pc}/{ac}")

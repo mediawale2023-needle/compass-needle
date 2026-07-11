@@ -733,3 +733,72 @@ def test_generic_only_stored_alias_does_not_seed_match_forms():
 
     assert "compound" not in forms
     assert any("rajwada" in form for form in forms)
+
+
+def test_manual_hierarchy_source_skips_inference_and_survives_reannotation():
+    """Operator-set parent/sub is canonical input: it must not be re-derived,
+    and it must survive a stale-field-stripping re-annotation pass (the same
+    pass that discards leftover derived fields from older inference code)."""
+    stations = [
+        {
+            "locality": "Rajwada Compound",
+            "hierarchy_source": "manual",
+            "parent_locality": "Vadagaon",
+            "sub_locality": "Rajwada Compound",
+        },
+        {
+            # Operator groups this under a brand-new parent name that has no
+            # other corroborating rows — auto-inference would never find it.
+            "locality": "Shri Hari Apartment",
+            "hierarchy_source": "manual",
+            "parent_locality": "Custom Block",
+            "sub_locality": "Shri Hari",
+        },
+        {"locality": "Random Auto Row"},
+    ]
+
+    annotated = geography_resolver._annotate_station_hierarchy(stations, "Belagavi")
+    by_locality = {row["locality"]: row for row in annotated}
+
+    assert by_locality["Rajwada Compound"]["parent_locality"] == "Vadagaon"
+    assert by_locality["Rajwada Compound"]["sub_locality"] == "Rajwada Compound"
+    assert by_locality["Shri Hari Apartment"]["parent_locality"] == "Custom Block"
+    assert by_locality["Random Auto Row"].get("parent_locality") is None
+
+    # Re-annotating a second time (simulating a reload) must not discard the
+    # manual pairing the way it discards stale derived data.
+    reannotated = geography_resolver._annotate_station_hierarchy(annotated, "Belagavi")
+    reannotated_by_locality = {row["locality"]: row for row in reannotated}
+    assert reannotated_by_locality["Shri Hari Apartment"]["parent_locality"] == "Custom Block"
+
+
+def test_manual_hierarchy_clears_to_flat_locality_when_operator_removes_pairing():
+    stations = [{
+        "locality": "Some Row",
+        "hierarchy_source": "manual",
+        "parent_locality": None,
+        "sub_locality": None,
+    }]
+    annotated = geography_resolver._annotate_station_hierarchy(stations, "Belagavi")
+    assert annotated[0]["parent_locality"] is None
+    assert annotated[0]["sub_locality"] is None
+    assert annotated[0]["hierarchy_type"] == "locality"
+
+
+def test_sanitize_and_validate_stations_preserves_manual_hierarchy():
+    stations = [{
+        "locality": "Rajwada Compound",
+        "hierarchy_source": "manual",
+        "parent_locality": "Vadagaon",
+        "sub_locality": "Rajwada Compound",
+    }]
+    cleaned, _report = geography_resolver.sanitize_and_validate_stations(
+        stations,
+        parliamentary_constituency="Belagavi",
+        assembly="Belgaum South",
+        seat_type="mla",
+        seat_name="Belgaum Dakshin",
+    )
+    assert cleaned[0]["hierarchy_source"] == "manual"
+    assert cleaned[0]["parent_locality"] == "Vadagaon"
+    assert cleaned[0]["sub_locality"] == "Rajwada Compound"

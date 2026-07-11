@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { apiGet, apiPut } from '@/lib/api';
+import { apiGet, apiPut, apiPatch } from '@/lib/api';
 import ConfirmModal from '@/components/ConfirmModal';
 
 function decodeSeatKey(raw) {
@@ -43,6 +43,10 @@ export default function SeatDetailPage() {
     const [expandedAssembly, setExpandedAssembly] = useState('');
     const [stations, setStations] = useState({});
     const [stationsLoading, setStationsLoading] = useState('');
+    const [editingLocality, setEditingLocality] = useState(''); // locality being edited, scoped to expandedAssembly
+    const [editParent, setEditParent] = useState('');
+    const [editSub, setEditSub] = useState('');
+    const [hierarchySaving, setHierarchySaving] = useState('');
 
     const [overrides, setOverrides] = useState(null);
     const [rules, setRules] = useState({});
@@ -122,6 +126,76 @@ export default function SeatDetailPage() {
                 setStationsLoading('');
             }
         }
+    };
+
+    const startHierarchyEdit = (station) => {
+        setEditingLocality(station.locality);
+        setEditParent(station.parent_locality || '');
+        setEditSub(station.sub_locality || '');
+    };
+
+    const cancelHierarchyEdit = () => {
+        setEditingLocality('');
+        setEditParent('');
+        setEditSub('');
+    };
+
+    const applyHierarchyPatch = async (assembly, locality, body, successText) => {
+        setHierarchySaving(locality);
+        try {
+            const r = await apiPatch(
+                `/api/admin/geography/${encodeURIComponent(seatName)}/${encodeURIComponent(assembly)}/hierarchy?seat_type=${seatType}`,
+                body,
+            );
+            const updated = r.station;
+            setStations((prev) => ({
+                ...prev,
+                [assembly]: (prev[assembly] || []).map((s) =>
+                    s.locality === locality ? { ...s, ...updated } : s,
+                ),
+            }));
+            showMsg('success', successText);
+            cancelHierarchyEdit();
+            return true;
+        } catch (err) {
+            showMsg('error', err.message || 'Could not update parent/sub-locality.');
+            return false;
+        } finally {
+            setHierarchySaving('');
+        }
+    };
+
+    const saveHierarchyEdit = (assembly) => {
+        const parent = editParent.trim();
+        const sub = editSub.trim();
+        if (!parent || !sub) {
+            showMsg('error', 'Both parent and sub-locality are required.');
+            return;
+        }
+        applyHierarchyPatch(
+            assembly,
+            editingLocality,
+            { locality: editingLocality, mode: 'set', parent_locality: parent, sub_locality: sub },
+            `Set "${editingLocality}" → ${sub} → ${parent}.`,
+        );
+    };
+
+    const clearHierarchyToFlat = (assembly, locality) => {
+        applyHierarchyPatch(
+            assembly,
+            locality,
+            { locality, mode: 'clear_to_flat' },
+            `"${locality}" locked as a flat locality.`,
+        );
+    };
+
+    const resetHierarchyToAuto = (assembly, locality) => {
+        applyHierarchyPatch(
+            assembly,
+            locality,
+            { locality, mode: 'reset_to_auto' },
+            `"${locality}" reset to automatic matching.`,
+        );
     };
 
     const persistRules = async (nextRules, successText) => {
@@ -270,20 +344,105 @@ export default function SeatDetailPage() {
                                         ) : (
                                             <table className="data-table" style={{ fontSize: '0.78rem' }}>
                                                 <thead>
-                                                    <tr><th>#</th><th>Locality</th><th>Parent / Sub</th></tr>
+                                                    <tr><th>#</th><th>Locality</th><th>Parent / Sub</th><th style={{ textAlign: 'right' }}>Edit</th></tr>
                                                 </thead>
                                                 <tbody>
-                                                    {(stations[assembly] || []).map((st, i) => (
-                                                        <tr key={i}>
-                                                            <td style={{ color: '#94a3a0' }}>{st.station_number || i + 1}</td>
-                                                            <td>{st.locality}</td>
-                                                            <td style={{ color: '#6b7f76' }}>
-                                                                {st.sub_locality && st.parent_locality
-                                                                    ? `${st.sub_locality} → ${st.parent_locality}`
-                                                                    : '—'}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
+                                                    {(stations[assembly] || []).map((st, i) => {
+                                                        const isEditing = editingLocality === st.locality;
+                                                        const isManual = st.hierarchy_source === 'manual';
+                                                        const isSaving = hierarchySaving === st.locality;
+                                                        return (
+                                                            <tr key={i}>
+                                                                <td style={{ color: '#94a3a0' }}>{st.station_number || i + 1}</td>
+                                                                <td>{st.locality}</td>
+                                                                {isEditing ? (
+                                                                    <td colSpan={2}>
+                                                                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                                                                            <input
+                                                                                className="form-input"
+                                                                                style={{ width: 130, fontSize: '0.76rem', padding: '3px 6px' }}
+                                                                                placeholder="Sub-locality"
+                                                                                value={editSub}
+                                                                                onChange={(e) => setEditSub(e.target.value)}
+                                                                            />
+                                                                            <span style={{ color: '#94a3a0' }}>→</span>
+                                                                            <input
+                                                                                className="form-input"
+                                                                                style={{ width: 130, fontSize: '0.76rem', padding: '3px 6px' }}
+                                                                                placeholder="Parent locality"
+                                                                                value={editParent}
+                                                                                onChange={(e) => setEditParent(e.target.value)}
+                                                                            />
+                                                                            <button
+                                                                                className="btn-primary"
+                                                                                style={{ fontSize: '0.7rem', padding: '3px 8px' }}
+                                                                                disabled={isSaving}
+                                                                                onClick={() => saveHierarchyEdit(assembly)}
+                                                                            >
+                                                                                {isSaving ? 'Saving…' : 'Save'}
+                                                                            </button>
+                                                                            <button
+                                                                                className="btn-ghost"
+                                                                                style={{ fontSize: '0.7rem', padding: '3px 8px' }}
+                                                                                disabled={isSaving}
+                                                                                onClick={cancelHierarchyEdit}
+                                                                            >
+                                                                                Cancel
+                                                                            </button>
+                                                                        </div>
+                                                                    </td>
+                                                                ) : (
+                                                                    <>
+                                                                        <td style={{ color: '#6b7f76' }}>
+                                                                            {st.sub_locality && st.parent_locality
+                                                                                ? `${st.sub_locality} → ${st.parent_locality}`
+                                                                                : '—'}
+                                                                            {isManual && (
+                                                                                <span
+                                                                                    className="badge badge-slate"
+                                                                                    style={{ marginLeft: 6, fontSize: '0.6rem', padding: '1px 5px' }}
+                                                                                    title="Operator-set — will not be auto-recomputed"
+                                                                                >
+                                                                                    manual
+                                                                                </span>
+                                                                            )}
+                                                                        </td>
+                                                                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                                            <button
+                                                                                className="btn-ghost"
+                                                                                style={{ fontSize: '0.7rem', padding: '2px 6px' }}
+                                                                                disabled={isSaving}
+                                                                                onClick={() => startHierarchyEdit(st)}
+                                                                            >
+                                                                                Edit
+                                                                            </button>
+                                                                            {isManual ? (
+                                                                                <button
+                                                                                    className="btn-ghost"
+                                                                                    style={{ fontSize: '0.7rem', padding: '2px 6px' }}
+                                                                                    disabled={isSaving}
+                                                                                    onClick={() => resetHierarchyToAuto(assembly, st.locality)}
+                                                                                >
+                                                                                    Reset to auto
+                                                                                </button>
+                                                                            ) : (
+                                                                                (st.sub_locality || st.parent_locality) && (
+                                                                                    <button
+                                                                                        className="btn-ghost"
+                                                                                        style={{ fontSize: '0.7rem', padding: '2px 6px', color: '#b91c1c' }}
+                                                                                        disabled={isSaving}
+                                                                                        onClick={() => clearHierarchyToFlat(assembly, st.locality)}
+                                                                                    >
+                                                                                        Lock flat
+                                                                                    </button>
+                                                                                )
+                                                                            )}
+                                                                        </td>
+                                                                    </>
+                                                                )}
+                                                            </tr>
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         )}
