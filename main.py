@@ -1511,6 +1511,109 @@ def _mark_contact_thread_spam_suppressed(
         )
 
 
+# Threads containing any of these must never receive automated thread-level
+# replies (reassurance/boundary notices): emergencies deliberately get no
+# automated messages, offensive threads already got the legal warning, and
+# irrelevant is the silent lane.
+_THREAD_REPLY_PROTECTED_STATUSES = {"emergency", "offensive", "irrelevant"}
+
+
+def _thread_meta_flag(rows: list[dict], key: str) -> bool:
+    """True if any case in the thread already carries the given metadata key."""
+    for row in rows or []:
+        meta = _parse_case_meta(row.get("case_metadata"))
+        if meta.get(key):
+            return True
+    return False
+
+
+def _stamp_case_meta_fields(case_id: int, **fields) -> None:
+    """Read-modify-write metadata fields onto one case (merge, never replace)."""
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(
+                text("SELECT case_metadata FROM cases WHERE id = :cid"),
+                {"cid": case_id},
+            ).fetchone()
+            if not row:
+                return
+            meta = _parse_case_meta(row[0])
+            meta.update(fields)
+            conn.execute(
+                text("UPDATE cases SET case_metadata = :meta WHERE id = :cid"),
+                {"meta": json.dumps(meta), "cid": case_id},
+            )
+    except Exception as exc:
+        logger.warning("Failed to stamp meta fields on case %s: %s", case_id, exc)
+
+
+def _maybe_send_thread_reassurance(
+    *,
+    thread_rows: list[dict],
+    touched_case_id: int,
+    sender: str,
+    wa_phone_id: str,
+    detected_language: str,
+    original_text: str,
+) -> bool:
+    """Send at most ONE 'registered and pending review' reply per contact
+    thread per 24h window, in response to duplicate follow-ups and
+    low-information nudges. Silence begets nudges; a single reassurance stops
+    the "hello? hello??" spiral without opening an ack loop.
+
+    Never replies on threads containing emergency/offensive/irrelevant cases —
+    emergencies deliberately get no automated replies (policy), and abusive
+    threads already received the legal warning.
+    """
+    if _thread_meta_flag(thread_rows, "contact_thread_reassurance_sent_at"):
+        return False
+    for row in thread_rows or []:
+        status = str(row.get("status") or "").strip().lower()
+        if status in _THREAD_REPLY_PROTECTED_STATUSES or row.get("is_critical"):
+            return False
+    # Prefer the language already detected for this thread's cases: nudges like
+    # "hello?" carry no language signal of their own.
+    if not detected_language:
+        for row in thread_rows or []:
+            meta = _parse_case_meta(row.get("case_metadata"))
+            detected_language = meta.get("detected_language") or meta.get("language") or ""
+            if detected_language:
+                break
+    reply = get_thread_reassurance_reply(detected_language, original_text)
+    try:
+        send_whatsapp_message(sender, reply, wa_phone_id)
+    except Exception as exc:
+        logger.error("Failed to send thread reassurance to %s: %s", sender, exc)
+        return False
+    _stamp_case_meta_fields(
+        touched_case_id,
+        contact_thread_reassurance_sent_at=_utcnow().isoformat(),
+    )
+    return True
+
+
+def _resolve_thread_ack_message(
+    *,
+    projected_distinct_count: int,
+    thread_rows: list[dict],
+    detected_language: str,
+    original_text: str,
+) -> tuple[str, bool]:
+    """Pick the citizen reply for a NEW distinct issue inside an active thread.
+
+    Returns (message, is_boundary_notice). Issues 2..5 get a short
+    "registered as a separate issue" ack; crossing the high-frequency
+    threshold swaps the ack for a one-time boundary notice; beyond that the
+    thread stays silent (spam suppression handles 10+ before this is called).
+    No case reference numbers — acknowledgments stay plain by policy.
+    """
+    if projected_distinct_count >= _CONTACT_THREAD_HIGH_FREQUENCY_DISTINCT:
+        if _thread_meta_flag(thread_rows, "contact_thread_boundary_notice_sent_at"):
+            return "", False
+        return get_high_frequency_notice_reply(detected_language, original_text), True
+    return get_additional_issue_ack_reply(projected_distinct_count, detected_language, original_text), False
+
+
 def _create_raw_contact_case(
     *,
     tenant_id: int,
@@ -1959,15 +2062,18 @@ from modules.classification_policy import classification_writes_enabled, get_cla
 from modules.localized_replies import (
     DETAILS_REQUEST_STATUSES,
     ensure_ji_prefix,
+    get_additional_issue_ack_reply,
     get_awaiting_location_reply,
     get_details_request_reply,
     get_generic_ack_reply,
     get_greeting_reply,
+    get_high_frequency_notice_reply,
     get_location_update_reply,
     get_missing_location_reply,
     get_personal_request_reply,
     get_rate_limit_reply,
     get_review_ack_reply,
+    get_thread_reassurance_reply,
     get_unsupported_message_reply,
     normalize_language_name,
 )
@@ -4555,6 +4661,14 @@ def _process_incoming_message(
                     event_type="low_information_noise",
                     detected_language=language_hint,
                 )
+                _maybe_send_thread_reassurance(
+                    thread_rows=[root_contact_case],
+                    touched_case_id=root_contact_case["id"],
+                    sender=sender,
+                    wa_phone_id=_wa_phone_id,
+                    detected_language=language_hint,
+                    original_text=message_body,
+                )
                 _link_inbound_to_case(root_contact_case["id"])
                 return
 
@@ -4609,6 +4723,14 @@ def _process_incoming_message(
                             )
                     except Exception as exc:
                         logger.warning("Failed to bump latest message timestamp for legacy case %s: %s", root_contact_case["id"], exc)
+                _maybe_send_thread_reassurance(
+                    thread_rows=[root_contact_case],
+                    touched_case_id=root_contact_case["id"],
+                    sender=sender,
+                    wa_phone_id=_wa_phone_id,
+                    detected_language=language_hint,
+                    original_text=message_body,
+                )
                 _link_inbound_to_case(root_contact_case["id"])
                 return
 
@@ -4665,7 +4787,15 @@ def _process_incoming_message(
                 distinct_issue_count=projected_distinct_count,
                 last_activity_at=now_iso,
             )
-            enrichment["citizen_ack_message"] = ""
+            _thread_ack, _is_boundary_notice = _resolve_thread_ack_message(
+                projected_distinct_count=projected_distinct_count,
+                thread_rows=[root_contact_case],
+                detected_language=enrichment.get("detected_language") or language_hint,
+                original_text=message_body,
+            )
+            enrichment["citizen_ack_message"] = _thread_ack
+            if _is_boundary_notice:
+                enrichment["meta_data"]["contact_thread_boundary_notice_sent_at"] = now_iso
 
             _save_case_enrichment_and_respond(
                 case_id=root_contact_case["id"],
@@ -4698,6 +4828,14 @@ def _process_incoming_message(
                 message_body,
                 event_type="low_information_noise",
                 detected_language=language_hint,
+            )
+            _maybe_send_thread_reassurance(
+                thread_rows=thread_cases,
+                touched_case_id=latest_case["id"],
+                sender=sender,
+                wa_phone_id=_wa_phone_id,
+                detected_language=language_hint,
+                original_text=message_body,
             )
             _link_inbound_to_case(latest_case["id"])
             return
@@ -4743,6 +4881,14 @@ def _process_incoming_message(
                     )
             except Exception as exc:
                 logger.warning("Failed to bump latest message timestamp for case %s: %s", best_case["id"], exc)
+            _maybe_send_thread_reassurance(
+                thread_rows=thread_cases,
+                touched_case_id=best_case["id"],
+                sender=sender,
+                wa_phone_id=_wa_phone_id,
+                detected_language=language_hint,
+                original_text=message_body,
+            )
             _link_inbound_to_case(best_case["id"])
             return
 
@@ -4801,7 +4947,15 @@ def _process_incoming_message(
             distinct_issue_count=projected_distinct_count,
             last_activity_at=now_iso,
         )
-        enrichment["citizen_ack_message"] = ""
+        _thread_ack, _is_boundary_notice = _resolve_thread_ack_message(
+            projected_distinct_count=projected_distinct_count,
+            thread_rows=thread_cases,
+            detected_language=enrichment.get("detected_language") or language_hint,
+            original_text=message_body,
+        )
+        enrichment["citizen_ack_message"] = _thread_ack
+        if _is_boundary_notice:
+            enrichment["meta_data"]["contact_thread_boundary_notice_sent_at"] = now_iso
 
         new_case_id = _create_raw_contact_case(
             tenant_id=current_tenant,

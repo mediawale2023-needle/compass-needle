@@ -663,3 +663,128 @@ def get_rate_limit_reply(detected_language: str = "", original_text: str = "") -
 def get_location_update_reply(location: str, detected_language: str = "", original_text: str = "") -> str:
     template = _pick_template(_LOCATION_UPDATE_ACK, _LOCATION_UPDATE_ACK_LATIN, detected_language, original_text) or _LOCATION_UPDATE_ACK["English"]
     return ensure_ji_prefix(template.replace("{location}", str(location or "")))
+
+
+# ── Contact-thread ack policy replies ────────────────────────────────────────
+# Every distinct issue earns exactly one short ack; every thread earns at most
+# one reassurance; the high-frequency boundary is announced once. No case
+# reference numbers anywhere — acknowledgments stay plain by policy.
+
+_ADDITIONAL_ISSUE_ACK: dict[str, str] = {
+    "Hindi": (
+        "Aapki yeh baat alag issue ke roop mein register ho gayi hai 🙏\n\n"
+        "Aaj aapki kul {count} complaints hamare paas darj hain, sabhi review mein hain."
+    ),
+    "Hinglish": (
+        "Aapka yeh message alag issue ke roop mein register ho gaya hai 🙏\n\n"
+        "Aaj aapki total {count} complaints hamare paas registered hain, sabhi review mein hain."
+    ),
+    "Marathi": (
+        "तुमची ही तक्रार वेगळा विषय म्हणून नोंदवली गेली आहे 🙏\n\n"
+        "आज तुमच्या एकूण {count} तक्रारी आमच्याकडे नोंदल्या आहेत, सर्व पुनरावलोकनात आहेत."
+    ),
+    "Kannada": (
+        "ನಿಮ್ಮ ಈ ದೂರು ಪ್ರತ್ಯೇಕ ವಿಷಯವಾಗಿ ದಾಖಲಾಗಿದೆ 🙏\n\n"
+        "ಇಂದು ನಿಮ್ಮ ಒಟ್ಟು {count} ದೂರುಗಳು ನಮ್ಮ ಬಳಿ ದಾಖಲಾಗಿವೆ, ಎಲ್ಲವೂ ಪರಿಶೀಲನೆಯಲ್ಲಿವೆ."
+    ),
+    "English": (
+        "This has been registered as a separate issue 🙏\n\n"
+        "You now have {count} complaints registered with us today; all are under review."
+    ),
+}
+
+_ADDITIONAL_ISSUE_ACK_LATIN: dict[str, str] = {
+    "Hindi": _ADDITIONAL_ISSUE_ACK["Hindi"],
+    "Hinglish": _ADDITIONAL_ISSUE_ACK["Hinglish"],
+    "Marathi": (
+        "Tumchi hi takrar vegla vishay mhanun nondavli geli aahe 🙏\n\n"
+        "Aaj tumchya ekun {count} takrari amchyakade nondlya aahet, sarv review madhye aahet."
+    ),
+    "English": _ADDITIONAL_ISSUE_ACK["English"],
+}
+
+
+def get_additional_issue_ack_reply(count: int, detected_language: str = "", original_text: str = "") -> str:
+    """Short ack for the 2nd..Nth distinct issue in one 24h contact thread."""
+    template = _pick_template(_ADDITIONAL_ISSUE_ACK, _ADDITIONAL_ISSUE_ACK_LATIN, detected_language, original_text) or _ADDITIONAL_ISSUE_ACK["Hindi"]
+    # str.replace, never .format(): count is trusted but keep the pattern
+    # consistent with the location templates (no format-string parsing).
+    return ensure_ji_prefix(template.replace("{count}", str(int(count))))
+
+
+_THREAD_REASSURANCE: dict[str, str] = {
+    "Hindi": (
+        "Aapki aaj ki complaint hamare paas register hai aur review mein hai 🙏\n\n"
+        "Jaise hi koi update hoga, hum aapko zaroor batayenge."
+    ),
+    "Hinglish": (
+        "Aapki aaj ki complaint hamare paas registered hai aur review mein hai 🙏\n\n"
+        "Jaise hi koi update hoga, hum aapko zaroor batayenge."
+    ),
+    "Marathi": (
+        "तुमची आजची तक्रार आमच्याकडे नोंदलेली आहे आणि पुनरावलोकनात आहे 🙏\n\n"
+        "काही अपडेट मिळताच आम्ही तुम्हाला नक्की कळवू."
+    ),
+    "Kannada": (
+        "ನಿಮ್ಮ ಇಂದಿನ ದೂರು ನಮ್ಮ ಬಳಿ ದಾಖಲಾಗಿದೆ ಮತ್ತು ಪರಿಶೀಲನೆಯಲ್ಲಿದೆ 🙏\n\n"
+        "ಯಾವುದೇ ಮಾಹಿತಿ ಸಿಕ್ಕ ತಕ್ಷಣ ನಾವು ನಿಮಗೆ ಖಂಡಿತ ತಿಳಿಸುತ್ತೇವೆ."
+    ),
+    "English": (
+        "Your complaint from today is registered and under review 🙏\n\n"
+        "We will let you know as soon as there is an update."
+    ),
+}
+
+_THREAD_REASSURANCE_LATIN: dict[str, str] = {
+    "Hindi": _THREAD_REASSURANCE["Hindi"],
+    "Hinglish": _THREAD_REASSURANCE["Hinglish"],
+    "Marathi": (
+        "Tumchi aajchi takrar amchyakade nondleli aahe ani review madhye aahe 🙏\n\n"
+        "Kahi update miltach amhi tumhala nakki kalvu."
+    ),
+    "English": _THREAD_REASSURANCE["English"],
+}
+
+
+def get_thread_reassurance_reply(detected_language: str = "", original_text: str = "") -> str:
+    """One-per-thread 'still with us' reply for duplicate follow-ups and nudges."""
+    return ensure_ji_prefix(_pick_template(_THREAD_REASSURANCE, _THREAD_REASSURANCE_LATIN, detected_language, original_text) or _THREAD_REASSURANCE["Hindi"])
+
+
+_HIGH_FREQUENCY_NOTICE: dict[str, str] = {
+    "Hindi": (
+        "Aaj aapke kai messages hamein mile hain — sabhi record ho gaye hain 🙏\n\n"
+        "Team ki madad ke liye kripya har issue ke liye ek hi message bhejein, location ke saath."
+    ),
+    "Hinglish": (
+        "Aaj aapke kaafi messages hamein mile hain — sabhi record ho gaye hain 🙏\n\n"
+        "Team ki help ke liye please har issue ke liye ek hi message bhejein, location ke saath."
+    ),
+    "Marathi": (
+        "आज तुमचे अनेक संदेश आम्हाला मिळाले आहेत — सर्व नोंदले गेले आहेत 🙏\n\n"
+        "टीमच्या मदतीसाठी कृपया प्रत्येक समस्येसाठी एकच संदेश पाठवा, location सह."
+    ),
+    "Kannada": (
+        "ಇಂದು ನಿಮ್ಮಿಂದ ಹಲವು ಸಂದೇಶಗಳು ಬಂದಿವೆ — ಎಲ್ಲವೂ ದಾಖಲಾಗಿವೆ 🙏\n\n"
+        "ದಯವಿಟ್ಟು ಪ್ರತಿ ಸಮಸ್ಯೆಗೆ ಒಂದೇ ಸಂದೇಶ ಕಳುಹಿಸಿ, ಸ್ಥಳದ ವಿವರದೊಂದಿಗೆ."
+    ),
+    "English": (
+        "We have received several messages from you today — all of them are recorded 🙏\n\n"
+        "To help the team act faster, please send one message per issue, with the location."
+    ),
+}
+
+_HIGH_FREQUENCY_NOTICE_LATIN: dict[str, str] = {
+    "Hindi": _HIGH_FREQUENCY_NOTICE["Hindi"],
+    "Hinglish": _HIGH_FREQUENCY_NOTICE["Hinglish"],
+    "Marathi": (
+        "Aaj tumche anek sandesh amhala milale aahet — sarv nondle gele aahet 🙏\n\n"
+        "Team chya madati sathi krupaya pratyek samasye sathi ekach sandesh pathva, location sah."
+    ),
+    "English": _HIGH_FREQUENCY_NOTICE["English"],
+}
+
+
+def get_high_frequency_notice_reply(detected_language: str = "", original_text: str = "") -> str:
+    """One-per-thread boundary notice when the 6th distinct issue arrives."""
+    return ensure_ji_prefix(_pick_template(_HIGH_FREQUENCY_NOTICE, _HIGH_FREQUENCY_NOTICE_LATIN, detected_language, original_text) or _HIGH_FREQUENCY_NOTICE["Hindi"])

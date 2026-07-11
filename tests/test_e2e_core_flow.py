@@ -647,7 +647,18 @@ def test_contact_buffering_merges_duplicate_followups(monkeypatch):
     assert "urgent" in road_meta["contact_message_events"][0]["message"].lower()
     assert water_meta.get("matched_value") == "Whitefield"
 
-    assert len(outbound_messages) == 1
+    # Ack policy: full ack for the first issue, a short "separate issue" ack
+    # for the second distinct issue, and ONE reassurance for the duplicate
+    # follow-up. No case reference numbers anywhere.
+    assert len(outbound_messages) == 3
+    assert "separate issue" in outbound_messages[1][1].lower()
+    assert "2" in outbound_messages[1][1]
+    assert "under review" in outbound_messages[2][1].lower()
+    assert not any("#" in message for _, message, _ in outbound_messages)
+
+    # The reassurance budget is one per thread: another duplicate stays silent.
+    main._process_incoming_message(sender, "Road issue in KR Puram still urgent", receiver_number="+15551636821")
+    assert len(outbound_messages) == 3
 
 
 def test_contact_thread_high_frequency_and_spam_suspected_thresholds(monkeypatch):
@@ -688,7 +699,9 @@ def test_contact_thread_high_frequency_and_spam_suspected_thresholds(monkeypatch
         "Water outage at Alpha ward",
         "Streetlight problem at Bravo colony",
         "Drainage blockage at Charlie road",
-        "Garbage pickup missing at Delta layout",
+        # NB: avoid the word "missing" here — it trips the emergency keyword
+        # detector (missing-person hazard) and emergency cases get no ack.
+        "Garbage pickup skipped at Delta layout",
         "Pothole complaint at Echo chowk",
         "Transformer sparking at Foxtrot nagar",
         "Sewage overflow at Golf line",
@@ -708,7 +721,12 @@ def test_contact_thread_high_frequency_and_spam_suspected_thresholds(monkeypatch
     meta_after_six = next(meta for meta in metas_after_six if meta.get("contact_thread_state") == "high_frequency")
     assert meta_after_six["distinct_issue_count"] == 6
     assert meta_after_six["contact_thread_state"] == "high_frequency"
-    assert len(outbound_messages) == 1
+    # Ack policy: full ack (1st) + separate-issue acks (2nd-5th) + one
+    # boundary notice when the 6th distinct issue crosses high-frequency.
+    assert len(outbound_messages) == 6
+    assert all("separate issue" in message.lower() for _, message, _ in outbound_messages[1:5])
+    assert "one message per issue" in outbound_messages[5][1].lower()
+    assert not any("#" in message for _, message, _ in outbound_messages)
 
     for message in issue_messages[6:]:
         main._process_incoming_message(sender, message, receiver_number="+15551636821")
@@ -719,7 +737,9 @@ def test_contact_thread_high_frequency_and_spam_suspected_thresholds(monkeypatch
     final_meta = next(meta for meta in final_metas if meta.get("contact_thread_state") == "spam_suspected")
     assert final_meta["distinct_issue_count"] == 10
     assert final_meta["contact_thread_state"] == "spam_suspected"
-    assert len(outbound_messages) == 1
+    # Issues 7-9 and the spam-suppressed 10th stay silent: the boundary notice
+    # was the last thing this thread hears in the window.
+    assert len(outbound_messages) == 6
 
 
 def test_thread_distinct_issue_links_each_inbound_ledger_row_to_its_case(monkeypatch):
@@ -815,4 +835,56 @@ def test_thread_distinct_issue_links_each_inbound_ledger_row_to_its_case(monkeyp
     assert all(row["status"] == "processing" for row in inbound_after)
     assert all(row["case_id"] is not None for row in inbound_after)
     assert len({row["case_id"] for row in inbound_after}) == 3
+    # Ack policy: every distinct issue earns exactly one ack — a full ack for
+    # the first and a short "separate issue" ack for each additional one.
+    assert len(outbound_messages) == 3
+    assert all("separate issue" in message.lower() for _, message, _ in outbound_messages[1:])
+
+
+def test_low_information_nudge_gets_one_reassurance_then_silence(monkeypatch):
+    _seed_database()
+    outbound_messages = []
+
+    def _fake_ai(prompt, tenant_id=None):
+        return {
+            "status": "new",
+            "detected_language": "English",
+            "political_response": "Your grievance has been noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "Whitefield",
+                "summary": "Water issue in Whitefield",
+            },
+        }
+
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _fake_ai)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+    monkeypatch.setattr(
+        whatsapp_module,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919944442222"
+    main._process_incoming_message(sender, "Water issue in Whitefield", receiver_number="+15551636821")
     assert len(outbound_messages) == 1
+
+    # First nudge: exactly one reassurance, in the thread's detected language.
+    main._process_incoming_message(sender, "hello?", receiver_number="+15551636821")
+    assert len(outbound_messages) == 2
+    assert "under review" in outbound_messages[1][1].lower()
+
+    # Every further nudge in the window stays silent.
+    main._process_incoming_message(sender, "any update", receiver_number="+15551636821")
+    main._process_incoming_message(sender, "please reply", receiver_number="+15551636821")
+    assert len(outbound_messages) == 2
+
+    # Nudges never create cases.
+    assert len(_cases_for_phone(sender)) == 1
