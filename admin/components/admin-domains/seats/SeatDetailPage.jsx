@@ -47,6 +47,7 @@ export default function SeatDetailPage() {
     const [editParent, setEditParent] = useState('');
     const [editSub, setEditSub] = useState('');
     const [hierarchySaving, setHierarchySaving] = useState('');
+    const [stationSearch, setStationSearch] = useState('');
 
     const [overrides, setOverrides] = useState(null);
     const [rules, setRules] = useState({});
@@ -107,25 +108,49 @@ export default function SeatDetailPage() {
 
     useEffect(() => { loadDecisions(); }, [loadDecisions]);
 
-    const toggleAssembly = async (assembly) => {
+    const loadAssemblyStations = async (assembly) => {
+        setStationsLoading(assembly);
+        try {
+            const r = await apiGet(
+                `/api/admin/geography/${encodeURIComponent(seatName)}/${encodeURIComponent(assembly)}?seat_type=${seatType}`,
+            );
+            setStations((prev) => ({ ...prev, [assembly]: r.data || [] }));
+        } catch {
+            setStations((prev) => ({ ...prev, [assembly]: [] }));
+        } finally {
+            setStationsLoading((current) => (current === assembly ? '' : current));
+        }
+    };
+
+    const toggleAssembly = (assembly) => {
         if (expandedAssembly === assembly) {
             setExpandedAssembly('');
             return;
         }
         setExpandedAssembly(assembly);
-        if (!stations[assembly]) {
-            setStationsLoading(assembly);
-            try {
-                const r = await apiGet(
-                    `/api/admin/geography/${encodeURIComponent(seatName)}/${encodeURIComponent(assembly)}?seat_type=${seatType}`,
-                );
-                setStations((prev) => ({ ...prev, [assembly]: r.data || [] }));
-            } catch {
-                setStations((prev) => ({ ...prev, [assembly]: [] }));
-            } finally {
-                setStationsLoading('');
-            }
-        }
+        if (!stations[assembly]) loadAssemblyStations(assembly);
+    };
+
+    const isSearching = stationSearch.trim().length > 0;
+
+    // Searching spans every assembly, not just the one currently expanded, so
+    // fetch any assembly whose stations haven't been loaded yet as soon as the
+    // operator starts typing.
+    useEffect(() => {
+        if (!isSearching) return;
+        assemblies.forEach((assembly) => {
+            if (!stations[assembly] && stationsLoading !== assembly) loadAssemblyStations(assembly);
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isSearching, assemblies]);
+
+    const stationMatchesSearch = (station, term) => {
+        const needle = term.toLowerCase();
+        return (
+            (station.locality || '').toLowerCase().includes(needle) ||
+            (station.sub_locality || '').toLowerCase().includes(needle) ||
+            (station.parent_locality || '').toLowerCase().includes(needle)
+        );
     };
 
     const startHierarchyEdit = (station) => {
@@ -315,6 +340,15 @@ export default function SeatDetailPage() {
                         <p style={{ color: '#6b7f76', fontSize: '0.8rem', marginTop: 0 }}>
                             Canonical locality data shared by every account on this seat.
                         </p>
+                        {assemblies.length > 0 && (
+                            <input
+                                className="form-input"
+                                style={{ marginBottom: 10, fontSize: '0.8rem' }}
+                                placeholder="Search locality, parent, or sub-locality across all assemblies…"
+                                value={stationSearch}
+                                onChange={(e) => setStationSearch(e.target.value)}
+                            />
+                        )}
                         {loading ? (
                             <div className="skeleton" style={{ height: 40, borderRadius: 8 }} />
                         ) : assemblies.length === 0 ? (
@@ -322,24 +356,50 @@ export default function SeatDetailPage() {
                                 <div className="empty-state-title">No geography uploaded</div>
                                 <div className="empty-state-desc">Upload an Election Commission dataset from the geography workspace to activate matching for this seat.</div>
                             </div>
-                        ) : assemblies.map((assembly) => (
+                        ) : (() => {
+                            const term = stationSearch.trim();
+                            const visibleAssemblies = assemblies.filter((assembly) => {
+                                if (!isSearching) return true;
+                                const loaded = stations[assembly];
+                                // Keep showing an assembly while its rows are still loading for
+                                // the search pass, so it doesn't flicker out and back in.
+                                if (!loaded) return true;
+                                return loaded.some((st) => stationMatchesSearch(st, term));
+                            });
+                            if (isSearching && visibleAssemblies.length === 0) {
+                                return (
+                                    <div className="empty-state">
+                                        <div className="empty-state-title">No matches</div>
+                                        <div className="empty-state-desc">No locality, parent, or sub-locality matches "{term}" in this seat's core geography.</div>
+                                    </div>
+                                );
+                            }
+                            return visibleAssemblies.map((assembly) => {
+                                const allRows = stations[assembly] || [];
+                                const rows = isSearching ? allRows.filter((st) => stationMatchesSearch(st, term)) : allRows;
+                                const isExpanded = isSearching || expandedAssembly === assembly;
+                                return (
                             <div key={assembly} style={{ border: '1px solid #e2ebe5', borderRadius: 10, marginBottom: 8, overflow: 'hidden' }}>
                                 <button
-                                    onClick={() => toggleAssembly(assembly)}
+                                    onClick={() => !isSearching && toggleAssembly(assembly)}
                                     style={{
                                         display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center',
-                                        padding: '10px 14px', background: '#f8fbf9', border: 'none', cursor: 'pointer',
+                                        padding: '10px 14px', background: '#f8fbf9', border: 'none',
+                                        cursor: isSearching ? 'default' : 'pointer',
                                         fontSize: '0.84rem', fontWeight: 600, color: '#1a2e28',
                                     }}
                                 >
                                     <span>{assembly}</span>
                                     <span style={{ color: '#94a3a0', fontSize: '0.72rem' }}>
-                                        {stations[assembly] ? `${stations[assembly].length} rows` : ''} {expandedAssembly === assembly ? '▾' : '▸'}
+                                        {isSearching
+                                            ? (stations[assembly] ? `${rows.length} match${rows.length === 1 ? '' : 'es'}` : 'searching…')
+                                            : (stations[assembly] ? `${stations[assembly].length} rows` : '')}
+                                        {!isSearching && ` ${expandedAssembly === assembly ? '▾' : '▸'}`}
                                     </span>
                                 </button>
-                                {expandedAssembly === assembly && (
+                                {isExpanded && (
                                     <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-                                        {stationsLoading === assembly ? (
+                                        {!stations[assembly] ? (
                                             <div className="skeleton" style={{ height: 60, margin: 10, borderRadius: 8 }} />
                                         ) : (
                                             <table className="data-table" style={{ fontSize: '0.78rem' }}>
@@ -347,7 +407,7 @@ export default function SeatDetailPage() {
                                                     <tr><th>#</th><th>Locality</th><th>Parent / Sub</th><th style={{ textAlign: 'right' }}>Edit</th></tr>
                                                 </thead>
                                                 <tbody>
-                                                    {(stations[assembly] || []).map((st, i) => {
+                                                    {rows.map((st, i) => {
                                                         const isEditing = editingLocality === st.locality;
                                                         const isManual = st.hierarchy_source === 'manual';
                                                         const isSaving = hierarchySaving === st.locality;
@@ -449,7 +509,9 @@ export default function SeatDetailPage() {
                                     </div>
                                 )}
                             </div>
-                        ))}
+                                );
+                            });
+                        })()}
                     </div>
 
                     {/* Recent geography decisions */}
