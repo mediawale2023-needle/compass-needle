@@ -645,7 +645,7 @@ def test_briefcase_notify_send_is_mp_only_and_auto_resolves(monkeypatch):
     monkeypatch.setattr(api_router, "get_tenant_phone_number_id", lambda _tid: "15551636821")
     monkeypatch.setattr(
         "modules.whatsapp.send_whatsapp_message",
-        lambda phone, message, phone_number_id=None: outbound.append((phone, message, phone_number_id)),
+        lambda phone, message, phone_number_id=None, **kwargs: outbound.append((phone, message, phone_number_id)),
     )
 
     pr_resp = client.post(
@@ -768,7 +768,7 @@ def test_briefcase_pilot_flow_assign_note_notify_resolves(monkeypatch):
     monkeypatch.setattr(api_router, "get_tenant_phone_number_id", lambda _tid: "15551636821")
     monkeypatch.setattr(
         "modules.whatsapp.send_whatsapp_message",
-        lambda phone, message, phone_number_id=None: outbound.append((phone, message, phone_number_id)),
+        lambda phone, message, phone_number_id=None, **kwargs: outbound.append((phone, message, phone_number_id)),
     )
 
     created_resp = client.get("/api/cases/101", headers=headers)
@@ -979,6 +979,9 @@ def test_audio_media_intake_passes_voice_note_as_source_media(monkeypatch):
         resolver_message_body=None,
         resolver_fallback_message_body=None,
         wa_reply_to_msg_id=None,
+        # Accept newer intake kwargs (inbound_ledger_id, existing_case_id, …)
+        # so this stub stays signature-compatible with production.
+        **kwargs,
     ):
         captured["sender"] = sender
         captured["message_body"] = message_body

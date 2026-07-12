@@ -37,6 +37,8 @@ from sansadx_backend.db import (
     validate_password,
 )
 from core.db_helpers import _q, _q_one, _parse_meta
+from modules.ack_composer import compose_status_update
+from modules.ack_validator import ack_policy_mode, validate_citizen_message, violation_codes
 from modules.auth import get_tenant_or_fail, sanitize_prompt_input
 from core.gemini_client import get_gemini_client
 from modules.parliament_context import build_parliament_context
@@ -2016,25 +2018,53 @@ def _normalize_manual_alias_key(value: str) -> str:
 
 
 def _resolve_citizen_notification_message(case: dict, requested_message: str = "") -> str:
-    status = case.get("status", "new")
-    case_id = case.get("id")
-    case_ref = case.get("case_ref") or f"#{case_id}"
-    saved_response = (case.get("response_to_citizen") or "").strip()
+    """Pick the outbound citizen text: staff draft first, else the composer.
+
+    The composer fallback replaces the old hardcoded English dict, which
+    violated the communication policy on three counts: it embedded case
+    reference numbers, used emotional language ("Good news!"), and described
+    a reply-'NO' reopen mechanism that does not exist. Composer output is
+    fixed per (status, language) and golden-tested against the policy.
+    """
     explicit = (requested_message or "").strip()
     if explicit:
         return explicit
+    saved_response = (case.get("response_to_citizen") or "").strip()
     if saved_response:
         return saved_response
-    status_messages = {
-        "new":         f"Your grievance ({case_ref}) has been received and is being reviewed.",
-        "in_progress": f"Update on your grievance ({case_ref}): We are actively working on this.",
-        "resolved":    f"Good news! Your grievance ({case_ref}) has been resolved. If unsatisfied, reply 'NO' to reopen.",
-        "completed":   f"Good news! Your grievance ({case_ref}) has been resolved. If unsatisfied, reply 'NO' to reopen.",
-        "closed":      f"Your grievance ({case_ref}) has been closed. Thank you for reaching out.",
-    }
-    if status == "escalated":
-        status = "in_progress"
-    return status_messages.get(status, f"Update on your grievance ({case_ref}): Status is now '{status}'." )
+    meta = _parse_meta(case.get("case_metadata"))
+    detected_language = meta.get("detected_language") or meta.get("language") or ""
+    return compose_status_update(
+        case.get("status", "new"),
+        detected_language,
+        problem_subdomain=case.get("problem_subdomain") or meta.get("problem_subdomain"),
+    )
+
+
+def _apply_ack_policy(message: str, *, tid: int, case_id: int, username: str, free_text: bool) -> None:
+    """Run the communication-policy validator on an outbound citizen message.
+
+    Shadow mode (default): violations are logged to the case activity trail
+    and server logs but never block the send. Enforce mode: free-text
+    messages (staff-typed or previously saved drafts) are rejected with the
+    specific reasons; composer output is never blocked — it is golden-tested
+    to comply.
+    """
+    result = validate_citizen_message(message, lane="notify")
+    if result["ok"]:
+        return
+    codes = ",".join(violation_codes(result))
+    logger.warning(
+        "Ack policy violations (mode=%s) case=%s tenant=%s codes=%s",
+        ack_policy_mode(), case_id, tid, codes,
+    )
+    try:
+        _log_case_activity(tid, case_id, username, "ack_policy_flag", new_value=codes[:200])
+    except Exception:
+        pass  # nosec B110
+    if ack_policy_mode() == "enforce" and free_text:
+        reasons = "; ".join(sorted({v["reason"] for v in result["violations"]}))
+        raise HTTPException(400, f"Message violates the office communication policy: {reasons}")
 
 
 @router.patch("/cases/{case_id}")
@@ -2190,6 +2220,13 @@ def notify_citizen(case_id: int, user=Depends(get_current_user)):
         raise HTTPException(400, "Cannot notify: missing phone or WhatsApp number")
     status = case.get("status", "")
     message = _resolve_citizen_notification_message(case)
+    _apply_ack_policy(
+        message,
+        tid=tid,
+        case_id=case_id,
+        username=user.get("username", ""),
+        free_text=bool((case.get("response_to_citizen") or "").strip()),
+    )
 
     # Try to send via Meta WhatsApp Cloud API
     try:
@@ -2342,6 +2379,20 @@ async def notify_citizen(case_id: int, request: Request, body: Optional[CitizenN
         except Exception:
             pass
     saved_response = (case.get("response_to_citizen") or "").strip()
+
+    # Validate BEFORE persisting the draft: in enforce mode a rejected
+    # message must not overwrite the saved response either.
+    _message_preview = _resolve_citizen_notification_message(
+        {**case}, requested_message=requested_message
+    )
+    _apply_ack_policy(
+        _message_preview,
+        tid=tid,
+        case_id=case_id,
+        username=user.get("username", ""),
+        free_text=bool(requested_message or saved_response),
+    )
+
     if requested_message and requested_message != saved_response:
         with engine.begin() as conn:
             conn.execute(
