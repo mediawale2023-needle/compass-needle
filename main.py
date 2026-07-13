@@ -1218,7 +1218,18 @@ def _update_contact_thread_meta(
 ) -> dict:
     updated = dict(meta or {})
     if distinct_issue_count is None:
-        distinct_issue_count = 1 + len(updated.get("contact_thread_items") or [])
+        # Prefer the count already stamped on this row (how the modern
+        # per-sibling-case thread model tracks it) over the legacy
+        # contact_thread_items-array formula, which is empty for any case
+        # that isn't the old metadata-only thread's anchor row. Without this,
+        # any event append (case_comment, duplicate_followup,
+        # low_information_noise) on a non-anchor sibling case silently reset
+        # its distinct_issue_count back to 1.
+        existing_count = updated.get("distinct_issue_count")
+        if existing_count is not None:
+            distinct_issue_count = existing_count
+        else:
+            distinct_issue_count = 1 + len(updated.get("contact_thread_items") or [])
     state = _contact_thread_state_for_count(int(distinct_issue_count))
     updated["distinct_issue_count"] = int(distinct_issue_count)
     updated["contact_thread_state"] = state
@@ -1262,7 +1273,14 @@ def _parse_case_meta(meta_value):
         return {}
 
 
-def _append_contact_message_event(case_id: int, message_body: str, *, event_type: str, detected_language: str = "") -> None:
+def _append_contact_message_event(
+    case_id: int,
+    message_body: str,
+    *,
+    event_type: str,
+    detected_language: str = "",
+    tone: str = "",
+) -> None:
     event_created_at = _utcnow().isoformat()
     event = {
         "message": (message_body or "").strip()[:2000],
@@ -1271,6 +1289,8 @@ def _append_contact_message_event(case_id: int, message_body: str, *, event_type
     }
     if detected_language:
         event["detected_language"] = detected_language
+    if tone:
+        event["tone"] = tone
 
     try:
         with engine.begin() as conn:
@@ -1612,6 +1632,76 @@ def _resolve_thread_ack_message(
             return "", False
         return get_high_frequency_notice_reply(detected_language, original_text), True
     return get_additional_issue_ack_reply(projected_distinct_count, detected_language, original_text), False
+
+
+def _handle_low_info_or_case_comment(
+    *,
+    message_body: str,
+    tenant_id: int,
+    thread_rows: list[dict],
+    touched_case_id: int,
+    sender: str,
+    wa_phone_id: str,
+    language_hint: str,
+) -> bool:
+    """Catch messages ABOUT an existing thread before they can become a
+    phantom new case: low-information nudges ("hello?", "update") and,
+    tenant-language-scoped, case-comment messages ("Thank you.", "Please
+    look into it urgently.", "Any update?", "The issue is still pending.").
+
+    Neither creates a case, bumps the distinct-issue count, nor triggers a
+    location follow-up. Both log an event on the thread and reply through
+    the shared one-per-24h reassurance lane. Returns True if handled (caller
+    should stop processing this message); False means fall through to
+    similarity/merge logic and, eventually, the AI classifier's own
+    CASE_COMMENT detection for languages this tenant's heuristics don't cover.
+    """
+    if _is_low_information_followup(message_body):
+        logger.info(
+            "Contact-thread low-information follow-up ignored on thread touching case %s for sender=%s tenant=%s",
+            touched_case_id, sender, tenant_id,
+        )
+        _append_contact_message_event(
+            touched_case_id,
+            message_body,
+            event_type="low_information_noise",
+            detected_language=language_hint,
+        )
+        _maybe_send_thread_reassurance(
+            thread_rows=thread_rows,
+            touched_case_id=touched_case_id,
+            sender=sender,
+            wa_phone_id=wa_phone_id,
+            detected_language=language_hint,
+            original_text=message_body,
+        )
+        return True
+
+    languages = resolve_tenant_languages(tenant_id)
+    matched, tone = detect_case_comment(message_body, languages)
+    if matched:
+        logger.info(
+            "Contact-thread case-comment (tone=%s) logged on thread touching case %s for sender=%s tenant=%s",
+            tone, touched_case_id, sender, tenant_id,
+        )
+        _append_contact_message_event(
+            touched_case_id,
+            message_body,
+            event_type="case_comment",
+            detected_language=language_hint,
+            tone=tone or "",
+        )
+        _maybe_send_thread_reassurance(
+            thread_rows=thread_rows,
+            touched_case_id=touched_case_id,
+            sender=sender,
+            wa_phone_id=wa_phone_id,
+            detected_language=language_hint,
+            original_text=message_body,
+        )
+        return True
+
+    return False
 
 
 def _create_raw_contact_case(
@@ -2057,6 +2147,8 @@ from modules.case_query_engine import query_cases
 from modules.briefcase_rules import apply_civic_rules
 from modules.staff_schedule_parser import parse_staff_schedule_message
 from modules.whatsapp_geography import finalize_geography_decision
+from modules.tenant_languages import resolve_tenant_languages
+from modules.case_comment_heuristics import detect_case_comment
 from modules.geography_policy import location_required_for_grievance
 from modules.classification_policy import classification_writes_enabled, get_classification_mode
 from modules.localized_replies import (
@@ -4648,27 +4740,15 @@ def _process_incoming_message(
             current_issue = _thread_issue_from_row(root_contact_case)
             now_iso = _utcnow().isoformat()
 
-            if _is_low_information_followup(message_body):
-                logger.info(
-                    "Contact-thread low-information follow-up ignored on legacy case %s for sender=%s tenant=%s",
-                    root_contact_case["id"],
-                    sender,
-                    current_tenant,
-                )
-                _append_contact_message_event(
-                    root_contact_case["id"],
-                    message_body,
-                    event_type="low_information_noise",
-                    detected_language=language_hint,
-                )
-                _maybe_send_thread_reassurance(
-                    thread_rows=[root_contact_case],
-                    touched_case_id=root_contact_case["id"],
-                    sender=sender,
-                    wa_phone_id=_wa_phone_id,
-                    detected_language=language_hint,
-                    original_text=message_body,
-                )
+            if _handle_low_info_or_case_comment(
+                message_body=message_body,
+                tenant_id=current_tenant,
+                thread_rows=[root_contact_case],
+                touched_case_id=root_contact_case["id"],
+                sender=sender,
+                wa_phone_id=_wa_phone_id,
+                language_hint=language_hint,
+            ):
                 _link_inbound_to_case(root_contact_case["id"])
                 return
 
@@ -4816,27 +4896,15 @@ def _process_incoming_message(
         thread_started_at = _contact_thread_started_at_from_row(latest_case)
         now_iso = _utcnow().isoformat()
 
-        if _is_low_information_followup(message_body):
-            logger.info(
-                "Contact-thread low-information follow-up ignored on thread=%s sender=%s tenant=%s",
-                thread_id,
-                sender,
-                current_tenant,
-            )
-            _append_contact_message_event(
-                latest_case["id"],
-                message_body,
-                event_type="low_information_noise",
-                detected_language=language_hint,
-            )
-            _maybe_send_thread_reassurance(
-                thread_rows=thread_cases,
-                touched_case_id=latest_case["id"],
-                sender=sender,
-                wa_phone_id=_wa_phone_id,
-                detected_language=language_hint,
-                original_text=message_body,
-            )
+        if _handle_low_info_or_case_comment(
+            message_body=message_body,
+            tenant_id=current_tenant,
+            thread_rows=thread_cases,
+            touched_case_id=latest_case["id"],
+            sender=sender,
+            wa_phone_id=_wa_phone_id,
+            language_hint=language_hint,
+        ):
             _link_inbound_to_case(latest_case["id"])
             return
 

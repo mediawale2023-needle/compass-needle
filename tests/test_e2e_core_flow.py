@@ -42,6 +42,7 @@ import main
 import api_router
 import core.db_helpers as db_helpers
 import modules.whatsapp as whatsapp_module
+import modules.tenant_languages as tenant_languages
 from main import app
 import sansadx_backend.db as dbmod
 from sansadx_backend.db import Base, hash_password
@@ -58,6 +59,8 @@ def _seed_database():
     db_helpers.engine = test_engine
     main.engine = test_engine
     api_router.engine = test_engine
+    tenant_languages.SessionLocal = TestSession
+    tenant_languages.clear_tenant_language_cache()
 
     Base.metadata.create_all(bind=test_engine)
 
@@ -888,3 +891,75 @@ def test_low_information_nudge_gets_one_reassurance_then_silence(monkeypatch):
 
     # Nudges never create cases.
     assert len(_cases_for_phone(sender)) == 1
+
+
+def test_case_comment_does_not_create_phantom_case(monkeypatch):
+    """Reproduces the reported bug: a citizen's frustration ("But we need
+    action. Dont just register complaints") must not become a 3rd sibling
+    complaint with its own "separate issue" ack and location demand."""
+    _seed_database()
+    outbound_messages = []
+
+    def _fake_ai(prompt, tenant_id=None):
+        user_message = prompt.split("USER MESSAGE:", 1)[-1].strip()
+        label = user_message.split(" in ", 1)[-1] if " in " in user_message else user_message[-12:]
+        return {
+            "status": "new",
+            "detected_language": "English",
+            "political_response": "Noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Service Issue",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": label,
+                "summary": f"Issue in {label}",
+            },
+        }
+
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _fake_ai)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+    monkeypatch.setattr(
+        whatsapp_module,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919933331111"
+    main._process_incoming_message(sender, "Water outage in Alpha ward", receiver_number="+15551636821")
+    main._process_incoming_message(sender, "Streetlight problem in Bravo colony", receiver_number="+15551636821")
+    assert len(outbound_messages) == 2  # full ack + "separate issue (2)" ack
+    assert len(_cases_for_phone(sender)) == 2
+
+    main._process_incoming_message(
+        sender, "But we need action. Dont just register complaints", receiver_number="+15551636821"
+    )
+
+    # No phantom 3rd case, no distinct-issue bump, no location demand — just
+    # one reassurance reply and a logged case_comment event.
+    rows = _cases_for_phone(sender)
+    assert len(rows) == 2
+    assert len(outbound_messages) == 3
+    reassurance = outbound_messages[2][1].lower()
+    assert "under review" in reassurance
+    assert "separate issue" not in reassurance
+    assert "location" not in reassurance
+    assert "ward" not in reassurance
+    assert "landmark" not in reassurance
+
+    metas = [json.loads(row["case_metadata"] or "{}") for row in rows]
+    assert all(meta.get("distinct_issue_count", 1) == 2 for meta in metas)
+    events = [e for meta in metas for e in (meta.get("contact_message_events") or [])]
+    comment_events = [e for e in events if e.get("event_type") == "case_comment"]
+    assert len(comment_events) == 1
+    assert comment_events[0].get("tone") == "urging"
+
+    # A second frustration message in the same window stays fully silent
+    # (shared reassurance budget), and still creates no case.
+    main._process_incoming_message(sender, "please expedite", receiver_number="+15551636821")
+    assert len(outbound_messages) == 3
+    assert len(_cases_for_phone(sender)) == 2
