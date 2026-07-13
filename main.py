@@ -1819,6 +1819,129 @@ def _create_raw_contact_case(
     return case_id
 
 
+def _attach_media_to_case(
+    *,
+    tenant_id: int,
+    case_id: int,
+    media_source: dict,
+    msg_id: str = "",
+) -> bool:
+    """Save an incoming media file onto an existing case's case_media rows
+    without touching the case's own text/category/status. Used by the
+    contextless-media-attachment rule so a photo/PDF/voice-note sent with no
+    (or a low-information) caption inside an active thread lands as evidence
+    on the most recent open case instead of spawning a sibling case."""
+    try:
+        with engine.begin() as conn:
+            existing = conn.execute(
+                text(
+                    """
+                    SELECT id FROM case_media
+                    WHERE case_id = :cid AND meta_message_id = :meta_message_id
+                    LIMIT 1
+                    """
+                ),
+                {"cid": case_id, "meta_message_id": msg_id},
+            ).fetchone()
+            if existing:
+                return True
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO case_media (
+                        tenant_id, case_id, source, media_type, mime_type,
+                        file_name, media_data, caption, extracted_text,
+                        meta_message_id, created_at
+                    ) VALUES (
+                        :tid, :cid, 'whatsapp', :media_type, :mime_type,
+                        :file_name, :media_data, :caption, :extracted_text,
+                        :meta_message_id, :now
+                    )
+                    """
+                ),
+                {
+                    "tid": tenant_id,
+                    "cid": case_id,
+                    "media_type": media_source.get("media_type", "media"),
+                    "mime_type": media_source.get("mime_type", "application/octet-stream"),
+                    "file_name": f"whatsapp-{media_source.get('media_type', 'media')}-{msg_id or case_id}",
+                    "media_data": media_source.get("media_bytes", b""),
+                    "caption": media_source.get("caption", ""),
+                    "extracted_text": media_source.get("extracted_text", ""),
+                    "meta_message_id": media_source.get("meta_message_id") or msg_id,
+                    "now": datetime.utcnow(),
+                },
+            )
+        return True
+    except Exception as exc:
+        logger.warning("Failed to attach media to existing case %s: %s", case_id, exc)
+        return False
+
+
+def _handle_contextless_media_attachment(
+    *,
+    media_source: dict | None,
+    thread_rows: list[dict],
+    touched_case_id: int,
+    tenant_id: int,
+    sender: str,
+    wa_phone_id: str,
+    language_hint: str,
+    msg_id: str = "",
+) -> bool:
+    """Deterministic Layer-1 rule: media arriving with no caption, or a
+    caption that is itself just a low-information nudge ("sir", "please
+    see", "update"), inside an active open thread is supplementary evidence
+    for the most recent open case — not a new complaint. This is a plain
+    rule (not routed through CASE_COMMENT) because "here's a photo" doesn't
+    need a classifier's judgment call the way ambiguous text does.
+
+    No case is created, the distinct-issue count is not bumped, and no
+    location follow-up is triggered — same non-counting treatment as
+    CASE_COMMENT. Returns True if handled (caller should stop processing).
+    """
+    if not media_source:
+        return False
+    # WhatsApp only exposes a caption field for image/document messages —
+    # audio has none, so an empty string there is not a "no caption" signal,
+    # it's the absence of the field. Voice notes carry their real content in
+    # the transcribed message_body, not a caption, so they must go through
+    # the normal classification path rather than this deterministic rule.
+    if media_source.get("media_type") not in {"image", "document"}:
+        return False
+    caption = str(media_source.get("caption") or "").strip()
+    if caption and not _is_low_information_followup(caption):
+        return False
+
+    logger.info(
+        "Contextless media attached as evidence to case %s for sender=%s tenant=%s type=%s",
+        touched_case_id, sender, tenant_id, media_source.get("media_type"),
+    )
+    if not _attach_media_to_case(
+        tenant_id=tenant_id,
+        case_id=touched_case_id,
+        media_source=media_source,
+        msg_id=msg_id,
+    ):
+        return False
+
+    _append_contact_message_event(
+        touched_case_id,
+        caption or f"[{media_source.get('media_type', 'media')} attachment]",
+        event_type="media_evidence_attached",
+        detected_language=language_hint,
+    )
+    _maybe_send_thread_reassurance(
+        thread_rows=thread_rows,
+        touched_case_id=touched_case_id,
+        sender=sender,
+        wa_phone_id=wa_phone_id,
+        detected_language=language_hint,
+        original_text=caption,
+    )
+    return True
+
+
 def _recent_contact_thread_case(phone: str, tenant_id: int, *, now: datetime | None = None) -> dict | None:
     now = now or _utcnow()
     cutoff = now - timedelta(hours=_CONTACT_BUFFER_WINDOW_HOURS)
@@ -4786,6 +4909,19 @@ def _process_incoming_message(
             current_issue = _thread_issue_from_row(root_contact_case)
             now_iso = _utcnow().isoformat()
 
+            if _handle_contextless_media_attachment(
+                media_source=media_source,
+                thread_rows=[root_contact_case],
+                touched_case_id=root_contact_case["id"],
+                tenant_id=current_tenant,
+                sender=sender,
+                wa_phone_id=_wa_phone_id,
+                language_hint=language_hint,
+                msg_id=msg_id,
+            ):
+                _link_inbound_to_case(root_contact_case["id"])
+                return
+
             if _handle_low_info_or_case_comment(
                 message_body=message_body,
                 tenant_id=current_tenant,
@@ -4952,6 +5088,19 @@ def _process_incoming_message(
         thread_id = _contact_thread_id_from_row(latest_case)
         thread_started_at = _contact_thread_started_at_from_row(latest_case)
         now_iso = _utcnow().isoformat()
+
+        if _handle_contextless_media_attachment(
+            media_source=media_source,
+            thread_rows=thread_cases,
+            touched_case_id=latest_case["id"],
+            tenant_id=current_tenant,
+            sender=sender,
+            wa_phone_id=_wa_phone_id,
+            language_hint=language_hint,
+            msg_id=msg_id,
+        ):
+            _link_inbound_to_case(latest_case["id"])
+            return
 
         if _handle_low_info_or_case_comment(
             message_body=message_body,

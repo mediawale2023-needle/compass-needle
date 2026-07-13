@@ -70,6 +70,7 @@ def _seed_database():
             "wa_message_dedup",
             "activity_history",
             "case_activity_log",
+            "case_media",
             "contacts",
             "cases",
             "users",
@@ -194,6 +195,18 @@ def _cases_for_phone(phone: str):
                 "FROM cases WHERE user_phone = :phone ORDER BY created_at ASC, id ASC"
             ),
             {"phone": phone},
+        ).mappings().all()
+    return [dict(row) for row in rows]
+
+
+def _case_media_for_case(case_id: int):
+    with test_engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT id, case_id, media_type, caption, meta_message_id "
+                "FROM case_media WHERE case_id = :cid ORDER BY id ASC"
+            ),
+            {"cid": case_id},
         ).mappings().all()
     return [dict(row) for row in rows]
 
@@ -1041,3 +1054,262 @@ def test_ai_case_comment_fallback_for_phrasing_layer1_misses(monkeypatch):
     assert len(comment_events) == 1
     assert comment_events[0]["tone"] == "status_inquiry"
     assert comment_events[0]["message"] == CASE_COMMENT_TEXT
+
+
+def test_contextless_media_attaches_to_existing_open_case(monkeypatch):
+    """Phase C: a photo with no caption inside an active thread is evidence
+    for the most recent open case, not a new complaint. No phantom case, no
+    distinct-issue bump, media lands in case_media on the touched case."""
+    _seed_database()
+    outbound_messages = []
+
+    def _fake_ai(prompt, tenant_id=None):
+        return {
+            "status": "new",
+            "detected_language": "English",
+            "political_response": "Noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "Alpha ward",
+                "summary": "Water issue in Alpha ward",
+            },
+        }
+
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _fake_ai)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+    monkeypatch.setattr(
+        whatsapp_module,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919944441111"
+    main._process_incoming_message(sender, "Water outage in Alpha ward", receiver_number="+15551636821")
+    assert len(outbound_messages) == 1
+    rows = _cases_for_phone(sender)
+    assert len(rows) == 1
+    touched_case_id = rows[0]["id"]
+
+    main._process_incoming_message(
+        sender,
+        "Water outage in Alpha ward",
+        receiver_number="+15551636821",
+        msg_id="wamid.photo-1",
+        media_source={
+            "media_bytes": b"fake-jpeg-bytes",
+            "mime_type": "image/jpeg",
+            "media_type": "image",
+            "caption": "",
+            "extracted_text": "Water outage in Alpha ward",
+            "meta_message_id": "wamid.photo-1",
+        },
+    )
+
+    # No phantom 2nd case, no distinct-issue bump.
+    rows = _cases_for_phone(sender)
+    assert len(rows) == 1
+    meta = json.loads(rows[0]["case_metadata"] or "{}")
+    assert meta.get("distinct_issue_count", 1) == 1
+
+    media_rows = _case_media_for_case(touched_case_id)
+    assert len(media_rows) == 1
+    assert media_rows[0]["media_type"] == "image"
+    assert media_rows[0]["meta_message_id"] == "wamid.photo-1"
+
+    events = meta.get("contact_message_events") or []
+    media_events = [e for e in events if e.get("event_type") == "media_evidence_attached"]
+    assert len(media_events) == 1
+
+    assert len(outbound_messages) == 2  # original ack + one reassurance
+    reassurance = outbound_messages[1][1].lower()
+    assert "under review" in reassurance
+
+
+def test_media_with_low_information_caption_still_attaches(monkeypatch):
+    """A caption that's just a nudge ("sir", "pls see") is treated the same
+    as no caption at all — still an attachment, not a new complaint."""
+    _seed_database()
+    outbound_messages = []
+
+    def _fake_ai(prompt, tenant_id=None):
+        return {
+            "status": "new",
+            "detected_language": "English",
+            "political_response": "Noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "Alpha ward",
+                "summary": "Water issue in Alpha ward",
+            },
+        }
+
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _fake_ai)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+    monkeypatch.setattr(
+        whatsapp_module,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919944442222"
+    main._process_incoming_message(sender, "Water outage in Alpha ward", receiver_number="+15551636821")
+    rows = _cases_for_phone(sender)
+    touched_case_id = rows[0]["id"]
+
+    main._process_incoming_message(
+        sender,
+        "Water outage in Alpha ward",
+        receiver_number="+15551636821",
+        msg_id="wamid.photo-2",
+        media_source={
+            "media_bytes": b"fake-jpeg-bytes",
+            "mime_type": "image/jpeg",
+            "media_type": "document",
+            "caption": "update",
+            "extracted_text": "Water outage in Alpha ward",
+            "meta_message_id": "wamid.photo-2",
+        },
+    )
+
+    rows = _cases_for_phone(sender)
+    assert len(rows) == 1
+    media_rows = _case_media_for_case(touched_case_id)
+    assert len(media_rows) == 1
+
+
+def test_media_with_substantive_caption_still_creates_new_case(monkeypatch):
+    """A caption that describes an actual new problem must NOT be swallowed
+    as evidence — it goes through the normal distinct-issue pipeline."""
+    _seed_database()
+    outbound_messages = []
+
+    def _fake_ai(prompt, tenant_id=None):
+        user_message = prompt.split("USER MESSAGE:", 1)[-1].strip()
+        if "Alpha ward" in user_message:
+            location = "Alpha ward"
+        else:
+            location = "Bravo colony"
+        return {
+            "status": "new",
+            "detected_language": "English",
+            "political_response": "Noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Service Issue",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": location,
+                "summary": f"Issue in {location}",
+            },
+        }
+
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _fake_ai)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+    monkeypatch.setattr(
+        whatsapp_module,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919944443333"
+    main._process_incoming_message(sender, "Water outage in Alpha ward", receiver_number="+15551636821")
+    assert len(_cases_for_phone(sender)) == 1
+
+    main._process_incoming_message(
+        sender,
+        "Streetlight broken in Bravo colony, pole number 4 near the school",
+        receiver_number="+15551636821",
+        msg_id="wamid.photo-3",
+        media_source={
+            "media_bytes": b"fake-jpeg-bytes",
+            "mime_type": "image/jpeg",
+            "media_type": "image",
+            "caption": "Streetlight broken in Bravo colony, pole number 4 near the school",
+            "extracted_text": "Streetlight broken in Bravo colony, pole number 4 near the school",
+            "meta_message_id": "wamid.photo-3",
+        },
+    )
+
+    rows = _cases_for_phone(sender)
+    assert len(rows) == 2  # genuine second issue, not swallowed as evidence
+
+
+def test_audio_media_bypasses_contextless_media_rule(monkeypatch):
+    """WhatsApp voice notes never carry a caption field (it's always ""),
+    so an empty caption on audio must NOT trigger the contextless-media rule
+    — that would silently attach every follow-up voice note as evidence and
+    never let a citizen file a new complaint by voice."""
+    _seed_database()
+    outbound_messages = []
+
+    def _fake_ai(prompt, tenant_id=None):
+        user_message = prompt.split("USER MESSAGE:", 1)[-1].strip()
+        if "Alpha ward" in user_message:
+            location = "Alpha ward"
+        else:
+            location = "Charlie nagar"
+        return {
+            "status": "new",
+            "detected_language": "English",
+            "political_response": "Noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Service Issue",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": location,
+                "summary": f"Issue in {location}",
+            },
+        }
+
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _fake_ai)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+    monkeypatch.setattr(
+        whatsapp_module,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919944444444"
+    main._process_incoming_message(sender, "Water outage in Alpha ward", receiver_number="+15551636821")
+    assert len(_cases_for_phone(sender)) == 1
+
+    main._process_incoming_message(
+        sender,
+        "Garbage not collected in Charlie nagar for a week",
+        receiver_number="+15551636821",
+        msg_id="wamid.audio-1",
+        media_source={
+            "media_bytes": b"fake-audio-bytes",
+            "mime_type": "audio/ogg",
+            "media_type": "audio",
+            "caption": "",
+            "extracted_text": "Garbage not collected in Charlie nagar for a week",
+            "meta_message_id": "wamid.audio-1",
+        },
+    )
+
+    rows = _cases_for_phone(sender)
+    assert len(rows) == 2  # voice note treated as a real distinct issue
