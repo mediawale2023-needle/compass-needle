@@ -908,10 +908,19 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             _VALID_STATUSES = {
                 "new", "pending", "completed", "incomplete",
                 "emergency", "offensive", "irrelevant", "awaiting_location",
+                "case_comment",
             }
             if "status" in data:
                 _raw_status = str(data["status"]).lower().strip()
                 data["status"] = _raw_status if _raw_status in _VALID_STATUSES else "pending"
+
+            # comment_tone only makes sense alongside case_comment; normalize
+            # anything else away so downstream code can trust the pairing.
+            if data.get("status") != "case_comment":
+                data["comment_tone"] = None
+            else:
+                _tone = str(data.get("comment_tone") or "").lower().strip()
+                data["comment_tone"] = _tone if _tone in {"grateful", "urging", "status_inquiry", "other"} else "other"
 
             # Reconcile language: trust the confident rule-based result; otherwise
             # keep GPT's own detection (it reads romanized/mixed Indian text far
@@ -1095,8 +1104,11 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
             if "grievance_data" in data:
                 # FIX P0: OFFENSIVE and IRRELEVANT statuses intentionally have no categories per schema.
                 # Do NOT apply the default fallback — it would pollute analytics dashboards.
+                # CASE_COMMENT joins this set for the same reason: it is a comment on an
+                # existing case, not a new grievance, so it must never be forced into a
+                # guessed taxonomy domain.
                 _current_status = str(data.get("status", "")).lower()
-                if _current_status in ("offensive", "irrelevant"):
+                if _current_status in ("offensive", "irrelevant", "case_comment"):
                     data["grievance_data"]["categories"] = []
                     data["grievance_data"]["problem_domain"] = None
                     data["grievance_data"]["problem_subdomain"] = None
@@ -1122,7 +1134,7 @@ def ask_chatgpt_agent(user_message, tenant_id=1):
                 if str(part or "").strip()
             )
             emergency_domain, emergency_subdomain = infer_emergency_taxonomy_override(emergency_blob)
-            if emergency_domain and emergency_subdomain and str(data.get("status", "")).lower() not in {"offensive", "irrelevant"}:
+            if emergency_domain and emergency_subdomain and str(data.get("status", "")).lower() not in {"offensive", "irrelevant", "case_comment"}:
                 fields = build_taxonomy_fields(
                     problem_domain=emergency_domain,
                     problem_subdomain=emergency_subdomain,

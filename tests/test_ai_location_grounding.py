@@ -512,3 +512,120 @@ def test_build_taxonomy_fields_overrides_school_venue_garbage_false_positive():
     assert fields["problem_subdomain"] == "Solid Waste"
     assert fields["convergence_program_type"] == "Service Delivery Strengthening"
     assert fields["categories"] == ["Infrastructure & Utilities"]
+
+
+def test_ask_chatgpt_agent_case_comment_status_survives_normalization(monkeypatch):
+    # Phase B: CASE_COMMENT must survive the _VALID_STATUSES whitelist in
+    # ai_engine.py (an earlier gap here would silently coerce it to
+    # "pending", losing the distinction entirely) and must NOT be forced
+    # into a guessed taxonomy domain the way a real grievance would be.
+    monkeypatch.setattr(ai_engine, "get_client", lambda: _stub_client({
+        "status": "CASE_COMMENT",
+        "detected_language": "English",
+        "political_response": "Ji, we understand.",
+        "comment_tone": "urging",
+        "grievance_data": {
+            "categories": [],
+            "problem_domain": None,
+            "problem_subdomain": None,
+            "convergence_program_type": None,
+            "location": None,
+            "person": None,
+            "department": None,
+            "scheme": None,
+        },
+    }))
+    monkeypatch.setattr(ai_engine, "get_jurisdiction_context", lambda tenant_id=1: "")
+    monkeypatch.setattr(
+        ai_engine,
+        "_get_tenant_profile",
+        lambda tenant_id: {"mp_name": "Test MP", "constituency": "Belagavi", "state": "", "house": "Lok Sabha"},
+    )
+    monkeypatch.setattr(
+        ai_engine,
+        "resolve_geography_from_text",
+        lambda *_args, **_kwargs: {"location_resolved": False},
+    )
+
+    result = ai_engine.ask_chatgpt_agent(
+        "But we need action. Dont just register complaints",
+        tenant_id=1,
+    )
+
+    assert result["status"] == "case_comment"
+    assert result["comment_tone"] == "urging"
+    assert result["grievance_data"]["categories"] == []
+    assert result["grievance_data"]["problem_domain"] is None
+    assert result["grievance_data"]["problem_subdomain"] is None
+
+
+def test_ask_chatgpt_agent_comment_tone_forced_null_off_case_comment(monkeypatch):
+    # If the model ever mis-pairs a comment_tone with a normal status, the
+    # tone must be nulled — it only means something alongside CASE_COMMENT.
+    monkeypatch.setattr(ai_engine, "get_client", lambda: _stub_client({
+        "status": "new",
+        "detected_language": "English",
+        "political_response": "Noted.",
+        "comment_tone": "grateful",
+        "grievance_data": {
+            "categories": ["Infrastructure & Utilities"],
+            "problem_domain": "Infrastructure & Utilities",
+            "problem_subdomain": "Water Supply",
+            "convergence_program_type": "Service Delivery Strengthening",
+            "location": "Whitefield",
+            "person": None,
+            "department": None,
+            "scheme": None,
+        },
+    }))
+    monkeypatch.setattr(ai_engine, "get_jurisdiction_context", lambda tenant_id=1: "")
+    monkeypatch.setattr(
+        ai_engine,
+        "_get_tenant_profile",
+        lambda tenant_id: {"mp_name": "Test MP", "constituency": "Belagavi", "state": "", "house": "Lok Sabha"},
+    )
+    monkeypatch.setattr(
+        ai_engine,
+        "resolve_geography_from_text",
+        lambda *_args, **_kwargs: {"location_resolved": True, "matched_value": "Whitefield", "assembly_constituency": "Mahadevapura", "confidence": "high"},
+    )
+
+    result = ai_engine.ask_chatgpt_agent("Water outage in Whitefield", tenant_id=1)
+
+    assert result["status"] == "new"
+    assert result.get("comment_tone") is None
+
+
+def test_ask_chatgpt_agent_rejects_unknown_status_as_pending(monkeypatch):
+    # Regression guard for the whitelist itself: an unrecognized status must
+    # still fall back to "pending", never pass through raw.
+    monkeypatch.setattr(ai_engine, "get_client", lambda: _stub_client({
+        "status": "SOMETHING_NEW_AND_UNEXPECTED",
+        "detected_language": "English",
+        "political_response": "Noted.",
+        "grievance_data": {
+            "categories": [],
+            "problem_domain": None,
+            "problem_subdomain": None,
+            "convergence_program_type": None,
+            "location": None,
+            "person": None,
+            "department": None,
+            "scheme": None,
+        },
+    }))
+    monkeypatch.setattr(ai_engine, "get_jurisdiction_context", lambda tenant_id=1: "")
+    monkeypatch.setattr(
+        ai_engine,
+        "_get_tenant_profile",
+        lambda tenant_id: {"mp_name": "Test MP", "constituency": "Belagavi", "state": "", "house": "Lok Sabha"},
+    )
+    monkeypatch.setattr(
+        ai_engine,
+        "resolve_geography_from_text",
+        lambda *_args, **_kwargs: {"location_resolved": False},
+    )
+
+    result = ai_engine.ask_chatgpt_agent("some message", tenant_id=1)
+
+    assert result["status"] == "pending"

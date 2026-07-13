@@ -963,3 +963,81 @@ def test_case_comment_does_not_create_phantom_case(monkeypatch):
     main._process_incoming_message(sender, "please expedite", receiver_number="+15551636821")
     assert len(outbound_messages) == 3
     assert len(_cases_for_phone(sender)) == 2
+
+
+def test_ai_case_comment_fallback_for_phrasing_layer1_misses(monkeypatch):
+    """Phase B: when Layer 1's tenant-language heuristics don't match, the AI
+    classifier's own CASE_COMMENT status is the fully multilingual fallback —
+    same non-counting treatment (no case, no distinct-issue bump, no location
+    follow-up, one reassurance)."""
+    _seed_database()
+    outbound_messages = []
+
+    CASE_COMMENT_TEXT = "Waiting to hear back from your office"
+
+    def _fake_ai(prompt, tenant_id=None):
+        user_message = prompt.split("USER MESSAGE:", 1)[-1].strip()
+        if user_message == CASE_COMMENT_TEXT:
+            return {
+                "status": "case_comment",
+                "detected_language": "English",
+                "political_response": "Ji, we understand.",
+                "comment_tone": "status_inquiry",
+                "grievance_data": {
+                    "categories": [],
+                    "problem_domain": None,
+                    "problem_subdomain": None,
+                    "convergence_program_type": None,
+                    "location": None,
+                    "person": None,
+                    "department": None,
+                    "scheme": None,
+                },
+            }
+        return {
+            "status": "new",
+            "detected_language": "English",
+            "political_response": "Noted.",
+            "grievance_data": {
+                "problem_domain": "Infrastructure & Utilities",
+                "problem_subdomain": "Water Supply",
+                "convergence_program_type": "Service Delivery Strengthening",
+                "categories": ["Infrastructure & Utilities"],
+                "location": "Alpha ward",
+                "summary": "Water issue in Alpha ward",
+            },
+        }
+
+    monkeypatch.setattr(main, "ask_chatgpt_agent", _fake_ai)
+    monkeypatch.setattr(
+        main,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+    monkeypatch.setattr(
+        whatsapp_module,
+        "send_whatsapp_message",
+        lambda phone, message, phone_number_id=None: outbound_messages.append((phone, message, phone_number_id)),
+    )
+
+    sender = "919922221111"
+    main._process_incoming_message(sender, "Water outage in Alpha ward", receiver_number="+15551636821")
+    assert len(outbound_messages) == 1  # full ack, real case created
+
+    main._process_incoming_message(sender, CASE_COMMENT_TEXT, receiver_number="+15551636821")
+
+    rows = _cases_for_phone(sender)
+    assert len(rows) == 1  # no phantom 2nd case
+    assert len(outbound_messages) == 2  # exactly one reassurance added
+    reassurance = outbound_messages[1][1].lower()
+    assert "under review" in reassurance
+    assert "separate issue" not in reassurance
+    assert "location" not in reassurance
+
+    meta = json.loads(rows[0]["case_metadata"] or "{}")
+    assert meta.get("distinct_issue_count", 1) == 1
+    events = meta.get("contact_message_events") or []
+    comment_events = [e for e in events if e.get("event_type") == "case_comment"]
+    assert len(comment_events) == 1
+    assert comment_events[0]["tone"] == "status_inquiry"
+    assert comment_events[0]["message"] == CASE_COMMENT_TEXT

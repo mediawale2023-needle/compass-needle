@@ -1704,6 +1704,52 @@ def _handle_low_info_or_case_comment(
     return False
 
 
+def _handle_ai_case_comment(
+    *,
+    enrichment: dict,
+    message_body: str,
+    thread_rows: list[dict],
+    touched_case_id: int,
+    sender: str,
+    wa_phone_id: str,
+) -> bool:
+    """Phase B fallback: Layer 1's tenant-language heuristics only cover a
+    handful of languages (modules/case_comment_heuristics.py). For everything
+    else, the AI classifier's own CASE_COMMENT status (sansadx_backend/
+    prompts.py) is the fully multilingual catch-all — same non-counting
+    treatment as the heuristic path: no case, no distinct-issue bump, no
+    location follow-up, logged event, one reassurance per thread per 24h.
+
+    Call this AFTER _run_citizen_case_enrichment for a "new distinct issue"
+    candidate, BEFORE creating the sibling case. Returns True if handled.
+    """
+    if str(enrichment.get("status") or "").lower() != "case_comment":
+        return False
+
+    detected_language = enrichment.get("detected_language") or ""
+    tone = str((enrichment.get("ai_result") or {}).get("comment_tone") or "other")
+    logger.info(
+        "Contact-thread AI case-comment (tone=%s) logged on thread touching case %s for sender=%s",
+        tone, touched_case_id, sender,
+    )
+    _append_contact_message_event(
+        touched_case_id,
+        message_body,
+        event_type="case_comment",
+        detected_language=detected_language,
+        tone=tone,
+    )
+    _maybe_send_thread_reassurance(
+        thread_rows=thread_rows,
+        touched_case_id=touched_case_id,
+        sender=sender,
+        wa_phone_id=wa_phone_id,
+        detected_language=detected_language,
+        original_text=message_body,
+    )
+    return True
+
+
 def _create_raw_contact_case(
     *,
     tenant_id: int,
@@ -4852,6 +4898,17 @@ def _process_incoming_message(
                 media_source=media_source,
                 thread_context=_get_thread_context_summary(recent_contact_cases),
             )
+            if _handle_ai_case_comment(
+                enrichment=enrichment,
+                message_body=message_body,
+                thread_rows=[root_contact_case],
+                touched_case_id=root_contact_case["id"],
+                sender=sender,
+                wa_phone_id=_wa_phone_id,
+            ):
+                _link_inbound_to_case(root_contact_case["id"])
+                return
+
             previous_issue = _thread_issue_from_row(root_contact_case)
             archived_items.append(previous_issue)
             enrichment["meta_data"]["contact_thread_started_at"] = str(root_meta.get("contact_thread_started_at") or _iso_or_now(root_contact_case.get("created_at")))
@@ -5006,6 +5063,17 @@ def _process_incoming_message(
             media_source=media_source,
             thread_context=_get_thread_context_summary(recent_contact_cases),
         )
+        if _handle_ai_case_comment(
+            enrichment=enrichment,
+            message_body=message_body,
+            thread_rows=thread_cases,
+            touched_case_id=latest_case["id"],
+            sender=sender,
+            wa_phone_id=_wa_phone_id,
+        ):
+            _link_inbound_to_case(latest_case["id"])
+            return
+
         enrichment["meta_data"]["contact_intake_action"] = "thread_distinct_issue"
         enrichment["meta_data"]["contact_message_events"] = []
         enrichment["meta_data"] = _set_contact_thread_state_on_meta(

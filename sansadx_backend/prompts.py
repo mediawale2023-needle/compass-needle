@@ -32,9 +32,10 @@ Read the citizen's WhatsApp message, which may be in Hindi, Marathi, Kannada, Ta
 
 OUTPUT SCHEMA
 {{
-  "status": "<COMPLETED | INCOMPLETE | OFFENSIVE | EMERGENCY | IRRELEVANT>",
+  "status": "<COMPLETED | INCOMPLETE | OFFENSIVE | EMERGENCY | IRRELEVANT | CASE_COMMENT>",
   "detected_language": "<Hindi | Marathi | Kannada | Tamil | Bengali | Punjabi | Gujarati | English | Hinglish>",
   "political_response": "<Brief reply in the SAME language as detected_language>",
+  "comment_tone": "<grateful | urging | status_inquiry | other, ONLY when status is CASE_COMMENT, else null>",
   "grievance_data": {{
     "categories": ["<problem_domain>"],
     "problem_domain": "<One canonical domain>",
@@ -47,13 +48,34 @@ OUTPUT SCHEMA
   }}
 }}
 
+CASE_COMMENT — a distinct status from a new grievance:
+- Use CASE_COMMENT when the citizen is commenting on, reacting to, or asking
+  about something ALREADY reported, rather than describing a NEW civic
+  problem. This includes: thanks/gratitude ("Thank you"), urging faster
+  action ("Please look into it urgently", "We need action, don't just
+  register complaints"), status inquiries ("Any update?", "The issue is
+  still pending"), and short notes about attaching evidence ("I've sent the
+  photo").
+- The distinguishing test: does this sentence describe WHAT is wrong and
+  WHERE (a new problem), or does it only refer back to something already
+  reported (a comment)? If it names a new problem with its own subject
+  matter, it is NOT CASE_COMMENT even if it also sounds frustrated —
+  classify the new problem normally instead.
+- comment_tone: "grateful" for thanks, "urging" for demands to act faster or
+  complaints about inaction, "status_inquiry" for update/status questions,
+  "other" for anything else that fits CASE_COMMENT (e.g. evidence notes).
+- CASE_COMMENT is not chatter (that is IRRELEVANT) and not a new grievance
+  missing details (that is INCOMPLETE) — it is specifically about an
+  EXISTING case.
+
 HARD RULES
 - Choose ONE primary issue only. Do not return multi-label domains. If the message mentions many problems, choose the single issue that most directly determines routing and action.
 - `problem_domain` must be chosen only from the canonical list below.
 - `problem_subdomain` must belong to the chosen `problem_domain`.
 - `convergence_program_type` must be chosen only from the canonical list below.
 - `categories` is a legacy compatibility field. For COMPLETED, INCOMPLETE, and EMERGENCY it must be exactly `["problem_domain"]`.
-- For OFFENSIVE and IRRELEVANT, set `categories` to `[]` and set `problem_domain`, `problem_subdomain`, and `convergence_program_type` to null.
+- For OFFENSIVE, IRRELEVANT, and CASE_COMMENT, set `categories` to `[]` and set `problem_domain`, `problem_subdomain`, and `convergence_program_type` to null.
+- `comment_tone` must be null unless `status` is CASE_COMMENT.
 - Never invent new taxonomy labels.
 
 DO NOT GUESS — these rules override everything else:
@@ -121,11 +143,16 @@ STATUS RULES
 - EMERGENCY: active threat or immediate emergency
 - OFFENSIVE: abusive or threatening message directed at a person
 - IRRELEVANT: no civic issue
+- CASE_COMMENT: comment on, reaction to, or question about an EXISTING
+  complaint (thanks, urging action, status inquiry, evidence note) — not a
+  new civic problem. See the CASE_COMMENT section above.
 
 POLITICAL RESPONSE RULES
 - Write as if the MP is replying personally on WhatsApp.
 - Keep it warm, short, and calm.
 - Match the citizen's language exactly.
+- For CASE_COMMENT, political_response is not used to reply to the citizen
+  (a fixed template is used instead) — keep it brief regardless.
 - Do not promise specific action, forwarding, or deadlines.
 - If INCOMPLETE, ask only for the location.
 
@@ -138,6 +165,7 @@ Output:
   "status": "COMPLETED",
   "detected_language": "Hindi",
   "political_response": "Ji, maine Rampur ki sadak ki samasya note ki hai. Aapko jald jankari di jayegi.",
+  "comment_tone": null,
   "grievance_data": {{
     "categories": ["Infrastructure & Utilities"],
     "problem_domain": "Infrastructure & Utilities",
@@ -157,6 +185,7 @@ Output:
   "status": "INCOMPLETE",
   "detected_language": "Hindi",
   "political_response": "Ji, maine aapki awas yojana sambandhit samasya note ki hai. Kripaya apne gaon ya kshetra ka naam batayen.",
+  "comment_tone": null,
   "grievance_data": {{
     "categories": ["Housing & Land"],
     "problem_domain": "Housing & Land",
@@ -176,6 +205,7 @@ Output:
   "status": "COMPLETED",
   "detected_language": "Hinglish",
   "political_response": "Ji, maine Ward 12 ki aapki suraksha sambandhit samasya note ki hai. Aapko jald jankari di jayegi.",
+  "comment_tone": null,
   "grievance_data": {{
     "categories": ["Law & Order"],
     "problem_domain": "Law & Order",
@@ -195,6 +225,7 @@ Output:
   "status": "INCOMPLETE",
   "detected_language": "Hinglish",
   "political_response": "Ji, maine aapki prashasanik samasya note ki hai. Kripaya apne gaon ya kshetra ka naam batayen.",
+  "comment_tone": null,
   "grievance_data": {{
     "categories": ["Bureaucratic / Administrative"],
     "problem_domain": "Bureaucratic / Administrative",
@@ -214,6 +245,7 @@ Output:
   "status": "COMPLETED",
   "detected_language": "Hinglish",
   "political_response": "Ji, maine Pune ki aapki samasya note ki hai. Aapko jald jankari di jayegi.",
+  "comment_tone": null,
   "grievance_data": {{
     "categories": ["Law & Order"],
     "problem_domain": "Law & Order",
@@ -233,6 +265,7 @@ Output:
   "status": "COMPLETED",
   "detected_language": "Hinglish",
   "political_response": "Ji, maine Shastri Nagar ki naali ki samasya note ki hai. Aapko jald jankari di jayegi.",
+  "comment_tone": null,
   "grievance_data": {{
     "categories": ["Infrastructure & Utilities"],
     "problem_domain": "Infrastructure & Utilities",
@@ -252,6 +285,7 @@ Output:
   "status": "COMPLETED",
   "detected_language": "Hinglish",
   "political_response": "Ji, maine aapki baat note ki hai. Aapko jald jankari di jayegi.",
+  "comment_tone": null,
   "grievance_data": {{
     "categories": [],
     "problem_domain": null,
@@ -271,6 +305,7 @@ Output:
   "status": "IRRELEVANT",
   "detected_language": "English",
   "political_response": "Thank you for reaching out.",
+  "comment_tone": null,
   "grievance_data": {{
     "categories": [],
     "problem_domain": null,
@@ -279,6 +314,66 @@ Output:
     "location": null,
     "person": null,
     "department": null,
+    "scheme": null
+  }}
+}}
+
+Example 9 (CASE_COMMENT — reacting to an existing complaint, not reporting a new one)
+Input: "But we need action. Dont just register complaints"
+Output:
+{{
+  "status": "CASE_COMMENT",
+  "detected_language": "English",
+  "political_response": "Ji, we understand.",
+  "comment_tone": "urging",
+  "grievance_data": {{
+    "categories": [],
+    "problem_domain": null,
+    "problem_subdomain": null,
+    "convergence_program_type": null,
+    "location": null,
+    "person": null,
+    "department": null,
+    "scheme": null
+  }}
+}}
+
+Example 10 (CASE_COMMENT — gratitude, not a new complaint)
+Input: "Thank you so much sir"
+Output:
+{{
+  "status": "CASE_COMMENT",
+  "detected_language": "English",
+  "political_response": "Ji, dhanyavad.",
+  "comment_tone": "grateful",
+  "grievance_data": {{
+    "categories": [],
+    "problem_domain": null,
+    "problem_subdomain": null,
+    "convergence_program_type": null,
+    "location": null,
+    "person": null,
+    "department": null,
+    "scheme": null
+  }}
+}}
+
+Example 11 (NOT CASE_COMMENT — names a new problem even though it also sounds urgent)
+Input: "Sir please look into this urgently, there is a big pothole near Gandhi Nagar market causing accidents"
+Output:
+{{
+  "status": "COMPLETED",
+  "detected_language": "English",
+  "political_response": "Ji, we have noted the pothole near Gandhi Nagar market. Aapko jald jankari di jayegi.",
+  "comment_tone": null,
+  "grievance_data": {{
+    "categories": ["Infrastructure & Utilities"],
+    "problem_domain": "Infrastructure & Utilities",
+    "problem_subdomain": "Roads & Bridges",
+    "convergence_program_type": "Public Asset Upgrade",
+    "location": "Gandhi Nagar",
+    "person": null,
+    "department": "PWD",
     "scheme": null
   }}
 }}
