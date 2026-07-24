@@ -48,13 +48,17 @@ client = TestClient(main.app, raise_server_exceptions=False)
 
 
 def _utcnow():
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    # Keep tz-aware: .timestamp() on a naive datetime treats it as LOCAL
+    # time, which makes JWT exp claims ~5.5h stale on IST machines (tokens
+    # arrive pre-expired). CI runners are UTC, which masked this.
+    return datetime.now(timezone.utc)
 
 
 def _admin_headers():
     token = jwt.encode(
         {
-            "username": "sysadmin",
+            # get_admin_user reads the standard "sub" claim for the username.
+            "sub": "sysadmin",
             "tenant_id": 1,
             "role": "sysadmin",
             "iat": _utcnow().timestamp(),
@@ -73,6 +77,9 @@ def _seed_database():
     main.engine = test_engine
     admin_api.engine = test_engine
     admin_api.JWT_SECRET = TEST_JWT_SECRET
+    # ADMIN_JWT_SECRET split from JWT_SECRET on 2026-07-08 — admin token
+    # verification reads it, so it must be patched alongside JWT_SECRET.
+    admin_api.ADMIN_JWT_SECRET = TEST_JWT_SECRET
     whatsapp_module.SessionLocal = TestSession
 
     Base.metadata.create_all(bind=test_engine)
