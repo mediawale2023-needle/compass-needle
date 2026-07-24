@@ -79,11 +79,14 @@ def test_ask_chatgpt_agent_discards_ungrounded_ai_location(monkeypatch):
         tenant_id=1,
     )
 
-    assert result["status"] == "new"
+    # Policy (modules/geography_policy.py): location is required for every
+    # grievance, so an ungrounded/cleared location now yields awaiting_location.
+    assert result["status"] == "awaiting_location"
     assert result["assembly_constituency"] == "Unknown"
     assert result["grievance_data"]["location"] is None
     assert result["_match_confidence"] == "ungrounded_cleared"
-    assert "ward number" not in result["political_response"].lower()
+    # awaiting_location responses now legitimately ask for area/ward details.
+    assert "ward" in result["political_response"].lower()
 
 
 def test_ask_chatgpt_agent_prefers_message_grounded_resolution(monkeypatch):
@@ -207,7 +210,7 @@ def test_ask_chatgpt_agent_clears_sentence_like_ai_location(monkeypatch):
         tenant_id=1,
     )
 
-    assert result["status"] == "new"
+    assert result["status"] == "awaiting_location"  # location required by policy
     assert result["assembly_constituency"] == "Unknown"
     assert result["grievance_data"]["location"] is None
     assert result["_match_confidence"] in {"ungrounded_cleared", "unmatched_cleared"}
@@ -364,10 +367,9 @@ def test_bureaucratic_case_can_stay_new_without_location(monkeypatch):
         tenant_id=1,
     )
 
-    assert result["status"] == "new"
+    assert result["status"] == "awaiting_location"  # location required by policy
     assert result["assembly_constituency"] == "Unknown"
     assert result["grievance_data"]["location"] is None
-    assert "ward number" not in result["political_response"].lower()
 
 
 def test_build_taxonomy_fields_overrides_wrong_road_guess_for_talathi_bribe():

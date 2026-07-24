@@ -457,6 +457,90 @@ try:
 except Exception as _case_media_exc:
     logger.warning("case_media migration skipped: %s", _case_media_exc)
 
+# ─── Migration: geography gazetteer tables (idempotent) ───
+# Canonical place registry + variants + resolution traces + discovery queue.
+# See modules/gazetteer.py. Seeded lazily on first use, not at startup.
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS geo_places (
+                id SERIAL PRIMARY KEY,
+                seat_type VARCHAR NOT NULL DEFAULT 'mp',
+                seat_name VARCHAR NOT NULL,
+                parliamentary_constituency VARCHAR NOT NULL,
+                assembly VARCHAR NOT NULL,
+                canonical_name VARCHAR NOT NULL,
+                canonical_norm VARCHAR NOT NULL,
+                place_type VARCHAR NOT NULL DEFAULT 'locality',
+                parent_id INTEGER REFERENCES geo_places(id),
+                status VARCHAR NOT NULL DEFAULT 'verified',
+                source VARCHAR NOT NULL DEFAULT 'import_geography_data',
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_geo_places_seat ON geo_places (seat_type, seat_name, assembly)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_geo_places_norm ON geo_places (canonical_norm)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS geo_place_variants (
+                id SERIAL PRIMARY KEY,
+                place_id INTEGER NOT NULL REFERENCES geo_places(id) ON DELETE CASCADE,
+                variant VARCHAR NOT NULL,
+                variant_norm VARCHAR NOT NULL,
+                script VARCHAR,
+                provenance VARCHAR NOT NULL DEFAULT 'canonical',
+                status VARCHAR NOT NULL DEFAULT 'active',
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_geo_variants_norm ON geo_place_variants (variant_norm)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_geo_variants_place ON geo_place_variants (place_id)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS geo_resolution_log (
+                id SERIAL PRIMARY KEY,
+                tenant_id INTEGER,
+                extracted_span VARCHAR,
+                relation VARCHAR,
+                anchor_text VARCHAR,
+                decision VARCHAR NOT NULL,
+                place_id INTEGER,
+                assembly VARCHAR,
+                confidence VARCHAR,
+                candidates TEXT,
+                evidence TEXT,
+                resolver_version VARCHAR NOT NULL DEFAULT 'v2-shadow',
+                agrees_with_legacy BOOLEAN,
+                legacy_result TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_geo_reslog_created ON geo_resolution_log (created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_geo_reslog_tenant ON geo_resolution_log (tenant_id)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS geo_discovery_queue (
+                id SERIAL PRIMARY KEY,
+                seat_type VARCHAR NOT NULL DEFAULT 'mp',
+                seat_name VARCHAR NOT NULL,
+                span_norm VARCHAR NOT NULL,
+                span_display VARCHAR NOT NULL,
+                occurrence_count INTEGER NOT NULL DEFAULT 1,
+                distinct_citizens INTEGER NOT NULL DEFAULT 1,
+                citizen_phones TEXT,
+                sample_messages TEXT,
+                proposed_assembly VARCHAR,
+                proposed_parent_norm VARCHAR,
+                status VARCHAR NOT NULL DEFAULT 'open',
+                promoted_place_id INTEGER,
+                first_seen_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                last_seen_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_geo_discovery_seat ON geo_discovery_queue (seat_name, status)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_geo_discovery_span ON geo_discovery_queue (span_norm)"))
+        logger.info("Migration: gazetteer tables ready")
+except Exception as _gazetteer_exc:
+    logger.warning("gazetteer migration skipped: %s", _gazetteer_exc)
+
 # ─── Migration: backfill is_deleted NULL → false on cases table ───
 # Cases created before the is_deleted column existed have NULL, which causes
 # is_deleted = false filters to miss them.  This one-time backfill is idempotent.
@@ -4159,6 +4243,28 @@ def _run_citizen_case_enrichment(
     political_reply = geo_decision["political_reply"]
     location_name = geo_decision["location_name"]
     final_constituency = geo_decision["final_constituency"]
+
+    # ── Gazetteer resolver v2: SHADOW MODE ───────────────────────────────────
+    # Runs the entity-linking resolver next to the legacy string resolver and
+    # logs agreement/disagreement + a full evidence trace (geo_resolution_log).
+    # Unresolved spans feed the discovery queue. Never changes the outcome —
+    # champion/challenger, same rollout pattern as ack policy/classification.
+    try:
+        _shadow_span = str(
+            grievance.get("location") or location_name or ""
+        ).strip()
+        if _shadow_span and not _non_grievance_lane:
+            from modules.geo_resolver_v2 import shadow_compare
+            shadow_compare(
+                span=_shadow_span,
+                tenant_id=current_tenant,
+                citizen_phone=sender,
+                message_excerpt=(message_body or "")[:200],
+                legacy_assembly=final_constituency if final_constituency not in (None, "", "Unknown") else None,
+                legacy_resolved=bool(location_name and final_constituency not in (None, "", "Unknown")),
+            )
+    except Exception as _geo_shadow_exc:
+        logger.warning("geo v2 shadow skipped (non-blocking): %s", _geo_shadow_exc)
     citizen_ack_message = _resolve_citizen_ack_message(
         status=status,
         category=category,

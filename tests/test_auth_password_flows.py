@@ -182,6 +182,13 @@ def test_login_attempt_lockout_kicks_in_after_repeated_failures():
         response = _user_login(password="WrongPass9!")
         assert response.status_code in (401, 423)
 
+    # This test targets the DB-backed account lockout (423), but six rapid
+    # logins also exhaust SlowAPI's 5/min budget, whose 429 fires first and
+    # masks the behavior under test. Clear the rate limiter so the sixth
+    # attempt reaches the lockout check.
+    from core.rate_limiter import limiter
+    limiter.reset()
+
     locked = _user_login(password="WrongPass9!")
     assert locked.status_code == 423
     assert "Too many failed attempts" in locked.json()["detail"]

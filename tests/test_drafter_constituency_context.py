@@ -114,7 +114,11 @@ def test_letter_drafter_prompt_uses_pq_memory_without_prior_pq_record(monkeypatc
 
     monkeypatch.setattr(api_router, "_retrieve_letter_background_memory", _fake_letter_memory)
 
-    response = api_router.generate_draft(
+    # Call the undecorated endpoint: the slowapi wrapper eagerly evaluates
+    # args[idx] for direct positional calls and IndexErrors outside a real
+    # HTTP request. TestClient paths exercise the decorated route.
+    _generate_draft = getattr(api_router.generate_draft, "__wrapped__", api_router.generate_draft)
+    response = _generate_draft(
         api_router.DraftRequest(
             mode="letter",
             subject="Special train between Belagavi and Mumbai",
@@ -173,7 +177,11 @@ def test_letter_drafter_strips_visible_pq_references(monkeypatch):
     monkeypatch.setattr(api_router, "_build_constituency_identity_context", lambda _tenant_id: "")
     monkeypatch.setattr(api_router, "_retrieve_letter_background_memory", lambda **_kwargs: "")
 
-    response = api_router.generate_draft(
+    # Call the undecorated endpoint: the slowapi wrapper eagerly evaluates
+    # args[idx] for direct positional calls and IndexErrors outside a real
+    # HTTP request. TestClient paths exercise the decorated route.
+    _generate_draft = getattr(api_router.generate_draft, "__wrapped__", api_router.generate_draft)
+    response = _generate_draft(
         api_router.DraftRequest(
             mode="letter",
             subject="Special train between Belagavi and Mumbai",

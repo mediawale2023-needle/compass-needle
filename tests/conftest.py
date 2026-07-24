@@ -51,3 +51,20 @@ def sample_case_row_factory():
         return base
 
     return _make
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Clear SlowAPI's in-process counters between tests.
+
+    The module-level Limiter uses in-memory storage that accumulates across
+    the whole pytest process; without this reset, early test files exhaust
+    the 5/min login budget and every later login-dependent test fails 429 —
+    the cascade that kept CI permanently red from 2026-07-09 to 2026-07-23.
+    """
+    try:
+        from core.rate_limiter import limiter
+        limiter.reset()
+    except Exception:
+        pass
+    yield

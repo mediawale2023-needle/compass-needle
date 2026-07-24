@@ -1691,7 +1691,7 @@ def upsert_seat_map(req: SeatMapManifestRequest, admin_user=Depends(get_admin_us
         target_name=payload["seat_key"],
         change_summary=f"{payload['status']} v{manifest.get('version')}",
     )
-    return {"success": True, "job_key": job_key, "manifest": manifest}
+    return {"success": True, "manifest": manifest}
 
 
 @router.post("/seat-maps/generate")
@@ -1785,7 +1785,7 @@ def upsert_boundary(req: SeatBoundaryRequest, admin_user=Depends(get_admin_user)
         target_name=seat_key,
         change_summary=boundary.get("status") or "verified",
     )
-    return {"success": True, "job_key": job_key, "boundary": boundary}
+    return {"success": True, "boundary": boundary}
 
 
 @router.post("/seat-boundaries/import-parliamentary")
@@ -7116,3 +7116,94 @@ def get_classify_topics_stats(user=Depends(get_admin_user)):
     except Exception as e:
         logger.exception("classify_topics/stats failed: %s", e)
         raise HTTPException(500, "Failed to fetch stats")
+
+
+# ─────────────────────────────────────────
+# GEOGRAPHY GAZETTEER (entity registry + discovery + shadow telemetry)
+# ─────────────────────────────────────────
+
+@router.post("/geo/gazetteer/import")
+def gazetteer_import(user=Depends(get_admin_user)):
+    """Seed/refresh the gazetteer from shared geography + approved overrides.
+
+    Idempotent — existing entities are reused, new sources add entities or
+    variants with provenance. Run once after deploy, and after bulk geography
+    onboarding for a new seat.
+    """
+    try:
+        from modules.gazetteer import import_gazetteer
+        stats = import_gazetteer()
+        _audit(user, "imported", "gazetteer", "", json.dumps(stats))
+        return {"ok": True, **stats}
+    except Exception as e:
+        logger.exception("gazetteer import failed: %s", e)
+        raise HTTPException(500, "Gazetteer import failed")
+
+
+@router.get("/geo/discovery-queue")
+def gazetteer_discovery_queue(seat_name: str | None = None, user=Depends(get_admin_user)):
+    """System-surfaced missing places, ranked by citizen impact.
+
+    Humans don't discover places — the system clusters unresolved location
+    mentions here; each row is one tap away from becoming an entity.
+    """
+    try:
+        from modules.gazetteer import get_discovery_queue
+        return {"items": get_discovery_queue(seat_name=seat_name)}
+    except Exception as e:
+        logger.exception("discovery queue fetch failed: %s", e)
+        raise HTTPException(500, "Failed to fetch discovery queue")
+
+
+@router.post("/geo/discovery-queue/{item_id}/promote")
+def gazetteer_promote_discovery(item_id: int, assembly: str | None = None, user=Depends(get_admin_user)):
+    """Promote a discovered span to a candidate place entity (one tap)."""
+    try:
+        from modules.gazetteer import promote_discovery_item
+        result = promote_discovery_item(
+            item_id,
+            assembly=assembly,
+            promoted_by=str(user.get("username") or user.get("sub") or "admin"),
+        )
+        if result.get("error"):
+            raise HTTPException(400, result["error"])
+        _audit(user, "promoted", "geo_discovery_item", f"id={item_id}", json.dumps(result))
+        return {"ok": True, **result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("discovery promote failed: %s", e)
+        raise HTTPException(500, "Failed to promote discovery item")
+
+
+@router.get("/geo/shadow-stats")
+def gazetteer_shadow_stats(days: int = 7, user=Depends(get_admin_user)):
+    """Shadow-mode agreement telemetry: how often resolver v2 agrees with legacy.
+
+    The champion/challenger flip decision reads this, not vibes.
+    """
+    try:
+        days = max(1, min(int(days), 90))
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT decision, agrees_with_legacy, COUNT(*) AS n
+                FROM geo_resolution_log
+                WHERE created_at >= NOW() - make_interval(days => :days)
+                GROUP BY decision, agrees_with_legacy
+                ORDER BY decision
+            """), {"days": days}).fetchall()
+        buckets = [
+            {"decision": r[0], "agrees_with_legacy": r[1], "count": int(r[2])}
+            for r in rows
+        ]
+        total = sum(b["count"] for b in buckets)
+        agreed = sum(b["count"] for b in buckets if b["agrees_with_legacy"] is True)
+        return {
+            "days": days,
+            "total_shadow_resolutions": total,
+            "agreement_rate": round(agreed / total, 3) if total else None,
+            "buckets": buckets,
+        }
+    except Exception as e:
+        logger.exception("shadow stats failed: %s", e)
+        raise HTTPException(500, "Failed to fetch shadow stats")

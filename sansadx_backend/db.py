@@ -199,6 +199,102 @@ class DashboardEngagement(Base):
     tenant = relationship("Tenant")
 
 
+class GeoPlace(Base):
+    """Canonical place entity in the geography gazetteer.
+
+    Places are entities with identity and hierarchy — not strings. Resolution
+    only ever links citizen text to rows in this closed registry, so free text
+    like "compound" or "towers" cannot match anything unless a curated entity
+    exists for it. Hierarchy is an explicit parent_id edge authored at curation
+    time, never inferred from string structure at match time.
+    """
+    __tablename__ = "geo_places"
+    id = Column(Integer, primary_key=True, index=True)
+    seat_type = Column(String, nullable=False, default="mp")       # mp | mla
+    seat_name = Column(String, nullable=False, index=True)
+    parliamentary_constituency = Column(String, nullable=False)
+    assembly = Column(String, nullable=False, index=True)
+    canonical_name = Column(String, nullable=False)
+    canonical_norm = Column(String, nullable=False, index=True)
+    place_type = Column(String, nullable=False, default="locality")  # locality | sub_locality | landmark | ward
+    parent_id = Column(Integer, ForeignKey("geo_places.id"), nullable=True)
+    # verified: authoritative. candidate: auto-discovered/imported-unconfirmed.
+    # deprecated: soft-deleted, excluded from matching but kept for provenance.
+    status = Column(String, nullable=False, default="verified", index=True)
+    source = Column(String, nullable=False, default="import_geography_data")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+
+
+class GeoPlaceVariant(Base):
+    """A known way of writing a place — spelling, script, or romanization.
+
+    Every variant is anchored to exactly one entity and carries provenance, so
+    a bad learned variant can be deprecated individually instead of resetting
+    the whole alias space (the failure mode of the old geo_alias system).
+    """
+    __tablename__ = "geo_place_variants"
+    id = Column(Integer, primary_key=True, index=True)
+    place_id = Column(Integer, ForeignKey("geo_places.id"), index=True, nullable=False)
+    variant = Column(String, nullable=False)
+    variant_norm = Column(String, nullable=False, index=True)
+    script = Column(String, nullable=True)
+    # canonical | import_manual_override | learned_from_correction | auto_discovered
+    provenance = Column(String, nullable=False, default="canonical")
+    status = Column(String, nullable=False, default="active")  # active | deprecated
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class GeoResolutionLog(Base):
+    """Full evidence trace for every gazetteer resolution attempt.
+
+    Debugging a wrong mapping means reading this row, not re-reading the
+    resolver. Also feeds shadow-mode comparison against the legacy resolver.
+    """
+    __tablename__ = "geo_resolution_log"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, index=True, nullable=True)
+    extracted_span = Column(String, nullable=True)
+    relation = Column(String, nullable=True)          # near | behind | opposite | beside | front | inside
+    anchor_text = Column(String, nullable=True)
+    decision = Column(String, nullable=False)         # accept | ask | abstain | no_candidates
+    place_id = Column(Integer, nullable=True)
+    assembly = Column(String, nullable=True)
+    confidence = Column(String, nullable=True)        # high | medium | low
+    candidates = Column(Text, nullable=True)          # JSON list of scored candidates
+    evidence = Column(Text, nullable=True)            # JSON evidence dict
+    resolver_version = Column(String, nullable=False, default="v2-shadow")
+    agrees_with_legacy = Column(Boolean, nullable=True)
+    legacy_result = Column(Text, nullable=True)       # JSON snapshot of v1 outcome
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class GeoDiscoveryItem(Base):
+    """System-surfaced missing places, clustered from unresolved spans.
+
+    Humans never discover places manually — recurring unresolved mentions
+    accumulate here with corroborating context, ranked by citizen impact, and
+    are promoted to entities with one action (or auto-promoted when guardrails
+    pass).
+    """
+    __tablename__ = "geo_discovery_queue"
+    id = Column(Integer, primary_key=True, index=True)
+    seat_type = Column(String, nullable=False, default="mp")
+    seat_name = Column(String, nullable=False, index=True)
+    span_norm = Column(String, nullable=False, index=True)
+    span_display = Column(String, nullable=False)
+    occurrence_count = Column(Integer, nullable=False, default=1)
+    distinct_citizens = Column(Integer, nullable=False, default=1)
+    citizen_phones = Column(Text, nullable=True)      # JSON list (capped) for distinctness counting
+    sample_messages = Column(Text, nullable=True)     # JSON list (capped)
+    proposed_assembly = Column(String, nullable=True)
+    proposed_parent_norm = Column(String, nullable=True)
+    status = Column(String, nullable=False, default="open", index=True)  # open | promoted | rejected | merged
+    promoted_place_id = Column(Integer, nullable=True)
+    first_seen_at = Column(DateTime, default=datetime.utcnow)
+    last_seen_at = Column(DateTime, default=datetime.utcnow)
+
+
 class CaseMedia(Base):
     """Original WhatsApp source media attached to a citizen grievance."""
     __tablename__ = "case_media"
@@ -942,6 +1038,42 @@ def save_overrides_to_db(data: dict):
         raise
     finally:
         db.close()
+
+    # Harvest saved manual corrections into the gazetteer as learned variants
+    # (modules/gazetteer.py). Corrections are the highest-quality geography
+    # signal we get and they arrive as a side effect of normal admin work —
+    # never lose one. Non-blocking: gazetteer absence must not break saves.
+    try:
+        from modules.gazetteer import record_correction
+        for tid_str, mappings in (data.get("geo_overrides") or {}).items():
+            db2 = SessionLocal()
+            try:
+                tenant = db2.query(Tenant).filter(Tenant.id == int(tid_str)).first()
+            finally:
+                db2.close()
+            if tenant is None or not tenant.constituency:
+                continue
+            seat_type = derive_seat_type(tenant) or "mp"
+            for loc, constituency in (mappings or {}).items():
+                record_correction(
+                    str(loc), str(constituency),
+                    seat_type=seat_type, seat_name=tenant.constituency,
+                    provenance="learned_from_correction",
+                )
+        for seat_key, mappings in (data.get("seat_geo_overrides") or {}).items():
+            if ":" not in str(seat_key or ""):
+                continue
+            seat_type, seat_name = str(seat_key).split(":", 1)
+            for loc, constituency in (mappings or {}).items():
+                record_correction(
+                    str(loc), str(constituency),
+                    seat_type=seat_type, seat_name=seat_name,
+                    provenance="learned_from_correction",
+                )
+    except Exception as _gaz_exc:
+        logging.getLogger("needle.db").warning(
+            "Gazetteer correction harvest skipped: %s", _gaz_exc
+        )
 
 
 def cleanup_legacy_generated_geo_overrides() -> dict:

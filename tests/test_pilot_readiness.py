@@ -97,6 +97,10 @@ def _seed_database():
     admin_api.engine = test_engine
     admin_api.SessionLocal = TestSession
     admin_api.JWT_SECRET = TEST_JWT_SECRET
+    # Admin token verification reads ADMIN_JWT_SECRET (split from JWT_SECRET
+    # on 2026-07-08, after this harness was written) — patch it too, or admin
+    # tokens sign with one secret and verify with another.
+    admin_api.ADMIN_JWT_SECRET = TEST_JWT_SECRET
 
     Base.metadata.create_all(bind=test_engine)
 
