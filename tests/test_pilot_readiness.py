@@ -1366,7 +1366,9 @@ class TestWebhookVerification:
         """GET /whatsapp/webhook with correct token returns challenge."""
         resp = client.get("/whatsapp/webhook", params={
             "hub.mode": "subscribe",
-            "hub.verify_token": "test-verify-token-123",
+            # Use the live env value: CI's workflow env sets META_VERIFY_TOKEN
+            # before this module's setdefault, so a hardcoded literal 403s there.
+            "hub.verify_token": os.environ["META_VERIFY_TOKEN"],
             "hub.challenge": "CHALLENGE_CODE_12345"
         })
         assert resp.status_code == 200
