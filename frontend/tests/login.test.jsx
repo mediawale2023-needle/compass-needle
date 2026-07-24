@@ -42,7 +42,7 @@ describe('MP login page', () => {
         fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
         await waitFor(() => {
-            expect(loginMock).toHaveBeenCalledWith('mp_arun', 'ValidPass1!');
+            expect(loginMock).toHaveBeenCalledWith('mp_arun', 'ValidPass1!', expect.anything()); // 3rd arg: rememberMe
         });
         await waitFor(() => {
             expect(pushMock).toHaveBeenCalledWith('/dashboard');
