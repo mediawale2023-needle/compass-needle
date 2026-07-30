@@ -155,6 +155,81 @@ function getSuggestedTriage(meta, current) {
     };
 }
 
+// Mirrors the backend triggers for status='pending_review':
+// - main.py _REVIEW_REQUIRED_CATEGORIES (category gate, unconditional)
+// - modules/whatsapp_geography.py _LOW_CONFIDENCE_LEVELS (geo confidence gate)
+// A case can hit either (or both) while every visible field is fully populated,
+// so the reason has to be spelled out here rather than inferred from the data.
+const REVIEW_REQUIRED_CATEGORIES = new Set(['law & order', 'law and order', 'emergency', 'political', 'legal']);
+const LOW_CONFIDENCE_GEO_LEVELS = new Set(['fuzzy', 'speech_phonetic']);
+
+function getReviewReasons(current, meta) {
+    const reasons = [];
+    const categoryLower = String(current.category || '').toLowerCase().trim();
+
+    if (REVIEW_REQUIRED_CATEGORIES.has(categoryLower)) {
+        reasons.push({
+            title: `"${current.category}" always requires manual review`,
+            detail: 'This category is held for staff review before any reply goes out to the citizen — regardless of how complete the rest of the case is.',
+        });
+    }
+
+    const geoConfidence = String(meta.geography_confidence || '').toLowerCase();
+    if (meta.needs_geography_review || LOW_CONFIDENCE_GEO_LEVELS.has(geoConfidence)) {
+        const location = meta.matched_value || current.location || 'the detected location';
+        reasons.push({
+            title: `Location matched at low confidence${geoConfidence ? ` (${geoConfidence})` : ''}`,
+            detail: `"${location}" was matched by a ${geoConfidence === 'speech_phonetic' ? 'phonetic/voice-note' : 'fuzzy'} guess, not an exact or alias match. Confirm it's correct, or edit it in Geography and save — that clears this flag.`,
+        });
+    }
+
+    const isUncategorisedCase = !current.category || current.category === 'Uncategorised' || current.category === 'General';
+    if (isUncategorisedCase && reasons.length === 0) {
+        reasons.push({
+            title: 'Category could not be confidently determined',
+            detail: 'No deterministic rule or keyword confirmed the AI\'s category guess. Pick a category to continue.',
+        });
+    }
+
+    if (reasons.length === 0) {
+        reasons.push({
+            title: 'Flagged for review',
+            detail: 'This case was held for manual review by the intake pipeline. Check geography and category, then update the status once confirmed.',
+        });
+    }
+
+    return reasons;
+}
+
+// ─── Needs-review reason banner ────────────────────────────────
+function ReviewReasonBanner({ current, meta }) {
+    const reasons = getReviewReasons(current, meta);
+    return (
+        <div style={{
+            padding: '14px 20px',
+            background: C.saffronTint,
+            borderLeft: `3px solid ${C.saffron}`,
+            borderBottom: `1px solid ${C.hair}`,
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+                <Icon name="warn" size={13} color={C.saffron} stroke={2} />
+                <span style={{
+                    fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5,
+                    letterSpacing: '0.16em', color: C.saffron, textTransform: 'uppercase', fontWeight: 700,
+                }}>Needs review · why</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {reasons.map((reason, i) => (
+                    <div key={i}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{reason.title}</div>
+                        <div style={{ fontSize: 12, color: C.ink2, lineHeight: 1.5, marginTop: 2 }}>{reason.detail}</div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 function getSelectedThreadCaseId(fullCase, caseItem, activeCaseId) {
     const threadCases = Array.isArray(fullCase?.thread_cases) && fullCase.thread_cases.length
         ? fullCase.thread_cases
@@ -1424,6 +1499,9 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                             createdAt={createdAt}
                                             language={meta.detected_language || meta.language}
                                         />
+                                        {currentStatus === 'pending_review' && (
+                                            <ReviewReasonBanner current={current} meta={meta} />
+                                        )}
                                         {isUncategorised && suggestedTriage && (
                                             <AISuggestionBanner
                                                 suggestion={suggestedTriage}
