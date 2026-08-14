@@ -443,11 +443,21 @@
       "reference_selector": null,
       "reference_regex": null
     },
-    "department_taxonomy": {},
+    "department_taxonomy": {
+      "Infrastructure & Utilities": "Public Works Department / Urban Development Department / BESCOM",
+      "Housing & Land": "Revenue Department",
+      "Health": "Department of Health & Family Welfare Services",
+      "Education": "Department of Public Instruction / Department of Higher Education",
+      "Agriculture": "Department of Agriculture",
+      "Government Schemes & Welfare": "Department of Social Welfare",
+      "Law & Order": "Home Department",
+      "Bureaucratic / Administrative": "Department of Personnel and Administrative Reforms (DPAR)",
+      "Social Issues": "Department of Women and Child Development"
+    },
     "is_primary": true,
     "active": true,
     "verification_status": "confirmed",
-    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+    "source_note": "URL confirmed. Department taxonomy added 2026-08-14 (best-effort mapping to known Government of Karnataka department names, same treatment originally given to Rajasthan/UP) after a tenant-10 case (Belagavi, Karnataka) got stuck unable to move off CPGRAMS because this was empty. Still field_schema.taxonomy_verified=false — not yet confirmed against iPGRS's live department dropdown."
   },
   {
     "state": "Kerala",
