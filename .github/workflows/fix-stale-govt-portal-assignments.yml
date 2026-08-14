@@ -1,0 +1,77 @@
+name: Fix Stale Govt Portal Assignments
+
+# Manually triggered. Runs scripts/fix_stale_govt_portal_assignments.py
+# inside the live backend container against the real DB — dry run by
+# default (prints what would change, writes nothing); set apply=true to
+# actually re-translate mismatched cases. Only ever touches cases still in
+# 'pending_staff_submit' (nothing filed with the government yet) — see the
+# script's own docstring for why that's the safety boundary.
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Actually apply fixes (default: dry run only)"
+        required: true
+        default: "false"
+        type: boolean
+
+concurrency:
+  group: aws-ec2-backend-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    name: Re-resolve mismatched pending_staff_submit cases
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions fix-govt-portal'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
+
+      - name: Run Fix Script Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          APPLY_FLAG: ${{ inputs.apply == 'true' && '--apply' || '' }}
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 10m
+          envs: APPLY_FLAG
+          script: |
+            set -euo pipefail
+            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
+            docker compose -f "$COMPOSE" exec -T backend python3 -m scripts.fix_stale_govt_portal_assignments $APPLY_FLAG
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true

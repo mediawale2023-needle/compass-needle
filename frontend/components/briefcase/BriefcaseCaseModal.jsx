@@ -1181,6 +1181,17 @@ function GovtSyncSection({ caseId, isMp }) {
     }
 
     const ws = worksheet?.worksheet || govtState?.case?.govt_submission_worksheet;
+    // A case keeps whatever portal it was prepared against forever, even after a
+    // better match becomes available (e.g. this tenant's state didn't have its own
+    // portal yet when this case was first prepared, so it fell back to CPGRAMS —
+    // then the real state portal got added later). Only worth flagging/fixing while
+    // nothing has actually been filed with the government yet — once status moves
+    // past pending_staff_submit, a real submission already happened somewhere and
+    // silently reassigning the portal after the fact would misrepresent that.
+    const portalMismatch = (
+        hasPortal && status === 'pending_staff_submit' &&
+        resolvedPortal?.portal && resolvedPortal.portal.id !== govtState.case.govt_portal_id
+    );
 
     return (
         <div style={sec}>
@@ -1224,6 +1235,20 @@ function GovtSyncSection({ caseId, isMp }) {
                 <div style={{ fontSize: 11.5, color: C.ink2, fontStyle: 'italic' }}>
                     No government portal configured yet for {resolvedPortal?.state ? `state "${resolvedPortal.state}"` : "this tenant's state (none on file)"}.
                     Ask an admin to add one under Government Portals settings.
+                </div>
+            )}
+
+            {portalMismatch && (
+                <div style={{ fontSize: 11.5, color: C.saffron, background: C.saffronTint, padding: '8px 10px', marginBottom: 10 }}>
+                    ⚠ This was prepared for <strong>{govtState?.case?.portal_name || 'a different portal'}</strong>, but
+                    this tenant should now use <strong>{resolvedPortal.portal.portal_name}</strong>
+                    {resolvedPortal.state ? ` (${resolvedPortal.state})` : ''} — nothing's been filed with the government
+                    yet, so it's safe to fix.
+                    <div style={{ marginTop: 6 }}>
+                        <Button size="sm" disabled={busy} onClick={handlePrepare}>
+                            {busy ? <Loader2 size={14} className="animate-spin" /> : `Re-resolve to ${resolvedPortal.portal.portal_name}`}
+                        </Button>
+                    </div>
                 </div>
             )}
 
