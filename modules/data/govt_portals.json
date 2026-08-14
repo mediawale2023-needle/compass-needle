@@ -10,7 +10,13 @@
     "field_schema": {
       "subject_max_chars": 100,
       "description_max_chars": 1000,
-      "fields": ["department", "district", "subject", "description", "priority_category"],
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
       "taxonomy_verified": false,
       "entry_path": null,
       "selectors": {},
@@ -27,7 +33,8 @@
       "Law & Order": "Home Department",
       "Bureaucratic / Administrative": "Department of Administrative Reforms",
       "Social Issues": "Women & Child Development Department"
-    }
+    },
+    "is_primary": true
   },
   {
     "state": "Uttar Pradesh",
@@ -40,7 +47,14 @@
     "field_schema": {
       "subject_max_chars": 100,
       "description_max_chars": 2000,
-      "fields": ["department", "district", "subdistrict_or_ulb", "subject", "description", "priority_category"],
+      "fields": [
+        "department",
+        "district",
+        "subdistrict_or_ulb",
+        "subject",
+        "description",
+        "priority_category"
+      ],
       "taxonomy_verified": false,
       "entry_path": null,
       "selectors": {},
@@ -57,7 +71,8 @@
       "Law & Order": "Grih Vibhag (Home Department) / Police",
       "Bureaucratic / Administrative": "Karmik Evam Nyuktikaran Vibhag",
       "Social Issues": "Mahila Evam Bal Vikas Vibhag"
-    }
+    },
+    "is_primary": true
   },
   {
     "state": "All (fallback)",
@@ -70,7 +85,12 @@
     "field_schema": {
       "subject_max_chars": 100,
       "description_max_chars": 4000,
-      "fields": ["ministry_department", "subject", "description", "priority_category"],
+      "fields": [
+        "ministry_department",
+        "subject",
+        "description",
+        "priority_category"
+      ],
       "taxonomy_verified": false,
       "entry_path": "/Home/LodgeGrievance",
       "selectors": {},
@@ -87,6 +107,7 @@
       "Law & Order": "Ministry of Home Affairs",
       "Bureaucratic / Administrative": "Department of Administrative Reforms & Public Grievances (DARPG)",
       "Social Issues": "Ministry of Women & Child Development"
-    }
+    },
+    "is_primary": true
   }
 ]

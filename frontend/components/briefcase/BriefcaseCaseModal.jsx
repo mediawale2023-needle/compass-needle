@@ -1031,8 +1031,11 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose }) {
 
 function GovtSyncSection({ caseId, isMp }) {
     const toast = useToast();
-    const [portals, setPortals] = useState([]);
-    const [selectedPortalId, setSelectedPortalId] = useState('');
+    // The portal a tenant can use is derived server-side from tenant -> constituency
+    // -> state (tenant_profiles.state) — never a staff choice. This is a read-only
+    // preview of that resolution, not a picker; the backend re-resolves it on every
+    // translate/session-start call regardless of anything sent from here.
+    const [resolvedPortal, setResolvedPortal] = useState(null); // /api/govt-portal response
     const [govtState, setGovtState] = useState(null); // /api/cases/{id}/govt response
     const [worksheet, setWorksheet] = useState(null);  // response from /govt/translate (includes portal_contact_number, staff_action_note)
     const [refInput, setRefInput] = useState('');
@@ -1057,22 +1060,23 @@ function GovtSyncSection({ caseId, isMp }) {
     }, [caseId]);
 
     useEffect(() => {
-        apiGet('/api/govt-portals').then((r) => setPortals(r.portals || [])).catch(() => setPortals([]));
+        apiGet('/api/govt-portal').then(setResolvedPortal).catch(() => setResolvedPortal(null));
     }, []);
 
     if (!caseId) return null;
     const status = govtState?.case?.govt_status || 'not_forwarded';
     const hasPortal = !!govtState?.case?.govt_portal_id;
+    const supported = resolvedPortal?.supported ?? true; // don't flash "unsupported" before the first fetch resolves
 
     function setLive(session) {
         liveSessionRef.current = session;
         setLiveSession(session);
     }
 
-    async function handleOpenLive(portalId) {
+    async function handleOpenLive() {
         setLiveConnecting(true);
         try {
-            const result = await apiPost(`/api/cases/${caseId}/govt/session/start`, { portal_id: Number(portalId) });
+            const result = await apiPost(`/api/cases/${caseId}/govt/session/start`, {});
             setLive(result);
             if (result.fill_warnings?.length) {
                 toast.error(`${result.fill_warnings.length} field(s) need manual entry — see notes below the view`);
@@ -1117,10 +1121,9 @@ function GovtSyncSection({ caseId, isMp }) {
     }
 
     async function handlePrepare() {
-        if (!selectedPortalId) { toast.error('Choose a portal first'); return; }
         setBusy(true);
         try {
-            const result = await apiPost(`/api/cases/${caseId}/govt/translate`, { portal_id: Number(selectedPortalId) });
+            const result = await apiPost(`/api/cases/${caseId}/govt/translate`, {});
             setWorksheet(result);
             const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
             setGovtState(refreshed);
@@ -1193,24 +1196,29 @@ function GovtSyncSection({ caseId, isMp }) {
                 </span>
             </div>
 
-            {!hasPortal && (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <select
-                        value={selectedPortalId}
-                        onChange={(e) => setSelectedPortalId(e.target.value)}
-                        style={{ fontSize: 12.5, padding: '7px 10px', border: `1px solid ${C.hair}`, background: C.surface, color: C.ink, flex: '1 1 200px' }}
-                    >
-                        <option value="">Select a portal…</option>
-                        {portals.map((p) => (
-                            <option key={p.id} value={p.id}>{p.portal_name} ({p.state})</option>
-                        ))}
-                    </select>
-                    <Button size="sm" disabled={busy || liveConnecting || !selectedPortalId} onClick={() => handleOpenLive(selectedPortalId)}>
-                        {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Open live portal (auto-fill)'}
-                    </Button>
-                    <Button size="sm" variant="outline" disabled={busy || !selectedPortalId} onClick={handlePrepare}>
-                        {busy ? <Loader2 size={14} className="animate-spin" /> : 'Worksheet only'}
-                    </Button>
+            {!hasPortal && supported && (
+                <div>
+                    {resolvedPortal?.portal && (
+                        <div style={{ fontSize: 11.5, color: C.ink2, marginBottom: 8 }}>
+                            Will file via <strong style={{ color: C.ink }}>{resolvedPortal.portal.portal_name}</strong>
+                            {resolvedPortal.state ? ` (${resolvedPortal.state})` : ''} — set by this MP's constituency, not a choice here.
+                        </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <Button size="sm" disabled={busy || liveConnecting} onClick={handleOpenLive}>
+                            {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Open live portal (auto-fill)'}
+                        </Button>
+                        <Button size="sm" variant="outline" disabled={busy} onClick={handlePrepare}>
+                            {busy ? <Loader2 size={14} className="animate-spin" /> : 'Worksheet only'}
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {!hasPortal && !supported && (
+                <div style={{ fontSize: 11.5, color: C.ink2, fontStyle: 'italic' }}>
+                    No government portal configured yet for {resolvedPortal?.state ? `state "${resolvedPortal.state}"` : "this tenant's state (none on file)"}.
+                    Ask an admin to add one under Government Portals settings.
                 </div>
             )}
 
@@ -1232,7 +1240,7 @@ function GovtSyncSection({ caseId, isMp }) {
                         <div style={{ fontSize: 11, color: C.ink2, marginBottom: 10, fontStyle: 'italic' }}>{worksheet.staff_action_note}</div>
                     )}
                     {status === 'pending_staff_submit' && !liveSession && (
-                        <Button size="sm" disabled={liveConnecting} onClick={() => handleOpenLive(govtState.case.govt_portal_id)} style={{ marginBottom: 4 }}>
+                        <Button size="sm" disabled={liveConnecting} onClick={handleOpenLive} style={{ marginBottom: 4 }}>
                             {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Open live portal (auto-fill)'}
                         </Button>
                     )}

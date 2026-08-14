@@ -157,6 +157,11 @@ class GovtPortal(Base):
     field_schema = Column(JSON, nullable=False, default=dict)         # char limits, field labels/order for the staff worksheet
     otp_bound = Column(Boolean, nullable=False, default=True)
     active = Column(Boolean, nullable=False, default=True)
+    # A state can end up with more than one configured portal (e.g. a state
+    # adds a second departmental portal later). Exactly one per state should
+    # be auto-selected for tenants in that state — this is the flag that
+    # decides which. Admin-managed, not inferred.
+    is_primary = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
