@@ -36,11 +36,11 @@ def seed_govt_portals() -> int:
                 text("""
                     INSERT INTO govt_portals (
                         state, portal_name, portal_type, base_url, status_check_url,
-                        status_check_mode, department_taxonomy, field_schema, otp_bound, active
+                        status_check_mode, department_taxonomy, field_schema, otp_bound, active, is_primary
                     ) VALUES (
                         :state, :portal_name, :portal_type, :base_url, :status_check_url,
                         :status_check_mode, CAST(:department_taxonomy AS JSONB), CAST(:field_schema AS JSONB),
-                        :otp_bound, true
+                        :otp_bound, true, :is_primary
                     )
                     ON CONFLICT (portal_name) DO UPDATE SET
                         state = EXCLUDED.state,
@@ -51,6 +51,9 @@ def seed_govt_portals() -> int:
                         department_taxonomy = EXCLUDED.department_taxonomy,
                         field_schema = EXCLUDED.field_schema,
                         otp_bound = EXCLUDED.otp_bound
+                        -- is_primary intentionally NOT overwritten on conflict — it's an
+                        -- admin-managed toggle (PATCH /admin/govt-portals/{id}), and a
+                        -- reseed on every startup shouldn't silently undo that choice.
                 """),
                 {
                     "state": p["state"],
@@ -62,6 +65,7 @@ def seed_govt_portals() -> int:
                     "department_taxonomy": json.dumps(p.get("department_taxonomy", {})),
                     "field_schema": json.dumps(p.get("field_schema", {})),
                     "otp_bound": bool(p.get("otp_bound", True)),
+                    "is_primary": bool(p.get("is_primary", True)),
                 },
             )
             count += 1

@@ -2481,10 +2481,6 @@ def backfill_case_refs(user=Depends(get_current_user)):
 # See modules/govt_sync/ for the pipeline.
 # ─────────────────────────────────────────
 
-class GovtTranslateRequest(BaseModel):
-    portal_id: int
-
-
 class GovtSubmitRequest(BaseModel):
     reference_number: str
 
@@ -2503,41 +2499,68 @@ def _log_govt_action(tenant_id: int, case_id: int, action: str, actor_username: 
         )
 
 
-@router.get("/govt-portals")
-def list_govt_portals(user=Depends(get_current_user)):
-    """Portals available to this tenant: their own state's branded portal(s) + CPGRAMS fallback."""
-    tid = get_tenant_or_fail(user)
+def _resolve_govt_portal_for_tenant(tid: int) -> tuple[dict | None, str]:
+    """The ONE portal this tenant may forward grievances to.
+
+    Tenant -> constituency -> state is already a single relationship: an MP's
+    constituency and state are set together on tenant_profiles at onboarding
+    (see admin_api.py update_mp_profile / CreateMPRequest). That's the
+    existing source of truth this reads from — no separate state field is
+    stored per grievance, and none is accepted from the client here.
+
+    There is deliberately no portal_id parameter anywhere staff can reach:
+    the portal is derived server-side from the tenant's own state every time,
+    so a staff member cannot submit their tenant's grievance through another
+    state's portal by editing the request — there's nothing to edit.
+
+    Falls back to CPGRAMS (the one system that covers every ministry/state)
+    when the tenant's state has no branded portal configured yet. Returns
+    (None, state) — never guesses a different state's portal — when even that
+    isn't available, so callers fail closed with a clear message.
+    """
     profile = _q_one("SELECT state FROM tenant_profiles WHERE tenant_id = :tid", {"tid": tid})
     state = (profile or {}).get("state") or ""
-    portals = _q(
-        """SELECT id, state, portal_name, portal_type, base_url, status_check_mode, otp_bound
-           FROM govt_portals
-           WHERE active = true AND (LOWER(state) = LOWER(:state) OR portal_type = 'cpgrams')
-           ORDER BY CASE WHEN portal_type = 'cpgrams' THEN 1 ELSE 0 END, portal_name""",
-        {"state": state},
+
+    portal_cols = (
+        "id, state, portal_name, portal_type, base_url, status_check_url, status_check_mode, "
+        "department_taxonomy, field_schema, otp_bound"
     )
-    if not portals:
-        # No state match at all (state not set on profile, or no adapter for it yet) —
-        # still offer CPGRAMS so staff aren't blocked, per the "fail closed with a
-        # clear message, not a silent no-op" rule for anything else.
-        portals = _q(
-            "SELECT id, state, portal_name, portal_type, base_url, status_check_mode, otp_bound "
-            "FROM govt_portals WHERE active = true AND portal_type = 'cpgrams' ORDER BY portal_name"
+    portal = None
+    if state:
+        portal = _q_one(
+            f"SELECT {portal_cols} FROM govt_portals "
+            "WHERE active = true AND is_primary = true AND LOWER(state) = LOWER(:state) "
+            "ORDER BY id LIMIT 1",
+            {"state": state},
         )
-    return {"portals": portals, "tenant_state": state}
-
-
-def _get_govt_portal_or_404(portal_id: int) -> dict:
-    portal = _q_one(
-        "SELECT id, state, portal_name, portal_type, base_url, status_check_url, status_check_mode, "
-        "department_taxonomy, field_schema, otp_bound FROM govt_portals WHERE id = :pid AND active = true",
-        {"pid": portal_id},
-    )
     if not portal:
-        raise HTTPException(404, "Govt portal not found or not yet supported — cannot forward")
-    portal["department_taxonomy"] = _parse_meta(portal.get("department_taxonomy"))
-    portal["field_schema"] = _parse_meta(portal.get("field_schema"))
-    return portal
+        portal = _q_one(
+            f"SELECT {portal_cols} FROM govt_portals "
+            "WHERE active = true AND is_primary = true AND portal_type = 'cpgrams' ORDER BY id LIMIT 1"
+        )
+    if portal:
+        portal["department_taxonomy"] = _parse_meta(portal.get("department_taxonomy"))
+        portal["field_schema"] = _parse_meta(portal.get("field_schema"))
+    return portal, state
+
+
+@router.get("/govt-portal")
+def get_resolved_govt_portal(user=Depends(get_current_user)):
+    """The portal this tenant will use — read-only, not a choice. Frontend
+    shows this as a fixed label, never a picker."""
+    tid = get_tenant_or_fail(user)
+    portal, state = _resolve_govt_portal_for_tenant(tid)
+    return {
+        "state": state,
+        "supported": portal is not None,
+        "portal": (
+            {
+                "id": portal["id"], "portal_name": portal["portal_name"], "base_url": portal["base_url"],
+                "otp_bound": portal["otp_bound"], "portal_type": portal["portal_type"],
+            }
+            if portal else None
+        ),
+    }
 
 
 def _get_portal_contact_number(tid: int) -> str | None:
@@ -2585,7 +2608,7 @@ def _prepare_govt_worksheet(tid: int, case: dict, portal: dict, actor_username: 
 
 
 @router.post("/cases/{case_id}/govt/translate")
-def govt_translate_case(case_id: int, body: GovtTranslateRequest, user=Depends(get_current_user)):
+def govt_translate_case(case_id: int, user=Depends(get_current_user)):
     """AI-translate a case for a govt portal and produce the staff worksheet.
 
     On its own this only prepares data — pair it with POST .../govt/session/start
@@ -2601,7 +2624,9 @@ def govt_translate_case(case_id: int, body: GovtTranslateRequest, user=Depends(g
     if not case:
         raise HTTPException(404, "Case not found")
 
-    portal = _get_govt_portal_or_404(body.portal_id)
+    portal, state = _resolve_govt_portal_for_tenant(tid)
+    if not portal:
+        raise HTTPException(400, f"No government portal configured for {('state ' + state) if state else 'this tenant (no state on file)'} yet — not supported.")
     submission = _prepare_govt_worksheet(tid, case, portal, user.get("username"))
 
     from modules.govt_sync.adapters import get_adapter
@@ -2742,7 +2767,6 @@ def govt_notify_citizen(case_id: int, user=Depends(get_current_user)):
 # ─────────────────────────────────────────
 
 class GovtSessionStartRequest(BaseModel):
-    portal_id: int
     retranslate: bool = False
 
 
@@ -2777,7 +2801,9 @@ async def govt_start_live_session(case_id: int, body: GovtSessionStartRequest, u
     if not case:
         raise HTTPException(404, "Case not found")
 
-    portal = _get_govt_portal_or_404(body.portal_id)
+    portal, state = _resolve_govt_portal_for_tenant(tid)
+    if not portal:
+        raise HTTPException(400, f"No government portal configured for {('state ' + state) if state else 'this tenant (no state on file)'} yet — not supported.")
 
     existing_worksheet = _parse_meta(case.get("govt_submission_worksheet"))
     if not body.retranslate and case.get("govt_portal_id") == portal["id"] and existing_worksheet:

@@ -7137,6 +7137,20 @@ class UpdateGovtPortalRequest(BaseModel):
     field_schema: Optional[dict] = None
     otp_bound: Optional[bool] = None
     active: Optional[bool] = None
+    is_primary: Optional[bool] = None
+
+
+class CreateGovtPortalRequest(BaseModel):
+    state: str
+    portal_name: str
+    portal_type: str = "state_branded"   # 'state_branded' | 'cpgrams'
+    base_url: str
+    status_check_url: Optional[str] = None
+    status_check_mode: str = "login_required"
+    department_taxonomy: dict = {}
+    field_schema: dict = {}
+    otp_bound: bool = True
+    is_primary: bool = True
 
 
 class UpdateGovtContactRequest(BaseModel):
@@ -7148,12 +7162,54 @@ class UpdateGovtContactRequest(BaseModel):
 def admin_list_govt_portals(_=Depends(get_admin_user)):
     rows = _q(
         "SELECT id, state, portal_name, portal_type, base_url, status_check_url, status_check_mode, "
-        "department_taxonomy, field_schema, otp_bound, active, created_at FROM govt_portals ORDER BY state, portal_name"
+        "department_taxonomy, field_schema, otp_bound, active, is_primary, created_at FROM govt_portals ORDER BY state, portal_name"
     )
     for r in rows:
         r["department_taxonomy"] = _parse_meta(r.get("department_taxonomy"))
         r["field_schema"] = _parse_meta(r.get("field_schema"))
     return {"portals": rows}
+
+
+@router.post("/govt-portals")
+def admin_create_govt_portal(req: CreateGovtPortalRequest, admin_user=Depends(get_admin_user)):
+    """Add a portal for a state Needle doesn't cover yet (e.g. Maharashtra's
+    official grievance portal), or a second portal for a state that already
+    has one — set is_primary=false on this one, or on the existing primary
+    first, since exactly one primary portal per state can be active at a time
+    (enforced by a DB constraint, not just this endpoint)."""
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(
+                text("""
+                    INSERT INTO govt_portals (
+                        state, portal_name, portal_type, base_url, status_check_url,
+                        status_check_mode, department_taxonomy, field_schema, otp_bound, active, is_primary
+                    ) VALUES (
+                        :state, :portal_name, :portal_type, :base_url, :status_check_url,
+                        :status_check_mode, CAST(:department_taxonomy AS JSONB), CAST(:field_schema AS JSONB),
+                        :otp_bound, true, :is_primary
+                    ) RETURNING id
+                """),
+                {
+                    "state": req.state, "portal_name": req.portal_name, "portal_type": req.portal_type,
+                    "base_url": req.base_url, "status_check_url": req.status_check_url,
+                    "status_check_mode": req.status_check_mode,
+                    "department_taxonomy": json.dumps(req.department_taxonomy),
+                    "field_schema": json.dumps(req.field_schema),
+                    "otp_bound": req.otp_bound, "is_primary": req.is_primary,
+                },
+            ).fetchone()
+    except Exception as e:
+        msg = str(getattr(e, "orig", e))
+        if "idx_govt_portals_state_primary" in msg:
+            raise HTTPException(409, f"'{req.state}' already has a primary portal — set is_primary=false on this one, or demote the existing primary first")
+        if "portal_name" in msg and ("unique" in msg.lower() or "duplicate" in msg.lower()):
+            raise HTTPException(409, f"A portal named '{req.portal_name}' already exists")
+        logger.exception("Failed to create govt portal")
+        raise HTTPException(500, "Failed to create portal")
+
+    _audit(admin_user, "created", "govt_portal", req.portal_name, f"state={req.state}")
+    return {"success": True, "id": row[0]}
 
 
 @router.patch("/govt-portals/{portal_id}")
@@ -7163,7 +7219,7 @@ def admin_update_govt_portal(portal_id: int, req: UpdateGovtPortalRequest, admin
         raise HTTPException(404, "Portal not found")
 
     updates, params = [], {"pid": portal_id}
-    plain_fields = ["state", "base_url", "status_check_url", "status_check_mode", "otp_bound", "active"]
+    plain_fields = ["state", "base_url", "status_check_url", "status_check_mode", "otp_bound", "active", "is_primary"]
     for field in plain_fields:
         value = getattr(req, field)
         if value is not None:
@@ -7178,8 +7234,15 @@ def admin_update_govt_portal(portal_id: int, req: UpdateGovtPortalRequest, admin
     if not updates:
         raise HTTPException(400, "No fields to update")
 
-    with engine.begin() as conn:
-        conn.execute(text(f"UPDATE govt_portals SET {', '.join(updates)} WHERE id = :pid"), params)
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(f"UPDATE govt_portals SET {', '.join(updates)} WHERE id = :pid"), params)
+    except Exception as e:
+        msg = str(getattr(e, "orig", e))
+        if "idx_govt_portals_state_primary" in msg:
+            raise HTTPException(409, "That state already has a primary portal — demote it first")
+        logger.exception("Failed to update govt portal")
+        raise HTTPException(500, "Failed to update portal")
     _audit(admin_user, "updated", "govt_portal", existing["portal_name"], f"portal_id={portal_id}")
     return {"success": True}
 

@@ -1137,10 +1137,16 @@ try:
                 field_schema JSONB NOT NULL DEFAULT '{}'::jsonb,
                 otp_bound BOOLEAN NOT NULL DEFAULT true,
                 active BOOLEAN NOT NULL DEFAULT true,
+                is_primary BOOLEAN NOT NULL DEFAULT true,
                 created_at TIMESTAMP NOT NULL DEFAULT NOW()
             )
         """))
+        conn.execute(text("ALTER TABLE govt_portals ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT true"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_portals_state ON govt_portals (state)"))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_govt_portals_state_primary ON govt_portals (LOWER(state)) "
+            "WHERE is_primary = true AND active = true"
+        ))
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS govt_submission_log (
                 id SERIAL PRIMARY KEY,
