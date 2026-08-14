@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Send } from 'lucide-react';
-import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { apiGet, apiPatch, apiPost, API_BASE, getAuthToken } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -895,6 +895,403 @@ function ThreadCasesSection({ threadCases, activeCaseId, onSelectCase, onReplyCa
     );
 }
 
+// ─── Government Department Sync ──────────────────────────────
+// Staff-assisted forwarding to a state grievance portal (Rajasthan Sampark,
+// UP Jansunwai, CPGRAMS). "Open live portal" launches a real, auto-filled
+// browser session on the backend and streams it here — staff solve the
+// CAPTCHA/OTP and click Submit on the actual page. Where a portal's fields
+// aren't calibrated yet (or the live session can't be used), the AI
+// worksheet below is still there as a copy/paste fallback. See
+// modules/govt_sync/ on the backend.
+const GOVT_STATUS_LABEL = {
+    not_forwarded: 'Not forwarded',
+    pending_staff_submit: 'Ready to file — staff action needed',
+    submitted: 'Submitted to portal',
+    under_review: 'Under review',
+    escalated: 'Escalated',
+    resolved: 'Resolved by department',
+    rejected: 'Rejected by department',
+};
+
+function GovtSyncCopyField({ label, value }) {
+    const toast = useToast();
+    if (!value) return null;
+    return (
+        <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ fontSize: 9.5, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</span>
+                <button
+                    type="button"
+                    onClick={() => { navigator.clipboard?.writeText(value); toast.success(`${label} copied`); }}
+                    style={{ fontSize: 10, color: C.green, background: 'none', border: 'none', cursor: 'pointer', fontFamily: '"JetBrains Mono", monospace' }}
+                >
+                    copy
+                </button>
+            </div>
+            <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.5, background: C.surface, border: `1px solid ${C.hair}`, padding: '8px 10px', whiteSpace: 'pre-wrap' }}>
+                {value}
+            </div>
+        </div>
+    );
+}
+
+function govtWsUrl(path) {
+    const base = API_BASE || (typeof window !== 'undefined' ? window.location.origin : '');
+    const wsBase = base.replace(/^https/, 'wss').replace(/^http/, 'ws');
+    const token = getAuthToken();
+    return `${wsBase}${path}?token=${encodeURIComponent(token || '')}`;
+}
+
+// ─── Live, staff-controllable view of the real government portal ───
+// Renders the CDP screencast frames the backend streams over the WebSocket
+// and forwards mouse/keyboard back into the real page — this is the actual
+// portal, auto-filled, with staff solving the CAPTCHA/OTP and clicking
+// Submit for real. See modules/govt_sync/browser_session.py.
+function GovtLiveBrowserView({ wsPath, viewport, onClose }) {
+    const canvasRef = useRef(null);
+    const wsRef = useRef(null);
+    const [connected, setConnected] = useState(false);
+    const vw = viewport?.width || 1280;
+    const vh = viewport?.height || 900;
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return undefined;
+        canvas.width = vw;
+        canvas.height = vh;
+        const ctx = canvas.getContext('2d');
+
+        const ws = new WebSocket(govtWsUrl(wsPath));
+        wsRef.current = ws;
+        ws.onopen = () => setConnected(true);
+        ws.onclose = () => setConnected(false);
+        ws.onerror = () => setConnected(false);
+        ws.onmessage = (evt) => {
+            let msg;
+            try { msg = JSON.parse(evt.data); } catch { return; }
+            if (msg.type === 'frame' && msg.data) {
+                const img = new Image();
+                img.onload = () => ctx.drawImage(img, 0, 0, vw, vh);
+                img.src = `data:image/jpeg;base64,${msg.data}`;
+            }
+        };
+
+        return () => {
+            try { ws.close(); } catch { /* noop */ }
+            wsRef.current = null;
+        };
+    }, [wsPath, vw, vh]);
+
+    function sendInput(ev) {
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'input', event: ev }));
+        }
+    }
+
+    function scaled(e) {
+        const rect = canvasRef.current.getBoundingClientRect();
+        return {
+            x: Math.round(((e.clientX - rect.left) / rect.width) * vw),
+            y: Math.round(((e.clientY - rect.top) / rect.height) * vh),
+        };
+    }
+
+    return (
+        <div style={{ marginTop: 8, marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 11, color: connected ? C.greenInk : C.saffron, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: connected ? C.green : C.saffron, display: 'inline-block' }} />
+                    {connected ? 'Live — solve the CAPTCHA/OTP and click Submit in the portal' : 'Connecting to live portal session…'}
+                </span>
+                {onClose && (
+                    <button type="button" onClick={onClose} style={{ fontSize: 10.5, color: C.ink3, background: 'none', border: 'none', cursor: 'pointer' }}>
+                        Close session
+                    </button>
+                )}
+            </div>
+            <canvas
+                ref={canvasRef}
+                tabIndex={0}
+                style={{ width: '100%', aspectRatio: `${vw} / ${vh}`, border: `1px solid ${C.hair}`, outline: 'none', cursor: 'default', background: '#fff' }}
+                onClick={(e) => { e.currentTarget.focus(); sendInput({ type: 'mousedown', ...scaled(e) }); sendInput({ type: 'mouseup', ...scaled(e) }); }}
+                onMouseMove={(e) => sendInput({ type: 'mousemove', ...scaled(e) })}
+                onMouseDown={(e) => sendInput({ type: 'mousedown', ...scaled(e) })}
+                onMouseUp={(e) => sendInput({ type: 'mouseup', ...scaled(e) })}
+                onWheel={(e) => { e.preventDefault(); sendInput({ type: 'wheel', deltaX: e.deltaX, deltaY: e.deltaY }); }}
+                onKeyDown={(e) => {
+                    e.preventDefault();
+                    const printable = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+                    sendInput({ type: 'keydown', key: e.key, printable });
+                }}
+            />
+        </div>
+    );
+}
+
+function GovtSyncSection({ caseId, isMp }) {
+    const toast = useToast();
+    const [portals, setPortals] = useState([]);
+    const [selectedPortalId, setSelectedPortalId] = useState('');
+    const [govtState, setGovtState] = useState(null); // /api/cases/{id}/govt response
+    const [worksheet, setWorksheet] = useState(null);  // response from /govt/translate (includes portal_contact_number, staff_action_note)
+    const [refInput, setRefInput] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [liveSession, setLiveSession] = useState(null); // { session_id, ws_path, viewport, fill_warnings, portal_name }
+    const [liveConnecting, setLiveConnecting] = useState(false);
+    const liveSessionRef = useRef(null); // mirrors liveSession so the unmount cleanup below sees the latest value, not a stale closure
+
+    useEffect(() => {
+        if (!caseId) return;
+        apiGet(`/api/cases/${caseId}/govt`).then(setGovtState).catch(() => setGovtState(null));
+    }, [caseId]);
+
+    useEffect(() => {
+        // Closing the modal/switching cases shouldn't leave a live browser session open.
+        return () => {
+            const session = liveSessionRef.current;
+            if (session) {
+                apiPost(`/api/cases/${caseId}/govt/session/${session.session_id}/close`, {}).catch(() => {});
+            }
+        };
+    }, [caseId]);
+
+    useEffect(() => {
+        apiGet('/api/govt-portals').then((r) => setPortals(r.portals || [])).catch(() => setPortals([]));
+    }, []);
+
+    if (!caseId) return null;
+    const status = govtState?.case?.govt_status || 'not_forwarded';
+    const hasPortal = !!govtState?.case?.govt_portal_id;
+
+    function setLive(session) {
+        liveSessionRef.current = session;
+        setLiveSession(session);
+    }
+
+    async function handleOpenLive(portalId) {
+        setLiveConnecting(true);
+        try {
+            const result = await apiPost(`/api/cases/${caseId}/govt/session/start`, { portal_id: Number(portalId) });
+            setLive(result);
+            if (result.fill_warnings?.length) {
+                toast.error(`${result.fill_warnings.length} field(s) need manual entry — see notes below the view`);
+            } else {
+                toast.success('Live portal session open — solve the CAPTCHA/OTP to finish');
+            }
+            const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
+            setGovtState(refreshed);
+        } catch (e) {
+            toast.error(e.message || 'Could not open a live session');
+        } finally {
+            setLiveConnecting(false);
+        }
+    }
+
+    async function handleCloseLive() {
+        const session = liveSessionRef.current;
+        if (!session) return;
+        try {
+            await apiPost(`/api/cases/${caseId}/govt/session/${session.session_id}/close`, {});
+        } catch { /* best effort */ }
+        setLive(null);
+    }
+
+    async function handleCaptureReference() {
+        const session = liveSessionRef.current;
+        if (!session) return;
+        setBusy(true);
+        try {
+            const result = await apiPost(`/api/cases/${caseId}/govt/session/${session.session_id}/capture-reference`, {});
+            if (result.reference_number) {
+                setRefInput(result.reference_number);
+                toast.success('Reference number found — confirm and save below');
+            } else {
+                toast.error('Could not read a reference number automatically — copy it from the view and paste it below');
+            }
+        } catch (e) {
+            toast.error(e.message || 'Capture failed');
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function handlePrepare() {
+        if (!selectedPortalId) { toast.error('Choose a portal first'); return; }
+        setBusy(true);
+        try {
+            const result = await apiPost(`/api/cases/${caseId}/govt/translate`, { portal_id: Number(selectedPortalId) });
+            setWorksheet(result);
+            const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
+            setGovtState(refreshed);
+            toast.success(`Worksheet ready for ${result.portal.portal_name}`);
+        } catch (e) {
+            toast.error(e.message || 'AI translation failed — try again');
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function handleSubmitRef() {
+        if (!refInput.trim()) { toast.error('Enter the reference number the portal gave you'); return; }
+        setBusy(true);
+        try {
+            await apiPost(`/api/cases/${caseId}/govt/submit`, { reference_number: refInput.trim() });
+            const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
+            setGovtState(refreshed);
+            setRefInput('');
+            if (liveSessionRef.current) {
+                await handleCloseLive();
+            }
+            toast.success('Marked as submitted to the portal');
+        } catch (e) {
+            toast.error(e.message || 'Could not save reference number');
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function handlePollNow() {
+        setBusy(true);
+        try {
+            const result = await apiPost(`/api/cases/${caseId}/govt/poll`, {});
+            const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
+            setGovtState(refreshed);
+            toast.success(result.changed ? `Status updated: ${GOVT_STATUS_LABEL[result.govt_status] || result.govt_status}` : (result.note || 'No change yet'));
+        } catch (e) {
+            toast.error(e.message || 'Status check failed');
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function handleNotifyCitizen() {
+        setBusy(true);
+        try {
+            await apiPost(`/api/cases/${caseId}/govt/notify-citizen`, {});
+            toast.success('WhatsApp update sent to citizen');
+        } catch (e) {
+            toast.error(e.message || 'Failed to notify citizen');
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    const ws = worksheet?.worksheet || govtState?.case?.govt_submission_worksheet;
+
+    return (
+        <div style={sec}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+                <span style={monoLbl}>Government Portal</span>
+                <span style={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                    padding: '2px 8px',
+                    color: status === 'resolved' ? C.greenInk : status === 'rejected' ? C.red : status === 'not_forwarded' ? C.ink3 : C.saffron,
+                    background: status === 'resolved' ? C.greenTint : status === 'rejected' ? '#FDEDEC' : status === 'not_forwarded' ? C.surface : C.saffronTint,
+                }}>
+                    {GOVT_STATUS_LABEL[status] || status}
+                </span>
+            </div>
+
+            {!hasPortal && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <select
+                        value={selectedPortalId}
+                        onChange={(e) => setSelectedPortalId(e.target.value)}
+                        style={{ fontSize: 12.5, padding: '7px 10px', border: `1px solid ${C.hair}`, background: C.surface, color: C.ink, flex: '1 1 200px' }}
+                    >
+                        <option value="">Select a portal…</option>
+                        {portals.map((p) => (
+                            <option key={p.id} value={p.id}>{p.portal_name} ({p.state})</option>
+                        ))}
+                    </select>
+                    <Button size="sm" disabled={busy || liveConnecting || !selectedPortalId} onClick={() => handleOpenLive(selectedPortalId)}>
+                        {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Open live portal (auto-fill)'}
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={busy || !selectedPortalId} onClick={handlePrepare}>
+                        {busy ? <Loader2 size={14} className="animate-spin" /> : 'Worksheet only'}
+                    </Button>
+                </div>
+            )}
+
+            {hasPortal && ws && (
+                <div style={{ marginTop: hasPortal && !ws ? 0 : 4 }}>
+                    <GovtSyncCopyField label="Department" value={ws.department} />
+                    <GovtSyncCopyField label="Subject" value={ws.subject} />
+                    <GovtSyncCopyField label="Description" value={ws.description} />
+                    {ws.priority_category && <GovtSyncCopyField label="Priority category" value={ws.priority_category} />}
+                    {worksheet?.portal_contact_number && (
+                        <GovtSyncCopyField label="Contact number to enter on portal" value={worksheet.portal_contact_number} />
+                    )}
+                    {govtState?.case?.base_url && (
+                        <a href={govtState.case.base_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11.5, color: C.green, display: 'inline-block', marginBottom: 10 }}>
+                            Open {govtState.case.portal_name} to file this →
+                        </a>
+                    )}
+                    {worksheet?.staff_action_note && (
+                        <div style={{ fontSize: 11, color: C.ink2, marginBottom: 10, fontStyle: 'italic' }}>{worksheet.staff_action_note}</div>
+                    )}
+                    {status === 'pending_staff_submit' && !liveSession && (
+                        <Button size="sm" disabled={liveConnecting} onClick={() => handleOpenLive(govtState.case.govt_portal_id)} style={{ marginBottom: 4 }}>
+                            {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Open live portal (auto-fill)'}
+                        </Button>
+                    )}
+                </div>
+            )}
+
+            {liveSession && (
+                <div>
+                    <GovtLiveBrowserView wsPath={liveSession.ws_path} viewport={liveSession.viewport} onClose={handleCloseLive} />
+                    {liveSession.fill_warnings?.length > 0 && (
+                        <div style={{ fontSize: 11, color: C.saffron, marginBottom: 10 }}>
+                            {liveSession.fill_warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+                        </div>
+                    )}
+                    <Button size="sm" variant="outline" disabled={busy} onClick={handleCaptureReference} style={{ marginBottom: 8 }}>
+                        {busy ? <Loader2 size={14} className="animate-spin" /> : 'Submitted — capture reference number'}
+                    </Button>
+                </div>
+            )}
+
+            {hasPortal && status === 'pending_staff_submit' && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
+                    <Input
+                        placeholder="Reference number from portal"
+                        value={refInput}
+                        onChange={(e) => setRefInput(e.target.value)}
+                        style={{ fontSize: 12.5, flex: '1 1 180px' }}
+                    />
+                    <Button size="sm" disabled={busy} onClick={handleSubmitRef}>
+                        {busy ? <Loader2 size={14} className="animate-spin" /> : 'Mark as submitted'}
+                    </Button>
+                </div>
+            )}
+
+            {hasPortal && ['submitted', 'under_review', 'escalated', 'resolved', 'rejected'].includes(status) && (
+                <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 11.5, color: C.ink2, marginBottom: 8 }}>
+                        Ref: <strong style={{ color: C.ink }}>{govtState?.case?.govt_reference_number || '—'}</strong>
+                        {govtState?.case?.govt_status_updated_at && (
+                            <> · updated {new Date(govtState.case.govt_status_updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</>
+                        )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <Button size="sm" variant="outline" disabled={busy} onClick={handlePollNow}>
+                            {busy ? <Loader2 size={14} className="animate-spin" /> : 'Check status now'}
+                        </Button>
+                        {isMp && (
+                            <Button size="sm" disabled={busy} onClick={handleNotifyCitizen}>
+                                <Send size={13} style={{ marginRight: 6 }} />
+                                Forward update to citizen
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ─── Notes + response section ─────────────────────────────────
 function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSave, saving, phone, isMp, onNotify, responseSectionRef, responseInputRef }) {
     return (
@@ -1525,6 +1922,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                         />
                                         <PendingContactMessages current={current} />
                                         <ActivityTimeline activities={activities} loading={loadingActivity} />
+                                        <GovtSyncSection caseId={current.id} isMp={isMp} />
                                         <NotesSection
                                             notes={notes}
                                             setNotes={setNotes}

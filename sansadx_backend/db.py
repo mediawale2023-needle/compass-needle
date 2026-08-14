@@ -107,6 +107,12 @@ class Tenant(Base):
     parliament_sync_status  = Column(String, default="pending")  # pending|active|error|unmatched
     prs_profile_slug        = Column(String, nullable=True)       # PRS India profile slug (e.g. "atul-garg")
 
+    # Government Department Sync — contact point submitted to state portals is
+    # never the constituent's own number. Primary is a Needle-managed line,
+    # fallback is the rep/aspirant's PA. Configured per tenant, not per case.
+    govt_contact_primary_number  = Column(String, nullable=True)   # Needle-managed
+    govt_contact_fallback_number = Column(String, nullable=True)   # PA's number
+
     users = relationship("User", back_populates="tenant")
     cases = relationship("Case", back_populates="tenant")
 
@@ -133,6 +139,39 @@ class User(Base):
     locked_until = Column(DateTime, nullable=True)
 
     tenant = relationship("Tenant", back_populates="users")
+
+
+class GovtPortal(Base):
+    """One row per state grievance portal Needle can prepare submissions for
+    (Rajasthan Sampark, UP Jansunwai, CPGRAMS, ...). See modules/govt_sync/."""
+    __tablename__ = "govt_portals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    state = Column(String, nullable=False, index=True)
+    portal_name = Column(String, nullable=False, unique=True)   # 'Rajasthan Sampark', 'UP Jansunwai', 'CPGRAMS'
+    portal_type = Column(String, nullable=False, default="state_branded")  # 'state_branded' | 'cpgrams'
+    base_url = Column(String, nullable=False)
+    status_check_url = Column(String, nullable=True)            # null if login-gated only
+    status_check_mode = Column(String, nullable=False, default="login_required")  # 'public_reference' | 'login_required'
+    department_taxonomy = Column(JSON, nullable=False, default=dict)  # {category: portal_dept_value} — hand-verified
+    field_schema = Column(JSON, nullable=False, default=dict)         # char limits, field labels/order for the staff worksheet
+    otp_bound = Column(Boolean, nullable=False, default=True)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class GovtSubmissionLog(Base):
+    """Audit trail — every AI translation + staff action on a govt portal
+    forward, logged separately from case_activity_log for compliance review."""
+    __tablename__ = "govt_submission_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    case_id = Column(Integer, ForeignKey("cases.id"), nullable=False, index=True)
+    action = Column(String, nullable=False)   # 'ai_translated' | 'staff_submitted' | 'status_polled' | 'forwarded_to_citizen'
+    actor_username = Column(String, nullable=True)  # null for automated actions (poller)
+    payload = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Case(Base):
@@ -162,6 +201,15 @@ class Case(Base):
     deleted_at = Column(DateTime, nullable=True)
     deleted_by = Column(String, nullable=True)
     case_ref = Column(String, nullable=True, index=True)
+
+    # ── Government Department Sync (staff-assisted portal forwarding) ──
+    govt_portal_id = Column(Integer, ForeignKey("govt_portals.id"), nullable=True)
+    govt_department = Column(String, nullable=True)
+    govt_reference_number = Column(String, nullable=True)
+    govt_status = Column(String, nullable=True, default="not_forwarded")
+    govt_status_updated_at = Column(DateTime, nullable=True)
+    govt_last_forwarded_to_citizen_at = Column(DateTime, nullable=True)
+    govt_submission_worksheet = Column(JSON, nullable=True)  # AI-translated fields staff copies into the portal
 
     tenant = relationship("Tenant", back_populates="cases")
 
