@@ -150,7 +150,12 @@ class GovtPortal(Base):
     state = Column(String, nullable=False, index=True)
     portal_name = Column(String, nullable=False, unique=True)   # 'Rajasthan Sampark', 'UP Jansunwai', 'CPGRAMS'
     portal_type = Column(String, nullable=False, default="state_branded")  # 'state_branded' | 'cpgrams'
-    base_url = Column(String, nullable=False)
+    # Nullable: many states' portal identity is known (e.g. Haryana's CM
+    # Window, Telangana's Prajavani) before a working filing URL has been
+    # verified. A row can exist to track that a state is on the radar without
+    # one — see verification_status. active=true is only ever set once a URL
+    # is actually filled in (enforced in application code, not the schema).
+    base_url = Column(String, nullable=True)
     status_check_url = Column(String, nullable=True)            # null if login-gated only
     status_check_mode = Column(String, nullable=False, default="login_required")  # 'public_reference' | 'login_required'
     department_taxonomy = Column(JSON, nullable=False, default=dict)  # {category: portal_dept_value} — hand-verified
@@ -162,6 +167,11 @@ class GovtPortal(Base):
     # be auto-selected for tenants in that state — this is the flag that
     # decides which. Admin-managed, not inferred.
     is_primary = Column(Boolean, nullable=False, default=True)
+    # Research/rollout confidence, tracked per portal so ops has a queue to
+    # work through: 'confirmed' | 'verify' | 'investigate' | 'needs_correction'
+    # | 'unverified' (default for anything not yet reviewed).
+    verification_status = Column(String, nullable=False, default="unverified")
+    source_note = Column(Text, nullable=True)  # free-text caveat, e.g. a data-correction note
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

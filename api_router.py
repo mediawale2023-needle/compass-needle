@@ -2525,18 +2525,23 @@ def _resolve_govt_portal_for_tenant(tid: int) -> tuple[dict | None, str]:
         "id, state, portal_name, portal_type, base_url, status_check_url, status_check_mode, "
         "department_taxonomy, field_schema, otp_bound"
     )
+    # base_url IS NOT NULL is defense-in-depth, not the primary guard — active is only
+    # ever set true once a portal has a real URL (see modules/data/govt_portals.json),
+    # but the column itself is nullable (many states' portal identity is confirmed
+    # before a filing URL is), so a row could exist active=true with no URL if that
+    # convention is ever violated by hand. Never resolve to an unusable portal.
     portal = None
     if state:
         portal = _q_one(
             f"SELECT {portal_cols} FROM govt_portals "
-            "WHERE active = true AND is_primary = true AND LOWER(state) = LOWER(:state) "
+            "WHERE active = true AND is_primary = true AND base_url IS NOT NULL AND LOWER(state) = LOWER(:state) "
             "ORDER BY id LIMIT 1",
             {"state": state},
         )
     if not portal:
         portal = _q_one(
             f"SELECT {portal_cols} FROM govt_portals "
-            "WHERE active = true AND is_primary = true AND portal_type = 'cpgrams' ORDER BY id LIMIT 1"
+            "WHERE active = true AND is_primary = true AND base_url IS NOT NULL AND portal_type = 'cpgrams' ORDER BY id LIMIT 1"
         )
     if portal:
         portal["department_taxonomy"] = _parse_meta(portal.get("department_taxonomy"))
@@ -2557,6 +2562,9 @@ def get_resolved_govt_portal(user=Depends(get_current_user)):
             {
                 "id": portal["id"], "portal_name": portal["portal_name"], "base_url": portal["base_url"],
                 "otp_bound": portal["otp_bound"], "portal_type": portal["portal_type"],
+                # URL confirmed is necessary but not sufficient — department_taxonomy
+                # also has to be hand-mapped before a submission can actually go out.
+                "ready": bool(portal.get("department_taxonomy")),
             }
             if portal else None
         ),
@@ -2575,6 +2583,16 @@ def _get_portal_contact_number(tid: int) -> str | None:
 
 def _prepare_govt_worksheet(tid: int, case: dict, portal: dict, actor_username: str | None) -> dict:
     """AI-translate `case` for `portal`, save the worksheet on the case, log the action, return it."""
+    if not portal.get("department_taxonomy"):
+        # Distinct from a transient AI failure below — this portal's URL may be
+        # confirmed (see verification_status) but nobody has mapped its department
+        # dropdown to Needle's categories yet. Retrying won't fix it; an admin has
+        # to add department_taxonomy via PATCH /admin/govt-portals/{id} first.
+        raise HTTPException(
+            400,
+            f"{portal['portal_name']} doesn't have its department list configured yet — "
+            "an admin needs to set this up before grievances can be filed here.",
+        )
     from modules.govt_sync.translator import translate_for_portal
     submission = translate_for_portal(
         raw_grievance=case.get("raw_message") or "",

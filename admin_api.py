@@ -7138,19 +7138,24 @@ class UpdateGovtPortalRequest(BaseModel):
     otp_bound: Optional[bool] = None
     active: Optional[bool] = None
     is_primary: Optional[bool] = None
+    verification_status: Optional[str] = None   # 'confirmed' | 'verify' | 'investigate' | 'needs_correction' | 'unverified'
+    source_note: Optional[str] = None
 
 
 class CreateGovtPortalRequest(BaseModel):
     state: str
     portal_name: str
     portal_type: str = "state_branded"   # 'state_branded' | 'cpgrams'
-    base_url: str
+    base_url: Optional[str] = None   # may be unknown at creation time — see verification_status
     status_check_url: Optional[str] = None
     status_check_mode: str = "login_required"
     department_taxonomy: dict = {}
     field_schema: dict = {}
     otp_bound: bool = True
     is_primary: bool = True
+    active: bool = False   # requires base_url — see admin_create_govt_portal
+    verification_status: str = "unverified"
+    source_note: Optional[str] = None
 
 
 class UpdateGovtContactRequest(BaseModel):
@@ -7162,7 +7167,8 @@ class UpdateGovtContactRequest(BaseModel):
 def admin_list_govt_portals(_=Depends(get_admin_user)):
     rows = _q(
         "SELECT id, state, portal_name, portal_type, base_url, status_check_url, status_check_mode, "
-        "department_taxonomy, field_schema, otp_bound, active, is_primary, created_at FROM govt_portals ORDER BY state, portal_name"
+        "department_taxonomy, field_schema, otp_bound, active, is_primary, verification_status, source_note, created_at "
+        "FROM govt_portals ORDER BY state, portal_name"
     )
     for r in rows:
         r["department_taxonomy"] = _parse_meta(r.get("department_taxonomy"))
@@ -7176,18 +7182,26 @@ def admin_create_govt_portal(req: CreateGovtPortalRequest, admin_user=Depends(ge
     official grievance portal), or a second portal for a state that already
     has one — set is_primary=false on this one, or on the existing primary
     first, since exactly one primary portal per state can be active at a time
-    (enforced by a DB constraint, not just this endpoint)."""
+    (enforced by a DB constraint, not just this endpoint).
+
+    A row can exist inactive with no base_url yet — that's the whole point of
+    verification_status (track a state as 'investigate'/'verify' before its
+    portal URL is confirmed). active=true always requires a base_url."""
+    if req.active and not req.base_url:
+        raise HTTPException(400, "Cannot activate a portal with no base_url — set base_url first, or leave active=false")
+
     try:
         with engine.begin() as conn:
             row = conn.execute(
                 text("""
                     INSERT INTO govt_portals (
                         state, portal_name, portal_type, base_url, status_check_url,
-                        status_check_mode, department_taxonomy, field_schema, otp_bound, active, is_primary
+                        status_check_mode, department_taxonomy, field_schema, otp_bound, active, is_primary,
+                        verification_status, source_note
                     ) VALUES (
                         :state, :portal_name, :portal_type, :base_url, :status_check_url,
                         :status_check_mode, CAST(:department_taxonomy AS JSONB), CAST(:field_schema AS JSONB),
-                        :otp_bound, true, :is_primary
+                        :otp_bound, :active, :is_primary, :verification_status, :source_note
                     ) RETURNING id
                 """),
                 {
@@ -7196,7 +7210,8 @@ def admin_create_govt_portal(req: CreateGovtPortalRequest, admin_user=Depends(ge
                     "status_check_mode": req.status_check_mode,
                     "department_taxonomy": json.dumps(req.department_taxonomy),
                     "field_schema": json.dumps(req.field_schema),
-                    "otp_bound": req.otp_bound, "is_primary": req.is_primary,
+                    "otp_bound": req.otp_bound, "active": req.active, "is_primary": req.is_primary,
+                    "verification_status": req.verification_status, "source_note": req.source_note,
                 },
             ).fetchone()
     except Exception as e:
@@ -7214,12 +7229,20 @@ def admin_create_govt_portal(req: CreateGovtPortalRequest, admin_user=Depends(ge
 
 @router.patch("/govt-portals/{portal_id}")
 def admin_update_govt_portal(portal_id: int, req: UpdateGovtPortalRequest, admin_user=Depends(get_admin_user)):
-    existing = _q_one("SELECT id, portal_name FROM govt_portals WHERE id = :pid", {"pid": portal_id})
+    existing = _q_one("SELECT id, portal_name, base_url, active FROM govt_portals WHERE id = :pid", {"pid": portal_id})
     if not existing:
         raise HTTPException(404, "Portal not found")
 
+    effective_active = req.active if req.active is not None else existing["active"]
+    effective_base_url = req.base_url if req.base_url is not None else existing["base_url"]
+    if effective_active and not effective_base_url:
+        raise HTTPException(400, "Cannot activate a portal with no base_url — set base_url in this same request, or leave active=false")
+
     updates, params = [], {"pid": portal_id}
-    plain_fields = ["state", "base_url", "status_check_url", "status_check_mode", "otp_bound", "active", "is_primary"]
+    plain_fields = [
+        "state", "base_url", "status_check_url", "status_check_mode", "otp_bound", "active", "is_primary",
+        "verification_status", "source_note",
+    ]
     for field in plain_fields:
         value = getattr(req, field)
         if value is not None:

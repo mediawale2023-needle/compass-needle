@@ -1130,7 +1130,7 @@ try:
                 state VARCHAR NOT NULL,
                 portal_name VARCHAR NOT NULL UNIQUE,
                 portal_type VARCHAR NOT NULL DEFAULT 'state_branded',
-                base_url VARCHAR NOT NULL,
+                base_url VARCHAR,
                 status_check_url VARCHAR,
                 status_check_mode VARCHAR NOT NULL DEFAULT 'login_required',
                 department_taxonomy JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -1138,10 +1138,18 @@ try:
                 otp_bound BOOLEAN NOT NULL DEFAULT true,
                 active BOOLEAN NOT NULL DEFAULT true,
                 is_primary BOOLEAN NOT NULL DEFAULT true,
+                verification_status VARCHAR NOT NULL DEFAULT 'unverified',
+                source_note TEXT,
                 created_at TIMESTAMP NOT NULL DEFAULT NOW()
             )
         """))
         conn.execute(text("ALTER TABLE govt_portals ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT true"))
+        # base_url started NOT NULL — many states' portal identity is known before a
+        # working filing URL is verified (see modules/data/govt_portals.json), so a
+        # row needs to be able to exist without one yet.
+        conn.execute(text("ALTER TABLE govt_portals ALTER COLUMN base_url DROP NOT NULL"))
+        conn.execute(text("ALTER TABLE govt_portals ADD COLUMN IF NOT EXISTS verification_status VARCHAR NOT NULL DEFAULT 'unverified'"))
+        conn.execute(text("ALTER TABLE govt_portals ADD COLUMN IF NOT EXISTS source_note TEXT"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_portals_state ON govt_portals (state)"))
         conn.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_govt_portals_state_primary ON govt_portals (LOWER(state)) "

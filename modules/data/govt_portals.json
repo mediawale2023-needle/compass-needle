@@ -34,14 +34,17 @@
       "Bureaucratic / Administrative": "Department of Administrative Reforms",
       "Social Issues": "Women & Child Development Department"
     },
-    "is_primary": true
+    "is_primary": true,
+    "active": true,
+    "verification_status": "confirmed",
+    "source_note": null
   },
   {
     "state": "Uttar Pradesh",
     "portal_name": "UP Jansunwai (IGRS)",
     "portal_type": "state_branded",
-    "base_url": "https://jansunwai.up.nic.in",
-    "status_check_url": "https://jansunwai.up.nic.in/Grievance/GrievanceStatus.aspx",
+    "base_url": "https://samadhan.gov.in",
+    "status_check_url": "https://samadhan.gov.in/Grievance/GrievanceStatus.aspx",
     "status_check_mode": "public_reference",
     "otp_bound": true,
     "field_schema": {
@@ -72,7 +75,10 @@
       "Bureaucratic / Administrative": "Karmik Evam Nyuktikaran Vibhag",
       "Social Issues": "Mahila Evam Bal Vikas Vibhag"
     },
-    "is_primary": true
+    "is_primary": true,
+    "active": true,
+    "verification_status": "confirmed",
+    "source_note": "Canonical domain corrected to samadhan.gov.in per state-portal research table (2026-08-14); jansunwai.up.nic.in confirmed as the same Jansunwai-Samadhan system but is the legacy/alternate domain."
   },
   {
     "state": "All (fallback)",
@@ -108,6 +114,759 @@
       "Bureaucratic / Administrative": "Department of Administrative Reforms & Public Grievances (DARPG)",
       "Social Issues": "Ministry of Women & Child Development"
     },
-    "is_primary": true
+    "is_primary": true,
+    "active": true,
+    "verification_status": "confirmed",
+    "source_note": null
+  },
+  {
+    "state": "Andhra Pradesh",
+    "portal_name": "Andhra Pradesh Spandana",
+    "portal_type": "state_branded",
+    "base_url": null,
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "verify",
+    "source_note": "No confirmed online-filing URL yet (listed system: \"Government Spandana system\"). Research tier: verify."
+  },
+  {
+    "state": "Arunachal Pradesh",
+    "portal_name": "Arunachal Pradesh State Grievance Mechanism",
+    "portal_type": "state_branded",
+    "base_url": null,
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "investigate",
+    "source_note": "No confirmed online-filing URL yet (listed system: \"State/CM grievance system\"). Research tier: investigate."
+  },
+  {
+    "state": "Assam",
+    "portal_name": "Assam State Grievance Mechanism",
+    "portal_type": "state_branded",
+    "base_url": null,
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "investigate",
+    "source_note": "No confirmed online-filing URL yet (listed system: \"Assam government grievance services\"). Research tier: investigate."
+  },
+  {
+    "state": "Bihar",
+    "portal_name": "Bihar Lok Shikayat Nivaran",
+    "portal_type": "state_branded",
+    "base_url": "https://lokshikayat.bihar.gov.in",
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": true,
+    "verification_status": "confirmed",
+    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+  },
+  {
+    "state": "Chhattisgarh",
+    "portal_name": "Chhattisgarh State Grievance System",
+    "portal_type": "state_branded",
+    "base_url": null,
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "verify",
+    "source_note": "No confirmed online-filing URL yet (listed system: \"Government grievance mechanism\"). Research tier: verify."
+  },
+  {
+    "state": "Goa",
+    "portal_name": "Goa State Grievance System",
+    "portal_type": "state_branded",
+    "base_url": null,
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "verify",
+    "source_note": "No confirmed online-filing URL yet (listed system: \"Goa government grievance services\"). Research tier: verify."
+  },
+  {
+    "state": "Gujarat",
+    "portal_name": "Gujarat SWAGAT",
+    "portal_type": "state_branded",
+    "base_url": null,
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "verify",
+    "source_note": "No confirmed online-filing URL yet (listed system: \"Gujarat Government\"). Research tier: verify."
+  },
+  {
+    "state": "Haryana",
+    "portal_name": "Haryana CM Window",
+    "portal_type": "state_branded",
+    "base_url": null,
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "confirmed",
+    "source_note": "System identity confirmed (CM Window) but no online-filing URL verified yet. No confirmed online-filing URL yet (listed system: \"Haryana Government\"). Research tier: confirmed."
+  },
+  {
+    "state": "Himachal Pradesh",
+    "portal_name": "HP e-Samadhan / CM Grievance System",
+    "portal_type": "state_branded",
+    "base_url": null,
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "verify",
+    "source_note": "No confirmed online-filing URL yet (listed system: \"HP Government\"). Research tier: verify."
+  },
+  {
+    "state": "Jharkhand",
+    "portal_name": "Jharkhand State/CPGRAMS-linked Grievance Mechanism",
+    "portal_type": "state_branded",
+    "base_url": null,
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "investigate",
+    "source_note": "No confirmed online-filing URL yet (listed system: \"Jharkhand Government\"). Research tier: investigate."
+  },
+  {
+    "state": "Karnataka",
+    "portal_name": "Karnataka Janaspandana (iPGRS)",
+    "portal_type": "state_branded",
+    "base_url": "https://ipgrs.karnataka.gov.in",
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": true,
+    "verification_status": "confirmed",
+    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+  },
+  {
+    "state": "Kerala",
+    "portal_name": "Kerala CM Public Grievance System",
+    "portal_type": "state_branded",
+    "base_url": null,
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "verify",
+    "source_note": "No confirmed online-filing URL yet (listed system: \"Kerala Government\"). Research tier: verify."
+  },
+  {
+    "state": "Madhya Pradesh",
+    "portal_name": "Madhya Pradesh CM Helpline",
+    "portal_type": "state_branded",
+    "base_url": "https://cmhelpline.mp.gov.in",
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": true,
+    "verification_status": "confirmed",
+    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+  },
+  {
+    "state": "Maharashtra",
+    "portal_name": "Maharashtra Aaple Sarkar Grievance Redressal",
+    "portal_type": "state_branded",
+    "base_url": "https://grievances.maharashtra.gov.in",
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": true,
+    "verification_status": "confirmed",
+    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+  },
+  {
+    "state": "Manipur",
+    "portal_name": "Manipur State Grievance Mechanism",
+    "portal_type": "state_branded",
+    "base_url": null,
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "needs_correction",
+    "source_note": "DATA CORRECTION: mipuiaw.mizoram.gov.in is Mizoram's portal (see the Mizoram row), NOT Manipur's — do not reuse that URL here. Manipur's actual portal is still unidentified. No confirmed online-filing URL yet (listed system: \"unknown — see source_note\"). Research tier: needs_correction."
+  },
+  {
+    "state": "Meghalaya",
+    "portal_name": "Meghalaya MEGPGRAMS",
+    "portal_type": "state_branded",
+    "base_url": null,
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "verify",
+    "source_note": "No confirmed online-filing URL yet (listed system: \"Meghalaya Government\"). Research tier: verify."
+  },
+  {
+    "state": "Mizoram",
+    "portal_name": "Mizoram Mipui Aw",
+    "portal_type": "state_branded",
+    "base_url": "https://mipuiaw.mizoram.gov.in",
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": true,
+    "verification_status": "confirmed",
+    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+  },
+  {
+    "state": "Nagaland",
+    "portal_name": "Nagaland State/CPGRAMS Grievance Mechanism",
+    "portal_type": "state_branded",
+    "base_url": null,
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "investigate",
+    "source_note": "No confirmed online-filing URL yet (listed system: \"Nagaland Government\"). Research tier: investigate."
+  },
+  {
+    "state": "Odisha",
+    "portal_name": "Odisha Jana Sunani",
+    "portal_type": "state_branded",
+    "base_url": "https://janasunani.odisha.gov.in",
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": true,
+    "verification_status": "confirmed",
+    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+  },
+  {
+    "state": "Punjab",
+    "portal_name": "Punjab Connect Punjab (PGRS)",
+    "portal_type": "state_branded",
+    "base_url": "https://connect.punjab.gov.in",
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": true,
+    "verification_status": "confirmed",
+    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+  },
+  {
+    "state": "Sikkim",
+    "portal_name": "Sikkim State Grievance Mechanism",
+    "portal_type": "state_branded",
+    "base_url": null,
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "investigate",
+    "source_note": "No confirmed online-filing URL yet (listed system: \"Sikkim Government\"). Research tier: investigate."
+  },
+  {
+    "state": "Tamil Nadu",
+    "portal_name": "Tamil Nadu CM Helpline (Mudhalvarin Mugavari)",
+    "portal_type": "state_branded",
+    "base_url": "https://cmhelpline.tnega.org",
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": true,
+    "verification_status": "confirmed",
+    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+  },
+  {
+    "state": "Telangana",
+    "portal_name": "Telangana Prajavani",
+    "portal_type": "state_branded",
+    "base_url": null,
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": false,
+    "verification_status": "confirmed",
+    "source_note": "System identity confirmed (Prajavani) but no online-filing URL verified yet. No confirmed online-filing URL yet (listed system: \"Telangana Government\"). Research tier: confirmed."
+  },
+  {
+    "state": "Tripura",
+    "portal_name": "Tripura CM Helpline 1905",
+    "portal_type": "state_branded",
+    "base_url": "https://cmhelpline.tripura.gov.in",
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": true,
+    "verification_status": "confirmed",
+    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+  },
+  {
+    "state": "Uttarakhand",
+    "portal_name": "Uttarakhand CM Helpline 1905",
+    "portal_type": "state_branded",
+    "base_url": "https://cmhelpline.uk.gov.in",
+    "status_check_url": null,
+    "status_check_mode": "login_required",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": [
+        "department",
+        "district",
+        "subject",
+        "description",
+        "priority_category"
+      ],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {},
+    "is_primary": true,
+    "active": true,
+    "verification_status": "confirmed",
+    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
   }
 ]

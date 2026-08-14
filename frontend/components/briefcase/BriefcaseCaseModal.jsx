@@ -1202,6 +1202,11 @@ function GovtSyncSection({ caseId, isMp }) {
                         <div style={{ fontSize: 11.5, color: C.ink2, marginBottom: 8 }}>
                             Will file via <strong style={{ color: C.ink }}>{resolvedPortal.portal.portal_name}</strong>
                             {resolvedPortal.state ? ` (${resolvedPortal.state})` : ''} — set by this MP's constituency, not a choice here.
+                            {!resolvedPortal.portal.ready && (
+                                <div style={{ color: C.saffron, marginTop: 4 }}>
+                                    ⚠ Portal URL confirmed, but its department list isn't mapped yet — preparing a case here will show an error until an admin sets that up.
+                                </div>
+                            )}
                         </div>
                     )}
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
