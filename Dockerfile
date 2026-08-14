@@ -1,4 +1,11 @@
-FROM python:3.11-slim
+# Pinned to bookworm, not the floating `python:3.11-slim` tag — that now
+# resolves to Debian trixie, which Playwright 1.49 doesn't officially
+# support. On trixie, `playwright install --with-deps` silently falls back
+# to an Ubuntu-20.04 package-name mapping and fails on renamed packages
+# (e.g. ttf-unifont -> fonts-unifont). bookworm is on Playwright's supported
+# list, so --with-deps resolves real, current package names instead of
+# guessing.
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
