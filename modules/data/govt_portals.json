@@ -1,0 +1,92 @@
+[
+  {
+    "state": "Rajasthan",
+    "portal_name": "Rajasthan Sampark",
+    "portal_type": "state_branded",
+    "base_url": "https://sampark.rajasthan.gov.in",
+    "status_check_url": "https://sampark.rajasthan.gov.in/Admin/Grievance_Status.aspx",
+    "status_check_mode": "public_reference",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 1000,
+      "fields": ["department", "district", "subject", "description", "priority_category"],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {
+      "Infrastructure & Utilities": "PWD / Urban Development & Housing Department",
+      "Housing & Land": "Revenue Department",
+      "Health": "Medical, Health & Family Welfare Department",
+      "Education": "School Education Department",
+      "Agriculture": "Agriculture Department",
+      "Government Schemes & Welfare": "Social Justice & Empowerment Department",
+      "Law & Order": "Home Department",
+      "Bureaucratic / Administrative": "Department of Administrative Reforms",
+      "Social Issues": "Women & Child Development Department"
+    }
+  },
+  {
+    "state": "Uttar Pradesh",
+    "portal_name": "UP Jansunwai (IGRS)",
+    "portal_type": "state_branded",
+    "base_url": "https://jansunwai.up.nic.in",
+    "status_check_url": "https://jansunwai.up.nic.in/Grievance/GrievanceStatus.aspx",
+    "status_check_mode": "public_reference",
+    "otp_bound": true,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 2000,
+      "fields": ["department", "district", "subdistrict_or_ulb", "subject", "description", "priority_category"],
+      "taxonomy_verified": false,
+      "entry_path": null,
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {
+      "Infrastructure & Utilities": "Lok Nirman Vibhag / Nagar Vikas Vibhag / UPPCL",
+      "Housing & Land": "Rajasva Vibhag (Revenue Department)",
+      "Health": "Chikitsa Swasthya Evam Parivar Kalyan Vibhag",
+      "Education": "Basic/Secondary Shiksha Vibhag",
+      "Agriculture": "Krishi Vibhag",
+      "Government Schemes & Welfare": "Samaj Kalyan Vibhag",
+      "Law & Order": "Grih Vibhag (Home Department) / Police",
+      "Bureaucratic / Administrative": "Karmik Evam Nyuktikaran Vibhag",
+      "Social Issues": "Mahila Evam Bal Vikas Vibhag"
+    }
+  },
+  {
+    "state": "All (fallback)",
+    "portal_name": "CPGRAMS",
+    "portal_type": "cpgrams",
+    "base_url": "https://pgportal.gov.in",
+    "status_check_url": "https://pgportal.gov.in/Status",
+    "status_check_mode": "public_reference",
+    "otp_bound": false,
+    "field_schema": {
+      "subject_max_chars": 100,
+      "description_max_chars": 4000,
+      "fields": ["ministry_department", "subject", "description", "priority_category"],
+      "taxonomy_verified": false,
+      "entry_path": "/Home/LodgeGrievance",
+      "selectors": {},
+      "reference_selector": null,
+      "reference_regex": null
+    },
+    "department_taxonomy": {
+      "Infrastructure & Utilities": "Ministry of Road Transport & Highways / Ministry of Power / Ministry of Housing & Urban Affairs",
+      "Housing & Land": "Ministry of Rural Development / Department of Land Resources",
+      "Health": "Ministry of Health & Family Welfare",
+      "Education": "Ministry of Education",
+      "Agriculture": "Ministry of Agriculture & Farmers Welfare",
+      "Government Schemes & Welfare": "Ministry of Social Justice & Empowerment",
+      "Law & Order": "Ministry of Home Affairs",
+      "Bureaucratic / Administrative": "Department of Administrative Reforms & Public Grievances (DARPG)",
+      "Social Issues": "Ministry of Women & Child Development"
+    }
+  }
+]

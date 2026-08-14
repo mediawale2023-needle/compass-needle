@@ -10,6 +10,15 @@ Target: AWS EC2 in Mumbai (`ap-south-1`) running the FastAPI backend with Docker
 - Security group inbound: `22` from your IP, `80` and `443` from anywhere
 - Elastic IP: recommended for stable DNS
 
+> **Memory headroom if Govt Department Sync is in use:** `t4g.small` is 2GB RAM,
+> shared across Postgres, `backend` (2 workers), `backend_govt_live` (1 worker +
+> headless Chromium, ~300-500MB per open live session), and Caddy. That's fine
+> at idle, but each concurrent live portal session (modules/govt_sync/browser_session.py)
+> adds real memory pressure. `GOVT_SYNC_MAX_LIVE_SESSIONS` (default 3, see
+> `env.production.example`) caps this — lower it, or move to `t4g.medium` (4GB),
+> before turning this feature on for real staff usage. Watch `docker stats`
+> after the first live sessions to see actual headroom.
+
 ## Server Layout
 
 ```text

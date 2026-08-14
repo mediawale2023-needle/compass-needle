@@ -7119,6 +7119,110 @@ def get_classify_topics_stats(user=Depends(get_admin_user)):
 
 
 # ─────────────────────────────────────────
+# GOVERNMENT DEPARTMENT SYNC — portal registry admin
+# department_taxonomy/field_schema are hand-verified data (see
+# modules/data/govt_portals.json field_schema.taxonomy_verified) — this is
+# the surface for ops to correct them without a code deploy once a state IT
+# dept confirms live dropdown values / DOM. Don't let staff hit "Forward to
+# Department" for a state with no adapter — `active=false` fails closed with
+# a clear "not yet supported" message rather than a silent no-op.
+# ─────────────────────────────────────────
+
+class UpdateGovtPortalRequest(BaseModel):
+    state: Optional[str] = None
+    base_url: Optional[str] = None
+    status_check_url: Optional[str] = None
+    status_check_mode: Optional[str] = None
+    department_taxonomy: Optional[dict] = None
+    field_schema: Optional[dict] = None
+    otp_bound: Optional[bool] = None
+    active: Optional[bool] = None
+
+
+class UpdateGovtContactRequest(BaseModel):
+    govt_contact_primary_number: Optional[str] = None
+    govt_contact_fallback_number: Optional[str] = None
+
+
+@router.get("/govt-portals")
+def admin_list_govt_portals(_=Depends(get_admin_user)):
+    rows = _q(
+        "SELECT id, state, portal_name, portal_type, base_url, status_check_url, status_check_mode, "
+        "department_taxonomy, field_schema, otp_bound, active, created_at FROM govt_portals ORDER BY state, portal_name"
+    )
+    for r in rows:
+        r["department_taxonomy"] = _parse_meta(r.get("department_taxonomy"))
+        r["field_schema"] = _parse_meta(r.get("field_schema"))
+    return {"portals": rows}
+
+
+@router.patch("/govt-portals/{portal_id}")
+def admin_update_govt_portal(portal_id: int, req: UpdateGovtPortalRequest, admin_user=Depends(get_admin_user)):
+    existing = _q_one("SELECT id, portal_name FROM govt_portals WHERE id = :pid", {"pid": portal_id})
+    if not existing:
+        raise HTTPException(404, "Portal not found")
+
+    updates, params = [], {"pid": portal_id}
+    plain_fields = ["state", "base_url", "status_check_url", "status_check_mode", "otp_bound", "active"]
+    for field in plain_fields:
+        value = getattr(req, field)
+        if value is not None:
+            updates.append(f"{field} = :{field}")
+            params[field] = value
+    for json_field in ["department_taxonomy", "field_schema"]:
+        value = getattr(req, json_field)
+        if value is not None:
+            updates.append(f"{json_field} = CAST(:{json_field} AS JSONB)")
+            params[json_field] = json.dumps(value)
+
+    if not updates:
+        raise HTTPException(400, "No fields to update")
+
+    with engine.begin() as conn:
+        conn.execute(text(f"UPDATE govt_portals SET {', '.join(updates)} WHERE id = :pid"), params)
+    _audit(admin_user, "updated", "govt_portal", existing["portal_name"], f"portal_id={portal_id}")
+    return {"success": True}
+
+
+@router.post("/govt-portals/poll-now")
+def admin_poll_govt_portals_now(_=Depends(get_admin_user)):
+    """Manually trigger a status poll across every pending govt-portal submission (all tenants)."""
+    try:
+        from modules.govt_sync.poller import poll_all_pending
+        summary = poll_all_pending()
+        return {"success": True, **summary}
+    except Exception as e:
+        logger.exception("Manual govt-sync poll failed")
+        raise HTTPException(500, "Poll failed — check server logs")
+
+
+@router.patch("/mps/{tenant_id}/govt-contact")
+def update_mp_govt_contact(tenant_id: int, req: UpdateGovtContactRequest, admin_user=Depends(get_admin_user)):
+    """Set the Needle-managed contact number (+ PA fallback) submitted to govt
+    portals on this tenant's behalf. Never the constituent's own number."""
+    db = SessionLocal()
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(404, "Tenant not found")
+        if req.govt_contact_primary_number is not None:
+            tenant.govt_contact_primary_number = req.govt_contact_primary_number or None
+        if req.govt_contact_fallback_number is not None:
+            tenant.govt_contact_fallback_number = req.govt_contact_fallback_number or None
+        db.commit()
+        _audit(admin_user, "updated", "govt_contact", tenant.name or "", f"tenant_id={tenant_id}")
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception:
+        db.rollback()
+        logger.exception("Admin operation failed")
+        raise HTTPException(500, "Internal server error")
+    finally:
+        db.close()
+
+
+# ─────────────────────────────────────────
 # GEOGRAPHY GAZETTEER (entity registry + discovery + shadow telemetry)
 # ─────────────────────────────────────────
 

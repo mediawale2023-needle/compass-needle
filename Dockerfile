@@ -12,6 +12,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Playwright's Chromium + its OS-level deps (fonts, codecs, etc.), for
+# modules/govt_sync/browser_session.py — the live, staff-controllable
+# government-portal browser sessions. --with-deps installs everything
+# Chromium needs to actually run on this Debian-slim base, not just the
+# browser binary itself.
+RUN playwright install --with-deps chromium
+
 # Copy the rest of the application
 COPY . .
 

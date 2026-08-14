@@ -1120,6 +1120,65 @@ try:
 except Exception as _csr_seed_err:
     logger.warning(f"CSR company seed failed (non-fatal): {_csr_seed_err}")
 
+# ─── Migration: Government Department Sync (govt_portals, govt_submission_log,
+# cases.govt_*, tenants.govt_contact_*) — see modules/govt_sync/ ───
+try:
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS govt_portals (
+                id SERIAL PRIMARY KEY,
+                state VARCHAR NOT NULL,
+                portal_name VARCHAR NOT NULL UNIQUE,
+                portal_type VARCHAR NOT NULL DEFAULT 'state_branded',
+                base_url VARCHAR NOT NULL,
+                status_check_url VARCHAR,
+                status_check_mode VARCHAR NOT NULL DEFAULT 'login_required',
+                department_taxonomy JSONB NOT NULL DEFAULT '{}'::jsonb,
+                field_schema JSONB NOT NULL DEFAULT '{}'::jsonb,
+                otp_bound BOOLEAN NOT NULL DEFAULT true,
+                active BOOLEAN NOT NULL DEFAULT true,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_portals_state ON govt_portals (state)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS govt_submission_log (
+                id SERIAL PRIMARY KEY,
+                tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+                case_id INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+                action VARCHAR NOT NULL,
+                actor_username VARCHAR,
+                payload JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_sub_log_case ON govt_submission_log (tenant_id, case_id)"))
+        conn.execute(text("ALTER TABLE cases ADD COLUMN IF NOT EXISTS govt_portal_id INTEGER REFERENCES govt_portals(id)"))
+        conn.execute(text("ALTER TABLE cases ADD COLUMN IF NOT EXISTS govt_department VARCHAR"))
+        conn.execute(text("ALTER TABLE cases ADD COLUMN IF NOT EXISTS govt_reference_number VARCHAR"))
+        conn.execute(text("ALTER TABLE cases ADD COLUMN IF NOT EXISTS govt_status VARCHAR DEFAULT 'not_forwarded'"))
+        conn.execute(text("ALTER TABLE cases ADD COLUMN IF NOT EXISTS govt_status_updated_at TIMESTAMP"))
+        conn.execute(text("ALTER TABLE cases ADD COLUMN IF NOT EXISTS govt_last_forwarded_to_citizen_at TIMESTAMP"))
+        conn.execute(text("ALTER TABLE cases ADD COLUMN IF NOT EXISTS govt_submission_worksheet JSONB"))
+        conn.execute(text("UPDATE cases SET govt_status = 'not_forwarded' WHERE govt_status IS NULL"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_cases_govt_status ON cases (tenant_id, govt_status) WHERE govt_status <> 'not_forwarded'"))
+        conn.execute(text("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS govt_contact_primary_number VARCHAR"))
+        conn.execute(text("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS govt_contact_fallback_number VARCHAR"))
+    logger.info("Migration: Government Department Sync tables/columns ready")
+except Exception as _govt_sync_exc:
+    logger.warning(f"Government Department Sync migration skipped: {_govt_sync_exc}")
+
+# ─── Seed: govt_portals rows (Rajasthan Sampark, UP Jansunwai, CPGRAMS) ───
+# department_taxonomy/field_schema are hand-curated per modules/data/govt_portals.json
+# and are safe to re-seed (upsert by portal_name) — they don't touch case data.
+try:
+    from modules.govt_sync.seed import seed_govt_portals
+    _govt_seeded = seed_govt_portals()
+    if _govt_seeded:
+        logger.info(f"Government Department Sync: seeded/updated {_govt_seeded} portal(s)")
+except Exception as _govt_seed_exc:
+    logger.warning(f"Government Department Sync portal seed skipped: {_govt_seed_exc}")
+
 
 # ─────────────────────────────────────────
 # EMERGENCY ESCALATION BACKGROUND CHECKER
@@ -6256,6 +6315,61 @@ def _start_inbound_ledger_sweeper() -> None:
     timer.start()
 
 
+# ─── Government Department Sync: status polling sweep ───
+# Checks reference-number status for every case submitted to a govt portal.
+# Deliberately does not auto-forward to the citizen — see modules/govt_sync/poller.py.
+_GOVT_SYNC_POLL_INTERVAL_SECONDS = 6 * 60 * 60  # every 6 hours
+
+
+def _run_govt_sync_poll() -> None:
+    try:
+        from modules.govt_sync.poller import poll_all_pending
+        poll_all_pending()
+    except Exception as exc:
+        logger.warning("Govt sync poll sweep failed: %s", exc)
+
+
+def _schedule_govt_sync_poll() -> None:
+    try:
+        _run_govt_sync_poll()
+    finally:
+        timer = threading.Timer(_GOVT_SYNC_POLL_INTERVAL_SECONDS, _schedule_govt_sync_poll)
+        timer.daemon = True
+        timer.start()
+
+
+def _start_govt_sync_poller() -> None:
+    logger.info("Govt Department Sync poller enabled — checking every %ds", _GOVT_SYNC_POLL_INTERVAL_SECONDS)
+    # First run deferred by one interval — no submissions can exist seconds after boot,
+    # and this avoids every instance hammering portals simultaneously on deploy.
+    timer = threading.Timer(_GOVT_SYNC_POLL_INTERVAL_SECONDS, _schedule_govt_sync_poll)
+    timer.daemon = True
+    timer.start()
+
+
+# ─── Government Department Sync: live browser-session cleanup ───
+# Unlike the poll sweep above, this touches modules.govt_sync.browser_session's
+# asyncio state (Playwright sessions, WebSocket relays) directly, so it must
+# run as a real asyncio task on the same event loop uvicorn is serving on —
+# not a threading.Timer, which would run it on a different loop entirely.
+_GOVT_SYNC_SESSION_SWEEP_INTERVAL_SECONDS = 120  # 2 minutes
+
+
+async def _govt_sync_live_session_sweep_loop() -> None:
+    while True:
+        await asyncio.sleep(_GOVT_SYNC_SESSION_SWEEP_INTERVAL_SECONDS)
+        try:
+            from modules.govt_sync.browser_session import sweep_idle_sessions
+            await sweep_idle_sessions()
+        except Exception as exc:
+            logger.warning("Govt sync live-session sweep failed: %s", exc)
+
+
+def _start_govt_sync_live_session_sweeper() -> None:
+    logger.info("Govt Department Sync live-session sweeper enabled — checking every %ds", _GOVT_SYNC_SESSION_SWEEP_INTERVAL_SECONDS)
+    asyncio.create_task(_govt_sync_live_session_sweep_loop())
+
+
 @app.post("/whatsapp/webhook")
 async def whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     # ── Validate Meta signature (X-Hub-Signature-256) — MANDATORY ──
@@ -6421,6 +6535,8 @@ async def startup_jobs():
     await run_in_threadpool(_sweep_pending_inbound_ledger_rows)
     await run_in_threadpool(_sweep_stale_text_buffers)
     _start_inbound_ledger_sweeper()
+    _start_govt_sync_poller()
+    _start_govt_sync_live_session_sweeper()
     _start_keep_alive()
 
 

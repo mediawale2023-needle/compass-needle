@@ -29,11 +29,41 @@ services:
       postgres:
         condition: service_healthy
 
+  # Same image as `backend`, but pinned to a single worker.
+  # modules/govt_sync/browser_session.py keeps live Playwright sessions
+  # in that one process's memory — a multi-worker `backend` would split a
+  # session's POST /start and its follow-up WebSocket across different
+  # worker processes at random, and the WS would 404 looking for a session
+  # that exists in a sibling process. Caddy path-routes just the
+  # govt-portal live-session traffic here (see Caddyfile) so it always
+  # lands on this one process; everything else still hits `backend`.
+  backend_govt_live:
+    build:
+      context: /opt/compass-needle/app
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - /opt/compass-needle/.env
+    environment:
+      PORT: "8000"
+      ENV: production
+      WEB_CONCURRENCY: "1"
+    # Chromium wants more than Docker's default 64MB /dev/shm. browser_session.py
+    # already passes --disable-dev-shm-usage as a fallback, but a real shm
+    # segment is more stable under load than Chromium's /tmp workaround.
+    shm_size: "1gb"
+    expose:
+      - "8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
     depends_on:
       - backend
+      - backend_govt_live
     ports:
       - "80:80"
       - "443:443"

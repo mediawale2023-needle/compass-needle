@@ -14,7 +14,7 @@ import string
 import uuid
 from datetime import datetime, timedelta, timezone, date
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Depends, Query, Request, Response, Form
+from fastapi import APIRouter, HTTPException, Depends, Query, Request, Response, Form, WebSocket, WebSocketDisconnect
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -2472,6 +2472,404 @@ def backfill_case_refs(user=Depends(get_current_user)):
         updated += 1
 
     return {"success": True, "updated": updated}
+
+
+# ─────────────────────────────────────────
+# GOVERNMENT DEPARTMENT SYNC
+# Staff-assisted forwarding of a case to a state grievance portal
+# (Rajasthan Sampark, UP Jansunwai, CPGRAMS) and syncing status back.
+# See modules/govt_sync/ for the pipeline.
+# ─────────────────────────────────────────
+
+class GovtTranslateRequest(BaseModel):
+    portal_id: int
+
+
+class GovtSubmitRequest(BaseModel):
+    reference_number: str
+
+
+def _log_govt_action(tenant_id: int, case_id: int, action: str, actor_username: str | None, payload: dict | None = None):
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO govt_submission_log (tenant_id, case_id, action, actor_username, payload, created_at) "
+                "VALUES (:tid, :cid, :action, :actor, CAST(:payload AS JSONB), :now)"
+            ),
+            {
+                "tid": tenant_id, "cid": case_id, "action": action, "actor": actor_username,
+                "payload": json.dumps(payload or {}, default=str), "now": _utcnow(),
+            },
+        )
+
+
+@router.get("/govt-portals")
+def list_govt_portals(user=Depends(get_current_user)):
+    """Portals available to this tenant: their own state's branded portal(s) + CPGRAMS fallback."""
+    tid = get_tenant_or_fail(user)
+    profile = _q_one("SELECT state FROM tenant_profiles WHERE tenant_id = :tid", {"tid": tid})
+    state = (profile or {}).get("state") or ""
+    portals = _q(
+        """SELECT id, state, portal_name, portal_type, base_url, status_check_mode, otp_bound
+           FROM govt_portals
+           WHERE active = true AND (LOWER(state) = LOWER(:state) OR portal_type = 'cpgrams')
+           ORDER BY CASE WHEN portal_type = 'cpgrams' THEN 1 ELSE 0 END, portal_name""",
+        {"state": state},
+    )
+    if not portals:
+        # No state match at all (state not set on profile, or no adapter for it yet) —
+        # still offer CPGRAMS so staff aren't blocked, per the "fail closed with a
+        # clear message, not a silent no-op" rule for anything else.
+        portals = _q(
+            "SELECT id, state, portal_name, portal_type, base_url, status_check_mode, otp_bound "
+            "FROM govt_portals WHERE active = true AND portal_type = 'cpgrams' ORDER BY portal_name"
+        )
+    return {"portals": portals, "tenant_state": state}
+
+
+def _get_govt_portal_or_404(portal_id: int) -> dict:
+    portal = _q_one(
+        "SELECT id, state, portal_name, portal_type, base_url, status_check_url, status_check_mode, "
+        "department_taxonomy, field_schema, otp_bound FROM govt_portals WHERE id = :pid AND active = true",
+        {"pid": portal_id},
+    )
+    if not portal:
+        raise HTTPException(404, "Govt portal not found or not yet supported — cannot forward")
+    portal["department_taxonomy"] = _parse_meta(portal.get("department_taxonomy"))
+    portal["field_schema"] = _parse_meta(portal.get("field_schema"))
+    return portal
+
+
+def _get_portal_contact_number(tid: int) -> str | None:
+    # The number staff enter into the portal's own contact-number field is
+    # never the constituent's own number: Needle-managed primary, PA fallback.
+    tenant_row = _q_one(
+        "SELECT govt_contact_primary_number, govt_contact_fallback_number FROM tenants WHERE id = :tid",
+        {"tid": tid},
+    ) or {}
+    return tenant_row.get("govt_contact_primary_number") or tenant_row.get("govt_contact_fallback_number")
+
+
+def _prepare_govt_worksheet(tid: int, case: dict, portal: dict, actor_username: str | None) -> dict:
+    """AI-translate `case` for `portal`, save the worksheet on the case, log the action, return it."""
+    from modules.govt_sync.translator import translate_for_portal
+    submission = translate_for_portal(
+        raw_grievance=case.get("raw_message") or "",
+        category=case.get("category") or "",
+        district=case.get("assembly") or "",
+        ulb=case.get("ward") or case.get("location") or "",
+        portal_name=portal["portal_name"],
+        department_taxonomy=portal["department_taxonomy"],
+        field_schema=portal["field_schema"],
+    )
+    if not submission:
+        raise HTTPException(502, "AI translation failed — try again in a moment")
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE cases SET govt_portal_id = :pid, govt_department = :dept, "
+                "govt_submission_worksheet = CAST(:worksheet AS JSONB), "
+                "govt_status = CASE WHEN govt_status = 'not_forwarded' THEN 'pending_staff_submit' ELSE govt_status END, "
+                "govt_status_updated_at = :now, updated_at = :now "
+                "WHERE id = :cid AND tenant_id = :tid"
+            ),
+            {
+                "pid": portal["id"], "dept": submission["department"],
+                "worksheet": json.dumps(submission), "now": _utcnow(),
+                "cid": case["id"], "tid": tid,
+            },
+        )
+    _log_govt_action(tid, case["id"], "ai_translated", actor_username, payload={"portal": portal["portal_name"], **submission})
+    return submission
+
+
+@router.post("/cases/{case_id}/govt/translate")
+def govt_translate_case(case_id: int, body: GovtTranslateRequest, user=Depends(get_current_user)):
+    """AI-translate a case for a govt portal and produce the staff worksheet.
+
+    On its own this only prepares data — pair it with POST .../govt/session/start
+    to actually open the real portal with these fields auto-filled in, or hand
+    staff the worksheet to paste in by hand (see modules/govt_sync/__init__.py).
+    """
+    tid = get_tenant_or_fail(user)
+    case = _q_one(
+        "SELECT id, category, raw_message, location, assembly, ward FROM cases "
+        "WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    portal = _get_govt_portal_or_404(body.portal_id)
+    submission = _prepare_govt_worksheet(tid, case, portal, user.get("username"))
+
+    from modules.govt_sync.adapters import get_adapter
+    adapter = get_adapter(portal)
+    prep = adapter.prepare_submission(submission)
+
+    return {
+        "success": True,
+        "worksheet": submission,
+        "portal": {
+            "id": portal["id"], "portal_name": portal["portal_name"], "base_url": portal["base_url"],
+            "otp_bound": portal["otp_bound"],
+        },
+        "portal_contact_number": _get_portal_contact_number(tid),
+        "staff_action_note": prep.staff_action_note,
+    }
+
+
+@router.get("/cases/{case_id}/govt")
+def get_govt_forward_state(case_id: int, user=Depends(get_current_user)):
+    """Current govt-portal forward state for a case, plus its audit trail."""
+    tid = get_tenant_or_fail(user)
+    case = _q_one(
+        """SELECT c.id, c.govt_portal_id, c.govt_department, c.govt_reference_number, c.govt_status,
+                  c.govt_status_updated_at, c.govt_last_forwarded_to_citizen_at, c.govt_submission_worksheet,
+                  p.portal_name, p.base_url
+           FROM cases c LEFT JOIN govt_portals p ON p.id = c.govt_portal_id
+           WHERE c.id = :cid AND c.tenant_id = :tid""",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+    case["govt_submission_worksheet"] = _parse_meta(case.get("govt_submission_worksheet"))
+    log = _q(
+        "SELECT action, actor_username, payload, created_at FROM govt_submission_log "
+        "WHERE tenant_id = :tid AND case_id = :cid ORDER BY created_at ASC",
+        {"tid": tid, "cid": case_id},
+    )
+    return {"case": case, "log": log}
+
+
+@router.post("/cases/{case_id}/govt/submit")
+def govt_submit_case(case_id: int, body: GovtSubmitRequest, user=Depends(get_current_user)):
+    """Staff confirms they filed the case on the real portal — records the reference number."""
+    tid = get_tenant_or_fail(user)
+    ref = (body.reference_number or "").strip()
+    if not ref:
+        raise HTTPException(400, "Reference number is required")
+
+    case = _q_one(
+        "SELECT id, govt_portal_id, govt_department FROM cases WHERE id = :cid AND tenant_id = :tid",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+    if not case.get("govt_portal_id"):
+        raise HTTPException(400, "Prepare this case for a govt portal first")
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE cases SET govt_reference_number = :ref, govt_status = 'submitted', "
+                "govt_status_updated_at = :now, updated_at = :now WHERE id = :cid AND tenant_id = :tid"
+            ),
+            {"ref": ref, "now": _utcnow(), "cid": case_id, "tid": tid},
+        )
+    _log_govt_action(tid, case_id, "staff_submitted", user.get("username"), payload={"reference_number": ref})
+    try:
+        _log_case_activity(tid, case_id, user.get("username", ""), "govt_submitted", new_value=ref)
+    except Exception:
+        pass  # nosec B110
+
+    return {"success": True, "govt_status": "submitted", "govt_reference_number": ref}
+
+
+@router.post("/cases/{case_id}/govt/poll")
+def govt_poll_case(case_id: int, user=Depends(get_current_user)):
+    """On-demand status check against the portal (read-only, public reference lookup only)."""
+    tid = get_tenant_or_fail(user)
+    case = _q_one(
+        """SELECT c.id, c.govt_status, c.govt_reference_number, c.govt_portal_id,
+                  p.portal_name, p.portal_type, p.base_url, p.status_check_url, p.status_check_mode, p.otp_bound
+           FROM cases c JOIN govt_portals p ON p.id = c.govt_portal_id
+           WHERE c.id = :cid AND c.tenant_id = :tid""",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found or not yet forwarded to a govt portal")
+    if not case.get("govt_reference_number"):
+        raise HTTPException(400, "No reference number recorded yet — submit the case first")
+
+    from modules.govt_sync.adapters import get_adapter
+    adapter = get_adapter(case)
+    result = adapter.check_status(case["govt_reference_number"])
+
+    if not result.checked or not result.status:
+        return {"success": True, "changed": False, "govt_status": case["govt_status"], "note": "Portal check inconclusive — verify manually on the portal."}
+
+    changed = result.status != case["govt_status"]
+    if changed:
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE cases SET govt_status = :status, govt_status_updated_at = :now WHERE id = :cid AND tenant_id = :tid"),
+                {"status": result.status, "now": _utcnow(), "cid": case_id, "tid": tid},
+            )
+        _log_govt_action(tid, case_id, "status_polled", user.get("username"), payload={
+            "old_status": case["govt_status"], "new_status": result.status, "raw_portal_status": result.raw_portal_status,
+        })
+
+    return {"success": True, "changed": changed, "govt_status": result.status}
+
+
+@router.post("/cases/{case_id}/govt/notify-citizen")
+def govt_notify_citizen(case_id: int, user=Depends(get_current_user)):
+    """Forward the current govt-portal status update to the citizen via WhatsApp. One click, primary account only."""
+    tid = get_tenant_or_fail(user)
+    if not _is_primary_workspace_user(user):
+        raise HTTPException(403, "Only the primary account can send citizen notifications")
+
+    from modules.govt_sync.forward import forward_status_to_citizen
+    try:
+        result = forward_status_to_citizen(case_id, tid, user.get("username", ""))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.error("Govt sync citizen notification failed for case %s: %s", case_id, e)
+        raise HTTPException(500, "Notification failed. Please try again or contact support.")
+
+    return {"success": True, "message": result["message"]}
+
+
+# ─────────────────────────────────────────
+# GOVERNMENT DEPARTMENT SYNC — live browser sessions
+# Real Playwright automation on this EC2 host: opens the actual portal,
+# auto-fills every field it has a calibrated selector for, and streams the
+# live page to the staff dashboard so they can solve the CAPTCHA/OTP and
+# click Submit themselves. See modules/govt_sync/browser_session.py.
+# ─────────────────────────────────────────
+
+class GovtSessionStartRequest(BaseModel):
+    portal_id: int
+    retranslate: bool = False
+
+
+def _get_ws_user(token: str) -> dict | None:
+    """JWT auth for WebSocket connections — browsers can't set Authorization
+    headers on a WebSocket handshake, so the token travels as a query param."""
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        username = payload.get("sub")
+        if not username:
+            return None
+        if is_token_revoked(username, payload.get("iat", 0)):
+            return None
+        return _q_one("SELECT * FROM users WHERE username = :u", {"u": username})
+    except JWTError:
+        return None
+
+
+@router.post("/cases/{case_id}/govt/session/start")
+async def govt_start_live_session(case_id: int, body: GovtSessionStartRequest, user=Depends(get_current_user)):
+    """Open the real portal in a live, staff-controllable browser session with
+    every calibrated field already filled in. Returns a WebSocket path the
+    dashboard connects to for the live view + input relay."""
+    tid = get_tenant_or_fail(user)
+    case = _q_one(
+        "SELECT id, category, raw_message, location, assembly, ward, govt_portal_id, govt_submission_worksheet "
+        "FROM cases WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    portal = _get_govt_portal_or_404(body.portal_id)
+
+    existing_worksheet = _parse_meta(case.get("govt_submission_worksheet"))
+    if not body.retranslate and case.get("govt_portal_id") == portal["id"] and existing_worksheet:
+        submission = existing_worksheet
+    else:
+        submission = _prepare_govt_worksheet(tid, case, portal, user.get("username"))
+
+    portal_contact_number = _get_portal_contact_number(tid)
+
+    from modules.govt_sync.browser_session import start_session, VIEWPORT
+    try:
+        session = await start_session(tid, case_id, portal, submission, portal_contact_number)
+    except RuntimeError as e:
+        raise HTTPException(409, str(e))
+    except Exception as e:
+        logger.error("Govt sync: live session failed to open for case %s: %s", case_id, e)
+        raise HTTPException(502, "Could not open the portal — try again in a moment")
+
+    _log_govt_action(tid, case_id, "live_session_started", user.get("username"), payload={
+        "portal": portal["portal_name"], "session_id": session.session_id, "fill_warnings": session.fill_warnings,
+    })
+
+    return {
+        "success": True,
+        "session_id": session.session_id,
+        "ws_path": f"/api/govt/session/{session.session_id}/stream",
+        "fill_warnings": session.fill_warnings,
+        "worksheet": submission,
+        "otp_bound": portal["otp_bound"],
+        "portal_name": portal["portal_name"],
+        "viewport": VIEWPORT,
+    }
+
+
+@router.websocket("/govt/session/{session_id}/stream")
+async def govt_live_session_stream(websocket: WebSocket, session_id: str, token: str = Query(default="")):
+    user = _get_ws_user(token)
+    if not user:
+        await websocket.close(code=4401)
+        return
+    tid = user.get("tenant_id")
+
+    from modules.govt_sync.browser_session import get_session_meta, attach_stream, detach_stream, relay_input
+    meta = get_session_meta(session_id)
+    if not meta or meta["tenant_id"] != tid:
+        await websocket.close(code=4404)
+        return
+
+    await websocket.accept()
+    await websocket.send_json({"type": "ready", **meta})
+
+    async def _send(payload: dict):
+        await websocket.send_json(payload)
+
+    await attach_stream(session_id, websocket, _send)
+    try:
+        while True:
+            msg = await websocket.receive_json()
+            if msg.get("type") == "input":
+                await relay_input(session_id, msg.get("event") or {})
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        logger.debug("Govt sync: live session stream error for %s: %s", session_id, e)
+    finally:
+        await detach_stream(session_id)
+
+
+@router.post("/cases/{case_id}/govt/session/{session_id}/capture-reference")
+async def govt_capture_reference(case_id: int, session_id: str, user=Depends(get_current_user)):
+    """Best-effort read of the reference number the portal is showing right now.
+    Doesn't save anything — the frontend prefills the existing govt/submit form
+    with whatever this finds so staff can confirm before it's recorded."""
+    tid = get_tenant_or_fail(user)
+    from modules.govt_sync.browser_session import get_session_meta, capture_reference
+    meta = get_session_meta(session_id)
+    if not meta or meta["tenant_id"] != tid or meta["case_id"] != case_id:
+        raise HTTPException(404, "Live session not found")
+
+    ref = await capture_reference(session_id)
+    return {"reference_number": ref, "auto_captured": bool(ref)}
+
+
+@router.post("/cases/{case_id}/govt/session/{session_id}/close")
+async def govt_close_live_session(case_id: int, session_id: str, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    from modules.govt_sync.browser_session import get_session_meta, close_session
+    meta = get_session_meta(session_id)
+    if not meta or meta["tenant_id"] != tid or meta["case_id"] != case_id:
+        return {"success": True}  # already gone — closing is idempotent
+    await close_session(session_id)
+    return {"success": True}
 
 
 @router.get("/staff")

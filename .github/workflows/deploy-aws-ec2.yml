@@ -131,7 +131,7 @@ jobs:
             sudo install -m 0755 /opt/compass-needle/app/deploy/ec2/install_jobs_cron.sh /opt/compass-needle/scripts/install_jobs_cron.sh
             /opt/compass-needle/scripts/install_jobs_cron.sh || true
             sudo install -m 0644 /opt/compass-needle/app/deploy/ec2/Caddyfile /opt/compass-needle/Caddyfile
-            docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --build backend
+            docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --build backend backend_govt_live
             docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --force-recreate caddy
             docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml ps
 

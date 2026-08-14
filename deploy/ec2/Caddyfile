@@ -3,5 +3,12 @@
 }
 
 api.theneedle.in {
+	# Govt Department Sync live-portal sessions (WebSocket + REST) must all
+	# land on the single-worker backend_govt_live service — see
+	# docker-compose.yml for why. Everything else goes to the normal
+	# multi-worker backend.
+	@govt_live path /api/cases/*/govt/session/* /api/govt/session/*
+	reverse_proxy @govt_live backend_govt_live:8000
+
 	reverse_proxy backend:8000
 }
