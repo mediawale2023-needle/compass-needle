@@ -131,6 +131,13 @@ jobs:
             sudo install -m 0755 /opt/compass-needle/app/deploy/ec2/install_jobs_cron.sh /opt/compass-needle/scripts/install_jobs_cron.sh
             /opt/compass-needle/scripts/install_jobs_cron.sh || true
             sudo install -m 0644 /opt/compass-needle/app/deploy/ec2/Caddyfile /opt/compass-needle/Caddyfile
+            # docker-compose.yml lives outside the git checkout at a fixed host path
+            # (referenced by every `-f` below) but was never synced from the repo on
+            # deploy — install it the same way Caddyfile is, so compose-file changes
+            # (e.g. adding a service) actually take effect instead of silently running
+            # against a stale copy.
+            sudo install -d -m 0755 /opt/compass-needle/deploy/ec2
+            sudo install -m 0644 /opt/compass-needle/app/deploy/ec2/docker-compose.yml /opt/compass-needle/deploy/ec2/docker-compose.yml
             docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --build backend backend_govt_live
             docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml up -d --force-recreate caddy
             docker compose -f /opt/compass-needle/deploy/ec2/docker-compose.yml ps
