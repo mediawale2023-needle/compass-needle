@@ -1120,6 +1120,25 @@ function GovtSyncSection({ caseId, isMp }) {
         }
     }
 
+    async function handleRetryAutofill() {
+        const session = liveSessionRef.current;
+        if (!session) return;
+        setBusy(true);
+        try {
+            const result = await apiPost(`/api/cases/${caseId}/govt/session/${session.session_id}/autofill`, {});
+            setLive({ ...session, fill_warnings: result.fill_warnings || [] });
+            if ((result.fill_warnings || []).length === 0) {
+                toast.success('All fields filled in');
+            } else {
+                toast.error(`${result.fill_warnings.length} field(s) still need manual entry`);
+            }
+        } catch (e) {
+            toast.error(e.message || 'Autofill retry failed');
+        } finally {
+            setBusy(false);
+        }
+    }
+
     async function handlePrepare() {
         setBusy(true);
         try {
@@ -1283,11 +1302,21 @@ function GovtSyncSection({ caseId, isMp }) {
                     {liveSession.fill_warnings?.length > 0 && (
                         <div style={{ fontSize: 11, color: C.saffron, marginBottom: 10 }}>
                             {liveSession.fill_warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+                            <div style={{ marginTop: 4, fontStyle: 'italic' }}>
+                                If this is a login-gated page (OTP portals usually are), the form fields above
+                                may not exist until after you log in. Log in, navigate to the actual grievance
+                                form, then retry autofill.
+                            </div>
                         </div>
                     )}
-                    <Button size="sm" variant="outline" disabled={busy} onClick={handleCaptureReference} style={{ marginBottom: 8 }}>
-                        {busy ? <Loader2 size={14} className="animate-spin" /> : 'Submitted — capture reference number'}
-                    </Button>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                        <Button size="sm" variant="outline" disabled={busy} onClick={handleRetryAutofill}>
+                            {busy ? <Loader2 size={14} className="animate-spin" /> : 'Retry autofill on this page'}
+                        </Button>
+                        <Button size="sm" variant="outline" disabled={busy} onClick={handleCaptureReference}>
+                            {busy ? <Loader2 size={14} className="animate-spin" /> : 'Submitted — capture reference number'}
+                        </Button>
+                    </div>
                 </div>
             )}
 

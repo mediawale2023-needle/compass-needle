@@ -65,6 +65,8 @@ class LiveSession:
     context: object   # playwright.async_api.BrowserContext
     page: object       # playwright.async_api.Page
     cdp: object        # playwright.async_api.CDPSession
+    worksheet: dict = field(default_factory=dict)              # kept so retry_autofill() can re-run later
+    portal_contact_number: str | None = None
     fill_warnings: list = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_activity_at: float = field(default_factory=time.time)
@@ -116,7 +118,10 @@ async def start_session(tenant_id: int, case_id: int, portal: dict, worksheet: d
     cdp = await context.new_cdp_session(page)
 
     session_id = uuid.uuid4().hex
-    session = LiveSession(session_id=session_id, tenant_id=tenant_id, case_id=case_id, portal=portal, context=context, page=page, cdp=cdp)
+    session = LiveSession(
+        session_id=session_id, tenant_id=tenant_id, case_id=case_id, portal=portal, context=context, page=page, cdp=cdp,
+        worksheet=worksheet, portal_contact_number=portal_contact_number,
+    )
 
     entry_path = field_schema.get("entry_path") or ""
     entry_url = portal["base_url"].rstrip("/") + entry_path
@@ -126,6 +131,13 @@ async def start_session(tenant_id: int, case_id: int, portal: dict, worksheet: d
         await context.close()
         raise RuntimeError(f"Could not open {portal['portal_name']}: {e}")
 
+    # First attempt, right after landing on entry_url. Many OTP-bound portals
+    # (Karnataka's iPGRS included) put the actual grievance form behind a
+    # citizen login/registration gate — there's nothing to fill in yet at
+    # entry_url in that case, so this first pass often reports every field as
+    # "no selector" not because none is configured, but because the fields
+    # don't exist on this page at all. retry_autofill() below is what staff
+    # use once they've logged in and reached the real form.
     session.fill_warnings = await _autofill(page, field_schema, worksheet, portal_contact_number)
 
     async with _lock:
@@ -166,6 +178,28 @@ async def _autofill(page, field_schema: dict, worksheet: dict, portal_contact_nu
         except Exception as e:
             warnings.append(f"Auto-fill failed for '{key}' — enter it manually: {value} ({e})")
     return warnings
+
+
+async def retry_autofill(session_id: str) -> list[str] | None:
+    """Re-run autofill against wherever the page is *right now*.
+
+    Exists because start_session()'s one-shot attempt happens immediately at
+    entry_url, before a staff member has done anything — on an OTP-bound
+    portal where the grievance form only exists after citizen login (see
+    module docstring), that first pass has nothing to find. Staff log in and
+    navigate to the real form themselves during the live session, then call
+    this (POST /api/cases/{id}/govt/session/{id}/autofill) once they're
+    looking at it, so autofill gets a real shot at whatever page selectors
+    were actually calibrated against.
+    """
+    async with _lock:
+        session = _sessions.get(session_id)
+    if not session:
+        return None
+    session.last_activity_at = time.time()
+    field_schema = session.portal.get("field_schema") or {}
+    session.fill_warnings = await _autofill(session.page, field_schema, session.worksheet, session.portal_contact_number)
+    return session.fill_warnings
 
 
 async def attach_stream(session_id: str, websocket, send_frame) -> LiveSession | None:
