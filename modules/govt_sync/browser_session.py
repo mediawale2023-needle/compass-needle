@@ -114,6 +114,7 @@ class LiveSession:
     cdp: object        # playwright.async_api.CDPSession
     worksheet: dict = field(default_factory=dict)              # kept so autofill can re-run later
     portal_contact_number: str | None = None
+    filer_name: str | None = None   # MP/aspirant's own name — the filer of record, never the constituent's
     fill_warnings: list = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_activity_at: float = field(default_factory=time.time)
@@ -152,7 +153,10 @@ async def active_session_count() -> int:
         return len(_sessions)
 
 
-async def start_session(tenant_id: int, case_id: int, portal: dict, worksheet: dict, portal_contact_number: str | None) -> LiveSession:
+async def start_session(
+    tenant_id: int, case_id: int, portal: dict, worksheet: dict,
+    portal_contact_number: str | None, filer_name: str | None = None,
+) -> LiveSession:
     """Open the portal, auto-fill what we can, and hold it open for a staff viewer to attach."""
     async with _lock:
         if len(_sessions) >= MAX_CONCURRENT_SESSIONS:
@@ -179,7 +183,7 @@ async def start_session(tenant_id: int, case_id: int, portal: dict, worksheet: d
     session_id = uuid.uuid4().hex
     session = LiveSession(
         session_id=session_id, tenant_id=tenant_id, case_id=case_id, portal=portal, context=context, page=page, cdp=cdp,
-        worksheet=worksheet, portal_contact_number=portal_contact_number,
+        worksheet=worksheet, portal_contact_number=portal_contact_number, filer_name=filer_name,
     )
 
     entry_path = field_schema.get("entry_path") or ""
@@ -198,7 +202,7 @@ async def start_session(tenant_id: int, case_id: int, portal: dict, worksheet: d
     # entry_url in that case, so this first pass often reports every field as
     # "no selector" not because none is configured, but because the fields
     # don't exist on this page at all.
-    session.fill_warnings = await _autofill(page, field_schema, worksheet, portal_contact_number)
+    session.fill_warnings = await _autofill(page, field_schema, worksheet, portal_contact_number, filer_name)
     session.last_seen_url = page.url
 
     # From here on, every real navigation (login redirect, staff clicking to
@@ -260,7 +264,7 @@ async def _on_page_load(session: "LiveSession"):
                     logger.warning(f"Govt sync: auto-navigate to post_login_entry_path failed for {session.session_id}: {e}")
                 return  # the goto above triggers its own "load" event, which re-runs autofill below
 
-        session.fill_warnings = await _autofill(page, field_schema, session.worksheet, session.portal_contact_number)
+        session.fill_warnings = await _autofill(page, field_schema, session.worksheet, session.portal_contact_number, session.filer_name)
         if session.send_frame:
             try:
                 await session.send_frame({"type": "fill_warnings", "warnings": session.fill_warnings, "url": current_url})
@@ -272,7 +276,9 @@ async def _on_page_load(session: "LiveSession"):
         session.autofill_running = False
 
 
-async def _autofill(page, field_schema: dict, worksheet: dict, portal_contact_number: str | None) -> list[str]:
+async def _autofill(
+    page, field_schema: dict, worksheet: dict, portal_contact_number: str | None, filer_name: str | None = None,
+) -> list[str]:
     """Best-effort autofill using admin-configured selectors. Every field that
     fails (no selector configured yet, or the selector doesn't match — the
     portal changed its DOM) is reported, not swallowed, so staff know exactly
@@ -283,14 +289,19 @@ async def _autofill(page, field_schema: dict, worksheet: dict, portal_contact_nu
     data boundary is that citizen-identifying details stay inside Needle;
     only what's needed to route/describe the grievance goes to the
     government system (see modules/govt_sync/__init__.py and the original
-    architecture spec's data-minimisation requirement). Most state portals
-    offer an "anonymous filing" mode for exactly this — a rep filing on
-    someone else's behalf — confirmed present and defaulted to Yes on
-    Karnataka's iPGRS. `values` below is the actual enforcement: it's not
-    just that no selector exists yet for these fields, it's that they're
-    never candidates for autofill at all, and `_NEVER_AUTOFILL_KEYS` below
-    is a second, independent guard against a selector for one of them ever
-    being wired in by mistake later.
+    architecture spec's data-minimisation requirement). `values` below is
+    the actual enforcement: it's not just that no selector exists yet for
+    these fields, it's that they're never candidates for autofill at all,
+    and `_NEVER_AUTOFILL_KEYS` below is a second, independent guard against
+    a selector for one of them ever being wired in by mistake later.
+
+    `filer_name` is the one identity field that IS filled in — the MP/
+    aspirant's own name (tenant_profiles.mp_name), submitted as the filer of
+    record where a portal has a citizen/filer-name field. Most portals offer
+    an "anonymous filing" mode for reps filing on someone else's behalf
+    (confirmed present, defaulted to Yes, on Karnataka's iPGRS) but still ask
+    for *someone's* name as the account holder — this is deliberately never
+    the constituent's, same rule the phone number already follows.
     """
     _NEVER_AUTOFILL_KEYS = {
         "citizen_name", "applicant_name", "name", "father_name", "spouse_name",
@@ -305,6 +316,7 @@ async def _autofill(page, field_schema: dict, worksheet: dict, portal_contact_nu
         "subject": worksheet.get("subject"),
         "description": worksheet.get("description"),
         "applicant_mobile": portal_contact_number,  # Needle-managed/PA number — never the constituent's own
+        "filer_name": filer_name,                   # MP/aspirant's own name — never the constituent's own
     }
     assert not (set(values.keys()) & _NEVER_AUTOFILL_KEYS), "citizen PII fields must never be autofill candidates"
     warnings = []
@@ -345,7 +357,7 @@ async def retry_autofill(session_id: str) -> list[str] | None:
         return None
     session.last_activity_at = time.time()
     field_schema = session.portal.get("field_schema") or {}
-    session.fill_warnings = await _autofill(session.page, field_schema, session.worksheet, session.portal_contact_number)
+    session.fill_warnings = await _autofill(session.page, field_schema, session.worksheet, session.portal_contact_number, session.filer_name)
     return session.fill_warnings
 
 
