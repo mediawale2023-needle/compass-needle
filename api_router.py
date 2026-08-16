@@ -2890,6 +2890,24 @@ async def govt_live_session_stream(websocket: WebSocket, session_id: str, token:
         await detach_stream(session_id)
 
 
+@router.post("/cases/{case_id}/govt/session/{session_id}/autofill")
+async def govt_retry_autofill(case_id: int, session_id: str, user=Depends(get_current_user)):
+    """Re-run autofill against wherever the live page is right now. The
+    automatic attempt at session start happens before any staff interaction —
+    on OTP-bound portals where the grievance form is behind a citizen login
+    (confirmed true for Karnataka's iPGRS), there's nothing there yet at that
+    point. Staff log in and navigate to the real form themselves, then call
+    this once they're looking at it."""
+    tid = get_tenant_or_fail(user)
+    from modules.govt_sync.browser_session import get_session_meta, retry_autofill
+    meta = get_session_meta(session_id)
+    if not meta or meta["tenant_id"] != tid or meta["case_id"] != case_id:
+        raise HTTPException(404, "Live session not found")
+
+    warnings = await retry_autofill(session_id)
+    return {"fill_warnings": warnings or []}
+
+
 @router.post("/cases/{case_id}/govt/session/{session_id}/capture-reference")
 async def govt_capture_reference(case_id: int, session_id: str, user=Depends(get_current_user)):
     """Best-effort read of the reference number the portal is showing right now.
