@@ -1287,6 +1287,9 @@ function GovtSyncSection({ caseId, isMp }) {
                     <GovtSyncCopyField label="Subject" value={ws.subject} />
                     <GovtSyncCopyField label="Description" value={ws.description} />
                     {ws.priority_category && <GovtSyncCopyField label="Priority category" value={ws.priority_category} />}
+                    {worksheet?.portal_filer_name && (
+                        <GovtSyncCopyField label="Filer/citizen name to enter on portal (MP, not the constituent)" value={worksheet.portal_filer_name} />
+                    )}
                     {worksheet?.portal_contact_number && (
                         <GovtSyncCopyField label="Contact number to enter on portal" value={worksheet.portal_contact_number} />
                     )}
@@ -1312,10 +1315,11 @@ function GovtSyncSection({ caseId, isMp }) {
                         fontSize: 11.5, color: C.ink, background: C.greenWash, border: `1px solid ${C.greenTint}`,
                         padding: '8px 10px', marginBottom: 8,
                     }}>
-                        <strong>Don't fill in the citizen's personal details</strong> (Aadhaar name, father's/spouse's
-                        name, caste, gender, DOB) — Needle doesn't collect that and never auto-fills it. If the form
-                        offers "register anonymously" or similar, leave it set to Yes and leave those fields blank —
-                        only the location and grievance details below are meant to go in.
+                        <strong>Never enter the citizen's personal details</strong> (Aadhaar name, father's/spouse's
+                        name, caste, gender, DOB) — Needle doesn't collect that and never auto-fills it. Where the
+                        form asks for a citizen/filer name, use <strong>{liveSession.portal_filer_name || "the MP's name"}</strong> instead
+                        (auto-filled where a selector exists) — that's the filer of record, not the constituent. If
+                        the form offers "register anonymously" or similar, leave it set to Yes.
                     </div>
                     <GovtLiveBrowserView
                         wsPath={liveSession.ws_path}

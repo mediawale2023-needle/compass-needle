@@ -2581,6 +2581,23 @@ def _get_portal_contact_number(tid: int) -> str | None:
     return tenant_row.get("govt_contact_primary_number") or tenant_row.get("govt_contact_fallback_number")
 
 
+def _get_portal_filer_name(tid: int) -> str | None:
+    """Whoever a portal's citizen/filer-name field records this grievance as
+    filed by — the MP/aspirant's own name, never the constituent's (same
+    "identity submitted to the portal is never the citizen's own" rule the
+    contact number already follows). Reuses tenant_profiles.mp_name, the
+    existing single source of truth for this (set at MP onboarding — see
+    admin_api.py create_mp — and already what modules/drafter.py uses in
+    letter salutations), rather than storing a second copy of it. Falls back
+    to tenants.name defensively in case a profile row is ever missing one."""
+    row = _q_one(
+        "SELECT tp.mp_name, t.name AS tenant_name FROM tenants t "
+        "LEFT JOIN tenant_profiles tp ON tp.tenant_id = t.id WHERE t.id = :tid",
+        {"tid": tid},
+    ) or {}
+    return row.get("mp_name") or row.get("tenant_name") or None
+
+
 def _prepare_govt_worksheet(tid: int, case: dict, portal: dict, actor_username: str | None) -> dict:
     """AI-translate `case` for `portal`, save the worksheet on the case, log the action, return it."""
     if not portal.get("department_taxonomy"):
@@ -2659,6 +2676,7 @@ def govt_translate_case(case_id: int, user=Depends(get_current_user)):
             "otp_bound": portal["otp_bound"],
         },
         "portal_contact_number": _get_portal_contact_number(tid),
+        "portal_filer_name": _get_portal_filer_name(tid),
         "staff_action_note": prep.staff_action_note,
     }
 
@@ -2830,10 +2848,11 @@ async def govt_start_live_session(case_id: int, body: GovtSessionStartRequest, u
         submission = _prepare_govt_worksheet(tid, case, portal, user.get("username"))
 
     portal_contact_number = _get_portal_contact_number(tid)
+    portal_filer_name = _get_portal_filer_name(tid)
 
     from modules.govt_sync.browser_session import start_session, VIEWPORT
     try:
-        session = await start_session(tid, case_id, portal, submission, portal_contact_number)
+        session = await start_session(tid, case_id, portal, submission, portal_contact_number, portal_filer_name)
     except RuntimeError as e:
         raise HTTPException(409, str(e))
     except Exception as e:
@@ -2850,6 +2869,8 @@ async def govt_start_live_session(case_id: int, body: GovtSessionStartRequest, u
         "ws_path": f"/api/govt/session/{session.session_id}/stream",
         "fill_warnings": session.fill_warnings,
         "worksheet": submission,
+        "portal_contact_number": portal_contact_number,
+        "portal_filer_name": portal_filer_name,
         "otp_bound": portal["otp_bound"],
         "portal_name": portal["portal_name"],
         "viewport": VIEWPORT,
