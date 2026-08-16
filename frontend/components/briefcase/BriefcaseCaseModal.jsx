@@ -1308,6 +1308,15 @@ function GovtSyncSection({ caseId, isMp }) {
 
             {liveSession && (
                 <div>
+                    <div style={{
+                        fontSize: 11.5, color: C.ink, background: C.greenWash, border: `1px solid ${C.greenTint}`,
+                        padding: '8px 10px', marginBottom: 8,
+                    }}>
+                        <strong>Don't fill in the citizen's personal details</strong> (Aadhaar name, father's/spouse's
+                        name, caste, gender, DOB) — Needle doesn't collect that and never auto-fills it. If the form
+                        offers "register anonymously" or similar, leave it set to Yes and leave those fields blank —
+                        only the location and grievance details below are meant to go in.
+                    </div>
                     <GovtLiveBrowserView
                         wsPath={liveSession.ws_path}
                         viewport={liveSession.viewport}

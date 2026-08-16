@@ -276,16 +276,37 @@ async def _autofill(page, field_schema: dict, worksheet: dict, portal_contact_nu
     """Best-effort autofill using admin-configured selectors. Every field that
     fails (no selector configured yet, or the selector doesn't match — the
     portal changed its DOM) is reported, not swallowed, so staff know exactly
-    what to type by hand instead."""
-    selectors = field_schema.get("selectors") or {}
+    what to type by hand instead.
+
+    Deliberately never touches the citizen's personal/Aadhaar-linked details
+    (name, father's/spouse's name, caste, gender, DOB, ...) — Needle's own
+    data boundary is that citizen-identifying details stay inside Needle;
+    only what's needed to route/describe the grievance goes to the
+    government system (see modules/govt_sync/__init__.py and the original
+    architecture spec's data-minimisation requirement). Most state portals
+    offer an "anonymous filing" mode for exactly this — a rep filing on
+    someone else's behalf — confirmed present and defaulted to Yes on
+    Karnataka's iPGRS. `values` below is the actual enforcement: it's not
+    just that no selector exists yet for these fields, it's that they're
+    never candidates for autofill at all, and `_NEVER_AUTOFILL_KEYS` below
+    is a second, independent guard against a selector for one of them ever
+    being wired in by mistake later.
+    """
+    _NEVER_AUTOFILL_KEYS = {
+        "citizen_name", "applicant_name", "name", "father_name", "spouse_name",
+        "father_spouse_name", "caste", "gender", "dob", "date_of_birth",
+        "aadhar", "aadhaar", "aadhaar_number", "aadhar_number",
+    }
+    selectors = {k: v for k, v in (field_schema.get("selectors") or {}).items() if k not in _NEVER_AUTOFILL_KEYS}
     values = {
         "department": worksheet.get("department"),
         "district": worksheet.get("district"),
         "subdistrict_or_ulb": worksheet.get("subdistrict_or_ulb"),
         "subject": worksheet.get("subject"),
         "description": worksheet.get("description"),
-        "applicant_mobile": portal_contact_number,
+        "applicant_mobile": portal_contact_number,  # Needle-managed/PA number — never the constituent's own
     }
+    assert not (set(values.keys()) & _NEVER_AUTOFILL_KEYS), "citizen PII fields must never be autofill candidates"
     warnings = []
     for key, value in values.items():
         if not value:
