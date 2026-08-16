@@ -8,6 +8,13 @@ Chromium process is kept warm; each "live session" is an isolated browser
 context (own cookies/state) for one case's filing attempt.
 
 What this module does:
+  0. Forces English on every page it opens: sets the browser context's
+     locale/Accept-Language (works for portals that honor standard content
+     negotiation) and, on every navigation, clicks any visible "English"-type
+     toggle it finds (works for the ones that don't — confirmed true for
+     Karnataka's iPGRS, which opened in Kannada regardless of locale). Both
+     are best-effort and never block the session if a portal doesn't
+     cooperate — see _ensure_english().
   1. Opens the portal, auto-fills every field the AI translated (department,
      subject, description, ...) using admin-configured CSS selectors —
      see modules/data/govt_portals.json `field_schema.selectors`. Fields with
@@ -66,6 +73,34 @@ VIEWPORT = {"width": 1280, "height": 900}
 _LAUNCH_ARGS = ["--no-sandbox", "--disable-dev-shm-usage"] if os.getenv("GOVT_SYNC_NO_SANDBOX", "1") == "1" else []
 
 _DEFAULT_REFERENCE_REGEX = r"\b[A-Z]{2,10}[/\-][A-Z0-9]{2,10}[/\-][0-9]{2,10}[/\-][0-9A-Z]{3,10}\b"
+
+# Indian government portals almost always expose an explicit "English" link
+# rather than honoring Accept-Language/navigator.language (confirmed true for
+# Karnataka's iPGRS — it opened in Kannada regardless of the browser context's
+# locale). Deliberately text-based, not a CSS selector: unlike department/
+# subject/description fields, "English" as a visible label is close to
+# universal across these portals, so this one heuristic is worth trying
+# everywhere instead of needing per-portal selector configuration.
+_ENGLISH_TOGGLE_TEXTS = ["English", "ENGLISH", "English Version", "View in English", "EN"]
+
+
+async def _ensure_english(page) -> bool:
+    """Best-effort click of a visible English-language toggle. Returns True
+    if something was clicked (not proof the site actually switched — just
+    that we found and clicked a matching element). Never raises; a portal
+    with no such link, or one already in English, just no-ops."""
+    for label in _ENGLISH_TOGGLE_TEXTS:
+        try:
+            locator = page.get_by_text(label, exact=True).first
+            if await locator.count() == 0:
+                continue
+            await locator.click(timeout=3000)
+            await page.wait_for_load_state("domcontentloaded", timeout=NAV_TIMEOUT_MS)
+            logger.info(f"Govt sync: clicked '{label}' language toggle")
+            return True
+        except Exception:
+            continue  # try the next candidate label; a portal may have none of these
+    return False
 
 
 @dataclass
@@ -128,7 +163,15 @@ async def start_session(tenant_id: int, case_id: int, portal: dict, worksheet: d
 
     browser = await _ensure_browser()
     field_schema = portal.get("field_schema") or {}
-    context = await browser.new_context(viewport=VIEWPORT)
+    # First line of defense: standard HTTP content negotiation. Some portals
+    # honor this and serve English by default without any further action.
+    # Karnataka's iPGRS does not (confirmed — it opened in Kannada regardless),
+    # which is why _ensure_english() below exists as the real fix; this is
+    # just free insurance for whichever portals *do* respect it.
+    context = await browser.new_context(
+        viewport=VIEWPORT, locale="en-US",
+        extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+    )
     context.set_default_timeout(NAV_TIMEOUT_MS)
     page = await context.new_page()
     cdp = await context.new_cdp_session(page)
@@ -146,6 +189,8 @@ async def start_session(tenant_id: int, case_id: int, portal: dict, worksheet: d
     except Exception as e:
         await context.close()
         raise RuntimeError(f"Could not open {portal['portal_name']}: {e}")
+
+    await _ensure_english(page)
 
     # First attempt, right after landing on entry_url. Many OTP-bound portals
     # (Karnataka's iPGRS included) put the actual grievance form behind a
@@ -196,6 +241,11 @@ async def _on_page_load(session: "LiveSession"):
             return  # no real navigation (e.g. a sub-resource "load"), nothing to do
         session.last_seen_url = current_url
         session.last_activity_at = time.time()
+
+        # Some portals reset to the regional language on every fresh page
+        # (not just the first one) — re-check on each navigation, not only
+        # at session start. Cheap no-op if the page is already in English.
+        await _ensure_english(page)
 
         field_schema = session.portal.get("field_schema") or {}
         post_login_path = field_schema.get("post_login_entry_path")
