@@ -14,13 +14,25 @@ What this module does:
      no selector configured yet are skipped and reported as a warning, not a
      crash — a portal with no selectors calibrated is still fully usable in
      "staff types everything by hand" mode, autofill just doesn't happen.
-  2. Streams the live page to the staff dashboard as a sequence of JPEG
+  2. Keeps watching after that first attempt: `_on_page_load` fires on every
+     subsequent navigation (login redirect, staff clicking through to the
+     real form, ...) and re-runs autofill automatically, no staff action
+     needed. Many OTP-bound portals (confirmed true for Karnataka's iPGRS)
+     put the actual grievance form behind citizen login — the form doesn't
+     exist yet when the session opens, so this is what makes autofill happen
+     the moment staff finish logging in rather than never. If a portal's
+     post-login form URL is known (field_schema.post_login_entry_path,
+     admin-configured, empty by default), the system navigates straight
+     there the first time it detects a real navigation, instead of waiting
+     for staff to click through to it themselves.
+  3. Streams the live page to the staff dashboard as a sequence of JPEG
      frames over CDP's Page.startScreencast (api_router.py relays these over
      a WebSocket) and relays the staff's mouse/keyboard back into the real
      page via Playwright's own page.mouse / page.keyboard — so solving the
      CAPTCHA, entering the OTP, and clicking Submit all happen for real, on
-     the real portal, by the human.
-  3. On request, tries to auto-read the reference number the portal shows
+     the real portal, by the human. Autofill updates from #2 are pushed over
+     this same WebSocket as they happen.
+  4. On request, tries to auto-read the reference number the portal shows
      after submission (selector or regex, both admin-configurable and both
      optional) — falls back to staff pasting it in manually via the existing
      POST /api/cases/{id}/govt/submit endpoint if that doesn't find anything.
@@ -65,13 +77,17 @@ class LiveSession:
     context: object   # playwright.async_api.BrowserContext
     page: object       # playwright.async_api.Page
     cdp: object        # playwright.async_api.CDPSession
-    worksheet: dict = field(default_factory=dict)              # kept so retry_autofill() can re-run later
+    worksheet: dict = field(default_factory=dict)              # kept so autofill can re-run later
     portal_contact_number: str | None = None
     fill_warnings: list = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_activity_at: float = field(default_factory=time.time)
     streaming: bool = False
     ws = None
+    send_frame = None          # set by attach_stream(); lets _on_page_load push fill_warnings updates live
+    navigated_to_form: bool = False   # guards the one auto-navigate-to-post-login-form attempt
+    autofill_running: bool = False    # re-entrancy guard for the "load" handler
+    last_seen_url: str | None = None
 
 
 _playwright_ctx = None
@@ -136,14 +152,74 @@ async def start_session(tenant_id: int, case_id: int, portal: dict, worksheet: d
     # citizen login/registration gate — there's nothing to fill in yet at
     # entry_url in that case, so this first pass often reports every field as
     # "no selector" not because none is configured, but because the fields
-    # don't exist on this page at all. retry_autofill() below is what staff
-    # use once they've logged in and reached the real form.
+    # don't exist on this page at all.
     session.fill_warnings = await _autofill(page, field_schema, worksheet, portal_contact_number)
+    session.last_seen_url = page.url
+
+    # From here on, every real navigation (login redirect, staff clicking to
+    # the grievance form, ...) re-triggers this automatically — no manual
+    # "retry" click needed. Registered *after* the initial goto/autofill
+    # above so it doesn't double-fire on the page we just handled by hand.
+    def _on_load(_=None):
+        asyncio.create_task(_on_page_load(session))
+
+    page.on("load", _on_load)
 
     async with _lock:
         _sessions[session_id] = session
     logger.info(f"Govt sync: opened live session {session_id} for case={case_id} portal={portal['portal_name']}")
     return session
+
+
+async def _on_page_load(session: "LiveSession"):
+    """Fires on every navigation after the first. If the portal has a known
+    post-login form path configured (field_schema.post_login_entry_path) and
+    we haven't gone there yet this session, navigate straight to it once —
+    that's the "system directly navigates to the form" behavior once an
+    admin has actually captured that URL. Either way, re-run autofill
+    against wherever the page ends up and push the result to the live
+    dashboard over the WebSocket, so staff see it update the moment they
+    finish logging in — they never have to ask for it.
+    """
+    if session.autofill_running:
+        return  # a previous load is still being handled; this one will get picked up by the next event
+    session.autofill_running = True
+    try:
+        # Let the page actually settle — "load" can fire before late-rendered
+        # form fields exist, especially on portals that finish building the
+        # DOM client-side after the base document loads.
+        await asyncio.sleep(0.8)
+
+        page = session.page
+        current_url = page.url
+        if current_url == session.last_seen_url:
+            return  # no real navigation (e.g. a sub-resource "load"), nothing to do
+        session.last_seen_url = current_url
+        session.last_activity_at = time.time()
+
+        field_schema = session.portal.get("field_schema") or {}
+        post_login_path = field_schema.get("post_login_entry_path")
+        if post_login_path and not session.navigated_to_form:
+            target_url = session.portal["base_url"].rstrip("/") + post_login_path
+            if current_url.rstrip("/") != target_url.rstrip("/"):
+                session.navigated_to_form = True  # set before navigating — the resulting "load" re-enters here once
+                try:
+                    await page.goto(target_url, wait_until="domcontentloaded", timeout=NAV_TIMEOUT_MS)
+                    logger.info(f"Govt sync: auto-navigated session {session.session_id} to configured post-login form")
+                except Exception as e:
+                    logger.warning(f"Govt sync: auto-navigate to post_login_entry_path failed for {session.session_id}: {e}")
+                return  # the goto above triggers its own "load" event, which re-runs autofill below
+
+        session.fill_warnings = await _autofill(page, field_schema, session.worksheet, session.portal_contact_number)
+        if session.send_frame:
+            try:
+                await session.send_frame({"type": "fill_warnings", "warnings": session.fill_warnings, "url": current_url})
+            except Exception:
+                pass  # nosec B110 — client likely disconnected; the live-session state itself is still correct
+    except Exception as e:
+        logger.debug(f"Govt sync: _on_page_load failed for {session.session_id}: {e}")
+    finally:
+        session.autofill_running = False
 
 
 async def _autofill(page, field_schema: dict, worksheet: dict, portal_contact_number: str | None) -> list[str]:
@@ -210,6 +286,7 @@ async def attach_stream(session_id: str, websocket, send_frame) -> LiveSession |
         return None
 
     session.ws = websocket
+    session.send_frame = send_frame  # also used by _on_page_load to push fill_warnings updates
     session.streaming = True
     session.last_activity_at = time.time()
 
@@ -242,6 +319,7 @@ async def detach_stream(session_id: str):
         return
     session.streaming = False
     session.ws = None
+    session.send_frame = None
     try:
         await session.cdp.send("Page.stopScreencast")
     except Exception:

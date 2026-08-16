@@ -21,7 +21,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {
       "Infrastructure & Utilities": "PWD / Urban Development & Housing Department",
@@ -62,7 +63,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {
       "Infrastructure & Utilities": "Lok Nirman Vibhag / Nagar Vikas Vibhag / UPPCL",
@@ -101,7 +103,8 @@
       "entry_path": "/Home/LodgeGrievance",
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {
       "Infrastructure & Utilities": "Ministry of Road Transport & Highways / Ministry of Power / Ministry of Housing & Urban Affairs",
@@ -141,7 +144,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -171,7 +175,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -201,7 +206,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -231,7 +237,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -261,7 +268,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -291,7 +299,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -321,7 +330,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -351,7 +361,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -381,7 +392,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -411,7 +423,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -441,7 +454,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {
       "Infrastructure & Utilities": "Public Works Department / Urban Development Department / BESCOM",
@@ -481,7 +495,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -511,7 +526,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -541,7 +557,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -571,7 +588,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -601,7 +619,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -631,7 +650,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -661,7 +681,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -691,7 +712,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -721,7 +743,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -751,7 +774,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -781,7 +805,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -811,7 +836,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -841,7 +867,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,
@@ -871,7 +898,8 @@
       "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {},
     "is_primary": true,

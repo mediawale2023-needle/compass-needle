@@ -947,12 +947,17 @@ function govtWsUrl(path) {
 // and forwards mouse/keyboard back into the real page — this is the actual
 // portal, auto-filled, with staff solving the CAPTCHA/OTP and clicking
 // Submit for real. See modules/govt_sync/browser_session.py.
-function GovtLiveBrowserView({ wsPath, viewport, onClose }) {
+function GovtLiveBrowserView({ wsPath, viewport, onClose, onFillWarnings }) {
     const canvasRef = useRef(null);
     const wsRef = useRef(null);
     const [connected, setConnected] = useState(false);
     const vw = viewport?.width || 1280;
     const vh = viewport?.height || 900;
+    // Ref so the WS effect below doesn't need onFillWarnings in its deps —
+    // that prop is a fresh closure on every parent render, and we don't want
+    // to tear down/reconnect the live session's WebSocket just because of that.
+    const onFillWarningsRef = useRef(onFillWarnings);
+    onFillWarningsRef.current = onFillWarnings;
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -973,6 +978,11 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose }) {
                 const img = new Image();
                 img.onload = () => ctx.drawImage(img, 0, 0, vw, vh);
                 img.src = `data:image/jpeg;base64,${msg.data}`;
+            } else if (msg.type === 'fill_warnings') {
+                // Pushed automatically by the backend every time the page navigates
+                // (e.g. right after staff finishes login/OTP) — see _on_page_load in
+                // modules/govt_sync/browser_session.py. No staff action needed.
+                onFillWarningsRef.current?.(msg.warnings || []);
             }
         };
 
@@ -1298,20 +1308,25 @@ function GovtSyncSection({ caseId, isMp }) {
 
             {liveSession && (
                 <div>
-                    <GovtLiveBrowserView wsPath={liveSession.ws_path} viewport={liveSession.viewport} onClose={handleCloseLive} />
+                    <GovtLiveBrowserView
+                        wsPath={liveSession.ws_path}
+                        viewport={liveSession.viewport}
+                        onClose={handleCloseLive}
+                        onFillWarnings={(warnings) => setLive({ ...liveSessionRef.current, fill_warnings: warnings })}
+                    />
                     {liveSession.fill_warnings?.length > 0 && (
                         <div style={{ fontSize: 11, color: C.saffron, marginBottom: 10 }}>
                             {liveSession.fill_warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
                             <div style={{ marginTop: 4, fontStyle: 'italic' }}>
-                                If this is a login-gated page (OTP portals usually are), the form fields above
-                                may not exist until after you log in. Log in, navigate to the actual grievance
-                                form, then retry autofill.
+                                If this is a login-gated page (OTP portals usually are), these fields may not exist
+                                until after you log in — Needle re-checks automatically every time the page changes,
+                                so once you reach the real form this updates on its own. No need to click anything.
                             </div>
                         </div>
                     )}
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                         <Button size="sm" variant="outline" disabled={busy} onClick={handleRetryAutofill}>
-                            {busy ? <Loader2 size={14} className="animate-spin" /> : 'Retry autofill on this page'}
+                            {busy ? <Loader2 size={14} className="animate-spin" /> : 'Force a re-check now'}
                         </Button>
                         <Button size="sm" variant="outline" disabled={busy} onClick={handleCaptureReference}>
                             {busy ? <Loader2 size={14} className="animate-spin" /> : 'Submitted — capture reference number'}
