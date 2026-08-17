@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-08-17
+- Request: Replace live-portal selector warnings with a login note.
+- Summary: The Briefcase live government-portal view no longer lists per-field “no selector configured” warnings. Under the screencast it now shows `Note: Kindly log in to the portal`, and opening a session no longer toasts a manual-entry error.
+- Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Autofill selector gaps still exist in the backend; they are just not shown as staff-facing warnings.
+
+- Date: 2026-08-17
 - Request: Show Escalate on every thread complaint and shorten the label.
 - Summary: The Briefcase case drawer now shows an `Escalate` button on each complaint in a multi-complaint thread, not only the latest. The visible label is `Escalate`. Clicking a non-active row selects that complaint before opening its live government-portal session. Single-complaint cases still keep `Escalate` in the sticky footer next to Mark resolved.
 - Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`

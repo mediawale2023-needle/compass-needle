@@ -1133,11 +1133,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp }, re
         try {
             const result = await apiPost(`/api/cases/${caseId}/govt/session/start`, {});
             setLive(result);
-            if (result.fill_warnings?.length) {
-                toast.error(`${result.fill_warnings.length} field(s) need manual entry — see notes below the view`);
-            } else {
-                toast.success('Live portal session open — solve the CAPTCHA/OTP to finish');
-            }
+            toast.success('Live portal session open — log in to continue');
             const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
             setGovtState(refreshed);
         } catch (e) {
@@ -1185,8 +1181,6 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp }, re
             setLive({ ...session, fill_warnings: result.fill_warnings || [] });
             if ((result.fill_warnings || []).length === 0) {
                 toast.success('All fields filled in');
-            } else {
-                toast.error(`${result.fill_warnings.length} field(s) still need manual entry`);
             }
         } catch (e) {
             if (e.message === 'Live session not found') { handleSessionGone(); return; }
@@ -1375,16 +1369,9 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp }, re
                         onFillWarnings={(warnings) => setLive({ ...liveSessionRef.current, fill_warnings: warnings })}
                         onSessionGone={handleSessionGone}
                     />
-                    {liveSession.fill_warnings?.length > 0 && (
-                        <div style={{ fontSize: 11, color: C.saffron, marginBottom: 10 }}>
-                            {liveSession.fill_warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
-                            <div style={{ marginTop: 4, fontStyle: 'italic' }}>
-                                If this is a login-gated page (OTP portals usually are), these fields may not exist
-                                until after you log in — Needle re-checks automatically every time the page changes,
-                                so once you reach the real form this updates on its own. No need to click anything.
-                            </div>
-                        </div>
-                    )}
+                    <div style={{ fontSize: 11.5, color: C.ink2, marginBottom: 10 }}>
+                        Note: Kindly log in to the portal
+                    </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                         <Button size="sm" variant="outline" disabled={busy} onClick={handleRetryAutofill}>
                             {busy ? <Loader2 size={14} className="animate-spin" /> : 'Force a re-check now'}
