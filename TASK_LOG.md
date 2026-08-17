@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-08-17
+- Request: Stop Escalate from reordering All cases; move to In progress only after portal reference submit.
+- Summary: Preparing a government-portal worksheet/session no longer writes `cases.updated_at`, so Escalate does not jump old rows to the top of All cases. Saving a portal reference now sets case `status` to `in_progress` (unless already resolved/closed) so the case appears on the In progress tab only after submit.
+- Files touched: `api_router.py`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `frontend/hooks/useBriefcaseCases.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Existing cases already bumped by earlier Escalate clicks keep their newer `updated_at` until some other update; this only stops future jumps.
+
+- Date: 2026-08-17
 - Request: Replace live-portal selector warnings with a login note.
 - Summary: The Briefcase live government-portal view no longer lists per-field “no selector configured” warnings. Under the screencast it now shows `Note: Kindly log in to the portal`, and opening a session no longer toasts a manual-entry error.
 - Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`

@@ -2629,7 +2629,7 @@ def _prepare_govt_worksheet(tid: int, case: dict, portal: dict, actor_username: 
                 "UPDATE cases SET govt_portal_id = :pid, govt_department = :dept, "
                 "govt_submission_worksheet = CAST(:worksheet AS JSONB), "
                 "govt_status = CASE WHEN govt_status = 'not_forwarded' THEN 'pending_staff_submit' ELSE govt_status END, "
-                "govt_status_updated_at = :now, updated_at = :now "
+                "govt_status_updated_at = :now "
                 "WHERE id = :cid AND tenant_id = :tid"
             ),
             {
@@ -2725,7 +2725,10 @@ def govt_submit_case(case_id: int, body: GovtSubmitRequest, user=Depends(get_cur
         conn.execute(
             text(
                 "UPDATE cases SET govt_reference_number = :ref, govt_status = 'submitted', "
-                "govt_status_updated_at = :now, updated_at = :now WHERE id = :cid AND tenant_id = :tid"
+                "govt_status_updated_at = :now, "
+                "status = CASE WHEN LOWER(COALESCE(status, '')) IN ('resolved', 'completed', 'closed') "
+                "THEN status ELSE 'in_progress' END "
+                "WHERE id = :cid AND tenant_id = :tid"
             ),
             {"ref": ref, "now": _utcnow(), "cid": case_id, "tid": tid},
         )
@@ -2735,7 +2738,16 @@ def govt_submit_case(case_id: int, body: GovtSubmitRequest, user=Depends(get_cur
     except Exception:
         pass  # nosec B110
 
-    return {"success": True, "govt_status": "submitted", "govt_reference_number": ref}
+    updated = _q_one(
+        "SELECT status FROM cases WHERE id = :cid AND tenant_id = :tid",
+        {"cid": case_id, "tid": tid},
+    ) or {}
+    return {
+        "success": True,
+        "govt_status": "submitted",
+        "govt_reference_number": ref,
+        "status": updated.get("status") or "in_progress",
+    }
 
 
 @router.post("/cases/{case_id}/govt/poll")
