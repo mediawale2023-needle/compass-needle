@@ -1286,33 +1286,52 @@ def _contact_thread_state(cases: list[dict]) -> str:
     return "normal"
 
 
-def _thread_sort_value(case: dict) -> tuple:
-    return (str(case.get("updated_at") or case.get("created_at") or ""), int(case.get("id") or 0))
+def _thread_sort_value(case: dict, recency_field: str = "created_at") -> tuple:
+    stamp = str(case.get(recency_field) or case.get("created_at") or "")
+    return (stamp, int(case.get("id") or 0))
 
 
-def _group_briefcase_cases(cases: list[dict]) -> list[dict]:
+def _group_briefcase_cases(cases: list[dict], sort: str = "newest") -> list[dict]:
     grouped: dict[str, list[dict]] = {}
     for case in cases:
         grouped.setdefault(_contact_thread_id_for_case(case), []).append(case)
 
     grouped_rows = []
     for thread_id, members in grouped.items():
-        members_sorted = sorted(members, key=_thread_sort_value, reverse=True)
-        anchor = dict(members_sorted[0])
-        state = _contact_thread_state(members_sorted)
-        distinct = _contact_thread_distinct_count(members_sorted)
+        members_by_received = sorted(
+            members, key=lambda item: _thread_sort_value(item, "created_at"), reverse=True
+        )
+        # The list row is always the latest received complaint, not the last
+        # staff-touched one — Escalate must not change which grievance is shown.
+        anchor = dict(members_by_received[0])
+        state = _contact_thread_state(members_by_received)
+        distinct = _contact_thread_distinct_count(members_by_received)
         anchor_meta = _parse_meta(anchor.get("case_metadata"))
         legacy_pending = len(anchor_meta.get("contact_thread_items") or [])
         anchor["contact_thread_id"] = thread_id
-        anchor["pending_contact_count"] = max(max(0, len(members_sorted) - 1), legacy_pending)
+        anchor["pending_contact_count"] = max(max(0, len(members_by_received) - 1), legacy_pending)
         anchor["distinct_issue_count"] = distinct
         anchor["contact_thread_state"] = state
-        anchor["thread_case_ids"] = [item.get("id") for item in members_sorted if item.get("id") is not None]
-        anchor["thread_case_count"] = len(members_sorted)
-        grouped_rows.append(anchor)
+        anchor["thread_case_ids"] = [item.get("id") for item in members_by_received if item.get("id") is not None]
+        anchor["thread_case_count"] = len(members_by_received)
+        grouped_rows.append((anchor, members_by_received, members))
 
-    grouped_rows.sort(key=_thread_sort_value, reverse=True)
-    return grouped_rows
+    def _row_sort_key(bundle):
+        _anchor, members_by_received, members = bundle
+        if sort == "updated":
+            hottest = max(members, key=lambda item: _thread_sort_value(item, "updated_at"))
+            return (0, _thread_sort_value(hottest, "updated_at"))
+        if sort == "critical":
+            critical = 1 if any(item.get("is_critical") for item in members) else 0
+            return (critical, _thread_sort_value(members_by_received[0], "created_at"))
+        if sort == "oldest":
+            oldest = members_by_received[-1]
+            return (0, _thread_sort_value(oldest, "created_at"))
+        return (0, _thread_sort_value(members_by_received[0], "created_at"))
+
+    reverse = sort != "oldest"
+    grouped_rows.sort(key=_row_sort_key, reverse=reverse)
+    return [anchor for anchor, _members_by_received, _members in grouped_rows]
 
 
 def _prepare_briefcase_list_case(case: dict, tenant_constituency: str | None, tenant_id: int, media_count: int = 0) -> dict:
@@ -1458,7 +1477,7 @@ def get_cases(
     where = " AND ".join(conditions)
     offset = (page - 1) * limit
     order_by = {
-        "newest": "COALESCE(c.updated_at, c.created_at) DESC, c.id DESC",
+        "newest": "c.created_at DESC, c.id DESC",
         "oldest": "c.created_at ASC",
         "updated": "c.updated_at DESC NULLS LAST, c.created_at DESC",
         "critical": "c.is_critical DESC, c.created_at DESC",
@@ -1478,7 +1497,7 @@ def get_cases(
         params
     )
 
-    grouped_cases = _group_briefcase_cases(raw_cases)
+    grouped_cases = _group_briefcase_cases(raw_cases, sort=sort)
     total = len(grouped_cases)
     pages = (total + limit - 1) // limit if limit > 0 else 0
     page_cases = grouped_cases[offset: offset + limit]
@@ -1887,7 +1906,7 @@ def get_case(case_id: int, user=Depends(get_current_user)):
             "response_to_citizen": member.get("response_to_citizen"),
             "case_metadata": _parse_meta(member.get("case_metadata")),
         }
-        for member in sorted(thread_members, key=_thread_sort_value, reverse=True)
+        for member in sorted(thread_members, key=lambda item: _thread_sort_value(item, "created_at"), reverse=True)
     ]
     case["pending_contact_count"] = max(0, len(case["thread_cases"]) - 1)
     case["thread_case_count"] = len(case["thread_cases"])

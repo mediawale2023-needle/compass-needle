@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-08-17
+- Request: Old complaints still jump to the top of All cases on Escalate.
+- Summary: All cases `Newest first` now orders by received `created_at` after thread grouping, not last `updated_at`. The visible thread row is the latest received complaint. Staff Escalate can no longer pull an older case to the top of All cases.
+- Files touched: `api_router.py`, `tests/test_briefcase_api.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Needs a backend deploy from `main` to take effect in production. `Recently updated` remains the last-touched sort.
+
+- Date: 2026-08-17
 - Request: Stop Escalate from reordering All cases; move to In progress only after portal reference submit.
 - Summary: Preparing a government-portal worksheet/session no longer writes `cases.updated_at`, so Escalate does not jump old rows to the top of All cases. Saving a portal reference now sets case `status` to `in_progress` (unless already resolved/closed) so the case appears on the In progress tab only after submit.
 - Files touched: `api_router.py`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `frontend/hooks/useBriefcaseCases.js`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
