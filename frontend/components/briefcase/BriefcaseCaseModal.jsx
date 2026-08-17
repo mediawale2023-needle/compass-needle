@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { Loader2, Send } from 'lucide-react';
 import { apiGet, apiPatch, apiPost, API_BASE, getAuthToken } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
@@ -37,6 +37,7 @@ function Icon({ name, size = 14, color = 'currentColor', stroke = 1.5 }) {
         cluster:  <><circle cx="7" cy="7" r="3" /><circle cx="17" cy="8" r="2.5" /><circle cx="9" cy="17" r="2.5" /><circle cx="18" cy="16" r="2.5" /><path d="M7 7l10 1M9 17l9-1M7 7l2 10" /></>,
         user:     <><circle cx="12" cy="9" r="4" /><path d="M4 21c0-5 4-7 8-7s8 2 8 7" /></>,
         trash:    <><path d="M4 6h16M9 6V4h6v2M5 6l1 14h12l1-14" /></>,
+        external: <><path d="M14 4h6v6M20 4L10 14" /><path d="M8 5H5a1 1 0 00-1 1v13a1 1 0 001 1h13a1 1 0 001-1v-3" /></>,
     };
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -947,17 +948,19 @@ function govtWsUrl(path) {
 // and forwards mouse/keyboard back into the real page — this is the actual
 // portal, auto-filled, with staff solving the CAPTCHA/OTP and clicking
 // Submit for real. See modules/govt_sync/browser_session.py.
-function GovtLiveBrowserView({ wsPath, viewport, onClose, onFillWarnings }) {
+function GovtLiveBrowserView({ wsPath, viewport, onClose, onFillWarnings, onSessionGone }) {
     const canvasRef = useRef(null);
     const wsRef = useRef(null);
     const [connected, setConnected] = useState(false);
     const vw = viewport?.width || 1280;
     const vh = viewport?.height || 900;
-    // Ref so the WS effect below doesn't need onFillWarnings in its deps —
-    // that prop is a fresh closure on every parent render, and we don't want
-    // to tear down/reconnect the live session's WebSocket just because of that.
+    // Refs so the WS effect below doesn't need these in its deps — they're
+    // fresh closures on every parent render, and we don't want to tear
+    // down/reconnect the live session's WebSocket just because of that.
     const onFillWarningsRef = useRef(onFillWarnings);
     onFillWarningsRef.current = onFillWarnings;
+    const onSessionGoneRef = useRef(onSessionGone);
+    onSessionGoneRef.current = onSessionGone;
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -969,7 +972,14 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onFillWarnings }) {
         const ws = new WebSocket(govtWsUrl(wsPath));
         wsRef.current = ws;
         ws.onopen = () => setConnected(true);
-        ws.onclose = () => setConnected(false);
+        ws.onclose = (evt) => {
+            setConnected(false);
+            // 4404 = the backend's own "session not found" close code (api_router.py
+            // govt_live_session_stream). Most commonly means the container that held
+            // this session restarted (a deploy) since the session was opened — the
+            // headless browser tab is genuinely gone, not something to keep retrying.
+            if (evt?.code === 4404) onSessionGoneRef.current?.();
+        };
         ws.onerror = () => setConnected(false);
         ws.onmessage = (evt) => {
             let msg;
@@ -1039,7 +1049,7 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onFillWarnings }) {
     );
 }
 
-function GovtSyncSection({ caseId, isMp }) {
+const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp }, ref) {
     const toast = useToast();
     // The portal a tenant can use is derived server-side from tenant -> constituency
     // -> state (tenant_profiles.state) — never a staff choice. This is a read-only
@@ -1073,6 +1083,13 @@ function GovtSyncSection({ caseId, isMp }) {
         apiGet('/api/govt-portal').then(setResolvedPortal).catch(() => setResolvedPortal(null));
     }, []);
 
+    // Exposed so the "Escalate" button in the modal's main action bar can
+    // trigger the same live-session flow this section renders — handleOpenLive
+    // is a plain function declaration below, hoisted within this component's
+    // scope, so referencing it here (before it's textually defined) is safe:
+    // by the time openLiveSession() is actually called from outside, it exists.
+    useImperativeHandle(ref, () => ({ openLiveSession: () => handleOpenLive() }), []);
+
     if (!caseId) return null;
     const status = govtState?.case?.govt_status || 'not_forwarded';
     const hasPortal = !!govtState?.case?.govt_portal_id;
@@ -1081,6 +1098,18 @@ function GovtSyncSection({ caseId, isMp }) {
     function setLive(session) {
         liveSessionRef.current = session;
         setLiveSession(session);
+    }
+
+    // The backend's live sessions live in one process's memory (see
+    // modules/govt_sync/browser_session.py) — they don't survive that
+    // process restarting, which happens on every backend deploy. If staff
+    // had a session open across one, the browser tab is genuinely gone;
+    // the fix is opening a new session, not retrying the old one. Clear
+    // local state and say so plainly instead of leaving stale buttons that
+    // 404 every time they're pressed.
+    function handleSessionGone() {
+        setLive(null);
+        toast.error('That live session ended (the server restarted since it was opened) — click "Open live portal" to start a new one');
     }
 
     async function handleOpenLive() {
@@ -1124,6 +1153,7 @@ function GovtSyncSection({ caseId, isMp }) {
                 toast.error('Could not read a reference number automatically — copy it from the view and paste it below');
             }
         } catch (e) {
+            if (e.message === 'Live session not found') { handleSessionGone(); return; }
             toast.error(e.message || 'Capture failed');
         } finally {
             setBusy(false);
@@ -1143,6 +1173,7 @@ function GovtSyncSection({ caseId, isMp }) {
                 toast.error(`${result.fill_warnings.length} field(s) still need manual entry`);
             }
         } catch (e) {
+            if (e.message === 'Live session not found') { handleSessionGone(); return; }
             toast.error(e.message || 'Autofill retry failed');
         } finally {
             setBusy(false);
@@ -1326,6 +1357,7 @@ function GovtSyncSection({ caseId, isMp }) {
                         viewport={liveSession.viewport}
                         onClose={handleCloseLive}
                         onFillWarnings={(warnings) => setLive({ ...liveSessionRef.current, fill_warnings: warnings })}
+                        onSessionGone={handleSessionGone}
                     />
                     {liveSession.fill_warnings?.length > 0 && (
                         <div style={{ fontSize: 11, color: C.saffron, marginBottom: 10 }}>
@@ -1385,7 +1417,7 @@ function GovtSyncSection({ caseId, isMp }) {
             )}
         </div>
     );
-}
+});
 
 // ─── Notes + response section ─────────────────────────────────
 function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSave, saving, phone, isMp, onNotify, responseSectionRef, responseInputRef }) {
@@ -1489,30 +1521,45 @@ function AssignSection({ assignee, onAssign, staff, onDelete, userRole }) {
 }
 
 // ─── Sticky bottom action bar ─────────────────────────────────
-function ActionBar({ onConfirm, onReply, isUncategorised }) {
+function ActionBar({ onConfirm, onReply, onEscalate, isUncategorised }) {
     return (
         <div style={{
             position: 'sticky', bottom: 0, zIndex: 10,
             background: C.paper, borderTop: `1px solid ${C.hair}`,
-            padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8,
+            padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 8,
             boxShadow: '0 -8px 20px rgba(26,24,18,0.06)',
         }}>
-            <button onClick={onConfirm} style={{
-                flex: 1, padding: '10px 14px', background: C.green, color: '#F5EFE0', border: 'none',
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button onClick={onConfirm} style={{
+                    flex: 1, padding: '10px 14px', background: C.green, color: '#F5EFE0', border: 'none',
+                    fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                }}>
+                    <Icon name="check" size={13} color="#F5EFE0" stroke={2.5} />
+                    {isUncategorised ? 'Confirm category & assign' : 'Mark resolved'}
+                </button>
+                <button onClick={onReply} style={{
+                    padding: '10px 14px', background: 'transparent',
+                    border: `1px solid ${C.hairStrong}`, color: C.ink,
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                }}>
+                    <Icon name="send" size={12} color={C.ink} /> Reply
+                </button>
+            </div>
+            {/* Full width of the row above (Mark resolved + Reply combined) — forwards this
+                grievance to its government portal. See handleEscalate: scrolls to and opens
+                the same live, auto-filled browser session as the Government Portal section's
+                own "Open live portal" button. */}
+            <button onClick={onEscalate} style={{
+                width: '100%', padding: '10px 14px', background: C.saffron, color: '#F5EFE0', border: 'none',
                 fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
                 cursor: 'pointer', fontFamily: 'inherit',
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
             }}>
-                <Icon name="check" size={13} color="#F5EFE0" stroke={2.5} />
-                {isUncategorised ? 'Confirm category & assign' : 'Mark resolved'}
-            </button>
-            <button onClick={onReply} style={{
-                padding: '10px 14px', background: 'transparent',
-                border: `1px solid ${C.hairStrong}`, color: C.ink,
-                fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-            }}>
-                <Icon name="send" size={12} color={C.ink} /> Reply
+                <Icon name="external" size={13} color="#F5EFE0" stroke={2.5} />
+                Escalate to government portal
             </button>
         </div>
     );
@@ -1634,6 +1681,8 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const [savingGeo, setSavingGeo] = useState(false);
     const responseSectionRef = useRef(null);
     const responseInputRef = useRef(null);
+    const govtSyncRef = useRef(null);      // imperative handle into GovtSyncSection — lets Escalate trigger its live-session flow
+    const govtSectionRef = useRef(null);   // scroll target so Escalate brings that section into view
 
     useEffect(() => {
         if (!caseItem) return;
@@ -1711,6 +1760,16 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     function handleReplyCase(item) {
         setActiveCaseId(item.id);
         setReplyIntentCaseId(item.id);
+    }
+
+    // "Escalate" = forward this grievance to the government portal. Scrolls the
+    // Government Portal section into view and triggers the same live, auto-filled
+    // browser session GovtSyncSection's own "Open live portal" button starts —
+    // staff land on the portal's login/entry page, solve CAPTCHA/OTP themselves,
+    // and get auto-navigated + auto-filled from there (see browser_session.py).
+    function handleEscalate() {
+        govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        govtSyncRef.current?.openLiveSession();
     }
 
     const pruneResolvedThreadCase = (targetCaseId, nextStatus) => {
@@ -2017,7 +2076,9 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                         />
                                         <PendingContactMessages current={current} />
                                         <ActivityTimeline activities={activities} loading={loadingActivity} />
-                                        <GovtSyncSection caseId={current.id} isMp={isMp} />
+                                        <div ref={govtSectionRef}>
+                                            <GovtSyncSection ref={govtSyncRef} caseId={current.id} isMp={isMp} />
+                                        </div>
                                         <NotesSection
                                             notes={notes}
                                             setNotes={setNotes}
@@ -2081,6 +2142,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                     }
                                 }}
                                 onReply={() => { setNotifyInput(''); setNotifyOpen(true); }}
+                                onEscalate={handleEscalate}
                                 isUncategorised={isUncategorised}
                             />
                         </>
