@@ -64,6 +64,18 @@ export default function useBriefcaseCases(user) {
         return ['resolved', 'completed', 'closed'].includes(String(status || '').toLowerCase());
     }
 
+    function caseLeavesCurrentTab(newStatus) {
+        const tab = String(statusFilter || '').toLowerCase();
+        const status = String(newStatus || '').toLowerCase();
+        if (['deleted', 'clusters', 'others'].includes(tab)) {
+            return false;
+        }
+        if (tab === 'all_cases') {
+            return isResolvedLikeStatus(status);
+        }
+        return status !== tab;
+    }
+
     useEffect(() => {
         const status = searchParams.get('status') || 'all_cases';
         setStatusFilter(status === 'All' ? 'all_cases' : status);
@@ -303,15 +315,14 @@ export default function useBriefcaseCases(user) {
     }
 
     function handleStatusChange(caseId, newStatus) {
-        const resolvedLike = isResolvedLikeStatus(newStatus);
-        const activeTab = !['resolved', 'deleted', 'clusters'].includes(String(statusFilter || '').toLowerCase());
+        const leaveTab = caseLeavesCurrentTab(newStatus);
 
         setCases((current) => current.flatMap((item) => {
             if (item.id === caseId) {
-                return resolvedLike && activeTab ? [] : [{ ...item, status: newStatus }];
+                return leaveTab ? [] : [{ ...item, status: newStatus }];
             }
             if (Array.isArray(item.thread_case_ids) && item.thread_case_ids.includes(caseId)) {
-                if (resolvedLike && activeTab) {
+                if (leaveTab) {
                     const remainingIds = item.thread_case_ids.filter((id) => id !== caseId);
                     if (remainingIds.length === 0) {
                         return [];
@@ -331,10 +342,10 @@ export default function useBriefcaseCases(user) {
         setSelected((current) => {
             if (!current) return current;
             if (current.id === caseId) {
-                return resolvedLike && activeTab ? null : { ...current, status: newStatus };
+                return leaveTab ? null : { ...current, status: newStatus };
             }
             if (Array.isArray(current.thread_case_ids) && current.thread_case_ids.includes(caseId)) {
-                if (resolvedLike && activeTab) {
+                if (leaveTab) {
                     const remainingIds = current.thread_case_ids.filter((id) => id !== caseId);
                     if (remainingIds.length === 0) {
                         return null;

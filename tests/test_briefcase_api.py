@@ -1009,3 +1009,26 @@ def test_audio_media_intake_passes_voice_note_as_source_media(monkeypatch):
     assert captured["media_source"]["mime_type"] == "audio/ogg"
     assert captured["media_source"]["media_bytes"] == b"OggSvoice"
     assert captured["media_source"]["extracted_text"] == "Shanti Baswad road issue"
+
+
+def test_briefcase_newest_grouping_ignores_staff_updated_at():
+    older = {
+        "id": 1,
+        "user_phone": "919800000001",
+        "created_at": "2026-01-01T00:00:00",
+        "updated_at": "2026-08-17T12:00:00",
+        "case_metadata": {},
+    }
+    newer = {
+        "id": 2,
+        "user_phone": "919800000002",
+        "created_at": "2026-06-01T00:00:00",
+        "updated_at": "2026-06-01T00:00:00",
+        "case_metadata": {},
+    }
+    rows = api_router._group_briefcase_cases([older, newer], sort="newest")
+    assert [row["id"] for row in rows] == [2, 1]
+
+    updated_rows = api_router._group_briefcase_cases([older, newer], sort="updated")
+    assert [row["id"] for row in updated_rows] == [1, 2]
+

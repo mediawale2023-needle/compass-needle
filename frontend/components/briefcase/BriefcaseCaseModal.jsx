@@ -1067,7 +1067,7 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onFillWarnings, onSess
     );
 }
 
-const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp }, ref) {
+const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSubmitted }, ref) {
     const toast = useToast();
     // The portal a tenant can use is derived server-side from tenant -> constituency
     // -> state (tenant_profiles.state) — never a staff choice. This is a read-only
@@ -1209,13 +1209,14 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp }, re
         if (!refInput.trim()) { toast.error('Enter the reference number the portal gave you'); return; }
         setBusy(true);
         try {
-            await apiPost(`/api/cases/${caseId}/govt/submit`, { reference_number: refInput.trim() });
+            const result = await apiPost(`/api/cases/${caseId}/govt/submit`, { reference_number: refInput.trim() });
             const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
             setGovtState(refreshed);
             setRefInput('');
             if (liveSessionRef.current) {
                 await handleCloseLive();
             }
+            onSubmitted?.(caseId, result.status || 'in_progress');
             toast.success('Marked as submitted to the portal');
         } catch (e) {
             toast.error(e.message || 'Could not save reference number');
@@ -2095,7 +2096,12 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                         <PendingContactMessages current={current} />
                                         <ActivityTimeline activities={activities} loading={loadingActivity} />
                                         <div ref={govtSectionRef}>
-                                            <GovtSyncSection ref={govtSyncRef} caseId={current.id} isMp={isMp} />
+                                            <GovtSyncSection
+                                                ref={govtSyncRef}
+                                                caseId={current.id}
+                                                isMp={isMp}
+                                                onSubmitted={onStatusChange}
+                                            />
                                         </div>
                                         <NotesSection
                                             notes={notes}
