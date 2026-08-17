@@ -12,6 +12,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-08-17
+- Request: Move Escalate to government portal from below Mark resolved to the latest-complaint action row.
+- Summary: Relocated the orange escalate control in `BriefcaseCaseModal.jsx` so multi-complaint threads show it next to Open / Reply / Resolve on the latest complaint. Removed the stacked footer button under Mark resolved. Single-complaint cases still get escalate in the sticky bar, on the same row as Mark resolved.
+- Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Confirm on a live thread case that the footer no longer duplicates escalate, and that a single-complaint case still has a way to open the portal session.
+
 - Date: 2026-07-07
 - Request: Retry backend deployment for the durable WhatsApp burst-intake fix.
 - Summary: The first EC2 deploy run for commit `262c0434` started but failed inside the `Deploy Over SSH` step before the health check. GitHub job logs require authenticated access from this environment, and direct SSH to `api.theneedle.in` timed out because SSH is runner-IP gated. Added a small Dockerfile proxy-header comment to retrigger the backend deploy workflow from `main`.

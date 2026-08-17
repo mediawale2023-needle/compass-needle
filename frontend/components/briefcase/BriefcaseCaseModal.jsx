@@ -783,7 +783,7 @@ function PendingContactMessages({ current }) {
     );
 }
 
-function ThreadCasesSection({ threadCases, activeCaseId, onSelectCase, onReplyCase, onQuickResolve, updating }) {
+function ThreadCasesSection({ threadCases, activeCaseId, onSelectCase, onReplyCase, onQuickResolve, onEscalate, updating }) {
     if (!Array.isArray(threadCases) || threadCases.length <= 1) {
         return null;
     }
@@ -884,6 +884,26 @@ function ThreadCasesSection({ threadCases, activeCaseId, onSelectCase, onReplyCa
                                             }}
                                         >
                                             Resolve
+                                        </button>
+                                    )}
+                                    {index === 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={onEscalate}
+                                            aria-label="Escalate to government portal"
+                                            style={{
+                                                padding: '5px 10px',
+                                                background: C.saffron,
+                                                color: '#F5EFE0',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                fontSize: 10.5,
+                                                fontWeight: 700,
+                                                letterSpacing: '0.04em',
+                                                textTransform: 'uppercase',
+                                            }}
+                                        >
+                                            Escalate to government portal
                                         </button>
                                     )}
                                 </div>
@@ -1083,11 +1103,10 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp }, re
         apiGet('/api/govt-portal').then(setResolvedPortal).catch(() => setResolvedPortal(null));
     }, []);
 
-    // Exposed so the "Escalate" button in the modal's main action bar can
-    // trigger the same live-session flow this section renders — handleOpenLive
-    // is a plain function declaration below, hoisted within this component's
-    // scope, so referencing it here (before it's textually defined) is safe:
-    // by the time openLiveSession() is actually called from outside, it exists.
+    // Exposed so Escalate (latest-complaint row, or same-row footer on
+    // single-complaint cases) can trigger this section's live-session flow.
+    // handleOpenLive is a function declaration below, so it is hoisted; by
+    // the time openLiveSession() is called from outside, it exists.
     useImperativeHandle(ref, () => ({ openLiveSession: () => handleOpenLive() }), []);
 
     if (!caseId) return null;
@@ -1521,7 +1540,7 @@ function AssignSection({ assignee, onAssign, staff, onDelete, userRole }) {
 }
 
 // ─── Sticky bottom action bar ─────────────────────────────────
-function ActionBar({ onConfirm, onReply, onEscalate, isUncategorised }) {
+function ActionBar({ onConfirm, onReply, onEscalate, isUncategorised, showEscalate }) {
     return (
         <div style={{
             position: 'sticky', bottom: 0, zIndex: 10,
@@ -1529,7 +1548,7 @@ function ActionBar({ onConfirm, onReply, onEscalate, isUncategorised }) {
             padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 8,
             boxShadow: '0 -8px 20px rgba(26,24,18,0.06)',
         }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <button onClick={onConfirm} style={{
                     flex: 1, padding: '10px 14px', background: C.green, color: '#F5EFE0', border: 'none',
                     fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
@@ -1539,6 +1558,17 @@ function ActionBar({ onConfirm, onReply, onEscalate, isUncategorised }) {
                     <Icon name="check" size={13} color="#F5EFE0" stroke={2.5} />
                     {isUncategorised ? 'Confirm category & assign' : 'Mark resolved'}
                 </button>
+                {showEscalate && (
+                    <button onClick={onEscalate} style={{
+                        padding: '10px 14px', background: C.saffron, color: '#F5EFE0', border: 'none',
+                        fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                        cursor: 'pointer', fontFamily: 'inherit',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                    }}>
+                        <Icon name="external" size={13} color="#F5EFE0" stroke={2.5} />
+                        Escalate to government portal
+                    </button>
+                )}
                 <button onClick={onReply} style={{
                     padding: '10px 14px', background: 'transparent',
                     border: `1px solid ${C.hairStrong}`, color: C.ink,
@@ -1548,19 +1578,6 @@ function ActionBar({ onConfirm, onReply, onEscalate, isUncategorised }) {
                     <Icon name="send" size={12} color={C.ink} /> Reply
                 </button>
             </div>
-            {/* Full width of the row above (Mark resolved + Reply combined) — forwards this
-                grievance to its government portal. See handleEscalate: scrolls to and opens
-                the same live, auto-filled browser session as the Government Portal section's
-                own "Open live portal" button. */}
-            <button onClick={onEscalate} style={{
-                width: '100%', padding: '10px 14px', background: C.saffron, color: '#F5EFE0', border: 'none',
-                fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-                cursor: 'pointer', fontFamily: 'inherit',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-            }}>
-                <Icon name="external" size={13} color="#F5EFE0" stroke={2.5} />
-                Escalate to government portal
-            </button>
         </div>
     );
 }
@@ -2072,6 +2089,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                             onSelectCase={(item) => setActiveCaseId(item.id)}
                                             onReplyCase={handleReplyCase}
                                             onQuickResolve={handleQuickResolve}
+                                            onEscalate={handleEscalate}
                                             updating={updating}
                                         />
                                         <PendingContactMessages current={current} />
@@ -2144,6 +2162,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                 onReply={() => { setNotifyInput(''); setNotifyOpen(true); }}
                                 onEscalate={handleEscalate}
                                 isUncategorised={isUncategorised}
+                                showEscalate={!Array.isArray(threadCases) || threadCases.length <= 1}
                             />
                         </>
                     )}
