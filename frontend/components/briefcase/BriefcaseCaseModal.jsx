@@ -886,26 +886,24 @@ function ThreadCasesSection({ threadCases, activeCaseId, onSelectCase, onReplyCa
                                             Resolve
                                         </button>
                                     )}
-                                    {index === 0 && (
-                                        <button
-                                            type="button"
-                                            onClick={onEscalate}
-                                            aria-label="Escalate to government portal"
-                                            style={{
-                                                padding: '5px 10px',
-                                                background: C.saffron,
-                                                color: '#F5EFE0',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                fontSize: 10.5,
-                                                fontWeight: 700,
-                                                letterSpacing: '0.04em',
-                                                textTransform: 'uppercase',
-                                            }}
-                                        >
-                                            Escalate to government portal
-                                        </button>
-                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => onEscalate(item)}
+                                        aria-label="Escalate"
+                                        style={{
+                                            padding: '5px 10px',
+                                            background: C.saffron,
+                                            color: '#F5EFE0',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            fontSize: 10.5,
+                                            fontWeight: 700,
+                                            letterSpacing: '0.04em',
+                                            textTransform: 'uppercase',
+                                        }}
+                                    >
+                                        Escalate
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -1103,11 +1101,10 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp }, re
         apiGet('/api/govt-portal').then(setResolvedPortal).catch(() => setResolvedPortal(null));
     }, []);
 
-    // Exposed so Escalate (latest-complaint row, or same-row footer on
+    // Exposed so Escalate (per-complaint row, or same-row footer on
     // single-complaint cases) can trigger this section's live-session flow.
-    // handleOpenLive is a function declaration below, so it is hoisted; by
-    // the time openLiveSession() is called from outside, it exists.
-    useImperativeHandle(ref, () => ({ openLiveSession: () => handleOpenLive() }), []);
+    // Rebind when caseId changes so a thread switch opens the right case.
+    useImperativeHandle(ref, () => ({ openLiveSession: () => handleOpenLive() }), [caseId]);
 
     if (!caseId) return null;
     const status = govtState?.case?.govt_status || 'not_forwarded';
@@ -1559,14 +1556,14 @@ function ActionBar({ onConfirm, onReply, onEscalate, isUncategorised, showEscala
                     {isUncategorised ? 'Confirm category & assign' : 'Mark resolved'}
                 </button>
                 {showEscalate && (
-                    <button onClick={onEscalate} style={{
+                    <button onClick={() => onEscalate()} style={{
                         padding: '10px 14px', background: C.saffron, color: '#F5EFE0', border: 'none',
                         fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
                         cursor: 'pointer', fontFamily: 'inherit',
                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                     }}>
                         <Icon name="external" size={13} color="#F5EFE0" stroke={2.5} />
-                        Escalate to government portal
+                        Escalate
                     </button>
                 )}
                 <button onClick={onReply} style={{
@@ -1693,6 +1690,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const [fullCase, setFullCase] = useState(null);
     const [activeCaseId, setActiveCaseId] = useState(null);
     const [replyIntentCaseId, setReplyIntentCaseId] = useState(null);
+    const [escalateIntentCaseId, setEscalateIntentCaseId] = useState(null);
     const [geoLocation, setGeoLocation] = useState('');
     const [geoAssembly, setGeoAssembly] = useState('');
     const [savingGeo, setSavingGeo] = useState(false);
@@ -1753,6 +1751,15 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         setReplyIntentCaseId(null);
     }, [replyIntentCaseId, activeCaseId, fullCase, caseItem]);
 
+    useEffect(() => {
+        if (!escalateIntentCaseId || getSelectedThreadCaseId(fullCase, caseItem, activeCaseId) !== escalateIntentCaseId) {
+            return;
+        }
+        govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        govtSyncRef.current?.openLiveSession();
+        setEscalateIntentCaseId(null);
+    }, [escalateIntentCaseId, activeCaseId, fullCase, caseItem]);
+
     if (!caseItem) return null;
 
     const threadCases = Array.isArray(fullCase?.thread_cases) && fullCase.thread_cases.length
@@ -1784,7 +1791,13 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     // browser session GovtSyncSection's own "Open live portal" button starts —
     // staff land on the portal's login/entry page, solve CAPTCHA/OTP themselves,
     // and get auto-navigated + auto-filled from there (see browser_session.py).
-    function handleEscalate() {
+    function handleEscalate(item) {
+        const targetId = item?.id || current.id;
+        if (targetId && targetId !== activeCaseId) {
+            setActiveCaseId(targetId);
+            setEscalateIntentCaseId(targetId);
+            return;
+        }
         govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         govtSyncRef.current?.openLiveSession();
     }
