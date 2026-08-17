@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-08-17
+- Request: Show Escalate on every thread complaint and shorten the label.
+- Summary: The Briefcase case drawer now shows an `Escalate` button on each complaint in a multi-complaint thread, not only the latest. The visible label is `Escalate`. Clicking a non-active row selects that complaint before opening its live government-portal session. Single-complaint cases still keep `Escalate` in the sticky footer next to Mark resolved.
+- Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Confirm on a live multi-complaint thread that each row opens the portal for that specific case, not the previously selected one.
+
+- Date: 2026-08-17
 - Request: Move Escalate to government portal from below Mark resolved to the latest-complaint action row.
 - Summary: Relocated the orange escalate control in `BriefcaseCaseModal.jsx` so multi-complaint threads show it next to Open / Reply / Resolve on the latest complaint. Removed the stacked footer button under Mark resolved. Single-complaint cases still get escalate in the sticky bar, on the same row as Mark resolved.
 - Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
