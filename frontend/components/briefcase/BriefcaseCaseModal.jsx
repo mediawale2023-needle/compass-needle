@@ -1122,14 +1122,12 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         onGovtStateChange?.(caseId, govtState?.case || null);
     }, [caseId, govtState, onGovtStateChange]);
 
-    // Must be declared before useImperativeHandle — the dependency array
-    // evaluates during render. A later `const` was a TDZ ReferenceError and
-    // crashed the Briefcase case drawer (and the Vercel client bundle).
-    // Live Playwright session automation defaults on (see api_router.py's
-    // _govt_live_automation_enabled docstring) — this just defaults to
-    // manual here too for the brief window before the first /api/govt-portal
-    // fetch resolves, rather than flashing the live-session button.
-    const liveAutomationEnabled = resolvedPortal?.live_automation_enabled === true;
+    // Match the backend default (on) until /api/govt-portal returns. Defaulting
+    // this to false sent Escalate through worksheet generation, which the 8s
+    // API timeout then aborted as "Fetch is aborted."
+    const liveAutomationEnabled = resolvedPortal == null
+        ? true
+        : resolvedPortal.live_automation_enabled === true;
 
     // Exposed so Escalate (per-complaint row, or same-row footer on
     // single-complaint cases) can trigger this section's filing flow.
@@ -1176,6 +1174,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
             return;
         }
         setLiveConnecting(true);
+        toast.info('Opening the government portal…');
         try {
             const result = await apiPost(`/api/cases/${caseId}/govt/session/start`, {});
             setLive(result);
@@ -1221,6 +1220,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
 
     async function handlePrepare() {
         setBusy(true);
+        toast.info('Preparing the filing worksheet…');
         try {
             const result = await apiPost(`/api/cases/${caseId}/govt/translate`, {});
             setWorksheet(result);
