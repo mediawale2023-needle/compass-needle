@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-08-18
+- Request: Do not show Open live portal / e-fill in the Government Portal section; Escalate on each complaint should file.
+- Summary: Removed the in-section Open live portal, worksheet-prepare, and new-tab portal-file controls. Filing starts from Escalate (thread row and footer). Worksheet copy fields and Mark as submitted remain so staff can save the portal reference after filing.
+- Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Preview needs a frontend deploy. Portal-mismatch re-resolve still uses the worksheet prepare path.
+
+- Date: 2026-08-18
 - Request: Vercel preview showed a client-side Application error.
 - Summary: Opening a Briefcase case crashed because `GovtSyncSection` passed `liveAutomationEnabled` into `useImperativeHandle` before that `const` was declared (TDZ ReferenceError). Moved the declaration above the hook.
 - Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `TASK_LOG.md`
