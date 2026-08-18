@@ -1164,7 +1164,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     // 404 every time they're pressed.
     function handleSessionGone() {
         setLive(null);
-        toast.error('That live session ended (the server restarted since it was opened) — click "Open live portal" to start a new one');
+        toast.error('That live session ended (the server restarted since it was opened) — click Escalate on the complaint to start a new one');
     }
 
     async function handleOpenLive() {
@@ -1320,20 +1320,13 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                             )}
                             {!liveAutomationEnabled && (
                                 <div style={{ color: C.ink3, marginTop: 4 }}>
-                                    Automated filing is off — prepare the AI worksheet below, then file it on the portal yourself.
+                                    Automated filing is off — Escalate will prepare the AI worksheet for copy-paste filing.
                                 </div>
                             )}
                         </div>
                     )}
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                        {liveAutomationEnabled && (
-                            <Button size="sm" disabled={busy || liveConnecting} onClick={handleOpenLive}>
-                                {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Open live portal'}
-                            </Button>
-                        )}
-                        <Button size="sm" variant={liveAutomationEnabled ? 'outline' : undefined} disabled={busy} onClick={handlePrepare}>
-                            {busy ? <Loader2 size={14} className="animate-spin" /> : (liveAutomationEnabled ? 'Worksheet only' : 'Prepare worksheet')}
-                        </Button>
+                    <div style={{ fontSize: 11.5, color: C.ink2 }}>
+                        Use <strong style={{ color: C.ink }}>Escalate</strong> on this complaint to file it on the portal.
                     </div>
                 </div>
             )}
@@ -1371,18 +1364,8 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                     {worksheet?.portal_contact_number && (
                         <GovtSyncCopyField label="Contact number to enter on portal" value={worksheet.portal_contact_number} />
                     )}
-                    {govtState?.case?.base_url && (
-                        <a href={govtState.case.base_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11.5, color: C.green, display: 'inline-block', marginBottom: 10 }}>
-                            Open {govtState.case.portal_name} to file this →
-                        </a>
-                    )}
                     {worksheet?.staff_action_note && (
                         <div style={{ fontSize: 11, color: C.ink2, marginBottom: 10, fontStyle: 'italic' }}>{worksheet.staff_action_note}</div>
-                    )}
-                    {liveAutomationEnabled && status === 'pending_staff_submit' && !alreadyFiled && !liveSession && (
-                        <Button size="sm" disabled={liveConnecting} onClick={handleOpenLive} style={{ marginBottom: 4 }}>
-                            {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Open live portal'}
-                        </Button>
                     )}
                 </div>
             )}
@@ -2245,7 +2228,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                 onReply={() => { setNotifyInput(''); setNotifyOpen(true); }}
                                 onEscalate={handleEscalate}
                                 isUncategorised={isUncategorised}
-                                showEscalate={(!Array.isArray(threadCases) || threadCases.length <= 1) && !isGovtAlreadyFiled(current)}
+                                showEscalate={!isGovtAlreadyFiled(current)}
                             />
                         </>
                     )}
