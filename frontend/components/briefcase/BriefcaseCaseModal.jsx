@@ -932,12 +932,12 @@ function ThreadCasesSection({ threadCases, activeCaseId, onSelectCase, onReplyCa
 
 // ─── Government Department Sync ──────────────────────────────
 // Staff-assisted forwarding to a state grievance portal (Rajasthan Sampark,
-// UP Jansunwai, CPGRAMS). "Open live portal" launches a real, auto-filled
-// browser session on the backend and streams it here — staff solve the
-// CAPTCHA/OTP and click Submit on the actual page. Where a portal's fields
-// aren't calibrated yet (or the live session can't be used), the AI
-// worksheet below is still there as a copy/paste fallback. See
-// modules/govt_sync/ on the backend.
+// UP Jansunwai, CPGRAMS). "Open live portal" launches a real browser session
+// on the backend and streams it here — staff log in, the session auto-
+// navigates to the grievance form once a portal's post-login path is
+// configured, and staff read the AI worksheet below and type everything
+// into the real page themselves (no field is auto-filled — see
+// modules/govt_sync/browser_session.py's module docstring for why).
 const GOVT_STATUS_LABEL = {
     not_forwarded: 'Not forwarded',
     pending_staff_submit: 'Ready to file — staff action needed',
@@ -988,19 +988,17 @@ function govtWsUrl(path) {
 // ─── Live, staff-controllable view of the real government portal ───
 // Renders the CDP screencast frames the backend streams over the WebSocket
 // and forwards mouse/keyboard back into the real page — this is the actual
-// portal, auto-filled, with staff solving the CAPTCHA/OTP and clicking
+// portal, with staff logging in, filling in every field, and clicking
 // Submit for real. See modules/govt_sync/browser_session.py.
-function GovtLiveBrowserView({ wsPath, viewport, onClose, onFillWarnings, onSessionGone }) {
+function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone }) {
     const canvasRef = useRef(null);
     const wsRef = useRef(null);
     const [connected, setConnected] = useState(false);
     const vw = viewport?.width || 1280;
     const vh = viewport?.height || 900;
-    // Refs so the WS effect below doesn't need these in its deps — they're
-    // fresh closures on every parent render, and we don't want to tear
+    // Ref so the WS effect below doesn't need this in its deps — it's a
+    // fresh closure on every parent render, and we don't want to tear
     // down/reconnect the live session's WebSocket just because of that.
-    const onFillWarningsRef = useRef(onFillWarnings);
-    onFillWarningsRef.current = onFillWarnings;
     const onSessionGoneRef = useRef(onSessionGone);
     onSessionGoneRef.current = onSessionGone;
 
@@ -1030,11 +1028,6 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onFillWarnings, onSess
                 const img = new Image();
                 img.onload = () => ctx.drawImage(img, 0, 0, vw, vh);
                 img.src = `data:image/jpeg;base64,${msg.data}`;
-            } else if (msg.type === 'fill_warnings') {
-                // Pushed automatically by the backend every time the page navigates
-                // (e.g. right after staff finishes login/OTP) — see _on_page_load in
-                // modules/govt_sync/browser_session.py. No staff action needed.
-                onFillWarningsRef.current?.(msg.warnings || []);
             }
         };
 
@@ -1064,7 +1057,7 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onFillWarnings, onSess
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <span style={{ fontSize: 11, color: connected ? C.greenInk : C.saffron, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: connected ? C.green : C.saffron, display: 'inline-block' }} />
-                    {connected ? 'Live — solve the CAPTCHA/OTP and click Submit in the portal' : 'Connecting to live portal session…'}
+                    {connected ? 'Live — log in, fill in the grievance form, and click Submit yourself' : 'Connecting to live portal session…'}
                 </span>
                 {onClose && (
                     <button type="button" onClick={onClose} style={{ fontSize: 10.5, color: C.ink3, background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -1102,7 +1095,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     const [worksheet, setWorksheet] = useState(null);  // response from /govt/translate (includes portal_contact_number, staff_action_note)
     const [refInput, setRefInput] = useState('');
     const [busy, setBusy] = useState(false);
-    const [liveSession, setLiveSession] = useState(null); // { session_id, ws_path, viewport, fill_warnings, portal_name }
+    const [liveSession, setLiveSession] = useState(null); // { session_id, ws_path, viewport, portal_name }
     const [liveConnecting, setLiveConnecting] = useState(false);
     const liveSessionRef = useRef(null); // mirrors liveSession so the unmount cleanup below sees the latest value, not a stale closure
 
@@ -1222,24 +1215,6 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         }
     }
 
-    async function handleRetryAutofill() {
-        const session = liveSessionRef.current;
-        if (!session) return;
-        setBusy(true);
-        try {
-            const result = await apiPost(`/api/cases/${caseId}/govt/session/${session.session_id}/autofill`, {});
-            setLive({ ...session, fill_warnings: result.fill_warnings || [] });
-            if ((result.fill_warnings || []).length === 0) {
-                toast.success('All fields filled in');
-            }
-        } catch (e) {
-            if (e.message === 'Live session not found') { handleSessionGone(); return; }
-            toast.error(e.message || 'Autofill retry failed');
-        } finally {
-            setBusy(false);
-        }
-    }
-
     async function handlePrepare() {
         setBusy(true);
         try {
@@ -1349,7 +1324,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                         {liveAutomationEnabled && (
                             <Button size="sm" disabled={busy || liveConnecting} onClick={handleOpenLive}>
-                                {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Open live portal (auto-fill)'}
+                                {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Open live portal'}
                             </Button>
                         )}
                         <Button size="sm" variant={liveAutomationEnabled ? 'outline' : undefined} disabled={busy} onClick={handlePrepare}>
@@ -1402,7 +1377,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                     )}
                     {liveAutomationEnabled && status === 'pending_staff_submit' && !alreadyFiled && !liveSession && (
                         <Button size="sm" disabled={liveConnecting} onClick={handleOpenLive} style={{ marginBottom: 4 }}>
-                            {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Open live portal (auto-fill)'}
+                            {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Open live portal'}
                         </Button>
                     )}
                 </div>
@@ -1414,26 +1389,24 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                         fontSize: 11.5, color: C.ink, background: C.greenWash, border: `1px solid ${C.greenTint}`,
                         padding: '8px 10px', marginBottom: 8,
                     }}>
-                        <strong>Never enter the citizen's personal details</strong> (Aadhaar name, father's/spouse's
-                        name, caste, gender, DOB) — Needle doesn't collect that and never auto-fills it. Where the
-                        form asks for a citizen/filer name, use <strong>{liveSession.portal_filer_name || "the MP's name"}</strong> instead
-                        (auto-filled where a selector exists) — that's the filer of record, not the constituent. If
-                        the form offers "register anonymously" or similar, leave it set to Yes.
+                        Nothing on this form is auto-filled — log in, and if the portal's grievance-form page is
+                        configured you'll land there automatically; otherwise navigate to it yourself. Read the
+                        worksheet below and type each field in yourself.
+                        <div style={{ marginTop: 4 }}>
+                            <strong>Never enter the citizen's personal details</strong> (Aadhaar name, father's/spouse's
+                            name, caste, gender, DOB) — Needle doesn't collect that. Where the form asks for a
+                            citizen/filer name, use <strong>{liveSession.portal_filer_name || "the MP's name"}</strong> instead
+                            — that's the filer of record, not the constituent. If the form offers "register
+                            anonymously" or similar, leave it set to Yes.
+                        </div>
                     </div>
                     <GovtLiveBrowserView
                         wsPath={liveSession.ws_path}
                         viewport={liveSession.viewport}
                         onClose={handleCloseLive}
-                        onFillWarnings={(warnings) => setLive({ ...liveSessionRef.current, fill_warnings: warnings })}
                         onSessionGone={handleSessionGone}
                     />
-                    <div style={{ fontSize: 11.5, color: C.ink2, marginBottom: 10 }}>
-                        Note: Kindly log in to the portal
-                    </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                        <Button size="sm" variant="outline" disabled={busy} onClick={handleRetryAutofill}>
-                            {busy ? <Loader2 size={14} className="animate-spin" /> : 'Force a re-check now'}
-                        </Button>
                         <Button size="sm" variant="outline" disabled={busy} onClick={handleCaptureReference}>
                             {busy ? <Loader2 size={14} className="animate-spin" /> : 'Submitted — capture reference number'}
                         </Button>
@@ -1865,10 +1838,11 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     }
 
     // "Escalate" = forward this grievance to the government portal. Scrolls the
-    // Government Portal section into view and triggers the same live, auto-filled
-    // browser session GovtSyncSection's own "Open live portal" button starts —
-    // staff land on the portal's login/entry page, solve CAPTCHA/OTP themselves,
-    // and get auto-navigated + auto-filled from there (see browser_session.py).
+    // Government Portal section into view and triggers the same live browser
+    // session GovtSyncSection's own "Open live portal" button starts — staff
+    // land on the portal's login page, log in themselves, get auto-navigated
+    // to the grievance form where configured, then type everything in by
+    // hand using the AI worksheet as reference (see browser_session.py).
     function handleEscalate(item) {
         const target = item || current;
         const targetId = target?.id || current.id;

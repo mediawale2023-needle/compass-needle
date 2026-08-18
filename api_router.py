@@ -2503,20 +2503,22 @@ def backfill_case_refs(user=Depends(get_current_user)):
 # ─────────────────────────────────────────
 
 def _govt_live_automation_enabled() -> bool:
-    """Kill switch for live Playwright browser automation (opening the real
-    portal, auto-navigating, auto-filling). Off by default: every live
-    session runs from one shared EC2 IP for every tenant nationwide, is
-    detectable as automated by portal-side anti-bot systems, and we have
-    not verified any state portal's terms of use permit automated filing.
-    A block from one portal takes down govt-sync for every MP using it.
+    """Emergency kill switch for live Playwright browser sessions (opening
+    the real portal, staff logging in, auto-navigating to the grievance form
+    once logged in). On by default as of the product decision to keep this
+    but drop auto-filling grievance fields — see modules/govt_sync/
+    browser_session.py's module docstring for what the automation is now
+    scoped to (open + navigate only, nothing typed programmatically).
 
-    Read fresh on every call (not a module-level constant) so it can be
-    flipped via env var without a code deploy, and so tests can toggle it.
-    The AI-translated worksheet (department/subject/description) is
-    unaffected — staff can still prepare it and file manually. See
-    PROJECT_MEMORY.md for the risk writeup this decision is based on.
+    Every live session still runs from one shared EC2 IP for every tenant
+    nationwide and is detectable as automated by portal-side anti-bot
+    systems, so this stays available as an off switch if a specific portal
+    ever pushes back — flip GOVT_LIVE_AUTOMATION_ENABLED=false without a
+    redeploy. Read fresh on every call (not a module-level constant) so it
+    can be toggled live and so tests can control it. See PROJECT_MEMORY.md
+    for the full writeup.
     """
-    return os.getenv("GOVT_LIVE_AUTOMATION_ENABLED", "false").strip().lower() == "true"
+    return os.getenv("GOVT_LIVE_AUTOMATION_ENABLED", "true").strip().lower() == "true"
 
 
 class GovtSubmitRequest(BaseModel):
@@ -2914,9 +2916,12 @@ def _get_ws_user(token: str) -> dict | None:
 
 @router.post("/cases/{case_id}/govt/session/start")
 async def govt_start_live_session(case_id: int, body: GovtSessionStartRequest, user=Depends(get_current_user)):
-    """Open the real portal in a live, staff-controllable browser session with
-    every calibrated field already filled in. Returns a WebSocket path the
-    dashboard connects to for the live view + input relay."""
+    """Open the real portal in a live, staff-controllable browser session and
+    return a WebSocket path the dashboard connects to for the live view +
+    input relay. Staff log in themselves; if the portal's post-login form URL
+    is configured, the session auto-navigates there once. No field on that
+    form is auto-filled — the AI-drafted worksheet is returned separately for
+    staff to read and type in themselves during the same session."""
     tid = get_tenant_or_fail(user)
     case = _q_one(
         "SELECT id, category, raw_message, location, assembly, ward, govt_portal_id, "
@@ -2953,7 +2958,7 @@ async def govt_start_live_session(case_id: int, body: GovtSessionStartRequest, u
 
     from modules.govt_sync.browser_session import start_session, VIEWPORT
     try:
-        session = await start_session(tid, case_id, portal, submission, portal_contact_number, portal_filer_name)
+        session = await start_session(tid, case_id, portal)
     except RuntimeError as e:
         raise HTTPException(409, str(e))
     except Exception as e:
@@ -2961,14 +2966,13 @@ async def govt_start_live_session(case_id: int, body: GovtSessionStartRequest, u
         raise HTTPException(502, "Could not open the portal — try again in a moment")
 
     _log_govt_action(tid, case_id, "live_session_started", user.get("username"), payload={
-        "portal": portal["portal_name"], "session_id": session.session_id, "fill_warnings": session.fill_warnings,
+        "portal": portal["portal_name"], "session_id": session.session_id,
     })
 
     return {
         "success": True,
         "session_id": session.session_id,
         "ws_path": f"/api/govt/session/{session.session_id}/stream",
-        "fill_warnings": session.fill_warnings,
         "worksheet": submission,
         "portal_contact_number": portal_contact_number,
         "portal_filer_name": portal_filer_name,
@@ -3010,24 +3014,6 @@ async def govt_live_session_stream(websocket: WebSocket, session_id: str, token:
         logger.debug("Govt sync: live session stream error for %s: %s", session_id, e)
     finally:
         await detach_stream(session_id)
-
-
-@router.post("/cases/{case_id}/govt/session/{session_id}/autofill")
-async def govt_retry_autofill(case_id: int, session_id: str, user=Depends(get_current_user)):
-    """Re-run autofill against wherever the live page is right now. The
-    automatic attempt at session start happens before any staff interaction —
-    on OTP-bound portals where the grievance form is behind a citizen login
-    (confirmed true for Karnataka's iPGRS), there's nothing there yet at that
-    point. Staff log in and navigate to the real form themselves, then call
-    this once they're looking at it."""
-    tid = get_tenant_or_fail(user)
-    from modules.govt_sync.browser_session import get_session_meta, retry_autofill
-    meta = get_session_meta(session_id)
-    if not meta or meta["tenant_id"] != tid or meta["case_id"] != case_id:
-        raise HTTPException(404, "Live session not found")
-
-    warnings = await retry_autofill(session_id)
-    return {"fill_warnings": warnings or []}
 
 
 @router.post("/cases/{case_id}/govt/session/{session_id}/capture-reference")
