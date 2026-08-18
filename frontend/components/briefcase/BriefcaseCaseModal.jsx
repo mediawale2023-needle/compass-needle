@@ -1122,6 +1122,14 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         onGovtStateChange?.(caseId, govtState?.case || null);
     }, [caseId, govtState, onGovtStateChange]);
 
+    // Must be declared before useImperativeHandle — the dependency array
+    // evaluates during render. A later `const` was a TDZ ReferenceError and
+    // crashed the Briefcase case drawer (and the Vercel client bundle).
+    // Live Playwright automation is off by default (see api_router.py's
+    // _govt_live_automation_enabled docstring) — default to manual here too
+    // until /api/govt-portal confirms it's on.
+    const liveAutomationEnabled = resolvedPortal?.live_automation_enabled === true;
+
     // Exposed so Escalate (per-complaint row, or same-row footer on
     // single-complaint cases) can trigger this section's filing flow.
     // Rebind when caseId/govtState/liveAutomationEnabled change so a thread
@@ -1140,11 +1148,6 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     const hasPortal = !!govtState?.case?.govt_portal_id;
     const alreadyFiled = isGovtAlreadyFiled(govtState?.case);
     const supported = resolvedPortal?.supported ?? true; // don't flash "unsupported" before the first fetch resolves
-    // Live Playwright automation is off by default (see api_router.py's
-    // _govt_live_automation_enabled docstring for why) — default to manual
-    // here too until the backend confirms it's on, rather than flashing the
-    // live-session button before the first /api/govt-portal fetch resolves.
-    const liveAutomationEnabled = resolvedPortal?.live_automation_enabled === true;
 
     function setLive(session) {
         liveSessionRef.current = session;

@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-08-18
+- Request: Vercel preview showed a client-side Application error.
+- Summary: Opening a Briefcase case crashed because `GovtSyncSection` passed `liveAutomationEnabled` into `useImperativeHandle` before that `const` was declared (TDZ ReferenceError). Moved the declaration above the hook.
+- Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `TASK_LOG.md`
+- Risks or follow-ups: Needs a frontend deploy/push before compass-needle-lacd.vercel.app picks this up.
+
+- Date: 2026-08-18
 - Request: Escalate should open the govt portal live inside Needle and auto-navigate to the grievance form after login; drop auto-filling the grievance fields.
 - Summary: Superseded the same-day "turn off live automation" change above with a narrower one: live Playwright sessions (open the real portal inside Needle, stream it, auto-navigate to `field_schema.post_login_entry_path` once staff log in) are back on by default. What's permanently removed is auto-filling any grievance field — `_autofill()`, `_NEVER_AUTOFILL_KEYS`, and `retry_autofill()` are deleted from `modules/govt_sync/browser_session.py` entirely (not flagged off, not dead code — gone), along with the `POST /govt/session/{id}/autofill` endpoint and the "Force a re-check now" button. Staff read the AI worksheet (department/subject/description, shown as copy-paste fields) and type everything into the real form themselves during the live session. `GOVT_LIVE_AUTOMATION_ENABLED` still exists but now defaults `true` and is repurposed as an emergency off switch for the open+navigate step, not an autofill toggle (autofill has no toggle — it's not there to toggle).
 - Files touched: `modules/govt_sync/browser_session.py`, `api_router.py`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `tests/test_govt_duplicate_filing.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
