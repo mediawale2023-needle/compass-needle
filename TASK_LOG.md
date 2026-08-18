@@ -12,6 +12,18 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-08-18
+- Request: Turn off live govt-portal automation; staff use the manual worksheet workflow.
+- Summary: Live Playwright browser automation (`POST /govt/session/start`) now 403s unless `GOVT_LIVE_AUTOMATION_ENABLED=true` is set — defaults off. Reason: every live session runs from one shared EC2 IP for every tenant/state nationwide (a portal-side block or rate-limit hits every MP on that portal, not just one), the automation is fingerprintable by anti-bot systems (Playwright/CDP, and the input-relay path uses `insertText` rather than real per-keystroke events), and no state portal's terms of use for automated filing have been verified. `GET /api/govt-portal` now reports `live_automation_enabled` so Briefcase can hide the live-session buttons and route Escalate to `handlePrepare()` (the AI worksheet) instead of `handleOpenLive()` while the flag is off. The already-filed 409 guard still takes priority over the automation-off 403 — staff must see an existing reference number over a generic "automation is off" message. Worksheet generation (AI department/subject/description) and manual copy-paste filing are unaffected and remain the primary path.
+- Files touched: `api_router.py`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `tests/test_govt_duplicate_filing.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Filer-identity copy (MP's name still shown as "filer/citizen name to enter on portal" in the worksheet) and AI-generated `description` PII scrubbing remain unresolved — deferred, not part of this patch. Re-enabling automation later should happen per-portal (starting with the most-verified ones, e.g. CPGRAMS) once ToS/rate-limiting posture is actually confirmed, not as a single global flip.
+
+- Date: 2026-08-18
+- Request: Duplicate-filing guards for govt Escalate.
+- Summary: Live portal session start now 409s when a case already has a government reference or a post-submit `govt_status`. Submit is idempotent on the same reference and 409s on a different one. Briefcase hides Escalate for already-filed complaints and shows the stored ref instead.
+- Files touched: `api_router.py`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `tests/test_govt_duplicate_filing.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Filer-identity copy, description PII scrub, and portal `verification_status` gating remain out of this patch.
+
 - Date: 2026-08-17
 - Request: Old complaints still jump to the top of All cases on Escalate.
 - Summary: All cases `Newest first` now orders by received `created_at` after thread grouping, not last `updated_at`. The visible thread row is the latest received complaint. Staff Escalate can no longer pull an older case to the top of All cases.

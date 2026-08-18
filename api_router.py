@@ -1858,7 +1858,7 @@ def get_case(case_id: int, user=Depends(get_current_user)):
                        COALESCE(location, case_metadata->>'matched_value') AS location,
                        COALESCE(assembly, case_metadata->>'assembly_constituency') AS assembly,
                        case_metadata, is_critical, created_at, updated_at, notes_for_staff,
-                       response_to_citizen, assigned_to
+                       response_to_citizen, assigned_to, govt_status, govt_reference_number
                 FROM cases
                 WHERE tenant_id = :tid
                   AND user_phone = :phone
@@ -1904,6 +1904,8 @@ def get_case(case_id: int, user=Depends(get_current_user)):
             "assigned_to": member.get("assigned_to"),
             "notes_for_staff": member.get("notes_for_staff"),
             "response_to_citizen": member.get("response_to_citizen"),
+            "govt_status": member.get("govt_status"),
+            "govt_reference_number": member.get("govt_reference_number"),
             "case_metadata": _parse_meta(member.get("case_metadata")),
         }
         for member in sorted(thread_members, key=lambda item: _thread_sort_value(item, "created_at"), reverse=True)
@@ -2500,8 +2502,50 @@ def backfill_case_refs(user=Depends(get_current_user)):
 # See modules/govt_sync/ for the pipeline.
 # ─────────────────────────────────────────
 
+def _govt_live_automation_enabled() -> bool:
+    """Kill switch for live Playwright browser automation (opening the real
+    portal, auto-navigating, auto-filling). Off by default: every live
+    session runs from one shared EC2 IP for every tenant nationwide, is
+    detectable as automated by portal-side anti-bot systems, and we have
+    not verified any state portal's terms of use permit automated filing.
+    A block from one portal takes down govt-sync for every MP using it.
+
+    Read fresh on every call (not a module-level constant) so it can be
+    flipped via env var without a code deploy, and so tests can toggle it.
+    The AI-translated worksheet (department/subject/description) is
+    unaffected — staff can still prepare it and file manually. See
+    PROJECT_MEMORY.md for the risk writeup this decision is based on.
+    """
+    return os.getenv("GOVT_LIVE_AUTOMATION_ENABLED", "false").strip().lower() == "true"
+
+
 class GovtSubmitRequest(BaseModel):
     reference_number: str
+
+
+_FILED_GOVT_STATUSES = frozenset({
+    "submitted", "under_review", "escalated", "resolved", "rejected",
+})
+
+
+def _govt_stored_reference(value) -> str:
+    return (value or "").strip()
+
+
+def _govt_already_filed(govt_status, govt_reference_number) -> bool:
+    """True once a portal filing is on record — a reference number, or a
+    post-submit status even if the number was later cleared."""
+    if _govt_stored_reference(govt_reference_number):
+        return True
+    return (govt_status or "").strip().lower() in _FILED_GOVT_STATUSES
+
+
+def _govt_already_filed_detail(govt_status, govt_reference_number) -> str:
+    ref = _govt_stored_reference(govt_reference_number)
+    if ref:
+        return f"This case is already filed on the government portal (reference {ref})."
+    status = (govt_status or "").strip() or "submitted"
+    return f"This case is already filed on the government portal (status {status})."
 
 
 def _log_govt_action(tenant_id: int, case_id: int, action: str, actor_username: str | None, payload: dict | None = None):
@@ -2577,6 +2621,7 @@ def get_resolved_govt_portal(user=Depends(get_current_user)):
     return {
         "state": state,
         "supported": portal is not None,
+        "live_automation_enabled": _govt_live_automation_enabled(),
         "portal": (
             {
                 "id": portal["id"], "portal_name": portal["portal_name"], "base_url": portal["base_url"],
@@ -2732,13 +2777,26 @@ def govt_submit_case(case_id: int, body: GovtSubmitRequest, user=Depends(get_cur
         raise HTTPException(400, "Reference number is required")
 
     case = _q_one(
-        "SELECT id, govt_portal_id, govt_department FROM cases WHERE id = :cid AND tenant_id = :tid",
+        """SELECT id, govt_portal_id, govt_department, govt_reference_number, govt_status, status
+           FROM cases WHERE id = :cid AND tenant_id = :tid""",
         {"cid": case_id, "tid": tid},
     )
     if not case:
         raise HTTPException(404, "Case not found")
     if not case.get("govt_portal_id"):
         raise HTTPException(400, "Prepare this case for a govt portal first")
+
+    existing_ref = _govt_stored_reference(case.get("govt_reference_number"))
+    if existing_ref:
+        if existing_ref == ref:
+            return {
+                "success": True,
+                "govt_status": case.get("govt_status") or "submitted",
+                "govt_reference_number": existing_ref,
+                "status": case.get("status") or "in_progress",
+                "idempotent": True,
+            }
+        raise HTTPException(409, _govt_already_filed_detail(case.get("govt_status"), existing_ref))
 
     with engine.begin() as conn:
         conn.execute(
@@ -2861,12 +2919,24 @@ async def govt_start_live_session(case_id: int, body: GovtSessionStartRequest, u
     dashboard connects to for the live view + input relay."""
     tid = get_tenant_or_fail(user)
     case = _q_one(
-        "SELECT id, category, raw_message, location, assembly, ward, govt_portal_id, govt_submission_worksheet "
+        "SELECT id, category, raw_message, location, assembly, ward, govt_portal_id, "
+        "govt_submission_worksheet, govt_status, govt_reference_number "
         "FROM cases WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)",
         {"cid": case_id, "tid": tid},
     )
     if not case:
         raise HTTPException(404, "Case not found")
+    # Already-filed takes priority over the automation gate below: if a
+    # reference is on record, staff need to see that fact (and the reference
+    # itself) regardless of whether live automation happens to be on or off.
+    if _govt_already_filed(case.get("govt_status"), case.get("govt_reference_number")):
+        raise HTTPException(409, _govt_already_filed_detail(case.get("govt_status"), case.get("govt_reference_number")))
+    if not _govt_live_automation_enabled():
+        raise HTTPException(
+            403,
+            "Automated portal filing is currently off. Use “Prepare worksheet” to get the "
+            "AI-drafted department/subject/description, then file it on the portal yourself.",
+        )
 
     portal, state = _resolve_govt_portal_for_tenant(tid)
     if not portal:
