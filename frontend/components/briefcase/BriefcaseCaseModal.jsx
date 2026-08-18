@@ -1125,9 +1125,10 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     // Must be declared before useImperativeHandle — the dependency array
     // evaluates during render. A later `const` was a TDZ ReferenceError and
     // crashed the Briefcase case drawer (and the Vercel client bundle).
-    // Live Playwright automation is off by default (see api_router.py's
-    // _govt_live_automation_enabled docstring) — default to manual here too
-    // until /api/govt-portal confirms it's on.
+    // Live Playwright session automation defaults on (see api_router.py's
+    // _govt_live_automation_enabled docstring) — this just defaults to
+    // manual here too for the brief window before the first /api/govt-portal
+    // fetch resolves, rather than flashing the live-session button.
     const liveAutomationEnabled = resolvedPortal?.live_automation_enabled === true;
 
     // Exposed so Escalate (per-complaint row, or same-row footer on
