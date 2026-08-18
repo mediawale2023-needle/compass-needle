@@ -200,35 +200,30 @@ def test_submit_different_reference_conflicts():
     assert stored == "KEEP-ME"
 
 
-def test_session_start_allowed_when_pending_without_reference():
+def test_session_start_allowed_by_default_when_pending_without_reference():
+    # No GOVT_LIVE_AUTOMATION_ENABLED set — must default to on. Live sessions
+    # (open the portal, stream it, auto-navigate post-login) are the intended
+    # default behavior; only autofilling grievance fields was removed, not
+    # opening the session itself. start_session() no longer takes worksheet/
+    # contact/filer args — nothing is auto-filled, so nothing to pass in.
     _seed_database()
+    os.environ.pop("GOVT_LIVE_AUTOMATION_ENABLED", None)
     fake = MagicMock()
     fake.session_id = "sess-pending"
-    fake.fill_warnings = []
-    with patch.dict(os.environ, {"GOVT_LIVE_AUTOMATION_ENABLED": "true"}), \
-            patch("modules.govt_sync.browser_session.start_session", new_callable=AsyncMock, return_value=fake) as start_session, \
+    with patch("modules.govt_sync.browser_session.start_session", new_callable=AsyncMock, return_value=fake) as start_session, \
             patch("api_router._log_govt_action"):
         resp = client.post("/api/cases/12/govt/session/start", headers=_auth_headers(), json={})
     assert resp.status_code == 200, resp.text
     assert resp.json()["session_id"] == "sess-pending"
     start_session.assert_awaited_once()
-
-
-def test_session_start_403_when_automation_disabled_by_default():
-    # No GOVT_LIVE_AUTOMATION_ENABLED set — must default to off. A blocked
-    # portal IP takes down live filing for every tenant on that portal, and
-    # we haven't verified any state portal's ToS permits automated filing
-    # (see PROJECT_MEMORY.md), so the safe default is manual-only.
-    _seed_database()
-    os.environ.pop("GOVT_LIVE_AUTOMATION_ENABLED", None)
-    with patch("modules.govt_sync.browser_session.start_session", new_callable=AsyncMock) as start_session:
-        resp = client.post("/api/cases/12/govt/session/start", headers=_auth_headers(), json={})
-    assert resp.status_code == 403, resp.text
-    assert "off" in resp.json()["detail"].lower()
-    start_session.assert_not_called()
+    # Confirms no worksheet/PII data is threaded into the browser session —
+    # start_session(tid, case_id, portal) is the entire call signature now.
+    assert len(start_session.await_args.args) == 3
 
 
 def test_session_start_403_when_automation_explicitly_disabled():
+    # Emergency off switch — e.g. a specific portal starts blocking the
+    # shared EC2 IP. Does not require redeploying, just flipping the env var.
     _seed_database()
     with patch.dict(os.environ, {"GOVT_LIVE_AUTOMATION_ENABLED": "false"}), \
             patch("modules.govt_sync.browser_session.start_session", new_callable=AsyncMock) as start_session:
@@ -239,23 +234,24 @@ def test_session_start_403_when_automation_explicitly_disabled():
 
 def test_govt_portal_reports_live_automation_flag():
     _seed_database()
-    with patch.dict(os.environ, {"GOVT_LIVE_AUTOMATION_ENABLED": "true"}):
-        resp = client.get("/api/govt-portal", headers=_auth_headers())
+    os.environ.pop("GOVT_LIVE_AUTOMATION_ENABLED", None)
+    resp = client.get("/api/govt-portal", headers=_auth_headers())
     assert resp.status_code == 200, resp.text
     assert resp.json()["live_automation_enabled"] is True
 
-    os.environ.pop("GOVT_LIVE_AUTOMATION_ENABLED", None)
-    resp = client.get("/api/govt-portal", headers=_auth_headers())
+    with patch.dict(os.environ, {"GOVT_LIVE_AUTOMATION_ENABLED": "false"}):
+        resp = client.get("/api/govt-portal", headers=_auth_headers())
     assert resp.status_code == 200, resp.text
     assert resp.json()["live_automation_enabled"] is False
 
 
-def test_already_filed_409_takes_priority_over_automation_off():
-    # Case 10 already has a reference on record. Even with automation off,
-    # staff must see the "already filed" detail (with the reference), not a
-    # generic "automation is off" message that hides the more important fact.
+def test_already_filed_409_takes_priority_over_automation_disabled():
+    # Case 10 already has a reference on record. Even with the emergency
+    # switch off, staff must see the "already filed" detail (with the
+    # reference), not a generic "automation is off" message that hides the
+    # more important fact.
     _seed_database()
-    os.environ.pop("GOVT_LIVE_AUTOMATION_ENABLED", None)
-    resp = client.post("/api/cases/10/govt/session/start", headers=_auth_headers(), json={})
+    with patch.dict(os.environ, {"GOVT_LIVE_AUTOMATION_ENABLED": "false"}):
+        resp = client.post("/api/cases/10/govt/session/start", headers=_auth_headers(), json={})
     assert resp.status_code == 409, resp.text
     assert "PORTAL-111" in resp.json()["detail"]

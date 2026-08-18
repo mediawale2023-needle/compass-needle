@@ -7,7 +7,7 @@ persistent machine, see modules/govt_sync/__init__.py). One shared headless
 Chromium process is kept warm; each "live session" is an isolated browser
 context (own cookies/state) for one case's filing attempt.
 
-What this module does:
+What this module does — and deliberately does NOT do:
   0. Forces English on every page it opens: sets the browser context's
      locale/Accept-Language (works for portals that honor standard content
      negotiation) and, on every navigation, clicks any visible "English"-type
@@ -15,34 +15,34 @@ What this module does:
      Karnataka's iPGRS, which opened in Kannada regardless of locale). Both
      are best-effort and never block the session if a portal doesn't
      cooperate — see _ensure_english().
-  1. Opens the portal, auto-fills every field the AI translated (department,
-     subject, description, ...) using admin-configured CSS selectors —
-     see modules/data/govt_portals.json `field_schema.selectors`. Fields with
-     no selector configured yet are skipped and reported as a warning, not a
-     crash — a portal with no selectors calibrated is still fully usable in
-     "staff types everything by hand" mode, autofill just doesn't happen.
-  2. Keeps watching after that first attempt: `_on_page_load` fires on every
-     subsequent navigation (login redirect, staff clicking through to the
-     real form, ...) and re-runs autofill automatically, no staff action
-     needed. Many OTP-bound portals (confirmed true for Karnataka's iPGRS)
-     put the actual grievance form behind citizen login — the form doesn't
-     exist yet when the session opens, so this is what makes autofill happen
-     the moment staff finish logging in rather than never. If a portal's
-     post-login form URL is known (field_schema.post_login_entry_path,
-     admin-configured, empty by default), the system navigates straight
-     there the first time it detects a real navigation, instead of waiting
-     for staff to click through to it themselves.
+  1. Opens the portal and holds the session open for a staff viewer to
+     attach and log in for real (credentials, CAPTCHA, OTP — all human).
+  2. Keeps watching after that: `_on_page_load` fires on every subsequent
+     navigation (login redirect, ...). If a portal's post-login grievance
+     form URL is known (field_schema.post_login_entry_path, admin-configured,
+     empty by default), the system navigates straight there the first time
+     it detects a real navigation after login — "log in, land on the form"
+     with no staff click needed to get there. That is the extent of the
+     automation: no field on that form is ever touched programmatically.
   3. Streams the live page to the staff dashboard as a sequence of JPEG
      frames over CDP's Page.startScreencast (api_router.py relays these over
      a WebSocket) and relays the staff's mouse/keyboard back into the real
-     page via Playwright's own page.mouse / page.keyboard — so solving the
-     CAPTCHA, entering the OTP, and clicking Submit all happen for real, on
-     the real portal, by the human. Autofill updates from #2 are pushed over
-     this same WebSocket as they happen.
+     page via Playwright's own page.mouse / page.keyboard — so logging in,
+     solving the CAPTCHA/OTP, filling in every grievance field, and clicking
+     Submit all happen for real, on the real portal, typed by the human.
   4. On request, tries to auto-read the reference number the portal shows
      after submission (selector or regex, both admin-configurable and both
      optional) — falls back to staff pasting it in manually via the existing
      POST /api/cases/{id}/govt/submit endpoint if that doesn't find anything.
+
+  This module used to also auto-fill grievance fields (department, subject,
+  description, filer name, ...) from admin-configured CSS selectors. That
+  was removed by product decision, not because it broke: auto-typing values
+  into a form staff haven't reviewed compounds the fingerprinting/blast-
+  radius risk (see PROJECT_MEMORY.md) for a step that just isn't necessary —
+  staff can read the AI worksheet fields (shown as copy-paste text in
+  Briefcase) and type them in themselves during the same live session. Keep
+  it that way unless a fresh, explicit decision reintroduces autofill.
 
 Concurrency is capped (GOVT_SYNC_MAX_LIVE_SESSIONS, default 3) because this
 is one real EC2 box, not an autoscaled fleet — headless Chromium is not free.
@@ -112,17 +112,13 @@ class LiveSession:
     context: object   # playwright.async_api.BrowserContext
     page: object       # playwright.async_api.Page
     cdp: object        # playwright.async_api.CDPSession
-    worksheet: dict = field(default_factory=dict)              # kept so autofill can re-run later
-    portal_contact_number: str | None = None
-    filer_name: str | None = None   # MP/aspirant's own name — the filer of record, never the constituent's
-    fill_warnings: list = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_activity_at: float = field(default_factory=time.time)
     streaming: bool = False
     ws = None
-    send_frame = None          # set by attach_stream(); lets _on_page_load push fill_warnings updates live
+    send_frame = None
     navigated_to_form: bool = False   # guards the one auto-navigate-to-post-login-form attempt
-    autofill_running: bool = False    # re-entrancy guard for the "load" handler
+    nav_running: bool = False         # re-entrancy guard for the "load" handler
     last_seen_url: str | None = None
 
 
@@ -153,11 +149,8 @@ async def active_session_count() -> int:
         return len(_sessions)
 
 
-async def start_session(
-    tenant_id: int, case_id: int, portal: dict, worksheet: dict,
-    portal_contact_number: str | None, filer_name: str | None = None,
-) -> LiveSession:
-    """Open the portal, auto-fill what we can, and hold it open for a staff viewer to attach."""
+async def start_session(tenant_id: int, case_id: int, portal: dict) -> LiveSession:
+    """Open the portal and hold it open for a staff viewer to attach and log in."""
     async with _lock:
         if len(_sessions) >= MAX_CONCURRENT_SESSIONS:
             raise RuntimeError(
@@ -183,7 +176,6 @@ async def start_session(
     session_id = uuid.uuid4().hex
     session = LiveSession(
         session_id=session_id, tenant_id=tenant_id, case_id=case_id, portal=portal, context=context, page=page, cdp=cdp,
-        worksheet=worksheet, portal_contact_number=portal_contact_number, filer_name=filer_name,
     )
 
     entry_path = field_schema.get("entry_path") or ""
@@ -195,20 +187,12 @@ async def start_session(
         raise RuntimeError(f"Could not open {portal['portal_name']}: {e}")
 
     await _ensure_english(page)
-
-    # First attempt, right after landing on entry_url. Many OTP-bound portals
-    # (Karnataka's iPGRS included) put the actual grievance form behind a
-    # citizen login/registration gate — there's nothing to fill in yet at
-    # entry_url in that case, so this first pass often reports every field as
-    # "no selector" not because none is configured, but because the fields
-    # don't exist on this page at all.
-    session.fill_warnings = await _autofill(page, field_schema, worksheet, portal_contact_number, filer_name)
     session.last_seen_url = page.url
 
-    # From here on, every real navigation (login redirect, staff clicking to
-    # the grievance form, ...) re-triggers this automatically — no manual
-    # "retry" click needed. Registered *after* the initial goto/autofill
-    # above so it doesn't double-fire on the page we just handled by hand.
+    # From here on, every real navigation (login redirect, staff clicking
+    # around, ...) re-triggers this automatically. Registered *after* the
+    # initial goto above so it doesn't double-fire on the page we just
+    # handled by hand.
     def _on_load(_=None):
         asyncio.create_task(_on_page_load(session))
 
@@ -224,19 +208,18 @@ async def _on_page_load(session: "LiveSession"):
     """Fires on every navigation after the first. If the portal has a known
     post-login form path configured (field_schema.post_login_entry_path) and
     we haven't gone there yet this session, navigate straight to it once —
-    that's the "system directly navigates to the form" behavior once an
-    admin has actually captured that URL. Either way, re-run autofill
-    against wherever the page ends up and push the result to the live
-    dashboard over the WebSocket, so staff see it update the moment they
-    finish logging in — they never have to ask for it.
+    that's the "log in, land on the form" behavior once an admin has
+    actually captured that URL. No field on that form is ever touched
+    programmatically — this function's only job is getting staff to the
+    right page, not filling it in.
     """
-    if session.autofill_running:
+    if session.nav_running:
         return  # a previous load is still being handled; this one will get picked up by the next event
-    session.autofill_running = True
+    session.nav_running = True
     try:
         # Let the page actually settle — "load" can fire before late-rendered
-        # form fields exist, especially on portals that finish building the
-        # DOM client-side after the base document loads.
+        # content exists, especially on portals that finish building the DOM
+        # client-side after the base document loads.
         await asyncio.sleep(0.8)
 
         page = session.page
@@ -262,103 +245,10 @@ async def _on_page_load(session: "LiveSession"):
                     logger.info(f"Govt sync: auto-navigated session {session.session_id} to configured post-login form")
                 except Exception as e:
                     logger.warning(f"Govt sync: auto-navigate to post_login_entry_path failed for {session.session_id}: {e}")
-                return  # the goto above triggers its own "load" event, which re-runs autofill below
-
-        session.fill_warnings = await _autofill(page, field_schema, session.worksheet, session.portal_contact_number, session.filer_name)
-        if session.send_frame:
-            try:
-                await session.send_frame({"type": "fill_warnings", "warnings": session.fill_warnings, "url": current_url})
-            except Exception:
-                pass  # nosec B110 — client likely disconnected; the live-session state itself is still correct
     except Exception as e:
         logger.debug(f"Govt sync: _on_page_load failed for {session.session_id}: {e}")
     finally:
-        session.autofill_running = False
-
-
-async def _autofill(
-    page, field_schema: dict, worksheet: dict, portal_contact_number: str | None, filer_name: str | None = None,
-) -> list[str]:
-    """Best-effort autofill using admin-configured selectors. Every field that
-    fails (no selector configured yet, or the selector doesn't match — the
-    portal changed its DOM) is reported, not swallowed, so staff know exactly
-    what to type by hand instead.
-
-    Deliberately never touches the citizen's personal/Aadhaar-linked details
-    (name, father's/spouse's name, caste, gender, DOB, ...) — Needle's own
-    data boundary is that citizen-identifying details stay inside Needle;
-    only what's needed to route/describe the grievance goes to the
-    government system (see modules/govt_sync/__init__.py and the original
-    architecture spec's data-minimisation requirement). `values` below is
-    the actual enforcement: it's not just that no selector exists yet for
-    these fields, it's that they're never candidates for autofill at all,
-    and `_NEVER_AUTOFILL_KEYS` below is a second, independent guard against
-    a selector for one of them ever being wired in by mistake later.
-
-    `filer_name` is the one identity field that IS filled in — the MP/
-    aspirant's own name (tenant_profiles.mp_name), submitted as the filer of
-    record where a portal has a citizen/filer-name field. Most portals offer
-    an "anonymous filing" mode for reps filing on someone else's behalf
-    (confirmed present, defaulted to Yes, on Karnataka's iPGRS) but still ask
-    for *someone's* name as the account holder — this is deliberately never
-    the constituent's, same rule the phone number already follows.
-    """
-    _NEVER_AUTOFILL_KEYS = {
-        "citizen_name", "applicant_name", "name", "father_name", "spouse_name",
-        "father_spouse_name", "caste", "gender", "dob", "date_of_birth",
-        "aadhar", "aadhaar", "aadhaar_number", "aadhar_number",
-    }
-    selectors = {k: v for k, v in (field_schema.get("selectors") or {}).items() if k not in _NEVER_AUTOFILL_KEYS}
-    values = {
-        "department": worksheet.get("department"),
-        "district": worksheet.get("district"),
-        "subdistrict_or_ulb": worksheet.get("subdistrict_or_ulb"),
-        "subject": worksheet.get("subject"),
-        "description": worksheet.get("description"),
-        "applicant_mobile": portal_contact_number,  # Needle-managed/PA number — never the constituent's own
-        "filer_name": filer_name,                   # MP/aspirant's own name — never the constituent's own
-    }
-    assert not (set(values.keys()) & _NEVER_AUTOFILL_KEYS), "citizen PII fields must never be autofill candidates"
-    warnings = []
-    for key, value in values.items():
-        if not value:
-            continue
-        selector = selectors.get(key)
-        if not selector:
-            warnings.append(f"No selector configured for '{key}' yet — enter it manually: {value}")
-            continue
-        try:
-            locator = page.locator(selector).first
-            tag = await locator.evaluate("el => el.tagName.toLowerCase()")
-            if tag == "select":
-                await locator.select_option(label=str(value))
-            else:
-                await locator.fill(str(value))
-        except Exception as e:
-            warnings.append(f"Auto-fill failed for '{key}' — enter it manually: {value} ({e})")
-    return warnings
-
-
-async def retry_autofill(session_id: str) -> list[str] | None:
-    """Re-run autofill against wherever the page is *right now*.
-
-    Exists because start_session()'s one-shot attempt happens immediately at
-    entry_url, before a staff member has done anything — on an OTP-bound
-    portal where the grievance form only exists after citizen login (see
-    module docstring), that first pass has nothing to find. Staff log in and
-    navigate to the real form themselves during the live session, then call
-    this (POST /api/cases/{id}/govt/session/{id}/autofill) once they're
-    looking at it, so autofill gets a real shot at whatever page selectors
-    were actually calibrated against.
-    """
-    async with _lock:
-        session = _sessions.get(session_id)
-    if not session:
-        return None
-    session.last_activity_at = time.time()
-    field_schema = session.portal.get("field_schema") or {}
-    session.fill_warnings = await _autofill(session.page, field_schema, session.worksheet, session.portal_contact_number, session.filer_name)
-    return session.fill_warnings
+        session.nav_running = False
 
 
 async def attach_stream(session_id: str, websocket, send_frame) -> LiveSession | None:
@@ -369,7 +259,7 @@ async def attach_stream(session_id: str, websocket, send_frame) -> LiveSession |
         return None
 
     session.ws = websocket
-    session.send_frame = send_frame  # also used by _on_page_load to push fill_warnings updates
+    session.send_frame = send_frame
     session.streaming = True
     session.last_activity_at = time.time()
 
@@ -486,7 +376,7 @@ def get_session_meta(session_id: str) -> dict | None:
         return None
     return {
         "session_id": session.session_id, "tenant_id": session.tenant_id, "case_id": session.case_id,
-        "fill_warnings": session.fill_warnings, "viewport": VIEWPORT, "otp_bound": session.portal.get("otp_bound"),
+        "viewport": VIEWPORT, "otp_bound": session.portal.get("otp_bound"),
         "portal_name": session.portal.get("portal_name"),
     }
 
