@@ -1130,15 +1130,28 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     }, [caseId, govtState, onGovtStateChange]);
 
     // Exposed so Escalate (per-complaint row, or same-row footer on
-    // single-complaint cases) can trigger this section's live-session flow.
-    // Rebind when caseId changes so a thread switch opens the right case.
-    useImperativeHandle(ref, () => ({ openLiveSession: () => handleOpenLive() }), [caseId, govtState]);
+    // single-complaint cases) can trigger this section's filing flow.
+    // Rebind when caseId/govtState/liveAutomationEnabled change so a thread
+    // switch opens the right case and this always reflects the current
+    // automation-enabled state. While live automation is off, Escalate
+    // prepares the AI worksheet instead of opening a browser session —
+    // same one-click entry point staff already know, different destination.
+    useImperativeHandle(
+        ref,
+        () => ({ openLiveSession: () => (liveAutomationEnabled ? handleOpenLive() : handlePrepare()) }),
+        [caseId, govtState, liveAutomationEnabled],
+    );
 
     if (!caseId) return null;
     const status = govtState?.case?.govt_status || 'not_forwarded';
     const hasPortal = !!govtState?.case?.govt_portal_id;
     const alreadyFiled = isGovtAlreadyFiled(govtState?.case);
     const supported = resolvedPortal?.supported ?? true; // don't flash "unsupported" before the first fetch resolves
+    // Live Playwright automation is off by default (see api_router.py's
+    // _govt_live_automation_enabled docstring for why) — default to manual
+    // here too until the backend confirms it's on, rather than flashing the
+    // live-session button before the first /api/govt-portal fetch resolves.
+    const liveAutomationEnabled = resolvedPortal?.live_automation_enabled === true;
 
     function setLive(session) {
         liveSessionRef.current = session;
@@ -1326,14 +1339,21 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                     ⚠ Portal URL confirmed, but its department list isn't mapped yet — preparing a case here will show an error until an admin sets that up.
                                 </div>
                             )}
+                            {!liveAutomationEnabled && (
+                                <div style={{ color: C.ink3, marginTop: 4 }}>
+                                    Automated filing is off — prepare the AI worksheet below, then file it on the portal yourself.
+                                </div>
+                            )}
                         </div>
                     )}
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <Button size="sm" disabled={busy || liveConnecting} onClick={handleOpenLive}>
-                            {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Open live portal (auto-fill)'}
-                        </Button>
-                        <Button size="sm" variant="outline" disabled={busy} onClick={handlePrepare}>
-                            {busy ? <Loader2 size={14} className="animate-spin" /> : 'Worksheet only'}
+                        {liveAutomationEnabled && (
+                            <Button size="sm" disabled={busy || liveConnecting} onClick={handleOpenLive}>
+                                {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Open live portal (auto-fill)'}
+                            </Button>
+                        )}
+                        <Button size="sm" variant={liveAutomationEnabled ? 'outline' : undefined} disabled={busy} onClick={handlePrepare}>
+                            {busy ? <Loader2 size={14} className="animate-spin" /> : (liveAutomationEnabled ? 'Worksheet only' : 'Prepare worksheet')}
                         </Button>
                     </div>
                 </div>
@@ -1380,7 +1400,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                     {worksheet?.staff_action_note && (
                         <div style={{ fontSize: 11, color: C.ink2, marginBottom: 10, fontStyle: 'italic' }}>{worksheet.staff_action_note}</div>
                     )}
-                    {status === 'pending_staff_submit' && !alreadyFiled && !liveSession && (
+                    {liveAutomationEnabled && status === 'pending_staff_submit' && !alreadyFiled && !liveSession && (
                         <Button size="sm" disabled={liveConnecting} onClick={handleOpenLive} style={{ marginBottom: 4 }}>
                             {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Open live portal (auto-fill)'}
                         </Button>
