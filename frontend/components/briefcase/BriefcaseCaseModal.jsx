@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Loader2, Send } from 'lucide-react';
 import { apiGet, apiPatch, apiPost, API_BASE, getAuthToken } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
@@ -886,24 +886,40 @@ function ThreadCasesSection({ threadCases, activeCaseId, onSelectCase, onReplyCa
                                             Resolve
                                         </button>
                                     )}
-                                    <button
-                                        type="button"
-                                        onClick={() => onEscalate(item)}
-                                        aria-label="Escalate"
-                                        style={{
+                                    {isGovtAlreadyFiled(item) ? (
+                                        <span style={{
                                             padding: '5px 10px',
-                                            background: C.saffron,
-                                            color: '#F5EFE0',
-                                            border: 'none',
-                                            cursor: 'pointer',
                                             fontSize: 10.5,
                                             fontWeight: 700,
                                             letterSpacing: '0.04em',
                                             textTransform: 'uppercase',
-                                        }}
-                                    >
-                                        Escalate
-                                    </button>
+                                            color: C.ink2,
+                                            border: `1px solid ${C.hair}`,
+                                        }}>
+                                            {item.govt_reference_number
+                                                ? `Ref ${item.govt_reference_number}`
+                                                : 'Already filed'}
+                                        </span>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => onEscalate(item)}
+                                            aria-label="Escalate"
+                                            style={{
+                                                padding: '5px 10px',
+                                                background: C.saffron,
+                                                color: '#F5EFE0',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                fontSize: 10.5,
+                                                fontWeight: 700,
+                                                letterSpacing: '0.04em',
+                                                textTransform: 'uppercase',
+                                            }}
+                                        >
+                                            Escalate
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -931,6 +947,14 @@ const GOVT_STATUS_LABEL = {
     resolved: 'Resolved by department',
     rejected: 'Rejected by department',
 };
+
+function isGovtAlreadyFiled(item) {
+    if (!item) return false;
+    if (String(item.govt_reference_number || '').trim()) return true;
+    return ['submitted', 'under_review', 'escalated', 'resolved', 'rejected'].includes(
+        String(item.govt_status || '').toLowerCase(),
+    );
+}
 
 function GovtSyncCopyField({ label, value }) {
     const toast = useToast();
@@ -1067,7 +1091,7 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onFillWarnings, onSess
     );
 }
 
-const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSubmitted }, ref) {
+const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSubmitted, onGovtStateChange }, ref) {
     const toast = useToast();
     // The portal a tenant can use is derived server-side from tenant -> constituency
     // -> state (tenant_profiles.state) — never a staff choice. This is a read-only
@@ -1101,14 +1125,19 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         apiGet('/api/govt-portal').then(setResolvedPortal).catch(() => setResolvedPortal(null));
     }, []);
 
+    useEffect(() => {
+        onGovtStateChange?.(caseId, govtState?.case || null);
+    }, [caseId, govtState, onGovtStateChange]);
+
     // Exposed so Escalate (per-complaint row, or same-row footer on
     // single-complaint cases) can trigger this section's live-session flow.
     // Rebind when caseId changes so a thread switch opens the right case.
-    useImperativeHandle(ref, () => ({ openLiveSession: () => handleOpenLive() }), [caseId]);
+    useImperativeHandle(ref, () => ({ openLiveSession: () => handleOpenLive() }), [caseId, govtState]);
 
     if (!caseId) return null;
     const status = govtState?.case?.govt_status || 'not_forwarded';
     const hasPortal = !!govtState?.case?.govt_portal_id;
+    const alreadyFiled = isGovtAlreadyFiled(govtState?.case);
     const supported = resolvedPortal?.supported ?? true; // don't flash "unsupported" before the first fetch resolves
 
     function setLive(session) {
@@ -1129,6 +1158,13 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     }
 
     async function handleOpenLive() {
+        const storedRef = String(govtState?.case?.govt_reference_number || '').trim();
+        if (isGovtAlreadyFiled(govtState?.case)) {
+            toast.error(storedRef
+                ? `This case is already filed on the government portal (reference ${storedRef}).`
+                : 'This case is already filed on the government portal.');
+            return;
+        }
         setLiveConnecting(true);
         try {
             const result = await apiPost(`/api/cases/${caseId}/govt/session/start`, {});
@@ -1137,6 +1173,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
             const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
             setGovtState(refreshed);
         } catch (e) {
+            setLive(null);
             toast.error(e.message || 'Could not open a live session');
         } finally {
             setLiveConnecting(false);
@@ -1278,7 +1315,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                 </span>
             </div>
 
-            {!hasPortal && supported && (
+            {!hasPortal && supported && !alreadyFiled && (
                 <div>
                     {resolvedPortal?.portal && (
                         <div style={{ fontSize: 11.5, color: C.ink2, marginBottom: 8 }}>
@@ -1343,7 +1380,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                     {worksheet?.staff_action_note && (
                         <div style={{ fontSize: 11, color: C.ink2, marginBottom: 10, fontStyle: 'italic' }}>{worksheet.staff_action_note}</div>
                     )}
-                    {status === 'pending_staff_submit' && !liveSession && (
+                    {status === 'pending_staff_submit' && !alreadyFiled && !liveSession && (
                         <Button size="sm" disabled={liveConnecting} onClick={handleOpenLive} style={{ marginBottom: 4 }}>
                             {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Open live portal (auto-fill)'}
                         </Button>
@@ -1384,7 +1421,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                 </div>
             )}
 
-            {hasPortal && status === 'pending_staff_submit' && (
+            {hasPortal && status === 'pending_staff_submit' && !alreadyFiled && (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
                     <Input
                         placeholder="Reference number from portal"
@@ -1398,7 +1435,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                 </div>
             )}
 
-            {hasPortal && ['submitted', 'under_review', 'escalated', 'resolved', 'rejected'].includes(status) && (
+            {alreadyFiled && (
                 <div style={{ marginTop: 8 }}>
                     <div style={{ fontSize: 11.5, color: C.ink2, marginBottom: 8 }}>
                         Ref: <strong style={{ color: C.ink }}>{govtState?.case?.govt_reference_number || '—'}</strong>
@@ -1739,12 +1776,45 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         setReplyIntentCaseId(null);
     }, [replyIntentCaseId, activeCaseId, fullCase, caseItem]);
 
+    const handleGovtStateChange = useCallback((targetId, govtCase) => {
+        if (!targetId) return;
+        const nextStatus = govtCase?.govt_status ?? null;
+        const nextRef = govtCase?.govt_reference_number ?? null;
+        setFullCase((existing) => {
+            if (!existing) return existing;
+            const sameRoot = existing.id !== targetId
+                || (existing.govt_status === nextStatus && existing.govt_reference_number === nextRef);
+            const thread = existing.thread_cases;
+            if (!Array.isArray(thread) || thread.length === 0) {
+                if (sameRoot) return existing;
+                return { ...existing, govt_status: nextStatus, govt_reference_number: nextRef };
+            }
+            let changed = !sameRoot;
+            const nextThread = thread.map((item) => {
+                if (item.id !== targetId) return item;
+                if (item.govt_status === nextStatus && item.govt_reference_number === nextRef) return item;
+                changed = true;
+                return { ...item, govt_status: nextStatus, govt_reference_number: nextRef };
+            });
+            if (!changed) return existing;
+            return {
+                ...existing,
+                thread_cases: nextThread,
+                ...(existing.id === targetId ? { govt_status: nextStatus, govt_reference_number: nextRef } : {}),
+            };
+        });
+    }, []);
+
     useEffect(() => {
         if (!escalateIntentCaseId || getSelectedThreadCaseId(fullCase, caseItem, activeCaseId) !== escalateIntentCaseId) {
             return;
         }
+        const thread = Array.isArray(fullCase?.thread_cases) ? fullCase.thread_cases : [];
+        const target = thread.find((item) => item.id === escalateIntentCaseId) || fullCase || caseItem;
         govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        govtSyncRef.current?.openLiveSession();
+        if (!isGovtAlreadyFiled(target)) {
+            govtSyncRef.current?.openLiveSession();
+        }
         setEscalateIntentCaseId(null);
     }, [escalateIntentCaseId, activeCaseId, fullCase, caseItem]);
 
@@ -1780,7 +1850,15 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     // staff land on the portal's login/entry page, solve CAPTCHA/OTP themselves,
     // and get auto-navigated + auto-filled from there (see browser_session.py).
     function handleEscalate(item) {
-        const targetId = item?.id || current.id;
+        const target = item || current;
+        const targetId = target?.id || current.id;
+        if (isGovtAlreadyFiled(target)) {
+            if (targetId && targetId !== activeCaseId) {
+                setActiveCaseId(targetId);
+            }
+            govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
         if (targetId && targetId !== activeCaseId) {
             setActiveCaseId(targetId);
             setEscalateIntentCaseId(targetId);
@@ -2101,6 +2179,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                                 caseId={current.id}
                                                 isMp={isMp}
                                                 onSubmitted={onStatusChange}
+                                                onGovtStateChange={handleGovtStateChange}
                                             />
                                         </div>
                                         <NotesSection
@@ -2168,7 +2247,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                 onReply={() => { setNotifyInput(''); setNotifyOpen(true); }}
                                 onEscalate={handleEscalate}
                                 isUncategorised={isUncategorised}
-                                showEscalate={!Array.isArray(threadCases) || threadCases.length <= 1}
+                                showEscalate={(!Array.isArray(threadCases) || threadCases.length <= 1) && !isGovtAlreadyFiled(current)}
                             />
                         </>
                     )}

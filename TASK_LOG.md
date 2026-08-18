@@ -12,6 +12,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-08-18
+- Request: Duplicate-filing guards for govt Escalate.
+- Summary: Live portal session start now 409s when a case already has a government reference or a post-submit `govt_status`. Submit is idempotent on the same reference and 409s on a different one. Briefcase hides Escalate for already-filed complaints and shows the stored ref instead.
+- Files touched: `api_router.py`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `tests/test_govt_duplicate_filing.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Filer-identity copy, description PII scrub, and portal `verification_status` gating remain out of this patch.
+
 - Date: 2026-08-17
 - Request: Old complaints still jump to the top of All cases on Escalate.
 - Summary: All cases `Newest first` now orders by received `created_at` after thread grouping, not last `updated_at`. The visible thread row is the latest received complaint. Staff Escalate can no longer pull an older case to the top of All cases.
