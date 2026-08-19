@@ -1150,6 +1150,7 @@ try:
         conn.execute(text("ALTER TABLE govt_portals ALTER COLUMN base_url DROP NOT NULL"))
         conn.execute(text("ALTER TABLE govt_portals ADD COLUMN IF NOT EXISTS verification_status VARCHAR NOT NULL DEFAULT 'unverified'"))
         conn.execute(text("ALTER TABLE govt_portals ADD COLUMN IF NOT EXISTS source_note TEXT"))
+        conn.execute(text("ALTER TABLE govt_portals ADD COLUMN IF NOT EXISTS live_session_supported BOOLEAN NOT NULL DEFAULT true"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_portals_state ON govt_portals (state)"))
         conn.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_govt_portals_state_primary ON govt_portals (LOWER(state)) "

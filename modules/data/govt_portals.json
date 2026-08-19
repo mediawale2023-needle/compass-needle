@@ -573,8 +573,9 @@
     },
     "is_primary": true,
     "active": true,
+    "live_session_supported": false,
     "verification_status": "confirmed",
-    "source_note": "URL confirmed. Department taxonomy added 2026-08-19 (best-effort mapping to known Government of Maharashtra department names, same treatment given to Rajasthan/UP/Karnataka) after Escalate was blocked for a Maharashtra tenant (Kalyan Dombivli) with a 'department list not configured' warning. Still field_schema.taxonomy_verified=false — not yet confirmed against the Aaple Sarkar portal's live department dropdown, which sits behind citizen/staff login and could not be inspected directly."
+    "source_note": "URL confirmed. Department taxonomy added 2026-08-19 (best-effort mapping to known Government of Maharashtra department names, same treatment given to Rajasthan/UP/Karnataka) after Escalate was blocked for a Maharashtra tenant (Kalyan Dombivli) with a 'department list not configured' warning. Same day: live_session_supported set to false after confirming via SSH from the EC2 host that TCP connections to grievances.maharashtra.gov.in time out on both port 80 and 443 (DNS resolves fine; the same host connects instantly from outside EC2) — the portal appears to be blocking our EC2 IP range at the network level, so live browser automation can never succeed here regardless of GOVT_LIVE_AUTOMATION_ENABLED. Escalate falls back to opening the portal in a new browser tab (the staff's own network) plus the AI worksheet in Needle. Still field_schema.taxonomy_verified=false — not yet confirmed against the Aaple Sarkar portal's live department dropdown, which sits behind citizen/staff login and could not be inspected directly."
   },
   {
     "state": "Manipur",
