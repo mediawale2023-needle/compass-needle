@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-08-18
+- Request: Error says 3 live sessions already present; they should be visible so staff can end them. Also drop the long live-session PII banner.
+- Summary: Government Portal now lists this office's in-memory live portal sessions with Show / End / End all. Escalate reconnects if this complaint already has a session. List and close APIs are tenant-scoped. The live view keeps only: "Live — log in, fill in the grievance form, and click Submit yourself."
+- Files touched: `modules/govt_sync/browser_session.py`, `api_router.py`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `tests/test_govt_duplicate_filing.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Needs backend + frontend deploy. Sessions from other tenants still occupy the global cap of 3 but are not listed here.
+
+- Date: 2026-08-18
 - Request: Escalate click does nothing; toast says fetch aborted.
 - Summary: The 8s API timeout was aborting Playwright session start (and Gemini worksheet prep). Session start now waits up to 120s with no retry; translate uses the 60s AI timeout. Escalate also assumes live automation is on until the portal flag loads, and shows an opening toast so the click is not silent.
 - Files touched: `frontend/lib/api.js`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`

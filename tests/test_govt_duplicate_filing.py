@@ -255,3 +255,72 @@ def test_already_filed_409_takes_priority_over_automation_disabled():
         resp = client.post("/api/cases/10/govt/session/start", headers=_auth_headers(), json={})
     assert resp.status_code == 409, resp.text
     assert "PORTAL-111" in resp.json()["detail"]
+
+
+def _fake_live_session(session_id, tenant_id, case_id, portal_name="Test portal"):
+    from modules.govt_sync import browser_session
+    session = browser_session.LiveSession(
+        session_id=session_id,
+        tenant_id=tenant_id,
+        case_id=case_id,
+        portal={"portal_name": portal_name},
+        context=MagicMock(),
+        page=MagicMock(),
+        cdp=MagicMock(),
+    )
+    session.cdp.send = AsyncMock()
+    session.context.close = AsyncMock()
+    return session
+
+
+def test_govt_sessions_list_is_empty_without_live_browsers():
+    _seed_database()
+    resp = client.get("/api/govt/sessions", headers=_auth_headers())
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    assert payload["sessions"] == []
+    assert payload["tenant_count"] == 0
+    assert payload["max_concurrent"] >= 1
+
+
+def test_govt_sessions_list_and_close_are_tenant_scoped():
+    _seed_database()
+    from modules.govt_sync import browser_session
+    mine = _fake_live_session("sess-mine", 1, 12)
+    other = _fake_live_session("sess-other", 99, 1)
+    browser_session._sessions.clear()
+    browser_session._sessions["sess-mine"] = mine
+    browser_session._sessions["sess-other"] = other
+    try:
+        listed = client.get("/api/govt/sessions", headers=_auth_headers())
+        assert listed.status_code == 200, listed.text
+        ids = {row["session_id"] for row in listed.json()["sessions"]}
+        assert ids == {"sess-mine"}
+
+        other_close = client.post("/api/govt/sessions/sess-other/close", headers=_auth_headers())
+        assert other_close.status_code == 200
+        assert "sess-other" in browser_session._sessions
+
+        mine_close = client.post("/api/govt/sessions/sess-mine/close", headers=_auth_headers())
+        assert mine_close.status_code == 200
+        assert "sess-mine" not in browser_session._sessions
+        assert "sess-other" in browser_session._sessions
+    finally:
+        browser_session._sessions.clear()
+
+
+def test_govt_sessions_close_all_only_this_tenant():
+    _seed_database()
+    from modules.govt_sync import browser_session
+    browser_session._sessions.clear()
+    browser_session._sessions["a"] = _fake_live_session("a", 1, 12)
+    browser_session._sessions["b"] = _fake_live_session("b", 1, 11)
+    browser_session._sessions["c"] = _fake_live_session("c", 99, 1)
+    try:
+        resp = client.post("/api/govt/sessions/close-all", headers=_auth_headers())
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["closed"] == 2
+        assert set(browser_session._sessions) == {"c"}
+    finally:
+        browser_session._sessions.clear()
+
