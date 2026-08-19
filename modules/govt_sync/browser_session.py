@@ -149,6 +149,41 @@ async def active_session_count() -> int:
         return len(_sessions)
 
 
+def list_session_metas(tenant_id: int | None = None) -> list[dict]:
+    """In-memory live sessions. Pass tenant_id to scope to one office;
+    omit it only for ops/count. Never returns another tenant's rows when
+    tenant_id is set."""
+    now = time.time()
+    out = []
+    for session in _sessions.values():
+        if tenant_id is not None and session.tenant_id != tenant_id:
+            continue
+        out.append({
+            "session_id": session.session_id,
+            "tenant_id": session.tenant_id,
+            "case_id": session.case_id,
+            "portal_name": session.portal.get("portal_name"),
+            "otp_bound": session.portal.get("otp_bound"),
+            "viewport": VIEWPORT,
+            "created_at": session.created_at,
+            "last_activity_at": session.last_activity_at,
+            "age_seconds": int(now - session.created_at),
+            "idle_seconds": int(now - session.last_activity_at),
+            "streaming": session.streaming,
+            "ws_path": f"/api/govt/session/{session.session_id}/stream",
+        })
+    out.sort(key=lambda item: item["created_at"])
+    return out
+
+
+async def close_sessions_for_tenant(tenant_id: int) -> int:
+    async with _lock:
+        ids = [sid for sid, session in _sessions.items() if session.tenant_id == tenant_id]
+    for sid in ids:
+        await close_session(sid)
+    return len(ids)
+
+
 async def start_session(tenant_id: int, case_id: int, portal: dict) -> LiveSession:
     """Open the portal and hold it open for a staff viewer to attach and log in."""
     async with _lock:
