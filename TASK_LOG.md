@@ -12,6 +12,12 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-08-19
+- Request: Escalate blocked for a Maharashtra tenant with "doesn't have its department list configured yet".
+- Summary: Mapped Maharashtra Aaple Sarkar Grievance Redressal's `department_taxonomy` (was `{}`, blocking `_prepare_govt_worksheet`/translation with a fail-closed 400 by design) to Needle's 9-category taxonomy, best-effort against known Government of Maharashtra department names (same treatment Rajasthan/UP/Karnataka already got). `field_schema.taxonomy_verified` stays `false` — the real Aaple Sarkar department dropdown sits behind login and couldn't be inspected directly, so this is not yet confirmed against the live portal.
+- Files touched: `modules/data/govt_portals.json`, `TASK_LOG.md`, `PROJECT_MEMORY.md`
+- Risks or follow-ups: Needs a backend deploy (seed runs on startup, upserts `department_taxonomy`/`verification_status`/`source_note` on every boot). Same gap confirmed present for 8 other `active=true` portals — Bihar, Madhya Pradesh, Mizoram, Odisha, Punjab, Tamil Nadu, Tripura, Uttarakhand — any tenant in those states hits the same "doesn't have its department list configured" block on Escalate today. Not fixed in this patch; flagged for a follow-up pass, not fixed opportunistically here.
+
 - Date: 2026-08-18
 - Request: Error says 3 live sessions already present; they should be visible so staff can end them. Also drop the long live-session PII banner.
 - Summary: Government Portal now lists this office's in-memory live portal sessions with Show / End / End all. Escalate reconnects if this complaint already has a session. List and close APIs are tenant-scoped. The live view keeps only: "Live — log in, fill in the grievance form, and click Submit yourself."
