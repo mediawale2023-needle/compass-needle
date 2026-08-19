@@ -1958,24 +1958,26 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
 
     // Contextual escalate/filing label, computed purely from data already
     // flowing to the parent (govt_status/reference on the active thread
-    // member) — no separate state needed.
+    // member) — no separate state needed. The button always reads
+    // "Escalate" until the complaint is actually filed with the government
+    // (a reference number/terminal govt_status) — at that point there's
+    // nothing left to escalate, so it becomes "View submission".
     const alreadyFiledFlag = isGovtAlreadyFiled(current);
     const hasBeenEscalated = alreadyFiledFlag || String(current.govt_status || '').toLowerCase() === 'pending_staff_submit';
-    const escalateLabel = alreadyFiledFlag ? 'View submission' : (hasBeenEscalated ? 'Open filing' : 'Escalate');
+    const escalateLabel = alreadyFiledFlag ? 'View submission' : 'Escalate';
     const confirmLabel = (isUncategorised && suggestedTriage?.ai_category)
         ? 'Confirm category & assign'
         : (isResolved ? 'Mark resolved' : 'Resolve');
 
+    // Escalate always scrolls to the filing section and (re)opens the live
+    // government-portal session on Needle — whether this is the first
+    // escalation or the complaint was already escalated and staff is
+    // coming back to continue filing. Once it's actually been filed
+    // (a reference number is on record), there's no session to open —
+    // just bring the existing submission into view.
     function handleEscalateClick() {
-        if (alreadyFiledFlag) {
-            govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            return;
-        }
-        if (hasBeenEscalated) {
-            govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            return;
-        }
         govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (alreadyFiledFlag) return;
         govtSyncRef.current?.openLiveSession();
     }
 
