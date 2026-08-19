@@ -38,6 +38,9 @@ function Icon({ name, size = 14, color = 'currentColor', stroke = 1.5 }) {
         user:     <><circle cx="12" cy="9" r="4" /><path d="M4 21c0-5 4-7 8-7s8 2 8 7" /></>,
         trash:    <><path d="M4 6h16M9 6V4h6v2M5 6l1 14h12l1-14" /></>,
         external: <><path d="M14 4h6v6M20 4L10 14" /><path d="M8 5H5a1 1 0 00-1 1v13a1 1 0 001 1h13a1 1 0 001-1v-3" /></>,
+        lock:     <><rect x="5" y="10" width="14" height="10" rx="1.5" /><path d="M8 10V7a4 4 0 018 0v3" /></>,
+        unlock:   <><rect x="5" y="10" width="14" height="10" rx="1.5" /><path d="M8 10V7a4 4 0 017.5-1.5" /></>,
+        plus:     <><path d="M12 5v14M5 12h14" /></>,
     };
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -52,6 +55,7 @@ const C = {
     paper:       '#F2EBD9',
     paperDeep:   '#E8E0CB',
     surface:     '#F7F2E6',
+    surfaceWarm: '#F7F0DC',
     ink:         '#1A1812',
     ink2:        '#4A453A',
     ink3:        '#7A7263',
@@ -231,11 +235,21 @@ function ReviewReasonBanner({ current, meta }) {
     );
 }
 
-function getSelectedThreadCaseId(fullCase, caseItem, activeCaseId) {
-    const threadCases = Array.isArray(fullCase?.thread_cases) && fullCase.thread_cases.length
-        ? fullCase.thread_cases
-        : [fullCase || caseItem].filter(Boolean);
-    return threadCases.find((item) => item.id === activeCaseId)?.id || threadCases[0]?.id || null;
+// ─── Numbered section heading (Citizen complaint → AI understanding →
+// Attachments → Government filing — the fixed provenance order for a
+// complaint, per complaint) ───────────────────────────────────
+function SectionHeading({ n, label, trailing }) {
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            <span style={{
+                width: 18, height: 18, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: C.ink, color: C.paper, fontSize: 10, fontWeight: 700,
+                fontFamily: '"JetBrains Mono", monospace',
+            }}>{n}</span>
+            <span style={{ ...monoLbl, marginBottom: 0 }}>{label}</span>
+            {trailing}
+        </div>
+    );
 }
 
 // ─── Drawer header ───────────────────────────────────────────
@@ -308,7 +322,9 @@ function DrawerHeader({ caseRef, status, isUncategorised, onClose }) {
     );
 }
 
-// ─── Citizen card ─────────────────────────────────────────────
+// ─── Citizen card (case-level: this is the WhatsApp thread/contact, shared
+// by every complaint in it — it does not change when the staff switches
+// complaint tabs) ───────────────────────────────────────────────
 function CitizenCard({ phone, createdAt, language }) {
     const last4 = phone ? phone.slice(-4) : '??';
     const dateStr = createdAt
@@ -353,9 +369,249 @@ function CitizenCard({ phone, createdAt, language }) {
                 marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.hair}`,
                 display: 'flex', gap: 10, fontSize: 11, color: C.ink3, flexWrap: 'wrap',
             }}>
-                <span style={{ ...monoLbl, marginBottom: 0, fontSize: 9.5 }}>Received</span>
+                <span style={{ ...monoLbl, marginBottom: 0, fontSize: 9.5 }}>Thread started</span>
                 <span style={{ color: C.ink }}>{dateStr} · {timeStr}</span>
             </div>
+        </div>
+    );
+}
+
+// ─── Contact-level triage notice (messages the intake pipeline has seen
+// from this same phone number but not yet promoted into their own
+// complaint — this is thread/case-level, not tied to whichever complaint
+// tab is currently selected) ─────────────────────────────────────
+function ContactQueueNotice({ current }) {
+    const bufferedItems = Array.isArray(current?.pending_contact_messages) ? current.pending_contact_messages : [];
+    const suppressedItems = Array.isArray(current?.suppressed_contact_messages) ? current.suppressed_contact_messages : [];
+    const contactThreadState = current?.contact_thread_state || 'normal';
+    const distinctIssueCount = Number(current?.distinct_issue_count || 0);
+
+    if (bufferedItems.length === 0 && suppressedItems.length === 0) {
+        return null;
+    }
+
+    const stateTone = {
+        high_frequency: { fg: C.saffron, bg: C.saffronTint, label: 'High frequency contact' },
+        spam_suspected: { fg: C.red, bg: '#FDEDEC', label: 'Spam suspected' },
+    }[String(contactThreadState).toLowerCase()];
+
+    return (
+        <div style={sec}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+                <span style={monoLbl}>Other messages from this contact · not yet a complaint</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    {distinctIssueCount > 0 && (
+                        <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                            {distinctIssueCount} issue{distinctIssueCount === 1 ? '' : 's'} tracked
+                        </span>
+                    )}
+                    {stateTone && (
+                        <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 8px',
+                            background: stateTone.bg, color: stateTone.fg, fontSize: 10, fontWeight: 700,
+                            letterSpacing: '0.04em', textTransform: 'uppercase',
+                        }}>
+                            <Icon name={contactThreadState === 'spam_suspected' ? 'warn' : 'clock'} size={10} color={stateTone.fg} stroke={2} />
+                            {stateTone.label}
+                        </span>
+                    )}
+                </div>
+            </div>
+            <div style={{ fontSize: 11, color: C.ink2, marginBottom: 10, lineHeight: 1.5 }}>
+                The AI intake pipeline flagged these as possibly separate from any complaint above, but hasn't promoted them into their own complaint yet.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {bufferedItems.map((item) => (
+                    <div key={item.id} style={{ border: `1px solid ${C.greenTint}`, background: C.greenWash, padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
+                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.greenInk, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                                Possibly distinct issue
+                            </span>
+                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3 }}>
+                                {item.created_at ? new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                        </div>
+                        <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.55 }}>{item.raw_message || '—'}</div>
+                        {(item.problem_subdomain || item.problem_domain) && (
+                            <div style={{ marginTop: 8, fontSize: 11, color: C.ink2 }}>{item.problem_subdomain || item.problem_domain}</div>
+                        )}
+                    </div>
+                ))}
+                {suppressedItems.map((item, idx) => (
+                    <div key={`suppressed-${idx}`} style={{ border: `1px solid ${C.red}`, background: '#FEF3F2', padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
+                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.red, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                                Suppressed after spam threshold
+                            </span>
+                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3 }}>
+                                {item.created_at ? new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                        </div>
+                        <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.55 }}>{item.message || '—'}</div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// ─── Complaint tab strip ─────────────────────────────────────
+// A citizen can raise more than one distinct grievance in the same WhatsApp
+// thread. Each is its own Case row on the backend (own status, own
+// assignment, own government filing) — this strip is the primary navigation
+// between them. Numbering is chronological (oldest = Complaint 1) so it
+// stays stable as new complaints are added to the thread.
+function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase, onAddComplaint }) {
+    const ordered = [...threadCases].slice().reverse();
+    return (
+        <div style={{ ...sec, background: C.paperDeep, borderBottom: `1px solid ${C.hairStrong}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                <span style={monoLbl}>Complaints in this case</span>
+                <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                    {ordered.length} complaint{ordered.length === 1 ? '' : 's'}
+                </span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {ordered.map((item, idx) => {
+                    const isActive = item.id === activeCaseId;
+                    const filed = isGovtAlreadyFiled(item);
+                    const resolvedLike = ['resolved', 'completed', 'closed'].includes(String(item.status || '').toLowerCase());
+                    return (
+                        <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => onSelectCase(item)}
+                            style={{
+                                padding: '8px 14px', minWidth: 128, textAlign: 'left',
+                                border: `1px solid ${isActive ? C.green : C.hair}`,
+                                background: isActive ? C.green : C.surface,
+                                color: isActive ? '#F5EFE0' : C.ink,
+                                cursor: 'pointer', fontFamily: 'inherit',
+                                display: 'flex', flexDirection: 'column', gap: 3,
+                            }}
+                        >
+                            <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                Complaint {idx + 1}{isActive ? ' · current' : ''}
+                            </span>
+                            <span style={{ fontSize: 10, opacity: 0.85, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span>{resolvedLike ? 'resolved' : (item.status || 'new').replace(/_/g, ' ')}</span>
+                                {filed && <Icon name="check" size={9} color={isActive ? '#F5EFE0' : C.green} stroke={2.5} />}
+                            </span>
+                        </button>
+                    );
+                })}
+                <button
+                    type="button"
+                    onClick={onAddComplaint}
+                    style={{
+                        padding: '8px 14px', border: `1px dashed ${C.hairStrong}`, background: 'transparent',
+                        color: C.ink2, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 700,
+                        letterSpacing: '0.04em', textTransform: 'uppercase',
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                    }}
+                >
+                    <Icon name="plus" size={12} color={C.ink2} stroke={2} /> Add complaint
+                </button>
+            </div>
+        </div>
+    );
+}
+
+// ─── 1 · Citizen complaint ────────────────────────────────────
+// The citizen's own words are the source of truth. This never shows AI text
+// in place of what the citizen actually sent — translation/summary live in
+// the AI Understanding section below, clearly labelled as AI-generated.
+function CitizenComplaintSection({ current, meta, actionRow }) {
+    const [showAllFollowups, setShowAllFollowups] = useState(false);
+    const events = Array.isArray(meta.contact_message_events) ? meta.contact_message_events : [];
+    const visibleEvents = showAllFollowups ? events : events.slice(-2);
+    const hiddenCount = Math.max(0, events.length - visibleEvents.length);
+    const createdAt = current.created_at ? new Date(current.created_at) : null;
+
+    return (
+        <div style={sec}>
+            <SectionHeading n={1} label="Citizen complaint" />
+            {(meta.detected_language || meta.language) && (
+                <div style={{ fontSize: 11, color: C.ink3, marginBottom: 8 }}>
+                    Original language: <strong style={{ color: C.ink }}>{meta.detected_language || meta.language}</strong>
+                </div>
+            )}
+            <div style={{
+                padding: '12px 14px', background: C.paperDeep, borderLeft: `3px solid ${C.green}`,
+                fontSize: 13.5, lineHeight: 1.6, color: C.ink, whiteSpace: 'pre-wrap',
+            }}>
+                {current.raw_message || 'No message content.'}
+            </div>
+            <div style={{ marginTop: 8, fontSize: 11, color: C.ink3 }}>
+                Received via WhatsApp{createdAt ? ` · ${createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} · ${createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} IST` : ''}
+            </div>
+
+            {events.length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                        <span style={{ ...monoLbl, marginBottom: 0 }}>Citizen follow-ups · {events.length}</span>
+                        {hiddenCount > 0 && !showAllFollowups && (
+                            <button type="button" onClick={() => setShowAllFollowups(true)} style={{
+                                background: 'none', border: 'none', color: C.green, fontSize: 11,
+                                fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: 0,
+                            }}>
+                                View full conversation ({events.length})
+                            </button>
+                        )}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {visibleEvents.map((event, idx) => (
+                            <div key={idx} style={{ borderLeft: `2px solid ${C.saffron}`, background: C.surface, padding: '8px 10px' }}>
+                                <div style={{ fontSize: 10, color: C.ink3, marginBottom: 4, fontFamily: '"JetBrains Mono", monospace' }}>
+                                    {event.created_at
+                                        ? new Date(event.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) + ' · ' + new Date(event.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                                        : ''}
+                                </div>
+                                <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.55 }}>{event.message || '—'}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {actionRow}
+        </div>
+    );
+}
+
+// ─── Contextual action row (Escalate/Open filing/View submission · Reply ·
+// Resolve) — one location for these actions, placed with the citizen
+// complaint per the spec rather than duplicated in a second sticky bar. ──
+function ComplaintActionRow({ onConfirm, confirmLabel, onReply, onEscalate, escalateLabel }) {
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.hair}` }}>
+            {escalateLabel && (
+                <button onClick={onEscalate} style={{
+                    padding: '9px 16px', background: C.saffron, color: '#F5EFE0', border: 'none',
+                    fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    display: 'inline-flex', alignItems: 'center', gap: 7,
+                }}>
+                    <Icon name="external" size={13} color="#F5EFE0" stroke={2.5} />
+                    {escalateLabel}
+                </button>
+            )}
+            <button onClick={onReply} style={{
+                padding: '9px 16px', background: 'transparent', border: `1px solid ${C.hairStrong}`, color: C.ink,
+                fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}>
+                <Icon name="send" size={12} color={C.ink} /> Reply
+            </button>
+            <button onClick={onConfirm} style={{
+                padding: '9px 16px', background: C.green, color: '#F5EFE0', border: 'none',
+                fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                cursor: 'pointer', fontFamily: 'inherit',
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+            }}>
+                <Icon name="check" size={13} color="#F5EFE0" stroke={2.5} />
+                {confirmLabel}
+            </button>
         </div>
     );
 }
@@ -368,7 +624,7 @@ function AISuggestionBanner({ suggestion, onAccept, accepting }) {
             padding: '16px 20px',
             background: 'linear-gradient(120deg, #024A36 0%, #006A4D 100%)',
             color: '#F5EFE0', position: 'relative', overflow: 'hidden',
-            borderBottom: `1px solid ${C.hair}`,
+            marginBottom: 14,
         }}>
             <div style={{ position: 'absolute', right: -14, top: -14, opacity: 0.1, pointerEvents: 'none' }}>
                 <Icon name="sparkle" size={110} color="#F5EFE0" stroke={1} />
@@ -417,128 +673,155 @@ function AISuggestionBanner({ suggestion, onAccept, accepting }) {
     );
 }
 
-// ─── Message block ────────────────────────────────────────────
-function MessageBlock({ rawMessage, summary, media, caseId }) {
-    const [showSummary, setShowSummary] = useState(false);
-    const hasSummary = Boolean(summary);
+// ─── 2 · AI understanding ─────────────────────────────────────
+// Everything here is AI-generated and labelled as such. The citizen's own
+// words (section 1) are always the authoritative record — this section is
+// staff's aid for reading and verifying, never a replacement for it.
+function AiUnderstandingSection({
+    current, meta, displaySummary, followupCount, suggestedTriage, onAcceptSuggestion, accepting,
+    translationState, onTranslate, geoLocation, geoAssembly, setGeoLocation, setGeoAssembly, onSaveGeo, savingGeo, geoLocked,
+}) {
+    const detectedLanguage = meta.detected_language || meta.language || '';
+    const needsTranslation = detectedLanguage && detectedLanguage.trim().toLowerCase() !== 'english';
+    const category = current.problem_domain || current.category || '';
+    const subdomain = current.problem_subdomain || '';
+
+    const rows = [
+        ['Category', category ? (subdomain ? `${category} · ${subdomain}` : category) : 'Uncategorised'],
+        ['Department', meta.department || '–'],
+        ['Scheme', meta.scheme || '–'],
+        ['Detected language', detectedLanguage || '–'],
+        ['Geography confidence', meta.geography_confidence || '–'],
+    ];
 
     return (
         <div style={sec}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span style={monoLbl}>Citizen message</span>
-                {hasSummary && (
-                    <div style={{ display: 'flex', border: `1px solid ${C.hair}` }}>
-                        <button onClick={() => setShowSummary(false)} style={{
-                            padding: '3px 10px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                            background: !showSummary ? C.ink : 'transparent',
-                            color: !showSummary ? C.paper : C.ink2,
-                            fontSize: 10.5, fontWeight: 600,
-                        }}>Original</button>
-                        <button onClick={() => setShowSummary(true)} style={{
-                            padding: '3px 10px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                            background: showSummary ? C.ink : 'transparent',
-                            color: showSummary ? C.paper : C.ink2,
-                            fontSize: 10.5, fontWeight: 600,
-                            borderLeft: `1px solid ${C.hair}`,
-                        }}>Summary</button>
-                    </div>
-                )}
-            </div>
+            <SectionHeading n={2} label="AI understanding" />
 
-            <div style={{
-                padding: '12px 14px', background: C.paperDeep,
-                borderLeft: `3px solid ${C.green}`,
-                fontSize: 13.5, lineHeight: 1.6, color: C.ink, whiteSpace: 'pre-wrap',
-            }}>
-                {showSummary ? (summary || 'No summary available.') : (rawMessage || 'No message content.')}
-            </div>
+            {suggestedTriage && (
+                <AISuggestionBanner suggestion={suggestedTriage} onAccept={onAcceptSuggestion} accepting={accepting} />
+            )}
 
-            {hasSummary && !showSummary && (
-                <div style={{
-                    marginTop: 8, padding: '10px 12px',
-                    background: C.greenWash, border: `1px solid ${C.greenTint}`,
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-                        <Icon name="sparkle" size={10} color={C.green} stroke={2} />
+            {needsTranslation && (
+                <div style={{ marginBottom: 14, border: `1px solid ${C.greenTint}`, background: C.greenWash, padding: '10px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <Icon name="sparkle" size={10} color={C.green} stroke={2} />
+                            <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9, letterSpacing: '0.14em', color: C.greenInk, textTransform: 'uppercase', fontWeight: 700 }}>
+                                AI translation (English)
+                            </span>
+                        </span>
                         <span style={{
-                            fontFamily: '"JetBrains Mono", monospace', fontSize: 9,
-                            letterSpacing: '0.14em', color: C.greenInk, textTransform: 'uppercase', fontWeight: 700,
-                        }}>AI Summary</span>
+                            fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                            padding: '1px 6px', background: C.saffronTint, color: C.saffron,
+                        }}>AI generated</span>
                     </div>
-                    <div style={{ fontSize: 12, color: C.ink, lineHeight: 1.5 }}>{summary}</div>
+                    {translationState?.translation ? (
+                        <div style={{ fontSize: 13, color: C.ink, lineHeight: 1.55 }}>{translationState.translation}</div>
+                    ) : translationState?.loading ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: C.ink2 }}>
+                            <Loader2 size={13} className="animate-spin" /> Translating…
+                        </div>
+                    ) : translationState?.error ? (
+                        <div style={{ fontSize: 12, color: C.ink2 }}>
+                            Translation unavailable right now.{' '}
+                            <button type="button" onClick={onTranslate} style={{ background: 'none', border: 'none', color: C.green, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, padding: 0 }}>Try again</button>
+                        </div>
+                    ) : (
+                        <button type="button" onClick={onTranslate} style={{
+                            background: 'transparent', border: `1px solid ${C.green}`, color: C.greenInk,
+                            padding: '6px 12px', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                            cursor: 'pointer', fontFamily: 'inherit',
+                        }}>
+                            Translate to English
+                        </button>
+                    )}
                 </div>
             )}
 
-            {media && media.length > 0 && (
-                <div style={{ marginTop: 10 }}>
-                    <BriefcaseSourceMediaViewer caseId={caseId} media={media} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 14 }}>
+                {rows.map(([label, value]) => (
+                    <div key={label} style={{ border: `1px solid ${C.hair}`, background: C.surface, padding: '8px 10px', minWidth: 0 }}>
+                        <div style={{ fontSize: 9, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"JetBrains Mono", monospace', marginBottom: 3 }}>{label}</div>
+                        <div style={{ fontSize: 12.5, color: C.ink, fontWeight: 600, overflowWrap: 'anywhere' }}>{value}</div>
+                    </div>
+                ))}
+            </div>
+
+            {displaySummary && (
+                <div style={{ padding: '10px 12px', background: C.greenWash, border: `1px solid ${C.greenTint}`, marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <Icon name="sparkle" size={10} color={C.green} stroke={2} />
+                            <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9, letterSpacing: '0.14em', color: C.greenInk, textTransform: 'uppercase', fontWeight: 700 }}>AI summary</span>
+                        </span>
+                        {followupCount > 1 && (
+                            <span style={{ fontSize: 10, color: C.ink3, fontFamily: '"JetBrains Mono", monospace' }}>Based on {followupCount} citizen messages</span>
+                        )}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.5 }}>{displaySummary}</div>
                 </div>
             )}
+
+            <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <span style={{ ...monoLbl, marginBottom: 0 }}>Location · verify / correct</span>
+                    {geoLocked && (
+                        <span style={{
+                            fontSize: 10, fontWeight: 700, padding: '2px 7px', background: C.greenWash, color: C.greenInk,
+                            textTransform: 'uppercase', letterSpacing: '0.06em', display: 'inline-flex', alignItems: 'center', gap: 4,
+                        }}>
+                            <Icon name="check" size={9} color={C.greenInk} stroke={2.5} /> Manual lock
+                        </span>
+                    )}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 10 }}>
+                    <div>
+                        <span style={{ ...monoLbl, marginBottom: 4 }}>Location · ward</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', border: `1px solid ${C.green}`, background: C.surface }}>
+                            <Icon name="pin" size={11} color={C.green} />
+                            <input value={geoLocation} onChange={(e) => setGeoLocation(e.target.value)} placeholder="Village / ward"
+                                style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 12.5, color: C.ink, fontFamily: 'inherit', minWidth: 0 }} />
+                        </div>
+                    </div>
+                    <div>
+                        <span style={{ ...monoLbl, marginBottom: 4 }}>Assembly</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', border: `1px solid ${C.hair}`, background: C.surface }}>
+                            <input value={geoAssembly} onChange={(e) => setGeoAssembly(e.target.value)} placeholder="Assembly constituency"
+                                style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 12.5, color: C.ink, fontFamily: 'inherit', minWidth: 0 }} />
+                        </div>
+                    </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <button onClick={onSaveGeo} disabled={savingGeo} style={{
+                        padding: '7px 14px', background: C.green, color: '#F5EFE0', border: 'none',
+                        fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                        cursor: savingGeo ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                        display: 'inline-flex', alignItems: 'center', gap: 6, opacity: savingGeo ? 0.7 : 1,
+                    }}>
+                        {savingGeo && <Loader2 size={12} className="animate-spin" />}
+                        Save geography
+                    </button>
+                    <span style={{ fontSize: 11, color: C.ink3 }}>Saving locks as a manual correction.</span>
+                </div>
+            </div>
         </div>
     );
 }
 
-// ─── Geography section ────────────────────────────────────────
-function GeographySection({ geoLocation, geoAssembly, setGeoLocation, setGeoAssembly, onSave, saving, locked }) {
-    const isMobile = useIsMobile();
+// ─── 3 · Attachments ──────────────────────────────────────────
+function AttachmentsSection({ media, caseId }) {
     return (
         <div style={sec}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span style={monoLbl}>Geography</span>
-                {locked && (
-                    <span style={{
-                        fontSize: 10, fontWeight: 700, padding: '2px 7px',
-                        background: C.greenWash, color: C.greenInk,
-                        textTransform: 'uppercase', letterSpacing: '0.06em',
-                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                    }}>
-                        <Icon name="check" size={9} color={C.greenInk} stroke={2.5} /> Manual lock
-                    </span>
-                )}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                <div>
-                    <span style={{ ...monoLbl, marginBottom: 4 }}>Location · ward</span>
-                    <div style={{
-                        display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
-                        border: `1px solid ${C.green}`, background: C.surface,
-                    }}>
-                        <Icon name="pin" size={11} color={C.green} />
-                        <input value={geoLocation} onChange={(e) => setGeoLocation(e.target.value)}
-                            placeholder="Village / ward"
-                            style={{
-                                flex: 1, border: 'none', background: 'transparent', outline: 'none',
-                                fontSize: 12.5, color: C.ink, fontFamily: 'inherit', minWidth: 0,
-                            }} />
-                    </div>
+            <SectionHeading n={3} label="Attachments" />
+            {media && media.length > 0 ? (
+                <BriefcaseSourceMediaViewer caseId={caseId} media={media} />
+            ) : (
+                <div style={{ fontSize: 12.5, color: C.ink3 }}>
+                    <div style={{ marginBottom: 4, color: C.ink2, fontWeight: 600 }}>No attachments</div>
+                    <div style={{ fontSize: 11.5 }}>If the citizen sends images or documents, they will appear here.</div>
                 </div>
-                <div>
-                    <span style={{ ...monoLbl, marginBottom: 4 }}>Assembly</span>
-                    <div style={{
-                        display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
-                        border: `1px solid ${C.hair}`, background: C.surface,
-                    }}>
-                        <input value={geoAssembly} onChange={(e) => setGeoAssembly(e.target.value)}
-                            placeholder="Assembly constituency"
-                            style={{
-                                flex: 1, border: 'none', background: 'transparent', outline: 'none',
-                                fontSize: 12.5, color: C.ink, fontFamily: 'inherit', minWidth: 0,
-                            }} />
-                    </div>
-                </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <button onClick={onSave} disabled={saving} style={{
-                    padding: '7px 14px', background: C.green, color: '#F5EFE0', border: 'none',
-                    fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-                    cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                    display: 'inline-flex', alignItems: 'center', gap: 6, opacity: saving ? 0.7 : 1,
-                }}>
-                    {saving && <Loader2 size={12} className="animate-spin" />}
-                    Save Geography
-                </button>
-                <span style={{ fontSize: 11, color: C.ink3 }}>Saving locks as a manual correction.</span>
-            </div>
+            )}
         </div>
     );
 }
@@ -557,14 +840,14 @@ function StatusActions({ currentStatus, onStatusChange, updating }) {
     return (
         <div style={sec}>
             <span style={monoLbl}>Update status</span>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                 {STATUS_OPTIONS.filter((o) => o.value !== currentStatus).map((opt) => (
                     <button key={opt.value} onClick={() => onStatusChange(opt.value)} disabled={!!updating}
                         style={{
-                            padding: '5px 12px', fontSize: 11, fontWeight: 600,
+                            padding: '7px 10px', fontSize: 11, fontWeight: 600,
                             letterSpacing: '0.04em', cursor: updating ? 'not-allowed' : 'pointer',
                             fontFamily: 'inherit', opacity: updating ? 0.7 : 1,
-                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
                             ...(statusStyles[opt.value] || { background: C.paperDeep, color: C.ink3, border: `1px solid ${C.hair}` }),
                         }}>
                         {updating === opt.value && <Loader2 size={11} className="animate-spin" />}
@@ -576,7 +859,7 @@ function StatusActions({ currentStatus, onStatusChange, updating }) {
     );
 }
 
-// ─── Activity timeline ────────────────────────────────────────
+// ─── Activity timeline (case-level; shows the selected complaint's history) ─
 function ActivityTimeline({ activities, loading }) {
     const iconFor = (action = '') => {
         if (action.includes('creat'))  return 'bolt';
@@ -585,13 +868,14 @@ function ActivityTimeline({ activities, loading }) {
         if (action.includes('view')   || action.includes('open'))   return 'eye';
         if (action.includes('assign'))  return 'user';
         if (action.includes('notif')  || action.includes('send'))   return 'whatsapp';
-        if (action.includes('escalat')) return 'escalate';
+        if (action.includes('complaint_added')) return 'plus';
+        if (action.includes('escalat')) return 'external';
         if (action.includes('resolv') || action.includes('complet')) return 'check';
         return 'clock';
     };
     return (
         <div style={sec}>
-            <span style={monoLbl}>Activity</span>
+            <span style={monoLbl}>Activity timeline</span>
             {loading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
                     <Loader2 size={16} color={C.ink3} className="animate-spin" />
@@ -636,308 +920,8 @@ function ActivityTimeline({ activities, loading }) {
     );
 }
 
-function PendingContactMessages({ current }) {
-    const meta = current?.case_metadata || {};
-    const currentEvents = Array.isArray(meta.contact_message_events) ? meta.contact_message_events : [];
-    const bufferedItems = Array.isArray(current?.pending_contact_messages) ? current.pending_contact_messages : [];
-    const suppressedItems = Array.isArray(current?.suppressed_contact_messages) ? current.suppressed_contact_messages : [];
-    const contactThreadState = current?.contact_thread_state || meta.contact_thread_state || 'normal';
-    const distinctIssueCount = Number(current?.distinct_issue_count || meta.distinct_issue_count || (1 + bufferedItems.length));
-
-    if (currentEvents.length === 0 && bufferedItems.length === 0 && suppressedItems.length === 0) {
-        return null;
-    }
-
-    const stateTone = {
-        high_frequency: { fg: C.saffron, bg: C.saffronTint, label: 'High frequency contact' },
-        spam_suspected: { fg: C.red, bg: '#FDEDEC', label: 'Spam suspected' },
-    }[String(contactThreadState).toLowerCase()];
-
-    return (
-        <div style={sec}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
-                <span style={monoLbl}>Same contact in queue</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                        {distinctIssueCount} issue{distinctIssueCount === 1 ? '' : 's'} in 24h
-                    </span>
-                    {stateTone && (
-                        <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 5,
-                            padding: '2px 8px',
-                            background: stateTone.bg,
-                            color: stateTone.fg,
-                            fontSize: 10,
-                            fontWeight: 700,
-                            letterSpacing: '0.04em',
-                            textTransform: 'uppercase',
-                        }}>
-                            <Icon name={contactThreadState === 'spam_suspected' ? 'warn' : 'clock'} size={10} color={stateTone.fg} stroke={2} />
-                            {stateTone.label}
-                        </span>
-                    )}
-                </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {currentEvents.map((event, idx) => (
-                    <div key={`current-${idx}`} style={{
-                        border: `1px solid ${C.hair}`,
-                        background: C.surface,
-                        padding: '10px 12px',
-                    }}>
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 12,
-                            marginBottom: 6,
-                        }}>
-                        <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                                {event.event_type === 'low_information_noise' ? 'Low-information follow-up' : 'Follow-up on this issue'}
-                            </span>
-                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3 }}>
-                                {event.created_at ? new Date(event.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
-                            </span>
-                        </div>
-                        <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.55 }}>
-                            {event.message || '—'}
-                        </div>
-                    </div>
-                ))}
-
-                {bufferedItems.map((item) => (
-                    <div key={item.id} style={{
-                        border: `1px solid ${C.greenTint}`,
-                        background: C.greenWash,
-                        padding: '10px 12px',
-                    }}>
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 12,
-                            marginBottom: 6,
-                        }}>
-                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.greenInk, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                                Distinct complaint in thread
-                            </span>
-                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3 }}>
-                                {item.created_at ? new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
-                            </span>
-                        </div>
-                        <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.55 }}>
-                            {item.raw_message || '—'}
-                        </div>
-                        {(item.problem_subdomain || item.problem_domain) && (
-                            <div style={{ marginTop: 8, fontSize: 11, color: C.ink2 }}>
-                                {item.problem_subdomain || item.problem_domain}
-                            </div>
-                        )}
-                        {Array.isArray(item.contact_message_events) && item.contact_message_events.length > 0 && (
-                            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                {item.contact_message_events.map((event, idx) => (
-                                    <div key={`${item.id}-${idx}`} style={{
-                                        borderLeft: `2px solid ${C.green}`,
-                                        paddingLeft: 8,
-                                        fontSize: 11.5,
-                                        color: C.ink2,
-                                        lineHeight: 1.5,
-                                    }}>
-                                        {event.message || '—'}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                ))}
-
-                {suppressedItems.map((item, idx) => (
-                    <div key={`suppressed-${idx}`} style={{
-                        border: `1px solid ${C.red}`,
-                        background: '#FEF3F2',
-                        padding: '10px 12px',
-                    }}>
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 12,
-                            marginBottom: 6,
-                        }}>
-                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.red, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                                Suppressed after spam threshold
-                            </span>
-                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3 }}>
-                                {item.created_at ? new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
-                            </span>
-                        </div>
-                        <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.55 }}>
-                            {item.message || '—'}
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
-
-function ThreadCasesSection({ threadCases, activeCaseId, onSelectCase, onReplyCase, onQuickResolve, onEscalate, updating }) {
-    if (!Array.isArray(threadCases) || threadCases.length <= 1) {
-        return null;
-    }
-
-    return (
-        <div style={sec}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
-                <span style={monoLbl}>Complaints in this thread</span>
-                <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                    {threadCases.length} real cases
-                </span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {threadCases.map((item, index) => {
-                    const isActive = item.id === activeCaseId;
-                    return (
-                        <div
-                            key={item.id}
-                            style={{
-                                border: `1px solid ${isActive ? C.green : C.hair}`,
-                                background: isActive ? C.greenWash : C.surface,
-                                padding: '10px 12px',
-                            }}
-                        >
-                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                                <div style={{ minWidth: 0 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                        <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                                            {index === 0 ? 'Latest complaint' : `Complaint +${index}`}
-                                        </span>
-                                        <span style={{
-                                            fontSize: 10,
-                                            fontWeight: 700,
-                                            letterSpacing: '0.05em',
-                                            textTransform: 'uppercase',
-                                            color: item.status === 'resolved' || item.status === 'completed' ? '#1E8449' : C.ink2,
-                                        }}>
-                                            {(item.status || 'new').replace(/_/g, ' ')}
-                                        </span>
-                                    </div>
-                                    <div style={{ marginTop: 4, fontSize: 12.5, color: C.ink, lineHeight: 1.55 }}>
-                                        {item.raw_message || '—'}
-                                    </div>
-                                    <div style={{ marginTop: 8, display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11, color: C.ink2 }}>
-                                        <span>{item.problem_subdomain || item.problem_domain || item.category || 'Uncategorised'}</span>
-                                        <span>{item.location || 'Unknown location'}</span>
-                                        <span>{item.assembly || 'Unknown assembly'}</span>
-                                    </div>
-                                </div>
-                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                    <button
-                                        onClick={() => onSelectCase(item)}
-                                        style={{
-                                            padding: '5px 10px',
-                                            background: isActive ? C.green : 'transparent',
-                                            color: isActive ? '#F5EFE0' : C.greenInk,
-                                            border: `1px solid ${C.green}`,
-                                            cursor: 'pointer',
-                                            fontSize: 10.5,
-                                            fontWeight: 700,
-                                            letterSpacing: '0.04em',
-                                            textTransform: 'uppercase',
-                                        }}
-                                    >
-                                        {isActive ? 'Open' : 'View'}
-                                    </button>
-                                    <button
-                                        onClick={() => onReplyCase(item)}
-                                        style={{
-                                            padding: '5px 10px',
-                                            background: 'transparent',
-                                            color: C.greenInk,
-                                            border: `1px solid ${C.green}`,
-                                            cursor: 'pointer',
-                                            fontSize: 10.5,
-                                            fontWeight: 700,
-                                            letterSpacing: '0.04em',
-                                            textTransform: 'uppercase',
-                                        }}
-                                    >
-                                        Reply
-                                    </button>
-                                    {!['resolved', 'completed', 'closed'].includes(String(item.status || '').toLowerCase()) && (
-                                        <button
-                                            onClick={() => onQuickResolve(item.id)}
-                                            disabled={updating === `resolve-${item.id}`}
-                                            style={{
-                                                padding: '5px 10px',
-                                                background: '#D5F5E3',
-                                                color: '#1E8449',
-                                                border: '1px solid #A9DFBF',
-                                                cursor: updating === `resolve-${item.id}` ? 'not-allowed' : 'pointer',
-                                                fontSize: 10.5,
-                                                fontWeight: 700,
-                                                letterSpacing: '0.04em',
-                                                textTransform: 'uppercase',
-                                                opacity: updating === `resolve-${item.id}` ? 0.7 : 1,
-                                            }}
-                                        >
-                                            Resolve
-                                        </button>
-                                    )}
-                                    {isGovtAlreadyFiled(item) ? (
-                                        <span style={{
-                                            padding: '5px 10px',
-                                            fontSize: 10.5,
-                                            fontWeight: 700,
-                                            letterSpacing: '0.04em',
-                                            textTransform: 'uppercase',
-                                            color: C.ink2,
-                                            border: `1px solid ${C.hair}`,
-                                        }}>
-                                            {item.govt_reference_number
-                                                ? `Ref ${item.govt_reference_number}`
-                                                : 'Already filed'}
-                                        </span>
-                                    ) : (
-                                        <button
-                                            type="button"
-                                            onClick={() => onEscalate(item)}
-                                            aria-label="Escalate"
-                                            style={{
-                                                padding: '5px 10px',
-                                                background: C.saffron,
-                                                color: '#F5EFE0',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                fontSize: 10.5,
-                                                fontWeight: 700,
-                                                letterSpacing: '0.04em',
-                                                textTransform: 'uppercase',
-                                            }}
-                                        >
-                                            Escalate
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
-}
-
-// ─── Government Department Sync ──────────────────────────────
-// Staff-assisted forwarding to a state grievance portal (Rajasthan Sampark,
-// UP Jansunwai, CPGRAMS). "Open live portal" launches a real browser session
-// on the backend and streams it here — staff log in, the session auto-
-// navigates to the grievance form once a portal's post-login path is
-// configured, and staff read the AI worksheet below and type everything
-// into the real page themselves (no field is auto-filled — see
-// modules/govt_sync/browser_session.py's module docstring for why).
+// ─── Government status label/helpers (used across the tab strip, the
+// filing section, and the resolved-complaint summary) ─────────────
 const GOVT_STATUS_LABEL = {
     not_forwarded: 'Not forwarded',
     pending_staff_submit: 'Ready to file — staff action needed',
@@ -1084,6 +1068,18 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone }) {
     );
 }
 
+// ─── 4 · Government portal filing ─────────────────────────────
+// Staff-assisted forwarding to a state grievance portal (Rajasthan Sampark,
+// UP Jansunwai, CPGRAMS). "Open live portal" launches a real browser session
+// on the backend and streams it here — staff log in, the session auto-
+// navigates to the grievance form once a portal's post-login path is
+// configured, and staff read the AI worksheet below and type everything
+// into the real page themselves (no field is auto-filled — see
+// modules/govt_sync/browser_session.py's module docstring for why).
+//
+// LOCKED until this complaint is escalated — filing is a deliberate staff
+// decision made after reviewing the citizen's complaint, not something that
+// happens automatically the moment a case is opened.
 const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSubmitted, onGovtStateChange }, ref) {
     const toast = useToast();
     // The portal a tenant can use is derived server-side from tenant -> constituency
@@ -1098,6 +1094,8 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     const [liveSession, setLiveSession] = useState(null); // { session_id, ws_path, viewport, portal_name }
     const [liveConnecting, setLiveConnecting] = useState(false);
     const liveSessionRef = useRef(null); // mirrors liveSession so the unmount cleanup below sees the latest value, not a stale closure
+    const [hostedSessions, setHostedSessions] = useState([]);
+    const [hostedMeta, setHostedMeta] = useState({ global_count: 0, max_concurrent: 3 });
 
     useEffect(() => {
         if (!caseId) return;
@@ -1118,6 +1116,25 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         apiGet('/api/govt-portal').then(setResolvedPortal).catch(() => setResolvedPortal(null));
     }, []);
 
+    function loadHostedSessions() {
+        return apiGet('/api/govt/sessions')
+            .then((data) => {
+                setHostedSessions(data.sessions || []);
+                setHostedMeta({
+                    global_count: data.global_count || 0,
+                    max_concurrent: data.max_concurrent || 3,
+                });
+                return data;
+            })
+            .catch(() => null);
+    }
+
+    useEffect(() => {
+        loadHostedSessions();
+        const timer = setInterval(loadHostedSessions, 15000);
+        return () => clearInterval(timer);
+    }, []);
+
     useEffect(() => {
         onGovtStateChange?.(caseId, govtState?.case || null);
     }, [caseId, govtState, onGovtStateChange]);
@@ -1129,12 +1146,11 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         ? true
         : resolvedPortal.live_automation_enabled === true;
 
-    // Exposed so Escalate (per-complaint row, or same-row footer on
-    // single-complaint cases) can trigger this section's filing flow.
-    // Rebind when caseId/govtState/liveAutomationEnabled change so a thread
-    // switch opens the right case and this always reflects the current
-    // automation-enabled state. While live automation is off, Escalate
-    // prepares the AI worksheet instead of opening a browser session —
+    // Exposed so Escalate (in the citizen complaint's action row) can trigger
+    // this section's filing flow. Rebind when caseId/govtState/liveAutomationEnabled
+    // change so a thread switch opens the right case and this always reflects
+    // the current automation-enabled state. While live automation is off,
+    // Escalate prepares the AI worksheet instead of opening a browser session —
     // same one-click entry point staff already know, different destination.
     useImperativeHandle(
         ref,
@@ -1147,6 +1163,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     const hasPortal = !!govtState?.case?.govt_portal_id;
     const alreadyFiled = isGovtAlreadyFiled(govtState?.case);
     const supported = resolvedPortal?.supported ?? true; // don't flash "unsupported" before the first fetch resolves
+    const locked = !hasPortal && !alreadyFiled;
 
     function setLive(session) {
         liveSessionRef.current = session;
@@ -1174,15 +1191,24 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
             return;
         }
         setLiveConnecting(true);
-        toast.info('Opening the government portal…');
         try {
+            const listed = await loadHostedSessions();
+            const existing = (listed?.sessions || []).find((item) => item.case_id === caseId);
+            if (existing) {
+                setLive(existing);
+                toast.success('Reconnected to the open portal session');
+                return;
+            }
+            toast.info('Opening the government portal…');
             const result = await apiPost(`/api/cases/${caseId}/govt/session/start`, {});
             setLive(result);
             toast.success('Live portal session open — log in to continue');
             const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
             setGovtState(refreshed);
+            await loadHostedSessions();
         } catch (e) {
             setLive(null);
+            await loadHostedSessions();
             toast.error(e.message || 'Could not open a live session');
         } finally {
             setLiveConnecting(false);
@@ -1193,9 +1219,38 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         const session = liveSessionRef.current;
         if (!session) return;
         try {
-            await apiPost(`/api/cases/${caseId}/govt/session/${session.session_id}/close`, {});
+            await apiPost(`/api/govt/sessions/${session.session_id}/close`, {});
         } catch { /* best effort */ }
         setLive(null);
+        await loadHostedSessions();
+    }
+
+    async function handleEndHostedSession(sessionId) {
+        setBusy(true);
+        try {
+            await apiPost(`/api/govt/sessions/${sessionId}/close`, {});
+            if (liveSessionRef.current?.session_id === sessionId) setLive(null);
+            toast.success('Live portal session ended');
+            await loadHostedSessions();
+        } catch (e) {
+            toast.error(e.message || 'Could not end that session');
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function handleEndAllHostedSessions() {
+        setBusy(true);
+        try {
+            const result = await apiPost('/api/govt/sessions/close-all', {});
+            setLive(null);
+            toast.success(result.closed ? `Ended ${result.closed} live portal session${result.closed === 1 ? '' : 's'}` : 'No live sessions were open');
+            await loadHostedSessions();
+        } catch (e) {
+            toast.error(e.message || 'Could not end live sessions');
+        } finally {
+            setBusy(false);
+        }
     }
 
     async function handleCaptureReference() {
@@ -1295,146 +1350,179 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
 
     return (
         <div style={sec}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
-                <span style={monoLbl}>Government Portal</span>
-                <span style={{
-                    fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
-                    padding: '2px 8px',
-                    color: status === 'resolved' ? C.greenInk : status === 'rejected' ? C.red : status === 'not_forwarded' ? C.ink3 : C.saffron,
-                    background: status === 'resolved' ? C.greenTint : status === 'rejected' ? '#FDEDEC' : status === 'not_forwarded' ? C.surface : C.saffronTint,
-                }}>
-                    {GOVT_STATUS_LABEL[status] || status}
-                </span>
-            </div>
-
-            {!hasPortal && supported && !alreadyFiled && (
-                <div>
-                    {resolvedPortal?.portal && (
-                        <div style={{ fontSize: 11.5, color: C.ink2, marginBottom: 8 }}>
-                            Will file via <strong style={{ color: C.ink }}>{resolvedPortal.portal.portal_name}</strong>
-                            {resolvedPortal.state ? ` (${resolvedPortal.state})` : ''} — set by this MP's constituency, not a choice here.
-                            {!resolvedPortal.portal.ready && (
-                                <div style={{ color: C.saffron, marginTop: 4 }}>
-                                    ⚠ Portal URL confirmed, but its department list isn't mapped yet — preparing a case here will show an error until an admin sets that up.
-                                </div>
-                            )}
-                            {!liveAutomationEnabled && (
-                                <div style={{ color: C.ink3, marginTop: 4 }}>
-                                    Automated filing is off — Escalate will prepare the AI worksheet for copy-paste filing.
-                                </div>
-                            )}
-                        </div>
-                    )}
-                    <div style={{ fontSize: 11.5, color: C.ink2 }}>
-                        Use <strong style={{ color: C.ink }}>Escalate</strong> on this complaint to file it on the portal.
-                    </div>
-                </div>
-            )}
-
-            {!hasPortal && !supported && (
-                <div style={{ fontSize: 11.5, color: C.ink2, fontStyle: 'italic' }}>
-                    No government portal configured yet for {resolvedPortal?.state ? `state "${resolvedPortal.state}"` : "this tenant's state (none on file)"}.
-                    Ask an admin to add one under Government Portals settings.
-                </div>
-            )}
-
-            {portalMismatch && (
-                <div style={{ fontSize: 11.5, color: C.saffron, background: C.saffronTint, padding: '8px 10px', marginBottom: 10 }}>
-                    ⚠ This was prepared for <strong>{govtState?.case?.portal_name || 'a different portal'}</strong>, but
-                    this tenant should now use <strong>{resolvedPortal.portal.portal_name}</strong>
-                    {resolvedPortal.state ? ` (${resolvedPortal.state})` : ''} — nothing's been filed with the government
-                    yet, so it's safe to fix.
-                    <div style={{ marginTop: 6 }}>
-                        <Button size="sm" disabled={busy} onClick={handlePrepare}>
-                            {busy ? <Loader2 size={14} className="animate-spin" /> : `Re-resolve to ${resolvedPortal.portal.portal_name}`}
-                        </Button>
-                    </div>
-                </div>
-            )}
-
-            {hasPortal && ws && (
-                <div style={{ marginTop: hasPortal && !ws ? 0 : 4 }}>
-                    <GovtSyncCopyField label="Department" value={ws.department} />
-                    <GovtSyncCopyField label="Subject" value={ws.subject} />
-                    <GovtSyncCopyField label="Description" value={ws.description} />
-                    {ws.priority_category && <GovtSyncCopyField label="Priority category" value={ws.priority_category} />}
-                    {worksheet?.portal_filer_name && (
-                        <GovtSyncCopyField label="Filer/citizen name to enter on portal (MP, not the constituent)" value={worksheet.portal_filer_name} />
-                    )}
-                    {worksheet?.portal_contact_number && (
-                        <GovtSyncCopyField label="Contact number to enter on portal" value={worksheet.portal_contact_number} />
-                    )}
-                    {worksheet?.staff_action_note && (
-                        <div style={{ fontSize: 11, color: C.ink2, marginBottom: 10, fontStyle: 'italic' }}>{worksheet.staff_action_note}</div>
-                    )}
-                </div>
-            )}
-
-            {liveSession && (
-                <div>
-                    <div style={{
-                        fontSize: 11.5, color: C.ink, background: C.greenWash, border: `1px solid ${C.greenTint}`,
-                        padding: '8px 10px', marginBottom: 8,
+            <SectionHeading
+                n={4}
+                label="Government portal filing"
+                trailing={
+                    <span style={{
+                        fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                        padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: 5,
+                        color: locked ? C.ink3 : (status === 'resolved' ? C.greenInk : status === 'rejected' ? C.red : C.saffron),
+                        background: locked ? C.paperDeep : (status === 'resolved' ? C.greenTint : status === 'rejected' ? '#FDEDEC' : C.saffronTint),
                     }}>
-                        Nothing on this form is auto-filled — log in, and if the portal's grievance-form page is
-                        configured you'll land there automatically; otherwise navigate to it yourself. Read the
-                        worksheet below and type each field in yourself.
-                        <div style={{ marginTop: 4 }}>
-                            <strong>Never enter the citizen's personal details</strong> (Aadhaar name, father's/spouse's
-                            name, caste, gender, DOB) — Needle doesn't collect that. Where the form asks for a
-                            citizen/filer name, use <strong>{liveSession.portal_filer_name || "the MP's name"}</strong> instead
-                            — that's the filer of record, not the constituent. If the form offers "register
-                            anonymously" or similar, leave it set to Yes.
+                        <Icon name={locked ? 'lock' : 'unlock'} size={10} stroke={2.2} />
+                        {locked ? 'Locked' : (GOVT_STATUS_LABEL[status] || status)}
+                    </span>
+                }
+            />
+
+            {locked ? (
+                <div style={{
+                    border: `1px dashed ${C.hairStrong}`, background: C.paperDeep, padding: '16px 16px',
+                    display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start',
+                }}>
+                    <div style={{
+                        width: 30, height: 30, borderRadius: '50%', background: C.surface,
+                        border: `1px solid ${C.hairStrong}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                        <Icon name="lock" size={14} color={C.ink3} stroke={2} />
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>Filing is locked until this complaint is escalated</div>
+                    <div style={{ fontSize: 12, color: C.ink2, lineHeight: 1.5 }}>
+                        Review the citizen's complaint above and decide what to do. Filing with the government portal only
+                        starts once staff click <strong style={{ color: C.ink }}>Escalate</strong> on this complaint —
+                        nothing is sent to a government system automatically.
+                    </div>
+                    {resolvedPortal?.portal && supported && (
+                        <div style={{ fontSize: 11.5, color: C.ink3, marginTop: 2 }}>
+                            Will file via <strong style={{ color: C.ink2 }}>{resolvedPortal.portal.portal_name}</strong>
+                            {resolvedPortal.state ? ` (${resolvedPortal.state})` : ''} once escalated — set by this office's
+                            constituency, not a choice here.
+                            {!liveAutomationEnabled && ' Automated filing is off for this tenant, so Escalate will prepare the AI worksheet for copy-paste filing instead of a live session.'}
                         </div>
-                    </div>
-                    <GovtLiveBrowserView
-                        wsPath={liveSession.ws_path}
-                        viewport={liveSession.viewport}
-                        onClose={handleCloseLive}
-                        onSessionGone={handleSessionGone}
-                    />
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                        <Button size="sm" variant="outline" disabled={busy} onClick={handleCaptureReference}>
-                            {busy ? <Loader2 size={14} className="animate-spin" /> : 'Submitted — capture reference number'}
-                        </Button>
-                    </div>
+                    )}
+                    {!supported && (
+                        <div style={{ fontSize: 11.5, color: C.ink3, fontStyle: 'italic', marginTop: 2 }}>
+                            No government portal configured yet for {resolvedPortal?.state ? `state "${resolvedPortal.state}"` : "this tenant's state (none on file)"}.
+                            Ask an admin to add one under Government Portals settings.
+                        </div>
+                    )}
                 </div>
-            )}
+            ) : (
+                <>
+                    {hostedSessions.length > 0 && (
+                        <div style={{
+                            fontSize: 11.5, color: C.ink, background: C.saffronTint, border: `1px solid ${C.hair}`,
+                            padding: '8px 10px', marginBottom: 10,
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                                <span>
+                                    Open live sessions: <strong>{hostedSessions.length}</strong>
+                                    {hostedMeta.max_concurrent ? ` of ${hostedMeta.max_concurrent} on this host` : ''}
+                                </span>
+                                <Button size="sm" variant="outline" disabled={busy} onClick={handleEndAllHostedSessions}>
+                                    End all
+                                </Button>
+                            </div>
+                            {hostedSessions.map((item) => {
+                                const minutes = Math.max(1, Math.round((item.age_seconds || 0) / 60));
+                                const isThisCase = item.case_id === caseId;
+                                const isViewing = liveSession?.session_id === item.session_id;
+                                return (
+                                    <div key={item.session_id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
+                                        <span style={{ flex: '1 1 160px' }}>
+                                            Case #{item.case_id} · {item.portal_name || 'Portal'} · {minutes} min
+                                            {isThisCase ? ' · this complaint' : ''}
+                                            {isViewing ? ' · showing below' : ''}
+                                        </span>
+                                        {isThisCase && !isViewing && (
+                                            <Button size="sm" variant="outline" disabled={liveConnecting} onClick={() => { setLive(item); toast.success('Showing the open portal session'); }}>
+                                                Show
+                                            </Button>
+                                        )}
+                                        <Button size="sm" variant="outline" disabled={busy} onClick={() => handleEndHostedSession(item.session_id)}>
+                                            End
+                                        </Button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
 
-            {hasPortal && status === 'pending_staff_submit' && !alreadyFiled && (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
-                    <Input
-                        placeholder="Reference number from portal"
-                        value={refInput}
-                        onChange={(e) => setRefInput(e.target.value)}
-                        style={{ fontSize: 12.5, flex: '1 1 180px' }}
-                    />
-                    <Button size="sm" disabled={busy} onClick={handleSubmitRef}>
-                        {busy ? <Loader2 size={14} className="animate-spin" /> : 'Mark as submitted'}
-                    </Button>
-                </div>
-            )}
+                    {portalMismatch && (
+                        <div style={{ fontSize: 11.5, color: C.saffron, background: C.saffronTint, padding: '8px 10px', marginBottom: 10 }}>
+                            ⚠ This was prepared for <strong>{govtState?.case?.portal_name || 'a different portal'}</strong>, but
+                            this tenant should now use <strong>{resolvedPortal.portal.portal_name}</strong>
+                            {resolvedPortal.state ? ` (${resolvedPortal.state})` : ''} — nothing's been filed with the government
+                            yet, so it's safe to fix.
+                            <div style={{ marginTop: 6 }}>
+                                <Button size="sm" disabled={busy} onClick={handlePrepare}>
+                                    {busy ? <Loader2 size={14} className="animate-spin" /> : `Re-resolve to ${resolvedPortal.portal.portal_name}`}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
 
-            {alreadyFiled && (
-                <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 11.5, color: C.ink2, marginBottom: 8 }}>
-                        Ref: <strong style={{ color: C.ink }}>{govtState?.case?.govt_reference_number || '—'}</strong>
-                        {govtState?.case?.govt_status_updated_at && (
-                            <> · updated {new Date(govtState.case.govt_status_updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</>
-                        )}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <Button size="sm" variant="outline" disabled={busy} onClick={handlePollNow}>
-                            {busy ? <Loader2 size={14} className="animate-spin" /> : 'Check status now'}
-                        </Button>
-                        {isMp && (
-                            <Button size="sm" disabled={busy} onClick={handleNotifyCitizen}>
-                                <Send size={13} style={{ marginRight: 6 }} />
-                                Forward update to citizen
+                    {hasPortal && ws && (
+                        <div style={{ marginTop: hasPortal && !ws ? 0 : 4 }}>
+                            <GovtSyncCopyField label="Department" value={ws.department} />
+                            <GovtSyncCopyField label="Subject" value={ws.subject} />
+                            <GovtSyncCopyField label="Description" value={ws.description} />
+                            {ws.priority_category && <GovtSyncCopyField label="Priority category" value={ws.priority_category} />}
+                            {worksheet?.portal_filer_name && (
+                                <GovtSyncCopyField label="Filer/citizen name to enter on portal (MP, not the constituent)" value={worksheet.portal_filer_name} />
+                            )}
+                            {worksheet?.portal_contact_number && (
+                                <GovtSyncCopyField label="Contact number to enter on portal" value={worksheet.portal_contact_number} />
+                            )}
+                            {worksheet?.staff_action_note && (
+                                <div style={{ fontSize: 11, color: C.ink2, marginBottom: 10, fontStyle: 'italic' }}>{worksheet.staff_action_note}</div>
+                            )}
+                        </div>
+                    )}
+
+                    {liveSession && (
+                        <div>
+                            <GovtLiveBrowserView
+                                wsPath={liveSession.ws_path}
+                                viewport={liveSession.viewport}
+                                onClose={handleCloseLive}
+                                onSessionGone={handleSessionGone}
+                            />
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                                <Button size="sm" variant="outline" disabled={busy} onClick={handleCaptureReference}>
+                                    {busy ? <Loader2 size={14} className="animate-spin" /> : 'Submitted — capture reference number'}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
+                    {hasPortal && status === 'pending_staff_submit' && !alreadyFiled && (
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
+                            <Input
+                                placeholder="Reference number from portal"
+                                value={refInput}
+                                onChange={(e) => setRefInput(e.target.value)}
+                                style={{ fontSize: 12.5, flex: '1 1 180px' }}
+                            />
+                            <Button size="sm" disabled={busy} onClick={handleSubmitRef}>
+                                {busy ? <Loader2 size={14} className="animate-spin" /> : 'Mark as submitted'}
                             </Button>
-                        )}
-                    </div>
-                </div>
+                        </div>
+                    )}
+
+                    {alreadyFiled && (
+                        <div style={{ marginTop: 8 }}>
+                            <div style={{ fontSize: 11.5, color: C.ink2, marginBottom: 8 }}>
+                                Ref: <strong style={{ color: C.ink }}>{govtState?.case?.govt_reference_number || '—'}</strong>
+                                {govtState?.case?.govt_status_updated_at && (
+                                    <> · updated {new Date(govtState.case.govt_status_updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</>
+                                )}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                <Button size="sm" variant="outline" disabled={busy} onClick={handlePollNow}>
+                                    {busy ? <Loader2 size={14} className="animate-spin" /> : 'Check status now'}
+                                </Button>
+                                {isMp && (
+                                    <Button size="sm" disabled={busy} onClick={handleNotifyCitizen}>
+                                        <Send size={13} style={{ marginRight: 6 }} />
+                                        Forward update to citizen
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );
@@ -1511,7 +1599,7 @@ function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSa
 function AssignSection({ assignee, onAssign, staff, onDelete, userRole }) {
     const canDelete = ['mp', 'owner', 'pr'].includes(userRole);
     return (
-        <div style={{ ...sec, borderBottom: 'none' }}>
+        <div style={sec}>
             <span style={monoLbl}>Assign to</span>
             <select value={assignee} onChange={(e) => onAssign(e.target.value)} style={{
                 width: '100%', border: `1px solid ${C.hair}`,
@@ -1541,121 +1629,24 @@ function AssignSection({ assignee, onAssign, staff, onDelete, userRole }) {
     );
 }
 
-// ─── Sticky bottom action bar ─────────────────────────────────
-function ActionBar({ onConfirm, onReply, onEscalate, isUncategorised, showEscalate }) {
-    return (
-        <div style={{
-            position: 'sticky', bottom: 0, zIndex: 10,
-            background: C.paper, borderTop: `1px solid ${C.hair}`,
-            padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 8,
-            boxShadow: '0 -8px 20px rgba(26,24,18,0.06)',
-        }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <button onClick={onConfirm} style={{
-                    flex: 1, padding: '10px 14px', background: C.green, color: '#F5EFE0', border: 'none',
-                    fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-                    cursor: 'pointer', fontFamily: 'inherit',
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                }}>
-                    <Icon name="check" size={13} color="#F5EFE0" stroke={2.5} />
-                    {isUncategorised ? 'Confirm category & assign' : 'Mark resolved'}
-                </button>
-                {showEscalate && (
-                    <button onClick={() => onEscalate()} style={{
-                        padding: '10px 14px', background: C.saffron, color: '#F5EFE0', border: 'none',
-                        fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-                        cursor: 'pointer', fontFamily: 'inherit',
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                    }}>
-                        <Icon name="external" size={13} color="#F5EFE0" stroke={2.5} />
-                        Escalate
-                    </button>
-                )}
-                <button onClick={onReply} style={{
-                    padding: '10px 14px', background: 'transparent',
-                    border: `1px solid ${C.hairStrong}`, color: C.ink,
-                    fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                }}>
-                    <Icon name="send" size={12} color={C.ink} /> Reply
-                </button>
-            </div>
-        </div>
-    );
-}
-
-// ─── Resolved view ────────────────────────────────────────────
-function ResolvedView({ current, activities, loadingActivity, onClose }) {
-    const meta = current.case_metadata || {};
-    const createdAt = current.created_at ? new Date(current.created_at) : null;
-    const caseRef = current.case_ref || `#${current.id}`;
-    const notifyAct = [...activities].reverse().find((a) => a.action === 'citizen_notified');
-    const notifiedAt = notifyAct ? new Date(notifyAct.created_at) : null;
-
-    const fields = [
-        ['Case Number', caseRef],
-        ['Contact', current.user_phone || '–'],
-        ['Category', current.category || 'General'],
-        ['Location', meta.matched_value || current.location || '–'],
-        ['Assembly', meta.assembly_constituency || current.assembly || '–'],
-        ['Geo Confidence', meta.geography_confidence || '–'],
-        ['Filed', createdAt ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '–'],
-        ['Resolved', notifiedAt ? notifiedAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '–'],
-    ];
-
-    return (
-        <>
-            <DrawerHeader caseRef={caseRef} status="resolved" isUncategorised={false} onClose={onClose} />
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                <div style={sec}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        {fields.map(([label, value]) => (
-                            <div key={label} style={{ border: `1px solid ${C.hair}`, padding: '8px 12px', background: C.surface, minWidth: 0 }}>
-                                <div style={{ fontSize: 9.5, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"JetBrains Mono", monospace', marginBottom: 3 }}>{label}</div>
-                                <div style={{ fontSize: 13, fontWeight: 500, color: C.ink, overflowWrap: 'anywhere' }}>{value}</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                <MessageBlock rawMessage={current.raw_message} summary={meta.summary} media={current.media || []} caseId={current.id} />
-                {current.response_to_citizen && (
-                    <div style={sec}>
-                        <span style={monoLbl}>Resolution message sent</span>
-                        <div style={{
-                            padding: '12px 14px', background: C.greenWash,
-                            borderLeft: `3px solid ${C.green}`,
-                            fontSize: 13, color: C.ink, lineHeight: 1.6,
-                        }}>{current.response_to_citizen}</div>
-                    </div>
-                )}
-                <ActivityTimeline activities={activities} loading={loadingActivity} />
-            </div>
-            <div style={{ background: C.paper, borderTop: `1px solid ${C.hair}`, padding: '10px 16px' }}>
-                <button onClick={onClose} style={{
-                    width: '100%', padding: '10px', background: 'transparent',
-                    border: `1px solid ${C.hairStrong}`, color: C.ink,
-                    fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                }}>Close</button>
-            </div>
-        </>
-    );
-}
-
-function CaseFileOverview({ current, meta, caseRef, createdAt, assignee }) {
+// ─── Case information (right rail, read-only summary) ─────────
+function CaseInformation({ current, meta, caseRef, createdAt, assignee, constituency }) {
     const infoRows = [
         ['Case number', caseRef],
         ['Priority', current.is_critical ? 'Critical' : 'Standard'],
         ['Category', current.problem_subdomain || current.problem_domain || current.category || 'Uncategorised'],
         ['Channel', 'WhatsApp'],
         ['Received', createdAt ? `${createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} · ${createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} IST` : '–'],
-        ['Constituency', current.assembly || meta.assembly_constituency || '–'],
+        ['Constituency', constituency || '–'],
         ['Location', meta.matched_value || current.location || '–'],
+        ...(current.ward ? [['Ward', current.ward]] : []),
+        ['Assembly', current.assembly || meta.assembly_constituency || '–'],
         ['Assignee', assignee || 'Unassigned'],
     ];
 
     return (
         <div style={{ ...sec, background: C.surfaceWarm }}>
-            <div style={{ ...monoLbl, marginBottom: 10 }}>Case file</div>
+            <div style={{ ...monoLbl, marginBottom: 10 }}>Case information</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                 {infoRows.map(([label, value], index) => (
                     <div
@@ -1673,6 +1664,136 @@ function CaseFileOverview({ current, meta, caseRef, createdAt, assignee }) {
                 ))}
             </div>
         </div>
+    );
+}
+
+// ─── Add-complaint dialog ──────────────────────────────────────
+// Staff can add a complaint to this thread for a grievance the citizen
+// raised somewhere the automated intake pipeline can't parse (a phone call,
+// an in-person visit, a paper note). It's linked into the same WhatsApp
+// thread as every other complaint here, not created as a disconnected case.
+function AddComplaintDialog({ open, onOpenChange, onSubmit, saving, categories }) {
+    const [text, setText] = useState('');
+    const [category, setCategory] = useState('');
+    const [location, setLocation] = useState('');
+
+    useEffect(() => {
+        if (open) { setText(''); setCategory(''); setLocation(''); }
+    }, [open]);
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-lg" style={{ background: C.paper, fontFamily: 'inherit' }}>
+                <DialogHeader>
+                    <DialogTitle style={{ color: C.ink }}>Add a complaint to this case</DialogTitle>
+                    <DialogDescription style={{ color: C.ink3 }}>
+                        Use this for a grievance the citizen raised outside WhatsApp — a call, a visit, a paper note.
+                        It's linked to the same WhatsApp thread as a new, independently-managed complaint.
+                    </DialogDescription>
+                </DialogHeader>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}>
+                    <div>
+                        <span style={{ ...monoLbl, marginBottom: 4 }}>Citizen's complaint, in their own words</span>
+                        <textarea
+                            value={text}
+                            onChange={(e) => setText(e.target.value)}
+                            placeholder="What did the citizen say?"
+                            style={{
+                                width: '100%', minHeight: 90, padding: '10px 12px',
+                                border: `1px solid ${C.hair}`, background: C.surface,
+                                fontFamily: 'inherit', fontSize: 12.5, color: C.ink,
+                                resize: 'vertical', outline: 'none', boxSizing: 'border-box',
+                            }}
+                        />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div>
+                            <span style={{ ...monoLbl, marginBottom: 4 }}>Category (optional)</span>
+                            <select value={category} onChange={(e) => setCategory(e.target.value)} style={{
+                                width: '100%', border: `1px solid ${C.hair}`, background: C.surface,
+                                padding: '7px 10px', fontSize: 12.5, color: C.ink, fontFamily: 'inherit', outline: 'none',
+                            }}>
+                                <option value="">Leave uncategorised</option>
+                                {categories.map((cat) => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <span style={{ ...monoLbl, marginBottom: 4 }}>Location (optional)</span>
+                            <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Village / ward" style={{ fontSize: 12.5 }} />
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button
+                        disabled={saving || !text.trim()}
+                        onClick={() => onSubmit({ raw_message: text.trim(), category: category || null, location: location.trim() || null })}
+                        style={{ background: C.green, color: '#F5EFE0', border: 'none' }}
+                    >
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                        Add complaint
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// ─── Resolved-complaint summary (shown in place of the 4 sections when the
+// selected complaint is resolved — the tab strip and right rail stay live
+// so staff can switch to another complaint or reopen this one) ────
+function ResolvedComplaintSummary({ current, meta, activities, loadingActivity }) {
+    const createdAt = current.created_at ? new Date(current.created_at) : null;
+    const notifyAct = [...activities].reverse().find((a) => a.action === 'citizen_notified');
+    const notifiedAt = notifyAct ? new Date(notifyAct.created_at) : null;
+
+    const fields = [
+        ['Category', current.problem_subdomain || current.problem_domain || current.category || 'General'],
+        ['Location', meta.matched_value || current.location || '–'],
+        ['Assembly', meta.assembly_constituency || current.assembly || '–'],
+        ['Filed', createdAt ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '–'],
+        ['Resolved', notifiedAt ? notifiedAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '–'],
+    ];
+
+    return (
+        <>
+            <div style={sec}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {fields.map(([label, value]) => (
+                        <div key={label} style={{ border: `1px solid ${C.hair}`, padding: '8px 12px', background: C.surface, minWidth: 0 }}>
+                            <div style={{ fontSize: 9.5, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"JetBrains Mono", monospace', marginBottom: 3 }}>{label}</div>
+                            <div style={{ fontSize: 13, fontWeight: 500, color: C.ink, overflowWrap: 'anywhere' }}>{value}</div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+            <div style={sec}>
+                <SectionHeading n={1} label="Citizen complaint" />
+                <div style={{ padding: '12px 14px', background: C.paperDeep, borderLeft: `3px solid ${C.green}`, fontSize: 13.5, lineHeight: 1.6, color: C.ink, whiteSpace: 'pre-wrap' }}>
+                    {current.raw_message || 'No message content.'}
+                </div>
+            </div>
+            {current.response_to_citizen && (
+                <div style={sec}>
+                    <span style={monoLbl}>Resolution message sent</span>
+                    <div style={{ padding: '12px 14px', background: C.greenWash, borderLeft: `3px solid ${C.green}`, fontSize: 13, color: C.ink, lineHeight: 1.6 }}>
+                        {current.response_to_citizen}
+                    </div>
+                </div>
+            )}
+            {(current.govt_status || current.govt_reference_number) && (
+                <div style={sec}>
+                    <SectionHeading n={4} label="Government filing" />
+                    <div style={{ fontSize: 12.5, color: C.ink2 }}>
+                        Status: <strong style={{ color: C.ink }}>{GOVT_STATUS_LABEL[current.govt_status] || current.govt_status || 'Not forwarded'}</strong>
+                        {current.govt_reference_number && <> · Reference: <strong style={{ color: C.ink }}>{current.govt_reference_number}</strong></>}
+                    </div>
+                </div>
+            )}
+            <ActivityTimeline activities={activities} loading={loadingActivity} />
+        </>
     );
 }
 
@@ -1694,11 +1815,13 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const [notifySending, setNotifySending] = useState(false);
     const [fullCase, setFullCase] = useState(null);
     const [activeCaseId, setActiveCaseId] = useState(null);
-    const [replyIntentCaseId, setReplyIntentCaseId] = useState(null);
-    const [escalateIntentCaseId, setEscalateIntentCaseId] = useState(null);
     const [geoLocation, setGeoLocation] = useState('');
     const [geoAssembly, setGeoAssembly] = useState('');
     const [savingGeo, setSavingGeo] = useState(false);
+    const [translations, setTranslations] = useState({}); // { [caseId]: { loading, translation, error, alreadyEnglish } }
+    const [addComplaintOpen, setAddComplaintOpen] = useState(false);
+    const [addComplaintSaving, setAddComplaintSaving] = useState(false);
+    const [categoryOptions, setCategoryOptions] = useState([]);
     const responseSectionRef = useRef(null);
     const responseInputRef = useRef(null);
     const govtSyncRef = useRef(null);      // imperative handle into GovtSyncSection — lets Escalate trigger its live-session flow
@@ -1743,19 +1866,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         localStorage.setItem(`draft_response_${activeCaseId}`, response);
     }, [notes, response, activeCaseId]);
 
-    useEffect(() => {
-        if (!replyIntentCaseId || getSelectedThreadCaseId(fullCase, caseItem, activeCaseId) !== replyIntentCaseId) {
-            return;
-        }
-        responseSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        if (responseInputRef.current) {
-            responseInputRef.current.focus();
-            const length = responseInputRef.current.value?.length || 0;
-            responseInputRef.current.setSelectionRange(length, length);
-        }
-        setReplyIntentCaseId(null);
-    }, [replyIntentCaseId, activeCaseId, fullCase, caseItem]);
-
     const handleGovtStateChange = useCallback((targetId, govtCase) => {
         if (!targetId) return;
         const nextStatus = govtCase?.govt_status ?? null;
@@ -1785,19 +1895,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         });
     }, []);
 
-    useEffect(() => {
-        if (!escalateIntentCaseId || getSelectedThreadCaseId(fullCase, caseItem, activeCaseId) !== escalateIntentCaseId) {
-            return;
-        }
-        const thread = Array.isArray(fullCase?.thread_cases) ? fullCase.thread_cases : [];
-        const target = thread.find((item) => item.id === escalateIntentCaseId) || fullCase || caseItem;
-        govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        if (!isGovtAlreadyFiled(target)) {
-            govtSyncRef.current?.openLiveSession();
-        }
-        setEscalateIntentCaseId(null);
-    }, [escalateIntentCaseId, activeCaseId, fullCase, caseItem]);
-
     if (!caseItem) return null;
 
     const threadCases = Array.isArray(fullCase?.thread_cases) && fullCase.thread_cases.length
@@ -1817,75 +1914,32 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const caseRef = current.case_ref || `#${current.id}`;
     const suggestedTriage = getSuggestedTriage(meta, current);
     const displaySummary = getCaseSummary(current, meta);
-    const activeTab = !['resolved', 'deleted', 'clusters'].includes(String(statusFilter || '').toLowerCase());
+    const followupCount = 1 + (Array.isArray(meta.contact_message_events) ? meta.contact_message_events.length : 0);
+    const isResolved = currentStatus === 'resolved' || currentStatus === 'completed';
+    const constituency = current.mp_constituency || fullCase?.mp_constituency || user?.constituency || '';
 
-    function handleReplyCase(item) {
-        setActiveCaseId(item.id);
-        setReplyIntentCaseId(item.id);
-    }
+    // Contextual escalate/filing label, computed purely from data already
+    // flowing to the parent (govt_status/reference on the active thread
+    // member) — no separate state needed.
+    const alreadyFiledFlag = isGovtAlreadyFiled(current);
+    const hasBeenEscalated = alreadyFiledFlag || String(current.govt_status || '').toLowerCase() === 'pending_staff_submit';
+    const escalateLabel = alreadyFiledFlag ? 'View submission' : (hasBeenEscalated ? 'Open filing' : 'Escalate');
+    const confirmLabel = (isUncategorised && suggestedTriage?.ai_category)
+        ? 'Confirm category & assign'
+        : (isResolved ? 'Mark resolved' : 'Resolve');
 
-    // "Escalate" = forward this grievance to the government portal. Scrolls the
-    // Government Portal section into view and triggers the same live browser
-    // session GovtSyncSection's own "Open live portal" button starts — staff
-    // land on the portal's login page, log in themselves, get auto-navigated
-    // to the grievance form where configured, then type everything in by
-    // hand using the AI worksheet as reference (see browser_session.py).
-    function handleEscalate(item) {
-        const target = item || current;
-        const targetId = target?.id || current.id;
-        if (isGovtAlreadyFiled(target)) {
-            if (targetId && targetId !== activeCaseId) {
-                setActiveCaseId(targetId);
-            }
+    function handleEscalateClick() {
+        if (alreadyFiledFlag) {
             govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             return;
         }
-        if (targetId && targetId !== activeCaseId) {
-            setActiveCaseId(targetId);
-            setEscalateIntentCaseId(targetId);
+        if (hasBeenEscalated) {
+            govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             return;
         }
         govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         govtSyncRef.current?.openLiveSession();
     }
-
-    const pruneResolvedThreadCase = (targetCaseId, nextStatus) => {
-        const resolvedLike = ['resolved', 'completed', 'closed'].includes(String(nextStatus || '').toLowerCase());
-        if (!resolvedLike || !activeTab) {
-            return;
-        }
-        setFullCase((existing) => {
-            if (!existing) return existing;
-            const remainingThreadCases = (existing.thread_cases || []).filter((item) => item.id !== targetCaseId);
-            if (remainingThreadCases.length === 0) {
-                return existing;
-            }
-            return {
-                ...existing,
-                id: remainingThreadCases[0].id,
-                case_ref: remainingThreadCases[0].case_ref,
-                status: remainingThreadCases[0].status,
-                raw_message: remainingThreadCases[0].raw_message,
-                location: remainingThreadCases[0].location,
-                assembly: remainingThreadCases[0].assembly,
-                problem_domain: remainingThreadCases[0].problem_domain,
-                problem_subdomain: remainingThreadCases[0].problem_subdomain,
-                convergence_program_type: remainingThreadCases[0].convergence_program_type,
-                case_metadata: remainingThreadCases[0].case_metadata || existing.case_metadata,
-                pending_contact_count: Math.max(remainingThreadCases.length - 1, 0),
-                thread_case_count: remainingThreadCases.length,
-                thread_cases: remainingThreadCases,
-            };
-        });
-        const remainingThreadCases = (fullCase?.thread_cases || []).filter((item) => item.id !== targetCaseId);
-        if (remainingThreadCases.length === 0) {
-            onClose();
-            return;
-        }
-        if (activeCaseId === targetCaseId) {
-            setActiveCaseId(remainingThreadCases[0].id);
-        }
-    };
 
     const acceptSuggestion = async () => {
         if (!suggestedTriage?.ai_category || acceptingSuggestion) return;
@@ -1939,32 +1993,10 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                 );
                 return { ...existing, thread_cases: nextThreadCases };
             });
-            pruneResolvedThreadCase(current.id, newStatus);
             onStatusChange(current.id, newStatus);
             toast.success(`Case marked as ${newStatus}`);
         } catch {
             toast.error('Failed to update status');
-        } finally {
-            setUpdating(null);
-        }
-    };
-
-    const handleQuickResolve = async (targetCaseId) => {
-        setUpdating(`resolve-${targetCaseId}`);
-        try {
-            await apiPatch(`/api/cases/${targetCaseId}/status`, { status: 'resolved' });
-            setFullCase((existing) => {
-                if (!existing) return existing;
-                const nextThreadCases = (existing.thread_cases || []).map((item) =>
-                    item.id === targetCaseId ? { ...item, status: 'resolved' } : item
-                );
-                return { ...existing, thread_cases: nextThreadCases };
-            });
-            pruneResolvedThreadCase(targetCaseId, 'resolved');
-            onStatusChange(targetCaseId, 'resolved');
-            toast.success('Complaint marked resolved');
-        } catch {
-            toast.error('Failed to resolve complaint');
         } finally {
             setUpdating(null);
         }
@@ -2076,6 +2108,84 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         }
     };
 
+    const handleTranslate = async () => {
+        const targetId = current.id;
+        setTranslations((prev) => ({ ...prev, [targetId]: { ...(prev[targetId] || {}), loading: true, error: null } }));
+        try {
+            const result = await apiPost(`/api/cases/${targetId}/translate`, {});
+            setTranslations((prev) => ({
+                ...prev,
+                [targetId]: {
+                    loading: false,
+                    translation: result.translation || null,
+                    alreadyEnglish: !!result.already_english,
+                    error: result.error || null,
+                },
+            }));
+        } catch (error) {
+            setTranslations((prev) => ({ ...prev, [targetId]: { loading: false, translation: null, error: error.message || 'Translation failed' } }));
+        }
+    };
+
+    const openAddComplaint = async () => {
+        setAddComplaintOpen(true);
+        if (categoryOptions.length === 0) {
+            try {
+                const result = await apiGet('/api/cases/filter-options');
+                setCategoryOptions((result.categories || []).map((c) => c.value).filter(Boolean));
+            } catch {
+                setCategoryOptions([]);
+            }
+        }
+    };
+
+    const submitAddComplaint = async (payload) => {
+        setAddComplaintSaving(true);
+        try {
+            const result = await apiPost(`/api/cases/${current.id}/complaints`, payload);
+            const raw = result.case || {};
+            const newEntry = {
+                id: raw.id,
+                case_ref: raw.case_ref || `#${raw.id}`,
+                status: raw.status || 'new',
+                raw_message: raw.raw_message || '',
+                category: raw.category || raw.problem_domain || 'Uncategorised',
+                problem_domain: raw.problem_domain,
+                problem_subdomain: raw.problem_subdomain,
+                convergence_program_type: raw.convergence_program_type,
+                location: raw.location || '',
+                ward: raw.ward || '',
+                assembly: raw.assembly || '',
+                created_at: raw.created_at,
+                updated_at: raw.updated_at,
+                is_critical: !!raw.is_critical,
+                assigned_to: raw.assigned_to,
+                notes_for_staff: raw.notes_for_staff,
+                response_to_citizen: raw.response_to_citizen,
+                govt_status: raw.govt_status,
+                govt_reference_number: raw.govt_reference_number,
+                case_metadata: raw.case_metadata || {},
+            };
+            setFullCase((existing) => {
+                const base = existing || current;
+                const nextThread = [...(base.thread_cases && base.thread_cases.length ? base.thread_cases : [current]), newEntry];
+                return {
+                    ...base,
+                    thread_cases: nextThread,
+                    thread_case_count: nextThread.length,
+                    pending_contact_count: Math.max(0, nextThread.length - 1),
+                };
+            });
+            setActiveCaseId(newEntry.id);
+            setAddComplaintOpen(false);
+            toast.success('Complaint added to this case');
+        } catch (error) {
+            toast.error(error.message || 'Failed to add complaint');
+        } finally {
+            setAddComplaintSaving(false);
+        }
+    };
+
     const defaultNotifyMessage = (() => {
         const msgs = {
             new:         `Your grievance (${caseRef}) has been received and is being reviewed.`,
@@ -2086,8 +2196,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         };
         return response?.trim() || msgs[current.status] || `Update on your grievance (${caseRef}): Status is now '${current.status}'.`;
     })();
-
-    const isResolved = currentStatus === 'resolved' || currentStatus === 'completed';
 
     return (
         <>
@@ -2102,58 +2210,85 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         border: 'none',
                     }}
                 >
-                    {isResolved ? (
-                        <ResolvedView current={current} activities={activities} loadingActivity={loadingActivity} onClose={onClose} />
-                    ) : (
-                        <>
-                            <DrawerHeader
-                                caseRef={caseRef}
-                                status={currentStatus}
-                                isUncategorised={isUncategorised}
-                                onClose={onClose}
-                            />
-                            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                                <div
-                                    style={{
-                                        display: 'grid',
-                                        gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 300px',
-                                        alignItems: 'start',
-                                        minHeight: '100%',
-                                    }}
-                                >
-                                    <div style={{ minWidth: 0 }}>
-                                        <CitizenCard
-                                            phone={current.user_phone}
-                                            createdAt={createdAt}
-                                            language={meta.detected_language || meta.language}
-                                        />
+                    <DrawerHeader
+                        caseRef={caseRef}
+                        status={currentStatus}
+                        isUncategorised={isUncategorised}
+                        onClose={onClose}
+                    />
+                    <ComplaintTabStrip
+                        threadCases={threadCases}
+                        activeCaseId={activeCaseId}
+                        onSelectCase={(item) => setActiveCaseId(item.id)}
+                        onAddComplaint={openAddComplaint}
+                    />
+                    <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 300px',
+                                alignItems: 'start',
+                                minHeight: '100%',
+                            }}
+                        >
+                            <div style={{ minWidth: 0 }}>
+                                <CitizenCard
+                                    phone={current.user_phone}
+                                    createdAt={fullCase?.created_at ? new Date(fullCase.created_at) : createdAt}
+                                    language={meta.detected_language || meta.language}
+                                />
+                                <ContactQueueNotice current={current} />
+
+                                {isResolved ? (
+                                    <ResolvedComplaintSummary
+                                        current={current}
+                                        meta={meta}
+                                        activities={activities}
+                                        loadingActivity={loadingActivity}
+                                    />
+                                ) : (
+                                    <>
                                         {currentStatus === 'pending_review' && (
                                             <ReviewReasonBanner current={current} meta={meta} />
                                         )}
-                                        {isUncategorised && suggestedTriage && (
-                                            <AISuggestionBanner
-                                                suggestion={suggestedTriage}
-                                                onAccept={acceptSuggestion}
-                                                accepting={acceptingSuggestion}
-                                            />
-                                        )}
-                                        <MessageBlock
-                                            rawMessage={current.raw_message}
-                                            summary={displaySummary}
-                                            media={current.media || []}
-                                            caseId={current.id}
+                                        <CitizenComplaintSection
+                                            current={current}
+                                            meta={meta}
+                                            actionRow={(
+                                                <ComplaintActionRow
+                                                    onConfirm={() => {
+                                                        if (isUncategorised && suggestedTriage?.ai_category) {
+                                                            acceptSuggestion();
+                                                        } else {
+                                                            handleStatusChange('resolved');
+                                                        }
+                                                    }}
+                                                    confirmLabel={confirmLabel}
+                                                    onReply={() => { setNotifyInput(''); setNotifyOpen(true); }}
+                                                    onEscalate={handleEscalateClick}
+                                                    escalateLabel={escalateLabel}
+                                                />
+                                            )}
                                         />
-                                        <ThreadCasesSection
-                                            threadCases={threadCases}
-                                            activeCaseId={activeCaseId}
-                                            onSelectCase={(item) => setActiveCaseId(item.id)}
-                                            onReplyCase={handleReplyCase}
-                                            onQuickResolve={handleQuickResolve}
-                                            onEscalate={handleEscalate}
-                                            updating={updating}
+                                        <AiUnderstandingSection
+                                            current={current}
+                                            meta={meta}
+                                            displaySummary={displaySummary}
+                                            followupCount={followupCount}
+                                            suggestedTriage={isUncategorised ? suggestedTriage : null}
+                                            onAcceptSuggestion={acceptSuggestion}
+                                            accepting={acceptingSuggestion}
+                                            translationState={translations[current.id]}
+                                            onTranslate={handleTranslate}
+                                            geoLocation={geoLocation}
+                                            geoAssembly={geoAssembly}
+                                            setGeoLocation={setGeoLocation}
+                                            setGeoAssembly={setGeoAssembly}
+                                            onSaveGeo={saveGeography}
+                                            savingGeo={savingGeo}
+                                            geoLocked={meta.geography_locked}
                                         />
-                                        <PendingContactMessages current={current} />
-                                        <ActivityTimeline activities={activities} loading={loadingActivity} />
+                                        <AttachmentsSection media={current.media || []} caseId={current.id} />
                                         <div ref={govtSectionRef}>
                                             <GovtSyncSection
                                                 ref={govtSyncRef}
@@ -2177,63 +2312,51 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                             responseInputRef={responseInputRef}
                                             onNotify={() => { setNotifyInput(''); setNotifyOpen(true); }}
                                         />
-                                    </div>
-
-                                    <aside
-                                        style={{
-                                            minWidth: 0,
-                                            background: C.surfaceWarm,
-                                            borderLeft: isMobile ? 'none' : `1px solid ${C.hair}`,
-                                        }}
-                                    >
-                                        <CaseFileOverview
-                                            current={current}
-                                            meta={meta}
-                                            caseRef={caseRef}
-                                            createdAt={createdAt}
-                                            assignee={assignee}
-                                        />
-                                        <GeographySection
-                                            geoLocation={geoLocation}
-                                            geoAssembly={geoAssembly}
-                                            setGeoLocation={setGeoLocation}
-                                            setGeoAssembly={setGeoAssembly}
-                                            onSave={saveGeography}
-                                            saving={savingGeo}
-                                            locked={meta.geography_locked}
-                                        />
-                                        <StatusActions
-                                            currentStatus={currentStatus}
-                                            onStatusChange={handleStatusChange}
-                                            updating={updating}
-                                        />
-                                        <AssignSection
-                                            assignee={assignee}
-                                            onAssign={handleAssign}
-                                            staff={staff}
-                                            onDelete={handleDelete}
-                                            userRole={user?.role}
-                                        />
-                                    </aside>
-                                </div>
+                                    </>
+                                )}
                             </div>
-                            <ActionBar
-                                onConfirm={() => {
-                                    if (isUncategorised && suggestedTriage?.ai_category) {
-                                        acceptSuggestion();
-                                    } else {
-                                        handleStatusChange(isUncategorised ? 'in_progress' : 'resolved');
-                                    }
+
+                            <aside
+                                style={{
+                                    minWidth: 0,
+                                    background: C.surfaceWarm,
+                                    borderLeft: isMobile ? 'none' : `1px solid ${C.hair}`,
                                 }}
-                                onReply={() => { setNotifyInput(''); setNotifyOpen(true); }}
-                                onEscalate={handleEscalate}
-                                isUncategorised={isUncategorised}
-                                showEscalate={!isGovtAlreadyFiled(current)}
-                            />
-                        </>
-                    )}
+                            >
+                                <StatusActions
+                                    currentStatus={currentStatus}
+                                    onStatusChange={handleStatusChange}
+                                    updating={updating}
+                                />
+                                <AssignSection
+                                    assignee={assignee}
+                                    onAssign={handleAssign}
+                                    staff={staff}
+                                    onDelete={handleDelete}
+                                    userRole={user?.role}
+                                />
+                                <ActivityTimeline activities={activities} loading={loadingActivity} />
+                                <CaseInformation
+                                    current={current}
+                                    meta={meta}
+                                    caseRef={caseRef}
+                                    createdAt={createdAt}
+                                    assignee={assignee}
+                                    constituency={constituency}
+                                />
+                            </aside>
+                        </div>
+                    </div>
                 </SheetContent>
             </Sheet>
+
+            <AddComplaintDialog
+                open={addComplaintOpen}
+                onOpenChange={setAddComplaintOpen}
+                onSubmit={submitAddComplaint}
+                saving={addComplaintSaving}
+                categories={categoryOptions}
+            />
 
             <Dialog open={notifyOpen} onOpenChange={(open) => { setNotifyOpen(open); if (!open) setNotifyInput(''); }}>
                 <DialogContent className="max-w-sm" style={{ background: C.paper, fontFamily: 'inherit' }}>

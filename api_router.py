@@ -1849,12 +1849,19 @@ def get_case(case_id: int, user=Depends(get_current_user)):
     case_created_at = raw_case_created_at if isinstance(raw_case_created_at, datetime) else None
     try:
         if phone:
-            window_start = case_created_at - timedelta(hours=24) if isinstance(case_created_at, datetime) else _utcnow() - timedelta(hours=24)
-            window_end = case_created_at + timedelta(hours=24) if isinstance(case_created_at, datetime) else _utcnow() + timedelta(hours=24)
+            # Matching is gated on an *explicit* contact_thread_id equality
+            # (see _contact_thread_id_for_case — a case with no explicit id
+            # falls back to a per-row unique "legacy-case-{id}" value, so it
+            # can never accidentally match a sibling). Because of that, this
+            # query does not need — and should not use — a recency window:
+            # a complaint a staffer adds manually against an old case must
+            # still be found as a thread sibling no matter how old the
+            # anchor case is. The LIMIT just keeps one very chatty phone
+            # number's history from being unbounded.
             sibling_rows = _q(
                 """
                 SELECT id, case_ref, user_phone, category, problem_domain, problem_subdomain,
-                       convergence_program_type, status, raw_message,
+                       convergence_program_type, status, raw_message, ward,
                        COALESCE(location, case_metadata->>'matched_value') AS location,
                        COALESCE(assembly, case_metadata->>'assembly_constituency') AS assembly,
                        case_metadata, is_critical, created_at, updated_at, notes_for_staff,
@@ -1863,15 +1870,12 @@ def get_case(case_id: int, user=Depends(get_current_user)):
                 WHERE tenant_id = :tid
                   AND user_phone = :phone
                   AND (is_deleted = false OR is_deleted IS NULL)
-                  AND created_at >= :window_start
-                  AND created_at <= :window_end
                 ORDER BY COALESCE(updated_at, created_at) DESC, id DESC
+                LIMIT 500
                 """,
                 {
                     "tid": tid,
                     "phone": phone,
-                    "window_start": window_start,
-                    "window_end": window_end,
                 },
             )
             thread_members = [member for member in sibling_rows if _contact_thread_id_for_case(member) == thread_id]
@@ -1897,6 +1901,7 @@ def get_case(case_id: int, user=Depends(get_current_user)):
             "problem_subdomain": member.get("problem_subdomain"),
             "convergence_program_type": member.get("convergence_program_type"),
             "location": member.get("location") or "",
+            "ward": member.get("ward") or "",
             "assembly": member.get("assembly") or "",
             "created_at": member.get("created_at"),
             "updated_at": member.get("updated_at"),
@@ -2220,6 +2225,234 @@ def get_case_activity(case_id: int, user=Depends(get_current_user)):
         if a.get("created_at") and hasattr(a["created_at"], "isoformat"):
             a["created_at"] = a["created_at"].isoformat()
     return {"activities": activities}
+
+
+# ─── AI translation (citizen message → English, for staff reading only) ───
+# This is a plain-language rendering aid for staff, not part of the
+# classification pipeline — it never writes category/location/department.
+# Those fields still come exclusively from the existing S2-S7 pipeline in
+# ai_engine.py. The translation is cached on case_metadata once generated so
+# re-opening a complaint doesn't re-spend an LLM call.
+def _translate_case_message_to_english(raw_message: str, detected_language: str = "") -> str | None:
+    text_value = (raw_message or "").strip()
+    if not text_value:
+        return None
+    lang = (detected_language or "").strip().lower()
+    if lang == "english":
+        return None
+    try:
+        from sansadx_backend.ai_engine import get_client
+    except Exception:
+        logger.exception("Could not import get_client for translation")
+        return None
+    client = get_client()
+    if not client:
+        return None
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            temperature=0,
+            max_tokens=400,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You translate short citizen grievance messages sent to an Indian "
+                        "MP/MLA's office into plain English, for office staff who may not "
+                        "read the source language. Translate literally and faithfully — do "
+                        "not summarise, interpret, add information, or drop anything, even if "
+                        "the message is informal, misspelled, or code-mixed. If the message is "
+                        "already in English, return it unchanged. Output ONLY the English "
+                        "translation — no notes, no quotation marks, no preamble."
+                    ),
+                },
+                {"role": "user", "content": text_value[:2000]},
+            ],
+        )
+        translated = (completion.choices[0].message.content or "").strip()
+        return translated or None
+    except Exception:
+        logger.exception("Translation call failed for case message")
+        return None
+
+
+@router.post("/cases/{case_id}/translate")
+def translate_case_message(case_id: int, user=Depends(get_current_user)):
+    """Translate this complaint's citizen message to English, for staff reading.
+
+    Cached on case_metadata.english_translation — a second call for the same
+    raw_message returns the cached copy instead of re-calling the model. If a
+    later edit changes raw_message, the cache key (the source text itself) no
+    longer matches and a fresh translation is produced.
+    """
+    tid = get_tenant_or_fail(user)
+    case = _q_one(
+        "SELECT id, raw_message, case_metadata FROM cases WHERE id = :cid AND tenant_id = :tid",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    raw_message = case.get("raw_message") or ""
+    meta = _parse_meta(case.get("case_metadata"))
+    detected_language = meta.get("detected_language") or meta.get("language") or ""
+
+    cached = meta.get("english_translation")
+    if cached and meta.get("english_translation_source") == raw_message:
+        return {
+            "translation": cached,
+            "cached": True,
+            "detected_language": detected_language,
+            "already_english": False,
+        }
+
+    if detected_language.strip().lower() == "english":
+        return {"translation": None, "cached": False, "detected_language": detected_language, "already_english": True}
+
+    translated = _translate_case_message_to_english(raw_message, detected_language)
+    if not translated:
+        return {
+            "translation": None,
+            "cached": False,
+            "detected_language": detected_language,
+            "already_english": False,
+            "error": "unavailable",
+        }
+
+    meta["english_translation"] = translated
+    meta["english_translation_source"] = raw_message
+    meta["english_translation_generated_at"] = _utcnow().isoformat()
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE cases SET case_metadata = :meta WHERE id = :cid AND tenant_id = :tid"),
+                {"meta": json.dumps(meta), "cid": case_id, "tid": tid},
+            )
+        _log_case_activity(tid, case_id, user.get("username", ""), "ai_translated", details="Translated citizen message to English")
+    except Exception:
+        logger.exception("Failed to persist translation for case %s", case_id)
+
+    return {
+        "translation": translated,
+        "cached": False,
+        "detected_language": detected_language,
+        "already_english": False,
+    }
+
+
+# ─── Manually add a complaint to an existing case/thread ───
+# A citizen's WhatsApp thread can contain more than one distinct grievance.
+# The intake pipeline already auto-splits those it recognises into separate
+# Case rows sharing a contact_thread_id (see main.py). This endpoint gives
+# staff the same capability by hand — for grievances raised over a call, in
+# person, or on a channel the automated pipeline doesn't parse — and links
+# the new Case row into the same thread so it shows up as another complaint
+# on this case rather than a separate, disconnected one.
+class AddComplaintRequest(BaseModel):
+    raw_message: str
+    category: Optional[str] = None
+    problem_domain: Optional[str] = None
+    problem_subdomain: Optional[str] = None
+    location: Optional[str] = None
+
+
+@router.post("/cases/{case_id}/complaints")
+def add_complaint_to_case(case_id: int, body: AddComplaintRequest, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    anchor = _q_one(
+        "SELECT id, user_phone, case_metadata, created_at FROM cases WHERE id = :cid AND tenant_id = :tid",
+        {"cid": case_id, "tid": tid},
+    )
+    if not anchor:
+        raise HTTPException(404, "Case not found")
+
+    raw_message = (body.raw_message or "").strip()
+    if not raw_message:
+        raise HTTPException(400, "The complaint needs the citizen's words — enter what they told your office.")
+
+    anchor_meta = _parse_meta(anchor.get("case_metadata"))
+    thread_id = str(anchor_meta.get("contact_thread_id") or "").strip()
+    if not thread_id:
+        phone_digits = re.sub(r"\D", "", anchor.get("user_phone") or "") or "unknown"
+        thread_id = f"ct-{tid}-{phone_digits}-{anchor['id']}"
+        anchor_meta["contact_thread_id"] = thread_id
+        anchor_started = anchor.get("created_at")
+        anchor_meta.setdefault(
+            "contact_thread_started_at",
+            anchor_started.isoformat() if hasattr(anchor_started, "isoformat") else _utcnow().isoformat(),
+        )
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    text("UPDATE cases SET case_metadata = :meta WHERE id = :cid AND tenant_id = :tid"),
+                    {"meta": json.dumps(anchor_meta), "cid": anchor["id"], "tid": tid},
+                )
+        except Exception:
+            logger.exception("Failed to backfill contact_thread_id on anchor case %s", anchor["id"])
+
+    try:
+        from sansadx_backend.ai_engine import detect_input_language
+        detected_language = detect_input_language(raw_message)
+    except Exception:
+        detected_language = None
+
+    new_meta = {
+        "contact_thread_id": thread_id,
+        "contact_thread_started_at": anchor_meta.get("contact_thread_started_at") or _utcnow().isoformat(),
+        "created_via": "staff_manual_entry",
+        "added_by": user.get("username", ""),
+    }
+    if detected_language:
+        new_meta["detected_language"] = detected_language
+
+    category = (body.category or "").strip() or None
+    problem_domain = (body.problem_domain or category or "").strip() or None
+    problem_subdomain = (body.problem_subdomain or "").strip() or None
+    location = (body.location or "").strip() or None
+
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    """
+                    INSERT INTO cases
+                        (tenant_id, user_phone, raw_message, category, problem_domain, problem_subdomain,
+                         status, location, case_metadata, is_critical, created_at, case_ref)
+                    VALUES
+                        (:tid, :phone, :msg, :category, :problem_domain, :problem_subdomain,
+                         'new', :location, :meta, false, :now, :case_ref)
+                    RETURNING id
+                    """
+                ),
+                {
+                    "tid": tid,
+                    "phone": anchor.get("user_phone"),
+                    "msg": raw_message,
+                    "category": category,
+                    "problem_domain": problem_domain,
+                    "problem_subdomain": problem_subdomain,
+                    "location": location,
+                    "meta": json.dumps(new_meta),
+                    "now": _utcnow(),
+                    "case_ref": _generate_case_ref(tid),
+                },
+            )
+            row = result.fetchone()
+            new_case_id = row[0] if row else None
+    except Exception:
+        logger.exception("Failed to create manual complaint for case %s", case_id)
+        raise HTTPException(500, "Could not add the complaint — try again")
+
+    if not new_case_id:
+        raise HTTPException(500, "Could not add the complaint — try again")
+
+    _log_case_activity(
+        tid, new_case_id, user.get("username", ""), "complaint_added_manually",
+        details=f"Added as a new complaint on the same WhatsApp thread as case #{anchor['id']}",
+    )
+
+    new_case = get_case(new_case_id, user)
+    return {"success": True, "case": new_case}
 
 
 @router.post("/cases/{case_id}/notify")
@@ -2956,11 +3189,13 @@ async def govt_start_live_session(case_id: int, body: GovtSessionStartRequest, u
     portal_contact_number = _get_portal_contact_number(tid)
     portal_filer_name = _get_portal_filer_name(tid)
 
-    from modules.govt_sync.browser_session import start_session, VIEWPORT
+    from modules.govt_sync.browser_session import start_session, VIEWPORT, list_session_metas
     try:
         session = await start_session(tid, case_id, portal)
     except RuntimeError as e:
-        raise HTTPException(409, str(e))
+        mine = list_session_metas(tid)
+        extra = f" {len(mine)} of them belong to this office — end them in Government Portal, then try again." if mine else " End an open session, then try again."
+        raise HTTPException(409, str(e).rstrip(".") + "." + extra)
     except Exception as e:
         logger.error("Govt sync: live session failed to open for case %s: %s", case_id, e)
         raise HTTPException(502, "Could not open the portal — try again in a moment")
@@ -2980,6 +3215,39 @@ async def govt_start_live_session(case_id: int, body: GovtSessionStartRequest, u
         "portal_name": portal["portal_name"],
         "viewport": VIEWPORT,
     }
+
+
+@router.get("/govt/sessions")
+async def govt_list_live_sessions(user=Depends(get_current_user)):
+    """This office's in-memory Playwright sessions on the shared filing host."""
+    tid = get_tenant_or_fail(user)
+    from modules.govt_sync.browser_session import list_session_metas, active_session_count, MAX_CONCURRENT_SESSIONS
+    sessions = list_session_metas(tid)
+    return {
+        "sessions": sessions,
+        "tenant_count": len(sessions),
+        "global_count": await active_session_count(),
+        "max_concurrent": MAX_CONCURRENT_SESSIONS,
+    }
+
+
+@router.post("/govt/sessions/close-all")
+async def govt_close_all_live_sessions(user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    from modules.govt_sync.browser_session import close_sessions_for_tenant
+    closed = await close_sessions_for_tenant(tid)
+    return {"success": True, "closed": closed}
+
+
+@router.post("/govt/sessions/{session_id}/close")
+async def govt_close_live_session_by_id(session_id: str, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    from modules.govt_sync.browser_session import get_session_meta, close_session
+    meta = get_session_meta(session_id)
+    if not meta or meta["tenant_id"] != tid:
+        return {"success": True}
+    await close_session(session_id)
+    return {"success": True}
 
 
 @router.websocket("/govt/session/{session_id}/stream")
