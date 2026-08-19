@@ -560,11 +560,21 @@
       "reference_regex": null,
       "post_login_entry_path": null
     },
-    "department_taxonomy": {},
+    "department_taxonomy": {
+      "Infrastructure & Utilities": "Public Works Department / Urban Development Department / Water Supply & Sanitation Department",
+      "Housing & Land": "Revenue Department / Housing Department",
+      "Health": "Public Health Department",
+      "Education": "School Education & Sports Department / Higher & Technical Education Department",
+      "Agriculture": "Agriculture Department",
+      "Government Schemes & Welfare": "Social Justice & Special Assistance Department",
+      "Law & Order": "Home Department",
+      "Bureaucratic / Administrative": "General Administration Department",
+      "Social Issues": "Women & Child Development Department"
+    },
     "is_primary": true,
     "active": true,
     "verification_status": "confirmed",
-    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+    "source_note": "URL confirmed. Department taxonomy added 2026-08-19 (best-effort mapping to known Government of Maharashtra department names, same treatment given to Rajasthan/UP/Karnataka) after Escalate was blocked for a Maharashtra tenant (Kalyan Dombivli) with a 'department list not configured' warning. Still field_schema.taxonomy_verified=false — not yet confirmed against the Aaple Sarkar portal's live department dropdown, which sits behind citizen/staff login and could not be inspected directly."
   },
   {
     "state": "Manipur",
