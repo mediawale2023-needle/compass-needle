@@ -87,6 +87,14 @@ const monoLbl = {
     display: 'block',
 };
 
+// Right-rail rows inherit the sidebar's own warm background instead of
+// repainting a contrasting card per row — this is what makes the sidebar
+// read as one continuous operational panel instead of stacked mini-forms.
+const asideSec = {
+    padding: '14px 20px',
+    borderBottom: `1px solid ${C.hair}`,
+};
+
 // ─── Mobile breakpoint hook (matches Tailwind `sm`) ──────────
 function useIsMobile(breakpoint = 640) {
     const [isMobile, setIsMobile] = useState(false);
@@ -464,14 +472,18 @@ function ContactQueueNotice({ current }) {
 function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase, onAddComplaint }) {
     const ordered = [...threadCases].slice().reverse();
     return (
-        <div style={{ ...sec, background: C.paperDeep, borderBottom: `1px solid ${C.hairStrong}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-                <span style={monoLbl}>Complaints in this case</span>
-                <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                    {ordered.length} complaint{ordered.length === 1 ? '' : 's'}
+        <div style={{
+            padding: '9px 20px', background: C.paperDeep, borderBottom: `1px solid ${C.hairStrong}`,
+            display: 'flex', alignItems: 'center', gap: 14,
+        }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, flexShrink: 0 }}>
+                <span style={{ ...monoLbl, marginBottom: 0 }}>Complaints in this case</span>
+                <span style={{ fontSize: 9.5, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.06em' }}>
+                    {ordered.length} total
                 </span>
             </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ width: 1, height: 24, background: C.hairStrong, flexShrink: 0 }} />
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', flex: 1, minWidth: 0, paddingBottom: 1 }}>
                 {ordered.map((item, idx) => {
                     const isActive = item.id === activeCaseId;
                     const filed = isGovtAlreadyFiled(item);
@@ -482,21 +494,20 @@ function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase, onAddCompl
                             type="button"
                             onClick={() => onSelectCase(item)}
                             style={{
-                                padding: '8px 14px', minWidth: 128, textAlign: 'left',
+                                padding: '6px 12px', flexShrink: 0, whiteSpace: 'nowrap',
                                 border: `1px solid ${isActive ? C.green : C.hair}`,
                                 background: isActive ? C.green : C.surface,
-                                color: isActive ? '#F5EFE0' : C.ink,
+                                color: isActive ? '#F5EFE0' : C.ink2,
                                 cursor: 'pointer', fontFamily: 'inherit',
-                                display: 'flex', flexDirection: 'column', gap: 3,
+                                display: 'inline-flex', alignItems: 'center', gap: 6,
+                                fontSize: 11, fontWeight: 700, letterSpacing: '0.02em',
                             }}
                         >
-                            <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                                Complaint {idx + 1}{isActive ? ' · current' : ''}
-                            </span>
-                            <span style={{ fontSize: 10, opacity: 0.85, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span>{resolvedLike ? 'resolved' : (item.status || 'new').replace(/_/g, ' ')}</span>
-                                {filed && <Icon name="check" size={9} color={isActive ? '#F5EFE0' : C.green} stroke={2.5} />}
-                            </span>
+                            Complaint {idx + 1}
+                            {resolvedLike && <Icon name="check" size={9} color={isActive ? '#F5EFE0' : C.green} stroke={2.5} />}
+                            {!resolvedLike && filed && (
+                                <span style={{ width: 5, height: 5, borderRadius: '50%', background: isActive ? '#F5EFE0' : C.saffron, display: 'inline-block' }} />
+                            )}
                         </button>
                     );
                 })}
@@ -504,13 +515,13 @@ function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase, onAddCompl
                     type="button"
                     onClick={onAddComplaint}
                     style={{
-                        padding: '8px 14px', border: `1px dashed ${C.hairStrong}`, background: 'transparent',
+                        padding: '6px 12px', flexShrink: 0, whiteSpace: 'nowrap',
+                        border: `1px dashed ${C.hairStrong}`, background: 'transparent',
                         color: C.ink2, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 700,
-                        letterSpacing: '0.04em', textTransform: 'uppercase',
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
                     }}
                 >
-                    <Icon name="plus" size={12} color={C.ink2} stroke={2} /> Add complaint
+                    <Icon name="plus" size={11} color={C.ink2} stroke={2} /> Add
                 </button>
             </div>
         </div>
@@ -529,26 +540,27 @@ function CitizenComplaintSection({ current, meta, actionRow }) {
     const createdAt = current.created_at ? new Date(current.created_at) : null;
 
     return (
-        <div style={sec}>
+        <div style={{ ...sec, padding: '22px 24px 20px' }}>
             <SectionHeading n={1} label="Citizen complaint" />
             {(meta.detected_language || meta.language) && (
-                <div style={{ fontSize: 11, color: C.ink3, marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: C.ink3, marginBottom: 12 }}>
                     Original language: <strong style={{ color: C.ink }}>{meta.detected_language || meta.language}</strong>
                 </div>
             )}
             <div style={{
-                padding: '12px 14px', background: C.paperDeep, borderLeft: `3px solid ${C.green}`,
-                fontSize: 13.5, lineHeight: 1.6, color: C.ink, whiteSpace: 'pre-wrap',
+                padding: '2px 0 2px 18px', borderLeft: `4px solid ${C.green}`,
+                fontFamily: '"Source Serif 4", Georgia, serif',
+                fontSize: 17, lineHeight: 1.65, color: C.ink, whiteSpace: 'pre-wrap',
             }}>
                 {current.raw_message || 'No message content.'}
             </div>
-            <div style={{ marginTop: 8, fontSize: 11, color: C.ink3 }}>
+            <div style={{ marginTop: 10, fontSize: 11, color: C.ink3 }}>
                 Received via WhatsApp{createdAt ? ` · ${createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} · ${createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} IST` : ''}
             </div>
 
             {events.length > 0 && (
-                <div style={{ marginTop: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ marginTop: 18 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 8 }}>
                         <span style={{ ...monoLbl, marginBottom: 0 }}>Citizen follow-ups · {events.length}</span>
                         {hiddenCount > 0 && !showAllFollowups && (
                             <button type="button" onClick={() => setShowAllFollowups(true)} style={{
@@ -559,15 +571,15 @@ function CitizenComplaintSection({ current, meta, actionRow }) {
                             </button>
                         )}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
                         {visibleEvents.map((event, idx) => (
-                            <div key={idx} style={{ borderLeft: `2px solid ${C.saffron}`, background: C.surface, padding: '8px 10px' }}>
-                                <div style={{ fontSize: 10, color: C.ink3, marginBottom: 4, fontFamily: '"JetBrains Mono", monospace' }}>
+                            <div key={idx} style={{ padding: '8px 0', borderTop: idx === 0 ? 'none' : `1px solid ${C.hair}` }}>
+                                <div style={{ fontSize: 10, color: C.ink3, marginBottom: 3, fontFamily: '"JetBrains Mono", monospace' }}>
                                     {event.created_at
                                         ? new Date(event.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) + ' · ' + new Date(event.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
                                         : ''}
                                 </div>
-                                <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.55 }}>{event.message || '—'}</div>
+                                <div style={{ fontSize: 13, color: C.ink2, lineHeight: 1.55, fontStyle: 'italic' }}>&ldquo;{event.message || '—'}&rdquo;</div>
                             </div>
                         ))}
                     </div>
@@ -739,17 +751,20 @@ function AiUnderstandingSection({
                 </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 14 }}>
+            <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '9px 20px',
+                padding: '10px 0', borderTop: `1px solid ${C.hair}`, borderBottom: `1px solid ${C.hair}`, marginBottom: 14,
+            }}>
                 {rows.map(([label, value]) => (
-                    <div key={label} style={{ border: `1px solid ${C.hair}`, background: C.surface, padding: '8px 10px', minWidth: 0 }}>
-                        <div style={{ fontSize: 9, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"JetBrains Mono", monospace', marginBottom: 3 }}>{label}</div>
-                        <div style={{ fontSize: 12.5, color: C.ink, fontWeight: 600, overflowWrap: 'anywhere' }}>{value}</div>
+                    <div key={label} style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 9, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"JetBrains Mono", monospace', marginBottom: 2 }}>{label}</div>
+                        <div style={{ fontSize: 12.5, color: C.ink2, fontWeight: 500, overflowWrap: 'anywhere' }}>{value}</div>
                     </div>
                 ))}
             </div>
 
             {displaySummary && (
-                <div style={{ padding: '10px 12px', background: C.greenWash, border: `1px solid ${C.greenTint}`, marginBottom: 14 }}>
+                <div style={{ padding: '9px 11px', background: C.greenWash, border: `1px solid ${C.greenTint}`, marginBottom: 14 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                             <Icon name="sparkle" size={10} color={C.green} stroke={2} />
@@ -759,50 +774,41 @@ function AiUnderstandingSection({
                             <span style={{ fontSize: 10, color: C.ink3, fontFamily: '"JetBrains Mono", monospace' }}>Based on {followupCount} citizen messages</span>
                         )}
                     </div>
-                    <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.5 }}>{displaySummary}</div>
+                    <div style={{ fontSize: 12, color: C.ink2, lineHeight: 1.5 }}>{displaySummary}</div>
                 </div>
             )}
 
             <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <span style={{ ...monoLbl, marginBottom: 0 }}>Location · verify / correct</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ ...monoLbl, marginBottom: 0 }}>Location · verify or correct</span>
                     {geoLocked && (
                         <span style={{
                             fontSize: 10, fontWeight: 700, padding: '2px 7px', background: C.greenWash, color: C.greenInk,
                             textTransform: 'uppercase', letterSpacing: '0.06em', display: 'inline-flex', alignItems: 'center', gap: 4,
                         }}>
-                            <Icon name="check" size={9} color={C.greenInk} stroke={2.5} /> Manual lock
+                            <Icon name="check" size={9} color={C.greenInk} stroke={2.5} /> Locked
                         </span>
                     )}
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 10 }}>
-                    <div>
-                        <span style={{ ...monoLbl, marginBottom: 4 }}>Location · ward</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', border: `1px solid ${C.green}`, background: C.surface }}>
-                            <Icon name="pin" size={11} color={C.green} />
-                            <input value={geoLocation} onChange={(e) => setGeoLocation(e.target.value)} placeholder="Village / ward"
-                                style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 12.5, color: C.ink, fontFamily: 'inherit', minWidth: 0 }} />
-                        </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 9px', border: `1px solid ${C.hair}`, background: C.surface, flex: '1 1 150px', minWidth: 130 }}>
+                        <Icon name="pin" size={10} color={C.ink3} />
+                        <input value={geoLocation} onChange={(e) => setGeoLocation(e.target.value)} placeholder="Village / ward"
+                            style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 12, color: C.ink, fontFamily: 'inherit', minWidth: 0 }} />
                     </div>
-                    <div>
-                        <span style={{ ...monoLbl, marginBottom: 4 }}>Assembly</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', border: `1px solid ${C.hair}`, background: C.surface }}>
-                            <input value={geoAssembly} onChange={(e) => setGeoAssembly(e.target.value)} placeholder="Assembly constituency"
-                                style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 12.5, color: C.ink, fontFamily: 'inherit', minWidth: 0 }} />
-                        </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 9px', border: `1px solid ${C.hair}`, background: C.surface, flex: '1 1 150px', minWidth: 130 }}>
+                        <input value={geoAssembly} onChange={(e) => setGeoAssembly(e.target.value)} placeholder="Assembly constituency"
+                            style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 12, color: C.ink, fontFamily: 'inherit', minWidth: 0 }} />
                     </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                     <button onClick={onSaveGeo} disabled={savingGeo} style={{
-                        padding: '7px 14px', background: C.green, color: '#F5EFE0', border: 'none',
-                        fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                        padding: '6px 13px', background: C.ink, color: C.paper, border: 'none', flexShrink: 0,
+                        fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
                         cursor: savingGeo ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                        display: 'inline-flex', alignItems: 'center', gap: 6, opacity: savingGeo ? 0.7 : 1,
+                        display: 'inline-flex', alignItems: 'center', gap: 5, opacity: savingGeo ? 0.7 : 1,
                     }}>
-                        {savingGeo && <Loader2 size={12} className="animate-spin" />}
-                        Save geography
+                        {savingGeo && <Loader2 size={11} className="animate-spin" />}
+                        Save
                     </button>
-                    <span style={{ fontSize: 11, color: C.ink3 }}>Saving locks as a manual correction.</span>
                 </div>
             </div>
         </div>
@@ -812,15 +818,12 @@ function AiUnderstandingSection({
 // ─── 3 · Attachments ──────────────────────────────────────────
 function AttachmentsSection({ media, caseId }) {
     return (
-        <div style={sec}>
-            <SectionHeading n={3} label="Attachments" />
-            {media && media.length > 0 ? (
+        <div style={{ ...sec, padding: '12px 20px' }}>
+            <SectionHeading n={3} label="Attachments" trailing={(!media || media.length === 0) ? (
+                <span style={{ fontSize: 12, color: C.ink3 }}>No attachments</span>
+            ) : null} />
+            {media && media.length > 0 && (
                 <BriefcaseSourceMediaViewer caseId={caseId} media={media} />
-            ) : (
-                <div style={{ fontSize: 12.5, color: C.ink3 }}>
-                    <div style={{ marginBottom: 4, color: C.ink2, fontWeight: 600 }}>No attachments</div>
-                    <div style={{ fontSize: 11.5 }}>If the citizen sends images or documents, they will appear here.</div>
-                </div>
             )}
         </div>
     );
@@ -838,20 +841,20 @@ function StatusActions({ currentStatus, onStatusChange, updating }) {
         irrelevant:  { background: C.paperDeep,    color: C.ink3,     border: `1px solid ${C.hair}` },
     };
     return (
-        <div style={sec}>
+        <div style={asideSec}>
             <span style={monoLbl}>Update status</span>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {STATUS_OPTIONS.filter((o) => o.value !== currentStatus).map((opt) => (
                     <button key={opt.value} onClick={() => onStatusChange(opt.value)} disabled={!!updating}
                         style={{
-                            padding: '7px 10px', fontSize: 11, fontWeight: 600,
-                            letterSpacing: '0.04em', cursor: updating ? 'not-allowed' : 'pointer',
+                            padding: '7px 10px', fontSize: 11.5, fontWeight: 600, textAlign: 'left',
+                            letterSpacing: '0.02em', cursor: updating ? 'not-allowed' : 'pointer',
                             fontFamily: 'inherit', opacity: updating ? 0.7 : 1,
-                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                            display: 'flex', alignItems: 'center', gap: 6,
                             ...(statusStyles[opt.value] || { background: C.paperDeep, color: C.ink3, border: `1px solid ${C.hair}` }),
                         }}>
                         {updating === opt.value && <Loader2 size={11} className="animate-spin" />}
-                        Mark {opt.label}
+                        {opt.label}
                     </button>
                 ))}
             </div>
@@ -874,7 +877,7 @@ function ActivityTimeline({ activities, loading }) {
         return 'clock';
     };
     return (
-        <div style={sec}>
+        <div style={asideSec}>
             <span style={monoLbl}>Activity timeline</span>
             {loading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
@@ -1599,7 +1602,7 @@ function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSa
 function AssignSection({ assignee, onAssign, staff, onDelete, userRole }) {
     const canDelete = ['mp', 'owner', 'pr'].includes(userRole);
     return (
-        <div style={sec}>
+        <div style={asideSec}>
             <span style={monoLbl}>Assign to</span>
             <select value={assignee} onChange={(e) => onAssign(e.target.value)} style={{
                 width: '100%', border: `1px solid ${C.hair}`,
@@ -1645,7 +1648,7 @@ function CaseInformation({ current, meta, caseRef, createdAt, assignee, constitu
     ];
 
     return (
-        <div style={{ ...sec, background: C.surfaceWarm }}>
+        <div style={asideSec}>
             <div style={{ ...monoLbl, marginBottom: 10 }}>Case information</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                 {infoRows.map(([label, value], index) => (
@@ -2323,6 +2326,14 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                     borderLeft: isMobile ? 'none' : `1px solid ${C.hair}`,
                                 }}
                             >
+                                <CaseInformation
+                                    current={current}
+                                    meta={meta}
+                                    caseRef={caseRef}
+                                    createdAt={createdAt}
+                                    assignee={assignee}
+                                    constituency={constituency}
+                                />
                                 <StatusActions
                                     currentStatus={currentStatus}
                                     onStatusChange={handleStatusChange}
@@ -2336,14 +2347,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                     userRole={user?.role}
                                 />
                                 <ActivityTimeline activities={activities} loading={loadingActivity} />
-                                <CaseInformation
-                                    current={current}
-                                    meta={meta}
-                                    caseRef={caseRef}
-                                    createdAt={createdAt}
-                                    assignee={assignee}
-                                    constituency={constituency}
-                                />
                             </aside>
                         </div>
                     </div>
