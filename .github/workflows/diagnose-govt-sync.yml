@@ -84,7 +84,7 @@ jobs:
             WHERE LOWER(gp.state) = LOWER((SELECT state FROM tenant_profiles WHERE tenant_id = ${TENANT_ID}));
 
             \echo == ALL govt_portals rows matching state_filter (blank = skipped below), catches typo/whitespace/casing ==
-            SELECT id, state, length(state) AS state_len, portal_name, active, is_primary,
+            SELECT id, state, length(state) AS state_len, portal_name, active, is_primary, live_session_supported,
                    (department_taxonomy IS NOT NULL AND department_taxonomy::text <> '{}') AS has_taxonomy,
                    department_taxonomy
             FROM govt_portals WHERE '${STATE_FILTER}' <> '' AND state ILIKE '%${STATE_FILTER}%';
