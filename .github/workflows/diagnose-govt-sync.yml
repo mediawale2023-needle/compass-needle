@@ -18,6 +18,10 @@ on:
         description: "State substring to also list all govt_portals rows for (blank to skip)"
         required: false
         default: ""
+      case_id:
+        description: "Case ID to dump the full case_activity_log + govt_submission_log timeline for (blank to skip)"
+        required: false
+        default: ""
 
 concurrency:
   group: aws-ec2-backend-diagnostics
@@ -58,13 +62,14 @@ jobs:
         env:
           TENANT_ID: ${{ inputs.tenant_id }}
           STATE_FILTER: ${{ inputs.state_filter }}
+          CASE_ID: ${{ inputs.case_id }}
         with:
           host: ${{ secrets.AWS_EC2_HOST }}
           username: ${{ secrets.AWS_EC2_USER }}
           key: ${{ secrets.AWS_EC2_SSH_KEY }}
           port: 22
           command_timeout: 8m
-          envs: TENANT_ID,STATE_FILTER
+          envs: TENANT_ID,STATE_FILTER,CASE_ID
           script: |
             set -euo pipefail
             COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
@@ -107,6 +112,22 @@ jobs:
             JOIN cases c ON c.id = gsl.case_id
             WHERE gsl.tenant_id = ${TENANT_ID}
             ORDER BY gsl.id DESC LIMIT 20;
+
+            \echo == case_id filter (blank = skipped below): current row ==
+            SELECT id, tenant_id, status, govt_status, govt_portal_id, govt_reference_number, govt_status_updated_at, updated_at, created_at
+            FROM cases WHERE '${CASE_ID}' <> '' AND id = NULLIF('${CASE_ID}', '')::int;
+
+            \echo == case_id filter: govt_submission_log for this case (oldest first — real order) ==
+            SELECT id, action, actor_username, created_at, payload
+            FROM govt_submission_log
+            WHERE '${CASE_ID}' <> '' AND case_id = NULLIF('${CASE_ID}', '')::int
+            ORDER BY id ASC;
+
+            \echo == case_id filter: case_activity_log for this case (oldest first — real order, includes non-govt actions like manual status changes) ==
+            SELECT id, action, username, old_value, new_value, created_at
+            FROM case_activity_log
+            WHERE '${CASE_ID}' <> '' AND case_id = NULLIF('${CASE_ID}', '')::int
+            ORDER BY id ASC;
             SQL
 
             docker compose -f "$COMPOSE" cp /tmp/diagnose_govt_sync.sql postgres:/tmp/diagnose_govt_sync.sql
