@@ -10,11 +10,40 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 const REQUEST_TIMEOUT = 8000;   // 8 seconds for normal data calls
 const AI_TIMEOUT = 60000;       // 60 seconds for AI endpoints (Gemini can take 15-30s)
+const GOVT_SESSION_TIMEOUT = 120000; // Playwright launch + portal page load
 const LOGIN_TIMEOUT = 28000;    // 28 seconds for login (handles cold start / slow wake)
 const LOGIN_MAX_RETRIES = 3;    // 3 retries for login so first wake-up can fail
 const LOGIN_RETRY_DELAY = 2000; // 2s between login retries
 const MAX_RETRIES = 1;         // 1 retry only (2 total attempts) for other calls
 const RETRY_DELAY = 500;       // 500ms base delay
+
+function timeoutForPath(path, options) {
+    if (options.timeout != null) return options.timeout;
+    if (path.includes('/auth/login')) return LOGIN_TIMEOUT;
+    if (path.includes('/govt/session/start')) return GOVT_SESSION_TIMEOUT;
+    if (path.includes('/govt/translate')) return AI_TIMEOUT;
+    return REQUEST_TIMEOUT;
+}
+
+function maxRetriesForPath(path, options) {
+    if (options.noRetry) return 0;
+    if (options.maxRetries != null) return options.maxRetries;
+    // Do not retry Playwright session start — a timed-out client still leaves
+    // the backend browser running, and a retry would open a second one.
+    if (path.includes('/govt/session/start')) return 0;
+    if (path.includes('/auth/login')) return LOGIN_MAX_RETRIES;
+    return MAX_RETRIES;
+}
+
+function abortMessageForPath(path) {
+    if (path.includes('/govt/session/start')) {
+        return 'The government portal took too long to open. Click Escalate to try again.';
+    }
+    if (path.includes('/govt/translate')) {
+        return 'Worksheet generation timed out. Click Escalate to try again.';
+    }
+    return null;
+}
 
 export function getAuthToken() {
     if (typeof window === 'undefined') return null;
@@ -69,16 +98,17 @@ export async function api(path, options = {}) {
         ...options.headers,
     };
 
-    const timeout = options.timeout ?? (path.includes('/auth/login') ? LOGIN_TIMEOUT : REQUEST_TIMEOUT);
-    const maxRetries = options.noRetry ? 0 : (options.maxRetries ?? (path.includes('/auth/login') ? LOGIN_MAX_RETRIES : MAX_RETRIES));
+    const timeout = timeoutForPath(path, options);
+    const maxRetries = maxRetriesForPath(path, options);
     const retryDelayBase = path.includes('/auth/login') ? LOGIN_RETRY_DELAY : RETRY_DELAY;
     let lastError = null;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
+            const { timeout: _timeout, noRetry: _noRetry, maxRetries: _maxRetries, headers: _headers, ...fetchOptions } = options;
             const res = await fetchWithTimeout(
                 `${API_BASE}${path}`,
-                { ...options, headers, cache: 'no-store' },
+                { ...fetchOptions, headers, cache: 'no-store' },
                 timeout,
             );
 
@@ -133,6 +163,10 @@ export async function api(path, options = {}) {
         lastError?.message === 'Failed to fetch' || (typeof lastError?.message === 'string' && (lastError.message.includes('retries') || lastError.message.includes('Load failed')));
     if (isLogin && isNetworkOrTimeout) {
         throw new Error('Connection timed out or unreachable. The server may be starting — please try again in a moment.');
+    }
+    const aborted = lastError?.name === 'AbortError' || (typeof lastError?.message === 'string' && /aborted/i.test(lastError.message));
+    if (aborted) {
+        throw new Error(abortMessageForPath(path) || 'Request timed out. Please try again.');
     }
     throw lastError || new Error('Request failed after retries');
 }

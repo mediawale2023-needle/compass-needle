@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-08-18
+- Request: Escalate click does nothing; toast says fetch aborted.
+- Summary: The 8s API timeout was aborting Playwright session start (and Gemini worksheet prep). Session start now waits up to 120s with no retry; translate uses the 60s AI timeout. Escalate also assumes live automation is on until the portal flag loads, and shows an opening toast so the click is not silent.
+- Files touched: `frontend/lib/api.js`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Needs a frontend deploy. A client abort can still leave a Playwright browser running on EC2 until its own TTL.
+
+- Date: 2026-08-18
 - Request: Do not show Open live portal / e-fill in the Government Portal section; Escalate on each complaint should file.
 - Summary: Removed the in-section Open live portal, worksheet-prepare, and new-tab portal-file controls. Filing starts from Escalate (thread row and footer). Worksheet copy fields and Mark as submitted remain so staff can save the portal reference after filing.
 - Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
