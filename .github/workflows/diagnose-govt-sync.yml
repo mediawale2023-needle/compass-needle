@@ -1,9 +1,11 @@
 name: Diagnose Govt Sync Portal Resolution
 
 # Manually triggered read-only diagnostic for "tenant sees the wrong (or
-# CPGRAMS-fallback) government portal" reports. Prints tenant_profiles.state,
-# the govt_portals rows that would/wouldn't match it, and the tenant's most
-# recent govt_* case state — nothing beyond that. No writes.
+# CPGRAMS-fallback) government portal" and "Escalate says department list
+# isn't configured" reports. Prints tenant_profiles.state, the govt_portals
+# rows that would/wouldn't match it (including whether department_taxonomy
+# is actually populated), optionally all rows for any state substring, and
+# the tenant's most recent govt_* case state — nothing beyond that. No writes.
 
 on:
   workflow_dispatch:
@@ -12,6 +14,10 @@ on:
         description: "Tenant ID to check"
         required: true
         default: "10"
+      state_filter:
+        description: "State substring to also list all govt_portals rows for (blank to skip)"
+        required: false
+        default: ""
 
 concurrency:
   group: aws-ec2-backend-diagnostics
@@ -51,13 +57,14 @@ jobs:
         uses: appleboy/ssh-action@v1.2.0
         env:
           TENANT_ID: ${{ inputs.tenant_id }}
+          STATE_FILTER: ${{ inputs.state_filter }}
         with:
           host: ${{ secrets.AWS_EC2_HOST }}
           username: ${{ secrets.AWS_EC2_USER }}
           key: ${{ secrets.AWS_EC2_SSH_KEY }}
           port: 22
           command_timeout: 8m
-          envs: TENANT_ID
+          envs: TENANT_ID,STATE_FILTER
           script: |
             set -euo pipefail
             COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
@@ -71,13 +78,16 @@ jobs:
             FROM tenant_profiles WHERE tenant_id = ${TENANT_ID};
 
             \echo == govt_portals rows matching this tenant state via LOWER(), same compare the resolver uses ==
-            SELECT gp.id, gp.state, gp.portal_name, gp.active, gp.is_primary, (gp.base_url IS NOT NULL) AS has_url
+            SELECT gp.id, gp.state, gp.portal_name, gp.active, gp.is_primary, (gp.base_url IS NOT NULL) AS has_url,
+                   (gp.department_taxonomy IS NOT NULL AND gp.department_taxonomy::text <> '{}') AS has_taxonomy
             FROM govt_portals gp
             WHERE LOWER(gp.state) = LOWER((SELECT state FROM tenant_profiles WHERE tenant_id = ${TENANT_ID}));
 
-            \echo == ALL govt_portals rows with karnataka anywhere in state, catches typo/whitespace/casing ==
-            SELECT id, state, length(state) AS state_len, portal_name, active, is_primary
-            FROM govt_portals WHERE state ILIKE '%karnataka%';
+            \echo == ALL govt_portals rows matching state_filter (blank = skipped below), catches typo/whitespace/casing ==
+            SELECT id, state, length(state) AS state_len, portal_name, active, is_primary,
+                   (department_taxonomy IS NOT NULL AND department_taxonomy::text <> '{}') AS has_taxonomy,
+                   department_taxonomy
+            FROM govt_portals WHERE '${STATE_FILTER}' <> '' AND state ILIKE '%${STATE_FILTER}%';
 
             \echo == this tenant's 5 most recent cases with a govt_status set ==
             SELECT id, govt_status, govt_portal_id, govt_department
