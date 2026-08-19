@@ -1,0 +1,82 @@
+name: Verify Govt Sync Backend Imports
+
+# Manually triggered, read-only smoke check. Runs inside the live backend
+# container and confirms every name api_router.py imports from
+# modules/govt_sync/browser_session.py at call time actually resolves.
+# Exists because that exact gap (api_router.py caller committed, callee
+# never committed) broke every Escalate click in production for ~1.5h on
+# 2026-08-19 with no startup-time signal — a healthy /health check does not
+# prove function-body imports resolve, only that the module tree loaded.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: aws-ec2-backend-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Import-check govt_sync inside the running backend container
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions verify-govt-sync'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
+
+      - name: Run Import Check Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 5m
+          script: |
+            set -euo pipefail
+            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
+            docker compose -f "$COMPOSE" exec -T backend python3 -c "
+            import api_router, inspect, re
+            src = inspect.getsource(api_router)
+            names = set()
+            for m in re.finditer(r'from modules\.govt_sync\.browser_session import ([a-zA-Z_, ]+)', src):
+                names.update(n.strip() for n in m.group(1).split(','))
+            from modules.govt_sync import browser_session as mod
+            missing = [n for n in sorted(names) if not hasattr(mod, n)]
+            print(f'api_router.py imports {len(names)} names from browser_session.py: {sorted(names)}')
+            if missing:
+                print(f'MISSING: {missing}')
+                raise SystemExit(1)
+            print('OK — every imported name resolves.')
+            "
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true
