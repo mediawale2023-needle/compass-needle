@@ -11,8 +11,8 @@ name: Diagnose Govt Portal Reachability
 on:
   workflow_dispatch:
     inputs:
-      url:
-        description: "Full URL to test (e.g. https://grievances.maharashtra.gov.in/)"
+      hostname:
+        description: "Hostname to test (e.g. grievances.maharashtra.gov.in)"
         required: true
 
 concurrency:
@@ -49,30 +49,35 @@ jobs:
             --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions diagnose-reachability'}]" \
             || echo "SSH ingress may already exist for this runner IP; continuing."
 
-      - name: Curl Over SSH
+      - name: Diagnose Over SSH
         uses: appleboy/ssh-action@v1.2.0
         env:
-          TARGET_URL: ${{ inputs.url }}
+          TARGET_HOST: ${{ inputs.hostname }}
         with:
           host: ${{ secrets.AWS_EC2_HOST }}
           username: ${{ secrets.AWS_EC2_USER }}
           key: ${{ secrets.AWS_EC2_SSH_KEY }}
           port: 22
           command_timeout: 5m
-          envs: TARGET_URL
+          envs: TARGET_HOST
           script: |
-            set -euo pipefail
-            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
-            echo "== EC2 host egress IP =="
-            curl -s --max-time 10 https://checkip.amazonaws.com || echo "(host curl check failed)"
+            echo "=== EC2 host egress IP ==="
+            curl -s --max-time 10 https://checkip.amazonaws.com || echo "(egress IP check failed)"
             echo
-            echo "== curl from EC2 host, following redirects, 25s timeout =="
-            curl -s -o /dev/null -w "HTTP %{http_code} | connect %{time_connect}s | ttfb %{time_starttransfer}s | total %{time_total}s | redirect_url: %{redirect_url}\n" \
-              --max-time 25 -L "$TARGET_URL" || echo "(host curl FAILED/timed out)"
+            echo "=== DNS ==="
+            dig +short "$TARGET_HOST" || echo "(dig not available or failed)"
             echo
-            echo "== curl from inside the backend container (same network namespace Playwright uses), 25s timeout =="
-            docker compose -f "$COMPOSE" exec -T backend curl -s -o /dev/null -w "HTTP %{http_code} | connect %{time_connect}s | ttfb %{time_starttransfer}s | total %{time_total}s | redirect_url: %{redirect_url}\n" \
-              --max-time 25 -L "$TARGET_URL" || echo "(container curl FAILED/timed out)"
+            echo "=== TCP 80 ==="
+            nc -vz -w 10 "$TARGET_HOST" 80 2>&1 || true
+            echo
+            echo "=== TCP 443 ==="
+            nc -vz -w 10 "$TARGET_HOST" 443 2>&1 || true
+            echo
+            echo "=== HTTPS ==="
+            curl -Iv --connect-timeout 10 --max-time 20 "https://$TARGET_HOST/" 2>&1 || true
+            echo
+            echo "=== HTTP ==="
+            curl -Iv --connect-timeout 10 --max-time 20 "http://$TARGET_HOST/" 2>&1 || true
 
       - name: Remove GitHub Runner SSH Access
         if: always() && steps.ssh_ip.outputs.runner_ip != ''
