@@ -1,0 +1,85 @@
+name: Diagnose Govt Portal Reachability
+
+# Manually triggered, read-only. Curls a government portal URL from inside
+# the EC2 backend container (same network path/egress IP Playwright uses
+# for live sessions) and reports timing/status. Exists because a portal can
+# be reachable from anywhere else and still time out specifically for our
+# EC2 IP — government sites sometimes rate-limit or block cloud-provider
+# ranges, and that's indistinguishable from "the site is just down" without
+# testing from the actual egress point.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Full URL to test (e.g. https://grievances.maharashtra.gov.in/)"
+        required: true
+
+concurrency:
+  group: aws-ec2-backend-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Curl a portal URL from the EC2 backend container
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions diagnose-reachability'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
+
+      - name: Curl Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          TARGET_URL: ${{ inputs.url }}
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 5m
+          envs: TARGET_URL
+          script: |
+            set -euo pipefail
+            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
+            echo "== EC2 host egress IP =="
+            curl -s --max-time 10 https://checkip.amazonaws.com || echo "(host curl check failed)"
+            echo
+            echo "== curl from EC2 host, following redirects, 25s timeout =="
+            curl -s -o /dev/null -w "HTTP %{http_code} | connect %{time_connect}s | ttfb %{time_starttransfer}s | total %{time_total}s | redirect_url: %{redirect_url}\n" \
+              --max-time 25 -L "$TARGET_URL" || echo "(host curl FAILED/timed out)"
+            echo
+            echo "== curl from inside the backend container (same network namespace Playwright uses), 25s timeout =="
+            docker compose -f "$COMPOSE" exec -T backend curl -s -o /dev/null -w "HTTP %{http_code} | connect %{time_connect}s | ttfb %{time_starttransfer}s | total %{time_total}s | redirect_url: %{redirect_url}\n" \
+              --max-time 25 -L "$TARGET_URL" || echo "(container curl FAILED/timed out)"
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true
