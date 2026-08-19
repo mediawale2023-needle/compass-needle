@@ -161,6 +161,15 @@ class GovtPortal(Base):
     department_taxonomy = Column(JSON, nullable=False, default=dict)  # {category: portal_dept_value} — hand-verified
     field_schema = Column(JSON, nullable=False, default=dict)         # char limits, field labels/order for the staff worksheet
     otp_bound = Column(Boolean, nullable=False, default=True)
+    # False when we've confirmed the live browser session can't actually reach
+    # this portal (e.g. a network-level block on our EC2 IP — see Maharashtra,
+    # 2026-08-19: TCP connect to grievances.maharashtra.gov.in times out on
+    # both 80/443 from EC2 but works from anywhere else, so it's the portal's
+    # side blocking us, not something GOVT_LIVE_AUTOMATION_ENABLED fixes).
+    # Escalate falls back to opening the real portal in a new browser tab
+    # (the staff's own network, not EC2's) plus the AI worksheet in Needle,
+    # instead of attempting a live session that would just time out.
+    live_session_supported = Column(Boolean, nullable=False, default=True)
     active = Column(Boolean, nullable=False, default=True)
     # A state can end up with more than one configured portal (e.g. a state
     # adds a second departmental portal later). Exactly one per state should

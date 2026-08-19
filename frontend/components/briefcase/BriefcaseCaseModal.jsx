@@ -1244,29 +1244,61 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
 
     // Whether this tenant's config actually turns on live browser automation
     // (only meaningful once /api/govt-portal has answered — see
-    // resolveLiveAutomationEnabled below, which is what callers should use).
+    // resolveEscalateMode below, which is what callers should use).
     const liveAutomationEnabled = resolvedPortal?.live_automation_enabled === true;
+    // False once we've confirmed this specific portal can't be reached from a
+    // live session (e.g. Maharashtra — a network-level block on our EC2 IP,
+    // 2026-08-19: see PROJECT_MEMORY.md). Independent of the global automation
+    // switch above; a portal-level fact, not an ops toggle.
+    const portalSupportsLiveSession = resolvedPortal?.portal?.live_session_supported !== false;
 
-    // Awaits the real /api/govt-portal answer instead of guessing at one
-    // still in flight. Escalate used to default to "automation on" while
-    // that fetch was still pending, so a fast click could race ahead and
-    // try to open a live browser session for a tenant whose config actually
-    // has automation off (and for whom, in practice, that session-start call
-    // just fails) — this closes that race by waiting for the true value.
-    async function resolveLiveAutomationEnabled() {
-        if (resolvedPortal != null) return liveAutomationEnabled;
-        const data = await portalFetchRef.current;
-        return data?.live_automation_enabled === true;
+    // Awaits the real /api/govt-portal answer instead of guessing at one still
+    // in flight (a fast click could otherwise race ahead of the fetch). Three
+    // outcomes:
+    //  'live'            — open a live browser session inside Needle, as usual.
+    //  'manual_redirect' — this portal can't do live sessions at all. Escalate
+    //                      opens the real portal in a NEW BROWSER TAB (the
+    //                      staff's own network, not EC2's, so it isn't subject
+    //                      to whatever's blocking our infrastructure) and shows
+    //                      the AI worksheet in Needle to copy from.
+    //  'manual_worksheet'— global automation is off. Worksheet only, same as
+    //                      before; staff navigates to the portal themselves.
+    async function resolveEscalateMode() {
+        const data = resolvedPortal != null ? resolvedPortal : await portalFetchRef.current;
+        if (data?.portal?.live_session_supported === false) return 'manual_redirect';
+        return data?.live_automation_enabled === true ? 'live' : 'manual_worksheet';
+    }
+
+    // window.open must happen as close to synchronously-within-the-click as
+    // possible or Safari/Chrome treat it as an unrequested popup and block it —
+    // this is why resolveEscalateMode() is awaited first (usually resolves
+    // instantly, since /api/govt-portal is fetched on mount) rather than after
+    // handlePrepare()'s network round trip.
+    async function handleEscalateManualRedirect() {
+        const data = resolvedPortal != null ? resolvedPortal : await portalFetchRef.current;
+        const entryUrl = data?.portal?.entry_url || data?.portal?.base_url;
+        if (entryUrl) {
+            window.open(entryUrl, '_blank', 'noopener,noreferrer');
+            toast.success(`Opening ${data?.portal?.portal_name || 'the government portal'} in a new tab — worksheet is ready below to copy from`);
+        } else {
+            toast.error('Could not open the portal — no URL on file. Preparing the worksheet anyway.');
+        }
+        return handlePrepare();
     }
 
     // Exposed so Escalate (in the citizen complaint's action row) can trigger
     // this section's filing flow. Rebind when caseId/govtState change so a
-    // thread switch opens the right case. While live automation is off,
-    // Escalate prepares the AI worksheet instead of opening a browser session —
-    // same one-click entry point staff already know, different destination.
+    // thread switch opens the right case.
     useImperativeHandle(
         ref,
-        () => ({ openLiveSession: async () => ((await resolveLiveAutomationEnabled()) ? handleOpenLive() : handlePrepare()) }),
+        () => ({
+            openLiveSession: async () => {
+                const mode = await resolveEscalateMode();
+                if (mode === 'live') return handleOpenLive();
+                if (mode === 'manual_redirect') return handleEscalateManualRedirect();
+                return handlePrepare();
+            },
+        }),
         [caseId, govtState, resolvedPortal],
     );
 
@@ -1495,7 +1527,12 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                     </div>
                     <button
                         type="button"
-                        onClick={async () => ((await resolveLiveAutomationEnabled()) ? handleOpenLive() : handlePrepare())}
+                        onClick={async () => {
+                            const mode = await resolveEscalateMode();
+                            if (mode === 'live') return handleOpenLive();
+                            if (mode === 'manual_redirect') return handleEscalateManualRedirect();
+                            return handlePrepare();
+                        }}
                         style={{
                             marginTop: 4, padding: '9px 18px', background: C.surface, color: C.saffron,
                             border: `1px solid ${C.saffron}`, fontSize: 12, fontWeight: 700, letterSpacing: '0.04em',
@@ -1509,7 +1546,8 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                         <div style={{ fontSize: 11, color: C.ink3, marginTop: 2 }}>
                             Will file via <strong style={{ color: C.ink2 }}>{resolvedPortal.portal.portal_name}</strong>
                             {resolvedPortal.state ? ` (${resolvedPortal.state})` : ''} once escalated.
-                            {!liveAutomationEnabled && ' Automated filing is off for this tenant, so Escalate will prepare the AI worksheet for copy-paste filing instead of a live session.'}
+                            {!portalSupportsLiveSession && ' This portal can\'t be reached from a live session right now — Escalate will open it in a new tab and prepare the AI worksheet here to copy from.'}
+                            {portalSupportsLiveSession && !liveAutomationEnabled && ' Automated filing is off for this tenant, so Escalate will prepare the AI worksheet for copy-paste filing instead of a live session.'}
                         </div>
                     )}
                     {!supported && (
@@ -1588,6 +1626,18 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                             )}
                             {worksheet?.staff_action_note && (
                                 <div style={{ fontSize: 11, color: C.ink2, marginBottom: 10, fontStyle: 'italic' }}>{worksheet.staff_action_note}</div>
+                            )}
+                            {!portalSupportsLiveSession && (resolvedPortal?.portal?.entry_url || resolvedPortal?.portal?.base_url) && (
+                                // This portal has no live session to reopen (unlike hostedSessions
+                                // above) — Escalate already opened it in a new tab once, but if
+                                // staff closed that tab there's otherwise no way back in.
+                                <a
+                                    href={resolvedPortal.portal.entry_url || resolvedPortal.portal.base_url}
+                                    target="_blank" rel="noopener noreferrer"
+                                    style={{ fontSize: 11.5, color: C.green, display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 10 }}
+                                >
+                                    <Icon name="external" size={12} stroke={2.2} /> Reopen {resolvedPortal.portal.portal_name}
+                                </a>
                             )}
                         </div>
                     )}

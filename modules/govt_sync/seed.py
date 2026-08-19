@@ -37,11 +37,11 @@ def seed_govt_portals() -> int:
                     INSERT INTO govt_portals (
                         state, portal_name, portal_type, base_url, status_check_url,
                         status_check_mode, department_taxonomy, field_schema, otp_bound, active, is_primary,
-                        verification_status, source_note
+                        verification_status, source_note, live_session_supported
                     ) VALUES (
                         :state, :portal_name, :portal_type, :base_url, :status_check_url,
                         :status_check_mode, CAST(:department_taxonomy AS JSONB), CAST(:field_schema AS JSONB),
-                        :otp_bound, :active, :is_primary, :verification_status, :source_note
+                        :otp_bound, :active, :is_primary, :verification_status, :source_note, :live_session_supported
                     )
                     ON CONFLICT (portal_name) DO UPDATE SET
                         state = EXCLUDED.state,
@@ -53,13 +53,15 @@ def seed_govt_portals() -> int:
                         field_schema = EXCLUDED.field_schema,
                         otp_bound = EXCLUDED.otp_bound,
                         verification_status = EXCLUDED.verification_status,
-                        source_note = EXCLUDED.source_note
+                        source_note = EXCLUDED.source_note,
+                        live_session_supported = EXCLUDED.live_session_supported
                         -- active/is_primary intentionally NOT overwritten on conflict — once a
                         -- portal row exists, enabled/primary is admin-managed operational state
                         -- (PATCH /admin/govt-portals/{id}), not something a reseed on every
-                        -- startup should silently flip. verification_status/source_note are our
-                        -- own research notes, not operational state, so those do stay in sync
-                        -- with whatever's currently in the seed file.
+                        -- startup should silently flip. verification_status/source_note/
+                        -- live_session_supported are our own research/diagnostic findings, not
+                        -- admin-set operational state, so those do stay in sync with whatever's
+                        -- currently in the seed file.
                 """),
                 {
                     "state": p["state"],
@@ -75,6 +77,7 @@ def seed_govt_portals() -> int:
                     "is_primary": bool(p.get("is_primary", True)),
                     "verification_status": p.get("verification_status", "unverified"),
                     "source_note": p.get("source_note"),
+                    "live_session_supported": bool(p.get("live_session_supported", True)),
                 },
             )
             count += 1

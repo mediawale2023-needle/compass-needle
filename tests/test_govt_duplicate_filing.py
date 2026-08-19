@@ -125,10 +125,11 @@ def _seed_database():
                 """
                 INSERT INTO govt_portals (
                     id, state, portal_name, portal_type, base_url, status_check_mode,
-                    department_taxonomy, field_schema, otp_bound, active, is_primary, verification_status
+                    department_taxonomy, field_schema, otp_bound, active, is_primary, verification_status,
+                    live_session_supported
                 ) VALUES (
                     1, 'Karnataka', 'Karnataka iPGRS', 'state_branded', 'https://example.portal/file',
-                    'login_required', :taxonomy, :schema, 1, 1, 1, 'unverified'
+                    'login_required', :taxonomy, :schema, 1, 1, 1, 'unverified', 1
                 )
                 """
             ),
@@ -150,6 +151,66 @@ def _seed_database():
                 """
             ),
             {"now": now, "ws": worksheet},
+        )
+
+        # A second tenant/portal pair for the live_session_supported=false path —
+        # tenant 1's state (Karnataka) always resolves to portal 1, so this needs
+        # its own tenant/state to resolve to a manual-only portal.
+        conn.execute(
+            text(
+                """
+                INSERT INTO tenants (id, name, constituency, whatsapp_number, subscription_plan, is_active, created_at)
+                VALUES (2, 'Priya Sharma', 'Kalyan Dombivli', '+919000000002', 'Pro', 1, :now)
+                """
+            ),
+            {"now": now},
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO tenant_profiles (tenant_id, mp_name, constituency, state, house, created_at)
+                VALUES (2, 'Shri Priya Sharma', 'Kalyan Dombivli', 'Maharashtra', 'Lok Sabha', :now)
+                """
+            ),
+            {"now": now},
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO users (tenant_id, username, password_hash, role, constituency, house, display_name, is_active)
+                VALUES (2, 'mp_priya', :password_hash, 'mp', 'Kalyan Dombivli', 'Lok Sabha', 'Priya MP', 1)
+                """
+            ),
+            {"password_hash": hash_password("Password1")},
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO govt_portals (
+                    id, state, portal_name, portal_type, base_url, status_check_mode,
+                    department_taxonomy, field_schema, otp_bound, active, is_primary, verification_status,
+                    live_session_supported
+                ) VALUES (
+                    2, 'Maharashtra', 'Maharashtra Aaple Sarkar Grievance Redressal', 'state_branded',
+                    'https://grievances.maharashtra.gov.in', 'login_required', :taxonomy, :schema, 1, 1, 1,
+                    'confirmed', 0
+                )
+                """
+            ),
+            {"taxonomy": json.dumps({"Water": "Public Works Department"}), "schema": json.dumps({"entry_path": None})},
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO cases (
+                    id, tenant_id, user_phone, raw_message, category, status, created_at,
+                    govt_portal_id, govt_status, govt_reference_number, govt_submission_worksheet, is_deleted
+                ) VALUES
+                    (13, 2, '+919111111114', 'Manual-only portal case', 'Infrastructure & Utilities', 'new', :now,
+                     NULL, 'not_forwarded', NULL, NULL, 0)
+                """
+            ),
+            {"now": now},
         )
 
 
@@ -323,4 +384,31 @@ def test_govt_sessions_close_all_only_this_tenant():
         assert set(browser_session._sessions) == {"c"}
     finally:
         browser_session._sessions.clear()
+
+
+def test_session_start_403_when_portal_does_not_support_live_sessions():
+    # Portal 2 (Maharashtra) is live_session_supported=0 — a confirmed
+    # network-level block on our EC2 IP, not the global automation switch.
+    # Must 403 even with automation explicitly on, and never reach start_session.
+    _seed_database()
+    with patch.dict(os.environ, {"GOVT_LIVE_AUTOMATION_ENABLED": "true"}), \
+            patch("modules.govt_sync.browser_session.start_session", new_callable=AsyncMock) as start_session:
+        resp = client.post("/api/cases/13/govt/session/start", headers=_auth_headers("mp_priya"), json={})
+    assert resp.status_code == 403, resp.text
+    assert "Maharashtra Aaple Sarkar Grievance Redressal" in resp.json()["detail"]
+    start_session.assert_not_called()
+
+
+def test_govt_portal_reports_live_session_supported_and_entry_url():
+    _seed_database()
+    resp = client.get("/api/govt-portal", headers=_auth_headers("mp_priya"))
+    assert resp.status_code == 200, resp.text
+    portal = resp.json()["portal"]
+    assert portal["live_session_supported"] is False
+    assert portal["entry_url"] == "https://grievances.maharashtra.gov.in"
+
+    # Contrast: tenant 1's Karnataka portal supports live sessions.
+    resp2 = client.get("/api/govt-portal", headers=_auth_headers())
+    assert resp2.status_code == 200, resp2.text
+    assert resp2.json()["portal"]["live_session_supported"] is True
 

@@ -2821,7 +2821,7 @@ def _resolve_govt_portal_for_tenant(tid: int) -> tuple[dict | None, str]:
 
     portal_cols = (
         "id, state, portal_name, portal_type, base_url, status_check_url, status_check_mode, "
-        "department_taxonomy, field_schema, otp_bound"
+        "department_taxonomy, field_schema, otp_bound, live_session_supported"
     )
     # base_url IS NOT NULL is defense-in-depth, not the primary guard — active is only
     # ever set true once a portal has a real URL (see modules/data/govt_portals.json),
@@ -2864,6 +2864,12 @@ def get_resolved_govt_portal(user=Depends(get_current_user)):
                 # URL confirmed is necessary but not sufficient — department_taxonomy
                 # also has to be hand-mapped before a submission can actually go out.
                 "ready": bool(portal.get("department_taxonomy")),
+                # False when we've confirmed the live browser session can't reach this
+                # portal at all (e.g. a network-level block on our EC2 IP) — Escalate
+                # should open entry_url in a new browser tab (the staff's own network)
+                # instead of attempting a live session that would just time out.
+                "live_session_supported": bool(portal.get("live_session_supported", True)),
+                "entry_url": (portal["base_url"].rstrip("/") + ((portal.get("field_schema") or {}).get("entry_path") or "")) if portal.get("base_url") else None,
             }
             if portal else None
         ),
@@ -3164,21 +3170,34 @@ async def govt_start_live_session(case_id: int, body: GovtSessionStartRequest, u
     )
     if not case:
         raise HTTPException(404, "Case not found")
-    # Already-filed takes priority over the automation gate below: if a
+    # Already-filed takes priority over the automation gates below: if a
     # reference is on record, staff need to see that fact (and the reference
     # itself) regardless of whether live automation happens to be on or off.
     if _govt_already_filed(case.get("govt_status"), case.get("govt_reference_number")):
         raise HTTPException(409, _govt_already_filed_detail(case.get("govt_status"), case.get("govt_reference_number")))
+
+    portal, state = _resolve_govt_portal_for_tenant(tid)
+    if not portal:
+        raise HTTPException(400, f"No government portal configured for {('state ' + state) if state else 'this tenant (no state on file)'} yet — not supported.")
+    # Per-portal gate first: a portal we've confirmed can't be reached from our
+    # infrastructure (e.g. a network-level block on our EC2 IP) fails the same
+    # way regardless of the global GOVT_LIVE_AUTOMATION_ENABLED switch — no
+    # point telling staff to wait for that when this specific portal will
+    # never work over the live-session path. Frontend already routes this case
+    # to opening the portal in a new tab instead of calling this endpoint, but
+    # this is the real enforcement — it can't be bypassed from the client.
+    if not portal.get("live_session_supported", True):
+        raise HTTPException(
+            403,
+            f"Live automated filing isn't available for {portal['portal_name']} — open the portal directly "
+            "and use the AI worksheet to fill it in yourself.",
+        )
     if not _govt_live_automation_enabled():
         raise HTTPException(
             403,
             "Automated portal filing is currently off. Use “Prepare worksheet” to get the "
             "AI-drafted department/subject/description, then file it on the portal yourself.",
         )
-
-    portal, state = _resolve_govt_portal_for_tenant(tid)
-    if not portal:
-        raise HTTPException(400, f"No government portal configured for {('state ' + state) if state else 'this tenant (no state on file)'} yet — not supported.")
 
     existing_worksheet = _parse_meta(case.get("govt_submission_worksheet"))
     if not body.retranslate and case.get("govt_portal_id") == portal["id"] and existing_worksheet:
