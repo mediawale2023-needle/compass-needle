@@ -1196,6 +1196,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     const liveSessionRef = useRef(null); // mirrors liveSession so the unmount cleanup below sees the latest value, not a stale closure
     const [hostedSessions, setHostedSessions] = useState([]);
     const [hostedMeta, setHostedMeta] = useState({ global_count: 0, max_concurrent: 3 });
+    const portalFetchRef = useRef(null); // the /api/govt-portal promise — awaited by Escalate so it never guesses at a value still in flight
 
     useEffect(() => {
         if (!caseId) return;
@@ -1213,7 +1214,9 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     }, [caseId]);
 
     useEffect(() => {
-        apiGet('/api/govt-portal').then(setResolvedPortal).catch(() => setResolvedPortal(null));
+        portalFetchRef.current = apiGet('/api/govt-portal')
+            .then((data) => { setResolvedPortal(data); return data; })
+            .catch(() => { setResolvedPortal(null); return null; });
     }, []);
 
     function loadHostedSessions() {
@@ -1239,23 +1242,32 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         onGovtStateChange?.(caseId, govtState?.case || null);
     }, [caseId, govtState, onGovtStateChange]);
 
-    // Match the backend default (on) until /api/govt-portal returns. Defaulting
-    // this to false sent Escalate through worksheet generation, which the 8s
-    // API timeout then aborted as "Fetch is aborted."
-    const liveAutomationEnabled = resolvedPortal == null
-        ? true
-        : resolvedPortal.live_automation_enabled === true;
+    // Whether this tenant's config actually turns on live browser automation
+    // (only meaningful once /api/govt-portal has answered — see
+    // resolveLiveAutomationEnabled below, which is what callers should use).
+    const liveAutomationEnabled = resolvedPortal?.live_automation_enabled === true;
+
+    // Awaits the real /api/govt-portal answer instead of guessing at one
+    // still in flight. Escalate used to default to "automation on" while
+    // that fetch was still pending, so a fast click could race ahead and
+    // try to open a live browser session for a tenant whose config actually
+    // has automation off (and for whom, in practice, that session-start call
+    // just fails) — this closes that race by waiting for the true value.
+    async function resolveLiveAutomationEnabled() {
+        if (resolvedPortal != null) return liveAutomationEnabled;
+        const data = await portalFetchRef.current;
+        return data?.live_automation_enabled === true;
+    }
 
     // Exposed so Escalate (in the citizen complaint's action row) can trigger
-    // this section's filing flow. Rebind when caseId/govtState/liveAutomationEnabled
-    // change so a thread switch opens the right case and this always reflects
-    // the current automation-enabled state. While live automation is off,
+    // this section's filing flow. Rebind when caseId/govtState change so a
+    // thread switch opens the right case. While live automation is off,
     // Escalate prepares the AI worksheet instead of opening a browser session —
     // same one-click entry point staff already know, different destination.
     useImperativeHandle(
         ref,
-        () => ({ openLiveSession: () => (liveAutomationEnabled ? handleOpenLive() : handlePrepare()) }),
-        [caseId, govtState, liveAutomationEnabled],
+        () => ({ openLiveSession: async () => ((await resolveLiveAutomationEnabled()) ? handleOpenLive() : handlePrepare()) }),
+        [caseId, govtState, resolvedPortal],
     );
 
     if (!caseId) return null;
@@ -1483,7 +1495,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                     </div>
                     <button
                         type="button"
-                        onClick={() => (liveAutomationEnabled ? handleOpenLive() : handlePrepare())}
+                        onClick={async () => ((await resolveLiveAutomationEnabled()) ? handleOpenLive() : handlePrepare())}
                         style={{
                             marginTop: 4, padding: '9px 18px', background: C.surface, color: C.saffron,
                             border: `1px solid ${C.saffron}`, fontSize: 12, fontWeight: 700, letterSpacing: '0.04em',
