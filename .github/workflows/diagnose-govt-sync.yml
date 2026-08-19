@@ -90,9 +90,23 @@ jobs:
             FROM govt_portals WHERE '${STATE_FILTER}' <> '' AND state ILIKE '%${STATE_FILTER}%';
 
             \echo == this tenant's 5 most recent cases with a govt_status set ==
-            SELECT id, govt_status, govt_portal_id, govt_department
+            SELECT id, status, govt_status, govt_portal_id, govt_department, govt_reference_number, govt_status_updated_at
             FROM cases WHERE tenant_id = ${TENANT_ID} AND govt_status IS NOT NULL AND govt_status <> 'not_forwarded'
             ORDER BY id DESC LIMIT 5;
+
+            \echo == smoking gun: status=in_progress but govt never actually got a reference (should be impossible today — only govt/submit sets in_progress) ==
+            SELECT id, tenant_id, status, govt_status, govt_reference_number, govt_status_updated_at, updated_at
+            FROM cases
+            WHERE status = 'in_progress' AND govt_status IS NOT NULL AND govt_status NOT IN ('not_forwarded')
+              AND (govt_reference_number IS NULL OR govt_reference_number = '')
+            ORDER BY govt_status_updated_at DESC NULLS LAST LIMIT 15;
+
+            \echo == this tenant's govt_submission_log timeline (last 20 actions) — shows the real sequence of what happened ==
+            SELECT gsl.id, gsl.case_id, gsl.action, gsl.actor_username, gsl.created_at, c.status AS case_status_now
+            FROM govt_submission_log gsl
+            JOIN cases c ON c.id = gsl.case_id
+            WHERE gsl.tenant_id = ${TENANT_ID}
+            ORDER BY gsl.id DESC LIMIT 20;
             SQL
 
             docker compose -f "$COMPOSE" cp /tmp/diagnose_govt_sync.sql postgres:/tmp/diagnose_govt_sync.sql
