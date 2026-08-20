@@ -1,0 +1,90 @@
+name: Seed Mock Complaints
+
+# Manually triggered. Runs scripts/seed_mock_complaints.py inside the live
+# backend container against the real DB — dry run by default (prints what
+# would be inserted, writes nothing); set apply=true to actually write.
+# Only ever touches cases with case_metadata.mock_seed=true for the given
+# tenant — never an existing tenant's real citizen-reported cases.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tenant_id:
+        description: "Tenant ID to seed mock complaints for"
+        required: true
+      count:
+        description: "Number of mock complaints to generate"
+        required: false
+        default: "100"
+      apply:
+        description: "Type exactly 'true' to actually write (default: dry run only)"
+        required: true
+        default: "false"
+      preserve_existing:
+        description: "Type exactly 'true' to skip deleting prior mock rows for this tenant first"
+        required: false
+        default: "false"
+
+concurrency:
+  group: aws-ec2-backend-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    name: Seed mock complaints for a tenant
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions seed-mock-complaints'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
+
+      - name: Run Seed Script Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          TENANT_ID: ${{ inputs.tenant_id }}
+          COUNT: ${{ inputs.count }}
+          APPLY_FLAG: ${{ inputs.apply == 'true' && '--apply' || '' }}
+          PRESERVE_FLAG: ${{ inputs.preserve_existing == 'true' && '--preserve-existing' || '' }}
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 10m
+          envs: TENANT_ID,COUNT,APPLY_FLAG,PRESERVE_FLAG
+          script: |
+            set -euo pipefail
+            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
+            docker compose -f "$COMPOSE" exec -T backend python3 -m scripts.seed_mock_complaints \
+              --tenant-id "$TENANT_ID" --count "$COUNT" $APPLY_FLAG $PRESERVE_FLAG
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true
