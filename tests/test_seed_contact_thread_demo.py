@@ -26,7 +26,10 @@ def test_build_demo_cases_stays_in_one_assembly():
 
     assert cases
     assert {case["assembly"] for case in cases} == {"Belgaum South"}
-    assert {case["assembly_constituency"] for case in cases} == {"Belgaum South"}
+    # assembly_constituency is not a real cases column (see PROJECT_MEMORY.md) —
+    # it only ever lives inside case_metadata, matching how main.py reads it.
+    assert "assembly_constituency" not in cases[0]
+    assert {case["case_metadata"]["assembly_constituency"] for case in cases} == {"Belgaum South"}
 
 
 def test_resolve_demo_assembly_uses_single_matching_geography_row():
