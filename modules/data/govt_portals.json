@@ -240,11 +240,21 @@
       "reference_regex": null,
       "post_login_entry_path": null
     },
-    "department_taxonomy": {},
+    "department_taxonomy": {
+      "Infrastructure & Utilities": "Building Construction Department / Rural Works Department / Public Health Engineering Department",
+      "Housing & Land": "Revenue and Land Reforms Department / Housing and Urban Development Department",
+      "Health": "Health Department",
+      "Education": "Education Department",
+      "Agriculture": "Agriculture Department",
+      "Government Schemes & Welfare": "Social Welfare Department",
+      "Law & Order": "Home Department",
+      "Bureaucratic / Administrative": "General Administration Department",
+      "Social Issues": "Social Welfare Department"
+    },
     "is_primary": true,
     "active": true,
     "verification_status": "confirmed",
-    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+    "source_note": "URL confirmed and reachable (verified 2026-08-19 via SSH from the EC2 backend host/container — TCP connects and HTTPS returns 200/OK on the actual base_url). Department taxonomy added 2026-08-20 (best-effort mapping to known government department names, same treatment given to Rajasthan/UP/Karnataka/Maharashtra). Public Health Engineering Department (water supply) is a standard Bihar department name, not explicitly confirmed in the source used. Bihar's Wikipedia cabinet listing did not show a separate Women & Child Development department, so Social Issues reuses Social Welfare Department (which covers those functions in Bihar) rather than inventing a name. Still field_schema.taxonomy_verified=false — not yet confirmed against this portal's live post-login department dropdown."
   },
   {
     "state": "Chhattisgarh",
@@ -529,11 +539,21 @@
       "reference_regex": null,
       "post_login_entry_path": null
     },
-    "department_taxonomy": {},
+    "department_taxonomy": {
+      "Infrastructure & Utilities": "Public Works Department / Urban Development and Housing Department / Public Health Engineering Department",
+      "Housing & Land": "Revenue Department / Urban Development and Housing Department",
+      "Health": "Public Health and Medical Education Department",
+      "Education": "School Education Department / Higher Education Department",
+      "Agriculture": "Farmers Welfare and Agriculture Development Department",
+      "Government Schemes & Welfare": "Social Justice and Disabled Welfare Department",
+      "Law & Order": "Home Department",
+      "Bureaucratic / Administrative": "General Administration Department",
+      "Social Issues": "Women and Child Development Department"
+    },
     "is_primary": true,
     "active": true,
     "verification_status": "confirmed",
-    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+    "source_note": "URL confirmed and reachable (verified 2026-08-19 via SSH from the EC2 backend host/container — TCP connects and HTTPS returns 200/OK on the actual base_url). Department taxonomy added 2026-08-20 (best-effort mapping to known government department names, same treatment given to Rajasthan/UP/Karnataka/Maharashtra). Public Health Engineering Department (rural water supply) is a standard MP department name, not explicitly confirmed in the source used. Still field_schema.taxonomy_verified=false — not yet confirmed against this portal's live post-login department dropdown."
   },
   {
     "state": "Maharashtra",
@@ -664,11 +684,21 @@
       "reference_regex": null,
       "post_login_entry_path": null
     },
-    "department_taxonomy": {},
+    "department_taxonomy": {
+      "Infrastructure & Utilities": "Public Works Department / Urban Development & Poverty Alleviation Department / Public Health Engineering Department",
+      "Housing & Land": "Land Revenue Department",
+      "Health": "Health & Family Welfare Department",
+      "Education": "School Education Department / Higher & Technical Education Department",
+      "Agriculture": "Agriculture Department",
+      "Government Schemes & Welfare": "Social Welfare Department",
+      "Law & Order": "Home Department",
+      "Bureaucratic / Administrative": "Personnel & Administrative Reforms Department",
+      "Social Issues": "Women & Child Development Department"
+    },
     "is_primary": true,
     "active": true,
     "verification_status": "confirmed",
-    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+    "source_note": "URL confirmed and reachable (verified 2026-08-19 via SSH from the EC2 backend host/container — TCP connects and HTTPS returns 200/OK on the actual base_url). Department taxonomy added 2026-08-20 (best-effort mapping to known government department names, same treatment given to Rajasthan/UP/Karnataka/Maharashtra). Public Health Engineering Department (water supply) is a standard Mizoram department name, not explicitly confirmed in the source used. Cabinet portfolios in Mizoram group several departments under one minister (e.g. Health minister also holds Social Welfare and Women & Child Development), which the department-level names above account for. Still field_schema.taxonomy_verified=false — not yet confirmed against this portal's live post-login department dropdown."
   },
   {
     "state": "Nagaland",
@@ -726,11 +756,21 @@
       "reference_regex": null,
       "post_login_entry_path": null
     },
-    "department_taxonomy": {},
+    "department_taxonomy": {
+      "Infrastructure & Utilities": "Works Department / Housing & Urban Development Department / Panchayati Raj & Drinking Water Department",
+      "Housing & Land": "Revenue & Disaster Management Department / Housing & Urban Development Department",
+      "Health": "Health & Family Welfare Department",
+      "Education": "School & Mass Education Department / Higher Education Department",
+      "Agriculture": "Agriculture & Farmers' Empowerment Department",
+      "Government Schemes & Welfare": "S.T. & S.C. Development, Minorities & Backward Classes Welfare Department",
+      "Law & Order": "Home Department",
+      "Bureaucratic / Administrative": "General Administration & Public Grievance Department",
+      "Social Issues": "Women & Child Development Department"
+    },
     "is_primary": true,
     "active": true,
     "verification_status": "confirmed",
-    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+    "source_note": "URL confirmed and reachable (verified 2026-08-19 via SSH from the EC2 backend host/container — TCP connects and HTTPS returns 200/OK on the actual base_url). Department taxonomy added 2026-08-20 (best-effort mapping to known government department names, same treatment given to Rajasthan/UP/Karnataka/Maharashtra). All values confirmed against the current Odisha cabinet department list. Still field_schema.taxonomy_verified=false — not yet confirmed against this portal's live post-login department dropdown."
   },
   {
     "state": "Punjab",
@@ -757,11 +797,21 @@
       "reference_regex": null,
       "post_login_entry_path": null
     },
-    "department_taxonomy": {},
+    "department_taxonomy": {
+      "Infrastructure & Utilities": "Public Works Department / Housing and Urban Development Department / Water Supply and Sanitation Department",
+      "Housing & Land": "Revenue, Rehabilitation & Disaster Management Department / Housing and Urban Development Department",
+      "Health": "Health and Family Welfare Department",
+      "Education": "School Education Department / Higher Education Department",
+      "Agriculture": "Agriculture and Farmer Welfare Department",
+      "Government Schemes & Welfare": "Social Justice, Empowerment & Minorities Department",
+      "Law & Order": "Home Affairs & Justice Department",
+      "Bureaucratic / Administrative": "General Administration Department",
+      "Social Issues": "Social Security and Development of Women and Children Department"
+    },
     "is_primary": true,
     "active": true,
     "verification_status": "confirmed",
-    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+    "source_note": "URL confirmed and reachable (verified 2026-08-19 via SSH from the EC2 backend host/container — TCP connects and HTTPS returns 200/OK on the actual base_url). Department taxonomy added 2026-08-20 (best-effort mapping to known government department names, same treatment given to Rajasthan/UP/Karnataka/Maharashtra). Water Supply and Sanitation Department is a standard Punjab department name, not explicitly confirmed in the source used. Still field_schema.taxonomy_verified=false — not yet confirmed against this portal's live post-login department dropdown."
   },
   {
     "state": "Sikkim",
@@ -819,11 +869,21 @@
       "reference_regex": null,
       "post_login_entry_path": null
     },
-    "department_taxonomy": {},
+    "department_taxonomy": {
+      "Infrastructure & Utilities": "Public Works Department / Housing and Urban Development Department / Municipal Administration and Water Supply Department",
+      "Housing & Land": "Revenue and Disaster Management Department / Housing and Urban Development Department",
+      "Health": "Health and Family Welfare Department",
+      "Education": "School Education Department",
+      "Agriculture": "Agriculture Department",
+      "Government Schemes & Welfare": "Backward Classes, Most Backward Classes and Minorities Welfare Department",
+      "Law & Order": "Home, Prohibition and Excise Department",
+      "Bureaucratic / Administrative": "Personnel and Administrative Reforms Department",
+      "Social Issues": "Social Welfare and Women Empowerment Department"
+    },
     "is_primary": true,
     "active": true,
     "verification_status": "confirmed",
-    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+    "source_note": "URL confirmed and reachable (verified 2026-08-19 via SSH from the EC2 backend host/container — TCP connects and HTTPS returns 200/OK on the actual base_url). Department taxonomy added 2026-08-20 (best-effort mapping to known government department names, same treatment given to Rajasthan/UP/Karnataka/Maharashtra). Municipal Administration and Water Supply Department and Personnel and Administrative Reforms Department are standard, well-known Tamil Nadu department names, not explicitly confirmed in the source used. Still field_schema.taxonomy_verified=false — not yet confirmed against this portal's live post-login department dropdown."
   },
   {
     "state": "Telangana",
@@ -881,11 +941,21 @@
       "reference_regex": null,
       "post_login_entry_path": null
     },
-    "department_taxonomy": {},
+    "department_taxonomy": {
+      "Infrastructure & Utilities": "Public Works Department (PWD) / Urban Development Department",
+      "Housing & Land": "Revenue Department",
+      "Health": "Health & Family Welfare Department",
+      "Education": "School Education Department / Higher Education Department",
+      "Agriculture": "Agriculture & Farmers' Welfare Department",
+      "Government Schemes & Welfare": "Social Welfare & Social Education Department",
+      "Law & Order": "Home Department",
+      "Bureaucratic / Administrative": "General Administration Department",
+      "Social Issues": "Social Welfare & Social Education Department"
+    },
     "is_primary": true,
     "active": true,
     "verification_status": "confirmed",
-    "source_note": "URL confirmed. Department taxonomy not yet mapped — needs the same hand-verification pass as Rajasthan/UP before this portal can actually be used."
+    "source_note": "URL confirmed and reachable (verified 2026-08-19 via SSH from the EC2 backend host/container — TCP connects and HTTPS returns 200/OK on the actual base_url). Department taxonomy added 2026-08-20 (best-effort mapping to known government department names, same treatment given to Rajasthan/UP/Karnataka/Maharashtra). LOWER CONFIDENCE than the other states in this pass: the Wikipedia source used explicitly did not list School Education, Revenue, Women and Child Development, or Urban Development as separate departments (only Home, Health & Family Welfare, PWD, Agriculture & Farmers' Welfare, Social Welfare & Social Education, General Administration, and Higher Education were directly confirmed). Urban Development, Revenue, and School Education above use standard Indian-state naming conventions, not direct confirmation. Social Issues reuses Social Welfare & Social Education Department since no separate Women & Child Development department was found. This state's taxonomy should be prioritized for a real verification pass before relying on it. Still field_schema.taxonomy_verified=false — not yet confirmed against this portal's live post-login department dropdown."
   },
   {
     "state": "Uttarakhand",
