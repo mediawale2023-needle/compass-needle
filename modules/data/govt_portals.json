@@ -38,7 +38,8 @@
     "is_primary": true,
     "active": true,
     "verification_status": "confirmed",
-    "source_note": null
+    "status_check_adapter": "rajasthan_sampark_api",
+    "source_note": "status_check_adapter added 2026-08-22: the old status_check_url (Admin/Grievance_Status.aspx) is a client-side-rendered React SPA and was never actually checkable via plain HTTP GET — confirmed by direct investigation. Real status checks now go through Rajasthan Sampark's own backend gateway API (modules/govt_sync/adapters/rajasthan_sampark.py), gated by a per-tenant cached OTP session (see govt_otp_sessions) instead of status_check_url/status_check_mode, which are now vestigial for this portal specifically."
   },
   {
     "state": "Uttar Pradesh",

@@ -33,28 +33,41 @@ def poll_all_pending() -> dict:
     rows = _q(
         """
         SELECT c.id AS case_id, c.tenant_id, c.govt_status, c.govt_reference_number,
-               c.govt_portal_id, p.state, p.portal_name, p.portal_type, p.base_url,
-               p.status_check_url, p.status_check_mode, p.otp_bound
+               c.govt_portal_id, p.id AS portal_id, p.state, p.portal_name, p.portal_type, p.base_url,
+               p.status_check_url, p.status_check_mode, p.otp_bound, p.status_check_adapter
         FROM cases c
         JOIN govt_portals p ON p.id = c.govt_portal_id
         WHERE c.govt_status = ANY(:statuses)
           AND c.govt_reference_number IS NOT NULL
           AND (c.is_deleted = false OR c.is_deleted IS NULL)
+        ORDER BY c.tenant_id, p.id
         """,
         {"statuses": list(_PENDING_STATUSES)},
     )
 
     checked = 0
     changed = 0
+    # (tenant_id, portal_id) pairs that already came back "needs
+    # verification" this run — an OTP-gated adapter (Rajasthan Sampark)
+    # will fail identically for every other pending case on the same
+    # tenant+portal until staff re-verifies, so there's no point calling
+    # the adapter (and logging a warning) another 49 times in the same run.
+    skip_pairs: set[tuple[int, int]] = set()
     for row in rows:
+        pair = (row["tenant_id"], row["portal_id"])
+        if pair in skip_pairs:
+            continue
         adapter = get_adapter(row)
         try:
-            result = adapter.check_status(row["govt_reference_number"])
+            result = adapter.check_status(row["govt_reference_number"], tenant_id=row["tenant_id"])
         except Exception as e:
             logger.warning(f"Status poll raised for case={row['case_id']} portal={row['portal_name']}: {e}")
             continue
 
         checked += 1
+        if getattr(result, "needs_verification", False):
+            skip_pairs.add(pair)
+            continue
         if not result.checked or not result.status:
             continue
         if result.status == row["govt_status"]:
