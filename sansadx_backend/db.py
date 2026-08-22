@@ -170,6 +170,13 @@ class GovtPortal(Base):
     # (the staff's own network, not EC2's) plus the AI worksheet in Needle,
     # instead of attempting a live session that would just time out.
     live_session_supported = Column(Boolean, nullable=False, default=True)
+    # Selects a portal-specific status-check adapter instead of the default
+    # ManualAssistedAdapter's best-effort HTML scrape. Null for every portal
+    # today except Rajasthan Sampark ('rajasthan_sampark_api') — see
+    # modules/govt_sync/adapters/rajasthan_sampark.py. Independent of
+    # portal_type: unlike prepare_submission() (still identical manual-filing
+    # behavior for every portal), this only changes how check_status() works.
+    status_check_adapter = Column(String, nullable=True)
     active = Column(Boolean, nullable=False, default=True)
     # A state can end up with more than one configured portal (e.g. a state
     # adds a second departmental portal later). Exactly one per state should
@@ -196,6 +203,37 @@ class GovtSubmissionLog(Base):
     actor_username = Column(String, nullable=True)  # null for automated actions (poller)
     payload = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class GovtOtpSession(Base):
+    """Cached OTP verification for a portal that exposes a real status-check
+    API gated by an OTP tied to the FILING mobile number (not per-grievance)
+    — currently only Rajasthan Sampark. One row per (tenant, portal); the
+    mobile is always this tenant's own portal_contact_number, never a
+    citizen's. verified_at is NULL while a send is pending staff entering the
+    code; once verified, the same transaction_number/session_id is reused
+    for every case on this portal for that tenant until the portal itself
+    rejects it — see modules/govt_sync/adapters/rajasthan_sampark.py.
+
+    transaction_number/session_id are short-lived portal-issued credentials,
+    not secrets we mint — still treated as sensitive: never exposed to the
+    frontend, never logged verbatim. The raw OTP code itself is never
+    persisted anywhere, not even transiently."""
+    __tablename__ = "govt_otp_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    portal_id = Column(Integer, ForeignKey("govt_portals.id"), nullable=False, index=True)
+    mobile_no = Column(String, nullable=False)
+    transaction_number = Column(String, nullable=False)
+    session_id = Column(String, nullable=False)
+    requested_at = Column(DateTime, default=datetime.utcnow)
+    verified_at = Column(DateTime, nullable=True)   # NULL until ValidateOTP succeeds
+    last_used_at = Column(DateTime, nullable=True)
+    # Set on the last real portal response that told us this session no
+    # longer works ("Invalid Transaction Number" / "Invalid Mobile Number"),
+    # so the UI can show "needs re-verification" without another round trip.
+    last_check_failed = Column(Boolean, nullable=False, default=False)
 
 
 class Case(Base):

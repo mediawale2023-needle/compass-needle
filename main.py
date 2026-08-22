@@ -1151,6 +1151,7 @@ try:
         conn.execute(text("ALTER TABLE govt_portals ADD COLUMN IF NOT EXISTS verification_status VARCHAR NOT NULL DEFAULT 'unverified'"))
         conn.execute(text("ALTER TABLE govt_portals ADD COLUMN IF NOT EXISTS source_note TEXT"))
         conn.execute(text("ALTER TABLE govt_portals ADD COLUMN IF NOT EXISTS live_session_supported BOOLEAN NOT NULL DEFAULT true"))
+        conn.execute(text("ALTER TABLE govt_portals ADD COLUMN IF NOT EXISTS status_check_adapter VARCHAR"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_portals_state ON govt_portals (state)"))
         conn.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_govt_portals_state_primary ON govt_portals (LOWER(state)) "
@@ -1179,6 +1180,28 @@ try:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_cases_govt_status ON cases (tenant_id, govt_status) WHERE govt_status <> 'not_forwarded'"))
         conn.execute(text("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS govt_contact_primary_number VARCHAR"))
         conn.execute(text("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS govt_contact_fallback_number VARCHAR"))
+        # Cached OTP verification for portals with a real status-check API
+        # gated by a mobile-scoped OTP (currently Rajasthan Sampark only) —
+        # see modules/govt_sync/adapters/rajasthan_sampark.py and
+        # sansadx_backend.db.GovtOtpSession.
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS govt_otp_sessions (
+                id SERIAL PRIMARY KEY,
+                tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+                portal_id INTEGER NOT NULL REFERENCES govt_portals(id),
+                mobile_no VARCHAR NOT NULL,
+                transaction_number VARCHAR NOT NULL,
+                session_id VARCHAR NOT NULL,
+                requested_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                verified_at TIMESTAMP,
+                last_used_at TIMESTAMP,
+                last_check_failed BOOLEAN NOT NULL DEFAULT false
+            )
+        """))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_govt_otp_sessions_tenant_portal "
+            "ON govt_otp_sessions (tenant_id, portal_id)"
+        ))
     logger.info("Migration: Government Department Sync tables/columns ready")
 except Exception as _govt_sync_exc:
     logger.warning(f"Government Department Sync migration skipped: {_govt_sync_exc}")

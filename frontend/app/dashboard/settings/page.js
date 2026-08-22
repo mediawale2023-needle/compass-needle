@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
-import { api } from '@/lib/api';
+import { api, apiGet, apiPost } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import {
     User, Shield, Info, Lock, LifeBuoy, ExternalLink,
     Users, UserPlus, Trash2, Loader2, CheckCircle2,
     AlertCircle, Phone, Crown, ChevronDown, ChevronUp,
-    Eye, EyeOff, Pencil, MapPin,
+    Eye, EyeOff, Pencil, MapPin, Landmark,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -584,6 +584,175 @@ function ProfileCard({ user, color }) {
     );
 }
 
+/* ── GovtPortalCard ──────────────────────────────────────────────── */
+// Only renders when this tenant resolves to a govt portal whose status
+// checks go through a real backend API gated by an OTP tied to the portal
+// contact number (currently only Rajasthan Sampark — portal.otp_verification
+// is null for every other portal, which just uses "Check status now" on the
+// case directly with no separate verification step).
+
+function GovtPortalCard({ color }) {
+    const [data, setData]           = useState(null);
+    const [loading, setLoading]     = useState(true);
+    const [otp, setOtp]             = useState('');
+    const [sending, setSending]     = useState(false);
+    const [verifying, setVerifying] = useState(false);
+    const [otpRequested, setOtpRequested] = useState(false);
+    const [msg, setMsg]             = useState({ type: '', text: '' });
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await apiGet('/api/govt-portal');
+            setData(res);
+        } catch {
+            setData(null);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => { load(); }, [load]);
+
+    const verification = data?.portal?.otp_verification;
+
+    const handleSendOtp = async () => {
+        setSending(true);
+        setMsg({ type: '', text: '' });
+        try {
+            const res = await apiPost('/api/govt/otp/send', {});
+            setMsg({ type: 'success', text: res.message || 'OTP sent.' });
+            setOtpRequested(true);
+            await load();
+        } catch (err) {
+            setMsg({ type: 'error', text: err.message || 'Could not send OTP' });
+        } finally {
+            setSending(false);
+        }
+    };
+
+    const handleVerifyOtp = async (e) => {
+        e.preventDefault();
+        if (!otp.trim()) return;
+        setVerifying(true);
+        setMsg({ type: '', text: '' });
+        try {
+            const res = await apiPost('/api/govt/otp/verify', { otp: otp.trim() });
+            setMsg({ type: 'success', text: res.message || 'Verified.' });
+            setOtp('');
+            setOtpRequested(false);
+            await load();
+        } catch (err) {
+            setMsg({ type: 'error', text: err.message || 'Invalid OTP' });
+        } finally {
+            setVerifying(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center gap-2">
+                        <Landmark className="h-5 w-5 text-muted-foreground" />
+                        <CardTitle>Government Portal</CardTitle>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex items-center justify-center py-6 text-muted-foreground gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="text-sm">Loading…</span>
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    if (!data?.portal || !verification) return null;
+
+    const statusLabel = {
+        verified: 'Verified',
+        pending: 'OTP sent — enter the code below',
+        expired: 'Verification expired — resend the OTP',
+        not_started: 'Not verified yet',
+    }[verification.status] || verification.status;
+
+    const statusColor = {
+        verified: 'text-green-700 dark:text-green-400',
+        pending: 'text-amber-500',
+        expired: 'text-destructive',
+        not_started: 'text-muted-foreground',
+    }[verification.status] || 'text-muted-foreground';
+
+    const showOtpInput = verification.status === 'pending' || verification.status === 'expired' || otpRequested;
+
+    return (
+        <Card>
+            <CardHeader>
+                <div className="flex items-center gap-2">
+                    <Landmark className="h-5 w-5 text-muted-foreground" />
+                    <CardTitle>Government Portal</CardTitle>
+                </div>
+                <CardDescription>
+                    {data.portal.portal_name}{data.state ? ` · ${data.state}` : ''} — status checks on this
+                    portal need periodic access verification via an OTP sent to your portal contact number.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                        <p className={`text-sm font-medium ${statusColor}`}>{statusLabel}</p>
+                        {verification.mobile_no && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                Mobile on file: {verification.mobile_no}
+                            </p>
+                        )}
+                        {verification.status === 'verified' && verification.verified_at && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                Verified {formatDate(verification.verified_at)}
+                            </p>
+                        )}
+                    </div>
+                    <Button size="sm" variant="outline" disabled={sending} onClick={handleSendOtp}>
+                        {sending
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : (verification.status === 'verified' ? 'Re-verify access' : 'Send OTP')
+                        }
+                    </Button>
+                </div>
+
+                {showOtpInput && (
+                    <form onSubmit={handleVerifyOtp} className="flex items-center gap-2">
+                        <Input
+                            placeholder="Enter OTP"
+                            value={otp}
+                            onChange={e => setOtp(e.target.value)}
+                            className="max-w-[160px]"
+                        />
+                        <Button type="submit" size="sm" disabled={verifying || !otp.trim()} style={{ background: color }}>
+                            {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Verify'}
+                        </Button>
+                    </form>
+                )}
+
+                {msg.text && (
+                    <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border ${
+                        msg.type === 'error'
+                            ? 'text-destructive bg-destructive/10 border-destructive/20'
+                            : 'text-green-700 dark:text-green-400 bg-green-500/10 border-green-500/20'
+                    }`}>
+                        {msg.type === 'error'
+                            ? <AlertCircle className="h-4 w-4 shrink-0" />
+                            : <CheckCircle2 className="h-4 w-4 shrink-0" />
+                        }
+                        {msg.text}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 /* ── Main Settings Page ──────────────────────────────────────────── */
 
 export default function SettingsPage() {
@@ -713,6 +882,9 @@ export default function SettingsPage() {
                     </form>
                 </CardContent>
             </Card>
+
+            {/* Government Portal — only renders for OTP-gated portals (currently Rajasthan Sampark) */}
+            <GovtPortalCard color={color} />
 
             {/* Support Card */}
             <Card>

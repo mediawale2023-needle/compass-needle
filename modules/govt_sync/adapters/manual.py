@@ -22,29 +22,11 @@ wrong status to a citizen.
 """
 import logging
 
-from .base import GovtPortalAdapter, StatusResult, SubmissionResult
+from .base import GovtPortalAdapter, StatusResult, SubmissionResult, normalize_status_keywords
 
 logger = logging.getLogger("needle.govt_sync.adapter.manual")
 
 _STATUS_TIMEOUT_SECONDS = 12
-
-# Best-effort keyword -> normalized status. English + Hindi/Hinglish portal
-# wording. Ordered so more specific terms are checked before generic ones.
-_STATUS_KEYWORDS = [
-    ("resolved", ["resolved", "disposed", "closed", "निस्तारित", "समाधान"]),
-    ("rejected", ["rejected", "declined", "अस्वीकृत"]),
-    ("under_review", ["under review", "in process", "processing", "प्रक्रियाधीन", "विचाराधीन"]),
-    ("submitted", ["registered", "received", "acknowledged", "प्राप्त", "दर्ज"]),
-]
-
-
-def _normalize_status(raw_text: str) -> str | None:
-    lowered = (raw_text or "").lower()
-    for normalized, keywords in _STATUS_KEYWORDS:
-        for kw in keywords:
-            if kw.lower() in lowered:
-                return normalized
-    return None
 
 
 class ManualAssistedAdapter(GovtPortalAdapter):
@@ -63,7 +45,9 @@ class ManualAssistedAdapter(GovtPortalAdapter):
             staff_action_note=note,
         )
 
-    def check_status(self, reference_number: str) -> StatusResult:
+    def check_status(self, reference_number: str, tenant_id: int | None = None) -> StatusResult:
+        # tenant_id unused — this adapter's checks are portal-scoped, not
+        # tenant-scoped. Accepted for interface compatibility (see base.py).
         mode = self.portal.get("status_check_mode", "login_required")
         status_url = self.portal.get("status_check_url")
 
@@ -86,7 +70,7 @@ class ManualAssistedAdapter(GovtPortalAdapter):
             logger.warning(f"Status check request failed for {self.portal.get('portal_name')} ref={reference_number}: {e}")
             return StatusResult(status="", raw_portal_status=None, checked=False)
 
-        normalized = _normalize_status(page_text)
+        normalized = normalize_status_keywords(page_text)
         if not normalized:
             logger.info(
                 f"Status check for {self.portal.get('portal_name')} ref={reference_number} returned "

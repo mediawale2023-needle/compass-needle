@@ -1191,6 +1191,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     const [worksheet, setWorksheet] = useState(null);  // response from /govt/translate (includes portal_contact_number, staff_action_note)
     const [refInput, setRefInput] = useState('');
     const [busy, setBusy] = useState(false);
+    const [needsGovtVerification, setNeedsGovtVerification] = useState(false); // set when /govt/poll reports the OTP-gated portal session needs re-verification (Settings → Government Portal)
     const [liveSession, setLiveSession] = useState(null); // { session_id, ws_path, viewport, portal_name }
     const [liveConnecting, setLiveConnecting] = useState(false);
     const liveSessionRef = useRef(null); // mirrors liveSession so the unmount cleanup below sees the latest value, not a stale closure
@@ -1200,6 +1201,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
 
     useEffect(() => {
         if (!caseId) return;
+        setNeedsGovtVerification(false);
         apiGet(`/api/cases/${caseId}/govt`).then(setGovtState).catch(() => setGovtState(null));
     }, [caseId]);
 
@@ -1459,7 +1461,12 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
             const result = await apiPost(`/api/cases/${caseId}/govt/poll`, {});
             const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
             setGovtState(refreshed);
-            toast.success(result.changed ? `Status updated: ${GOVT_STATUS_LABEL[result.govt_status] || result.govt_status}` : (result.note || 'No change yet'));
+            setNeedsGovtVerification(!!result.needs_verification);
+            if (result.needs_verification) {
+                toast.warning(result.note || 'Verify Rajasthan Sampark access under Settings → Government Portal, then try again.');
+            } else {
+                toast.success(result.changed ? `Status updated: ${GOVT_STATUS_LABEL[result.govt_status] || result.govt_status}` : (result.note || 'No change yet'));
+            }
         } catch (e) {
             toast.error(e.message || 'Status check failed');
         } finally {
@@ -1680,6 +1687,16 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                     <> · updated {new Date(govtState.case.govt_status_updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</>
                                 )}
                             </div>
+                            {needsGovtVerification && (
+                                <div style={{ fontSize: 11.5, color: C.saffron, background: C.saffronTint, padding: '8px 10px', marginBottom: 8 }}>
+                                    ⚠ This portal needs a fresh access verification before status can be checked again.
+                                    <div style={{ marginTop: 6 }}>
+                                        <a href="/dashboard/settings" style={{ color: C.saffron, textDecoration: 'underline', fontWeight: 600 }}>
+                                            Verify under Settings → Government Portal
+                                        </a>
+                                    </div>
+                                </div>
+                            )}
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                 <Button size="sm" variant="outline" disabled={busy} onClick={handlePollNow}>
                                     {busy ? <Loader2 size={14} className="animate-spin" /> : 'Check status now'}
