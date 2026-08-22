@@ -2875,7 +2875,7 @@ def get_resolved_govt_portal(user=Depends(get_current_user)):
                 # for every other portal, which the frontend treats as "no
                 # verification step, use the usual Check status now button."
                 "otp_verification": (
-                    _govt_otp_verification_state(tid, portal["id"])
+                    _govt_otp_verification_state(tid, portal)
                     if portal.get("status_check_adapter") else None
                 ),
             }
@@ -2884,13 +2884,17 @@ def get_resolved_govt_portal(user=Depends(get_current_user)):
     }
 
 
-def _govt_otp_verification_state(tid: int, portal_id: int) -> dict:
-    # Hardcoded to the one OTP-gated adapter that exists today. If a second
-    # portal ever gets this treatment, dispatch through a module-level
-    # mapping (like modules/govt_sync/adapters/__init__.py's
-    # _STATUS_CHECK_ADAPTERS) instead of adding an if/elif chain here.
-    from modules.govt_sync.adapters.rajasthan_sampark import verification_state
-    return verification_state(tid, portal_id)
+def _govt_otp_verification_state(tid: int, portal: dict) -> dict | None:
+    # Generic across any OTP-gated adapter — dispatches through get_adapter()
+    # the same way every other adapter call in this file does, so adding a
+    # second OTP-gated state needs no change here (see
+    # modules/govt_sync/adapters/base.py's OtpGatedStatusMixin and
+    # adapters/__init__.py's _STATUS_CHECK_ADAPTERS).
+    from modules.govt_sync.adapters import get_adapter
+    adapter = get_adapter(portal)
+    if not hasattr(adapter, "verification_state"):
+        return None
+    return adapter.verification_state(tid)
 
 
 def _get_portal_contact_number(tid: int) -> str | None:
@@ -2910,10 +2914,13 @@ class GovtOtpVerifyRequest(BaseModel):
 @router.post("/govt/otp/send")
 def govt_otp_send(user=Depends(get_current_user)):
     """Sends a fresh OTP to this tenant's own portal_contact_number for
-    whichever portal they resolve to, if that portal supports the OTP-gated
-    status-check API (currently only Rajasthan Sampark). One OTP verifies
-    the mobile number for every case on that portal for this tenant, not
-    just one — see modules/govt_sync/adapters/rajasthan_sampark.py."""
+    whichever portal they resolve to, if that portal supports an OTP-gated
+    status-check API. Dispatches through get_adapter() so this endpoint
+    doesn't change as more states get one — see
+    modules/govt_sync/adapters/base.py's OtpGatedStatusMixin. One OTP
+    verifies the mobile number for every case on that portal for this
+    tenant, not just one (confirmed for Rajasthan Sampark; a new portal's
+    adapter should confirm this for itself, not assume it)."""
     tid = get_tenant_or_fail(user)
     portal, state = _resolve_govt_portal_for_tenant(tid)
     if not portal:
@@ -2921,14 +2928,21 @@ def govt_otp_send(user=Depends(get_current_user)):
     if not portal.get("status_check_adapter"):
         raise HTTPException(400, f"{portal['portal_name']} doesn't use OTP-verified status checks — use \"Check status now\" directly.")
 
+    from modules.govt_sync.adapters import get_adapter
+    adapter = get_adapter(portal)
+    if not hasattr(adapter, "start_verification"):
+        raise HTTPException(400, f"{portal['portal_name']} doesn't use OTP-verified status checks — use \"Check status now\" directly.")
+
     mobile_no = _get_portal_contact_number(tid)
     if not mobile_no:
         raise HTTPException(400, "No portal contact number on file for this tenant — set one before verifying access.")
 
-    # Sampark's send-OTP call requires an existing grievance number to anchor
-    # to, even though the resulting verification covers every grievance
-    # already filed under this mobile — use any one of this tenant's own
-    # filed references on this portal.
+    # OTP-gated adapters so far (Rajasthan Sampark) need an existing
+    # grievance number to anchor the send-OTP call to, even though the
+    # resulting verification covers every grievance already filed under
+    # this mobile — use any one of this tenant's own filed references on
+    # this portal. A future adapter that doesn't need an anchor can just
+    # ignore the argument in its _send_otp().
     anchor = _q_one(
         "SELECT govt_reference_number FROM cases WHERE tenant_id = :tid AND govt_portal_id = :pid "
         "AND govt_reference_number IS NOT NULL AND govt_reference_number <> '' "
@@ -2942,9 +2956,8 @@ def govt_otp_send(user=Depends(get_current_user)):
             "existing reference number to anchor to.",
         )
 
-    from modules.govt_sync.adapters.rajasthan_sampark import start_verification
     try:
-        start_verification(tid, portal["id"], mobile_no, anchor["govt_reference_number"])
+        adapter.start_verification(tid, mobile_no, anchor["govt_reference_number"])
     except Exception as e:
         logger.error("Govt sync: OTP send failed for tenant %s portal %s: %s", tid, portal["portal_name"], e)
         raise HTTPException(502, "Could not send the OTP — try again in a moment.")
@@ -2959,13 +2972,17 @@ def govt_otp_verify(body: GovtOtpVerifyRequest, user=Depends(get_current_user)):
     if not portal or not portal.get("status_check_adapter"):
         raise HTTPException(400, "No OTP-verified portal configured for this tenant.")
 
+    from modules.govt_sync.adapters import get_adapter
+    adapter = get_adapter(portal)
+    if not hasattr(adapter, "complete_verification"):
+        raise HTTPException(400, "No OTP-verified portal configured for this tenant.")
+
     otp = (body.otp or "").strip()
     if not otp:
         raise HTTPException(400, "Enter the OTP code.")
 
-    from modules.govt_sync.adapters.rajasthan_sampark import complete_verification
     try:
-        ok = complete_verification(tid, portal["id"], otp)
+        ok = adapter.complete_verification(tid, otp)
     except RuntimeError as e:
         raise HTTPException(400, str(e))
     except Exception as e:

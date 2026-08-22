@@ -29,7 +29,12 @@ at least ~28 minutes across multiple different grievances registered to the
 same mobile, with a fresh never-validated pair for that mobile accepted too.
 So ONE staff-entered OTP unlocks status checks for every grievance Needle
 has filed under that tenant's own `portal_contact_number` for a good while
-afterward — not one OTP per grievance. See modules/govt_sync/__init__.py and
+afterward — not one OTP per grievance. This "mobile-scoped OTP" shape is
+what `OtpGatedStatusMixin` (modules/govt_sync/adapters/base.py) generalizes
+— this module implements only the three portal-specific hooks the mixin
+needs (_send_otp/_validate_otp/_fetch_status), everything else (the
+govt_otp_sessions cache, start/complete/verification_state, the
+check_status() state machine) lives in the shared mixin now. See
 PROJECT_MEMORY.md for the operating model this produces (staff verifies
 once or twice a day; Needle polls silently in between).
 
@@ -68,22 +73,26 @@ ask the portal for something we already have. It also skips
 GetActionIntegratedHistoryListCitizen (full history timeline) because
 Needle's dashboard only needs the current status, not a full history view;
 see PROJECT_MEMORY.md for that scoping decision.
+
+WANT TO ADD ANOTHER STATE? Don't copy this whole file. Confirm the target
+portal actually has a real backend API worth calling (trace real network
+traffic the way this one was discovered — never assume from this file
+alone), then write a new adapter module with just that portal's
+_send_otp/_validate_otp/_fetch_status (if it turns out to be mobile-scoped
+OTP-gated like this one — otherwise implement check_status() directly, no
+mixin needed) and register it in
+modules/govt_sync/adapters/__init__.py's _STATUS_CHECK_ADAPTERS.
 """
 import logging
 import uuid
-from datetime import datetime, timezone
 
-from .base import GovtPortalAdapter, StatusResult, normalize_status_keywords
+from .base import OtpGatedStatusMixin
 from .manual import ManualAssistedAdapter
 
 logger = logging.getLogger("needle.govt_sync.adapter.rajasthan_sampark")
 
 _GATEWAY_URL = "https://sampark.rajasthan.gov.in/gateway/api/GatewayService/GetList"
 _REQUEST_TIMEOUT_SECONDS = 15
-
-
-def _utcnow():
-    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _gateway_call(api_key: str, module: str, path: str, api_params: dict) -> dict:
@@ -170,146 +179,19 @@ def check_grievance_detail(mobile_no: str, grievance_no: str, transaction_number
     }
 
 
-# ─── Per-tenant session cache (govt_otp_sessions) ──────────────────
-# Deliberately owned by this module, not threaded through the generic
-# adapter interface — every other adapter is stateless w.r.t. the DB, and
-# giving all of them a DB dependency for this one portal's needs would be a
-# much bigger, unjustified refactor. This is the one adapter that needs it.
-
-def _get_cached_session(tenant_id: int, portal_id: int) -> dict | None:
-    from core.db_helpers import _q_one
-    return _q_one(
-        "SELECT id, mobile_no, transaction_number, session_id, verified_at, last_check_failed "
-        "FROM govt_otp_sessions WHERE tenant_id = :tid AND portal_id = :pid",
-        {"tid": tenant_id, "pid": portal_id},
-    )
-
-
-def _upsert_session(tenant_id: int, portal_id: int, mobile_no: str, transaction_number: str,
-                     session_id: str, verified_at=None) -> None:
-    from sansadx_backend.db import engine
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                """
-                INSERT INTO govt_otp_sessions (
-                    tenant_id, portal_id, mobile_no, transaction_number, session_id,
-                    requested_at, verified_at, last_check_failed
-                ) VALUES (:tid, :pid, :mobile, :txn, :sess, :now, :verified_at, false)
-                ON CONFLICT (tenant_id, portal_id) DO UPDATE SET
-                    mobile_no = EXCLUDED.mobile_no,
-                    transaction_number = EXCLUDED.transaction_number,
-                    session_id = EXCLUDED.session_id,
-                    requested_at = EXCLUDED.requested_at,
-                    verified_at = EXCLUDED.verified_at,
-                    last_check_failed = false
-                """
-            ),
-            {
-                "tid": tenant_id, "pid": portal_id, "mobile": mobile_no,
-                "txn": transaction_number, "sess": session_id,
-                "now": _utcnow(), "verified_at": verified_at,
-            },
-        )
-
-
-def _mark_session_failed(tenant_id: int, portal_id: int) -> None:
-    from sansadx_backend.db import engine
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        conn.execute(
-            text("UPDATE govt_otp_sessions SET last_check_failed = true WHERE tenant_id = :tid AND portal_id = :pid"),
-            {"tid": tenant_id, "pid": portal_id},
-        )
-
-
-def _touch_session_used(tenant_id: int, portal_id: int) -> None:
-    from sansadx_backend.db import engine
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        conn.execute(
-            text("UPDATE govt_otp_sessions SET last_used_at = :now WHERE tenant_id = :tid AND portal_id = :pid"),
-            {"tid": tenant_id, "pid": portal_id, "now": _utcnow()},
-        )
-
-
-# ─── Orchestration — called by api_router.py's /govt/otp/* endpoints ───
-
-def start_verification(tenant_id: int, portal_id: int, mobile_no: str, anchor_grievance_no: str) -> None:
-    """Sends a fresh OTP and stores the pending (unverified) session."""
-    result = send_otp(mobile_no, anchor_grievance_no)
-    _upsert_session(tenant_id, portal_id, mobile_no, result["transaction_number"], result["session_id"], verified_at=None)
-
-
-def complete_verification(tenant_id: int, portal_id: int, otp_code: str) -> bool:
-    """Validates the OTP against the pending session. Returns True on
-    success (session marked verified for reuse). Returns False on a
-    genuinely wrong OTP (session stays pending, staff can retry). Raises
-    RuntimeError if there's no pending session at all."""
-    session = _get_cached_session(tenant_id, portal_id)
-    if not session:
-        raise RuntimeError("No pending verification — send an OTP first.")
-    ok = validate_otp(otp_code, session["transaction_number"], session["session_id"])
-    if ok:
-        _upsert_session(
-            tenant_id, portal_id, session["mobile_no"],
-            session["transaction_number"], session["session_id"], verified_at=_utcnow(),
-        )
-    return ok
-
-
-def verification_state(tenant_id: int, portal_id: int) -> dict:
-    """{'status': 'verified'|'pending'|'expired'|'not_started', 'mobile_no', 'verified_at'}"""
-    session = _get_cached_session(tenant_id, portal_id)
-    if not session:
-        return {"status": "not_started", "mobile_no": None, "verified_at": None}
-    if session.get("last_check_failed"):
-        return {"status": "expired", "mobile_no": session["mobile_no"], "verified_at": session.get("verified_at")}
-    if session.get("verified_at"):
-        return {"status": "verified", "mobile_no": session["mobile_no"], "verified_at": session["verified_at"]}
-    return {"status": "pending", "mobile_no": session["mobile_no"], "verified_at": None}
-
-
 # ─── The adapter itself ─────────────────────────────────────────────
 
-class RajasthanSamparkAPIAdapter(ManualAssistedAdapter):
-    """Inherits prepare_submission() unchanged from ManualAssistedAdapter —
-    filing is still a real human on the real portal. Only check_status()
-    is different."""
+class RajasthanSamparkAPIAdapter(OtpGatedStatusMixin, ManualAssistedAdapter):
+    """Mixin first so its check_status() wins over ManualAssistedAdapter's
+    HTML-scrape version; prepare_submission() still comes from
+    ManualAssistedAdapter unchanged (filing is still a real human on the
+    real portal — see module docstring's SCOPE note)."""
 
-    def check_status(self, reference_number: str, tenant_id: int | None = None) -> StatusResult:
-        if not tenant_id:
-            # Shouldn't happen in practice (callers always pass it for this
-            # adapter) — fail closed rather than guess whose session to use.
-            return StatusResult(status="", checked=False)
+    def _send_otp(self, mobile_no: str, anchor_reference: str) -> dict:
+        return send_otp(mobile_no, anchor_reference)
 
-        # Different callers alias this differently (a clean portal row uses
-        # "id"; a cases-JOIN-govt_portals row needs "portal_id" to avoid
-        # colliding with the case's own "id") — accept either.
-        portal_id = self.portal.get("portal_id") or self.portal.get("id")
-        session = _get_cached_session(tenant_id, portal_id)
-        if not session or not session.get("verified_at"):
-            return StatusResult(status="", checked=False, needs_verification=True)
+    def _validate_otp(self, otp: str, transaction_number: str, session_id: str) -> bool:
+        return validate_otp(otp, transaction_number, session_id)
 
-        try:
-            detail = check_grievance_detail(
-                session["mobile_no"], reference_number,
-                session["transaction_number"], session["session_id"],
-            )
-        except Exception as e:
-            logger.warning(f"Rajasthan Sampark status check failed for ref={reference_number}: {e}")
-            return StatusResult(status="", checked=False)
-
-        if detail is None:
-            _mark_session_failed(tenant_id, portal_id)
-            return StatusResult(status="", checked=False, needs_verification=True)
-
-        _touch_session_used(tenant_id, portal_id)
-        raw_status = f"{detail['status_text']} / {detail['sub_status_text']}".strip(" /")
-        normalized = normalize_status_keywords(raw_status)
-        if not normalized:
-            logger.info(f"Rajasthan Sampark status '{raw_status}' unrecognised for ref={reference_number} — needs manual look")
-            return StatusResult(status="", raw_portal_status=raw_status, checked=False)
-
-        return StatusResult(status=normalized, raw_portal_status=raw_status, checked=True)
+    def _fetch_status(self, mobile_no: str, reference_number: str, transaction_number: str, session_id: str) -> dict | None:
+        return check_grievance_detail(mobile_no, reference_number, transaction_number, session_id)
