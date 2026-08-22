@@ -1,0 +1,84 @@
+name: Verify Rajasthan Sampark OTP Migration
+
+# Manually triggered, read-only post-deploy check for the Rajasthan Sampark
+# OTP-gated status-check integration (govt_otp_sessions table, govt_portals
+# .status_check_adapter column, and the seeded Rajasthan Sampark row).
+# Confirms the migration actually landed on the running container/DB and
+# that the new module imports cleanly, the same way
+# verify-govt-sync-imports.yml catches "caller committed, callee didn't."
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: aws-ec2-backend-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Check govt_otp_sessions schema + rajasthan_sampark adapter inside the running container
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions verify-govt-otp'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
+
+      - name: Check Schema + Seed Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 5m
+          script: |
+            set -euo pipefail
+            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
+
+            echo "== govt_otp_sessions table + unique index =="
+            docker compose -f "$COMPOSE" exec -T postgres sh -c \
+              'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\d govt_otp_sessions"'
+
+            echo "== govt_portals.status_check_adapter column exists, Rajasthan Sampark row =="
+            docker compose -f "$COMPOSE" exec -T postgres sh -c \
+              'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT id, state, portal_name, status_check_adapter FROM govt_portals WHERE portal_name = '"'"'Rajasthan Sampark'"'"';"'
+
+            echo "== module import + adapter dispatch check inside the running backend container =="
+            docker compose -f "$COMPOSE" exec -T backend python3 -c "
+            from modules.govt_sync.adapters import rajasthan_sampark, get_adapter
+            from modules.govt_sync.adapters.rajasthan_sampark import RajasthanSamparkAPIAdapter
+            adapter = get_adapter({'portal_id': 1, 'id': 1, 'portal_name': 'Rajasthan Sampark', 'status_check_adapter': 'rajasthan_sampark_api'})
+            assert isinstance(adapter, RajasthanSamparkAPIAdapter), type(adapter)
+            print('OK — get_adapter() dispatches to RajasthanSamparkAPIAdapter for status_check_adapter=rajasthan_sampark_api')
+            "
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true
