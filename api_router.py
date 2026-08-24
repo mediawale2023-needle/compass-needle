@@ -2784,17 +2784,52 @@ def _govt_already_filed_detail(govt_status, govt_reference_number) -> str:
 
 
 def _log_govt_action(tenant_id: int, case_id: int, action: str, actor_username: str | None, payload: dict | None = None):
+    payload_expr = "CAST(:payload AS JSONB)"
+    if getattr(getattr(engine, "dialect", None), "name", "") == "sqlite":
+        payload_expr = ":payload"
     with engine.begin() as conn:
         conn.execute(
             text(
                 "INSERT INTO govt_submission_log (tenant_id, case_id, action, actor_username, payload, created_at) "
-                "VALUES (:tid, :cid, :action, :actor, CAST(:payload AS JSONB), :now)"
+                f"VALUES (:tid, :cid, :action, :actor, {payload_expr}, :now)"
             ),
             {
                 "tid": tenant_id, "cid": case_id, "action": action, "actor": actor_username,
                 "payload": json.dumps(payload or {}, default=str), "now": _utcnow(),
             },
         )
+
+
+def _govt_status_poll_payload(case: dict, result, portal_name: str | None = None) -> dict:
+    return {
+        "old_status": case.get("govt_status"),
+        "new_status": result.status,
+        "raw_portal_status": result.raw_portal_status,
+        "portal_detail": getattr(result, "portal_detail", None) or {},
+        "portal": portal_name or case.get("portal_name"),
+        "changed": result.status != case.get("govt_status"),
+    }
+
+
+def _latest_govt_status_check_payload(tenant_id: int, case_id: int) -> dict | None:
+    row = _q_one(
+        "SELECT payload, created_at FROM govt_submission_log "
+        "WHERE tenant_id = :tid AND case_id = :cid AND action = 'status_polled' "
+        "ORDER BY created_at DESC LIMIT 1",
+        {"tid": tenant_id, "cid": case_id},
+    )
+    if not row:
+        return None
+    payload = _parse_meta(row.get("payload"))
+    return {
+        "checked_at": row.get("created_at"),
+        "old_status": payload.get("old_status"),
+        "new_status": payload.get("new_status"),
+        "raw_portal_status": payload.get("raw_portal_status"),
+        "portal_detail": _parse_meta(payload.get("portal_detail")),
+        "portal": payload.get("portal"),
+        "changed": bool(payload.get("changed")),
+    }
 
 
 def _resolve_govt_portal_for_tenant(tid: int) -> tuple[dict | None, str]:
@@ -3134,7 +3169,11 @@ def get_govt_forward_state(case_id: int, user=Depends(get_current_user)):
         "WHERE tenant_id = :tid AND case_id = :cid ORDER BY created_at ASC",
         {"tid": tid, "cid": case_id},
     )
-    return {"case": case, "log": log}
+    return {
+        "case": case,
+        "log": log,
+        "latest_status_check": _latest_govt_status_check_payload(tid, case_id),
+    }
 
 
 @router.post("/cases/{case_id}/govt/submit")
@@ -3233,11 +3272,21 @@ def govt_poll_case(case_id: int, user=Depends(get_current_user)):
                 text("UPDATE cases SET govt_status = :status, govt_status_updated_at = :now WHERE id = :cid AND tenant_id = :tid"),
                 {"status": result.status, "now": _utcnow(), "cid": case_id, "tid": tid},
             )
-        _log_govt_action(tid, case_id, "status_polled", user.get("username"), payload={
-            "old_status": case["govt_status"], "new_status": result.status, "raw_portal_status": result.raw_portal_status,
-        })
+    _log_govt_action(
+        tid,
+        case_id,
+        "status_polled",
+        user.get("username"),
+        payload=_govt_status_poll_payload(case, result, case.get("portal_name")),
+    )
 
-    return {"success": True, "changed": changed, "govt_status": result.status}
+    return {
+        "success": True,
+        "changed": changed,
+        "govt_status": result.status,
+        "raw_portal_status": result.raw_portal_status,
+        "portal_detail": getattr(result, "portal_detail", None) or {},
+    }
 
 
 def _govt_status_check_case_row(case_id: int, tid: int) -> dict | None:
@@ -3300,6 +3349,11 @@ def govt_status_check_start(case_id: int, user=Depends(get_current_user)):
 
 class GovtStatusCheckAdvanceRequest(BaseModel):
     captcha: str
+    # Optional — only present portals with an OTP stage (currently
+    # Maharashtra) ever populate this; Karnataka's single-CAPTCHA flow
+    # never sends it, and this endpoint's Karnataka behavior is otherwise
+    # byte-identical to before this field existed.
+    otp: str | None = None
 
 
 @router.post("/cases/{case_id}/govt/status-check/{attempt_id}/advance")
@@ -3317,6 +3371,7 @@ def govt_status_check_advance(case_id: int, attempt_id: str, body: GovtStatusChe
     captcha = (body.captcha or "").strip()
     if not captcha:
         raise HTTPException(400, "Enter the CAPTCHA shown.")
+    otp = (body.otp or "").strip()
 
     from modules.govt_sync.adapters.status_flow import StatusCheckAttempt, StatusCheckAttemptState
 
@@ -3331,8 +3386,12 @@ def govt_status_check_advance(case_id: int, attempt_id: str, body: GovtStatusChe
         reference_number=case["govt_reference_number"],
     )
 
+    verification_answers = {"captcha": captcha}
+    if otp:
+        verification_answers["otp"] = otp
+
     try:
-        attempt = adapter.advance(attempt, {"captcha": captcha})
+        attempt = adapter.advance(attempt, verification_answers)
     except Exception as e:
         logger.error("Govt sync: interactive status-check advance failed for case %s: %s", case_id, e)
         raise HTTPException(502, "Could not verify the CAPTCHA — try again in a moment.")
@@ -3344,7 +3403,20 @@ def govt_status_check_advance(case_id: int, attempt_id: str, body: GovtStatusChe
         }
 
     if attempt.state != StatusCheckAttemptState.COMPLETE or not attempt.result:
-        return {"success": True, "changed": False, "state": attempt.state.value, "note": "Still awaiting input."}
+        # Multi-stage portals (Maharashtra) land back here in
+        # AWAITING_HUMAN_INPUT with a NEW pending_human_verification for the
+        # next stage — same response shape /start already uses, so the
+        # frontend doesn't need a second contract to understand it. For a
+        # single-stage portal (Karnataka) this branch is unreachable via the
+        # UI (empty CAPTCHA is rejected above before advance() is ever
+        # called), so this is additive, not a behavior change for Karnataka.
+        return {
+            "success": True, "changed": False, "state": attempt.state.value,
+            "note": "Still awaiting input.",
+            "pending_human_verification": [
+                {"kind": r.kind, "challenge": r.challenge} for r in (attempt.pending_human_verification or [])
+            ],
+        }
 
     result = attempt.result
     if not result.checked or not result.status:
@@ -3357,11 +3429,22 @@ def govt_status_check_advance(case_id: int, attempt_id: str, body: GovtStatusChe
                 text("UPDATE cases SET govt_status = :status, govt_status_updated_at = :now WHERE id = :cid AND tenant_id = :tid"),
                 {"status": result.status, "now": _utcnow(), "cid": case_id, "tid": tid},
             )
-        _log_govt_action(tid, case_id, "status_polled", user.get("username"), payload={
-            "old_status": case["govt_status"], "new_status": result.status, "raw_portal_status": result.raw_portal_status,
-        })
+    _log_govt_action(
+        tid,
+        case_id,
+        "status_polled",
+        user.get("username"),
+        payload=_govt_status_poll_payload(case, result, case.get("portal_name")),
+    )
 
-    return {"success": True, "changed": changed, "state": "complete", "govt_status": result.status if changed else case["govt_status"]}
+    return {
+        "success": True,
+        "changed": changed,
+        "state": "complete",
+        "govt_status": result.status if changed else case["govt_status"],
+        "raw_portal_status": result.raw_portal_status,
+        "portal_detail": getattr(result, "portal_detail", None) or {},
+    }
 
 
 @router.post("/cases/{case_id}/govt/notify-citizen")

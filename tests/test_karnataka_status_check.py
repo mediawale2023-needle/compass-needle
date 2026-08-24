@@ -63,7 +63,7 @@ import sansadx_backend.db as dbmod
 from sansadx_backend.db import Base, hash_password
 
 from modules.govt_sync.adapters import KarnatakaAPIAdapter, get_adapter
-from modules.govt_sync.adapters.base import OtpGatedStatusMixin
+from modules.govt_sync.adapters.base import OtpGatedStatusMixin, StatusResult
 from modules.govt_sync.adapters.manual import ManualAssistedAdapter
 from modules.govt_sync.adapters.rajasthan_sampark import RajasthanSamparkAPIAdapter
 from modules.govt_sync.adapters.status_flow import (
@@ -266,6 +266,8 @@ def test_advance_parses_confirmed_response_exactly(mock_session_cls):
     assert result.raw_portal_status == "Registered & Sent for Scrutiny"   # preserved exactly
     assert result.status == "submitted"                                   # existing normalize_status_keywords, unmodified
     assert result.needs_verification is False
+    assert result.portal_detail["department_name"] == "Urban Development Department"
+    assert result.portal_detail["pendency_details"] == "S A Mahajan — Municipal Commissioner, Gokak"
 
 
 @patch("requests.Session")
@@ -324,9 +326,19 @@ def test_endpoint_start_then_advance_full_round_trip(mock_session_cls):
     assert adv_body["success"] is True
     assert adv_body["state"] == "complete"
     assert adv_body["govt_status"] == "submitted"
+    assert adv_body["changed"] is False
+    assert adv_body["raw_portal_status"] == "Registered & Sent for Scrutiny"
+    assert adv_body["portal_detail"]["pendency_details"] == "S A Mahajan — Municipal Commissioner, Gokak"
 
     row = client.get("/api/cases/20", headers=_auth_headers()).json()
     assert row["govt_status"] == "submitted"
+
+    govt_state = client.get("/api/cases/20/govt", headers=_auth_headers()).json()
+    latest = govt_state["latest_status_check"]
+    assert latest["changed"] is False
+    assert latest["raw_portal_status"] == "Registered & Sent for Scrutiny"
+    assert latest["portal_detail"]["department_name"] == "Urban Development Department"
+    assert latest["portal_detail"]["pendency_details"] == "S A Mahajan — Municipal Commissioner, Gokak"
 
 
 def test_endpoint_start_rejects_non_interactive_portal():
@@ -406,3 +418,43 @@ def test_poller_still_checks_rajasthan_unattended_portal():
         poller_mod.poll_all_pending()
 
     mock_check.assert_called_once()
+
+
+def test_poller_logs_portal_detail_even_when_status_is_unchanged():
+    _seed_database()
+    import modules.govt_sync.poller as poller_mod
+
+    fake_row = {
+        "case_id": 20, "tenant_id": 1, "govt_status": "submitted", "govt_reference_number": "RJ/TEST/1",
+        "govt_portal_id": 1, "portal_id": 1, "state": "Rajasthan", "portal_name": "Rajasthan Sampark",
+        "portal_type": "state_branded", "base_url": "https://sampark.rajasthan.gov.in",
+        "status_check_url": None, "status_check_mode": "public_reference", "otp_bound": True,
+        "status_check_adapter": "rajasthan_sampark_api",
+    }
+    result = StatusResult(
+        status="submitted",
+        raw_portal_status="Registered / Sent to Municipal Department",
+        portal_detail={
+            "status_text": "Registered",
+            "sub_status_text": "Sent to Municipal Department",
+            "department_name": "Urban Development",
+            "last_action_date": "24-08-2026",
+        },
+        checked=True,
+    )
+    poller_mod.engine = test_engine
+
+    with patch("modules.govt_sync.poller._q", return_value=[fake_row]), \
+         patch("modules.govt_sync.adapters.rajasthan_sampark.RajasthanSamparkAPIAdapter.check_status", return_value=result):
+        summary = poller_mod.poll_all_pending()
+
+    assert summary["checked"] == 1
+    assert summary["changed"] == 0
+    with test_engine.connect() as conn:
+        log = conn.execute(
+            text("SELECT payload FROM govt_submission_log WHERE tenant_id = 1 AND case_id = 20 AND action = 'status_polled'")
+        ).scalar_one()
+    payload = json.loads(log)
+    assert payload["changed"] is False
+    assert payload["raw_portal_status"] == "Registered / Sent to Municipal Department"
+    assert payload["portal_detail"]["department_name"] == "Urban Development"

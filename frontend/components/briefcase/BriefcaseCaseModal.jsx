@@ -1062,6 +1062,37 @@ function GovtSyncCopyField({ label, value }) {
     );
 }
 
+function formatGovtPortalDetailRows(statusCheck) {
+    const detail = statusCheck?.portal_detail || {};
+    const rows = [
+        ['Portal status', detail.status_text || statusCheck?.raw_portal_status],
+        ['Sub-status', detail.sub_status_text],
+        ['Department', detail.department_name],
+        ['Category', detail.category],
+        ['Current position', detail.pendency_details],
+        ['Subject', detail.subject],
+        ['Filed on portal', detail.grievance_date],
+        ['Last action', detail.last_action_date],
+        ['Disposed on', detail.disposed_date],
+    ];
+    const seen = new Set();
+    return rows.filter(([label, value]) => {
+        const cleaned = String(value || '').trim();
+        if (!cleaned) return false;
+        const key = `${label}:${cleaned}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    }).map(([label, value]) => [label, String(value).trim()]);
+}
+
+function formatGovtCheckedAt(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
 function govtWsUrl(path) {
     const base = API_BASE || (typeof window !== 'undefined' ? window.location.origin : '');
     const wsBase = base.replace(/^https/, 'wss').replace(/^http/, 'ws');
@@ -1192,10 +1223,13 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     const [refInput, setRefInput] = useState('');
     const [busy, setBusy] = useState(false);
     const [needsGovtVerification, setNeedsGovtVerification] = useState(false); // set when /govt/poll reports the OTP-gated portal session needs re-verification (Settings → Government Portal)
-    // Interactive status-check flow (Karnataka iPGRS-shaped portals — a live CAPTCHA solved per lookup, not a
-    // persisted OTP session). null when no attempt is in progress; otherwise { attempt_id, challenge }.
+    // Interactive status-check flow (a live human-verification sequence solved
+    // per lookup, not a persisted OTP session — Karnataka is one CAPTCHA step,
+    // Maharashtra is CAPTCHA -> OTP+CAPTCHA -> CAPTCHA). null when no attempt
+    // is in progress; otherwise { attempt_id, pending: [{kind, challenge}, ...] }
+    // — pending is whatever the backend most recently said is needed next.
     const [interactiveAttempt, setInteractiveAttempt] = useState(null);
-    const [interactiveCaptcha, setInteractiveCaptcha] = useState('');
+    const [interactiveAnswers, setInteractiveAnswers] = useState({ captcha: '', otp: '' });
     const [liveSession, setLiveSession] = useState(null); // { session_id, ws_path, viewport, portal_name }
     const [liveConnecting, setLiveConnecting] = useState(false);
     const liveSessionRef = useRef(null); // mirrors liveSession so the unmount cleanup below sees the latest value, not a stale closure
@@ -1207,7 +1241,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         if (!caseId) return;
         setNeedsGovtVerification(false);
         setInteractiveAttempt(null);
-        setInteractiveCaptcha('');
+        setInteractiveAnswers({ captcha: '', otp: '' });
         apiGet(`/api/cases/${caseId}/govt`).then(setGovtState).catch(() => setGovtState(null));
     }, [caseId]);
 
@@ -1475,7 +1509,8 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
             if (result.needs_verification) {
                 toast.warning(result.note || 'Verify Rajasthan Sampark access under Settings → Government Portal, then try again.');
             } else {
-                toast.success(result.changed ? `Status updated: ${GOVT_STATUS_LABEL[result.govt_status] || result.govt_status}` : (result.note || 'No change yet'));
+                const raw = String(result.raw_portal_status || '').trim();
+                toast.success(result.changed ? `Status updated: ${GOVT_STATUS_LABEL[result.govt_status] || result.govt_status}` : (raw ? `Portal still says: ${raw}` : (result.note || 'No change yet')));
             }
         } catch (e) {
             toast.error(e.message || 'Status check failed');
@@ -1484,17 +1519,21 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         }
     }
 
-    // Interactive status-check flow (Karnataka iPGRS-shaped portals) — a live
-    // CAPTCHA solved fresh per lookup, distinct from handlePollNow's single
-    // synchronous call. handleStartInteractiveCheck fetches a CAPTCHA image;
-    // handleAdvanceInteractiveCheck submits the staff-entered answer.
+    // Interactive status-check flow — a live human-verification sequence
+    // solved fresh per lookup, distinct from handlePollNow's single
+    // synchronous call. Karnataka is a single CAPTCHA round trip; Maharashtra
+    // is CAPTCHA -> OTP+CAPTCHA -> CAPTCHA (see govt_sync/adapters/
+    // maharashtra_aaplesarkar.py). interactiveAttempt.pending is whatever
+    // pending_human_verification the backend just returned — the UI renders
+    // whatever kinds are present each time, rather than assuming a single
+    // CAPTCHA step; this is what lets the SAME two handlers below drive
+    // either portal without a portal-specific branch here.
     async function handleStartInteractiveCheck() {
         setBusy(true);
         try {
             const result = await apiPost(`/api/cases/${caseId}/govt/status-check/start`, {});
-            const challenge = (result.pending_human_verification || []).find(r => r.kind === 'captcha');
-            setInteractiveAttempt({ attempt_id: result.attempt_id, challenge: challenge?.challenge || null });
-            setInteractiveCaptcha('');
+            setInteractiveAttempt({ attempt_id: result.attempt_id, pending: result.pending_human_verification || [] });
+            setInteractiveAnswers({ captcha: '', otp: '' });
         } catch (e) {
             toast.error(e.message || 'Could not start status check');
         } finally {
@@ -1503,26 +1542,39 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     }
 
     async function handleAdvanceInteractiveCheck() {
-        if (!interactiveAttempt || !interactiveCaptcha.trim()) return;
+        if (!interactiveAttempt) return;
+        const kinds = new Set((interactiveAttempt.pending || []).map(r => r.kind));
+        const body = { captcha: interactiveAnswers.captcha.trim() };
+        if (kinds.has('otp')) body.otp = interactiveAnswers.otp.trim();
+        if (!body.captcha || (kinds.has('otp') && !body.otp)) return;
+
         setBusy(true);
         try {
             const result = await apiPost(
                 `/api/cases/${caseId}/govt/status-check/${interactiveAttempt.attempt_id}/advance`,
-                { captcha: interactiveCaptcha.trim() },
+                body,
             );
             if (result.state === 'failed') {
                 toast.error(result.note || 'Verification failed — try again');
                 setInteractiveAttempt(null);
-                setInteractiveCaptcha('');
+                setInteractiveAnswers({ captcha: '', otp: '' });
                 return;
             }
-            const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
-            setGovtState(refreshed);
-            setInteractiveAttempt(null);
-            setInteractiveCaptcha('');
-            toast.success(result.changed ? `Status updated: ${GOVT_STATUS_LABEL[result.govt_status] || result.govt_status}` : (result.note || 'No change yet'));
+            if (result.state === 'complete') {
+                const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
+                setGovtState(refreshed);
+                setInteractiveAttempt(null);
+                setInteractiveAnswers({ captcha: '', otp: '' });
+                const raw = String(result.raw_portal_status || '').trim();
+                toast.success(result.changed ? `Status updated: ${GOVT_STATUS_LABEL[result.govt_status] || result.govt_status}` : (raw ? `Portal still says: ${raw}` : (result.note || 'No change yet')));
+                return;
+            }
+            // Still awaiting input — a later stage of a multi-stage flow
+            // (Maharashtra). Same attempt_id, new set of requirements.
+            setInteractiveAttempt({ attempt_id: interactiveAttempt.attempt_id, pending: result.pending_human_verification || [] });
+            setInteractiveAnswers({ captcha: '', otp: '' });
         } catch (e) {
-            toast.error(e.message || 'Could not verify CAPTCHA');
+            toast.error(e.message || 'Could not verify — try again');
         } finally {
             setBusy(false);
         }
@@ -1741,6 +1793,22 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                     <> · updated {new Date(govtState.case.govt_status_updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</>
                                 )}
                             </div>
+                            {formatGovtPortalDetailRows(govtState?.latest_status_check).length > 0 && (
+                                <div style={{ fontSize: 11.5, color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: '10px', marginBottom: 8 }}>
+                                    <div style={{ fontSize: 9.5, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+                                        Current portal position
+                                        {formatGovtCheckedAt(govtState?.latest_status_check?.checked_at) ? ` · checked ${formatGovtCheckedAt(govtState.latest_status_check.checked_at)}` : ''}
+                                    </div>
+                                    <div style={{ display: 'grid', gap: 5 }}>
+                                        {formatGovtPortalDetailRows(govtState.latest_status_check).map(([label, value]) => (
+                                            <div key={`${label}-${value}`} style={{ display: 'grid', gridTemplateColumns: '120px minmax(0, 1fr)', gap: 8 }}>
+                                                <span style={{ color: C.ink3 }}>{label}</span>
+                                                <strong style={{ color: C.ink, fontWeight: 600 }}>{value}</strong>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             {needsGovtVerification && (
                                 <div style={{ fontSize: 11.5, color: C.saffron, background: C.saffronTint, padding: '8px 10px', marginBottom: 8 }}>
                                     ⚠ This portal needs a fresh access verification before status can be checked again.
@@ -1753,25 +1821,56 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                             )}
                             {interactiveStatusCheck && interactiveAttempt && (
                                 <div style={{ fontSize: 11.5, color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: '10px', marginBottom: 8 }}>
-                                    <div style={{ marginBottom: 6 }}>Enter the CAPTCHA shown to fetch the live status:</div>
-                                    {interactiveAttempt.challenge && (
-                                        <img
-                                            src={interactiveAttempt.challenge}
-                                            alt="CAPTCHA"
-                                            style={{ display: 'block', marginBottom: 8, border: `1px solid ${C.hair}` }}
-                                        />
-                                    )}
+                                    <div style={{ marginBottom: 6 }}>Complete the verification below to check status:</div>
+                                    {(interactiveAttempt.pending || []).map((req, idx) => {
+                                        if (req.kind === 'captcha') {
+                                            return (
+                                                <div key={idx} style={{ marginBottom: 8 }}>
+                                                    {req.challenge && (
+                                                        <img
+                                                            src={req.challenge}
+                                                            alt="CAPTCHA"
+                                                            style={{ display: 'block', marginBottom: 6, border: `1px solid ${C.hair}` }}
+                                                        />
+                                                    )}
+                                                    <Input
+                                                        placeholder="CAPTCHA"
+                                                        value={interactiveAnswers.captcha}
+                                                        onChange={(e) => setInteractiveAnswers(a => ({ ...a, captcha: e.target.value }))}
+                                                        style={{ fontSize: 12.5, maxWidth: 180 }}
+                                                    />
+                                                </div>
+                                            );
+                                        }
+                                        if (req.kind === 'otp') {
+                                            return (
+                                                <div key={idx} style={{ marginBottom: 8 }}>
+                                                    {req.challenge && (
+                                                        <div style={{ fontSize: 11, color: C.ink3, marginBottom: 4 }}>{req.challenge}</div>
+                                                    )}
+                                                    <Input
+                                                        placeholder="OTP"
+                                                        value={interactiveAnswers.otp}
+                                                        onChange={(e) => setInteractiveAnswers(a => ({ ...a, otp: e.target.value }))}
+                                                        style={{ fontSize: 12.5, maxWidth: 180 }}
+                                                    />
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })}
                                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                        <Input
-                                            placeholder="CAPTCHA"
-                                            value={interactiveCaptcha}
-                                            onChange={(e) => setInteractiveCaptcha(e.target.value)}
-                                            style={{ fontSize: 12.5, flex: '1 1 140px' }}
-                                        />
-                                        <Button size="sm" disabled={busy || !interactiveCaptcha.trim()} onClick={handleAdvanceInteractiveCheck}>
+                                        <Button
+                                            size="sm"
+                                            disabled={
+                                                busy || !interactiveAnswers.captcha.trim() ||
+                                                ((interactiveAttempt.pending || []).some(r => r.kind === 'otp') && !interactiveAnswers.otp.trim())
+                                            }
+                                            onClick={handleAdvanceInteractiveCheck}
+                                        >
                                             {busy ? <Loader2 size={14} className="animate-spin" /> : 'Verify'}
                                         </Button>
-                                        <Button size="sm" variant="outline" disabled={busy} onClick={() => { setInteractiveAttempt(null); setInteractiveCaptcha(''); }}>
+                                        <Button size="sm" variant="outline" disabled={busy} onClick={() => { setInteractiveAttempt(null); setInteractiveAnswers({ captcha: '', otp: '' }); }}>
                                             Cancel
                                         </Button>
                                     </div>

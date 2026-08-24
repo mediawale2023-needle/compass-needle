@@ -58,6 +58,7 @@ class SubmissionResult:
 class StatusResult:
     status: str              # normalized to the govt_status enum on cases
     raw_portal_status: str | None = None   # portal's own wording, kept for audit
+    portal_detail: dict | None = None      # PII-trimmed portal fields for "where is it now" display
     checked: bool = True     # False when the check itself couldn't run (e.g. login-gated)
     # True when checked=False specifically because a portal-scoped OTP
     # verification is missing/expired — distinct from "portal doesn't
@@ -262,4 +263,9 @@ class OtpGatedStatusMixin:
             logger.info(f"{portal_name} status '{raw_status}' unrecognised for ref={reference_number} — needs manual look")
             return StatusResult(status="", raw_portal_status=raw_status, checked=False)
 
-        return StatusResult(status=normalized, raw_portal_status=raw_status, checked=True)
+        return StatusResult(
+            status=normalized,
+            raw_portal_status=raw_status,
+            portal_detail=detail,
+            checked=True,
+        )

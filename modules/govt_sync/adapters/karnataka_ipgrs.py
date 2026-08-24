@@ -61,12 +61,11 @@ generic failure descriptions appear in log lines. Session cookies are never
 returned through any API response — they exist only inside the process-local
 _attempts dict, addressed by an opaque attempt_id.
 
-NOT EXTRACTED FROM THE PORTAL RESPONSE: Department, Category, Description,
-PendencyDetails, DateOfRegistration — all present in the real response
-payload, none of them read here. Only `Status` (for raw_portal_status /
-normalization) and a success/failure check are used. StatusResult is not
-modified to carry these, per explicit instruction — this is a deliberate
-narrowing, not an oversight.
+EXTRACTED FROM THE PORTAL RESPONSE: only non-sensitive status-position
+fields the office needs to understand where the complaint is now:
+Department, Category, PendencyDetails, DateOfRegistration, and Status.
+The adapter deliberately avoids logging or returning session cookies,
+CAPTCHA values, the portal contact number, or any raw response envelope.
 """
 import base64
 import logging
@@ -265,13 +264,21 @@ class KarnatakaAPIAdapter(InteractiveStatusCheckMixin, ManualAssistedAdapter):
             )
             return attempt
 
-        raw_status = (payload.get("data") or {}).get("Status") or ""
+        data = payload.get("data") or {}
+        raw_status = data.get("Status") or ""
         normalized = normalize_status_keywords(raw_status)
 
         attempt.state = StatusCheckAttemptState.COMPLETE
         attempt.result = StatusResult(
             status=normalized or "",
             raw_portal_status=raw_status,
+            portal_detail={
+                "status_text": raw_status,
+                "department_name": data.get("Department"),
+                "category": data.get("Category"),
+                "pendency_details": data.get("PendencyDetails"),
+                "grievance_date": data.get("DateOfRegistration"),
+            },
             checked=bool(normalized),
             needs_verification=False,
         )
