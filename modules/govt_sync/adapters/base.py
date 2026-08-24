@@ -70,6 +70,20 @@ class StatusResult:
 
 
 class GovtPortalAdapter(ABC):
+    # True for adapters whose check_status() can complete synchronously,
+    # unattended, with no live human input needed (ManualAssistedAdapter,
+    # OtpGatedStatusMixin/Rajasthan-shaped portals — their human
+    # verification, if any, already happened out of band before
+    # check_status() is ever called). False only for
+    # InteractiveStatusCheckMixin-based adapters (status_flow.py), whose
+    # status lookup itself requires live human input at call time —
+    # poller.py checks this BEFORE ever calling check_status(), so an
+    # interactive portal is structurally never attempted from an
+    # unattended background context. See status_flow.py's module
+    # docstring for why that mixin is a different mechanism from
+    # OtpGatedStatusMixin, not a variant of it.
+    supports_unattended_status_check: bool = True
+
     def __init__(self, portal_row: dict):
         self.portal = portal_row or {}
 

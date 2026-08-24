@@ -58,6 +58,13 @@ def poll_all_pending() -> dict:
         if pair in skip_pairs:
             continue
         adapter = get_adapter(row)
+        if not adapter.supports_unattended_status_check:
+            # Interactive portals (status_flow.InteractiveStatusCheckMixin —
+            # Karnataka/Maharashtra-shaped) require a live human mid-lookup;
+            # the background poller has no human present, so these are
+            # structurally never attempted here, not caught-and-skipped via
+            # an exception.
+            continue
         try:
             result = adapter.check_status(row["govt_reference_number"], tenant_id=row["tenant_id"])
         except Exception as e:
