@@ -170,6 +170,7 @@ dispatch generically off get_adapter()/hasattr() already.
 from .base import GovtPortalAdapter, OtpGatedStatusMixin, StatusResult, SubmissionResult
 from .manual import ManualAssistedAdapter
 from .rajasthan_sampark import RajasthanSamparkAPIAdapter
+from .karnataka_ipgrs import KarnatakaAPIAdapter
 
 # portal_type -> adapter class. All current portals (state_branded, cpgrams)
 # use the manual-assisted adapter — see modules/govt_sync/__init__.py for why
@@ -189,6 +190,7 @@ _ADAPTERS = {
 # docstring for how to add a new state here.
 _STATUS_CHECK_ADAPTERS = {
     "rajasthan_sampark_api": RajasthanSamparkAPIAdapter,
+    "karnataka_ipgrs_api": KarnatakaAPIAdapter,
 }
 
 

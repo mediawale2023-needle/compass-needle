@@ -38,6 +38,13 @@ from .base import StatusResult
 
 class TransportKind(str, Enum):
     AJAX_JSON = "ajax_json"
+    # XHR/AJAX call whose body is application/x-www-form-urlencoded, not a
+    # JSON payload — confirmed for Karnataka iPGRS (a plain jQuery $.ajax
+    # `data:` object, jQuery's default encoding). Distinct from AJAX_JSON
+    # (JSON body) and HTML_FORM_POST (native <form> submit, full-page reload)
+    # — the response-handling shape (stays in place, JSON response) matches
+    # AJAX_JSON, only the request encoding differs.
+    AJAX_FORM = "ajax_form"
     HTML_FORM_POST = "html_form_post"
 
 
@@ -56,12 +63,15 @@ class SessionRequirement(str, Enum):
 
 @dataclass
 class HumanVerificationRequirement:
-    # Deliberately no sub-fields (expiry, channel, retry count) — only
-    # Maharashtra's OTP gave any timing detail at all ("~2 minutes"), and
-    # inventing structure neither portal's evidence actually describes
-    # would be exactly the kind of speculative field this design was
-    # told to avoid.
     kind: str  # "captcha" | "otp" | "other"
+    # Generic, not CAPTCHA-specific — whatever a human needs to be shown to
+    # satisfy this checkpoint. For kind="captcha" this is a
+    # data:image/...;base64,... URI (Karnataka). Deliberately no other
+    # sub-fields (expiry, channel, retry count) — only Maharashtra's OTP gave
+    # any timing detail at all ("~2 minutes"), and inventing structure
+    # neither portal's evidence actually describes would be exactly the kind
+    # of speculative field this design was told to avoid.
+    challenge: str | None = None
 
 
 @dataclass

@@ -2878,6 +2878,19 @@ def get_resolved_govt_portal(user=Depends(get_current_user)):
                     _govt_otp_verification_state(tid, portal)
                     if portal.get("status_check_adapter") else None
                 ),
+                # True only for portals whose status check needs a live,
+                # staff-present, per-lookup human checkpoint (CAPTCHA and/or
+                # OTP solved fresh every time — currently Karnataka iPGRS).
+                # Distinct from otp_verification above (Rajasthan's shape:
+                # verify once, reuse for many later checks). Frontend uses
+                # this to show the interactive Check Status flow instead of
+                # the plain one. Dispatches generically off get_adapter(),
+                # same pattern as otp_verification — no new per-portal branch
+                # needed here for a future interactive adapter.
+                "interactive_status_check": (
+                    _govt_interactive_status_check_supported(portal)
+                    if portal.get("status_check_adapter") else False
+                ),
             }
             if portal else None
         ),
@@ -2895,6 +2908,12 @@ def _govt_otp_verification_state(tid: int, portal: dict) -> dict | None:
     if not hasattr(adapter, "verification_state"):
         return None
     return adapter.verification_state(tid)
+
+
+def _govt_interactive_status_check_supported(portal: dict) -> bool:
+    from modules.govt_sync.adapters import get_adapter
+    adapter = get_adapter(portal)
+    return hasattr(adapter, "start") and hasattr(adapter, "advance")
 
 
 def _get_portal_contact_number(tid: int) -> str | None:
@@ -3219,6 +3238,130 @@ def govt_poll_case(case_id: int, user=Depends(get_current_user)):
         })
 
     return {"success": True, "changed": changed, "govt_status": result.status}
+
+
+def _govt_status_check_case_row(case_id: int, tid: int) -> dict | None:
+    # Same shape as govt_poll_case's own SELECT — kept as a literal copy
+    # rather than a shared helper so govt_poll_case's existing code path is
+    # not touched by this change.
+    return _q_one(
+        """SELECT c.id, c.govt_status, c.govt_reference_number, c.govt_portal_id, p.id AS portal_id,
+                  p.portal_name, p.portal_type, p.base_url, p.status_check_url, p.status_check_mode,
+                  p.otp_bound, p.status_check_adapter
+           FROM cases c JOIN govt_portals p ON p.id = c.govt_portal_id
+           WHERE c.id = :cid AND c.tenant_id = :tid""",
+        {"cid": case_id, "tid": tid},
+    )
+
+
+@router.post("/cases/{case_id}/govt/status-check/start")
+def govt_status_check_start(case_id: int, user=Depends(get_current_user)):
+    """Starts an interactive, staff-present status-check attempt for portals
+    that need live human verification at lookup time (currently Karnataka
+    iPGRS's CAPTCHA) — distinct from govt_poll_case, which is for portals
+    that can complete a check in one synchronous call. See
+    modules/govt_sync/adapters/status_flow.py."""
+    tid = get_tenant_or_fail(user)
+    case = _govt_status_check_case_row(case_id, tid)
+    if not case:
+        raise HTTPException(404, "Case not found or not yet forwarded to a govt portal")
+    if not case.get("govt_reference_number"):
+        raise HTTPException(400, "No reference number recorded yet — submit the case first")
+
+    from modules.govt_sync.adapters import get_adapter
+    adapter = get_adapter(case)
+    if not hasattr(adapter, "start"):
+        raise HTTPException(400, f"{case['portal_name']} doesn't use an interactive status check — use \"Check status now\" directly.")
+
+    mobile_or_email = _get_portal_contact_number(tid)
+    if not mobile_or_email:
+        raise HTTPException(400, "No portal contact number on file for this tenant — set one before checking status.")
+
+    try:
+        attempt = adapter.start(
+            case["govt_reference_number"], tid,
+            {"mobile_or_email": mobile_or_email, "case_id": case_id},
+        )
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.error("Govt sync: interactive status-check start failed for case %s: %s", case_id, e)
+        raise HTTPException(502, "Could not start the status check — try again in a moment.")
+
+    return {
+        "success": True,
+        "attempt_id": attempt.attempt_id,
+        "state": attempt.state.value,
+        "pending_human_verification": [
+            {"kind": r.kind, "challenge": r.challenge} for r in (attempt.pending_human_verification or [])
+        ],
+    }
+
+
+class GovtStatusCheckAdvanceRequest(BaseModel):
+    captcha: str
+
+
+@router.post("/cases/{case_id}/govt/status-check/{attempt_id}/advance")
+def govt_status_check_advance(case_id: int, attempt_id: str, body: GovtStatusCheckAdvanceRequest, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    case = _govt_status_check_case_row(case_id, tid)
+    if not case:
+        raise HTTPException(404, "Case not found or not yet forwarded to a govt portal")
+
+    from modules.govt_sync.adapters import get_adapter
+    adapter = get_adapter(case)
+    if not hasattr(adapter, "advance"):
+        raise HTTPException(400, "This portal doesn't support interactive status checks.")
+
+    captcha = (body.captcha or "").strip()
+    if not captcha:
+        raise HTTPException(400, "Enter the CAPTCHA shown.")
+
+    from modules.govt_sync.adapters.status_flow import StatusCheckAttempt, StatusCheckAttemptState
+
+    # StatusCheckAttempt itself is not persisted between requests — only the
+    # adapter's own process-local, ephemeral store is (see
+    # karnataka_ipgrs.py's module docstring). This reconstructs the minimal
+    # shell the adapter needs (attempt_id to look itself up, tenant_id/
+    # case_id for scoping) — everything else the adapter needs (cookies,
+    # reference number, mobile/email) lives only in its own private store.
+    attempt = StatusCheckAttempt(
+        attempt_id=attempt_id, case_id=case_id, tenant_id=tid,
+        reference_number=case["govt_reference_number"],
+    )
+
+    try:
+        attempt = adapter.advance(attempt, {"captcha": captcha})
+    except Exception as e:
+        logger.error("Govt sync: interactive status-check advance failed for case %s: %s", case_id, e)
+        raise HTTPException(502, "Could not verify the CAPTCHA — try again in a moment.")
+
+    if attempt.state == StatusCheckAttemptState.FAILED:
+        return {
+            "success": True, "changed": False, "state": "failed",
+            "note": (attempt.result.raw_portal_status if attempt.result else "Verification failed — try again."),
+        }
+
+    if attempt.state != StatusCheckAttemptState.COMPLETE or not attempt.result:
+        return {"success": True, "changed": False, "state": attempt.state.value, "note": "Still awaiting input."}
+
+    result = attempt.result
+    if not result.checked or not result.status:
+        return {"success": True, "changed": False, "state": "complete", "note": "Portal check inconclusive — verify manually on the portal."}
+
+    changed = result.status != case["govt_status"]
+    if changed:
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE cases SET govt_status = :status, govt_status_updated_at = :now WHERE id = :cid AND tenant_id = :tid"),
+                {"status": result.status, "now": _utcnow(), "cid": case_id, "tid": tid},
+            )
+        _log_govt_action(tid, case_id, "status_polled", user.get("username"), payload={
+            "old_status": case["govt_status"], "new_status": result.status, "raw_portal_status": result.raw_portal_status,
+        })
+
+    return {"success": True, "changed": changed, "state": "complete", "govt_status": result.status if changed else case["govt_status"]}
 
 
 @router.post("/cases/{case_id}/govt/notify-citizen")
