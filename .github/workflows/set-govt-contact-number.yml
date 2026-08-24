@@ -1,0 +1,101 @@
+name: Set Tenant Govt Contact Number
+
+# Manually triggered. Sets tenants.govt_contact_primary_number for one
+# tenant — the number Needle-managed staff enter into a government portal's
+# own mobile/contact field when filing or checking status (never the
+# constituent's own number; see api_router.py's _get_portal_contact_number).
+# Dry run by default (prints the current value + what would change, writes
+# nothing); set apply=true to actually write. Always prints a before/after
+# SELECT so the change is verifiable from the run log itself, not just
+# trusted.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tenant_id:
+        description: "Tenant ID to update"
+        required: true
+      phone_number:
+        description: "Phone number to set as govt_contact_primary_number (exact format — not reformatted)"
+        required: true
+      apply:
+        description: "Type exactly 'true' to actually write (default: dry run only)"
+        required: true
+        default: "false"
+
+concurrency:
+  group: aws-ec2-backend-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  set-number:
+    name: Set govt_contact_primary_number for one tenant
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: ap-south-1
+      EC2_SECURITY_GROUP_ID: sg-0a434a0dc0c6d3424
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Allow SSH From GitHub Runner
+        id: ssh_ip
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNNER_IP="$(curl -s https://checkip.amazonaws.com | tr -d '\n')"
+          echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
+          aws ec2 authorize-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${RUNNER_IP}/32,Description='GitHub Actions set-govt-contact'}]" \
+            || echo "SSH ingress may already exist for this runner IP; continuing."
+
+      - name: Set Number Over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          TENANT_ID: ${{ inputs.tenant_id }}
+          PHONE_NUMBER: ${{ inputs.phone_number }}
+          APPLY: ${{ inputs.apply }}
+        with:
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: 22
+          command_timeout: 5m
+          envs: TENANT_ID,PHONE_NUMBER,APPLY
+          script: |
+            set -euo pipefail
+            COMPOSE=/opt/compass-needle/deploy/ec2/docker-compose.yml
+
+            echo "== before =="
+            docker compose -f "$COMPOSE" exec -T postgres sh -c \
+              "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -c \"SELECT id, name, govt_contact_primary_number, govt_contact_fallback_number FROM tenants WHERE id = ${TENANT_ID};\""
+
+            if [ "$APPLY" = "true" ]; then
+              echo "== applying =="
+              docker compose -f "$COMPOSE" exec -T postgres sh -c \
+                "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -c \"UPDATE tenants SET govt_contact_primary_number = '${PHONE_NUMBER}' WHERE id = ${TENANT_ID};\""
+            else
+              echo "== dry run — not applying (set apply=true to write) =="
+            fi
+
+            echo "== after =="
+            docker compose -f "$COMPOSE" exec -T postgres sh -c \
+              "psql -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" -c \"SELECT id, name, govt_contact_primary_number, govt_contact_fallback_number FROM tenants WHERE id = ${TENANT_ID};\""
+
+      - name: Remove GitHub Runner SSH Access
+        if: always() && steps.ssh_ip.outputs.runner_ip != ''
+        shell: bash
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region "$AWS_REGION" \
+            --group-id "$EC2_SECURITY_GROUP_ID" \
+            --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=${{ steps.ssh_ip.outputs.runner_ip }}/32}]" \
+            || true
