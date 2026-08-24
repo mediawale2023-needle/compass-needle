@@ -28,6 +28,17 @@ def _utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def _status_poll_payload(row: dict, result) -> dict:
+    return {
+        "old_status": row.get("govt_status"),
+        "new_status": result.status,
+        "raw_portal_status": result.raw_portal_status,
+        "portal_detail": getattr(result, "portal_detail", None) or {},
+        "portal": row.get("portal_name"),
+        "changed": result.status != row.get("govt_status"),
+    }
+
+
 def poll_all_pending() -> dict:
     """Poll every case with an open govt-portal submission. Returns a summary dict."""
     rows = _q(
@@ -77,39 +88,38 @@ def poll_all_pending() -> dict:
             continue
         if not result.checked or not result.status:
             continue
-        if result.status == row["govt_status"]:
-            continue
 
+        changed_this_case = result.status != row["govt_status"]
+        payload_expr = "CAST(:payload AS JSONB)"
+        if getattr(getattr(engine, "dialect", None), "name", "") == "sqlite":
+            payload_expr = ":payload"
         with engine.begin() as conn:
-            conn.execute(
-                text(
-                    "UPDATE cases SET govt_status = :status, govt_status_updated_at = :now "
-                    "WHERE id = :cid AND tenant_id = :tid"
-                ),
-                {"status": result.status, "now": _utcnow(), "cid": row["case_id"], "tid": row["tenant_id"]},
-            )
+            if changed_this_case:
+                conn.execute(
+                    text(
+                        "UPDATE cases SET govt_status = :status, govt_status_updated_at = :now "
+                        "WHERE id = :cid AND tenant_id = :tid"
+                    ),
+                    {"status": result.status, "now": _utcnow(), "cid": row["case_id"], "tid": row["tenant_id"]},
+                )
             conn.execute(
                 text(
                     "INSERT INTO govt_submission_log (tenant_id, case_id, action, actor_username, payload, created_at) "
-                    "VALUES (:tid, :cid, 'status_polled', NULL, CAST(:payload AS JSONB), :now)"
+                    f"VALUES (:tid, :cid, 'status_polled', NULL, {payload_expr}, :now)"
                 ),
                 {
                     "tid": row["tenant_id"],
                     "cid": row["case_id"],
-                    "payload": _json_dumps({
-                        "old_status": row["govt_status"],
-                        "new_status": result.status,
-                        "raw_portal_status": result.raw_portal_status,
-                        "portal": row["portal_name"],
-                    }),
+                    "payload": _json_dumps(_status_poll_payload(row, result)),
                     "now": _utcnow(),
                 },
             )
-        changed += 1
-        logger.info(
-            f"Govt sync poll: case={row['case_id']} portal={row['portal_name']} "
-            f"{row['govt_status']} -> {result.status}"
-        )
+        if changed_this_case:
+            changed += 1
+            logger.info(
+                f"Govt sync poll: case={row['case_id']} portal={row['portal_name']} "
+                f"{row['govt_status']} -> {result.status}"
+            )
 
     logger.info(f"Govt sync poll complete: {checked} checked, {changed} changed (of {len(rows)} pending)")
     return {"pending": len(rows), "checked": checked, "changed": changed}
