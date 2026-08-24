@@ -482,7 +482,8 @@
     "is_primary": true,
     "active": true,
     "verification_status": "confirmed",
-    "source_note": "URL confirmed. Department taxonomy added 2026-08-14 (best-effort mapping to known Government of Karnataka department names, same treatment originally given to Rajasthan/UP) after a tenant-10 case (Belagavi, Karnataka) got stuck unable to move off CPGRAMS because this was empty. Still field_schema.taxonomy_verified=false — not yet confirmed against iPGRS's live department dropdown."
+    "status_check_adapter": "karnataka_ipgrs_api",
+    "source_note": "URL confirmed. Department taxonomy added 2026-08-14 (best-effort mapping to known Government of Karnataka department names, same treatment originally given to Rajasthan/UP) after a tenant-10 case (Belagavi, Karnataka) got stuck unable to move off CPGRAMS because this was empty. Still field_schema.taxonomy_verified=false — not yet confirmed against iPGRS's live department dropdown. status_check_adapter added 2026-08-24: a real status-check API was confirmed at /Grievance/VerifyGrievanceStatus (CAPTCHA-gated, no reusable session — see modules/govt_sync/adapters/karnataka_ipgrs.py); status_check_url/status_check_mode remain null/login_required and are vestigial for status-check purposes now, unrelated to filing (which is still a live, staff-driven browser session)."
   },
   {
     "state": "Kerala",
