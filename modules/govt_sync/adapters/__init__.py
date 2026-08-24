@@ -171,6 +171,7 @@ from .base import GovtPortalAdapter, OtpGatedStatusMixin, StatusResult, Submissi
 from .manual import ManualAssistedAdapter
 from .rajasthan_sampark import RajasthanSamparkAPIAdapter
 from .karnataka_ipgrs import KarnatakaAPIAdapter
+from .maharashtra_aaplesarkar import MaharashtraAapleSarkarAdapter
 
 # portal_type -> adapter class. All current portals (state_branded, cpgrams)
 # use the manual-assisted adapter — see modules/govt_sync/__init__.py for why
@@ -191,6 +192,7 @@ _ADAPTERS = {
 _STATUS_CHECK_ADAPTERS = {
     "rajasthan_sampark_api": RajasthanSamparkAPIAdapter,
     "karnataka_ipgrs_api": KarnatakaAPIAdapter,
+    "maharashtra_aaplesarkar_api": MaharashtraAapleSarkarAdapter,
 }
 
 

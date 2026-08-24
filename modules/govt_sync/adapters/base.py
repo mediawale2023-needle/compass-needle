@@ -34,7 +34,7 @@ STATUS_KEYWORDS = [
     ("resolved", ["resolved", "disposed", "closed", "निस्तारित", "समाधान"]),
     ("rejected", ["rejected", "declined", "अस्वीकृत"]),
     ("under_review", ["under review", "in process", "processing", "प्रक्रियाधीन", "विचाराधीन"]),
-    ("submitted", ["registered", "received", "acknowledged", "प्राप्त", "दर्ज"]),
+    ("submitted", ["registered", "received", "acknowledged", "submitted", "प्राप्त", "दर्ज"]),
 ]
 
 
