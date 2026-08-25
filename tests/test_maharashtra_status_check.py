@@ -20,10 +20,15 @@ _method, otp, registration_no, cid) are the CONFIRMED/OBSERVED contract
 from a live, human-assisted trace against grievances.maharashtra.gov.in —
 see modules/govt_sync/adapters/maharashtra_aaplesarkar.py's module
 docstring for exactly what's confirmed vs. observed vs. inferred. The
-result-page HTML fixture used below is a CONSTRUCTED APPROXIMATION (the
-real page's markup was never captured — explicitly UNKNOWN per the
-evidence), built only to test the label/value extraction LOGIC in
-isolation; it is not a claim about real production markup.
+result-page HTML fixture used below (_RESULT_PAGE_HTML_FIXTURE) is a REAL
+CAPTURED PAGE — a live, human-assisted end-to-end status check was run
+against grievances.maharashtra.gov.in on 2026-08-25 (real case #2446,
+reference DEP/RDDE/BULD/2026/183, tenant 3), and the "View Page Source" of
+the actual result page was captured and trimmed (script/style/nav/footer
+removed, structurally-significant markup — the #customers table and the
+.district block — preserved verbatim) into this fixture. This is no longer
+an approximation; district/department/office/officer/office_contact/
+office_email extraction is validated against it.
 """
 import json
 import os
@@ -90,15 +95,65 @@ _STAGE0_PAGE_HTML = '<form id="anonymous-verify-frm"><input type="hidden" name="
 _STAGE1_PAGE_HTML = '<form><input type="hidden" name="_csrfToken" value="csrf-stage1"/><input type="hidden" name="otp" value=""/></form>'
 _STAGE2_PAGE_HTML = f'<form><input type="hidden" name="_csrfToken" value="csrf-stage2"/><input type="hidden" name="cid" value="{_CID}"/></form>'
 
-# CONSTRUCTED APPROXIMATION — not a raw capture. See module docstring.
+# REAL CAPTURED PAGE (2026-08-25) — see module docstring. Trimmed of
+# script/style/nav/footer; the #customers table and .district block are
+# preserved verbatim from the actual "View Page Source" capture, including
+# the real whitespace patterns (these matter — see _extract_label_value's
+# docstring on labels/values landing on separate lines after flattening).
 _RESULT_PAGE_HTML_FIXTURE = """
 <html><body>
-<div class="result-table">
-  <div class="row"><span class="label">जिल्हा</span><span class="value">बुलढाणा</span></div>
-  <div class="row"><span class="label">स्थिती</span><span class="value">Submitted</span></div>
-  <div class="row"><span class="label">तक्रार स्त्रोत</span><span class="value">Aaple Sarkar</span></div>
-  <div class="row"><span class="label">तक्रार टोकन</span><span class="value">DEP/RDDE/0001/2026/001</span></div>
+<div class="district">
+    <div class="distHere">
+        <h5>जिल्हा : बुलढाणा                            <p>
+                स्थिती :
+                Submitted                            </p>
+        </h5>
+    </div>
 </div>
+<table id="cpgraminfo">
+    <div class="cpgramsStatusSection"></div>
+</table>
+<table id="customers" class="">
+    <tr>
+        <tr>
+            <th class="with200">तक्रार स्त्रोत</th>
+            <td>
+                                                Aaple Sarkar                            </td>
+            <th class="with200">तक्रार टोकन</th>
+            <td>DEP/RDDE/0001/2026/001</td>
+        </tr>
+                        <tr>
+            <th class="with200">Current Department</th>
+            <td>ग्राम विकास</td>
+            <th class="with200">PG Portal Registration No.</th>
+            <td></td>
+        </tr>
+            <tr>
+                <th class="with200">कार्यालय</th>
+                <td>
+                                                                                    Rural Development & Panchayat Raj Department, Mantralaya                                </td>
+                <th class="with200">अधिकारी</th>
+                <td>
+                                                                                    डॉ. चंद्रकांत पुलकुंडवार                                                                                    (Add Chief Secretary, Rural Development & Panchayat Raj Department)                                </td>
+            </tr>
+            <tr>
+                <th class="with200">कार्यालय संपर्क</th>
+                <td>
+                                                                                    02222060442                                </td>
+                <th class="with200">ऑफिस ईमेल</th>
+                <td>
+                                                                                    rdde.sec@nic.in                                </td>
+            </tr>
+                        <tr>
+            <th class="with200">अपलोड केलेली कागदपत्र</th>
+            <td>
+                                            </td>
+            <th class="with200">तक्रार प्रतिमा</th>
+            <td>
+                                            </td>
+        </tr>
+    </tr>
+</table>
 </body></html>
 """
 
@@ -360,6 +415,17 @@ def test_stage2_advance_submits_registration_no_cid_and_captcha_and_completes(mo
     assert normalize_status_keywords("Submitted") == "submitted"
     assert result.status == "submitted"
     assert result.checked is True
+    # portal_detail populated from the #customers table (2026-08-25 real
+    # evidence, approved parser extension) — administrative fields only,
+    # never uploaded-document/complaint-image cells.
+    assert result.portal_detail == {
+        "district": "बुलढाणा",
+        "department": "ग्राम विकास",
+        "office": "Rural Development & Panchayat Raj Department, Mantralaya",
+        "officer": "डॉ. चंद्रकांत पुलकुंडवार (Add Chief Secretary, Rural Development & Panchayat Raj Department)",
+        "office_contact": "02222060442",
+        "office_email": "rdde.sec@nic.in",
+    }
 
 
 @patch("requests.Session")
@@ -445,12 +511,25 @@ def test_advance_wrong_tenant_or_case_fails_closed(mock_session_cls):
 
 
 def test_result_html_fixture_parses_expected_status():
-    # Isolated parser test against the CONSTRUCTED (not captured) fixture —
-    # see module docstring for why this is explicitly not a claim about
-    # real production markup.
+    # Parser test against the REAL captured fixture (see module docstring) —
+    # validates both the original Status extraction and the newer
+    # district/department/office/officer/office_contact/office_email fields
+    # extracted from the #customers table's <th>/<td> pairs.
     from modules.govt_sync.adapters.maharashtra_aaplesarkar import _parse_result_html
     parsed = _parse_result_html(_RESULT_PAGE_HTML_FIXTURE)
-    assert parsed == {"status_text": "Submitted"}
+    assert parsed == {
+        "status_text": "Submitted",
+        "district": "बुलढाणा",
+        "department": "ग्राम विकास",
+        "office": "Rural Development & Panchayat Raj Department, Mantralaya",
+        "officer": "डॉ. चंद्रकांत पुलकुंडवार (Add Chief Secretary, Rural Development & Panchayat Raj Department)",
+        "office_contact": "02222060442",
+        "office_email": "rdde.sec@nic.in",
+    }
+    # Uploaded-document / complaint-image cells are present but empty on
+    # this real page, and are never extracted even when populated — see
+    # _parse_result_html's docstring.
+    assert "uploaded_documents" not in parsed and "complaint_image" not in parsed
 
 
 def test_result_html_no_status_label_returns_none():
@@ -507,6 +586,11 @@ def test_endpoint_full_three_stage_round_trip(mock_session_cls):
     assert stage2_body["govt_status"] == "submitted"
     assert stage2_body["raw_portal_status"] == "Submitted"
     assert "note" not in stage2_body
+    # portal_detail flows through the existing, unmodified api_router.py
+    # response shape (getattr(result, "portal_detail", None) or {}) — no
+    # api_router.py change was needed for this to appear.
+    assert stage2_body["portal_detail"]["department"] == "ग्राम विकास"
+    assert stage2_body["portal_detail"]["office_email"] == "rdde.sec@nic.in"
 
     row = client.get("/api/cases/30", headers=_auth_headers()).json()
     assert row["govt_status"] == "submitted"

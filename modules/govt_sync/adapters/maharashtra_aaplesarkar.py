@@ -230,18 +230,51 @@ def _extract_label_value(text: str, labels: list[str]) -> str | None:
     return None
 
 
+def _extract_table_field(soup, labels: list[str]) -> str | None:
+    """CONFIRMED-shape helper against a real captured result page
+    (2026-08-25): the #customers table pairs a <th>Label</th> with the
+    very next <td> sibling holding its value. Exact label match only (not
+    substring) so "कार्यालय" (Office) never matches "कार्यालय संपर्क"
+    (Office Contact)."""
+    for th in soup.find_all("th"):
+        if th.get_text(strip=True) in labels:
+            td = th.find_next_sibling("td")
+            if td:
+                value = re.sub(r"\s+", " ", td.get_text(" ", strip=True)).strip()
+                return value or None
+    return None
+
+
 def _parse_result_html(html: str) -> dict | None:
-    """Returns {"status_text": ...} on a recognisable result page, None if
-    the expected Status label can't be found at all (treated as a failed
-    attempt, not a crash — see advance()). Only Status is extracted; see
-    module docstring for why the rest of the confirmed field list isn't."""
+    """Returns a dict with `status_text` plus any additional detail fields
+    confirmed present on a real captured result page (2026-08-25):
+    district/department/office/officer/office_contact/office_email — all
+    read from the #customers table's <th>/<td> pairs. Uploaded-document and
+    complaint-image cells are deliberately never extracted, even when
+    populated, to keep this PII-trimmed the same way Rajasthan/Karnataka's
+    portal_detail is. Returns None if Status itself can't be found (treated
+    as a failed attempt, not a crash — see advance())."""
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text("\n", strip=True)
     status = _extract_label_value(text, ["स्थिती", "Status"])
     if status is None:
         return None
-    return {"status_text": status}
+    result = {"status_text": status}
+    district = _extract_label_value(text, ["जिल्हा", "District"])
+    if district:
+        result["district"] = district
+    for key, labels in (
+        ("department", ["Current Department"]),
+        ("office", ["कार्यालय"]),
+        ("officer", ["अधिकारी"]),
+        ("office_contact", ["कार्यालय संपर्क"]),
+        ("office_email", ["ऑफिस ईमेल"]),
+    ):
+        value = _extract_table_field(soup, labels)
+        if value:
+            result[key] = value
+    return result
 
 
 @dataclass
@@ -563,11 +596,18 @@ class MaharashtraAapleSarkarAdapter(InteractiveStatusCheckMixin, ManualAssistedA
         raw_status = parsed["status_text"]
         normalized = normalize_status_keywords(raw_status)
 
+        portal_detail = {
+            k: parsed[k] for k in
+            ("district", "department", "office", "officer", "office_contact", "office_email")
+            if parsed.get(k)
+        } or None
+
         attempt.state = StatusCheckAttemptState.COMPLETE
         attempt.result = StatusResult(
             status=normalized or "",
             raw_portal_status=raw_status,
             checked=bool(normalized),
             needs_verification=False,
+            portal_detail=portal_detail,
         )
         return attempt
