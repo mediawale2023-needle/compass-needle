@@ -6358,13 +6358,45 @@ def _start_inbound_ledger_sweeper() -> None:
 # Deliberately does not auto-forward to the citizen — see modules/govt_sync/poller.py.
 _GOVT_SYNC_POLL_INTERVAL_SECONDS = 6 * 60 * 60  # every 6 hours
 
+# Dedicated advisory lock key for this sweep — distinct from the startup
+# migration lock (77772024) and from the per-sender WhatsApp locks (hashed,
+# not fixed — see _sender_lock_key above). Needed because this sweep runs on
+# its own threading.Timer schedule inside every worker process that imports
+# main.py: backend's 2 uvicorn workers AND backend_govt_live's own separate
+# single worker (confirmed via deploy/ec2/docker-compose.yml's WEB_CONCURRENCY
+# settings — 3 processes total), with no other leader-election mechanism.
+# pg_try_advisory_lock is the same non-blocking, session-scoped primitive
+# already used for the migration lock and for _acquire_sender_processing_lock
+# above — session-scoped means Postgres releases it automatically if the
+# holding connection dies (crash, OOM kill), so a crashed poll run can never
+# wedge future runs the way a held-forever lock would.
+_GOVT_SYNC_POLL_LOCK_KEY = 77772030
+
 
 def _run_govt_sync_poll() -> None:
+    conn = None
+    acquired = False
     try:
+        conn = engine.connect()
+        acquired = bool(conn.execute(
+            sa_text("SELECT pg_try_advisory_lock(:key)"), {"key": _GOVT_SYNC_POLL_LOCK_KEY}
+        ).scalar())
+        if not acquired:
+            logger.info("Govt sync poll sweep: lock held by another process — skipping this cycle")
+            return
         from modules.govt_sync.poller import poll_all_pending
         poll_all_pending()
     except Exception as exc:
         logger.warning("Govt sync poll sweep failed: %s", exc)
+    finally:
+        if conn is not None:
+            try:
+                if acquired:
+                    conn.execute(sa_text("SELECT pg_advisory_unlock(:key)"), {"key": _GOVT_SYNC_POLL_LOCK_KEY})
+            except Exception as exc:
+                logger.warning("Govt sync poll lock release failed (auto-releases on connection close): %s", exc)
+            finally:
+                conn.close()
 
 
 def _schedule_govt_sync_poll() -> None:

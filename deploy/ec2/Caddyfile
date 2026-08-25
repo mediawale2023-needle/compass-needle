@@ -7,7 +7,26 @@ api.theneedle.in {
 	# land on the single-worker backend_govt_live service — see
 	# docker-compose.yml for why. Everything else goes to the normal
 	# multi-worker backend.
-	@govt_live path /api/cases/*/govt/session/* /api/govt/session/*
+	#
+	# Interactive status-check attempts (Karnataka/Maharashtra CAPTCHA/OTP
+	# flows) need the same single-worker affinity: their attempt state lives
+	# in a process-local dict (karnataka_ipgrs.py / maharashtra_aaplesarkar.py
+	# _attempts), and backend runs 2 workers — a start() and its following
+	# advance() could otherwise land on different processes and report a
+	# spurious "expired or not found" (confirmed via code trace, resilience
+	# review section J1/J2; fixation plan Step 4).
+	#
+	# Two separate, literal-anchored patterns on purpose, not one trailing
+	# wildcard: Caddy's path matcher `*` only spans one path segment, never
+	# crosses a `/`. A single `.../status-check/*` matches the 6-segment
+	# start route but NOT the 7-segment advance route
+	# (.../status-check/{attempt_id}/advance) — confirmed by sending real
+	# request paths through a real Caddy instance against dummy upstreams
+	# before writing this. Getting this wrong is worse than leaving it
+	# unfixed: start() would land on backend_govt_live while advance()
+	# stayed on backend's 2-worker pool, which never created the attempt —
+	# a 100% failure rate instead of the original ~50% one.
+	@govt_live path /api/cases/*/govt/session/* /api/govt/session/* /api/cases/*/govt/status-check/start /api/cases/*/govt/status-check/*/advance
 	reverse_proxy @govt_live backend_govt_live:8000
 
 	reverse_proxy backend:8000

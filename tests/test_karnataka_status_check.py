@@ -341,6 +341,44 @@ def test_endpoint_start_then_advance_full_round_trip(mock_session_cls):
     assert latest["portal_detail"]["pendency_details"] == "S A Mahajan — Municipal Commissioner, Gokak"
 
 
+@patch("requests.Session")
+def test_endpoint_advance_failure_is_audit_logged_with_attempt_id(mock_session_cls):
+    """govt-sync fixation plan Step 3: a failed interactive attempt (wrong
+    CAPTCHA here) must now leave a durable audit trail — previously this
+    vanished with zero record anywhere. Endpoint-level, not adapter-level,
+    since the logging lives in api_router.py's govt_status_check_advance,
+    not in the adapter itself."""
+    _seed_database()
+    start_session = MagicMock()
+    start_session.get.side_effect = [MagicMock(), _mock_captcha_response()]
+    start_session.cookies.get_dict.return_value = {"ASP.NET_SessionId": "abc123"}
+    advance_session = MagicMock()
+    advance_session.post.return_value = _mock_verify_response({"success": False, "message": "Invalid Captcha", "data": None})
+    mock_session_cls.side_effect = [start_session, advance_session]
+
+    start_resp = client.post("/api/cases/20/govt/status-check/start", headers=_auth_headers())
+    attempt_id = start_resp.json()["attempt_id"]
+
+    advance_resp = client.post(
+        f"/api/cases/20/govt/status-check/{attempt_id}/advance",
+        json={"captcha": "WRONG"}, headers=_auth_headers(),
+    )
+    assert advance_resp.status_code == 200, advance_resp.text
+    body = advance_resp.json()
+    assert body["state"] == "failed"
+    assert body["note"] == "Invalid Captcha"
+
+    with test_engine.connect() as conn:
+        rows = list(conn.execute(
+            text("SELECT action, payload FROM govt_submission_log WHERE case_id = 20 ORDER BY id")
+        ))
+    assert len(rows) == 1
+    assert rows[0][0] == "status_check_failed"
+    payload = json.loads(rows[0][1]) if isinstance(rows[0][1], str) else rows[0][1]
+    assert payload["attempt_id"] == attempt_id
+    assert payload["note"] == "Invalid Captcha"
+
+
 def test_endpoint_start_rejects_non_interactive_portal():
     _seed_database()
     with test_engine.begin() as conn:

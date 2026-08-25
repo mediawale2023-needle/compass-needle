@@ -595,6 +595,18 @@ def test_endpoint_full_three_stage_round_trip(mock_session_cls):
     row = client.get("/api/cases/30", headers=_auth_headers()).json()
     assert row["govt_status"] == "submitted"
 
+    # govt-sync fixation plan Step 3: the audit-log row this completion
+    # writes now carries attempt_id, for correlating it back to this
+    # specific 3-stage run — added at the api_router.py call site, not the
+    # response body, so this reads govt_submission_log directly.
+    with test_engine.connect() as conn:
+        log_rows = list(conn.execute(
+            text("SELECT payload FROM govt_submission_log WHERE case_id = 30 AND action = 'status_polled'")
+        ))
+    assert len(log_rows) == 1
+    logged_payload = json.loads(log_rows[0][0]) if isinstance(log_rows[0][0], str) else log_rows[0][0]
+    assert logged_payload["attempt_id"] == attempt_id
+
 
 # Karnataka's own existing request/response contract (no `otp` field sent
 # at all) is regression-tested directly by tests/test_karnataka_status_check.py

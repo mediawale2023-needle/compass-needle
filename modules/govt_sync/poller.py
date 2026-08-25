@@ -39,6 +39,46 @@ def _status_poll_payload(row: dict, result) -> dict:
     }
 
 
+def _inconclusive_payload(row: dict, result) -> dict:
+    return {
+        "portal": row.get("portal_name"),
+        "raw_portal_status": getattr(result, "raw_portal_status", None),
+        "govt_status_at_time": row.get("govt_status"),
+    }
+
+
+def _log_inconclusive(row: dict, result, action: str) -> None:
+    """Writes a govt_submission_log row for a poll attempt that reached the
+    adapter but produced nothing usable — either a lapsed OTP-gated session
+    (needs_verification) or a checked-but-unrecognised result (parser
+    couldn't find a status, or the portal returned unfamiliar wording).
+    Distinct action strings on purpose, and distinct from 'status_polled' —
+    the latter must stay reserved for genuinely successful checks, since
+    api_router.py's "last successfully checked" field reads the latest
+    'status_polled' row as its source of truth."""
+    payload_expr = "CAST(:payload AS JSONB)"
+    if getattr(getattr(engine, "dialect", None), "name", "") == "sqlite":
+        payload_expr = ":payload"
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO govt_submission_log (tenant_id, case_id, action, actor_username, payload, created_at) "
+                f"VALUES (:tid, :cid, :action, NULL, {payload_expr}, :now)"
+            ),
+            {
+                "tid": row["tenant_id"],
+                "cid": row["case_id"],
+                "action": action,
+                "payload": _json_dumps(_inconclusive_payload(row, result)),
+                "now": _utcnow(),
+            },
+        )
+    logger.info(
+        f"Govt sync poll: case={row['case_id']} portal={row['portal_name']} {action} "
+        f"(raw={getattr(result, 'raw_portal_status', None)!r})"
+    )
+
+
 def poll_all_pending() -> dict:
     """Poll every case with an open govt-portal submission. Returns a summary dict."""
     rows = _q(
@@ -85,8 +125,10 @@ def poll_all_pending() -> dict:
         checked += 1
         if getattr(result, "needs_verification", False):
             skip_pairs.add(pair)
+            _log_inconclusive(row, result, "status_check_needs_verification")
             continue
         if not result.checked or not result.status:
+            _log_inconclusive(row, result, "status_check_inconclusive")
             continue
 
         changed_this_case = result.status != row["govt_status"]

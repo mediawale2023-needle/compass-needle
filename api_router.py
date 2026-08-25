@@ -3257,12 +3257,24 @@ def govt_poll_case(case_id: int, user=Depends(get_current_user)):
     result = adapter.check_status(case["govt_reference_number"], tenant_id=tid)
 
     if getattr(result, "needs_verification", False):
+        _log_govt_action(
+            tid, case_id, "status_check_needs_verification", user.get("username"),
+            payload={"portal": case.get("portal_name"), "raw_portal_status": getattr(result, "raw_portal_status", None)},
+        )
         return {
             "success": True, "changed": False, "govt_status": case["govt_status"],
             "needs_verification": True,
             "note": "Verify Rajasthan Sampark access under Settings → Government Portal, then try again.",
         }
     if not result.checked or not result.status:
+        # Distinct action, never "status_polled" — the latter must stay
+        # reserved for genuinely successful checks, since "last successfully
+        # checked" (see get_govt_forward_state) reads the latest
+        # status_polled row as its source of truth.
+        _log_govt_action(
+            tid, case_id, "status_check_inconclusive", user.get("username"),
+            payload={"portal": case.get("portal_name"), "raw_portal_status": getattr(result, "raw_portal_status", None)},
+        )
         return {"success": True, "changed": False, "govt_status": case["govt_status"], "note": "Portal check inconclusive — verify manually on the portal."}
 
     changed = result.status != case["govt_status"]
@@ -3397,9 +3409,18 @@ def govt_status_check_advance(case_id: int, attempt_id: str, body: GovtStatusChe
         raise HTTPException(502, "Could not verify the CAPTCHA — try again in a moment.")
 
     if attempt.state == StatusCheckAttemptState.FAILED:
+        note = attempt.result.raw_portal_status if attempt.result else "Verification failed — try again."
+        # Previously silent — a wrong CAPTCHA/OTP, an expired attempt, or a
+        # broken parser all vanished with zero audit trail. attempt_id lets
+        # this row be correlated with whatever else the same attempt
+        # produced (e.g. a later successful retry's own log row).
+        _log_govt_action(
+            tid, case_id, "status_check_failed", user.get("username"),
+            payload={"attempt_id": attempt_id, "portal": case.get("portal_name"), "note": note},
+        )
         return {
             "success": True, "changed": False, "state": "failed",
-            "note": (attempt.result.raw_portal_status if attempt.result else "Verification failed — try again."),
+            "note": note,
         }
 
     if attempt.state != StatusCheckAttemptState.COMPLETE or not attempt.result:
@@ -3434,7 +3455,7 @@ def govt_status_check_advance(case_id: int, attempt_id: str, body: GovtStatusChe
         case_id,
         "status_polled",
         user.get("username"),
-        payload=_govt_status_poll_payload(case, result, case.get("portal_name")),
+        payload={**_govt_status_poll_payload(case, result, case.get("portal_name")), "attempt_id": attempt_id},
     )
 
     return {
