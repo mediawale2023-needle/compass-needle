@@ -46,7 +46,7 @@
     "portal_name": "UP Jansunwai (IGRS)",
     "portal_type": "state_branded",
     "base_url": "https://samadhan.gov.in",
-    "status_check_url": "https://samadhan.gov.in/Grievance/GrievanceStatus.aspx",
+    "status_check_url": null,
     "status_check_mode": "public_reference",
     "otp_bound": true,
     "field_schema": {
@@ -81,7 +81,7 @@
     "is_primary": true,
     "active": true,
     "verification_status": "confirmed",
-    "source_note": "Canonical domain corrected to samadhan.gov.in per state-portal research table (2026-08-14); jansunwai.up.nic.in confirmed as the same Jansunwai-Samadhan system but is the legacy/alternate domain."
+    "source_note": "Canonical domain corrected to samadhan.gov.in per state-portal research table (2026-08-14); jansunwai.up.nic.in confirmed as the same Jansunwai-Samadhan system but is the legacy/alternate domain. status_check_url nulled 2026-08-26: the old value (/Grievance/GrievanceStatus.aspx) 404s on the current domain, confirmed by direct read-only request. The real public tracker (/ComplaintTracker) requires reference number + mobile number + CAPTCHA + OTP, a shape no adapter in this codebase supports yet (ManualAssistedAdapter is a plain unauthenticated GET) - not building one now. status_check_mode/otp_bound left as-is pending that future adapter work."
   },
   {
     "state": "All (fallback)",
@@ -89,7 +89,7 @@
     "portal_type": "cpgrams",
     "base_url": "https://pgportal.gov.in",
     "status_check_url": "https://pgportal.gov.in/Status",
-    "status_check_mode": "public_reference",
+    "status_check_mode": "login_required",
     "otp_bound": false,
     "field_schema": {
       "subject_max_chars": 100,
@@ -121,7 +121,7 @@
     "is_primary": true,
     "active": true,
     "verification_status": "confirmed",
-    "source_note": null
+    "source_note": "status_check_mode changed from public_reference to login_required 2026-08-26: confirmed by direct read-only request that /Status unconditionally returns CPGRAMS's login/CAPTCHA-gated status form (RegistrationNo + GrievancePassword + Captcha) regardless of refNumber/grievanceId query params - there is no anonymous reference-only lookup on this portal. status_check_url left unchanged; otp_bound left false (accurate - the real gate is a password + CAPTCHA, not an OTP)."
   },
   {
     "state": "Andhra Pradesh",
