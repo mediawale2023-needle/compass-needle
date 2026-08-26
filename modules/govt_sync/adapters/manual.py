@@ -70,11 +70,48 @@ class ManualAssistedAdapter(GovtPortalAdapter):
             logger.warning(f"Status check request failed for {self.portal.get('portal_name')} ref={reference_number}: {e}")
             return StatusResult(status="", raw_portal_status=None, checked=False)
 
-        normalized = normalize_status_keywords(page_text)
+        # Scan only a window around the reference number's own occurrence,
+        # not the whole flattened page (fixation-plan Step 6). The whole-page
+        # scan this replaces could pick up a real STATUS_KEYWORDS hit from
+        # nav/footer/instructional boilerplate that has nothing to do with
+        # this citizen's grievance — confirmed for real, not hypothetically,
+        # against UP Jansunwai's own pre-search disclaimer text ("...केवल 3
+        # माह पूर्व तक के निस्तारित सन्दर्भों का विवरण देखा जा सकेगा" — "only
+        # references *resolved* within the last 3 months can be shown" —
+        # matches the `resolved` bucket on a page that hasn't even run a
+        # search yet). If the reference number itself can't be found in the
+        # page at all, fail closed immediately rather than falling back to
+        # a full-page scan — a page that never mentions this grievance's own
+        # reference number is not evidence of anything.
+        #
+        # ±300 characters is a provisional figure, not empirically
+        # calibrated against a real result page: as of this change, neither
+        # portal actually configured with status_check_mode="public_reference"
+        # exposes one through this adapter's plain unauthenticated GET —
+        # UP Jansunwai's configured status_check_url 404s, and CPGRAMS's
+        # returns its login/CAPTCHA form regardless of query params (both
+        # confirmed by direct read-only request, no CAPTCHA/OTP/login
+        # attempted). Revisit this number the first time this project has
+        # lawful access to an actual captured result page for either.
+        ref_index = page_text.find(reference_number)
+        if ref_index == -1:
+            logger.info(
+                f"Status check for {self.portal.get('portal_name')} ref={reference_number} — "
+                f"reference number not found in fetched page text, failing closed rather than "
+                f"scanning unrelated page content"
+            )
+            return StatusResult(status="", raw_portal_status=page_text[:500], checked=False)
+
+        window_start = max(0, ref_index - 300)
+        window_end = ref_index + len(reference_number) + 300
+        window_text = page_text[window_start:window_end]
+
+        normalized = normalize_status_keywords(window_text)
         if not normalized:
             logger.info(
                 f"Status check for {self.portal.get('portal_name')} ref={reference_number} returned "
-                f"no recognisable status keyword — needs manual look (page wording may not match yet)"
+                f"no recognisable status keyword near the reference number — needs manual look "
+                f"(page wording may not match yet)"
             )
             return StatusResult(status="", raw_portal_status=page_text[:500], checked=False)
 
