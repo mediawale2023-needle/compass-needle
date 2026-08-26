@@ -379,6 +379,134 @@ def test_endpoint_advance_failure_is_audit_logged_with_attempt_id(mock_session_c
     assert payload["note"] == "Invalid Captcha"
 
 
+@patch("requests.Session")
+def test_endpoint_full_round_trip_success_logs_exactly_one_status_polled_row(mock_session_cls):
+    """Regression guard for the audit-gap fix below: the successful path
+    (result.checked=True, result.status set) must still log exactly one
+    status_polled row and nothing else — proving the new
+    status_check_inconclusive log added to the neighbouring branch didn't
+    leak onto this one."""
+    _seed_database()
+    start_session = MagicMock()
+    start_session.get.side_effect = [MagicMock(), _mock_captcha_response()]
+    start_session.cookies.get_dict.return_value = {"ASP.NET_SessionId": "abc123"}
+    advance_session = MagicMock()
+    advance_session.post.return_value = _mock_verify_response(_REAL_SUCCESS_PAYLOAD)
+    mock_session_cls.side_effect = [start_session, advance_session]
+
+    start_resp = client.post("/api/cases/20/govt/status-check/start", headers=_auth_headers())
+    attempt_id = start_resp.json()["attempt_id"]
+    advance_resp = client.post(
+        f"/api/cases/20/govt/status-check/{attempt_id}/advance",
+        json={"captcha": "AB12C"}, headers=_auth_headers(),
+    )
+    assert advance_resp.status_code == 200, advance_resp.text
+    assert advance_resp.json()["state"] == "complete"
+
+    with test_engine.connect() as conn:
+        rows = list(conn.execute(
+            text("SELECT action, payload FROM govt_submission_log WHERE case_id = 20 ORDER BY id")
+        ))
+    assert len(rows) == 1
+    assert rows[0][0] == "status_polled"
+
+
+@patch("requests.Session")
+def test_endpoint_advance_complete_but_unrecognized_status_is_audit_logged(mock_session_cls):
+    """Fixation-plan audit-gap fix: a CAPTCHA that verifies fine and reaches
+    a real COMPLETE result, but whose portal wording normalize_status_
+    keywords() doesn't recognise, previously vanished with zero audit
+    trail (api_router.py's COMPLETE-but-inconclusive branch, historically
+    around lines 3443-3444). Real success payload, unrecognisable Status
+    text — reaches api_router.py's `if not result.checked or not
+    result.status` branch via the `not result.checked` half (Karnataka's
+    own checked=bool(normalized) ties the two together)."""
+    _seed_database()
+    start_session = MagicMock()
+    start_session.get.side_effect = [MagicMock(), _mock_captcha_response()]
+    start_session.cookies.get_dict.return_value = {"ASP.NET_SessionId": "abc123"}
+    advance_session = MagicMock()
+    unrecognized_payload = {**_REAL_SUCCESS_PAYLOAD, "data": {**_REAL_SUCCESS_PAYLOAD["data"], "Status": "Kept pending with Zonal Office"}}
+    advance_session.post.return_value = _mock_verify_response(unrecognized_payload)
+    mock_session_cls.side_effect = [start_session, advance_session]
+
+    start_resp = client.post("/api/cases/20/govt/status-check/start", headers=_auth_headers())
+    attempt_id = start_resp.json()["attempt_id"]
+    advance_resp = client.post(
+        f"/api/cases/20/govt/status-check/{attempt_id}/advance",
+        json={"captcha": "AB12C"}, headers=_auth_headers(),
+    )
+    assert advance_resp.status_code == 200, advance_resp.text
+    body = advance_resp.json()
+    assert body["success"] is True
+    assert body["changed"] is False
+    assert body["state"] == "complete"
+    assert body["note"] == "Portal check inconclusive — verify manually on the portal."
+
+    with test_engine.connect() as conn:
+        rows = list(conn.execute(
+            text("SELECT action, payload FROM govt_submission_log WHERE case_id = 20 ORDER BY id")
+        ))
+    assert len(rows) == 1
+    assert rows[0][0] == "status_check_inconclusive"
+    payload = json.loads(rows[0][1]) if isinstance(rows[0][1], str) else rows[0][1]
+    assert payload["attempt_id"] == attempt_id
+    assert payload["portal"] == "Karnataka Janaspandana (iPGRS)"
+    assert payload["raw_portal_status"] == "Kept pending with Zonal Office"
+    # Exactly the three approved keys — no portal_detail, no CAPTCHA/OTP
+    # answers, no cookies/session/token material.
+    assert set(payload.keys()) == {"attempt_id", "portal", "raw_portal_status"}
+
+
+@patch("modules.govt_sync.adapters.karnataka_ipgrs.KarnatakaAPIAdapter.advance")
+@patch("requests.Session")
+def test_endpoint_advance_complete_checked_true_empty_status_edge_is_also_logged(mock_session_cls, mock_advance):
+    """Guard-completeness test, not a realistic scenario: under the current
+    model no real adapter can produce checked=True with an empty status
+    (Karnataka/Maharashtra both derive checked directly from whether
+    normalized is truthy, so checked=True implies status is truthy too) —
+    but api_router.py's guard is `if not result.checked or not
+    result.status`, an OR of two independently-reachable conditions. This
+    proves the checked=True-but-empty-status half of that OR also logs
+    status_check_inconclusive, by directly returning a StatusCheckAttempt
+    with that otherwise-impossible-today combination, in case a future
+    adapter ever produces it."""
+    _seed_database()
+    start_session = MagicMock()
+    start_session.get.side_effect = [MagicMock(), _mock_captcha_response()]
+    start_session.cookies.get_dict.return_value = {"ASP.NET_SessionId": "abc123"}
+    mock_session_cls.return_value = start_session
+
+    start_resp = client.post("/api/cases/20/govt/status-check/start", headers=_auth_headers())
+    attempt_id = start_resp.json()["attempt_id"]
+
+    def _edge_case_advance(attempt, verification_answers, next_inputs=None):
+        attempt.state = StatusCheckAttemptState.COMPLETE
+        attempt.result = StatusResult(status="", checked=True, raw_portal_status="Edge case: checked True, empty status")
+        return attempt
+
+    mock_advance.side_effect = _edge_case_advance
+
+    advance_resp = client.post(
+        f"/api/cases/20/govt/status-check/{attempt_id}/advance",
+        json={"captcha": "AB12C"}, headers=_auth_headers(),
+    )
+    assert advance_resp.status_code == 200, advance_resp.text
+    body = advance_resp.json()
+    assert body["state"] == "complete"
+    assert body["note"] == "Portal check inconclusive — verify manually on the portal."
+
+    with test_engine.connect() as conn:
+        rows = list(conn.execute(
+            text("SELECT action, payload FROM govt_submission_log WHERE case_id = 20 ORDER BY id")
+        ))
+    assert len(rows) == 1
+    assert rows[0][0] == "status_check_inconclusive"
+    payload = json.loads(rows[0][1]) if isinstance(rows[0][1], str) else rows[0][1]
+    assert payload["attempt_id"] == attempt_id
+    assert payload["raw_portal_status"] == "Edge case: checked True, empty status"
+
+
 def test_endpoint_start_rejects_non_interactive_portal():
     _seed_database()
     with test_engine.begin() as conn:

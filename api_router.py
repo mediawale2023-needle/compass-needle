@@ -3441,6 +3441,21 @@ def govt_status_check_advance(case_id: int, attempt_id: str, body: GovtStatusChe
 
     result = attempt.result
     if not result.checked or not result.status:
+        # Previously silent — a CAPTCHA/OTP that verified fine but produced
+        # portal wording normalize_status_keywords() couldn't recognise
+        # vanished with zero audit trail, unlike a wrong-CAPTCHA FAILED
+        # attempt (status_check_failed, above) or a genuine success
+        # (status_polled, below). Same action string the non-interactive
+        # poll paths already use (govt_poll_case, poller.py) — this just
+        # closes the one remaining silent branch that reaches COMPLETE.
+        _log_govt_action(
+            tid, case_id, "status_check_inconclusive", user.get("username"),
+            payload={
+                "attempt_id": attempt_id,
+                "portal": case.get("portal_name"),
+                "raw_portal_status": getattr(result, "raw_portal_status", None),
+            },
+        )
         return {"success": True, "changed": False, "state": "complete", "note": "Portal check inconclusive — verify manually on the portal."}
 
     changed = result.status != case["govt_status"]
