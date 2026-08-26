@@ -39,11 +39,27 @@ STATUS_KEYWORDS = [
 
 
 def normalize_status_keywords(raw_text: str) -> str | None:
+    """Fail-closed on ambiguity, not just on no-match (fixation-plan Step 5).
+
+    Scans every bucket rather than returning on the first hit. Multiple
+    keywords matching WITHIN one bucket still resolve cleanly (e.g. a real
+    Rajasthan value like "Disposed / Resolved" matches both "disposed" and
+    "resolved" — both in the `resolved` bucket — and still normalizes to
+    `resolved`). Keywords matching across TWO OR MORE different buckets are
+    genuinely ambiguous (real portal wording could combine "rejected" and
+    "closed" from two different buckets in one string) and must not be
+    silently resolved by whichever bucket happened to be checked first —
+    that previously meant `resolved` could win over an actual rejection.
+    Verified against every real captured status string this project has
+    evidence for (Karnataka, Maharashtra, Rajasthan) — none of them
+    cross bucket boundaries, so this changes no known-real outcome."""
     lowered = (raw_text or "").lower()
-    for normalized, keywords in STATUS_KEYWORDS:
-        for kw in keywords:
-            if kw.lower() in lowered:
-                return normalized
+    matched_buckets = [
+        normalized for normalized, keywords in STATUS_KEYWORDS
+        if any(kw.lower() in lowered for kw in keywords)
+    ]
+    if len(matched_buckets) == 1:
+        return matched_buckets[0]
     return None
 
 
