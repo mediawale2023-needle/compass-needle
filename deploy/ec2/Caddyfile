@@ -26,7 +26,26 @@ api.theneedle.in {
 	# unfixed: start() would land on backend_govt_live while advance()
 	# stayed on backend's 2-worker pool, which never created the attempt —
 	# a 100% failure rate instead of the original ~50% one.
-	@govt_live path /api/cases/*/govt/session/* /api/govt/session/* /api/cases/*/govt/status-check/start /api/cases/*/govt/status-check/*/advance
+	#
+	# Every govt/session action gets its own literal-anchored pattern for
+	# the SAME reason, discovered later (production-readiness review,
+	# 2026-08-26): a Caddy pattern with two or more wildcards forces EVERY
+	# wildcard in it — including a trailing one — to match exactly one path
+	# segment, not "the rest of the path". The old
+	# `/api/cases/*/govt/session/*` (two wildcards) therefore covered
+	# .../session/start but silently missed .../session/{id}/close and
+	# .../session/{id}/capture-reference (each needs the second wildcard to
+	# match just the id, with a literal action after it — impossible for a
+	# *trailing* wildcard in a two-wildcard pattern). Confirmed by three
+	# real Caddy + dummy-upstream tests: a lone trailing wildcard spans
+	# multiple segments (/foo/* matches /foo/x/y/z), but adding a second
+	# wildcard anywhere in the same pattern collapses all of them back to
+	# single-segment. /api/govt/sessions(/close-all) also never matched at
+	# all — the old pattern's literal segment was "session" (singular), the
+	# real routes are "sessions" (plural). Every pattern below is written
+	# for the exact real route it targets, none relying on a wildcard
+	# spanning more than the one segment it's meant to.
+	@govt_live path /api/cases/*/govt/session/start /api/cases/*/govt/session/*/capture-reference /api/cases/*/govt/session/*/close /api/govt/session/*/stream /api/govt/sessions /api/govt/sessions/close-all /api/govt/sessions/*/close /api/cases/*/govt/status-check/start /api/cases/*/govt/status-check/*/advance
 	reverse_proxy @govt_live backend_govt_live:8000
 
 	reverse_proxy backend:8000

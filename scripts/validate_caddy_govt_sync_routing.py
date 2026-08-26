@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
 scripts/validate_caddy_govt_sync_routing.py — real Caddy routing regression
-test for the govt-sync fixation plan Step 4 correction.
+test for the govt-sync fixation plan Step 4 correction, and (2026-08-26)
+every govt/session live-session action from the production-readiness
+review's K6 finding.
 
 WHY THIS EXISTS: Caddy's `path` matcher wildcard (`*`) only spans one path
 segment, never crosses a `/`. The first Step 4 attempt used one trailing-
@@ -13,6 +15,18 @@ by grepping the compiled JSON for a substring (that also "passed" — the
 pattern string genuinely was present, it just didn't match what it needed
 to). This script is that same check, kept as a permanent, re-runnable
 regression test.
+
+K6 EXTENSION: a second, related but distinct Caddy behavior was found the
+same way — a pattern with two or more wildcards forces EVERY wildcard in
+it, including a trailing one, to match exactly one path segment (a LONE
+trailing wildcard, by contrast, spans the rest of the path). The old
+`/api/cases/*/govt/session/*` (two wildcards) covered `.../session/start`
+but silently missed `.../session/{id}/close` and
+`.../session/{id}/capture-reference`; `/api/govt/sessions` and
+`/api/govt/sessions/close-all` never matched at all (the old pattern's
+literal segment was singular "session", the real routes are plural
+"sessions"). The CASES list below covers every one of those routes so this
+class of gap can't silently reappear.
 
 WHAT IT ACTUALLY TESTS: the exact `@govt_live path ...` matcher line is
 extracted VERBATIM from deploy/ec2/Caddyfile at run time (never retyped by
@@ -60,19 +74,28 @@ class H(BaseHTTPRequestHandler):
         self.send_header("X-Served-By", NAME)
         self.end_headers()
         self.wfile.write(NAME.encode())
+    def do_POST(self):
+        self.do_GET()
     def log_message(self, *a):
         pass
 
 HTTPServer(("0.0.0.0", 8000), H).serve_forever()
 '''
 
-# (request path, expected upstream container name)
+# (method, request path, expected upstream container name)
 CASES = [
-    ("/api/cases/20/govt/status-check/start", "backend_govt_live"),
-    ("/api/cases/20/govt/status-check/4a5f3b99ce874e798024ed16f846784a/advance", "backend_govt_live"),
-    ("/api/cases/20/govt/session/start", "backend_govt_live"),
-    ("/api/cases/20/govt/poll", "backend"),
-    ("/api/cases/20/govt/submit", "backend"),
+    ("POST", "/api/cases/20/govt/status-check/start", "backend_govt_live"),
+    ("POST", "/api/cases/20/govt/status-check/4a5f3b99ce874e798024ed16f846784a/advance", "backend_govt_live"),
+    ("POST", "/api/cases/20/govt/session/start", "backend_govt_live"),
+    ("POST", "/api/cases/20/govt/poll", "backend"),
+    ("POST", "/api/cases/20/govt/submit", "backend"),
+    # K6 — every govt/session live-session action, real Caddy semantics only
+    ("GET", "/api/govt/sessions", "backend_govt_live"),
+    ("POST", "/api/govt/sessions/close-all", "backend_govt_live"),
+    ("POST", "/api/govt/sessions/abc123/close", "backend_govt_live"),
+    ("GET", "/api/govt/session/abc123/stream", "backend_govt_live"),
+    ("POST", "/api/cases/20/govt/session/abc123/capture-reference", "backend_govt_live"),
+    ("POST", "/api/cases/20/govt/session/abc123/close", "backend_govt_live"),
 ]
 
 
@@ -138,19 +161,20 @@ def main():
         time.sleep(2.5)
 
         failures = []
-        for path, expected in CASES:
+        for method, path, expected in CASES:
             url = f"http://localhost:{CADDY_PORT}{path}"
+            req = urllib.request.Request(url, method=method, data=b"" if method == "POST" else None)
             try:
-                with urllib.request.urlopen(url, timeout=5) as resp:
+                with urllib.request.urlopen(req, timeout=5) as resp:
                     served_by = resp.headers.get("X-Served-By")
             except Exception as e:
                 served_by = f"<request failed: {e}>"
 
             status = "OK" if served_by == expected else "FAIL"
-            print(f"[{status}] {path}")
+            print(f"[{status}] {method:5s} {path}")
             print(f"         expected={expected!r} actual={served_by!r}")
             if served_by != expected:
-                failures.append((path, expected, served_by))
+                failures.append((f"{method} {path}", expected, served_by))
 
         print()
         if failures:

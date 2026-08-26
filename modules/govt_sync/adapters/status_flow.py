@@ -104,6 +104,23 @@ class StatusCheckAttemptState(str, Enum):
     FAILED = "failed"
 
 
+class PortalUnavailableError(RuntimeError):
+    """Raised by an adapter's start() when the portal itself is known to be
+    unreachable from this backend right now — a standing, diagnosed
+    condition (e.g. a network-level block confirmed multiple times), not an
+    ordinary transient blip. Distinct from a plain RuntimeError (bad input,
+    missing config, a wrong CAPTCHA/OTP, a portal markup change) so callers
+    can tell staff the real reason instead of suggesting an indefinite
+    retry. First and currently only use: maharashtra_aaplesarkar.py's
+    start(), where the EC2 host cannot reach grievances.maharashtra.gov.in
+    at all (production-readiness review, K3, 2026-08-26) — do not raise
+    this for a failure that hasn't actually been confirmed as a standing
+    condition the same way; an ordinary transient network hiccup is still
+    a plain RuntimeError."""
+    def __init__(self, message: str):
+        super().__init__(message)
+
+
 @dataclass
 class StatusCheckAttempt:
     attempt_id: str

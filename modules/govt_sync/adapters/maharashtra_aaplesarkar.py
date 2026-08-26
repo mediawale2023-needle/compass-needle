@@ -154,6 +154,7 @@ from .manual import ManualAssistedAdapter
 from .status_flow import (
     HumanVerificationRequirement,
     InteractiveStatusCheckMixin,
+    PortalUnavailableError,
     SessionRequirement,
     StatusCheckAttempt,
     StatusCheckAttemptState,
@@ -374,7 +375,19 @@ class MaharashtraAapleSarkarAdapter(InteractiveStatusCheckMixin, ManualAssistedA
             challenge_uri = _fetch_captcha_b64(session)
         except Exception as e:
             logger.warning(f"Maharashtra Aaple Sarkar status-check start failed for ref={reference_number}: {e}")
-            raise RuntimeError("Could not reach the Maharashtra portal — try again in a moment.")
+            # Not an ordinary transient blip — this is the exact, diagnosed
+            # network-level condition documented at the top of this module
+            # (EC2 cannot reach grievances.maharashtra.gov.in at all,
+            # confirmed multiple times: TCP 80/443 time out, DNS resolves).
+            # A distinct exception type so api_router.py can tell staff the
+            # real reason instead of a generic "try again in a moment" for
+            # something retrying can never fix (production-readiness
+            # review, K3, 2026-08-26).
+            raise PortalUnavailableError(
+                "Maharashtra Aaple Sarkar cannot currently be reached from the government-sync server — "
+                "status checking for this portal is temporarily unavailable. This is a known issue, not "
+                "something retrying will fix; contact support if it persists."
+            )
 
         if not csrf:
             logger.warning(f"Maharashtra Aaple Sarkar: no _csrfToken found on entry page for ref={reference_number}")

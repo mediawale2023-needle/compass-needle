@@ -330,6 +330,46 @@ def test_start_reaches_awaiting_human_input_with_first_captcha(mock_session_cls)
 
 
 @patch("requests.Session")
+def test_start_raises_portal_unavailable_error_on_connection_failure(mock_session_cls):
+    """Production-readiness review K3: the entry-page GET failing outright
+    (connection error/timeout — exactly the confirmed EC2-cannot-reach-
+    grievances.maharashtra.gov.in condition) must raise the specific
+    PortalUnavailableError, not a plain RuntimeError, so api_router.py can
+    tell staff this is a known standing condition rather than an ordinary
+    transient failure."""
+    from modules.govt_sync.adapters.status_flow import PortalUnavailableError
+
+    session = MagicMock()
+    session.get.side_effect = ConnectionError("Connection timed out")
+    mock_session_cls.return_value = session
+
+    adapter = MaharashtraAapleSarkarAdapter({"id": 1})
+    try:
+        adapter.start("DEP/RDDE/0001/2026/001", tenant_id=1, initial_inputs={"mobile_or_email": "919650787758", "case_id": 30})
+        assert False, "expected PortalUnavailableError"
+    except PortalUnavailableError as e:
+        assert "temporarily unavailable" in str(e)
+        assert "known issue" in str(e)
+    except RuntimeError:
+        assert False, "raised plain RuntimeError instead of the more specific PortalUnavailableError"
+
+
+@patch("requests.Session")
+def test_missing_portal_contact_number_still_raises_plain_runtime_error(mock_session_cls):
+    """Regression guard: a config/usage error (no portal contact number on
+    file) must NOT be reclassified as PortalUnavailableError — only the
+    diagnosed network-connectivity branch is."""
+    adapter = MaharashtraAapleSarkarAdapter({"id": 1})
+    try:
+        adapter.start("DEP/RDDE/0001/2026/001", tenant_id=1, initial_inputs={"mobile_or_email": None, "case_id": 30})
+        assert False, "expected RuntimeError"
+    except Exception as e:
+        assert type(e) is RuntimeError, f"expected plain RuntimeError, got {type(e).__name__}"
+        assert "portal contact number" in str(e)
+    mock_session_cls.assert_not_called()
+
+
+@patch("requests.Session")
 def test_stage0_advance_sends_exact_confirmed_field_names(mock_session_cls):
     sessions = _full_success_session_sequence()
     mock_session_cls.side_effect = sessions
@@ -606,6 +646,26 @@ def test_endpoint_full_three_stage_round_trip(mock_session_cls):
     assert len(log_rows) == 1
     logged_payload = json.loads(log_rows[0][0]) if isinstance(log_rows[0][0], str) else log_rows[0][0]
     assert logged_payload["attempt_id"] == attempt_id
+
+
+@patch("requests.Session")
+def test_endpoint_start_reports_503_portal_unavailable_on_connection_failure(mock_session_cls):
+    """Production-readiness review K3, endpoint level: a connection failure
+    to grievances.maharashtra.gov.in must surface as a 503 with the stable
+    X-Govt-Sync-Error-Code header, not the ordinary 400 a ManualAssistedAdapter-
+    style RuntimeError gets elsewhere in this same endpoint."""
+    _seed_database()
+    session = MagicMock()
+    session.get.side_effect = ConnectionError("Connection timed out")
+    mock_session_cls.return_value = session
+
+    resp = client.post("/api/cases/30/govt/status-check/start", headers=_auth_headers())
+    assert resp.status_code == 503, resp.text
+    assert resp.headers.get("X-Govt-Sync-Error-Code") == "portal_unavailable"
+    detail = resp.json()["detail"]
+    assert isinstance(detail, str)  # plain string — frontend/lib/api.js's `err.detail` renders this unmodified
+    assert "temporarily unavailable" in detail
+    assert "known issue" in detail
 
 
 # Karnataka's own existing request/response contract (no `otp` field sent

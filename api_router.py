@@ -2996,9 +2996,14 @@ def govt_otp_send(user=Depends(get_current_user)):
     # resulting verification covers every grievance already filed under
     # this mobile — use any one of this tenant's own filed references on
     # this portal. A future adapter that doesn't need an anchor can just
-    # ignore the argument in its _send_otp().
+    # ignore the argument in its _send_otp(). Also doubles as the case_id
+    # govt_submission_log's audit rows below are attached to — that column
+    # is NOT NULL and this endpoint isn't case-scoped in its own request,
+    # so the anchor case is the only real case_id available; the payload
+    # itself carries what actually matters (portal, outcome), same
+    # convention as every other govt_submission_log row.
     anchor = _q_one(
-        "SELECT govt_reference_number FROM cases WHERE tenant_id = :tid AND govt_portal_id = :pid "
+        "SELECT id, govt_reference_number FROM cases WHERE tenant_id = :tid AND govt_portal_id = :pid "
         "AND govt_reference_number IS NOT NULL AND govt_reference_number <> '' "
         "ORDER BY govt_status_updated_at DESC NULLS LAST LIMIT 1",
         {"tid": tid, "pid": portal["id"]},
@@ -3014,8 +3019,13 @@ def govt_otp_send(user=Depends(get_current_user)):
         adapter.start_verification(tid, mobile_no, anchor["govt_reference_number"])
     except Exception as e:
         logger.error("Govt sync: OTP send failed for tenant %s portal %s: %s", tid, portal["portal_name"], e)
+        # Never the OTP itself (none exists yet at send time) — portal name
+        # and a generic failure note only, same discipline as every other
+        # govt_submission_log payload in this file.
+        _log_govt_action(tid, anchor["id"], "otp_send_failed", user.get("username"), payload={"portal": portal["portal_name"]})
         raise HTTPException(502, "Could not send the OTP — try again in a moment.")
 
+    _log_govt_action(tid, anchor["id"], "otp_send_succeeded", user.get("username"), payload={"portal": portal["portal_name"]})
     return {"success": True, "message": f"OTP sent to the portal contact number for {portal['portal_name']}."}
 
 
@@ -3035,17 +3045,43 @@ def govt_otp_verify(body: GovtOtpVerifyRequest, user=Depends(get_current_user)):
     if not otp:
         raise HTTPException(400, "Enter the OTP code.")
 
+    # Same anchor-case pattern as govt_otp_send, purely to satisfy
+    # govt_submission_log.case_id's NOT NULL constraint — this endpoint
+    # verifies a mobile number, not any one case. Best-effort: if this
+    # tenant somehow has no case with a reference on this portal right now,
+    # skip the audit row rather than fail the actual verification, which
+    # doesn't need this lookup at all.
+    anchor = _q_one(
+        "SELECT id FROM cases WHERE tenant_id = :tid AND govt_portal_id = :pid "
+        "AND govt_reference_number IS NOT NULL AND govt_reference_number <> '' "
+        "ORDER BY govt_status_updated_at DESC NULLS LAST LIMIT 1",
+        {"tid": tid, "pid": portal["id"]},
+    )
+
     try:
         ok = adapter.complete_verification(tid, otp)
     except RuntimeError as e:
+        # "No pending verification — send an OTP first," most commonly —
+        # a real, distinct failure, not the same as a wrong OTP, but the
+        # same action string with a note field records which (matches
+        # status_check_failed's convention of one action string covering
+        # several distinguishable causes via `note`). Never the OTP itself.
+        if anchor:
+            _log_govt_action(tid, anchor["id"], "otp_verify_failed", user.get("username"), payload={"portal": portal["portal_name"], "note": str(e)})
         raise HTTPException(400, str(e))
     except Exception as e:
         logger.error("Govt sync: OTP verify failed for tenant %s portal %s: %s", tid, portal["portal_name"], e)
+        if anchor:
+            _log_govt_action(tid, anchor["id"], "otp_verify_failed", user.get("username"), payload={"portal": portal["portal_name"], "note": "Portal request failed"})
         raise HTTPException(502, "Could not verify the OTP — try again in a moment.")
 
     if not ok:
+        if anchor:
+            _log_govt_action(tid, anchor["id"], "otp_verify_failed", user.get("username"), payload={"portal": portal["portal_name"], "note": "Invalid OTP"})
         raise HTTPException(400, "Invalid OTP. Please try again.")
 
+    if anchor:
+        _log_govt_action(tid, anchor["id"], "otp_verify_succeeded", user.get("username"), payload={"portal": portal["portal_name"]})
     return {"success": True, "message": f"{portal['portal_name']} access verified."}
 
 
@@ -3338,11 +3374,23 @@ def govt_status_check_start(case_id: int, user=Depends(get_current_user)):
     if not mobile_or_email:
         raise HTTPException(400, "No portal contact number on file for this tenant — set one before checking status.")
 
+    from modules.govt_sync.adapters.status_flow import PortalUnavailableError
+
     try:
         attempt = adapter.start(
             case["govt_reference_number"], tid,
             {"mobile_or_email": mobile_or_email, "case_id": case_id},
         )
+    except PortalUnavailableError as e:
+        # Distinct from the generic RuntimeError branch below on purpose —
+        # a known, diagnosed, standing condition (currently Maharashtra's
+        # EC2-network block), not an ordinary transient failure. 503 (not
+        # 400) plus a stable machine-readable header, so a caller can tell
+        # the two apart without parsing the message text; the message
+        # itself stays a plain string so the existing frontend error
+        # handling (frontend/lib/api.js's `err.detail`) renders it exactly
+        # like today, unmodified (production-readiness review, K3).
+        raise HTTPException(503, str(e), headers={"X-Govt-Sync-Error-Code": "portal_unavailable"})
     except RuntimeError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
