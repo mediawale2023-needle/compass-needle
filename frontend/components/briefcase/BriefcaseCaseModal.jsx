@@ -7,7 +7,7 @@ import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import BriefcaseSourceMediaViewer from '@/components/briefcase/BriefcaseSourceMediaViewer';
 import { STATUS_OPTIONS } from '@/components/briefcase/briefcase-shared';
@@ -57,36 +57,45 @@ function Icon({ name, size = 14, color = 'currentColor', stroke = 1.5, filled = 
 }
 
 // ─── Shared design tokens ────────────────────────────────────
+// Values mirror Main.dc.html (the canonical Case Detail design source).
 const C = {
-    paper:       '#F2EBD9',
-    paperDeep:   '#E8E0CB',
-    surface:     '#F7F2E6',
-    surfaceWarm: '#F7F0DC',
-    ink:         '#1A1812',
-    ink2:        '#4A453A',
-    ink3:        '#7A7263',
-    hair:        'rgba(26,24,18,0.14)',
-    hairStrong:  'rgba(26,24,18,0.32)',
-    green:       '#006A4D',
-    greenDeep:   '#003B2A',
-    greenInk:    '#024A36',
-    greenTint:   '#DFE9E2',
-    greenWash:   '#EAF1EC',
-    saffron:     '#C76A1A',
-    saffronTint: '#F4E3CE',
-    red:         '#C0392B',
+    paper:       '#F3EEE2',   // --bg
+    paperDeep:   '#ECE8DC',   // subtle raised (--grey-tint)
+    surface:     '#FFFEFB',   // --card
+    surfaceWarm: '#F6F1E3',   // action-panel ground (warm, close to --bg)
+    card:        '#FFFEFB',   // --card
+    ink:         '#211F19',
+    ink2:        '#6C6858',   // --ink-muted
+    ink3:        '#9D9683',   // --ink-faint
+    hair:        '#E4DECB',   // --border
+    hairStrong:  '#D2CAB2',
+    green:       '#2B6E4C',
+    greenDeep:   '#1E5238',
+    greenInk:    '#215539',
+    greenTint:   '#E3ECE3',
+    greenWash:   '#ECF1E9',
+    saffron:     '#BC6A36',   // --rust
+    saffronTint: '#F5E7D8',
+    red:         '#B3341C',
+    redTint:     '#F6E0D9',
+    amber:       '#A5822B',
+    amberTint:   '#F2E9CF',
+    slate:       '#48678A',
+    slateTint:   '#E1E7EF',
+    grey:        '#807A69',
+    greyTint:    '#ECE8DC',
 };
 
 const sec = {
-    padding: '14px 20px',
+    padding: '14px 18px',
     borderBottom: `1px solid ${C.hair}`,
-    background: C.paper,
+    background: C.card,
 };
 
 const monoLbl = {
-    fontFamily: '"JetBrains Mono", monospace',
-    fontSize: 9.5,
-    letterSpacing: '0.16em',
+    fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace',
+    fontSize: 10.5,
+    letterSpacing: '0.06em',
     color: C.ink3,
     textTransform: 'uppercase',
     marginBottom: 8,
@@ -233,7 +242,7 @@ function ReviewReasonBanner({ current, meta, onViewSummary }) {
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
                     <Icon name="warn" size={13} color={C.saffron} stroke={2} />
                     <span style={{
-                        fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5,
+                        fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontSize: 9.5,
                         letterSpacing: '0.16em', color: C.saffron, textTransform: 'uppercase', fontWeight: 700,
                     }}>Needs review · why</span>
                 </span>
@@ -269,7 +278,7 @@ function SectionHeading({ n, label, trailing, info }) {
                 <span style={{
                     width: 18, height: 18, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: C.ink, color: C.paper, fontSize: 10, fontWeight: 700,
-                    fontFamily: '"JetBrains Mono", monospace',
+                    fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace',
                 }}>{n}</span>
             )}
             <span style={{ ...monoLbl, marginBottom: 0 }}>{label}</span>
@@ -277,7 +286,7 @@ function SectionHeading({ n, label, trailing, info }) {
                 <span title={info} style={{
                     width: 14, height: 14, borderRadius: '50%', border: `1px solid ${C.ink3}`,
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 9, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, flexShrink: 0,
+                    fontSize: 9, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, flexShrink: 0,
                 }}>i</span>
             )}
             <span style={{ flex: 1 }} />
@@ -304,28 +313,27 @@ function StatusPill({ status, tone = 'default' }) {
         critical: 'Critical',
     };
     const palette = {
-        pending: { fg: C.saffron, bg: C.saffronTint, dot: C.saffron },
-        pending_review: { fg: C.saffron, bg: C.saffronTint, dot: C.saffron },
-        awaiting_location: { fg: C.saffron, bg: C.saffronTint, dot: C.saffron },
-        new: { fg: C.greenInk, bg: C.greenWash, dot: C.green },
-        in_progress: { fg: '#795008', bg: '#F3E7C8', dot: C.saffron },
-        resolved: { fg: C.greenInk, bg: C.greenTint, dot: C.green },
-        completed: { fg: C.greenInk, bg: C.greenTint, dot: C.green },
-        closed: { fg: C.ink3, bg: C.paperDeep, dot: C.ink3 },
-        critical: { fg: C.red, bg: '#FDEDEC', dot: C.red },
-    }[normalized] || { fg: C.ink2, bg: C.paperDeep, dot: C.ink3 };
+        pending: { fg: C.amber, bg: C.amberTint, dot: C.amber },
+        pending_review: { fg: C.amber, bg: C.amberTint, dot: C.amber },
+        awaiting_location: { fg: C.amber, bg: C.amberTint, dot: C.amber },
+        new: { fg: C.slate, bg: C.slateTint, dot: C.slate },
+        in_progress: { fg: C.amber, bg: C.amberTint, dot: C.amber },
+        resolved: { fg: C.green, bg: C.greenTint, dot: C.green },
+        completed: { fg: C.green, bg: C.greenTint, dot: C.green },
+        closed: { fg: C.grey, bg: C.greyTint, dot: C.grey },
+        critical: { fg: C.red, bg: C.redTint, dot: C.red },
+    }[normalized] || { fg: C.grey, bg: C.greyTint, dot: C.grey };
 
     return (
         <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
-            padding: tone === 'small' ? '3px 9px' : '5px 12px',
-            borderRadius: 999, border: `1px solid ${palette.bg}`,
+            display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+            padding: tone === 'small' ? '2px 8px' : '5px 12px',
+            borderRadius: 20,
             background: palette.bg, color: palette.fg,
-            fontSize: tone === 'small' ? 10 : 12, fontWeight: 700,
-            fontFamily: '"Inter", "Noto Sans Devanagari", system-ui, sans-serif',
-            letterSpacing: '0.02em',
+            fontSize: tone === 'small' ? 11 : 12.5, fontWeight: 600,
+            fontFamily: '"Public Sans", "Noto Sans Devanagari", system-ui, sans-serif',
         }}>
-            <span style={{ width: tone === 'small' ? 6 : 7, height: tone === 'small' ? 6 : 7, borderRadius: '50%', background: palette.dot, flexShrink: 0 }} />
+            <span style={{ width: tone === 'small' ? 5 : 6, height: tone === 'small' ? 5 : 6, borderRadius: '50%', background: palette.dot, flexShrink: 0 }} />
             {labels[normalized] || String(status || 'new').replace(/_/g, ' ')}
         </span>
     );
@@ -334,76 +342,83 @@ function StatusPill({ status, tone = 'default' }) {
 // ─── Drawer header ───────────────────────────────────────────
 // "Back" closes the drawer. The surface is styled as the main console pane
 // from the PDF, while keeping every existing action wired to the same handlers.
-function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, onToggleFollow, followBusy, onCopyRef }) {
+function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, onToggleFollow, followBusy, onCopyRef, onDelete, canDelete }) {
     const normalizedStatus = String(status || 'new').toLowerCase();
 
     return (
         <div style={{
             flexShrink: 0,
             background: C.paper, borderBottom: `1px solid ${C.hair}`,
-            display: 'flex', alignItems: 'center', gap: 12,
-            padding: '14px 32px',
+            display: 'flex', alignItems: 'center', gap: 14, rowGap: 8, flexWrap: 'wrap',
+            padding: '18px 28px 16px',
         }}>
             <button onClick={onClose} style={{
-                border: `1px solid ${C.hair}`, borderRadius: 9, background: C.surface, cursor: 'pointer', flexShrink: 0,
-                display: 'flex', alignItems: 'center', gap: 7, padding: '9px 15px',
-                fontFamily: 'inherit', fontSize: 14, fontWeight: 600, color: C.ink2,
+                border: `1px solid ${C.hair}`, borderRadius: 8, background: 'none', cursor: 'pointer', flexShrink: 0,
+                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px',
+                fontFamily: 'inherit', fontSize: 13, fontWeight: 500, color: C.ink2,
                 outline: 'none',
             }}>
-                <Icon name="chevL" size={15} color={C.ink2} stroke={1.9} /> Back to Briefcase
+                <Icon name="chevL" size={14} color={C.ink2} stroke={2} /> Back to Briefcase
             </button>
 
-            <span style={{ width: 1, height: 26, background: C.hair, margin: '0 14px', flexShrink: 0 }} />
+            <span style={{ width: 1, height: 22, background: C.hair, flexShrink: 0 }} />
 
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flexWrap: 'wrap' }}>
-                <span style={{
-                    fontFamily: '"Source Serif 4", Georgia, serif',
-                    fontSize: 38, lineHeight: 1, fontWeight: 800, color: C.ink, whiteSpace: 'nowrap',
-                    letterSpacing: '-0.03em',
+            <div style={{ flex: '1 1 260px', display: 'flex', alignItems: 'center', gap: 10, rowGap: 6, minWidth: 0, flexWrap: 'wrap' }}>
+                <h1 style={{
+                    margin: 0, fontFamily: '"Source Serif 4", Georgia, serif',
+                    fontSize: 22, lineHeight: 1.1, fontWeight: 600, color: C.ink,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    minWidth: 0, maxWidth: '46%', flexShrink: 1,
                 }}>
                     Case {caseRef}
-                </span>
+                </h1>
                 <span style={{
-                    padding: '5px 11px', borderRadius: 999, border: `1px solid ${C.hair}`,
-                    color: C.ink3, background: C.surface, fontSize: 10,
-                    fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.12em', textTransform: 'uppercase',
+                    flexShrink: 0,
+                    padding: '3px 10px', borderRadius: 20, border: `1px solid ${C.hair}`,
+                    color: C.ink3, fontSize: 10.5,
+                    fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', letterSpacing: '0.06em', textTransform: 'uppercase',
                 }}>
                     Record open
                 </span>
-                <Icon name="chevR" size={14} color={C.ink3} stroke={1.7} />
+                <Icon name="chevR" size={14} color={C.ink3} stroke={2} />
                 <StatusPill status={normalizedStatus} />
 
                 {isUncategorised && (
                     <span style={{
-                        padding: '4px 10px', borderRadius: 999, background: C.saffronTint, color: C.saffron,
-                        fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-                        border: `1px solid ${C.saffronTint}`, whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                        padding: '3px 9px', borderRadius: 20, background: C.amberTint, color: C.amber,
+                        fontSize: 10.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
+                        whiteSpace: 'nowrap',
                     }}>uncategorised</span>
                 )}
             </div>
 
-            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                 <button
                     onClick={onToggleFollow}
                     disabled={followBusy}
                     style={{
-                        width: 36, height: 36, borderRadius: 9, border: `1px solid ${isFollowing ? C.green : C.hair}`,
-                        background: C.surface, cursor: followBusy ? 'not-allowed' : 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        border: `1px solid ${isFollowing ? C.green : C.hair}`, borderRadius: 8,
+                        background: 'none', padding: '8px 12px',
+                        fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
+                        color: isFollowing ? C.green : C.ink2,
+                        cursor: followBusy ? 'not-allowed' : 'pointer',
                         opacity: followBusy ? 0.6 : 1,
                     }}
                     title={isFollowing ? 'Following - click to unfollow' : 'Follow this case'}
                 >
-                    <Icon name="star" size={15} color={isFollowing ? C.green : C.ink2} filled={isFollowing} />
+                    <Icon name="star" size={14} color={isFollowing ? C.green : C.ink2} filled={isFollowing} />
+                    {isFollowing ? 'Following' : 'Follow'}
                 </button>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <button style={{
-                            width: 36, height: 36, borderRadius: 9, border: `1px solid ${C.hair}`,
-                            background: C.surface, cursor: 'pointer',
+                            border: `1px solid ${C.hair}`, borderRadius: 8,
+                            background: 'none', padding: '8px 10px', color: C.ink2, cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }} title="More options">
-                            <Icon name="dots" size={15} color={C.ink2} />
+                            <Icon name="dots" size={14} color={C.ink2} />
                         </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" style={{ fontFamily: 'inherit' }}>
@@ -411,6 +426,12 @@ function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, 
                             <Icon name="doc" size={12} color={C.ink2} style={{ marginRight: 8 }} />
                             Copy case reference
                         </DropdownMenuItem>
+                        {canDelete && (
+                            <DropdownMenuItem onClick={onDelete} style={{ color: C.red }}>
+                                <Icon name="trash" size={12} color={C.red} style={{ marginRight: 8 }} />
+                                Delete case
+                            </DropdownMenuItem>
+                        )}
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
@@ -449,119 +470,77 @@ function inferCaseDisplayTitle(current, meta) {
     return location && category ? `${category} in ${location}` : category || 'Citizen grievance';
 }
 
-function CaseMetaRow({ phone, createdAt, language }) {
-    const dateStr = createdAt
-        ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-        : '–';
+function CaseMetaRow({ phone, createdAt, updatedAt, language }) {
+    const fmt = (d) => (d ? d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '–');
+    const dateStr = fmt(createdAt);
     const timeStr = createdAt
         ? createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ' IST'
         : '–';
+    const dot = <span style={{ color: C.hair }}>·</span>;
     return (
         <div style={{
-            padding: '15px 32px',
+            padding: '0 28px 16px',
             display: 'flex',
             alignItems: 'center',
-            gap: 14,
+            gap: 8,
             borderBottom: `1px solid ${C.hair}`,
             background: C.paper,
+            fontSize: 12.5,
+            color: C.ink2,
             flexWrap: 'wrap',
         }}>
-            <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                fontSize: 13.5, color: C.ink2, fontWeight: 700,
-                whiteSpace: 'nowrap',
-            }}>
-                <Icon name="whatsapp" size={15} color="#1BA96D" stroke={1.8} />
-                WhatsApp
+            <Icon name="whatsapp" size={14} color="#3EAE5C" stroke={2} />
+            <span>WhatsApp</span>
+            {language && <>{dot}<span>{language}</span></>}
+            {phone && <>{dot}<span className="mono" style={{ fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>···{phone.slice(-4)}</span></>}
+            {dot}<span>Received {dateStr}, {timeStr}</span>
+            <span style={{ marginLeft: 'auto', color: C.ink3 }}>
+                Case created {fmt(createdAt)} {dot} Last updated {fmt(updatedAt)}
             </span>
-            {language && (
-                <>
-                    <span style={{ color: C.hair, fontSize: 12 }}>·</span>
-                    <span style={{ fontSize: 13.5, color: C.ink2, fontWeight: 700, whiteSpace: 'nowrap' }}>{language}</span>
-                </>
-            )}
-            {phone && (
-                <>
-                    <span style={{ color: C.hair, fontSize: 12 }}>·</span>
-                    <span style={{ fontSize: 13.5, color: C.ink2, fontWeight: 700, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>...{phone.slice(-4)}</span>
-                </>
-            )}
-            <span style={{ color: C.hair, fontSize: 12 }}>·</span>
-            <span style={{ fontSize: 13.5, color: C.ink2, fontWeight: 700, whiteSpace: 'nowrap' }}>Received {dateStr}, {timeStr}</span>
         </div>
     );
 }
 
-function CaseHero({ current, meta, priority, onPriorityChange }) {
+// Active-complaint summary — concise operational header for the selected
+// complaint (title + provenance chips + AI-confidence note). Priority is
+// shown read-only here; it is edited in the action panel.
+function CaseHero({ current, meta }) {
     const category = current.problem_subdomain || current.problem_domain || current.category || 'Uncategorised';
     const location = meta.matched_value || current.location || 'Location unknown';
     const assembly = current.assembly || meta.assembly_constituency || '';
-    const priorityLabel = {
-        critical: 'Critical priority',
-        high: 'High priority',
-        low: 'Low priority',
-        standard: 'Standard priority',
-    }[priority || 'standard'] || 'Standard priority';
+    const priority = current.priority || (current.is_critical ? 'critical' : 'standard');
+    const priorityLabel = { critical: 'Critical', high: 'High', low: 'Low', standard: 'Standard' }[priority] || 'Standard';
+    const priorityColor = { critical: C.red, high: C.saffron, standard: C.ink3, low: C.ink3 }[priority] || C.ink3;
     const title = inferCaseDisplayTitle(current, meta);
+    const geoConf = String(meta.geography_confidence || '').toLowerCase();
+    const aiNote = (!geoConf || geoConf === '–') ? ''
+        : (['exact', 'high', 'alias'].includes(geoConf) ? 'High confidence classification'
+            : ['fuzzy', 'speech_phonetic', 'medium'].includes(geoConf) ? 'Medium confidence classification' : '');
+
+    const chip = {
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        fontSize: 12, border: `1px solid ${C.hair}`, background: C.card, color: C.ink2,
+        padding: '4px 10px', borderRadius: 20, whiteSpace: 'nowrap',
+    };
 
     return (
-        <div style={{ padding: '26px 32px 22px', background: C.paper }}>
-            <h1 style={{
-                margin: 0, fontFamily: '"Source Serif 4", Georgia, serif',
-                fontSize: 30, lineHeight: 1.12, fontWeight: 800, color: C.ink,
-                letterSpacing: '-0.025em',
+        <div style={{ marginBottom: 18 }}>
+            <h2 style={{
+                margin: '0 0 8px', fontFamily: '"Source Serif 4", Georgia, serif',
+                fontSize: 19, fontWeight: 600, color: C.ink, lineHeight: 1.25,
             }}>
                 {title}
-            </h1>
-            <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '5px 12px', borderRadius: 999, background: '#FFFDF7',
-                    border: `1px solid ${C.hair}`, color: C.ink2,
-                    fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap',
-                }}>
-                    <Icon name="doc" size={13} color={C.ink3} /> {category}
+            </h2>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center' }}>
+                <span style={chip}><Icon name="doc" size={13} color={C.ink3} /> {category}</span>
+                <span style={chip}><Icon name="pin" size={13} color={C.ink3} /> {location}</span>
+                {assembly && <span style={chip}>{assembly}</span>}
+                <span style={{ fontSize: 11.5, fontWeight: 600, border: `1px solid ${priorityColor}`, color: priorityColor, padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>
+                    {priorityLabel} priority
                 </span>
-                <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '5px 12px', borderRadius: 999, background: '#FFFDF7',
-                    border: `1px solid ${C.hair}`, color: C.ink2,
-                    fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap',
-                }}>
-                    <Icon name="pin" size={13} color={C.ink3} /> {location}
-                </span>
-                {assembly && (
-                    <span style={{
-                        padding: '5px 12px', borderRadius: 999, background: '#FFFDF7',
-                        border: `1px solid ${C.hair}`, color: C.ink2,
-                        fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap',
-                    }}>
-                        {assembly}
-                    </span>
-                )}
-                <span style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '4px 11px', borderRadius: 999, background: C.paper,
-                    border: `1px solid ${C.ink3}`, color: C.ink2,
-                    fontSize: 12.5, fontWeight: 800, whiteSpace: 'nowrap',
-                }}>
-                    <select value={priority || 'standard'} onChange={(e) => onPriorityChange(e.target.value)} style={{
-                        border: 'none', background: 'transparent', padding: 0,
-                        color: C.ink2, fontSize: 12.5, fontWeight: 800, fontFamily: 'inherit', outline: 'none',
-                    }}>
-                        <option value="critical">Critical priority</option>
-                        <option value="high">High priority</option>
-                        <option value="standard">Standard priority</option>
-                        <option value="low">Low priority</option>
-                    </select>
-                </span>
-                {priority !== 'standard' && (
-                    <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 5,
-                        padding: '5px 12px', borderRadius: 999, color: C.greenInk,
-                        fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap',
-                    }}>
-                        <Icon name="star" size={13} color={C.greenInk} filled /> {priorityLabel}
+                {aiNote && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.green, marginLeft: 4 }}>
+                        <Icon name="star" size={13} color={C.green} /> {aiNote}
                     </span>
                 )}
             </div>
@@ -594,7 +573,7 @@ function ContactQueueNotice({ current }) {
                 <span style={monoLbl}>Other messages from this contact · not yet a complaint</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     {distinctIssueCount > 0 && (
-                        <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                        <span style={{ fontSize: 10, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                             {distinctIssueCount} issue{distinctIssueCount === 1 ? '' : 's'} tracked
                         </span>
                     )}
@@ -617,10 +596,10 @@ function ContactQueueNotice({ current }) {
                 {bufferedItems.map((item) => (
                     <div key={item.id} style={{ border: `1px solid ${C.greenTint}`, background: C.greenWash, padding: '10px 12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.greenInk, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                            <span style={{ fontSize: 10, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.greenInk, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                                 Possibly distinct issue
                             </span>
-                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3 }}>
+                            <span style={{ fontSize: 10, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3 }}>
                                 {item.created_at ? new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
                             </span>
                         </div>
@@ -633,10 +612,10 @@ function ContactQueueNotice({ current }) {
                 {suppressedItems.map((item, idx) => (
                     <div key={`suppressed-${idx}`} style={{ border: `1px solid ${C.red}`, background: '#FEF3F2', padding: '10px 12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
-                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.red, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                            <span style={{ fontSize: 10, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.red, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                                 Suppressed after spam threshold
                             </span>
-                            <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: C.ink3 }}>
+                            <span style={{ fontSize: 10, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3 }}>
                                 {item.created_at ? new Date(item.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
                             </span>
                         </div>
@@ -659,52 +638,63 @@ function ContactQueueNotice({ current }) {
 // hand, so there is deliberately no "add complaint" control here.
 function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase }) {
     const ordered = [...threadCases].slice().reverse();
+    const STATE_LABEL = {
+        new: 'New', pending: 'Pending', pending_review: 'Pending Review', in_progress: 'In Progress',
+        resolved: 'Resolved', completed: 'Resolved', closed: 'Closed',
+    };
     return (
-        <div style={{ padding: '16px 32px 4px', background: C.paper, borderTop: `1px solid ${C.hair}`, borderBottom: `1px solid ${C.hair}` }}>
+        <div style={{ padding: '16px 28px 0', background: C.paper }}>
             <div style={{
-                marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-                color: C.ink3, fontFamily: '"JetBrains Mono", monospace',
-                fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase',
-                fontWeight: 700,
+                display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
+                fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', color: C.ink3, textTransform: 'uppercase',
             }}>
-                <span>Complaints in this case</span>
-                <span>({ordered.length} · Same location, 6 weeks)</span>
+                Complaints in this case
+                <span style={{ fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontWeight: 400 }}>
+                    ({ordered.length} · same location, 6 weeks)
+                </span>
             </div>
-            <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 14 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', overflowX: 'auto', paddingBottom: 2 }}>
                 {ordered.map((item, idx) => {
                     const isActive = item.id === activeCaseId;
+                    const st = String(item.status || 'new').toLowerCase();
+                    const flagged = st === 'awaiting_location';
+                    const pillColor = flagged ? C.amber
+                        : st === 'resolved' || st === 'completed' ? C.green
+                        : st === 'in_progress' || st === 'pending' || st === 'pending_review' ? C.amber
+                        : st === 'closed' ? C.grey : C.slate;
                     return (
                         <button
                             key={item.id}
                             type="button"
                             onClick={() => onSelectCase(item)}
                             style={{
-                                position: 'relative', padding: '14px 16px', flexShrink: 0, textAlign: 'left',
-                                width: 190, height: 98,
-                                borderRadius: 10,
+                                textAlign: 'left', minWidth: 150, flexShrink: 0,
+                                padding: '10px 14px', borderRadius: 10,
                                 border: `1px solid ${isActive ? C.ink : C.hair}`,
-                                background: isActive ? '#FFFDF7' : C.paper,
-                                color: C.ink,
-                                cursor: 'pointer', fontFamily: 'inherit',
-                                display: 'flex', flexDirection: 'column', gap: 6,
-                                boxShadow: 'none',
+                                background: isActive ? C.card : 'transparent',
+                                cursor: 'pointer', fontFamily: 'inherit', color: C.ink,
                             }}
                         >
-                            <span style={{
-                                fontSize: 9, color: C.ink3, fontFamily: '"JetBrains Mono", monospace',
-                                textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700,
-                            }}>
-                                Complaint {idx + 1}
-                            </span>
-                            <span style={{ fontSize: 15, color: C.ink, fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1 }}>
-                                {formatShortDate(item.created_at) || 'No date'}
-                            </span>
-                            <StatusPill status={item.status || 'new'} tone="small" />
-                            {isActive && (
-                                <span style={{ position: 'absolute', top: 10, right: 10 }}>
-                                    <Icon name="check" size={12} color={C.saffron} stroke={2.5} />
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                <span style={{
+                                    fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontSize: 10.5,
+                                    color: isActive ? C.ink : C.ink3,
+                                }}>
+                                    COMPLAINT {idx + 1}
                                 </span>
-                            )}
+                                {flagged && <Icon name="external" size={13} color={C.amber} stroke={2} />}
+                            </div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: isActive ? C.ink : C.ink2, marginTop: 5 }}>
+                                {formatShortDate(item.created_at) || 'No date'}
+                            </div>
+                            <div style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 6,
+                                fontSize: 11, fontWeight: 600, color: pillColor,
+                                background: `${pillColor}1A`, padding: '2px 8px', borderRadius: 20,
+                            }}>
+                                <span style={{ width: 5, height: 5, borderRadius: '50%', background: pillColor }} />
+                                {flagged ? 'Needs location' : (STATE_LABEL[st] || 'New')}
+                            </div>
                         </button>
                     );
                 })}
@@ -713,55 +703,61 @@ function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase }) {
     );
 }
 
+// ─── Collapsible detail row (Main.dc.html accordion treatment) ─────────
+// One contained card; each row is a header button + chevron with the
+// section body nested below when open. Section components render `bare`
+// (no own chrome) inside.
+function AccordionRow({ icon, label, defaultOpen = false, last = false, forwardedRef, forceOpenKey = 0, children }) {
+    const [open, setOpen] = useState(defaultOpen);
+    useEffect(() => { if (forceOpenKey) setOpen(true); }, [forceOpenKey]);
+    return (
+        <div ref={forwardedRef} style={{ borderBottom: last ? 'none' : `1px solid ${C.hair}` }}>
+            <button type="button" onClick={() => setOpen((v) => !v)} style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '14px 18px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer',
+                fontFamily: 'inherit',
+            }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 600, color: C.ink2 }}>
+                    {icon && <Icon name={icon} size={14} color="currentColor" stroke={2} />}
+                    {label}
+                </span>
+                <Icon name="chevD" size={14} color={C.ink3} stroke={2} />
+            </button>
+            {open && <div style={{ padding: '0 18px 16px' }}>{children}</div>}
+        </div>
+    );
+}
+
 // ─── 1 · Citizen complaint ────────────────────────────────────
 // The citizen's own words are the source of truth. This never shows AI text
 // in place of what the citizen actually sent — translation/summary live in
 // the AI Understanding section below, clearly labelled as AI-generated.
-function CitizenComplaintSection({ current, meta, actionRow }) {
+function CitizenComplaintSection({ current, meta }) {
     const [showAllFollowups, setShowAllFollowups] = useState(false);
     const events = Array.isArray(meta.contact_message_events) ? meta.contact_message_events : [];
     const visibleEvents = showAllFollowups ? events : events.slice(-2);
     const hiddenCount = Math.max(0, events.length - visibleEvents.length);
     const createdAt = current.created_at ? new Date(current.created_at) : null;
+    const lang = meta.detected_language || meta.language || '';
 
     return (
-        <div style={{ ...sec, padding: '20px 20px 18px' }}>
-            <SectionHeading
-                n={1}
-                label="Raw complaint (from citizen)"
-                trailing={(meta.detected_language || meta.language) ? (
-                    <span style={{ fontSize: 11, color: C.ink3 }}>
-                        Original language: <strong style={{ color: C.ink }}>{meta.detected_language || meta.language}</strong>
-                    </span>
-                ) : null}
-            />
-            <div style={{
-                position: 'relative', padding: '16px 18px 16px 40px',
-                border: `1px solid ${C.hair}`, background: C.surface,
-            }}>
-                <span style={{
-                    position: 'absolute', top: 10, left: 14, fontSize: 26, lineHeight: 1,
-                    color: C.hairStrong, fontFamily: 'Georgia, serif',
-                }}>&ldquo;</span>
-                <div style={{
-                    fontFamily: '"Source Serif 4", Georgia, serif',
-                    fontSize: 16.5, lineHeight: 1.6, color: C.ink, whiteSpace: 'pre-wrap',
-                }}>
-                    {current.raw_message || 'No message content.'}
-                </div>
+        <>
+            <div style={{ background: C.paper, borderRadius: 8, padding: '14px 16px', fontSize: 14, fontStyle: 'italic', color: C.ink, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                &ldquo;{current.raw_message || 'No message content.'}&rdquo;
             </div>
-            <div style={{ marginTop: 10, fontSize: 11, color: C.ink3 }}>
+            <div style={{ fontSize: 11.5, color: C.ink3, marginTop: 8 }}>
                 Received via WhatsApp{createdAt ? ` · ${createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} · ${createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} IST` : ''}
+                {lang ? ` · original language: ${lang}` : ''}
             </div>
 
             {events.length > 0 && (
-                <div style={{ marginTop: 18 }}>
+                <div style={{ marginTop: 14 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 8 }}>
                         <span style={{ ...monoLbl, marginBottom: 0 }}>Citizen follow-ups · {events.length}</span>
                         {hiddenCount > 0 && !showAllFollowups && (
                             <button type="button" onClick={() => setShowAllFollowups(true)} style={{
                                 background: 'none', border: 'none', color: C.green, fontSize: 11,
-                                fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: 0,
+                                fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0,
                             }}>
                                 View full conversation ({events.length})
                             </button>
@@ -770,7 +766,7 @@ function CitizenComplaintSection({ current, meta, actionRow }) {
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                         {visibleEvents.map((event, idx) => (
                             <div key={idx} style={{ padding: '8px 0', borderTop: idx === 0 ? 'none' : `1px solid ${C.hair}` }}>
-                                <div style={{ fontSize: 10, color: C.ink3, marginBottom: 3, fontFamily: '"JetBrains Mono", monospace' }}>
+                                <div style={{ fontSize: 10, color: C.ink3, marginBottom: 3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>
                                     {event.created_at
                                         ? new Date(event.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) + ' · ' + new Date(event.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
                                         : ''}
@@ -781,9 +777,7 @@ function CitizenComplaintSection({ current, meta, actionRow }) {
                     </div>
                 </div>
             )}
-
-            {actionRow}
-        </div>
+        </>
     );
 }
 
@@ -847,7 +841,7 @@ function AISuggestionBanner({ suggestion, onAccept, accepting }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
                 <Icon name="sparkle" size={13} color={C.saffron} stroke={2} />
                 <span style={{
-                    fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5,
+                    fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontSize: 9.5,
                     letterSpacing: '0.18em', color: C.saffron, textTransform: 'uppercase', fontWeight: 700,
                 }}>Sansad AI · suggested triage</span>
             </div>
@@ -863,7 +857,7 @@ function AISuggestionBanner({ suggestion, onAccept, accepting }) {
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                 {suggestion.detected_language && (
                     <span style={{
-                        fontFamily: '"JetBrains Mono", monospace', fontSize: 9.5,
+                        fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontSize: 9.5,
                         background: 'rgba(245,239,224,0.14)', color: '#F5EFE0',
                         padding: '2px 7px', letterSpacing: '0.06em',
                     }}>language · {suggestion.detected_language}</span>
@@ -895,6 +889,7 @@ function AISuggestionBanner({ suggestion, onAccept, accepting }) {
 function AiUnderstandingSection({
     current, meta, displaySummary, followupCount, suggestedTriage, onAcceptSuggestion, accepting,
     translationState, onTranslate, geoLocation, geoAssembly, setGeoLocation, setGeoAssembly, onSaveGeo, savingGeo, geoLocked,
+    part = 'ai',
 }) {
     const detectedLanguage = meta.detected_language || meta.language || '';
     const needsTranslation = detectedLanguage && detectedLanguage.trim().toLowerCase() !== 'english';
@@ -909,17 +904,46 @@ function AiUnderstandingSection({
         ['Geography confidence', meta.geography_confidence || '–'],
     ];
 
-    const aiGeneratedBadge = (
-        <span style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-            padding: '2px 9px', background: C.greenTint, color: C.greenInk,
-        }}>AI generated</span>
-    );
+    // ── Location editor (its own accordion row in Main.dc.html) ──
+    if (part === 'location') {
+        return (
+            <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ ...monoLbl, marginBottom: 0 }}>Verify or correct</span>
+                    {geoLocked && (
+                        <span style={{
+                            fontSize: 10, fontWeight: 600, padding: '2px 8px', background: C.greenTint, color: C.greenInk,
+                            textTransform: 'uppercase', letterSpacing: '0.04em', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4,
+                        }}>
+                            <Icon name="check" size={9} color={C.greenInk} stroke={2.5} /> Locked
+                        </span>
+                    )}
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', border: `1px solid ${C.hair}`, borderRadius: 8, background: C.card, flex: '1 1 150px', minWidth: 130 }}>
+                        <Icon name="pin" size={12} color={C.ink3} />
+                        <input value={geoLocation} onChange={(e) => setGeoLocation(e.target.value)} placeholder="Village / ward"
+                            style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 12.5, color: C.ink, fontFamily: 'inherit', minWidth: 0 }} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', border: `1px solid ${C.hair}`, borderRadius: 8, background: C.card, flex: '1 1 150px', minWidth: 130 }}>
+                        <input value={geoAssembly} onChange={(e) => setGeoAssembly(e.target.value)} placeholder="Assembly constituency"
+                            style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 12.5, color: C.ink, fontFamily: 'inherit', minWidth: 0 }} />
+                    </div>
+                    <button onClick={onSaveGeo} disabled={savingGeo} style={{
+                        padding: '8px 14px', background: C.ink, color: C.card, border: 'none', borderRadius: 8, flexShrink: 0,
+                        fontSize: 12, fontWeight: 600, cursor: savingGeo ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                        display: 'inline-flex', alignItems: 'center', gap: 5, opacity: savingGeo ? 0.7 : 1,
+                    }}>
+                        {savingGeo && <Loader2 size={11} className="animate-spin" />}
+                        Save
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div style={sec}>
-            <SectionHeading n={2} label={needsTranslation ? 'AI translation (English)' : 'AI understanding'} trailing={aiGeneratedBadge} />
-
+        <>
             {suggestedTriage && (
                 <AISuggestionBanner suggestion={suggestedTriage} onAccept={onAcceptSuggestion} accepting={accepting} />
             )}
@@ -959,87 +983,50 @@ function AiUnderstandingSection({
             )}
 
             <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '9px 20px',
-                padding: '10px 0', borderTop: `1px solid ${C.hair}`, borderBottom: `1px solid ${C.hair}`, marginBottom: 14,
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px 20px',
+                padding: '4px 0 12px',
             }}>
                 {rows.map(([label, value]) => (
                     <div key={label} style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 9, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"JetBrains Mono", monospace', marginBottom: 2 }}>{label}</div>
-                        <div style={{ fontSize: 12.5, color: C.ink2, fontWeight: 500, overflowWrap: 'anywhere' }}>{value}</div>
+                        <div style={{ fontSize: 10, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', marginBottom: 2 }}>{label}</div>
+                        <div style={{ fontSize: 13, color: C.ink, fontWeight: 500, overflowWrap: 'anywhere' }}>{value}</div>
                     </div>
                 ))}
             </div>
 
             {displaySummary && (
-                <div style={{ padding: '9px 11px', background: C.greenWash, border: `1px solid ${C.greenTint}`, marginBottom: 14 }}>
+                <div style={{ padding: '10px 12px', background: C.greenTint, borderRadius: 8, marginTop: 4 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                            <Icon name="sparkle" size={10} color={C.green} stroke={2} />
-                            <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 9, letterSpacing: '0.14em', color: C.greenInk, textTransform: 'uppercase', fontWeight: 700 }}>AI summary</span>
+                            <Icon name="sparkle" size={11} color={C.green} stroke={2} />
+                            <span style={{ fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', fontSize: 10, letterSpacing: '0.06em', color: C.greenInk, textTransform: 'uppercase' }}>AI summary</span>
                         </span>
                         {followupCount > 1 && (
-                            <span style={{ fontSize: 10, color: C.ink3, fontFamily: '"JetBrains Mono", monospace' }}>Based on {followupCount} citizen messages</span>
+                            <span style={{ fontSize: 10, color: C.ink3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>Based on {followupCount} citizen messages</span>
                         )}
                     </div>
-                    <div style={{ fontSize: 12, color: C.ink2, lineHeight: 1.5 }}>{displaySummary}</div>
+                    <div style={{ fontSize: 12.5, color: C.ink2, lineHeight: 1.55 }}>{displaySummary}</div>
                 </div>
             )}
-
-            <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span style={{ ...monoLbl, marginBottom: 0 }}>Location · verify or correct</span>
-                    {geoLocked && (
-                        <span style={{
-                            fontSize: 10, fontWeight: 700, padding: '2px 7px', background: C.greenWash, color: C.greenInk,
-                            textTransform: 'uppercase', letterSpacing: '0.06em', display: 'inline-flex', alignItems: 'center', gap: 4,
-                        }}>
-                            <Icon name="check" size={9} color={C.greenInk} stroke={2.5} /> Locked
-                        </span>
-                    )}
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 9px', border: `1px solid ${C.hair}`, background: C.surface, flex: '1 1 150px', minWidth: 130 }}>
-                        <Icon name="pin" size={10} color={C.ink3} />
-                        <input value={geoLocation} onChange={(e) => setGeoLocation(e.target.value)} placeholder="Village / ward"
-                            style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 12, color: C.ink, fontFamily: 'inherit', minWidth: 0 }} />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 9px', border: `1px solid ${C.hair}`, background: C.surface, flex: '1 1 150px', minWidth: 130 }}>
-                        <input value={geoAssembly} onChange={(e) => setGeoAssembly(e.target.value)} placeholder="Assembly constituency"
-                            style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 12, color: C.ink, fontFamily: 'inherit', minWidth: 0 }} />
-                    </div>
-                    <button onClick={onSaveGeo} disabled={savingGeo} style={{
-                        padding: '6px 13px', background: C.ink, color: C.paper, border: 'none', flexShrink: 0,
-                        fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
-                        cursor: savingGeo ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                        display: 'inline-flex', alignItems: 'center', gap: 5, opacity: savingGeo ? 0.7 : 1,
-                    }}>
-                        {savingGeo && <Loader2 size={11} className="animate-spin" />}
-                        Save
-                    </button>
-                </div>
-            </div>
-        </div>
+        </>
     );
 }
 
 // ─── 3 · Attachments ──────────────────────────────────────────
 function AttachmentsSection({ media, caseId }) {
     return (
-        <div style={sec}>
-            <span style={{ ...monoLbl, marginBottom: 12 }}>Attachments (from citizen)</span>
-            {media && media.length > 0 ? (
-                <BriefcaseSourceMediaViewer caseId={caseId} media={media} />
-            ) : (
-                <div style={{
-                    border: `1px solid ${C.hair}`, background: C.surface, padding: '26px 16px',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 4,
-                }}>
-                    <Icon name="doc" size={18} color={C.ink3} />
-                    <div style={{ fontSize: 13, fontWeight: 600, color: C.ink2, marginTop: 4 }}>No attachments</div>
-                    <div style={{ fontSize: 11.5, color: C.ink3 }}>If the citizen sends images/documents, they will appear here.</div>
-                </div>
-            )}
-        </div>
+        media && media.length > 0 ? (
+            <BriefcaseSourceMediaViewer caseId={caseId} media={media} />
+        ) : (
+            <div style={{
+                border: `1px solid ${C.hair}`, borderRadius: 8, background: C.paper, padding: '22px 16px',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 4,
+            }}>
+                <Icon name="doc" size={16} color={C.ink3} />
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: C.ink2, marginTop: 4 }}>No attachments</div>
+                <div style={{ fontSize: 11.5, color: C.ink3 }}>If the citizen sends images/documents, they will appear here.</div>
+            </div>
+        )
     );
 }
 
@@ -1150,7 +1137,7 @@ function StatusActions({ currentStatus, onStatusChange, updating }) {
 }
 
 // ─── Activity timeline (case-level; shows the selected complaint's history) ─
-function ActivityTimeline({ activities, loading }) {
+function ActivityTimeline({ activities, loading, bare }) {
     const iconFor = (action = '') => {
         if (action.includes('creat'))  return 'bolt';
         if (action.includes('translat') || action.includes('summar') || action.includes('classif')) return 'sparkle';
@@ -1164,8 +1151,8 @@ function ActivityTimeline({ activities, loading }) {
         return 'clock';
     };
     return (
-        <div style={asideSec}>
-            <span style={monoLbl}>Activity timeline</span>
+        <div style={bare ? undefined : asideSec}>
+            {!bare && <span style={monoLbl}>Activity timeline</span>}
             {loading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
                     <Loader2 size={16} color={C.ink3} className="animate-spin" />
@@ -1195,7 +1182,7 @@ function ActivityTimeline({ activities, loading }) {
                                 </span>
                             </div>
                             <div style={{
-                                fontFamily: '"JetBrains Mono", monospace',
+                                fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace',
                                 fontSize: 10, color: C.ink3, whiteSpace: 'nowrap',
                             }}>
                                 {act.created_at
@@ -1236,11 +1223,11 @@ function GovtSyncCopyField({ label, value }) {
     return (
         <div style={{ marginBottom: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <span style={{ fontSize: 9.5, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</span>
+                <span style={{ fontSize: 9.5, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</span>
                 <button
                     type="button"
                     onClick={() => { navigator.clipboard?.writeText(value); toast.success(`${label} copied`); }}
-                    style={{ fontSize: 10, color: C.green, background: 'none', border: 'none', cursor: 'pointer', fontFamily: '"JetBrains Mono", monospace' }}
+                    style={{ fontSize: 10, color: C.green, background: 'none', border: 'none', cursor: 'pointer', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}
                 >
                     copy
                 </button>
@@ -1288,99 +1275,112 @@ function formatGovtCheckedAt(value) {
     return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-function GovernmentJourneyPanel({ current }) {
+function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshing }) {
     const govtStatus = String(current.govt_status || 'not_forwarded').toLowerCase();
     const alreadyFiled = isGovtAlreadyFiled(current);
     const submitted = alreadyFiled || govtStatus === 'pending_staff_submit';
+
+    // Not filed yet — compact dashed note (mirrors Main.dc.html "not filed" state).
+    if (!submitted) {
+        return (
+            <div style={{
+                background: C.card, border: `1px dashed ${C.hair}`, borderRadius: 12,
+                padding: '18px 22px', marginBottom: 16, color: C.ink2, fontSize: 13, lineHeight: 1.5,
+            }}>
+                Not yet filed with the government portal. Escalate this complaint from the action panel to open a filing session.
+            </div>
+        );
+    }
+
     const activeIndex = alreadyFiled
         ? (['resolved', 'rejected'].includes(govtStatus) ? 4 : ['under_review', 'escalated'].includes(govtStatus) ? 3 : 2)
-        : (submitted ? 1 : 0);
-    const filedDate = formatShortDate(current.govt_status_updated_at || current.updated_at || current.created_at);
+        : 0;
+    const filedDate = formatShortDate(current.govt_status_updated_at || current.updated_at || current.created_at) || 'Pending';
     const steps = [
-        { label: 'Filed', date: filedDate || '22 Aug' },
-        { label: 'Registered', date: filedDate || '22 Aug' },
-        { label: 'Sent for scrutiny', date: activeIndex >= 2 ? filedDate || '24 Aug' : 'Pending' },
-        { label: 'Department action', date: ['resolved', 'rejected'].includes(govtStatus) ? filedDate || 'Pending' : 'Pending' },
+        { label: 'Filed', date: filedDate },
+        { label: 'Registered', date: filedDate },
+        { label: 'Sent for scrutiny', date: activeIndex >= 2 ? filedDate : 'Pending' },
+        { label: 'Department action', date: activeIndex >= 3 ? filedDate : 'Pending' },
+        { label: 'Resolved', date: activeIndex >= 4 ? filedDate : 'Pending' },
     ];
     const portalName = current.portal_name || current.govt_portal_name || 'Government portal';
-    const ref = current.govt_reference_number ? `#${current.govt_reference_number}` : 'Not filed yet';
-    const owner = current.latest_status_check?.portal_detail?.officer || current.latest_status_check?.portal_detail?.office || current.govt_department || 'Awaiting department update';
+    const grievanceNo = current.govt_reference_number ? `#${current.govt_reference_number}` : 'Not filed yet';
+    const dept = current.govt_department || 'Not assigned yet';
+    const owner = current.latest_status_check?.portal_detail?.officer
+        || current.latest_status_check?.portal_detail?.office
+        || 'Awaiting department update';
+    const lastChecked = formatGovtCheckedAt(current.latest_status_check?.checked_at)
+        || formatShortDate(current.govt_status_updated_at) || '—';
+
+    const metaLbl = { fontSize: 10.5, color: C.ink3, marginBottom: 3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', letterSpacing: '0.04em', textTransform: 'uppercase' };
+    const metaVal = { fontSize: 13, fontWeight: 600, color: C.ink, overflowWrap: 'anywhere' };
 
     return (
-        <div style={{ padding: '4px 32px 26px', background: C.paper }}>
-            <div style={{
-                border: `1px solid ${C.hair}`,
-                borderRadius: 12,
-                background: '#FFFDF7',
-                padding: '22px 24px',
-                overflow: 'hidden',
-            }}>
-                <div style={{ marginBottom: 20 }}>
-                    <div style={{
-                        fontFamily: '"JetBrains Mono", monospace', color: C.ink3,
-                        textTransform: 'uppercase', letterSpacing: '0.14em', fontSize: 10, marginBottom: 7,
-                        fontWeight: 700,
-                    }}>
+        <div style={{ background: C.card, border: `1px solid ${C.hair}`, borderRadius: 12, padding: '20px 22px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+                <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', color: C.ink3, textTransform: 'uppercase', marginBottom: 4 }}>
                         Government grievance journey
                     </div>
-                    <div style={{ fontSize: 18, color: C.ink, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.3 }}>
-                        Grievance {ref} · <span style={{ fontWeight: 600, color: C.ink3 }}>{portalName}</span>
+                    <div style={{ fontSize: 14.5, fontWeight: 600, color: C.ink }}>
+                        Grievance {grievanceNo} <span style={{ fontWeight: 400, color: C.ink2 }}>· {portalName}</span>
                     </div>
                 </div>
+                {onViewSubmission && (
+                    <button type="button" onClick={onViewSubmission} style={{
+                        flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer',
+                        fontFamily: 'inherit', fontSize: 12.5, color: C.green,
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                    }}>
+                        View full submission
+                        <Icon name="external" size={13} color={C.green} stroke={2} />
+                    </button>
+                )}
+            </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(108px, 1fr))', gap: 0, overflowX: 'auto', paddingBottom: 2 }}>
-                    {steps.map((step, idx) => {
-                        const complete = idx < activeIndex;
-                        const active = idx === activeIndex;
-                        const dotBg = complete ? C.green : active ? C.saffron : '#FFFDF7';
-                        const dotBorder = complete ? C.green : active ? C.saffron : C.hairStrong;
-                        return (
-                            <div key={step.label} style={{ minWidth: 108, paddingRight: idx === steps.length - 1 ? 0 : 16, textAlign: 'center' }}>
-                                <div style={{ position: 'relative', height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-                                    {idx < steps.length - 1 && (
-                                        <span style={{
-                                            position: 'absolute', left: 'calc(50% + 20px)', right: 'calc(-50% + 20px)', top: 16,
-                                            height: 2, background: complete ? C.green : C.hair,
-                                        }} />
-                                    )}
-                                    <span style={{
-                                        position: 'relative', zIndex: 1,
-                                        width: 32, height: 32, borderRadius: '50%',
-                                        background: dotBg, border: `2px solid ${dotBorder}`,
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    }}>
-                                        {complete && <Icon name="check" size={16} color="#fff" stroke={2.6} />}
-                                        {active && <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#FFFDF7' }} />}
-                                    </span>
+            <div style={{ display: 'flex', alignItems: 'flex-start', overflowX: 'auto', minWidth: 0 }}>
+                {steps.map((step, idx) => {
+                    const complete = idx < activeIndex;
+                    const isCur = idx === activeIndex;
+                    const dotBg = complete ? C.green : isCur ? C.amber : C.card;
+                    const dotBorder = complete ? C.green : isCur ? C.amber : C.hairStrong;
+                    return (
+                        <div key={step.label} style={{ display: 'flex', alignItems: 'flex-start', flex: idx < steps.length - 1 ? 1 : '0 0 auto', minWidth: 0 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                                <div style={{
+                                    width: 26, height: 26, borderRadius: '50%',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: dotBg, border: `1.5px solid ${dotBorder}`,
+                                }}>
+                                    {complete && <Icon name="check" size={13} color="#fff" stroke={2.5} />}
+                                    {isCur && <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#fff' }} />}
                                 </div>
-                                <div style={{ fontSize: 12.5, fontWeight: 700, color: active || complete ? C.ink : C.ink3, lineHeight: 1.25, letterSpacing: '-0.01em' }}>
+                                <div style={{ fontSize: 11, fontWeight: isCur ? 700 : 400, color: complete || isCur ? C.ink : C.ink3, textAlign: 'center', width: 88, lineHeight: 1.25 }}>
                                     {step.label}
                                 </div>
-                                <div style={{ marginTop: 5, fontSize: 10.5, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.06em' }}>
-                                    {step.date}
-                                </div>
+                                <div style={{ fontSize: 10, color: C.ink3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>{step.date}</div>
                             </div>
-                        );
-                    })}
-                </div>
+                            {idx < steps.length - 1 && (
+                                <div style={{ flex: 1, height: 2, background: complete ? C.green : C.hair, margin: '13px 4px 0', minWidth: 12 }} />
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
 
-                <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.hair}`, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 24 }}>
-                    <div>
-                        <div style={{ fontSize: 10, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
-                            Department
-                        </div>
-                        <div style={{ fontSize: 14, color: C.ink, fontWeight: 700, lineHeight: 1.35, letterSpacing: '-0.01em', overflowWrap: 'anywhere' }}>
-                            {current.govt_department || 'Not assigned yet'}
-                        </div>
-                    </div>
-                    <div>
-                        <div style={{ fontSize: 10, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
-                            Currently with
-                        </div>
-                        <div style={{ fontSize: 14, color: C.ink, fontWeight: 700, lineHeight: 1.35, letterSpacing: '-0.01em', overflowWrap: 'anywhere' }}>
-                            {owner}
-                        </div>
-                    </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.hair}` }}>
+                <div><div style={metaLbl}>Department</div><div style={metaVal}>{dept}</div></div>
+                <div><div style={metaLbl}>Currently with</div><div style={metaVal}>{owner}</div></div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ minWidth: 0 }}><div style={metaLbl}>Last checked</div><div style={metaVal}>{lastChecked}</div></div>
+                    {onRefresh && (
+                        <button type="button" onClick={onRefresh} disabled={refreshing} title="Check government status" style={{
+                            flexShrink: 0, background: 'none', border: `1px solid ${C.hair}`, borderRadius: 7,
+                            padding: '6px 8px', color: C.ink2, cursor: refreshing ? 'not-allowed' : 'pointer',
+                        }}>
+                            {refreshing ? <Loader2 size={13} className="animate-spin" /> : <Icon name="history" size={13} color={C.ink2} stroke={2} />}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -2199,7 +2199,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                             </div>
                             {formatGovtPortalDetailRows(govtState?.latest_status_check).length > 0 && (
                                 <div style={{ fontSize: 11.5, color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: '10px', marginBottom: 8 }}>
-                                    <div style={{ fontSize: 9.5, fontFamily: '"JetBrains Mono", monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+                                    <div style={{ fontSize: 9.5, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
                                         Current portal position
                                         {formatGovtCheckedAt(govtState?.latest_status_check?.checked_at) ? ` · checked ${formatGovtCheckedAt(govtState.latest_status_check.checked_at)}` : ''}
                                     </div>
@@ -2305,46 +2305,31 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
 
 // ─── Notes + response section ─────────────────────────────────
 function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSave, saving, phone, isMp, onNotify, responseSectionRef, responseInputRef }) {
+    const ta = {
+        width: '100%', minHeight: 60, padding: '10px 12px',
+        border: `1px solid ${C.hair}`, borderRadius: 8, background: C.paper,
+        fontFamily: 'inherit', fontSize: 12.5, color: C.ink,
+        resize: 'vertical', outline: 'none', boxSizing: 'border-box', marginBottom: 10,
+    };
     return (
-        <div ref={responseSectionRef} style={sec}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={monoLbl}>Internal notes</span>
-                {draftSaved && (
-                    <span style={{
-                        fontSize: 10, color: C.saffron, fontWeight: 600,
-                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                    }}>
-                        <span style={{ width: 5, height: 5, background: C.saffron, borderRadius: '50%' }} />
-                        Draft saved locally
-                    </span>
-                )}
-            </div>
+        <div ref={responseSectionRef}>
+            {draftSaved && (
+                <div style={{ fontSize: 10.5, color: C.saffron, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+                    <span style={{ width: 5, height: 5, background: C.saffron, borderRadius: '50%' }} />
+                    Draft saved locally
+                </div>
+            )}
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add notes visible to your office staff only…"
-                style={{
-                    width: '100%', minHeight: 64, padding: '10px 12px',
-                    border: `1px solid ${C.hair}`, background: C.surface,
-                    fontFamily: 'inherit', fontSize: 12.5, color: C.ink,
-                    resize: 'vertical', outline: 'none', boxSizing: 'border-box', marginBottom: 10,
-                }} />
+                placeholder="Add notes visible to your office staff only…" style={ta} />
 
             <span style={{ ...monoLbl, marginBottom: 6 }}>Response to citizen</span>
-            <textarea
-                ref={responseInputRef}
-                value={response}
-                onChange={(e) => setResponse(e.target.value)}
-                placeholder="Custom WhatsApp message (optional)…"
-                style={{
-                    width: '100%', minHeight: 56, padding: '10px 12px',
-                    border: `1px solid ${C.hair}`, background: C.surface,
-                    fontFamily: 'inherit', fontSize: 12.5, color: C.ink,
-                    resize: 'vertical', outline: 'none', boxSizing: 'border-box', marginBottom: 10,
-                }} />
+            <textarea ref={responseInputRef} value={response} onChange={(e) => setResponse(e.target.value)}
+                placeholder="Custom WhatsApp message (optional)…" style={ta} />
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button onClick={onSave} disabled={saving} style={{
-                    padding: '7px 14px', background: C.ink, color: C.paper, border: 'none',
-                    fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                    padding: '8px 14px', background: C.ink, color: C.card, border: 'none', borderRadius: 8,
+                    fontSize: 12, fontWeight: 600,
                     cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                     display: 'inline-flex', alignItems: 'center', gap: 6, opacity: saving ? 0.7 : 1,
                 }}>
@@ -2354,9 +2339,9 @@ function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSa
                 <button onClick={onNotify} disabled={!phone || !isMp}
                     title={!isMp ? 'Only the primary account can send notifications' : !phone ? 'No phone on file' : ''}
                     style={{
-                        padding: '7px 14px', background: 'transparent',
-                        border: `1px solid ${C.green}`, color: C.green,
-                        fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                        padding: '8px 14px', background: 'transparent',
+                        border: `1px solid ${C.green}`, color: C.green, borderRadius: 8,
+                        fontSize: 12, fontWeight: 600,
                         cursor: (!phone || !isMp) ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                         display: 'inline-flex', alignItems: 'center', gap: 6,
                         opacity: (!phone || !isMp) ? 0.5 : 1,
@@ -2377,78 +2362,135 @@ function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSa
 // "Save geography" shortcut that saves whatever's currently in the AI
 // Understanding section's location/assembly inputs — same handler, just
 // surfaced here too for quick access without scrolling back up.
-function CaseInformation({ current, meta, caseRef, createdAt, assignee, constituency, onAssign, staff, onDelete, userRole, onSaveGeo, savingGeo, priority, onPriorityChange }) {
-    const canDelete = ['mp', 'owner', 'pr'].includes(userRole);
+// ─── Right action panel (Main.dc.html "ACTION PANEL") ─────────────────
+// Per-complaint contextual callout on top, then the case-level controls
+// (Needle status / priority / assignment) and a compact case-information
+// block. Collapsible. Every control keeps its real handler.
+const PANEL_SEL = {
+    width: '100%', padding: '9px 10px', borderRadius: 8,
+    border: `1px solid ${C.hair}`, background: C.card,
+    fontSize: 13, color: C.ink, fontFamily: 'inherit', outline: 'none',
+};
+const PANEL_LBL = { display: 'block', fontSize: 11, color: C.ink3, marginBottom: 5, letterSpacing: '0.02em' };
+
+function ActionPanel({
+    current, meta, threadCount, open, onToggle,
+    callout,
+    needleStatus, onNeedleStatus, updating,
+    priority, onPriority,
+    assignee, onAssign, staff, onAssignToMe,
+    createdAt, updatedAt, language,
+    onSaveGeo, savingGeo, onViewSummary,
+}) {
     const priorityValue = priority || (current.is_critical ? 'critical' : 'standard');
-    const gridRows = [
-        ['Priority',
-            <select value={priorityValue} onChange={(e) => onPriorityChange?.(e.target.value)} style={{
-                border: 'none', background: 'transparent', padding: 0,
-                fontSize: 12.5, color: C.ink, fontWeight: 700, fontFamily: 'inherit', outline: 'none',
-            }}>
-                <option value="critical">Critical</option>
-                <option value="high">High</option>
-                <option value="standard">Standard</option>
-                <option value="low">Low</option>
-            </select>,
-         'Geography', meta.matched_value || current.location || '–'],
-        ['Category', current.problem_subdomain || current.problem_domain || current.category || 'Uncategorised',
-         'Location', meta.matched_value || current.location || '–'],
-        ['Channel', 'WhatsApp',
-         'Location · Ward', current.ward || meta.matched_value || current.location || '–'],
-        ['Constituency', constituency || '–',
-         'Assembly', current.assembly || meta.assembly_constituency || '–'],
+    const infoRows = [
+        ['Channel', 'WhatsApp'],
+        ['Language', language || 'English'],
+        ['Case created', createdAt ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '–'],
+        ['Last updated', updatedAt ? updatedAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '–'],
     ];
 
     return (
-        <div style={asideSec}>
-            <div style={{ ...monoLbl, marginBottom: 12 }}>Case information</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
-                {gridRows.map(([labelA, valueA, labelB, valueB], i) => (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                        <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 9, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: '"JetBrains Mono", monospace', marginBottom: 3 }}>{labelA}</div>
-                            <div style={{ fontSize: 12.5, color: C.ink, fontWeight: 600, overflowWrap: 'anywhere' }}>{valueA}</div>
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 9, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: '"JetBrains Mono", monospace', marginBottom: 3 }}>{labelB}</div>
-                            <div style={{ fontSize: 12.5, color: C.ink, fontWeight: 600, overflowWrap: 'anywhere' }}>{valueB}</div>
-                        </div>
-                    </div>
-                ))}
+        <div>
+            <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '16px 0 12px', position: 'sticky', top: 0, background: C.surfaceWarm, zIndex: 1,
+            }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: C.ink3 }}>ACTION PANEL</span>
+                <button type="button" onClick={onToggle} style={{ background: 'none', border: 'none', color: C.ink3, padding: 4, cursor: 'pointer', display: 'flex' }}>
+                    <Icon name="chevD" size={14} color={C.ink3} stroke={2} style={{ transform: open ? 'none' : 'rotate(-90deg)' }} />
+                </button>
             </div>
-            <div style={{ paddingTop: 10, borderTop: `1px solid ${C.hair}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                    <Icon name="user" size={12} color={C.ink3} />
-                    <select value={assignee} onChange={(e) => onAssign(e.target.value)} style={{
-                        border: 'none', background: 'transparent', padding: 0,
-                        fontSize: 12.5, color: C.ink, fontWeight: 600, fontFamily: 'inherit', outline: 'none',
-                    }}>
+
+            {open && (
+                <div>
+                    {callout && (
+                        <div style={{
+                            background: callout.bg, border: `1px solid ${callout.border}`, borderRadius: 10,
+                            padding: '14px 16px', marginBottom: 18,
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', color: callout.accent, marginBottom: 8 }}>
+                                <Icon name={callout.icon || 'warn'} size={13} color={callout.accent} stroke={2} />
+                                {callout.tag}
+                            </div>
+                            <div style={{ fontSize: 13, lineHeight: 1.5, color: C.ink, marginBottom: 12 }}>{callout.text}</div>
+                            {callout.cta && (
+                                <button type="button" onClick={callout.onAction} style={{
+                                    width: '100%', background: callout.accent, color: '#fff', border: 'none', borderRadius: 8,
+                                    padding: '9px', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                }}>
+                                    {callout.cta}
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', color: C.ink3, marginBottom: 10 }}>
+                        CASE-LEVEL — applies across all {threadCount} complaint{threadCount === 1 ? '' : 's'}
+                    </div>
+
+                    <label style={PANEL_LBL}>NEEDLE STATUS</label>
+                    <select value={needleStatus} disabled={!!updating}
+                        onChange={(e) => e.target.value !== needleStatus && onNeedleStatus(e.target.value)}
+                        style={{ ...PANEL_SEL, marginBottom: 14 }}>
+                        {STATUS_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                    </select>
+
+                    <label style={PANEL_LBL}>PRIORITY</label>
+                    <select value={priorityValue} onChange={(e) => onPriority(e.target.value)} style={{ ...PANEL_SEL, marginBottom: 14 }}>
+                        <option value="critical">Critical</option>
+                        <option value="high">High</option>
+                        <option value="standard">Standard</option>
+                        <option value="low">Low</option>
+                    </select>
+
+                    <label style={PANEL_LBL}>ASSIGNED TO</label>
+                    <select value={assignee} onChange={(e) => onAssign(e.target.value)} style={{ ...PANEL_SEL, marginBottom: 6 }}>
                         <option value="">Unassigned</option>
                         {staff.map((s) => (
                             <option key={s.username} value={s.username}>{s.display_name || s.username}</option>
                         ))}
                     </select>
-                </div>
-                <button onClick={onSaveGeo} disabled={savingGeo} style={{
-                    padding: '6px 12px', background: C.ink, color: C.paper, border: 'none', flexShrink: 0,
-                    fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em',
-                    cursor: savingGeo ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                    display: 'inline-flex', alignItems: 'center', gap: 5, opacity: savingGeo ? 0.7 : 1,
-                }}>
-                    {savingGeo && <Loader2 size={11} className="animate-spin" />}
-                    <Icon name="doc" size={11} color={C.paper} /> Save geography
-                </button>
-            </div>
-            {canDelete && (
-                <div style={{ marginTop: 10, textAlign: 'right' }}>
-                    <button onClick={onDelete} style={{
-                        background: 'none', border: 'none', padding: 0, fontFamily: 'inherit',
-                        fontSize: 10.5, fontWeight: 600, color: C.red, cursor: 'pointer',
-                        display: 'inline-flex', alignItems: 'center', gap: 5,
-                    }}>
-                        <Icon name="trash" size={11} color={C.red} /> Delete case
+                    <button type="button" onClick={onAssignToMe} style={{ background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: 12, color: C.green, cursor: 'pointer' }}>
+                        Assign to me
                     </button>
+
+                    <div style={{ height: 1, background: C.hair, margin: '18px 0' }} />
+
+                    <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', color: C.ink3, marginBottom: 10 }}>CASE INFORMATION</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12.5 }}>
+                        {infoRows.map(([k, v]) => (
+                            <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                                <span style={{ color: C.ink3 }}>{k}</span>
+                                <span style={{ fontWeight: 600, textAlign: 'right', overflowWrap: 'anywhere' }}>{v}</span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <button onClick={onSaveGeo} disabled={savingGeo} style={{
+                        marginTop: 14, width: '100%', padding: '8px 12px', background: 'none',
+                        border: `1px solid ${C.hair}`, borderRadius: 8, color: C.ink2,
+                        fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                        cursor: savingGeo ? 'not-allowed' : 'pointer',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: savingGeo ? 0.7 : 1,
+                    }}>
+                        {savingGeo && <Loader2 size={12} className="animate-spin" />}
+                        <Icon name="pin" size={12} color={C.ink2} /> Save geography
+                    </button>
+
+                    {onViewSummary && (
+                        <button type="button" onClick={onViewSummary} style={{
+                            marginTop: 14, background: 'none', border: 'none', padding: 0, fontFamily: 'inherit',
+                            fontSize: 12.5, color: C.green, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', gap: 5,
+                        }}>
+                            View case summary
+                            <Icon name="external" size={13} color={C.green} stroke={2} />
+                        </button>
+                    )}
                 </div>
             )}
         </div>
@@ -2477,7 +2519,7 @@ function ResolvedComplaintSummary({ current, meta, activities, loadingActivity }
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     {fields.map(([label, value]) => (
                         <div key={label} style={{ border: `1px solid ${C.hair}`, padding: '8px 12px', background: C.surface, minWidth: 0 }}>
-                            <div style={{ fontSize: 9.5, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"JetBrains Mono", monospace', marginBottom: 3 }}>{label}</div>
+                            <div style={{ fontSize: 9.5, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', marginBottom: 3 }}>{label}</div>
                             <div style={{ fontSize: 13, fontWeight: 500, color: C.ink, overflowWrap: 'anywhere' }}>{value}</div>
                         </div>
                     ))}
@@ -2534,11 +2576,16 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const [savingGeo, setSavingGeo] = useState(false);
     const [followBusy, setFollowBusy] = useState(false);
     const [translations, setTranslations] = useState({}); // { [caseId]: { loading, translation, error, alreadyEnglish } }
+    const [panelOpen, setPanelOpen] = useState(true);
+    const [locationOpenSignal, setLocationOpenSignal] = useState(0);
+    const [govtOpenSignal, setGovtOpenSignal] = useState(0);
+    const [notesOpenSignal, setNotesOpenSignal] = useState(0);
     const responseSectionRef = useRef(null);
     const responseInputRef = useRef(null);
     const govtSyncRef = useRef(null);      // imperative handle into GovtSyncSection — lets Escalate trigger its live-session flow
     const govtSectionRef = useRef(null);   // scroll target so Escalate brings that section into view
     const aiSectionRef = useRef(null);     // scroll target for "View AI summary" in the needs-review banner
+    const detailCardRef = useRef(null);    // the accordion card — scroll target for panel/callout links
 
     useEffect(() => {
         if (!caseItem) return;
@@ -2621,6 +2668,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     };
     const meta = current.case_metadata || {};
     const createdAt = current.created_at ? new Date(current.created_at) : null;
+    const updatedAt = current.updated_at ? new Date(current.updated_at) : null;
     const currentStatus = (current.status || 'new').toLowerCase();
     const isUncategorised = !current.category || current.category === 'Uncategorised' || current.category === 'General';
     const isMp = isPrimaryAccount(user);
@@ -2653,10 +2701,62 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     // (a reference number is on record), there's no session to open —
     // just bring the existing submission into view.
     function handleEscalateClick() {
+        setGovtOpenSignal((n) => n + 1);
         govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         if (alreadyFiledFlag) return;
         govtSyncRef.current?.openLiveSession();
     }
+    function openLocationRow() {
+        setLocationOpenSignal((n) => n + 1);
+        detailCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    function viewCaseSummary() {
+        aiSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // Per-complaint contextual callout for the action panel (mirrors
+    // Main.dc.html calloutFor) — every CTA maps to a real handler.
+    const contextCallout = (() => {
+        if (isResolved) return null;
+        if (alreadyFiledFlag) {
+            return {
+                bg: C.amberTint, border: C.amber, accent: C.amber, icon: 'clock',
+                tag: 'ACTION REQUIRED',
+                text: `Awaiting action from ${current.govt_department || 'the department'}. Use Check status to pull the latest portal update.`,
+                cta: 'Check government status', onAction: handleEscalateClick,
+            };
+        }
+        if (currentStatus === 'awaiting_location') {
+            return {
+                bg: C.redTint, border: C.red, accent: C.red, icon: 'pin',
+                tag: 'BLOCKED ON LOCATION',
+                text: "Can't be filed with the government until the ward is confirmed.",
+                cta: 'Confirm location', onAction: openLocationRow,
+            };
+        }
+        if (isUncategorised && suggestedTriage?.ai_category) {
+            return {
+                bg: C.greenTint, border: C.green, accent: C.green, icon: 'sparkle',
+                tag: 'SUGGESTED TRIAGE',
+                text: `Sansad AI suggests ${suggestedTriage.ai_category}${suggestedTriage.ai_subcategory ? ` · ${suggestedTriage.ai_subcategory}` : ''}.`,
+                cta: 'Confirm category & assign', onAction: acceptSuggestion,
+            };
+        }
+        if (currentStatus === 'pending_review' || currentStatus === 'new') {
+            return {
+                bg: C.slateTint, border: C.slate, accent: C.slate, icon: 'eye',
+                tag: 'NEEDS TRIAGE',
+                text: 'Not yet actioned. Review the complaint, then escalate to the government portal.',
+                cta: hasBeenEscalated ? 'Open filing' : 'Escalate to government', onAction: handleEscalateClick,
+            };
+        }
+        return {
+            bg: C.slateTint, border: C.slate, accent: C.slate, icon: 'external',
+            tag: 'READY TO FILE',
+            text: 'Reviewed and in progress. Escalate to open a government portal filing session.',
+            cta: hasBeenEscalated ? 'Open filing' : 'Escalate to government', onAction: handleEscalateClick,
+        };
+    })();
 
     const acceptSuggestion = async () => {
         if (!suggestedTriage?.ai_category || acceptingSuggestion) return;
@@ -2909,22 +3009,20 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
             <Sheet open={!!caseItem} onOpenChange={(open) => { if (!open) onClose(); }}>
                 <SheetContent
                     side="right"
-                    className="w-full md:w-[calc(100vw-96px)] md:!max-w-[1360px] p-0 flex overflow-hidden [&>button]:hidden rounded-none"
+                    className="w-full md:w-[calc(100vw-216px)] md:!max-w-[1240px] p-0 flex overflow-hidden [&>button]:hidden rounded-none"
                     style={{
                         background: C.paper,
-                        fontFamily: '"Inter", "Noto Sans Devanagari", system-ui, sans-serif',
-                        boxShadow: '-10px 0 30px rgba(26,24,18,0.10)',
+                        fontFamily: '"Public Sans", "Noto Sans Devanagari", system-ui, sans-serif',
+                        boxShadow: '-10px 0 30px rgba(33,31,25,0.12)',
                         border: 'none',
                     }}
                 >
                     <div style={{
-                        flex: 1,
-                        minWidth: 0,
-                        minHeight: '100%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        background: C.paper,
+                        flex: 1, minWidth: 0, minHeight: '100%',
+                        display: 'flex', flexDirection: 'column', background: C.paper,
                     }}>
+                    <SheetTitle className="sr-only">Case {caseRef}</SheetTitle>
+                    <SheetDescription className="sr-only">Case detail workspace for {caseRef}</SheetDescription>
                     <DrawerHeader
                         caseRef={caseRef}
                         status={currentStatus}
@@ -2934,10 +3032,13 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         onToggleFollow={toggleFollow}
                         followBusy={followBusy}
                         onCopyRef={copyCaseRef}
+                        onDelete={handleDelete}
+                        canDelete={['mp', 'owner', 'pr'].includes(user?.role)}
                     />
                     <CaseMetaRow
                         phone={current.user_phone}
-                        createdAt={fullCase?.created_at ? new Date(fullCase.created_at) : createdAt}
+                        createdAt={createdAt}
+                        updatedAt={updatedAt}
                         language={meta.detected_language || meta.language}
                     />
                     <ComplaintTabStrip
@@ -2945,65 +3046,45 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         activeCaseId={activeCaseId}
                         onSelectCase={(item) => setActiveCaseId(item.id)}
                     />
-                    <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}>
-                        <CaseHero
-                            current={current}
-                            meta={meta}
-                            priority={current.priority || (current.is_critical ? 'critical' : 'standard')}
-                            onPriorityChange={handlePriorityChange}
-                        />
-                        <GovernmentJourneyPanel current={current} />
-                        <div
-                            style={{
-                                display: 'grid',
-                                gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 292px',
-                                alignItems: 'start',
-                                minHeight: '100%',
-                                gap: isMobile ? 0 : 22,
-                                padding: isMobile ? 0 : '0 32px 36px',
-                            }}
-                        >
-                            <div style={{ minWidth: 0, border: isMobile ? 'none' : `1px solid ${C.hair}`, background: C.paper }}>
-                                <ContactQueueNotice current={current} />
 
-                                {isResolved ? (
-                                    <ResolvedComplaintSummary
-                                        current={current}
-                                        meta={meta}
-                                        activities={activities}
-                                        loadingActivity={loadingActivity}
-                                    />
-                                ) : (
-                                    <>
-                                        {currentStatus === 'pending_review' && (
-                                            <ReviewReasonBanner
-                                                current={current}
-                                                meta={meta}
-                                                onViewSummary={() => aiSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                                            />
-                                        )}
-                                        <CitizenComplaintSection
+                    <div style={{ flex: 1, minHeight: 0, display: isMobile ? 'block' : 'flex', overflowY: isMobile ? 'auto' : 'hidden' }}>
+                        {/* MAIN COLUMN */}
+                        <div style={{ flex: 1, minWidth: 0, overflowY: isMobile ? 'visible' : 'auto', padding: '20px 28px 28px' }}>
+                            <ContactQueueNotice current={current} />
+
+                            {isResolved ? (
+                                <ResolvedComplaintSummary
+                                    current={current}
+                                    meta={meta}
+                                    activities={activities}
+                                    loadingActivity={loadingActivity}
+                                />
+                            ) : (
+                                <>
+                                    {currentStatus === 'pending_review' && (
+                                        <ReviewReasonBanner
                                             current={current}
                                             meta={meta}
-                                            actionRow={(
-                                                <ComplaintActionRow
-                                                    onConfirm={() => {
-                                                        if (isUncategorised && suggestedTriage?.ai_category) {
-                                                            acceptSuggestion();
-                                                        } else {
-                                                            handleStatusChange('resolved');
-                                                        }
-                                                    }}
-                                                    confirmLabel={confirmLabel}
-                                                    onReply={() => { setNotifyInput(''); setNotifyOpen(true); }}
-                                                    onEscalate={handleEscalateClick}
-                                                    escalateLabel={escalateLabel}
-                                                    showEscalateHint={!hasBeenEscalated}
-                                                />
-                                            )}
+                                            onViewSummary={viewCaseSummary}
                                         />
-                                        <div ref={aiSectionRef}>
+                                    )}
+
+                                    <CaseHero current={current} meta={meta} />
+
+                                    <GovernmentJourneyPanel
+                                        current={current}
+                                        onViewSubmission={() => { setGovtOpenSignal((n) => n + 1); govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+                                        onRefresh={handleEscalateClick}
+                                    />
+
+                                    <div ref={detailCardRef} style={{ border: `1px solid ${C.hair}`, borderRadius: 12, overflow: 'hidden', background: C.card }}>
+                                        <AccordionRow icon="chat" label="CITIZEN COMPLAINT" defaultOpen>
+                                            <CitizenComplaintSection current={current} meta={meta} />
+                                        </AccordionRow>
+
+                                        <AccordionRow icon="sparkle" label="AI UNDERSTANDING" forwardedRef={aiSectionRef}>
                                             <AiUnderstandingSection
+                                                part="ai"
                                                 current={current}
                                                 meta={meta}
                                                 displaySummary={displaySummary}
@@ -3013,6 +3094,18 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                                 accepting={acceptingSuggestion}
                                                 translationState={translations[current.id]}
                                                 onTranslate={handleTranslate}
+                                            />
+                                        </AccordionRow>
+
+                                        <AccordionRow
+                                            icon="pin"
+                                            label={`LOCATION · ${meta.geography_locked ? 'Locked' : (meta.geography_confidence || 'Unconfirmed')}`}
+                                            forceOpenKey={locationOpenSignal}
+                                        >
+                                            <AiUnderstandingSection
+                                                part="location"
+                                                current={current}
+                                                meta={meta}
                                                 geoLocation={geoLocation}
                                                 geoAssembly={geoAssembly}
                                                 setGeoLocation={setGeoLocation}
@@ -3021,9 +3114,13 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                                 savingGeo={savingGeo}
                                                 geoLocked={meta.geography_locked}
                                             />
-                                        </div>
-                                        <AttachmentsSection media={current.media || []} caseId={current.id} />
-                                        <div ref={govtSectionRef}>
+                                        </AccordionRow>
+
+                                        <AccordionRow icon="doc" label="ATTACHMENTS">
+                                            <AttachmentsSection media={current.media || []} caseId={current.id} />
+                                        </AccordionRow>
+
+                                        <AccordionRow icon="external" label="GOVERNMENT SUBMISSION" forwardedRef={govtSectionRef} forceOpenKey={govtOpenSignal}>
                                             <GovtSyncSection
                                                 ref={govtSyncRef}
                                                 caseId={current.id}
@@ -3031,57 +3128,94 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                                 onSubmitted={onStatusChange}
                                                 onGovtStateChange={handleGovtStateChange}
                                             />
-                                        </div>
-                                        <NotesSection
-                                            notes={notes}
-                                            setNotes={setNotes}
-                                            response={response}
-                                            setResponse={setResponse}
-                                            draftSaved={draftSaved}
-                                            onSave={saveNotes}
-                                            saving={savingNotes}
-                                            phone={current.user_phone}
-                                            isMp={isMp}
-                                            responseSectionRef={responseSectionRef}
-                                            responseInputRef={responseInputRef}
-                                            onNotify={() => { setNotifyInput(''); setNotifyOpen(true); }}
-                                        />
-                                    </>
-                                )}
-                            </div>
+                                        </AccordionRow>
 
-                            <aside
-                                style={{
-                                    minWidth: 0,
-                                    background: C.surfaceWarm,
-                                    border: isMobile ? 'none' : `1px solid ${C.hair}`,
-                                }}
-                            >
-                                <StatusActions
-                                    currentStatus={currentStatus}
-                                    onStatusChange={handleStatusChange}
-                                    updating={updating}
-                                />
-                                <ActivityTimeline activities={activities} loading={loadingActivity} />
-                                <CaseInformation
-                                    current={current}
-                                    meta={meta}
-                                    caseRef={caseRef}
-                                    createdAt={createdAt}
-                                    assignee={assignee}
-                                    constituency={constituency}
-                                    onAssign={handleAssign}
-                                    staff={staff}
-                                    onDelete={handleDelete}
-                                    userRole={user?.role}
-                                    onSaveGeo={saveGeography}
-                                    savingGeo={savingGeo}
-                                    priority={current.priority || (current.is_critical ? 'critical' : 'standard')}
-                                    onPriorityChange={handlePriorityChange}
-                                />
-                            </aside>
+                                        <AccordionRow icon="clock" label="ACTIVITY TIMELINE">
+                                            <ActivityTimeline activities={activities} loading={loadingActivity} bare />
+                                        </AccordionRow>
+
+                                        <AccordionRow icon="check" label="INTERNAL NOTES" last forceOpenKey={notesOpenSignal}>
+                                            <NotesSection
+                                                notes={notes}
+                                                setNotes={setNotes}
+                                                response={response}
+                                                setResponse={setResponse}
+                                                draftSaved={draftSaved}
+                                                onSave={saveNotes}
+                                                saving={savingNotes}
+                                                phone={current.user_phone}
+                                                isMp={isMp}
+                                                responseSectionRef={responseSectionRef}
+                                                responseInputRef={responseInputRef}
+                                                onNotify={() => { setNotifyInput(''); setNotifyOpen(true); }}
+                                            />
+                                        </AccordionRow>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* ACTION PANEL */}
+                        <div style={{
+                            width: isMobile ? 'auto' : 328, flexShrink: 0,
+                            borderLeft: isMobile ? 'none' : `1px solid ${C.hair}`,
+                            borderTop: isMobile ? `1px solid ${C.hair}` : 'none',
+                            background: C.surfaceWarm,
+                            overflowY: isMobile ? 'visible' : 'auto',
+                            padding: isMobile ? '0 20px 20px' : '0 22px 22px',
+                        }}>
+                            <ActionPanel
+                                current={current}
+                                meta={meta}
+                                threadCount={threadCases.length}
+                                open={panelOpen}
+                                onToggle={() => setPanelOpen((v) => !v)}
+                                callout={isResolved ? null : contextCallout}
+                                needleStatus={currentStatus}
+                                onNeedleStatus={handleStatusChange}
+                                updating={updating}
+                                priority={current.priority || (current.is_critical ? 'critical' : 'standard')}
+                                onPriority={handlePriorityChange}
+                                assignee={assignee}
+                                onAssign={handleAssign}
+                                staff={staff || []}
+                                onAssignToMe={() => handleAssign(user?.username)}
+                                createdAt={createdAt}
+                                updatedAt={updatedAt}
+                                language={meta.detected_language || meta.language}
+                                onSaveGeo={saveGeography}
+                                savingGeo={savingGeo}
+                                onViewSummary={viewCaseSummary}
+                            />
                         </div>
                     </div>
+
+                    {/* FOOTER — two actions only (Main.dc.html) */}
+                    {!isResolved && (
+                        <div style={{
+                            flexShrink: 0, borderTop: `1px solid ${C.hair}`, background: C.card,
+                            padding: '14px 28px', display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap',
+                        }}>
+                            <button
+                                onClick={() => { setNotesOpenSignal((n) => n + 1); responseSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 7,
+                                    border: `1px solid ${C.hair}`, borderRadius: 9, background: 'none',
+                                    padding: '10px 18px', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600, color: C.ink, cursor: 'pointer',
+                                }}>
+                                <Icon name="check" size={14} color={C.ink} stroke={2} /> Add internal note
+                            </button>
+                            <button
+                                onClick={() => { setNotifyInput(''); setNotifyOpen(true); }}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 7,
+                                    border: 'none', borderRadius: 9, background: C.green, color: '#fff',
+                                    padding: '10px 20px', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+                                }}>
+                                <Icon name="whatsapp" size={14} color="#fff" stroke={2} /> Reply to citizen
+                            </button>
+                        </div>
+                    )}
                     </div>
                 </SheetContent>
             </Sheet>
