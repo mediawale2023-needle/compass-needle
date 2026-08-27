@@ -101,10 +101,8 @@ const asideSec = {
     borderBottom: `1px solid ${C.hair}`,
 };
 
-const CASE_DETAIL_SIDEBAR_WIDTH = 'clamp(320px, 27vw, 594px)';
-
-// ─── Mobile breakpoint hook (matches Tailwind `sm`) ──────────
-function useIsMobile(breakpoint = 640) {
+// ─── Mobile breakpoint hook (matches the Sheet's own `md:` width switch) ──
+function useIsMobile(breakpoint = 768) {
     const [isMobile, setIsMobile] = useState(false);
     useEffect(() => {
         if (typeof window === 'undefined' || !window.matchMedia) return undefined;
@@ -288,121 +286,6 @@ function SectionHeading({ n, label, trailing, info }) {
     );
 }
 
-function CaseDetailDesignSidebar() {
-    const navItems = [
-        ['Overview'],
-        ['Briefcase', '99+', true],
-        ['Letterbox', '3'],
-        ['Drafter'],
-        ['Archives'],
-    ];
-
-    return (
-        <aside style={{
-            width: CASE_DETAIL_SIDEBAR_WIDTH,
-            flex: '0 0 auto',
-            minHeight: '100vh',
-            background: '#11110B',
-            color: '#F6F0DD',
-            padding: '60px 34px 34px',
-            display: 'flex',
-            flexDirection: 'column',
-            fontFamily: '"Inter", "Noto Sans Devanagari", system-ui, sans-serif',
-        }}>
-            <div style={{
-                width: 88, height: 88, borderRadius: 22,
-                background: '#F6F0DD', color: '#11110B',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                marginBottom: 42,
-            }}>
-                <Icon name="clock" size={36} color="#11110B" stroke={2.1} />
-            </div>
-            <div style={{
-                fontFamily: '"Source Serif 4", Georgia, serif',
-                fontWeight: 800,
-                fontSize: 50,
-                lineHeight: 0.98,
-                letterSpacing: '-0.035em',
-                marginBottom: 28,
-            }}>
-                <div>Compass</div>
-                <div>Needle</div>
-            </div>
-            <div style={{
-                fontFamily: '"JetBrains Mono", monospace',
-                fontSize: 17,
-                letterSpacing: '0.24em',
-                textTransform: 'uppercase',
-                color: 'rgba(246,240,221,0.55)',
-                marginBottom: 88,
-            }}>
-                V3 · Operations
-            </div>
-            <div style={{
-                fontFamily: '"JetBrains Mono", monospace',
-                fontSize: 17,
-                letterSpacing: '0.24em',
-                textTransform: 'uppercase',
-                color: 'rgba(246,240,221,0.45)',
-                marginBottom: 30,
-            }}>
-                Modules
-            </div>
-            <nav style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {navItems.map(([label, badge, active]) => (
-                    <div key={label} style={{
-                        height: 76,
-                        borderRadius: 13,
-                        background: active ? 'rgba(82,67,42,0.42)' : 'transparent',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: active ? '0 26px' : '0 5px',
-                        color: active ? '#F6F0DD' : 'rgba(246,240,221,0.72)',
-                        fontSize: 33,
-                        fontWeight: active ? 800 : 500,
-                        letterSpacing: '-0.035em',
-                    }}>
-                        <span>{label}</span>
-                        {badge && (
-                            <span style={{
-                                minWidth: active ? 83 : 52,
-                                height: active ? 43 : 43,
-                                borderRadius: 999,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '0 16px',
-                                background: active ? '#C46B32' : 'rgba(246,240,221,0.14)',
-                                color: active ? '#FFF6E2' : 'rgba(246,240,221,0.72)',
-                                fontSize: active ? 24 : 22,
-                                fontWeight: 900,
-                            }}>
-                                {badge}
-                            </span>
-                        )}
-                    </div>
-                ))}
-            </nav>
-            <div style={{ marginTop: 'auto' }}>
-                <div style={{
-                    fontFamily: '"JetBrains Mono", monospace',
-                    fontSize: 17,
-                    letterSpacing: '0.24em',
-                    textTransform: 'uppercase',
-                    color: 'rgba(246,240,221,0.42)',
-                    marginBottom: 30,
-                }}>
-                    System
-                </div>
-                <div style={{ fontSize: 33, color: 'rgba(246,240,221,0.75)', fontWeight: 500 }}>
-                    Settings
-                </div>
-            </div>
-        </aside>
-    );
-}
-
 // ─── Drawer header ───────────────────────────────────────────
 // "Back" closes the drawer (there's no separate case-list page underneath
 // to navigate to — the Sheet overlays the Briefcase list, so closing it
@@ -435,14 +318,14 @@ function StatusPill({ status, tone = 'default' }) {
     return (
         <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
-            padding: tone === 'small' ? '6px 16px' : '14px 33px',
+            padding: tone === 'small' ? '3px 9px' : '5px 12px',
             borderRadius: 999, border: `1px solid ${palette.bg}`,
             background: palette.bg, color: palette.fg,
-            fontSize: tone === 'small' ? 20 : 29, fontWeight: 800,
-            fontFamily: tone === 'small' ? '"Inter", sans-serif' : '"Inter", "Noto Sans Devanagari", system-ui, sans-serif',
-            letterSpacing: tone === 'small' ? '-0.03em' : '-0.035em',
+            fontSize: tone === 'small' ? 10 : 12, fontWeight: 700,
+            fontFamily: '"Inter", "Noto Sans Devanagari", system-ui, sans-serif',
+            letterSpacing: '0.02em',
         }}>
-            <span style={{ width: tone === 'small' ? 10 : 14, height: tone === 'small' ? 10 : 14, borderRadius: '50%', background: palette.dot, flexShrink: 0 }} />
+            <span style={{ width: tone === 'small' ? 6 : 7, height: tone === 'small' ? 6 : 7, borderRadius: '50%', background: palette.dot, flexShrink: 0 }} />
             {labels[normalized] || String(status || 'new').replace(/_/g, ' ')}
         </span>
     );
@@ -458,70 +341,69 @@ function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, 
         <div style={{
             flexShrink: 0,
             background: C.paper, borderBottom: `1px solid ${C.hair}`,
-            display: 'flex', alignItems: 'center', gap: 14,
-            padding: '0 76px',
-            height: 190,
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '14px 32px',
         }}>
             <button onClick={onClose} style={{
-                border: `1px solid ${C.hair}`, borderRadius: 18, background: C.surface, cursor: 'pointer', flexShrink: 0,
-                display: 'flex', alignItems: 'center', gap: 16, padding: '18px 36px',
-                fontFamily: 'inherit', fontSize: 26, fontWeight: 600, color: C.ink2,
+                border: `1px solid ${C.hair}`, borderRadius: 9, background: C.surface, cursor: 'pointer', flexShrink: 0,
+                display: 'flex', alignItems: 'center', gap: 7, padding: '9px 15px',
+                fontFamily: 'inherit', fontSize: 14, fontWeight: 600, color: C.ink2,
                 outline: 'none',
             }}>
-                <Icon name="chevL" size={25} color={C.ink2} stroke={2} /> Back to Briefcase
+                <Icon name="chevL" size={15} color={C.ink2} stroke={1.9} /> Back to Briefcase
             </button>
 
-            <span style={{ width: 1, height: 60, background: C.hair, margin: '0 30px 0 22px', flexShrink: 0 }} />
+            <span style={{ width: 1, height: 26, background: C.hair, margin: '0 14px', flexShrink: 0 }} />
 
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 26, minWidth: 0 }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flexWrap: 'wrap' }}>
                 <span style={{
                     fontFamily: '"Source Serif 4", Georgia, serif',
-                    fontSize: 52, lineHeight: 1, fontWeight: 800, color: C.ink, whiteSpace: 'nowrap',
-                    letterSpacing: '-0.04em',
+                    fontSize: 38, lineHeight: 1, fontWeight: 800, color: C.ink, whiteSpace: 'nowrap',
+                    letterSpacing: '-0.03em',
                 }}>
                     Case {caseRef}
                 </span>
                 <span style={{
-                    padding: '13px 26px', borderRadius: 999, border: `1px solid ${C.hair}`,
-                    color: C.ink3, background: C.surface, fontSize: 19,
-                    fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.14em', textTransform: 'uppercase',
+                    padding: '5px 11px', borderRadius: 999, border: `1px solid ${C.hair}`,
+                    color: C.ink3, background: C.surface, fontSize: 10,
+                    fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.12em', textTransform: 'uppercase',
                 }}>
                     Record open
                 </span>
-                <Icon name="chevR" size={28} color={C.ink3} stroke={2} />
+                <Icon name="chevR" size={14} color={C.ink3} stroke={1.7} />
                 <StatusPill status={normalizedStatus} />
 
                 {isUncategorised && (
                     <span style={{
-                        padding: '9px 18px', borderRadius: 999, background: C.saffronTint, color: C.saffron,
-                        fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase',
+                        padding: '4px 10px', borderRadius: 999, background: C.saffronTint, color: C.saffron,
+                        fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
                         border: `1px solid ${C.saffronTint}`, whiteSpace: 'nowrap',
                     }}>uncategorised</span>
                 )}
             </div>
 
-            <div style={{ display: 'flex', gap: 12, flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                 <button
                     onClick={onToggleFollow}
                     disabled={followBusy}
                     style={{
-                        width: 48, height: 48, borderRadius: 13, border: `1px solid ${isFollowing ? C.green : C.hair}`,
+                        width: 36, height: 36, borderRadius: 9, border: `1px solid ${isFollowing ? C.green : C.hair}`,
                         background: C.surface, cursor: followBusy ? 'not-allowed' : 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         opacity: followBusy ? 0.6 : 1,
                     }}
                     title={isFollowing ? 'Following - click to unfollow' : 'Follow this case'}
                 >
-                    <Icon name="star" size={23} color={isFollowing ? C.green : C.ink2} filled={isFollowing} />
+                    <Icon name="star" size={15} color={isFollowing ? C.green : C.ink2} filled={isFollowing} />
                 </button>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <button style={{
-                            width: 48, height: 48, borderRadius: 13, border: `1px solid ${C.hair}`,
+                            width: 36, height: 36, borderRadius: 9, border: `1px solid ${C.hair}`,
                             background: C.surface, cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }} title="More options">
-                            <Icon name="dots" size={24} color={C.ink2} />
+                            <Icon name="dots" size={15} color={C.ink2} />
                         </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" style={{ fontFamily: 'inherit' }}>
@@ -576,37 +458,36 @@ function CaseMetaRow({ phone, createdAt, language }) {
         : '–';
     return (
         <div style={{
-            height: 94,
-            padding: '0 76px',
+            padding: '15px 32px',
             display: 'flex',
             alignItems: 'center',
-            gap: 26,
+            gap: 14,
             borderBottom: `1px solid ${C.hair}`,
             background: C.paper,
-            overflow: 'hidden',
+            flexWrap: 'wrap',
         }}>
             <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 18,
-                fontSize: 29, color: C.ink2, fontWeight: 700,
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                fontSize: 13.5, color: C.ink2, fontWeight: 700,
                 whiteSpace: 'nowrap',
             }}>
-                <Icon name="whatsapp" size={31} color="#1BA96D" stroke={1.8} />
+                <Icon name="whatsapp" size={15} color="#1BA96D" stroke={1.8} />
                 WhatsApp
             </span>
             {language && (
                 <>
-                    <span style={{ color: C.hair, fontSize: 22 }}>·</span>
-                    <span style={{ fontSize: 29, color: C.ink2, fontWeight: 700, whiteSpace: 'nowrap' }}>{language}</span>
+                    <span style={{ color: C.hair, fontSize: 12 }}>·</span>
+                    <span style={{ fontSize: 13.5, color: C.ink2, fontWeight: 700, whiteSpace: 'nowrap' }}>{language}</span>
                 </>
             )}
             {phone && (
                 <>
-                    <span style={{ color: C.hair, fontSize: 22 }}>·</span>
-                    <span style={{ fontSize: 29, color: C.ink2, fontWeight: 700, letterSpacing: '0.12em', whiteSpace: 'nowrap' }}>...{phone.slice(-4)}</span>
+                    <span style={{ color: C.hair, fontSize: 12 }}>·</span>
+                    <span style={{ fontSize: 13.5, color: C.ink2, fontWeight: 700, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>...{phone.slice(-4)}</span>
                 </>
             )}
-            <span style={{ color: C.hair, fontSize: 22 }}>·</span>
-            <span style={{ fontSize: 29, color: C.ink2, fontWeight: 700, whiteSpace: 'nowrap' }}>Received {dateStr}, {timeStr}</span>
+            <span style={{ color: C.hair, fontSize: 12 }}>·</span>
+            <span style={{ fontSize: 13.5, color: C.ink2, fontWeight: 700, whiteSpace: 'nowrap' }}>Received {dateStr}, {timeStr}</span>
         </div>
     );
 }
@@ -624,49 +505,49 @@ function CaseHero({ current, meta, priority, onPriorityChange }) {
     const title = inferCaseDisplayTitle(current, meta);
 
     return (
-        <div style={{ padding: '48px 76px 40px', background: C.paper }}>
+        <div style={{ padding: '26px 32px 22px', background: C.paper }}>
             <h1 style={{
                 margin: 0, fontFamily: '"Source Serif 4", Georgia, serif',
-                fontSize: 51, lineHeight: 1.08, fontWeight: 800, color: C.ink,
-                letterSpacing: '-0.045em',
+                fontSize: 30, lineHeight: 1.12, fontWeight: 800, color: C.ink,
+                letterSpacing: '-0.025em',
             }}>
                 {title}
             </h1>
-            <div style={{ marginTop: 28, display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'nowrap', overflow: 'hidden' }}>
+            <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '14px 28px', borderRadius: 999, background: '#FFFDF7',
+                    padding: '5px 12px', borderRadius: 999, background: '#FFFDF7',
                     border: `1px solid ${C.hair}`, color: C.ink2,
-                    fontSize: 27, fontWeight: 700, whiteSpace: 'nowrap',
+                    fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap',
                 }}>
-                    <Icon name="doc" size={28} color={C.ink3} /> {category}
+                    <Icon name="doc" size={13} color={C.ink3} /> {category}
                 </span>
                 <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '14px 28px', borderRadius: 999, background: '#FFFDF7',
+                    padding: '5px 12px', borderRadius: 999, background: '#FFFDF7',
                     border: `1px solid ${C.hair}`, color: C.ink2,
-                    fontSize: 27, fontWeight: 700, whiteSpace: 'nowrap',
+                    fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap',
                 }}>
-                    <Icon name="pin" size={28} color={C.ink3} /> {location}
+                    <Icon name="pin" size={13} color={C.ink3} /> {location}
                 </span>
                 {assembly && (
                     <span style={{
-                        padding: '14px 28px', borderRadius: 999, background: '#FFFDF7',
+                        padding: '5px 12px', borderRadius: 999, background: '#FFFDF7',
                         border: `1px solid ${C.hair}`, color: C.ink2,
-                        fontSize: 27, fontWeight: 700, whiteSpace: 'nowrap',
+                        fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap',
                     }}>
                         {assembly}
                     </span>
                 )}
                 <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '12px 26px', borderRadius: 999, background: C.paper,
-                    border: `2px solid ${C.ink3}`, color: C.ink2,
-                    fontSize: 27, fontWeight: 800, whiteSpace: 'nowrap',
+                    padding: '4px 11px', borderRadius: 999, background: C.paper,
+                    border: `1px solid ${C.ink3}`, color: C.ink2,
+                    fontSize: 12.5, fontWeight: 800, whiteSpace: 'nowrap',
                 }}>
                     <select value={priority || 'standard'} onChange={(e) => onPriorityChange(e.target.value)} style={{
                         border: 'none', background: 'transparent', padding: 0,
-                        color: C.ink2, fontSize: 27, fontWeight: 800, fontFamily: 'inherit', outline: 'none',
+                        color: C.ink2, fontSize: 12.5, fontWeight: 800, fontFamily: 'inherit', outline: 'none',
                     }}>
                         <option value="critical">Critical priority</option>
                         <option value="high">High priority</option>
@@ -677,10 +558,10 @@ function CaseHero({ current, meta, priority, onPriorityChange }) {
                 {priority !== 'standard' && (
                     <span style={{
                         display: 'inline-flex', alignItems: 'center', gap: 5,
-                        padding: '14px 28px', borderRadius: 999, color: C.greenInk,
-                        fontSize: 27, fontWeight: 700, whiteSpace: 'nowrap',
+                        padding: '5px 12px', borderRadius: 999, color: C.greenInk,
+                        fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap',
                     }}>
-                        <Icon name="star" size={28} color={C.greenInk} filled /> {priorityLabel}
+                        <Icon name="star" size={13} color={C.greenInk} filled /> {priorityLabel}
                     </span>
                 )}
             </div>
@@ -779,17 +660,17 @@ function ContactQueueNotice({ current }) {
 function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase }) {
     const ordered = [...threadCases].slice().reverse();
     return (
-        <div style={{ padding: '42px 76px 0', background: C.paper, borderTop: `1px solid ${C.hair}`, borderBottom: `1px solid ${C.hair}` }}>
+        <div style={{ padding: '16px 32px 4px', background: C.paper, borderTop: `1px solid ${C.hair}`, borderBottom: `1px solid ${C.hair}` }}>
             <div style={{
-                marginBottom: 30, display: 'flex', alignItems: 'center', gap: 18,
+                marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
                 color: C.ink3, fontFamily: '"JetBrains Mono", monospace',
-                fontSize: 26, letterSpacing: '0.15em', textTransform: 'uppercase',
-                fontWeight: 800,
+                fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase',
+                fontWeight: 700,
             }}>
                 <span>Complaints in this case</span>
                 <span>({ordered.length} · Same location, 6 weeks)</span>
             </div>
-            <div style={{ display: 'flex', gap: 22, overflowX: 'auto', paddingBottom: 42 }}>
+            <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 14 }}>
                 {ordered.map((item, idx) => {
                     const isActive = item.id === activeCaseId;
                     return (
@@ -798,30 +679,30 @@ function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase }) {
                             type="button"
                             onClick={() => onSelectCase(item)}
                             style={{
-                                position: 'relative', padding: '32px 38px 26px', flexShrink: 0, textAlign: 'left',
-                                width: 410, height: 220,
-                                borderRadius: 20,
-                                border: `2px solid ${isActive ? C.ink : C.hair}`,
+                                position: 'relative', padding: '14px 16px', flexShrink: 0, textAlign: 'left',
+                                width: 190, height: 98,
+                                borderRadius: 10,
+                                border: `1px solid ${isActive ? C.ink : C.hair}`,
                                 background: isActive ? '#FFFDF7' : C.paper,
                                 color: C.ink,
                                 cursor: 'pointer', fontFamily: 'inherit',
-                                display: 'flex', flexDirection: 'column', gap: 18,
+                                display: 'flex', flexDirection: 'column', gap: 6,
                                 boxShadow: 'none',
                             }}
                         >
                             <span style={{
-                                fontSize: 25, color: C.ink3, fontFamily: '"JetBrains Mono", monospace',
-                                textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700,
+                                fontSize: 9, color: C.ink3, fontFamily: '"JetBrains Mono", monospace',
+                                textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700,
                             }}>
                                 Complaint {idx + 1}
                             </span>
-                            <span style={{ fontSize: 36, color: C.ink, fontWeight: 900, letterSpacing: '-0.05em', lineHeight: 1 }}>
+                            <span style={{ fontSize: 15, color: C.ink, fontWeight: 800, letterSpacing: '-0.01em', lineHeight: 1 }}>
                                 {formatShortDate(item.created_at) || 'No date'}
                             </span>
                             <StatusPill status={item.status || 'new'} tone="small" />
                             {isActive && (
-                                <span style={{ position: 'absolute', top: 34, right: 36 }}>
-                                    <Icon name="check" size={28} color={C.saffron} stroke={2.5} />
+                                <span style={{ position: 'absolute', top: 10, right: 10 }}>
+                                    <Icon name="check" size={12} color={C.saffron} stroke={2.5} />
                                 </span>
                             )}
                         </button>
@@ -1426,57 +1307,56 @@ function GovernmentJourneyPanel({ current }) {
     const owner = current.latest_status_check?.portal_detail?.officer || current.latest_status_check?.portal_detail?.office || current.govt_department || 'Awaiting department update';
 
     return (
-        <div style={{ padding: '0 76px 54px', background: C.paper }}>
+        <div style={{ padding: '4px 32px 26px', background: C.paper }}>
             <div style={{
                 border: `1px solid ${C.hair}`,
-                borderRadius: 23,
+                borderRadius: 12,
                 background: '#FFFDF7',
-                padding: '58px 62px 60px',
-                minHeight: 382,
+                padding: '22px 24px',
                 overflow: 'hidden',
             }}>
-                <div style={{ marginBottom: 62 }}>
+                <div style={{ marginBottom: 20 }}>
                     <div style={{
                         fontFamily: '"JetBrains Mono", monospace', color: C.ink3,
-                        textTransform: 'uppercase', letterSpacing: '0.14em', fontSize: 26, marginBottom: 16,
-                        fontWeight: 800,
+                        textTransform: 'uppercase', letterSpacing: '0.14em', fontSize: 10, marginBottom: 7,
+                        fontWeight: 700,
                     }}>
                         Government grievance journey
                     </div>
-                    <div style={{ fontSize: 36, color: C.ink, fontWeight: 900, letterSpacing: '-0.045em', lineHeight: 1.08 }}>
+                    <div style={{ fontSize: 18, color: C.ink, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.3 }}>
                         Grievance {ref} · <span style={{ fontWeight: 600, color: C.ink3 }}>{portalName}</span>
                     </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(260px, 1fr))', gap: 0, overflowX: 'auto', paddingBottom: 2 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(108px, 1fr))', gap: 0, overflowX: 'auto', paddingBottom: 2 }}>
                     {steps.map((step, idx) => {
                         const complete = idx < activeIndex;
                         const active = idx === activeIndex;
                         const dotBg = complete ? C.green : active ? C.saffron : '#FFFDF7';
                         const dotBorder = complete ? C.green : active ? C.saffron : C.hairStrong;
                         return (
-                            <div key={step.label} style={{ minWidth: 260, paddingRight: idx === steps.length - 1 ? 0 : 38, textAlign: 'center' }}>
-                                <div style={{ position: 'relative', height: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                            <div key={step.label} style={{ minWidth: 108, paddingRight: idx === steps.length - 1 ? 0 : 16, textAlign: 'center' }}>
+                                <div style={{ position: 'relative', height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
                                     {idx < steps.length - 1 && (
                                         <span style={{
-                                            position: 'absolute', left: 'calc(50% + 55px)', right: 'calc(-50% + 55px)', top: 34,
-                                            height: 4, background: complete ? C.green : C.hair,
+                                            position: 'absolute', left: 'calc(50% + 20px)', right: 'calc(-50% + 20px)', top: 16,
+                                            height: 2, background: complete ? C.green : C.hair,
                                         }} />
                                     )}
                                     <span style={{
                                         position: 'relative', zIndex: 1,
-                                        width: 70, height: 70, borderRadius: '50%',
-                                        background: dotBg, border: `3px solid ${dotBorder}`,
+                                        width: 32, height: 32, borderRadius: '50%',
+                                        background: dotBg, border: `2px solid ${dotBorder}`,
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     }}>
-                                        {complete && <Icon name="check" size={36} color="#fff" stroke={3} />}
-                                        {active && <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#FFFDF7' }} />}
+                                        {complete && <Icon name="check" size={16} color="#fff" stroke={2.6} />}
+                                        {active && <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#FFFDF7' }} />}
                                     </span>
                                 </div>
-                                <div style={{ fontSize: 28, fontWeight: 900, color: active || complete ? C.ink : C.ink3, lineHeight: 1.12, letterSpacing: '-0.04em' }}>
+                                <div style={{ fontSize: 12.5, fontWeight: 700, color: active || complete ? C.ink : C.ink3, lineHeight: 1.25, letterSpacing: '-0.01em' }}>
                                     {step.label}
                                 </div>
-                                <div style={{ marginTop: 22, fontSize: 24, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.08em' }}>
+                                <div style={{ marginTop: 5, fontSize: 10.5, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.06em' }}>
                                     {step.date}
                                 </div>
                             </div>
@@ -1484,20 +1364,20 @@ function GovernmentJourneyPanel({ current }) {
                     })}
                 </div>
 
-                <div style={{ marginTop: 58, paddingTop: 42, borderTop: `1px solid ${C.hair}`, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 86 }}>
+                <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.hair}`, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 24 }}>
                     <div>
-                        <div style={{ fontSize: 26, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>
+                        <div style={{ fontSize: 10, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
                             Department
                         </div>
-                        <div style={{ fontSize: 30, color: C.ink, fontWeight: 900, lineHeight: 1.18, letterSpacing: '-0.04em', overflowWrap: 'anywhere' }}>
+                        <div style={{ fontSize: 14, color: C.ink, fontWeight: 700, lineHeight: 1.35, letterSpacing: '-0.01em', overflowWrap: 'anywhere' }}>
                             {current.govt_department || 'Not assigned yet'}
                         </div>
                     </div>
                     <div>
-                        <div style={{ fontSize: 26, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>
+                        <div style={{ fontSize: 10, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
                             Currently with
                         </div>
-                        <div style={{ fontSize: 30, color: C.ink, fontWeight: 900, lineHeight: 1.18, letterSpacing: '-0.04em', overflowWrap: 'anywhere' }}>
+                        <div style={{ fontSize: 14, color: C.ink, fontWeight: 700, lineHeight: 1.35, letterSpacing: '-0.01em', overflowWrap: 'anywhere' }}>
                             {owner}
                         </div>
                     </div>
@@ -3029,19 +2909,18 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
             <Sheet open={!!caseItem} onOpenChange={(open) => { if (!open) onClose(); }}>
                 <SheetContent
                     side="right"
-                    className="w-full md:w-[calc(100vw-96px)] md:!max-w-[1400px] p-0 flex overflow-hidden [&>button]:hidden rounded-none"
+                    className="w-full md:w-[calc(100vw-96px)] md:!max-w-[1360px] p-0 flex overflow-hidden [&>button]:hidden rounded-none"
                     style={{
                         background: C.paper,
                         fontFamily: '"Inter", "Noto Sans Devanagari", system-ui, sans-serif',
-                        boxShadow: 'none',
+                        boxShadow: '-10px 0 30px rgba(26,24,18,0.10)',
                         border: 'none',
                     }}
                 >
-                    {!isMobile && <CaseDetailDesignSidebar />}
                     <div style={{
                         flex: 1,
                         minWidth: 0,
-                        minHeight: '100vh',
+                        minHeight: '100%',
                         display: 'flex',
                         flexDirection: 'column',
                         background: C.paper,
@@ -3077,11 +2956,11 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         <div
                             style={{
                                 display: 'grid',
-                                gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 360px',
+                                gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 292px',
                                 alignItems: 'start',
                                 minHeight: '100%',
-                                gap: isMobile ? 0 : 28,
-                                padding: isMobile ? 0 : '0 76px 48px',
+                                gap: isMobile ? 0 : 22,
+                                padding: isMobile ? 0 : '0 32px 36px',
                             }}
                         >
                             <div style={{ minWidth: 0, border: isMobile ? 'none' : `1px solid ${C.hair}`, background: C.paper }}>
@@ -3203,51 +3082,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                             </aside>
                         </div>
                     </div>
-
-                    {!isResolved && (
-                        <div style={{
-                            flexShrink: 0, borderTop: `1px solid ${C.hairStrong}`,
-                            display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 360px',
-                        }}>
-                            <div style={{
-                                padding: isMobile ? '12px 20px' : '12px 76px', background: C.paper,
-                                display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-                            }}>
-                                <button onClick={saveNotes} disabled={savingNotes} style={{
-                                    padding: '10px 16px', background: 'transparent', border: `1px solid ${C.hairStrong}`, color: C.ink,
-                                    fontSize: 12, fontWeight: 700, cursor: savingNotes ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                                }}>
-                                    {savingNotes && <Loader2 size={12} className="animate-spin" />}
-                                    <Icon name="doc" size={12} color={C.ink} /> Save notes
-                                </button>
-                                <button
-                                    onClick={() => (isUncategorised && suggestedTriage?.ai_category ? acceptSuggestion() : handleStatusChange('resolved'))}
-                                    style={{
-                                        flex: '1 1 160px', padding: '10px 16px', background: C.green, color: '#F5EFE0', border: 'none',
-                                        fontSize: 12.5, fontWeight: 700, letterSpacing: '0.02em', cursor: 'pointer', fontFamily: 'inherit',
-                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                                    }}>
-                                    <Icon name="check" size={13} color="#F5EFE0" stroke={2.5} /> {confirmLabel}
-                                </button>
-                                <button onClick={handleEscalateClick} style={{
-                                    padding: '10px 16px', background: C.surface, color: C.saffron, border: `1px solid ${C.saffron}`,
-                                    fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                                }}>
-                                    <Icon name="unlock" size={12} color={C.saffron} stroke={2} /> {escalateLabel}
-                                </button>
-                                <button onClick={() => { setNotifyInput(''); setNotifyOpen(true); }} style={{
-                                    padding: '10px 16px', background: 'transparent', border: `1px solid ${C.hairStrong}`, color: C.ink,
-                                    fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                                }}>
-                                    <Icon name="chat" size={12} color={C.ink} /> Reply
-                                </button>
-                            </div>
-                            {!isMobile && <div style={{ background: C.surfaceWarm, borderLeft: `1px solid ${C.hair}` }} />}
-                        </div>
-                    )}
                     </div>
                 </SheetContent>
             </Sheet>
