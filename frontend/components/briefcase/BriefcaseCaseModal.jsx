@@ -2480,6 +2480,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const [geoLocation, setGeoLocation] = useState('');
     const [geoAssembly, setGeoAssembly] = useState('');
     const [savingGeo, setSavingGeo] = useState(false);
+    const [followBusy, setFollowBusy] = useState(false);
     const [translations, setTranslations] = useState({}); // { [caseId]: { loading, translation, error, alreadyEnglish } }
     const responseSectionRef = useRef(null);
     const responseInputRef = useRef(null);
@@ -2577,6 +2578,8 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const followupCount = 1 + (Array.isArray(meta.contact_message_events) ? meta.contact_message_events.length : 0);
     const isResolved = currentStatus === 'resolved' || currentStatus === 'completed';
     const constituency = current.mp_constituency || fullCase?.mp_constituency || user?.constituency || '';
+    const followers = Array.isArray(current.followed_by) ? current.followed_by : [];
+    const isFollowing = !!user?.username && followers.includes(user.username);
 
     // Contextual escalate/filing label, computed purely from data already
     // flowing to the parent (govt_status/reference on the active thread

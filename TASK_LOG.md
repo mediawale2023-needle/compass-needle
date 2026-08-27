@@ -1866,3 +1866,10 @@ Chronological log of completed repository work. Read before making changes to un
 - Files touched: `TASK_LOG.md`
 - Verification: Clean-worktree `npm run build` from `frontend/` passed before push.
 - Risks or follow-ups: Vercel deployment completion still needs live-status confirmation after the auto-deploy finishes.
+
+- Date: 2026-08-27
+- Request: Fix the client-side exception seen immediately after the case-modal redesign deploy.
+- Summary: Hotfixed `frontend/components/briefcase/BriefcaseCaseModal.jsx` by restoring the missing Follow-button runtime state derived from the active case (`followBusy`, `followers`, `isFollowing`). The redesign had rendered the Follow control from `main` without defining those values in the modal component, causing the deployed dashboard route with `case_id` to crash client-side.
+- Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `TASK_LOG.md`
+- Verification: Clean-worktree `npm run build` from `frontend/` passed after the fix.
+- Risks or follow-ups: Requires Vercel auto-deploy propagation after push; confirm the live `case_id` route no longer shows the client-side exception.
