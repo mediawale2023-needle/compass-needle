@@ -1176,6 +1176,13 @@ try:
         conn.execute(text("ALTER TABLE cases ADD COLUMN IF NOT EXISTS govt_status_updated_at TIMESTAMP"))
         conn.execute(text("ALTER TABLE cases ADD COLUMN IF NOT EXISTS govt_last_forwarded_to_citizen_at TIMESTAMP"))
         conn.execute(text("ALTER TABLE cases ADD COLUMN IF NOT EXISTS govt_submission_worksheet JSONB"))
+        # ── Staff-facing triage: priority + per-user follow, additive only —
+        # is_critical (auto-derived) stays the source of truth for existing
+        # critical-case dashboards/filters; priority is a separate staff-set
+        # field synced onto it, never the other way around.
+        conn.execute(text("ALTER TABLE cases ADD COLUMN IF NOT EXISTS priority VARCHAR(20) NOT NULL DEFAULT 'standard'"))
+        conn.execute(text("ALTER TABLE cases ADD COLUMN IF NOT EXISTS followed_by JSONB NOT NULL DEFAULT '[]'::jsonb"))
+        conn.execute(text("UPDATE cases SET priority = 'critical' WHERE is_critical = true AND priority = 'standard'"))
         conn.execute(text("UPDATE cases SET govt_status = 'not_forwarded' WHERE govt_status IS NULL"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_cases_govt_status ON cases (tenant_id, govt_status) WHERE govt_status <> 'not_forwarded'"))
         conn.execute(text("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS govt_contact_primary_number VARCHAR"))

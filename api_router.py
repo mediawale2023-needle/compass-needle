@@ -1864,7 +1864,7 @@ def get_case(case_id: int, user=Depends(get_current_user)):
                        convergence_program_type, status, raw_message, ward,
                        COALESCE(location, case_metadata->>'matched_value') AS location,
                        COALESCE(assembly, case_metadata->>'assembly_constituency') AS assembly,
-                       case_metadata, is_critical, created_at, updated_at, notes_for_staff,
+                       case_metadata, is_critical, priority, followed_by, created_at, updated_at, notes_for_staff,
                        response_to_citizen, assigned_to, govt_status, govt_reference_number
                 FROM cases
                 WHERE tenant_id = :tid
@@ -2031,6 +2031,21 @@ class CaseNotesUpdate(BaseModel):
     # problem_domain.
     problem_domain: Optional[str] = None
     problem_subdomain: Optional[str] = None
+    priority: Optional[str] = None
+
+
+VALID_PRIORITIES = {"critical", "high", "standard", "low"}
+
+def _parse_followers(value) -> list:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    try:
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, list) else []
+    except Exception:
+        return []
 
 
 class CitizenNotifyRequest(BaseModel):
@@ -2157,6 +2172,15 @@ def update_case(case_id: int, body: CaseNotesUpdate, user=Depends(get_current_us
     if body.assigned_to is not None:
         updates.append("assigned_to = :assigned")
         params["assigned"] = body.assigned_to
+    if body.priority is not None:
+        if body.priority not in VALID_PRIORITIES:
+            raise HTTPException(400, f"Invalid priority — must be one of {sorted(VALID_PRIORITIES)}")
+        updates.append("priority = :priority")
+        params["priority"] = body.priority
+        # is_critical stays in sync so existing critical-case dashboards/
+        # filters/red-zone map keep working regardless of which field wrote it.
+        updates.append("is_critical = :is_critical")
+        params["is_critical"] = body.priority == "critical"
     if body.location is not None or body.assembly is not None:
         manual_location = (
             body.location.strip()
@@ -2225,6 +2249,41 @@ def get_case_activity(case_id: int, user=Depends(get_current_user)):
         if a.get("created_at") and hasattr(a["created_at"], "isoformat"):
             a["created_at"] = a["created_at"].isoformat()
     return {"activities": activities}
+
+
+@router.post("/cases/{case_id}/follow")
+def follow_case(case_id: int, user=Depends(get_current_user)):
+    """Follow a case — per-user, additive. Does not affect assigned_to."""
+    tid = get_tenant_or_fail(user)
+    username = user.get("username", "")
+    row = _q_one("SELECT followed_by FROM cases WHERE id = :cid AND tenant_id = :tid", {"cid": case_id, "tid": tid})
+    if not row:
+        raise HTTPException(404, "Case not found")
+    followers = _parse_followers(row.get("followed_by"))
+    if username not in followers:
+        followers = followers + [username]
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE cases SET followed_by = :fb WHERE id = :cid AND tenant_id = :tid"),
+                {"fb": json.dumps(followers), "cid": case_id, "tid": tid},
+            )
+    return {"success": True, "followed_by": followers}
+
+
+@router.delete("/cases/{case_id}/follow")
+def unfollow_case(case_id: int, user=Depends(get_current_user)):
+    tid = get_tenant_or_fail(user)
+    username = user.get("username", "")
+    row = _q_one("SELECT followed_by FROM cases WHERE id = :cid AND tenant_id = :tid", {"cid": case_id, "tid": tid})
+    if not row:
+        raise HTTPException(404, "Case not found")
+    followers = [u for u in _parse_followers(row.get("followed_by")) if u != username]
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE cases SET followed_by = :fb WHERE id = :cid AND tenant_id = :tid"),
+            {"fb": json.dumps(followers), "cid": case_id, "tid": tid},
+        )
+    return {"success": True, "followed_by": followers}
 
 
 # ─── AI translation (citizen message → English, for staff reading only) ───

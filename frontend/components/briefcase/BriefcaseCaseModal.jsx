@@ -2,18 +2,19 @@
 
 import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { Loader2, Send } from 'lucide-react';
-import { apiGet, apiPatch, apiPost, API_BASE, getAuthToken } from '@/lib/api';
+import { apiGet, apiPatch, apiPost, apiDelete, API_BASE, getAuthToken } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import BriefcaseSourceMediaViewer from '@/components/briefcase/BriefcaseSourceMediaViewer';
 import { STATUS_OPTIONS } from '@/components/briefcase/briefcase-shared';
 import { isPrimaryAccount } from '@/lib/account';
 
 // ─── Icon component ─────────────────────────────────────────
-function Icon({ name, size = 14, color = 'currentColor', stroke = 1.5 }) {
+function Icon({ name, size = 14, color = 'currentColor', stroke = 1.5, filled = false }) {
     const paths = {
         x:        <><path d="M6 6l12 12M18 6L6 18" /></>,
         chevL:    <><path d="M15 6l-6 6 6 6" /></>,
@@ -46,7 +47,7 @@ function Icon({ name, size = 14, color = 'currentColor', stroke = 1.5 }) {
         star:     <><path d="M12 3l2.7 5.9 6.3.7-4.8 4.3 1.4 6.2L12 17l-5.6 3.1 1.4-6.2-4.8-4.3 6.3-.7z" /></>,
     };
     return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+        <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : "none"}
             stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
             {paths[name] || null}
         </svg>
@@ -287,7 +288,7 @@ function SectionHeading({ n, label, trailing, info }) {
 // "Back" closes the drawer (there's no separate case-list page underneath
 // to navigate to — the Sheet overlays the Briefcase list, so closing it
 // is going back to the Briefcase).
-function DrawerHeader({ caseRef, status, isUncategorised, onClose }) {
+function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, onToggleFollow, followBusy, onCopyRef }) {
     const palette = {
         pending:     { fg: C.saffron, icon: 'lock' },
         new:         { fg: C.greenInk, icon: 'doc' },
@@ -339,20 +340,36 @@ function DrawerHeader({ caseRef, status, isUncategorised, onClose }) {
             </div>
 
             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                <button style={{
-                    width: 30, height: 30, border: `1px solid ${C.hair}`,
-                    background: 'transparent', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }} title="Star">
-                    <Icon name="star" size={13} color={C.ink2} />
+                <button
+                    onClick={onToggleFollow}
+                    disabled={followBusy}
+                    style={{
+                        width: 30, height: 30, border: `1px solid ${isFollowing ? C.green : C.hair}`,
+                        background: 'transparent', cursor: followBusy ? 'not-allowed' : 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        opacity: followBusy ? 0.6 : 1,
+                    }}
+                    title={isFollowing ? 'Following — click to unfollow' : 'Follow this case'}
+                >
+                    <Icon name="star" size={13} color={isFollowing ? C.green : C.ink2} filled={isFollowing} />
                 </button>
-                <button style={{
-                    width: 30, height: 30, border: `1px solid ${C.hair}`,
-                    background: 'transparent', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }} title="More options">
-                    <Icon name="dots" size={13} color={C.ink2} />
-                </button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <button style={{
+                            width: 30, height: 30, border: `1px solid ${C.hair}`,
+                            background: 'transparent', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }} title="More options">
+                            <Icon name="dots" size={13} color={C.ink2} />
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" style={{ fontFamily: 'inherit' }}>
+                        <DropdownMenuItem onClick={onCopyRef}>
+                            <Icon name="doc" size={12} color={C.ink2} style={{ marginRight: 8 }} />
+                            Copy case reference
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
         </div>
     );
@@ -1978,12 +1995,18 @@ function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSa
 // "Save geography" shortcut that saves whatever's currently in the AI
 // Understanding section's location/assembly inputs — same handler, just
 // surfaced here too for quick access without scrolling back up.
-function CaseInformation({ current, meta, caseRef, createdAt, assignee, constituency, onAssign, staff, onDelete, userRole, onSaveGeo, savingGeo }) {
+function CaseInformation({ current, meta, caseRef, createdAt, assignee, constituency, onAssign, staff, onDelete, userRole, onSaveGeo, savingGeo, priority, onPriorityChange }) {
     const canDelete = ['mp', 'owner', 'pr'].includes(userRole);
+    const priorityStyle = {
+        critical: { bg: '#FDEDEC', fg: C.red, label: 'Critical' },
+        high:     { bg: C.saffronTint, fg: C.saffron, label: 'High' },
+        standard: { bg: 'transparent', fg: C.ink, label: 'Standard' },
+        low:      { bg: 'transparent', fg: C.ink3, label: 'Low' },
+    }[priority] || { bg: 'transparent', fg: C.ink, label: 'Standard' };
     const gridRows = [
-        ['Priority', current.is_critical
-            ? <span style={{ padding: '2px 8px', background: '#FDEDEC', color: C.red, fontSize: 10.5, fontWeight: 700 }}>Critical</span>
-            : 'Standard',
+        ['Priority', priorityStyle.bg === 'transparent'
+            ? priorityStyle.label
+            : <span style={{ padding: '2px 8px', background: priorityStyle.bg, color: priorityStyle.fg, fontSize: 10.5, fontWeight: 700 }}>{priorityStyle.label}</span>,
          'Geography', meta.matched_value || current.location || '–'],
         ['Category', current.problem_subdomain || current.problem_domain || current.category || 'Uncategorised',
          'Location', meta.matched_value || current.location || '–'],
@@ -2010,21 +2033,36 @@ function CaseInformation({ current, meta, caseRef, createdAt, assignee, constitu
                     </div>
                 ))}
             </div>
-            <div style={{ paddingTop: 10, borderTop: `1px solid ${C.hair}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                    <Icon name="user" size={12} color={C.ink3} />
-                    <select value={assignee} onChange={(e) => onAssign(e.target.value)} style={{
-                        border: 'none', background: 'transparent', padding: 0,
-                        fontSize: 12.5, color: C.ink, fontWeight: 600, fontFamily: 'inherit', outline: 'none',
-                    }}>
-                        <option value="">Unassigned</option>
-                        {staff.map((s) => (
-                            <option key={s.username} value={s.username}>{s.display_name || s.username}</option>
-                        ))}
-                    </select>
+            <div style={{ paddingTop: 10, borderTop: `1px solid ${C.hair}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                        <Icon name="user" size={12} color={C.ink3} />
+                        <select value={assignee} onChange={(e) => onAssign(e.target.value)} style={{
+                            border: 'none', background: 'transparent', padding: 0,
+                            fontSize: 12.5, color: C.ink, fontWeight: 600, fontFamily: 'inherit', outline: 'none',
+                        }}>
+                            <option value="">Unassigned</option>
+                            {staff.map((s) => (
+                                <option key={s.username} value={s.username}>{s.display_name || s.username}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                        <Icon name="warn" size={12} color={C.ink3} />
+                        <select value={priority || 'standard'} onChange={(e) => onPriorityChange(e.target.value)} style={{
+                            border: 'none', background: 'transparent', padding: 0,
+                            fontSize: 12.5, color: C.ink, fontWeight: 600, fontFamily: 'inherit', outline: 'none',
+                        }}>
+                            <option value="critical">Critical priority</option>
+                            <option value="high">High priority</option>
+                            <option value="standard">Standard priority</option>
+                            <option value="low">Low priority</option>
+                        </select>
+                    </div>
                 </div>
                 <button onClick={onSaveGeo} disabled={savingGeo} style={{
                     padding: '6px 12px', background: C.ink, color: C.paper, border: 'none', flexShrink: 0,
+                    alignSelf: 'flex-start',
                     fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em',
                     cursor: savingGeo ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                     display: 'inline-flex', alignItems: 'center', gap: 5, opacity: savingGeo ? 0.7 : 1,
@@ -2125,6 +2163,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const [geoLocation, setGeoLocation] = useState('');
     const [geoAssembly, setGeoAssembly] = useState('');
     const [savingGeo, setSavingGeo] = useState(false);
+    const [followBusy, setFollowBusy] = useState(false);
     const [translations, setTranslations] = useState({}); // { [caseId]: { loading, translation, error, alreadyEnglish } }
     const responseSectionRef = useRef(null);
     const responseInputRef = useRef(null);
@@ -2222,6 +2261,8 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const followupCount = 1 + (Array.isArray(meta.contact_message_events) ? meta.contact_message_events.length : 0);
     const isResolved = currentStatus === 'resolved' || currentStatus === 'completed';
     const constituency = current.mp_constituency || fullCase?.mp_constituency || user?.constituency || '';
+    const followers = Array.isArray(current.followed_by) ? current.followed_by : [];
+    const isFollowing = !!user?.username && followers.includes(user.username);
 
     // Contextual escalate/filing label, computed purely from data already
     // flowing to the parent (govt_status/reference on the active thread
@@ -2404,6 +2445,24 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         }
     };
 
+    const handlePriorityChange = async (nextPriority) => {
+        try {
+            await apiPatch(`/api/cases/${current.id}`, { priority: nextPriority });
+            setFullCase((existing) => {
+                if (!existing) return existing;
+                const isCritical = nextPriority === 'critical';
+                const nextThreadCases = (existing.thread_cases || []).map((item) =>
+                    item.id === current.id ? { ...item, priority: nextPriority, is_critical: isCritical } : item
+                );
+                const base = existing.id === current.id ? { ...existing, priority: nextPriority, is_critical: isCritical } : { ...existing };
+                return { ...base, thread_cases: nextThreadCases };
+            });
+            toast.success(`Priority set to ${nextPriority}`);
+        } catch {
+            toast.error('Failed to update priority');
+        }
+    };
+
     const handleDelete = async () => {
         if (!window.confirm('Delete this case? This cannot be undone.')) return;
         try {
@@ -2413,6 +2472,37 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         } catch {
             toast.error('Failed to delete case');
         }
+    };
+
+    const toggleFollow = async () => {
+        setFollowBusy(true);
+        try {
+            if (isFollowing) {
+                await apiDelete(`/api/cases/${current.id}/follow`);
+            } else {
+                await apiPost(`/api/cases/${current.id}/follow`, {});
+            }
+            const nextFollowers = isFollowing
+                ? followers.filter((u) => u !== user?.username)
+                : [...followers, user?.username].filter(Boolean);
+            setFullCase((existing) => {
+                if (!existing) return existing;
+                const nextThreadCases = (existing.thread_cases || []).map((item) =>
+                    item.id === current.id ? { ...item, followed_by: nextFollowers } : item
+                );
+                const base = existing.id === current.id ? { ...existing, followed_by: nextFollowers } : { ...existing };
+                return { ...base, thread_cases: nextThreadCases };
+            });
+        } catch {
+            toast.error(isFollowing ? 'Failed to unfollow' : 'Failed to follow');
+        } finally {
+            setFollowBusy(false);
+        }
+    };
+
+    const copyCaseRef = () => {
+        navigator.clipboard?.writeText(caseRef);
+        toast.success(`Copied ${caseRef}`);
     };
 
     const handleTranslate = async () => {
@@ -2463,6 +2553,10 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         status={currentStatus}
                         isUncategorised={isUncategorised}
                         onClose={onClose}
+                        isFollowing={isFollowing}
+                        onToggleFollow={toggleFollow}
+                        followBusy={followBusy}
+                        onCopyRef={copyCaseRef}
                     />
                     <CaseMetaRow
                         phone={current.user_phone}
@@ -2596,55 +2690,18 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                     userRole={user?.role}
                                     onSaveGeo={saveGeography}
                                     savingGeo={savingGeo}
+                                    priority={current.priority}
+                                    onPriorityChange={handlePriorityChange}
                                 />
                             </aside>
                         </div>
                     </div>
 
-                    {!isResolved && (
-                        <div style={{
-                            flexShrink: 0, borderTop: `1px solid ${C.hairStrong}`,
-                            display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 300px',
-                        }}>
-                            <div style={{
-                                padding: '12px 20px', background: C.paper,
-                                display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-                            }}>
-                                <button onClick={saveNotes} disabled={savingNotes} style={{
-                                    padding: '10px 16px', background: 'transparent', border: `1px solid ${C.hairStrong}`, color: C.ink,
-                                    fontSize: 12, fontWeight: 700, cursor: savingNotes ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                                }}>
-                                    {savingNotes && <Loader2 size={12} className="animate-spin" />}
-                                    <Icon name="doc" size={12} color={C.ink} /> Save notes
-                                </button>
-                                <button
-                                    onClick={() => (isUncategorised && suggestedTriage?.ai_category ? acceptSuggestion() : handleStatusChange('resolved'))}
-                                    style={{
-                                        flex: '1 1 160px', padding: '10px 16px', background: C.green, color: '#F5EFE0', border: 'none',
-                                        fontSize: 12.5, fontWeight: 700, letterSpacing: '0.02em', cursor: 'pointer', fontFamily: 'inherit',
-                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                                    }}>
-                                    <Icon name="check" size={13} color="#F5EFE0" stroke={2.5} /> {confirmLabel}
-                                </button>
-                                <button onClick={handleEscalateClick} style={{
-                                    padding: '10px 16px', background: C.surface, color: C.saffron, border: `1px solid ${C.saffron}`,
-                                    fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                                }}>
-                                    <Icon name="unlock" size={12} color={C.saffron} stroke={2} /> {escalateLabel}
-                                </button>
-                                <button onClick={() => { setNotifyInput(''); setNotifyOpen(true); }} style={{
-                                    padding: '10px 16px', background: 'transparent', border: `1px solid ${C.hairStrong}`, color: C.ink,
-                                    fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                                }}>
-                                    <Icon name="chat" size={12} color={C.ink} /> Reply
-                                </button>
-                            </div>
-                            {!isMobile && <div style={{ background: C.surfaceWarm, borderLeft: `1px solid ${C.hair}` }} />}
-                        </div>
-                    )}
+                    {/* No sticky action-bar here on purpose — Escalate/Reply/Resolve live
+                        with the citizen complaint (ComplaintActionRow) and Save notes lives
+                        in the sidebar's Internal Notes section. A second bar duplicating them
+                        used to sit here; removed per the original one-location intent
+                        documented on ComplaintActionRow above. */}
                 </SheetContent>
             </Sheet>
 

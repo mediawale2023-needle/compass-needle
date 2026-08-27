@@ -252,6 +252,8 @@ class Case(Base):
     ward = Column(String, nullable=True)
     assembly = Column(String, nullable=True)
     is_critical = Column(Boolean, default=False)
+    priority = Column(String, default="standard")  # critical | high | standard | low — staff-set; kept in sync onto is_critical
+    followed_by = Column(JSON, nullable=True, default=list)  # list of usernames following this case for updates
     response_to_citizen = Column(Text, nullable=True)
     notes_for_staff = Column(Text, nullable=True)
     assigned_to = Column(String, nullable=True)
