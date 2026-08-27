@@ -1859,3 +1859,10 @@ Chronological log of completed repository work. Read before making changes to un
 - Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
 - Verification: `npm run build` from `frontend/` completed successfully and built all 18 routes.
 - Risks or follow-ups: Not pushed or deployed in this entry. The working tree already contained unrelated/uncommitted government filing workspace changes, so separate review is needed before deciding what to commit/push live.
+
+- Date: 2026-08-27
+- Request: Commit, push, and deploy the Briefcase case modal PDF redesign.
+- Summary: Applied the modal redesign to a clean temporary worktree based on `origin/main`, intentionally excluding unrelated local `api_router.py` and audit-document changes from the dirty primary checkout. Committed as `b6d66f37` (`Match case modal to PDF reference`) and pushed directly to `main` (`9d190afa..b6d66f37`) to trigger the Vercel MP frontend deployment.
+- Files touched: `TASK_LOG.md`
+- Verification: Clean-worktree `npm run build` from `frontend/` passed before push.
+- Risks or follow-ups: Vercel deployment completion still needs live-status confirmation after the auto-deploy finishes.
