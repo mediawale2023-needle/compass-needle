@@ -3029,7 +3029,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
             <Sheet open={!!caseItem} onOpenChange={(open) => { if (!open) onClose(); }}>
                 <SheetContent
                     side="right"
-                    className="!w-screen !max-w-none p-0 flex overflow-hidden [&>button]:hidden rounded-none"
+                    className="w-full md:w-[calc(100vw-96px)] md:!max-w-[1400px] p-0 flex overflow-hidden [&>button]:hidden rounded-none"
                     style={{
                         background: C.paper,
                         fontFamily: '"Inter", "Noto Sans Devanagari", system-ui, sans-serif',
