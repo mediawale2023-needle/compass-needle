@@ -13,6 +13,8 @@ import BriefcaseSourceMediaViewer from '@/components/briefcase/BriefcaseSourceMe
 import { STATUS_OPTIONS } from '@/components/briefcase/briefcase-shared';
 import { isPrimaryAccount } from '@/lib/account';
 
+const GOVT_FILING_WORKSPACE_SPIKE = process.env.NEXT_PUBLIC_GOVT_FILING_WORKSPACE_SPIKE === 'true';
+
 // ─── Icon component ─────────────────────────────────────────
 function Icon({ name, size = 14, color = 'currentColor', stroke = 1.5, filled = false }) {
     const paths = {
@@ -288,53 +290,90 @@ function SectionHeading({ n, label, trailing, info }) {
 // "Back" closes the drawer (there's no separate case-list page underneath
 // to navigate to — the Sheet overlays the Briefcase list, so closing it
 // is going back to the Briefcase).
-function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, onToggleFollow, followBusy, onCopyRef }) {
+function StatusPill({ status, tone = 'default' }) {
+    const normalized = String(status || 'new').toLowerCase();
+    const labels = {
+        pending: 'Pending',
+        pending_review: 'Pending Review',
+        awaiting_location: 'Awaiting Location',
+        new: 'New',
+        in_progress: 'In Progress',
+        resolved: 'Resolved',
+        completed: 'Completed',
+        closed: 'Closed',
+        critical: 'Critical',
+    };
     const palette = {
-        pending:     { fg: C.saffron, icon: 'lock' },
-        new:         { fg: C.greenInk, icon: 'doc' },
-        in_progress: { fg: '#1A5276',  icon: 'play' },
-        resolved:    { fg: '#1E8449',  icon: 'check' },
-        completed:   { fg: '#1E8449',  icon: 'check' },
-        closed:      { fg: C.ink3,     icon: 'check' },
-    }[status] || { fg: C.saffron, icon: 'lock' };
+        pending: { fg: C.saffron, bg: C.saffronTint, dot: C.saffron },
+        pending_review: { fg: C.saffron, bg: C.saffronTint, dot: C.saffron },
+        awaiting_location: { fg: C.saffron, bg: C.saffronTint, dot: C.saffron },
+        new: { fg: C.greenInk, bg: C.greenWash, dot: C.green },
+        in_progress: { fg: '#795008', bg: '#F3E7C8', dot: C.saffron },
+        resolved: { fg: C.greenInk, bg: C.greenTint, dot: C.green },
+        completed: { fg: C.greenInk, bg: C.greenTint, dot: C.green },
+        closed: { fg: C.ink3, bg: C.paperDeep, dot: C.ink3 },
+        critical: { fg: C.red, bg: '#FDEDEC', dot: C.red },
+    }[normalized] || { fg: C.ink2, bg: C.paperDeep, dot: C.ink3 };
+
+    return (
+        <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+            padding: tone === 'small' ? '2px 7px' : '4px 11px',
+            borderRadius: 999, border: `1px solid ${palette.bg}`,
+            background: palette.bg, color: palette.fg,
+            fontSize: tone === 'small' ? 10 : 11, fontWeight: 700,
+            fontFamily: '"JetBrains Mono", monospace',
+            letterSpacing: tone === 'small' ? '0.01em' : '0.02em',
+        }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: palette.dot, flexShrink: 0 }} />
+            {labels[normalized] || String(status || 'new').replace(/_/g, ' ')}
+        </span>
+    );
+}
+
+// ─── Drawer header ───────────────────────────────────────────
+// "Back" closes the drawer. The surface is styled as the main console pane
+// from the PDF, while keeping every existing action wired to the same handlers.
+function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, onToggleFollow, followBusy, onCopyRef }) {
+    const normalizedStatus = String(status || 'new').toLowerCase();
 
     return (
         <div style={{
             position: 'sticky', top: 0, zIndex: 10,
             background: C.paper, borderBottom: `1px solid ${C.hair}`,
             display: 'flex', alignItems: 'center', gap: 14,
-            padding: '14px 20px',
+            padding: '14px 22px',
         }}>
             <button onClick={onClose} style={{
-                border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0,
-                display: 'flex', alignItems: 'center', gap: 6, padding: 0,
+                border: `1px solid ${C.hair}`, borderRadius: 7, background: C.surface, cursor: 'pointer', flexShrink: 0,
+                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 11px',
                 fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, color: C.ink2,
             }}>
                 <Icon name="chevL" size={13} color={C.ink2} /> Back to Briefcase
             </button>
 
-            <span style={{ width: 1, height: 20, background: C.hair, flexShrink: 0 }} />
-
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
-                <span style={{ fontSize: 19, fontWeight: 800, color: C.ink, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
+                <span style={{
+                    fontFamily: '"Source Serif 4", Georgia, serif',
+                    fontSize: 24, lineHeight: 1, fontWeight: 700, color: C.ink, whiteSpace: 'nowrap',
+                }}>
                     Case {caseRef}
                 </span>
-
                 <span style={{
-                    padding: '3px 10px', background: C.surface, color: palette.fg,
-                    border: `1px solid ${palette.fg}`,
-                    fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-                    display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+                    padding: '4px 10px', borderRadius: 999, border: `1px solid ${C.hair}`,
+                    color: C.ink3, background: C.surface, fontSize: 9,
+                    fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.12em', textTransform: 'uppercase',
                 }}>
-                    <Icon name={palette.icon} size={10} color={palette.fg} stroke={2.2} />
-                    {status.replace(/_/g, ' ')}
+                    Record open
                 </span>
+                <Icon name="chevR" size={13} color={C.ink3} stroke={1.7} />
+                <StatusPill status={normalizedStatus} />
 
                 {isUncategorised && (
                     <span style={{
-                        padding: '2px 8px', background: C.saffronTint, color: C.saffron,
+                        padding: '3px 9px', borderRadius: 999, background: C.saffronTint, color: C.saffron,
                         fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-                        border: `1px dashed ${C.saffron}`, whiteSpace: 'nowrap',
+                        border: `1px solid ${C.saffronTint}`, whiteSpace: 'nowrap',
                     }}>uncategorised</span>
                 )}
             </div>
@@ -344,20 +383,20 @@ function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, 
                     onClick={onToggleFollow}
                     disabled={followBusy}
                     style={{
-                        width: 30, height: 30, border: `1px solid ${isFollowing ? C.green : C.hair}`,
-                        background: 'transparent', cursor: followBusy ? 'not-allowed' : 'pointer',
+                        width: 30, height: 30, borderRadius: 7, border: `1px solid ${isFollowing ? C.green : C.hair}`,
+                        background: C.surface, cursor: followBusy ? 'not-allowed' : 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         opacity: followBusy ? 0.6 : 1,
                     }}
-                    title={isFollowing ? 'Following — click to unfollow' : 'Follow this case'}
+                    title={isFollowing ? 'Following - click to unfollow' : 'Follow this case'}
                 >
                     <Icon name="star" size={13} color={isFollowing ? C.green : C.ink2} filled={isFollowing} />
                 </button>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <button style={{
-                            width: 30, height: 30, border: `1px solid ${C.hair}`,
-                            background: 'transparent', cursor: 'pointer',
+                            width: 30, height: 30, borderRadius: 7, border: `1px solid ${C.hair}`,
+                            background: C.surface, cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }} title="More options">
                             <Icon name="dots" size={13} color={C.ink2} />
@@ -377,6 +416,13 @@ function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, 
 
 // ─── Case meta row (case-level: WhatsApp/language pills + received date —
 // shared by every complaint in the thread, doesn't change on tab switch) ──
+function formatShortDate(value) {
+    if (!value) return '';
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
 function CaseMetaRow({ phone, createdAt, language }) {
     const dateStr = createdAt
         ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -385,25 +431,97 @@ function CaseMetaRow({ phone, createdAt, language }) {
         ? createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ' IST'
         : '–';
     return (
-        <div style={{ ...sec, padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ padding: '9px 22px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', borderBottom: `1px solid ${C.hair}`, background: C.paper }}>
             <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px',
-                border: `1px solid ${C.hair}`, background: C.surface, fontSize: 11.5, color: C.ink2, fontWeight: 600,
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                fontSize: 11.5, color: C.ink2, fontWeight: 600,
             }}>
-                <Icon name="whatsapp" size={11} color={C.green} /> WhatsApp
+                <span style={{ width: 8, height: 8, borderRadius: '50%', border: `1px solid ${C.green}`, display: 'inline-block' }} />
+                WhatsApp
             </span>
             {language && (
-                <span style={{
-                    display: 'inline-flex', alignItems: 'center', padding: '4px 10px',
-                    border: `1px solid ${C.hair}`, background: C.surface, fontSize: 11.5, color: C.ink2, fontWeight: 600,
-                }}>{language}</span>
+                <span style={{ fontSize: 11.5, color: C.ink2, fontWeight: 600 }}>{language}</span>
             )}
-            <span style={{ fontSize: 11.5, color: C.ink3 }}>Received on {dateStr}, {timeStr}</span>
             {phone && (
-                <span style={{ fontSize: 10.5, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', marginLeft: 'auto' }}>
-                    ···{phone.slice(-4)}
-                </span>
+                <span style={{ fontSize: 11.5, color: C.ink3 }}>... {phone.slice(-4)}</span>
             )}
+            <span style={{ fontSize: 11.5, color: C.ink3 }}>Received {dateStr}, {timeStr}</span>
+        </div>
+    );
+}
+
+function CaseHero({ current, meta, priority, onPriorityChange }) {
+    const category = current.problem_subdomain || current.problem_domain || current.category || 'Uncategorised';
+    const location = meta.matched_value || current.location || 'Location unknown';
+    const assembly = current.assembly || meta.assembly_constituency || '';
+    const priorityLabel = {
+        critical: 'Critical priority',
+        high: 'High priority',
+        low: 'Low priority',
+        standard: 'Standard priority',
+    }[priority || 'standard'] || 'Standard priority';
+    const title = meta.issue_title || meta.summary_title || current.case_title || current.problem_subdomain || current.problem_domain || current.category || 'Citizen grievance';
+
+    return (
+        <div style={{ padding: '17px 22px 14px', borderBottom: `1px solid ${C.hair}`, background: C.paper }}>
+            <h1 style={{
+                margin: 0, fontFamily: '"Source Serif 4", Georgia, serif',
+                fontSize: 24, lineHeight: 1.1, fontWeight: 700, color: C.ink,
+            }}>
+                {title}
+            </h1>
+            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '4px 10px', borderRadius: 999, background: C.surface,
+                    border: `1px solid ${C.hair}`, color: C.ink2,
+                    fontSize: 11, fontWeight: 600,
+                }}>
+                    <Icon name="doc" size={11} color={C.ink3} /> {category}
+                </span>
+                <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '4px 10px', borderRadius: 999, background: C.surface,
+                    border: `1px solid ${C.hair}`, color: C.ink2,
+                    fontSize: 11, fontWeight: 600,
+                }}>
+                    <Icon name="pin" size={11} color={C.ink3} /> {location}
+                </span>
+                {assembly && (
+                    <span style={{
+                        padding: '4px 10px', borderRadius: 999, background: C.surface,
+                        border: `1px solid ${C.hair}`, color: C.ink2,
+                        fontSize: 11, fontWeight: 600,
+                    }}>
+                        {assembly}
+                    </span>
+                )}
+                <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '3px 9px', borderRadius: 999, background: C.surface,
+                    border: `1px solid ${C.hair}`, color: C.ink2,
+                    fontSize: 11, fontWeight: 600,
+                }}>
+                    <select value={priority || 'standard'} onChange={(e) => onPriorityChange(e.target.value)} style={{
+                        border: 'none', background: 'transparent', padding: 0,
+                        color: C.ink2, fontSize: 11, fontWeight: 700, fontFamily: 'inherit', outline: 'none',
+                    }}>
+                        <option value="critical">Critical priority</option>
+                        <option value="high">High priority</option>
+                        <option value="standard">Standard priority</option>
+                        <option value="low">Low priority</option>
+                    </select>
+                </span>
+                {priority !== 'standard' && (
+                    <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        padding: '4px 10px', borderRadius: 999, color: C.greenInk,
+                        fontSize: 11, fontWeight: 700,
+                    }}>
+                        <Icon name="star" size={11} color={C.greenInk} filled /> {priorityLabel}
+                    </span>
+                )}
+            </div>
         </div>
     );
 }
@@ -499,42 +617,53 @@ function ContactQueueNotice({ current }) {
 function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase }) {
     const ordered = [...threadCases].slice().reverse();
     return (
-        <div style={{ padding: '12px 20px', background: C.paperDeep, borderBottom: `1px solid ${C.hairStrong}` }}>
-            <div style={{ marginBottom: 10 }}>
-                <SectionHeading label="Complaints in this case" info="Each complaint is its own citizen grievance, detected from this WhatsApp thread by the intake pipeline." />
+        <div style={{ padding: '13px 22px 10px', background: C.paperDeep, borderBottom: `1px solid ${C.hair}` }}>
+            <div style={{
+                marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8,
+                color: C.ink3, fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase',
+            }}>
+                <span>Complaints in this case</span>
+                <span>({ordered.length})</span>
+                <span>·</span>
+                <span>Same location</span>
+                <span>·</span>
+                <span>6 weeks</span>
             </div>
-            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
                 {ordered.map((item, idx) => {
                     const isActive = item.id === activeCaseId;
-                    const statusLabel = (item.status || 'new').replace(/_/g, ' ');
                     return (
                         <button
                             key={item.id}
                             type="button"
                             onClick={() => onSelectCase(item)}
                             style={{
-                                padding: '8px 14px', flexShrink: 0, textAlign: 'left', minWidth: 118,
-                                border: `1px solid ${isActive ? C.green : C.hair}`,
-                                background: isActive ? C.green : C.surface,
-                                color: isActive ? '#F5EFE0' : C.ink,
+                                position: 'relative', padding: '10px 13px', flexShrink: 0, textAlign: 'left', minWidth: 116,
+                                borderRadius: 7,
+                                border: `1px solid ${isActive ? C.ink : C.hair}`,
+                                background: isActive ? '#FFFDF7' : C.surfaceWarm,
+                                color: C.ink,
                                 cursor: 'pointer', fontFamily: 'inherit',
-                                display: 'flex', flexDirection: 'column', gap: 2,
+                                display: 'flex', flexDirection: 'column', gap: 5,
+                                boxShadow: isActive ? '0 2px 0 rgba(26,24,18,0.08)' : 'none',
                             }}
                         >
-                            <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '0.02em' }}>
-                                Complaint {idx + 1}{isActive ? ' (Current)' : ''}
+                            <span style={{ fontSize: 9, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                Complaint {idx + 1}
                             </span>
-                            <span style={{ fontSize: 10, opacity: 0.85 }}>{statusLabel}</span>
+                            <span style={{ fontSize: 12, color: C.ink, fontWeight: 800 }}>
+                                {formatShortDate(item.created_at) || 'No date'}
+                            </span>
+                            <StatusPill status={item.status || 'new'} tone="small" />
+                            {isActive && (
+                                <span style={{ position: 'absolute', top: 9, right: 9 }}>
+                                    <Icon name="check" size={10} color={C.saffron} stroke={2.4} />
+                                </span>
+                            )}
                         </button>
                     );
                 })}
-            </div>
-            <div style={{ marginTop: 8, fontSize: 11, color: C.ink3, display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{
-                    width: 12, height: 12, borderRadius: '50%', border: `1px solid ${C.ink3}`,
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, flexShrink: 0,
-                }}>i</span>
-                Each complaint has its own government filing and status.
             </div>
         </div>
     );
@@ -1115,6 +1244,97 @@ function formatGovtCheckedAt(value) {
     return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+function GovernmentJourneyPanel({ current }) {
+    const govtStatus = String(current.govt_status || 'not_forwarded').toLowerCase();
+    const alreadyFiled = isGovtAlreadyFiled(current);
+    const submitted = alreadyFiled || govtStatus === 'pending_staff_submit';
+    const activeIndex = alreadyFiled
+        ? (['resolved', 'rejected'].includes(govtStatus) ? 4 : ['under_review', 'escalated'].includes(govtStatus) ? 3 : 2)
+        : (submitted ? 1 : 0);
+    const filedDate = formatShortDate(current.govt_status_updated_at || current.updated_at || current.created_at);
+    const steps = [
+        { label: 'Filed', date: filedDate || 'Pending' },
+        { label: 'Registered', date: filedDate || 'Pending' },
+        { label: 'Sent for scrutiny', date: activeIndex >= 2 ? filedDate || 'Pending' : 'Pending' },
+        { label: 'Department action', date: ['resolved', 'rejected'].includes(govtStatus) ? filedDate || 'Pending' : 'Pending' },
+    ];
+    const portalName = current.portal_name || current.govt_portal_name || 'Government portal';
+    const ref = current.govt_reference_number ? `#${current.govt_reference_number}` : 'Not filed yet';
+    const owner = current.latest_status_check?.portal_detail?.officer || current.latest_status_check?.portal_detail?.office || current.govt_department || 'Awaiting department update';
+
+    return (
+        <div style={{ padding: '0 22px 16px', background: C.paper }}>
+            <div style={{ border: `1px solid ${C.hair}`, borderRadius: 8, background: '#FFFDF7', padding: '18px 18px 16px' }}>
+                <div style={{ marginBottom: 16 }}>
+                    <div style={{
+                        fontFamily: '"JetBrains Mono", monospace', color: C.ink3,
+                        textTransform: 'uppercase', letterSpacing: '0.12em', fontSize: 9.5, marginBottom: 4,
+                    }}>
+                        Government grievance journey
+                    </div>
+                    <div style={{ fontSize: 14, color: C.ink, fontWeight: 800 }}>
+                        Grievance {ref} · <span style={{ fontWeight: 600 }}>{portalName}</span>
+                    </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(128px, 1fr))', gap: 0, overflowX: 'auto', paddingBottom: 2 }}>
+                    {steps.map((step, idx) => {
+                        const complete = idx < activeIndex;
+                        const active = idx === activeIndex;
+                        const dotBg = complete ? C.green : active ? C.saffron : '#FFFDF7';
+                        const dotBorder = complete ? C.green : active ? C.saffron : C.hairStrong;
+                        return (
+                            <div key={step.label} style={{ minWidth: 128, paddingRight: idx === steps.length - 1 ? 0 : 12 }}>
+                                <div style={{ position: 'relative', height: 22, display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                                    {idx < steps.length - 1 && (
+                                        <span style={{
+                                            position: 'absolute', left: 20, right: -12, top: 10,
+                                            height: 2, background: complete ? C.green : C.hair,
+                                        }} />
+                                    )}
+                                    <span style={{
+                                        position: 'relative', zIndex: 1,
+                                        width: 20, height: 20, borderRadius: '50%',
+                                        background: dotBg, border: `2px solid ${dotBorder}`,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    }}>
+                                        {complete && <Icon name="check" size={10} color="#fff" stroke={2.8} />}
+                                    </span>
+                                </div>
+                                <div style={{ fontSize: 11.5, fontWeight: 800, color: active || complete ? C.ink : C.ink3, lineHeight: 1.2 }}>
+                                    {step.label}
+                                </div>
+                                <div style={{ marginTop: 4, fontSize: 10, color: C.ink3, fontFamily: '"JetBrains Mono", monospace' }}>
+                                    {step.date}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.hair}`, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
+                    <div>
+                        <div style={{ fontSize: 9.5, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 3 }}>
+                            Department
+                        </div>
+                        <div style={{ fontSize: 12.5, color: C.ink, fontWeight: 700, overflowWrap: 'anywhere' }}>
+                            {current.govt_department || 'Not assigned yet'}
+                        </div>
+                    </div>
+                    <div>
+                        <div style={{ fontSize: 9.5, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 3 }}>
+                            Currently with
+                        </div>
+                        <div style={{ fontSize: 12.5, color: C.ink, fontWeight: 700, overflowWrap: 'anywhere' }}>
+                            {owner}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function govtWsUrl(path) {
     const base = API_BASE || (typeof window !== 'undefined' ? window.location.origin : '');
     const wsBase = base.replace(/^https/, 'wss').replace(/^http/, 'ws');
@@ -1127,10 +1347,11 @@ function govtWsUrl(path) {
 // and forwards mouse/keyboard back into the real page — this is the actual
 // portal, with staff logging in, filling in every field, and clicking
 // Submit for real. See modules/govt_sync/browser_session.py.
-function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone }) {
+function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone, preparedFields = [], workspaceMode = false, portalName = '' }) {
     const canvasRef = useRef(null);
     const wsRef = useRef(null);
     const [connected, setConnected] = useState(false);
+    const [interactionProof, setInteractionProof] = useState({ clicks: 0, keys: 0, scrolls: 0, moves: 0, last: 'No input relayed yet' });
     const vw = viewport?.width || 1280;
     const vh = viewport?.height || 900;
     // Ref so the WS effect below doesn't need this in its deps — it's a
@@ -1178,6 +1399,23 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone }) {
         const ws = wsRef.current;
         if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'input', event: ev }));
+            setInteractionProof((prev) => {
+                const next = { ...prev };
+                if (ev.type === 'mousedown') {
+                    next.clicks += 1;
+                    next.last = `Click relayed at ${ev.x}, ${ev.y}`;
+                } else if (ev.type === 'keydown') {
+                    next.keys += 1;
+                    next.last = ev.printable ? 'Typed character relayed' : `Key relayed: ${ev.key || 'unknown'}`;
+                } else if (ev.type === 'wheel') {
+                    next.scrolls += 1;
+                    next.last = `Scroll relayed (${Math.round(ev.deltaY || 0)}px)`;
+                } else if (ev.type === 'mousemove') {
+                    next.moves += 1;
+                    if (next.moves % 15 === 0) next.last = `Mouse movement relayed at ${ev.x}, ${ev.y}`;
+                }
+                return next;
+            });
         }
     }
 
@@ -1189,12 +1427,12 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone }) {
         };
     }
 
-    return (
-        <div style={{ marginTop: 8, marginBottom: 10 }}>
+    const canvas = (
+        <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <span style={{ fontSize: 11, color: connected ? C.greenInk : C.saffron, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: connected ? C.green : C.saffron, display: 'inline-block' }} />
-                    {connected ? 'Live — log in, fill in the grievance form, and click Submit yourself' : 'Connecting to live portal session…'}
+                    {connected ? 'Live — staff input is relayed into the real portal session' : 'Connecting to live portal session…'}
                 </span>
                 {onClose && (
                     <button type="button" onClick={onClose} style={{ fontSize: 10.5, color: C.ink3, background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -1217,6 +1455,87 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone }) {
                     sendInput({ type: 'keydown', key: e.key, printable });
                 }}
             />
+        </>
+    );
+
+    if (workspaceMode) {
+        return (
+            <div style={{ marginTop: 8, marginBottom: 10, border: `1px solid ${C.hairStrong}`, background: C.surface }}>
+                <div style={{
+                    padding: '12px 14px', borderBottom: `1px solid ${C.hair}`, background: C.paperDeep,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+                }}>
+                    <div>
+                        <div style={{ ...monoLbl, marginBottom: 4 }}>LOCAL/MOCK TEST · Experimental spike</div>
+                        <div style={{ fontSize: 17, fontWeight: 700, color: C.ink }}>Government Filing Workspace</div>
+                        <div style={{ fontSize: 12, color: C.ink2, marginTop: 3 }}>
+                            {portalName || 'Government portal'} · real browser stream, no guessed autofill
+                        </div>
+                    </div>
+                    <div style={{ fontSize: 11, color: C.greenInk, background: C.greenWash, border: `1px solid ${C.green}`, padding: '7px 10px', fontWeight: 700 }}>
+                        Needle prepares → Human reviews → Portal submits
+                    </div>
+                </div>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 1.65fr) minmax(250px, 0.85fr)',
+                    gap: 12,
+                    padding: 12,
+                }}>
+                    <div style={{ minWidth: 0 }}>
+                        <div style={{ ...monoLbl, marginBottom: 6 }}>Live government browser/session view</div>
+                        {canvas}
+                        <div style={{
+                            marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))',
+                            border: `1px solid ${C.hair}`, background: C.paper, fontSize: 11, color: C.ink2,
+                        }}>
+                            {[
+                                ['Clicks', interactionProof.clicks],
+                                ['Keys', interactionProof.keys],
+                                ['Scrolls', interactionProof.scrolls],
+                                ['Moves', interactionProof.moves],
+                            ].map(([label, value]) => (
+                                <div key={label} style={{ padding: '7px 8px', borderRight: label === 'Moves' ? 'none' : `1px solid ${C.hair}` }}>
+                                    <div style={{ fontSize: 9, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
+                                    <strong style={{ color: C.ink }}>{value}</strong>
+                                </div>
+                            ))}
+                        </div>
+                        <div style={{ marginTop: 6, fontSize: 11, color: C.ink3 }}>
+                            Interaction proof: {interactionProof.last}
+                        </div>
+                    </div>
+                    <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ border: `1px solid ${C.hair}`, background: C.paper, padding: 10 }}>
+                            <div style={{ ...monoLbl, marginBottom: 7 }}>Current step</div>
+                            <div style={{ fontSize: 13, color: C.ink, fontWeight: 700 }}>{connected ? 'Government login / filing form' : 'Starting government session'}</div>
+                            <div style={{ fontSize: 11.5, color: C.ink3, lineHeight: 1.5, marginTop: 5 }}>
+                                Staff completes login, CAPTCHA, OTP, navigation, field entry, review, and final submit manually inside this live session.
+                            </div>
+                        </div>
+                        <div style={{ border: `1px solid ${C.hair}`, background: C.paper, padding: 10 }}>
+                            <div style={{ ...monoLbl, marginBottom: 7 }}>Prepared Fields / Copy Source</div>
+                            {preparedFields.length ? preparedFields.map(([label, value]) => (
+                                <div key={label} style={{ marginBottom: 8 }}>
+                                    <div style={{ fontSize: 9.5, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>{label}</div>
+                                    <div style={{ fontSize: 12.5, color: C.ink, lineHeight: 1.45, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{value}</div>
+                                </div>
+                            )) : (
+                                <div style={{ fontSize: 12, color: C.ink3 }}>No prepared fields available yet.</div>
+                            )}
+                        </div>
+                        <div style={{ border: `1px solid ${C.saffron}`, background: C.saffronTint, padding: 10, fontSize: 11.5, color: C.ink2, lineHeight: 1.5 }}>
+                            <strong style={{ color: C.saffron }}>Final-submit protection:</strong> Needle does not click Submit. Stop before any real government submission during this spike.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div style={{ marginTop: 8, marginBottom: 10 }}>
+            {canvas}
         </div>
     );
 }
@@ -1615,6 +1934,14 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     }
 
     const ws = worksheet?.worksheet || govtState?.case?.govt_submission_worksheet;
+    const preparedFields = [
+        ['Department', ws?.department],
+        ['Subject', ws?.subject],
+        ['Description', ws?.description],
+        ['Priority category', ws?.priority_category],
+        ['Filer/citizen name to enter on portal', worksheet?.portal_filer_name || liveSession?.portal_filer_name],
+        ['Contact number to enter on portal', worksheet?.portal_contact_number || liveSession?.portal_contact_number],
+    ].filter(([, value]) => String(value || '').trim()).map(([label, value]) => [label, String(value).trim()]);
     // A case keeps whatever portal it was prepared against forever, even after a
     // better match becomes available (e.g. this tenant's state didn't have its own
     // portal yet when this case was first prepared, so it fell back to CPGRAMS —
@@ -1784,6 +2111,9 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                 viewport={liveSession.viewport}
                                 onClose={handleCloseLive}
                                 onSessionGone={handleSessionGone}
+                                preparedFields={preparedFields}
+                                workspaceMode={GOVT_FILING_WORKSPACE_SPIKE}
+                                portalName={liveSession.portal_name || resolvedPortal?.portal?.portal_name}
                             />
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                                 <Button size="sm" variant="outline" disabled={busy} onClick={handleCaptureReference}>
@@ -1997,16 +2327,18 @@ function NotesSection({ notes, setNotes, response, setResponse, draftSaved, onSa
 // surfaced here too for quick access without scrolling back up.
 function CaseInformation({ current, meta, caseRef, createdAt, assignee, constituency, onAssign, staff, onDelete, userRole, onSaveGeo, savingGeo, priority, onPriorityChange }) {
     const canDelete = ['mp', 'owner', 'pr'].includes(userRole);
-    const priorityStyle = {
-        critical: { bg: '#FDEDEC', fg: C.red, label: 'Critical' },
-        high:     { bg: C.saffronTint, fg: C.saffron, label: 'High' },
-        standard: { bg: 'transparent', fg: C.ink, label: 'Standard' },
-        low:      { bg: 'transparent', fg: C.ink3, label: 'Low' },
-    }[priority] || { bg: 'transparent', fg: C.ink, label: 'Standard' };
+    const priorityValue = priority || (current.is_critical ? 'critical' : 'standard');
     const gridRows = [
-        ['Priority', priorityStyle.bg === 'transparent'
-            ? priorityStyle.label
-            : <span style={{ padding: '2px 8px', background: priorityStyle.bg, color: priorityStyle.fg, fontSize: 10.5, fontWeight: 700 }}>{priorityStyle.label}</span>,
+        ['Priority',
+            <select value={priorityValue} onChange={(e) => onPriorityChange?.(e.target.value)} style={{
+                border: 'none', background: 'transparent', padding: 0,
+                fontSize: 12.5, color: C.ink, fontWeight: 700, fontFamily: 'inherit', outline: 'none',
+            }}>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="standard">Standard</option>
+                <option value="low">Low</option>
+            </select>,
          'Geography', meta.matched_value || current.location || '–'],
         ['Category', current.problem_subdomain || current.problem_domain || current.category || 'Uncategorised',
          'Location', meta.matched_value || current.location || '–'],
@@ -2033,36 +2365,21 @@ function CaseInformation({ current, meta, caseRef, createdAt, assignee, constitu
                     </div>
                 ))}
             </div>
-            <div style={{ paddingTop: 10, borderTop: `1px solid ${C.hair}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                        <Icon name="user" size={12} color={C.ink3} />
-                        <select value={assignee} onChange={(e) => onAssign(e.target.value)} style={{
-                            border: 'none', background: 'transparent', padding: 0,
-                            fontSize: 12.5, color: C.ink, fontWeight: 600, fontFamily: 'inherit', outline: 'none',
-                        }}>
-                            <option value="">Unassigned</option>
-                            {staff.map((s) => (
-                                <option key={s.username} value={s.username}>{s.display_name || s.username}</option>
-                            ))}
-                        </select>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                        <Icon name="warn" size={12} color={C.ink3} />
-                        <select value={priority || 'standard'} onChange={(e) => onPriorityChange(e.target.value)} style={{
-                            border: 'none', background: 'transparent', padding: 0,
-                            fontSize: 12.5, color: C.ink, fontWeight: 600, fontFamily: 'inherit', outline: 'none',
-                        }}>
-                            <option value="critical">Critical priority</option>
-                            <option value="high">High priority</option>
-                            <option value="standard">Standard priority</option>
-                            <option value="low">Low priority</option>
-                        </select>
-                    </div>
+            <div style={{ paddingTop: 10, borderTop: `1px solid ${C.hair}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <Icon name="user" size={12} color={C.ink3} />
+                    <select value={assignee} onChange={(e) => onAssign(e.target.value)} style={{
+                        border: 'none', background: 'transparent', padding: 0,
+                        fontSize: 12.5, color: C.ink, fontWeight: 600, fontFamily: 'inherit', outline: 'none',
+                    }}>
+                        <option value="">Unassigned</option>
+                        {staff.map((s) => (
+                            <option key={s.username} value={s.username}>{s.display_name || s.username}</option>
+                        ))}
+                    </select>
                 </div>
                 <button onClick={onSaveGeo} disabled={savingGeo} style={{
                     padding: '6px 12px', background: C.ink, color: C.paper, border: 'none', flexShrink: 0,
-                    alignSelf: 'flex-start',
                     fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em',
                     cursor: savingGeo ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                     display: 'inline-flex', alignItems: 'center', gap: 5, opacity: savingGeo ? 0.7 : 1,
@@ -2163,7 +2480,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const [geoLocation, setGeoLocation] = useState('');
     const [geoAssembly, setGeoAssembly] = useState('');
     const [savingGeo, setSavingGeo] = useState(false);
-    const [followBusy, setFollowBusy] = useState(false);
     const [translations, setTranslations] = useState({}); // { [caseId]: { loading, translation, error, alreadyEnglish } }
     const responseSectionRef = useRef(null);
     const responseInputRef = useRef(null);
@@ -2261,8 +2577,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const followupCount = 1 + (Array.isArray(meta.contact_message_events) ? meta.contact_message_events.length : 0);
     const isResolved = currentStatus === 'resolved' || currentStatus === 'completed';
     const constituency = current.mp_constituency || fullCase?.mp_constituency || user?.constituency || '';
-    const followers = Array.isArray(current.followed_by) ? current.followed_by : [];
-    const isFollowing = !!user?.username && followers.includes(user.username);
 
     // Contextual escalate/filing label, computed purely from data already
     // flowing to the parent (govt_status/reference on the active thread
@@ -2540,11 +2854,11 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
             <Sheet open={!!caseItem} onOpenChange={(open) => { if (!open) onClose(); }}>
                 <SheetContent
                     side="right"
-                    className="w-full sm:w-[min(1120px,calc(100vw-32px))] sm:max-w-[1120px] p-0 flex flex-col overflow-hidden [&>button]:hidden rounded-none"
+                    className="w-full md:w-[calc(100vw-162px)] md:max-w-[calc(100vw-162px)] p-0 flex flex-col overflow-hidden [&>button]:hidden rounded-none"
                     style={{
                         background: C.paper,
-                        fontFamily: '"IBM Plex Sans", "Noto Sans Devanagari", system-ui, sans-serif',
-                        boxShadow: '-16px 0 40px rgba(26,24,18,0.10)',
+                        fontFamily: '"Inter", "Noto Sans Devanagari", system-ui, sans-serif',
+                        boxShadow: '-10px 0 26px rgba(26,24,18,0.08)',
                         border: 'none',
                     }}
                 >
@@ -2569,10 +2883,17 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         onSelectCase={(item) => setActiveCaseId(item.id)}
                     />
                     <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                        <CaseHero
+                            current={current}
+                            meta={meta}
+                            priority={current.priority || (current.is_critical ? 'critical' : 'standard')}
+                            onPriorityChange={handlePriorityChange}
+                        />
+                        <GovernmentJourneyPanel current={current} />
                         <div
                             style={{
                                 display: 'grid',
-                                gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 300px',
+                                gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 302px',
                                 alignItems: 'start',
                                 minHeight: '100%',
                             }}
@@ -2690,18 +3011,57 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                     userRole={user?.role}
                                     onSaveGeo={saveGeography}
                                     savingGeo={savingGeo}
-                                    priority={current.priority}
+                                    priority={current.priority || (current.is_critical ? 'critical' : 'standard')}
                                     onPriorityChange={handlePriorityChange}
                                 />
                             </aside>
                         </div>
                     </div>
 
-                    {/* No sticky action-bar here on purpose — Escalate/Reply/Resolve live
-                        with the citizen complaint (ComplaintActionRow) and Save notes lives
-                        in the sidebar's Internal Notes section. A second bar duplicating them
-                        used to sit here; removed per the original one-location intent
-                        documented on ComplaintActionRow above. */}
+                    {!isResolved && (
+                        <div style={{
+                            flexShrink: 0, borderTop: `1px solid ${C.hairStrong}`,
+                            display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 302px',
+                        }}>
+                            <div style={{
+                                padding: '12px 20px', background: C.paper,
+                                display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                            }}>
+                                <button onClick={saveNotes} disabled={savingNotes} style={{
+                                    padding: '10px 16px', background: 'transparent', border: `1px solid ${C.hairStrong}`, color: C.ink,
+                                    fontSize: 12, fontWeight: 700, cursor: savingNotes ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                }}>
+                                    {savingNotes && <Loader2 size={12} className="animate-spin" />}
+                                    <Icon name="doc" size={12} color={C.ink} /> Save notes
+                                </button>
+                                <button
+                                    onClick={() => (isUncategorised && suggestedTriage?.ai_category ? acceptSuggestion() : handleStatusChange('resolved'))}
+                                    style={{
+                                        flex: '1 1 160px', padding: '10px 16px', background: C.green, color: '#F5EFE0', border: 'none',
+                                        fontSize: 12.5, fontWeight: 700, letterSpacing: '0.02em', cursor: 'pointer', fontFamily: 'inherit',
+                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                                    }}>
+                                    <Icon name="check" size={13} color="#F5EFE0" stroke={2.5} /> {confirmLabel}
+                                </button>
+                                <button onClick={handleEscalateClick} style={{
+                                    padding: '10px 16px', background: C.surface, color: C.saffron, border: `1px solid ${C.saffron}`,
+                                    fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                }}>
+                                    <Icon name="unlock" size={12} color={C.saffron} stroke={2} /> {escalateLabel}
+                                </button>
+                                <button onClick={() => { setNotifyInput(''); setNotifyOpen(true); }} style={{
+                                    padding: '10px 16px', background: 'transparent', border: `1px solid ${C.hairStrong}`, color: C.ink,
+                                    fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                }}>
+                                    <Icon name="chat" size={12} color={C.ink} /> Reply
+                                </button>
+                            </div>
+                            {!isMobile && <div style={{ background: C.surfaceWarm, borderLeft: `1px solid ${C.hair}` }} />}
+                        </div>
+                    )}
                 </SheetContent>
             </Sheet>
 
