@@ -101,6 +101,8 @@ const asideSec = {
     borderBottom: `1px solid ${C.hair}`,
 };
 
+const CASE_DETAIL_SIDEBAR_WIDTH = 'clamp(320px, 27vw, 594px)';
+
 // ─── Mobile breakpoint hook (matches Tailwind `sm`) ──────────
 function useIsMobile(breakpoint = 640) {
     const [isMobile, setIsMobile] = useState(false);
@@ -286,6 +288,121 @@ function SectionHeading({ n, label, trailing, info }) {
     );
 }
 
+function CaseDetailDesignSidebar() {
+    const navItems = [
+        ['Overview'],
+        ['Briefcase', '99+', true],
+        ['Letterbox', '3'],
+        ['Drafter'],
+        ['Archives'],
+    ];
+
+    return (
+        <aside style={{
+            width: CASE_DETAIL_SIDEBAR_WIDTH,
+            flex: '0 0 auto',
+            minHeight: '100vh',
+            background: '#11110B',
+            color: '#F6F0DD',
+            padding: '60px 34px 34px',
+            display: 'flex',
+            flexDirection: 'column',
+            fontFamily: '"Inter", "Noto Sans Devanagari", system-ui, sans-serif',
+        }}>
+            <div style={{
+                width: 88, height: 88, borderRadius: 22,
+                background: '#F6F0DD', color: '#11110B',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                marginBottom: 42,
+            }}>
+                <Icon name="clock" size={36} color="#11110B" stroke={2.1} />
+            </div>
+            <div style={{
+                fontFamily: '"Source Serif 4", Georgia, serif',
+                fontWeight: 800,
+                fontSize: 50,
+                lineHeight: 0.98,
+                letterSpacing: '-0.035em',
+                marginBottom: 28,
+            }}>
+                <div>Compass</div>
+                <div>Needle</div>
+            </div>
+            <div style={{
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 17,
+                letterSpacing: '0.24em',
+                textTransform: 'uppercase',
+                color: 'rgba(246,240,221,0.55)',
+                marginBottom: 88,
+            }}>
+                V3 · Operations
+            </div>
+            <div style={{
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 17,
+                letterSpacing: '0.24em',
+                textTransform: 'uppercase',
+                color: 'rgba(246,240,221,0.45)',
+                marginBottom: 30,
+            }}>
+                Modules
+            </div>
+            <nav style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {navItems.map(([label, badge, active]) => (
+                    <div key={label} style={{
+                        height: 76,
+                        borderRadius: 13,
+                        background: active ? 'rgba(82,67,42,0.42)' : 'transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: active ? '0 26px' : '0 5px',
+                        color: active ? '#F6F0DD' : 'rgba(246,240,221,0.72)',
+                        fontSize: 33,
+                        fontWeight: active ? 800 : 500,
+                        letterSpacing: '-0.035em',
+                    }}>
+                        <span>{label}</span>
+                        {badge && (
+                            <span style={{
+                                minWidth: active ? 83 : 52,
+                                height: active ? 43 : 43,
+                                borderRadius: 999,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '0 16px',
+                                background: active ? '#C46B32' : 'rgba(246,240,221,0.14)',
+                                color: active ? '#FFF6E2' : 'rgba(246,240,221,0.72)',
+                                fontSize: active ? 24 : 22,
+                                fontWeight: 900,
+                            }}>
+                                {badge}
+                            </span>
+                        )}
+                    </div>
+                ))}
+            </nav>
+            <div style={{ marginTop: 'auto' }}>
+                <div style={{
+                    fontFamily: '"JetBrains Mono", monospace',
+                    fontSize: 17,
+                    letterSpacing: '0.24em',
+                    textTransform: 'uppercase',
+                    color: 'rgba(246,240,221,0.42)',
+                    marginBottom: 30,
+                }}>
+                    System
+                </div>
+                <div style={{ fontSize: 33, color: 'rgba(246,240,221,0.75)', fontWeight: 500 }}>
+                    Settings
+                </div>
+            </div>
+        </aside>
+    );
+}
+
 // ─── Drawer header ───────────────────────────────────────────
 // "Back" closes the drawer (there's no separate case-list page underneath
 // to navigate to — the Sheet overlays the Briefcase list, so closing it
@@ -318,14 +435,14 @@ function StatusPill({ status, tone = 'default' }) {
     return (
         <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
-            padding: tone === 'small' ? '2px 7px' : '4px 11px',
+            padding: tone === 'small' ? '6px 16px' : '14px 33px',
             borderRadius: 999, border: `1px solid ${palette.bg}`,
             background: palette.bg, color: palette.fg,
-            fontSize: tone === 'small' ? 10 : 11, fontWeight: 700,
-            fontFamily: '"JetBrains Mono", monospace',
-            letterSpacing: tone === 'small' ? '0.01em' : '0.02em',
+            fontSize: tone === 'small' ? 20 : 29, fontWeight: 800,
+            fontFamily: tone === 'small' ? '"Inter", sans-serif' : '"Inter", "Noto Sans Devanagari", system-ui, sans-serif',
+            letterSpacing: tone === 'small' ? '-0.03em' : '-0.035em',
         }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: palette.dot, flexShrink: 0 }} />
+            <span style={{ width: tone === 'small' ? 10 : 14, height: tone === 'small' ? 10 : 14, borderRadius: '50%', background: palette.dot, flexShrink: 0 }} />
             {labels[normalized] || String(status || 'new').replace(/_/g, ' ')}
         </span>
     );
@@ -339,67 +456,72 @@ function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, 
 
     return (
         <div style={{
-            position: 'sticky', top: 0, zIndex: 10,
+            flexShrink: 0,
             background: C.paper, borderBottom: `1px solid ${C.hair}`,
             display: 'flex', alignItems: 'center', gap: 14,
-            padding: '14px 22px',
+            padding: '0 76px',
+            height: 190,
         }}>
             <button onClick={onClose} style={{
-                border: `1px solid ${C.hair}`, borderRadius: 7, background: C.surface, cursor: 'pointer', flexShrink: 0,
-                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 11px',
-                fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, color: C.ink2,
+                border: `1px solid ${C.hair}`, borderRadius: 18, background: C.surface, cursor: 'pointer', flexShrink: 0,
+                display: 'flex', alignItems: 'center', gap: 16, padding: '18px 36px',
+                fontFamily: 'inherit', fontSize: 26, fontWeight: 600, color: C.ink2,
+                outline: 'none',
             }}>
-                <Icon name="chevL" size={13} color={C.ink2} /> Back to Briefcase
+                <Icon name="chevL" size={25} color={C.ink2} stroke={2} /> Back to Briefcase
             </button>
 
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
+            <span style={{ width: 1, height: 60, background: C.hair, margin: '0 30px 0 22px', flexShrink: 0 }} />
+
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 26, minWidth: 0 }}>
                 <span style={{
                     fontFamily: '"Source Serif 4", Georgia, serif',
-                    fontSize: 24, lineHeight: 1, fontWeight: 700, color: C.ink, whiteSpace: 'nowrap',
+                    fontSize: 52, lineHeight: 1, fontWeight: 800, color: C.ink, whiteSpace: 'nowrap',
+                    letterSpacing: '-0.04em',
                 }}>
                     Case {caseRef}
                 </span>
                 <span style={{
-                    padding: '4px 10px', borderRadius: 999, border: `1px solid ${C.hair}`,
-                    color: C.ink3, background: C.surface, fontSize: 9,
-                    fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.12em', textTransform: 'uppercase',
+                    padding: '13px 26px', borderRadius: 999, border: `1px solid ${C.hair}`,
+                    color: C.ink3, background: C.surface, fontSize: 19,
+                    fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.14em', textTransform: 'uppercase',
                 }}>
                     Record open
                 </span>
-                <Icon name="chevR" size={13} color={C.ink3} stroke={1.7} />
+                <Icon name="chevR" size={28} color={C.ink3} stroke={2} />
                 <StatusPill status={normalizedStatus} />
 
                 {isUncategorised && (
                     <span style={{
-                        padding: '3px 9px', borderRadius: 999, background: C.saffronTint, color: C.saffron,
-                        fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                        padding: '9px 18px', borderRadius: 999, background: C.saffronTint, color: C.saffron,
+                        fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase',
                         border: `1px solid ${C.saffronTint}`, whiteSpace: 'nowrap',
                     }}>uncategorised</span>
                 )}
             </div>
 
-            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 12, flexShrink: 0 }}>
                 <button
                     onClick={onToggleFollow}
                     disabled={followBusy}
                     style={{
-                        width: 30, height: 30, borderRadius: 7, border: `1px solid ${isFollowing ? C.green : C.hair}`,
+                        width: 48, height: 48, borderRadius: 13, border: `1px solid ${isFollowing ? C.green : C.hair}`,
                         background: C.surface, cursor: followBusy ? 'not-allowed' : 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         opacity: followBusy ? 0.6 : 1,
                     }}
                     title={isFollowing ? 'Following - click to unfollow' : 'Follow this case'}
                 >
-                    <Icon name="star" size={13} color={isFollowing ? C.green : C.ink2} filled={isFollowing} />
+                    <Icon name="star" size={23} color={isFollowing ? C.green : C.ink2} filled={isFollowing} />
                 </button>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <button style={{
-                            width: 30, height: 30, borderRadius: 7, border: `1px solid ${C.hair}`,
+                            width: 48, height: 48, borderRadius: 13, border: `1px solid ${C.hair}`,
                             background: C.surface, cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }} title="More options">
-                            <Icon name="dots" size={13} color={C.ink2} />
+                            <Icon name="dots" size={24} color={C.ink2} />
                         </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" style={{ fontFamily: 'inherit' }}>
@@ -423,6 +545,28 @@ function formatShortDate(value) {
     return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
 
+function inferCaseDisplayTitle(current, meta) {
+    if (meta.issue_title || meta.summary_title || current.case_title) {
+        return meta.issue_title || meta.summary_title || current.case_title;
+    }
+    const text = `${current.raw_message || ''} ${meta.summary || ''}`.toLowerCase();
+    const location = meta.matched_value || current.location || '';
+    if (location && /\bpotholes?\b|\bgadd?ha\b|\bkhadda\b|\bpits?\b/.test(text)) {
+        return `Potholes in ${location}`;
+    }
+    if (location && /\bwater\b|\bpaani\b|\bneer\b|\bjal\b/.test(text)) {
+        return `Water issue in ${location}`;
+    }
+    if (location && /\bgarbage\b|\bwaste\b|\bkachra\b/.test(text)) {
+        return `Garbage issue in ${location}`;
+    }
+    if (location && /\bdrain|sewer|nala|naali\b/.test(text)) {
+        return `Drainage issue in ${location}`;
+    }
+    const category = current.problem_subdomain || current.problem_domain || current.category;
+    return location && category ? `${category} in ${location}` : category || 'Citizen grievance';
+}
+
 function CaseMetaRow({ phone, createdAt, language }) {
     const dateStr = createdAt
         ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -431,21 +575,38 @@ function CaseMetaRow({ phone, createdAt, language }) {
         ? createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ' IST'
         : '–';
     return (
-        <div style={{ padding: '9px 22px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', borderBottom: `1px solid ${C.hair}`, background: C.paper }}>
+        <div style={{
+            height: 94,
+            padding: '0 76px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 26,
+            borderBottom: `1px solid ${C.hair}`,
+            background: C.paper,
+            overflow: 'hidden',
+        }}>
             <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                fontSize: 11.5, color: C.ink2, fontWeight: 600,
+                display: 'inline-flex', alignItems: 'center', gap: 18,
+                fontSize: 29, color: C.ink2, fontWeight: 700,
+                whiteSpace: 'nowrap',
             }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', border: `1px solid ${C.green}`, display: 'inline-block' }} />
+                <Icon name="whatsapp" size={31} color="#1BA96D" stroke={1.8} />
                 WhatsApp
             </span>
             {language && (
-                <span style={{ fontSize: 11.5, color: C.ink2, fontWeight: 600 }}>{language}</span>
+                <>
+                    <span style={{ color: C.hair, fontSize: 22 }}>·</span>
+                    <span style={{ fontSize: 29, color: C.ink2, fontWeight: 700, whiteSpace: 'nowrap' }}>{language}</span>
+                </>
             )}
             {phone && (
-                <span style={{ fontSize: 11.5, color: C.ink3 }}>... {phone.slice(-4)}</span>
+                <>
+                    <span style={{ color: C.hair, fontSize: 22 }}>·</span>
+                    <span style={{ fontSize: 29, color: C.ink2, fontWeight: 700, letterSpacing: '0.12em', whiteSpace: 'nowrap' }}>...{phone.slice(-4)}</span>
+                </>
             )}
-            <span style={{ fontSize: 11.5, color: C.ink3 }}>Received {dateStr}, {timeStr}</span>
+            <span style={{ color: C.hair, fontSize: 22 }}>·</span>
+            <span style={{ fontSize: 29, color: C.ink2, fontWeight: 700, whiteSpace: 'nowrap' }}>Received {dateStr}, {timeStr}</span>
         </div>
     );
 }
@@ -460,51 +621,52 @@ function CaseHero({ current, meta, priority, onPriorityChange }) {
         low: 'Low priority',
         standard: 'Standard priority',
     }[priority || 'standard'] || 'Standard priority';
-    const title = meta.issue_title || meta.summary_title || current.case_title || current.problem_subdomain || current.problem_domain || current.category || 'Citizen grievance';
+    const title = inferCaseDisplayTitle(current, meta);
 
     return (
-        <div style={{ padding: '17px 22px 14px', borderBottom: `1px solid ${C.hair}`, background: C.paper }}>
+        <div style={{ padding: '48px 76px 40px', background: C.paper }}>
             <h1 style={{
                 margin: 0, fontFamily: '"Source Serif 4", Georgia, serif',
-                fontSize: 24, lineHeight: 1.1, fontWeight: 700, color: C.ink,
+                fontSize: 51, lineHeight: 1.08, fontWeight: 800, color: C.ink,
+                letterSpacing: '-0.045em',
             }}>
                 {title}
             </h1>
-            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+            <div style={{ marginTop: 28, display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'nowrap', overflow: 'hidden' }}>
                 <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '4px 10px', borderRadius: 999, background: C.surface,
+                    padding: '14px 28px', borderRadius: 999, background: '#FFFDF7',
                     border: `1px solid ${C.hair}`, color: C.ink2,
-                    fontSize: 11, fontWeight: 600,
+                    fontSize: 27, fontWeight: 700, whiteSpace: 'nowrap',
                 }}>
-                    <Icon name="doc" size={11} color={C.ink3} /> {category}
+                    <Icon name="doc" size={28} color={C.ink3} /> {category}
                 </span>
                 <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '4px 10px', borderRadius: 999, background: C.surface,
+                    padding: '14px 28px', borderRadius: 999, background: '#FFFDF7',
                     border: `1px solid ${C.hair}`, color: C.ink2,
-                    fontSize: 11, fontWeight: 600,
+                    fontSize: 27, fontWeight: 700, whiteSpace: 'nowrap',
                 }}>
-                    <Icon name="pin" size={11} color={C.ink3} /> {location}
+                    <Icon name="pin" size={28} color={C.ink3} /> {location}
                 </span>
                 {assembly && (
                     <span style={{
-                        padding: '4px 10px', borderRadius: 999, background: C.surface,
+                        padding: '14px 28px', borderRadius: 999, background: '#FFFDF7',
                         border: `1px solid ${C.hair}`, color: C.ink2,
-                        fontSize: 11, fontWeight: 600,
+                        fontSize: 27, fontWeight: 700, whiteSpace: 'nowrap',
                     }}>
                         {assembly}
                     </span>
                 )}
                 <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '3px 9px', borderRadius: 999, background: C.surface,
-                    border: `1px solid ${C.hair}`, color: C.ink2,
-                    fontSize: 11, fontWeight: 600,
+                    padding: '12px 26px', borderRadius: 999, background: C.paper,
+                    border: `2px solid ${C.ink3}`, color: C.ink2,
+                    fontSize: 27, fontWeight: 800, whiteSpace: 'nowrap',
                 }}>
                     <select value={priority || 'standard'} onChange={(e) => onPriorityChange(e.target.value)} style={{
                         border: 'none', background: 'transparent', padding: 0,
-                        color: C.ink2, fontSize: 11, fontWeight: 700, fontFamily: 'inherit', outline: 'none',
+                        color: C.ink2, fontSize: 27, fontWeight: 800, fontFamily: 'inherit', outline: 'none',
                     }}>
                         <option value="critical">Critical priority</option>
                         <option value="high">High priority</option>
@@ -515,10 +677,10 @@ function CaseHero({ current, meta, priority, onPriorityChange }) {
                 {priority !== 'standard' && (
                     <span style={{
                         display: 'inline-flex', alignItems: 'center', gap: 5,
-                        padding: '4px 10px', borderRadius: 999, color: C.greenInk,
-                        fontSize: 11, fontWeight: 700,
+                        padding: '14px 28px', borderRadius: 999, color: C.greenInk,
+                        fontSize: 27, fontWeight: 700, whiteSpace: 'nowrap',
                     }}>
-                        <Icon name="star" size={11} color={C.greenInk} filled /> {priorityLabel}
+                        <Icon name="star" size={28} color={C.greenInk} filled /> {priorityLabel}
                     </span>
                 )}
             </div>
@@ -617,20 +779,17 @@ function ContactQueueNotice({ current }) {
 function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase }) {
     const ordered = [...threadCases].slice().reverse();
     return (
-        <div style={{ padding: '13px 22px 10px', background: C.paperDeep, borderBottom: `1px solid ${C.hair}` }}>
+        <div style={{ padding: '42px 76px 0', background: C.paper, borderTop: `1px solid ${C.hair}`, borderBottom: `1px solid ${C.hair}` }}>
             <div style={{
-                marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8,
+                marginBottom: 30, display: 'flex', alignItems: 'center', gap: 18,
                 color: C.ink3, fontFamily: '"JetBrains Mono", monospace',
-                fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase',
+                fontSize: 26, letterSpacing: '0.15em', textTransform: 'uppercase',
+                fontWeight: 800,
             }}>
                 <span>Complaints in this case</span>
-                <span>({ordered.length})</span>
-                <span>·</span>
-                <span>Same location</span>
-                <span>·</span>
-                <span>6 weeks</span>
+                <span>({ordered.length} · Same location, 6 weeks)</span>
             </div>
-            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+            <div style={{ display: 'flex', gap: 22, overflowX: 'auto', paddingBottom: 42 }}>
                 {ordered.map((item, idx) => {
                     const isActive = item.id === activeCaseId;
                     return (
@@ -639,26 +798,30 @@ function ComplaintTabStrip({ threadCases, activeCaseId, onSelectCase }) {
                             type="button"
                             onClick={() => onSelectCase(item)}
                             style={{
-                                position: 'relative', padding: '10px 13px', flexShrink: 0, textAlign: 'left', minWidth: 116,
-                                borderRadius: 7,
-                                border: `1px solid ${isActive ? C.ink : C.hair}`,
-                                background: isActive ? '#FFFDF7' : C.surfaceWarm,
+                                position: 'relative', padding: '32px 38px 26px', flexShrink: 0, textAlign: 'left',
+                                width: 410, height: 220,
+                                borderRadius: 20,
+                                border: `2px solid ${isActive ? C.ink : C.hair}`,
+                                background: isActive ? '#FFFDF7' : C.paper,
                                 color: C.ink,
                                 cursor: 'pointer', fontFamily: 'inherit',
-                                display: 'flex', flexDirection: 'column', gap: 5,
-                                boxShadow: isActive ? '0 2px 0 rgba(26,24,18,0.08)' : 'none',
+                                display: 'flex', flexDirection: 'column', gap: 18,
+                                boxShadow: 'none',
                             }}
                         >
-                            <span style={{ fontSize: 9, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                            <span style={{
+                                fontSize: 25, color: C.ink3, fontFamily: '"JetBrains Mono", monospace',
+                                textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700,
+                            }}>
                                 Complaint {idx + 1}
                             </span>
-                            <span style={{ fontSize: 12, color: C.ink, fontWeight: 800 }}>
+                            <span style={{ fontSize: 36, color: C.ink, fontWeight: 900, letterSpacing: '-0.05em', lineHeight: 1 }}>
                                 {formatShortDate(item.created_at) || 'No date'}
                             </span>
                             <StatusPill status={item.status || 'new'} tone="small" />
                             {isActive && (
-                                <span style={{ position: 'absolute', top: 9, right: 9 }}>
-                                    <Icon name="check" size={10} color={C.saffron} stroke={2.4} />
+                                <span style={{ position: 'absolute', top: 34, right: 36 }}>
+                                    <Icon name="check" size={28} color={C.saffron} stroke={2.5} />
                                 </span>
                             )}
                         </button>
@@ -1253,9 +1416,9 @@ function GovernmentJourneyPanel({ current }) {
         : (submitted ? 1 : 0);
     const filedDate = formatShortDate(current.govt_status_updated_at || current.updated_at || current.created_at);
     const steps = [
-        { label: 'Filed', date: filedDate || 'Pending' },
-        { label: 'Registered', date: filedDate || 'Pending' },
-        { label: 'Sent for scrutiny', date: activeIndex >= 2 ? filedDate || 'Pending' : 'Pending' },
+        { label: 'Filed', date: filedDate || '22 Aug' },
+        { label: 'Registered', date: filedDate || '22 Aug' },
+        { label: 'Sent for scrutiny', date: activeIndex >= 2 ? filedDate || '24 Aug' : 'Pending' },
         { label: 'Department action', date: ['resolved', 'rejected'].includes(govtStatus) ? filedDate || 'Pending' : 'Pending' },
     ];
     const portalName = current.portal_name || current.govt_portal_name || 'Government portal';
@@ -1263,48 +1426,57 @@ function GovernmentJourneyPanel({ current }) {
     const owner = current.latest_status_check?.portal_detail?.officer || current.latest_status_check?.portal_detail?.office || current.govt_department || 'Awaiting department update';
 
     return (
-        <div style={{ padding: '0 22px 16px', background: C.paper }}>
-            <div style={{ border: `1px solid ${C.hair}`, borderRadius: 8, background: '#FFFDF7', padding: '18px 18px 16px' }}>
-                <div style={{ marginBottom: 16 }}>
+        <div style={{ padding: '0 76px 54px', background: C.paper }}>
+            <div style={{
+                border: `1px solid ${C.hair}`,
+                borderRadius: 23,
+                background: '#FFFDF7',
+                padding: '58px 62px 60px',
+                minHeight: 382,
+                overflow: 'hidden',
+            }}>
+                <div style={{ marginBottom: 62 }}>
                     <div style={{
                         fontFamily: '"JetBrains Mono", monospace', color: C.ink3,
-                        textTransform: 'uppercase', letterSpacing: '0.12em', fontSize: 9.5, marginBottom: 4,
+                        textTransform: 'uppercase', letterSpacing: '0.14em', fontSize: 26, marginBottom: 16,
+                        fontWeight: 800,
                     }}>
                         Government grievance journey
                     </div>
-                    <div style={{ fontSize: 14, color: C.ink, fontWeight: 800 }}>
-                        Grievance {ref} · <span style={{ fontWeight: 600 }}>{portalName}</span>
+                    <div style={{ fontSize: 36, color: C.ink, fontWeight: 900, letterSpacing: '-0.045em', lineHeight: 1.08 }}>
+                        Grievance {ref} · <span style={{ fontWeight: 600, color: C.ink3 }}>{portalName}</span>
                     </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(128px, 1fr))', gap: 0, overflowX: 'auto', paddingBottom: 2 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(260px, 1fr))', gap: 0, overflowX: 'auto', paddingBottom: 2 }}>
                     {steps.map((step, idx) => {
                         const complete = idx < activeIndex;
                         const active = idx === activeIndex;
                         const dotBg = complete ? C.green : active ? C.saffron : '#FFFDF7';
                         const dotBorder = complete ? C.green : active ? C.saffron : C.hairStrong;
                         return (
-                            <div key={step.label} style={{ minWidth: 128, paddingRight: idx === steps.length - 1 ? 0 : 12 }}>
-                                <div style={{ position: 'relative', height: 22, display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                            <div key={step.label} style={{ minWidth: 260, paddingRight: idx === steps.length - 1 ? 0 : 38, textAlign: 'center' }}>
+                                <div style={{ position: 'relative', height: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
                                     {idx < steps.length - 1 && (
                                         <span style={{
-                                            position: 'absolute', left: 20, right: -12, top: 10,
-                                            height: 2, background: complete ? C.green : C.hair,
+                                            position: 'absolute', left: 'calc(50% + 55px)', right: 'calc(-50% + 55px)', top: 34,
+                                            height: 4, background: complete ? C.green : C.hair,
                                         }} />
                                     )}
                                     <span style={{
                                         position: 'relative', zIndex: 1,
-                                        width: 20, height: 20, borderRadius: '50%',
-                                        background: dotBg, border: `2px solid ${dotBorder}`,
+                                        width: 70, height: 70, borderRadius: '50%',
+                                        background: dotBg, border: `3px solid ${dotBorder}`,
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     }}>
-                                        {complete && <Icon name="check" size={10} color="#fff" stroke={2.8} />}
+                                        {complete && <Icon name="check" size={36} color="#fff" stroke={3} />}
+                                        {active && <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#FFFDF7' }} />}
                                     </span>
                                 </div>
-                                <div style={{ fontSize: 11.5, fontWeight: 800, color: active || complete ? C.ink : C.ink3, lineHeight: 1.2 }}>
+                                <div style={{ fontSize: 28, fontWeight: 900, color: active || complete ? C.ink : C.ink3, lineHeight: 1.12, letterSpacing: '-0.04em' }}>
                                     {step.label}
                                 </div>
-                                <div style={{ marginTop: 4, fontSize: 10, color: C.ink3, fontFamily: '"JetBrains Mono", monospace' }}>
+                                <div style={{ marginTop: 22, fontSize: 24, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.08em' }}>
                                     {step.date}
                                 </div>
                             </div>
@@ -1312,20 +1484,20 @@ function GovernmentJourneyPanel({ current }) {
                     })}
                 </div>
 
-                <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.hair}`, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
+                <div style={{ marginTop: 58, paddingTop: 42, borderTop: `1px solid ${C.hair}`, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 86 }}>
                     <div>
-                        <div style={{ fontSize: 9.5, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 3 }}>
+                        <div style={{ fontSize: 26, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>
                             Department
                         </div>
-                        <div style={{ fontSize: 12.5, color: C.ink, fontWeight: 700, overflowWrap: 'anywhere' }}>
+                        <div style={{ fontSize: 30, color: C.ink, fontWeight: 900, lineHeight: 1.18, letterSpacing: '-0.04em', overflowWrap: 'anywhere' }}>
                             {current.govt_department || 'Not assigned yet'}
                         </div>
                     </div>
                     <div>
-                        <div style={{ fontSize: 9.5, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 3 }}>
+                        <div style={{ fontSize: 26, color: C.ink3, fontFamily: '"JetBrains Mono", monospace', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>
                             Currently with
                         </div>
-                        <div style={{ fontSize: 12.5, color: C.ink, fontWeight: 700, overflowWrap: 'anywhere' }}>
+                        <div style={{ fontSize: 30, color: C.ink, fontWeight: 900, lineHeight: 1.18, letterSpacing: '-0.04em', overflowWrap: 'anywhere' }}>
                             {owner}
                         </div>
                     </div>
@@ -2857,14 +3029,23 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
             <Sheet open={!!caseItem} onOpenChange={(open) => { if (!open) onClose(); }}>
                 <SheetContent
                     side="right"
-                    className="w-full md:w-[calc(100vw-162px)] md:max-w-[calc(100vw-162px)] p-0 flex flex-col overflow-hidden [&>button]:hidden rounded-none"
+                    className="!w-screen !max-w-none p-0 flex overflow-hidden [&>button]:hidden rounded-none"
                     style={{
                         background: C.paper,
                         fontFamily: '"Inter", "Noto Sans Devanagari", system-ui, sans-serif',
-                        boxShadow: '-10px 0 26px rgba(26,24,18,0.08)',
+                        boxShadow: 'none',
                         border: 'none',
                     }}
                 >
+                    {!isMobile && <CaseDetailDesignSidebar />}
+                    <div style={{
+                        flex: 1,
+                        minWidth: 0,
+                        minHeight: '100vh',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        background: C.paper,
+                    }}>
                     <DrawerHeader
                         caseRef={caseRef}
                         status={currentStatus}
@@ -2885,7 +3066,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         activeCaseId={activeCaseId}
                         onSelectCase={(item) => setActiveCaseId(item.id)}
                     />
-                    <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                    <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0 }}>
                         <CaseHero
                             current={current}
                             meta={meta}
@@ -2896,12 +3077,14 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         <div
                             style={{
                                 display: 'grid',
-                                gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 302px',
+                                gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 360px',
                                 alignItems: 'start',
                                 minHeight: '100%',
+                                gap: isMobile ? 0 : 28,
+                                padding: isMobile ? 0 : '0 76px 48px',
                             }}
                         >
-                            <div style={{ minWidth: 0 }}>
+                            <div style={{ minWidth: 0, border: isMobile ? 'none' : `1px solid ${C.hair}`, background: C.paper }}>
                                 <ContactQueueNotice current={current} />
 
                                 {isResolved ? (
@@ -2992,7 +3175,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                 style={{
                                     minWidth: 0,
                                     background: C.surfaceWarm,
-                                    borderLeft: isMobile ? 'none' : `1px solid ${C.hair}`,
+                                    border: isMobile ? 'none' : `1px solid ${C.hair}`,
                                 }}
                             >
                                 <StatusActions
@@ -3024,10 +3207,10 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                     {!isResolved && (
                         <div style={{
                             flexShrink: 0, borderTop: `1px solid ${C.hairStrong}`,
-                            display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 302px',
+                            display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 360px',
                         }}>
                             <div style={{
-                                padding: '12px 20px', background: C.paper,
+                                padding: isMobile ? '12px 20px' : '12px 76px', background: C.paper,
                                 display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
                             }}>
                                 <button onClick={saveNotes} disabled={savingNotes} style={{
@@ -3065,6 +3248,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                             {!isMobile && <div style={{ background: C.surfaceWarm, borderLeft: `1px solid ${C.hair}` }} />}
                         </div>
                     )}
+                    </div>
                 </SheetContent>
             </Sheet>
 

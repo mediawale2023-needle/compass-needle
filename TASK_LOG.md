@@ -1873,3 +1873,10 @@ Chronological log of completed repository work. Read before making changes to un
 - Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `TASK_LOG.md`
 - Verification: Clean-worktree `npm run build` from `frontend/` passed after the fix.
 - Risks or follow-ups: Requires Vercel auto-deploy propagation after push; confirm the live `case_id` route no longer shows the client-side exception.
+
+- Date: 2026-08-27
+- Request: Make the case detail match `Case Detail Redesign.pdf` much more exactly after the first pass was visually too far away.
+- Summary: Reworked the Briefcase case modal into a full-screen case-detail surface with its own dark Compass Needle rail, 594px-reference sidebar proportions, taller PDF-style header/meta rows, oversized complaint cards, smarter pothole/location title fallback, larger chips, and a large white government grievance journey hero card. Kept the existing workflow sections and action handlers mounted below/alongside the redesigned first screen.
+- Files touched: `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Verification: Clean-worktree `npm run build` from `frontend/` passed; local Playwright smoke rendered `/dashboard/sansadx?case_id=3455` with mocked API data and saved `/private/tmp/case-detail-redesign-local.png` for visual comparison.
+- Risks or follow-ups: The screenshot smoke used mocked data, not a real production login/session. Vercel propagation must still be confirmed after push.
