@@ -110,8 +110,13 @@ const asideSec = {
     borderBottom: `1px solid ${C.hair}`,
 };
 
-// ─── Mobile breakpoint hook (matches the Sheet's own `md:` width switch) ──
-function useIsMobile(breakpoint = 768) {
+// ─── Narrow-layout hook ─────────────────────────────────────────────────
+// One consistent Case Detail transition: below Tailwind `lg` (1024px) the
+// drawer goes full-width AND the main column + 328px action panel stack.
+// Above it, the approved two-column desktop layout (dc-1440) is used
+// unchanged. The Sheet className's `lg:` width switch is kept in lockstep
+// with this so there is no breakpoint mismatch.
+function useIsMobile(breakpoint = 1024) {
     const [isMobile, setIsMobile] = useState(false);
     useEffect(() => {
         if (typeof window === 'undefined' || !window.matchMedia) return undefined;
@@ -342,7 +347,7 @@ function StatusPill({ status, tone = 'default' }) {
 // ─── Drawer header ───────────────────────────────────────────
 // "Back" closes the drawer. The surface is styled as the main console pane
 // from the PDF, while keeping every existing action wired to the same handlers.
-function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, onToggleFollow, followBusy, onCopyRef, onDelete, canDelete }) {
+function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, onToggleFollow, followBusy, onCopyRef, onDelete, canDelete, narrow }) {
     const normalizedStatus = String(status || 'new').toLowerCase();
 
     return (
@@ -368,7 +373,7 @@ function DrawerHeader({ caseRef, status, isUncategorised, onClose, isFollowing, 
                     margin: 0, fontFamily: '"Source Serif 4", Georgia, serif',
                     fontSize: 22, lineHeight: 1.1, fontWeight: 600, color: C.ink,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    minWidth: 0, maxWidth: '46%', flexShrink: 1,
+                    minWidth: 0, maxWidth: narrow ? '100%' : '46%', flexShrink: 1,
                 }}>
                     Case {caseRef}
                 </h1>
@@ -470,13 +475,16 @@ function inferCaseDisplayTitle(current, meta) {
     return location && category ? `${category} in ${location}` : category || 'Citizen grievance';
 }
 
-function CaseMetaRow({ phone, createdAt, updatedAt, language }) {
+function CaseMetaRow({ phone, createdAt, updatedAt, language, narrow }) {
     const fmt = (d) => (d ? d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '–');
     const dateStr = fmt(createdAt);
     const timeStr = createdAt
         ? createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ' IST'
         : '–';
-    const dot = <span style={{ color: C.hair }}>·</span>;
+    // Each token carries its own leading separator inside a nowrap group, so
+    // a line wrap only ever breaks *between* groups — never orphaning a "·".
+    const grp = { display: 'inline-flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' };
+    const sep = <span style={{ color: C.hair }}>·</span>;
     return (
         <div style={{
             padding: '0 28px 16px',
@@ -489,13 +497,12 @@ function CaseMetaRow({ phone, createdAt, updatedAt, language }) {
             color: C.ink2,
             flexWrap: 'wrap',
         }}>
-            <Icon name="whatsapp" size={14} color="#3EAE5C" stroke={2} />
-            <span>WhatsApp</span>
-            {language && <>{dot}<span>{language}</span></>}
-            {phone && <>{dot}<span className="mono" style={{ fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>···{phone.slice(-4)}</span></>}
-            {dot}<span>Received {dateStr}, {timeStr}</span>
-            <span style={{ marginLeft: 'auto', color: C.ink3 }}>
-                Case created {fmt(createdAt)} {dot} Last updated {fmt(updatedAt)}
+            <span style={grp}><Icon name="whatsapp" size={14} color="#3EAE5C" stroke={2} /> WhatsApp</span>
+            {language && <span style={grp}>{sep} {language}</span>}
+            {phone && <span style={{ ...grp, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>{sep} ···{phone.slice(-4)}</span>}
+            <span style={grp}>{sep} Received {dateStr}, {timeStr}</span>
+            <span style={{ ...grp, marginLeft: narrow ? 0 : 'auto', color: C.ink3, whiteSpace: narrow ? 'normal' : 'nowrap' }}>
+                Case created {fmt(createdAt)} {sep} Last updated {fmt(updatedAt)}
             </span>
         </div>
     );
@@ -1275,7 +1282,7 @@ function formatGovtCheckedAt(value) {
     return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshing }) {
+function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshing, narrow }) {
     const govtStatus = String(current.govt_status || 'not_forwarded').toLowerCase();
     const alreadyFiled = isGovtAlreadyFiled(current);
     const submitted = alreadyFiled || govtStatus === 'pending_staff_submit';
@@ -1338,37 +1345,42 @@ function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshi
                 )}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'flex-start', overflowX: 'auto', minWidth: 0 }}>
-                {steps.map((step, idx) => {
-                    const complete = idx < activeIndex;
-                    const isCur = idx === activeIndex;
-                    const dotBg = complete ? C.green : isCur ? C.amber : C.card;
-                    const dotBorder = complete ? C.green : isCur ? C.amber : C.hairStrong;
-                    return (
-                        <div key={step.label} style={{ display: 'flex', alignItems: 'flex-start', flex: idx < steps.length - 1 ? 1 : '0 0 auto', minWidth: 0 }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                                <div style={{
-                                    width: 26, height: 26, borderRadius: '50%',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: dotBg, border: `1.5px solid ${dotBorder}`,
-                                }}>
-                                    {complete && <Icon name="check" size={13} color="#fff" stroke={2.5} />}
-                                    {isCur && <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#fff' }} />}
+            {/* Desktop: stepper fills the card width. Narrow (< lg): the stepper
+                itself scrolls horizontally at a fixed min-width so labels never
+                collide and the page never overflows sideways. */}
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: narrow ? 600 : 'auto' }}>
+                    {steps.map((step, idx) => {
+                        const complete = idx < activeIndex;
+                        const isCur = idx === activeIndex;
+                        const dotBg = complete ? C.green : isCur ? C.amber : C.card;
+                        const dotBorder = complete ? C.green : isCur ? C.amber : C.hairStrong;
+                        return (
+                            <div key={step.label} style={{ display: 'flex', alignItems: 'flex-start', flex: idx < steps.length - 1 ? 1 : '0 0 auto', minWidth: 0 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                                    <div style={{
+                                        width: 26, height: 26, borderRadius: '50%',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        background: dotBg, border: `1.5px solid ${dotBorder}`,
+                                    }}>
+                                        {complete && <Icon name="check" size={13} color="#fff" stroke={2.5} />}
+                                        {isCur && <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#fff' }} />}
+                                    </div>
+                                    <div style={{ fontSize: 11, fontWeight: isCur ? 700 : 400, color: complete || isCur ? C.ink : C.ink3, textAlign: 'center', width: 88, lineHeight: 1.25 }}>
+                                        {step.label}
+                                    </div>
+                                    <div style={{ fontSize: 10, color: C.ink3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>{step.date}</div>
                                 </div>
-                                <div style={{ fontSize: 11, fontWeight: isCur ? 700 : 400, color: complete || isCur ? C.ink : C.ink3, textAlign: 'center', width: 88, lineHeight: 1.25 }}>
-                                    {step.label}
-                                </div>
-                                <div style={{ fontSize: 10, color: C.ink3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>{step.date}</div>
+                                {idx < steps.length - 1 && (
+                                    <div style={{ flex: 1, height: 2, background: complete ? C.green : C.hair, margin: '13px 4px 0', minWidth: 12 }} />
+                                )}
                             </div>
-                            {idx < steps.length - 1 && (
-                                <div style={{ flex: 1, height: 2, background: complete ? C.green : C.hair, margin: '13px 4px 0', minWidth: 12 }} />
-                            )}
-                        </div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.hair}` }}>
+            <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(3, 1fr)', gap: narrow ? 14 : 16, marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.hair}` }}>
                 <div><div style={metaLbl}>Department</div><div style={metaVal}>{dept}</div></div>
                 <div><div style={metaLbl}>Currently with</div><div style={metaVal}>{owner}</div></div>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
@@ -2380,7 +2392,7 @@ function ActionPanel({
     priority, onPriority,
     assignee, onAssign, staff, onAssignToMe,
     createdAt, updatedAt, language,
-    onSaveGeo, savingGeo, onViewSummary,
+    onViewSummary, narrow,
 }) {
     const priorityValue = priority || (current.is_critical ? 'critical' : 'standard');
     const infoRows = [
@@ -2394,7 +2406,8 @@ function ActionPanel({
         <div>
             <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '16px 0 12px', position: 'sticky', top: 0, background: C.surfaceWarm, zIndex: 1,
+                padding: '16px 0 12px', background: C.surfaceWarm, zIndex: 1,
+                ...(narrow ? {} : { position: 'sticky', top: 0 }),
             }}>
                 <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: C.ink3 }}>ACTION PANEL</span>
                 <button type="button" onClick={onToggle} style={{ background: 'none', border: 'none', color: C.ink3, padding: 4, cursor: 'pointer', display: 'flex' }}>
@@ -2469,17 +2482,6 @@ function ActionPanel({
                             </div>
                         ))}
                     </div>
-
-                    <button onClick={onSaveGeo} disabled={savingGeo} style={{
-                        marginTop: 14, width: '100%', padding: '8px 12px', background: 'none',
-                        border: `1px solid ${C.hair}`, borderRadius: 8, color: C.ink2,
-                        fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-                        cursor: savingGeo ? 'not-allowed' : 'pointer',
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: savingGeo ? 0.7 : 1,
-                    }}>
-                        {savingGeo && <Loader2 size={12} className="animate-spin" />}
-                        <Icon name="pin" size={12} color={C.ink2} /> Save geography
-                    </button>
 
                     {onViewSummary && (
                         <button type="button" onClick={onViewSummary} style={{
@@ -3009,7 +3011,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
             <Sheet open={!!caseItem} onOpenChange={(open) => { if (!open) onClose(); }}>
                 <SheetContent
                     side="right"
-                    className="w-full md:w-[calc(100vw-216px)] md:!max-w-[1240px] p-0 flex overflow-hidden [&>button]:hidden rounded-none"
+                    className="w-full !max-w-none lg:w-[calc(100vw-216px)] lg:!max-w-[1240px] p-0 flex overflow-hidden [&>button]:hidden rounded-none"
                     style={{
                         background: C.paper,
                         fontFamily: '"Public Sans", "Noto Sans Devanagari", system-ui, sans-serif',
@@ -3020,6 +3022,10 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                     <div style={{
                         flex: 1, minWidth: 0, minHeight: '100%',
                         display: 'flex', flexDirection: 'column', background: C.paper,
+                        // Desktop: header/strip/footer are fixed and the two inner
+                        // columns scroll. Narrow: the whole drawer is one scroll
+                        // with a sticky footer, so nothing is pinned taking space.
+                        ...(isMobile ? { overflowY: 'auto', WebkitOverflowScrolling: 'touch' } : {}),
                     }}>
                     <SheetTitle className="sr-only">Case {caseRef}</SheetTitle>
                     <SheetDescription className="sr-only">Case detail workspace for {caseRef}</SheetDescription>
@@ -3034,12 +3040,14 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         onCopyRef={copyCaseRef}
                         onDelete={handleDelete}
                         canDelete={['mp', 'owner', 'pr'].includes(user?.role)}
+                        narrow={isMobile}
                     />
                     <CaseMetaRow
                         phone={current.user_phone}
                         createdAt={createdAt}
                         updatedAt={updatedAt}
                         language={meta.detected_language || meta.language}
+                        narrow={isMobile}
                     />
                     <ComplaintTabStrip
                         threadCases={threadCases}
@@ -3047,9 +3055,17 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         onSelectCase={(item) => setActiveCaseId(item.id)}
                     />
 
-                    <div style={{ flex: 1, minHeight: 0, display: isMobile ? 'block' : 'flex', overflowY: isMobile ? 'auto' : 'hidden' }}>
+                    <div style={{
+                        // Desktop: this row fills the remaining height and its two
+                        // columns scroll independently. Narrow: natural height so
+                        // the whole drawer (the parent) is the single scroller.
+                        flex: isMobile ? '0 0 auto' : 1,
+                        minHeight: 0,
+                        display: isMobile ? 'block' : 'flex',
+                        overflowY: isMobile ? 'visible' : 'hidden',
+                    }}>
                         {/* MAIN COLUMN */}
-                        <div style={{ flex: 1, minWidth: 0, overflowY: isMobile ? 'visible' : 'auto', padding: '20px 28px 28px' }}>
+                        <div style={{ flex: 1, minWidth: 0, overflowY: isMobile ? 'visible' : 'auto', padding: isMobile ? '16px 20px 24px' : '20px 28px 28px' }}>
                             <ContactQueueNotice current={current} />
 
                             {isResolved ? (
@@ -3073,6 +3089,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
 
                                     <GovernmentJourneyPanel
                                         current={current}
+                                        narrow={isMobile}
                                         onViewSubmission={() => { setGovtOpenSignal((n) => n + 1); govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
                                         onRefresh={handleEscalateClick}
                                     />
@@ -3183,34 +3200,44 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                 createdAt={createdAt}
                                 updatedAt={updatedAt}
                                 language={meta.detected_language || meta.language}
-                                onSaveGeo={saveGeography}
-                                savingGeo={savingGeo}
                                 onViewSummary={viewCaseSummary}
+                                narrow={isMobile}
                             />
                         </div>
                     </div>
 
-                    {/* FOOTER — two actions only (Main.dc.html) */}
+                    {/* FOOTER — two actions only (Main.dc.html). Desktop: right-
+                        aligned pair, unchanged. Narrow: full-width split row,
+                        honouring the bottom safe-area inset. */}
                     {!isResolved && (
                         <div style={{
                             flexShrink: 0, borderTop: `1px solid ${C.hair}`, background: C.card,
-                            padding: '14px 28px', display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap',
+                            padding: isMobile
+                                ? '12px 20px calc(12px + env(safe-area-inset-bottom, 0px))'
+                                : '14px 28px',
+                            display: 'flex', gap: 10, flexWrap: 'wrap',
+                            justifyContent: isMobile ? 'stretch' : 'flex-end',
+                            ...(isMobile ? { position: 'sticky', bottom: 0, zIndex: 6 } : {}),
                         }}>
                             <button
                                 onClick={() => { setNotesOpenSignal((n) => n + 1); responseSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
                                 style={{
-                                    display: 'flex', alignItems: 'center', gap: 7,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                                    flex: isMobile ? '1 1 46%' : '0 0 auto',
                                     border: `1px solid ${C.hair}`, borderRadius: 9, background: 'none',
                                     padding: '10px 18px', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600, color: C.ink, cursor: 'pointer',
+                                    whiteSpace: 'nowrap',
                                 }}>
                                 <Icon name="check" size={14} color={C.ink} stroke={2} /> Add internal note
                             </button>
                             <button
                                 onClick={() => { setNotifyInput(''); setNotifyOpen(true); }}
                                 style={{
-                                    display: 'flex', alignItems: 'center', gap: 7,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                                    flex: isMobile ? '1 1 46%' : '0 0 auto',
                                     border: 'none', borderRadius: 9, background: C.green, color: '#fff',
                                     padding: '10px 20px', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+                                    whiteSpace: 'nowrap',
                                 }}>
                                 <Icon name="whatsapp" size={14} color="#fff" stroke={2} /> Reply to citizen
                             </button>
