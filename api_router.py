@@ -1314,6 +1314,30 @@ def _group_briefcase_cases(cases: list[dict], sort: str = "newest") -> list[dict
         anchor["contact_thread_state"] = state
         anchor["thread_case_ids"] = [item.get("id") for item in members_by_received if item.get("id") is not None]
         anchor["thread_case_count"] = len(members_by_received)
+
+        # Government filing is per-complaint; the case row shows the
+        # furthest-along filing in the thread (so a filed older complaint
+        # isn't hidden behind a not-yet-filed newer one). Read-only — same
+        # columns already loaded for every member, no extra query.
+        _GOVT_RANK = {
+            "resolved": 5, "rejected": 5, "disposed": 5,
+            "under_review": 4, "escalated": 4, "forwarded": 4,
+            "submitted": 3, "registered": 3,
+            "pending_staff_submit": 2,
+            "not_forwarded": 1, "": 0, None: 0,
+        }
+        filing = max(
+            members_by_received,
+            key=lambda m: (
+                _GOVT_RANK.get((m.get("govt_status") or "").strip().lower(), 0),
+                1 if str(m.get("govt_reference_number") or "").strip() else 0,
+                str(m.get("govt_status_updated_at") or ""),
+            ),
+        )
+        for _f in ("govt_status", "govt_reference_number", "govt_status_updated_at",
+                   "govt_portal_id", "govt_department", "govt_portal_name"):
+            anchor[_f] = filing.get(_f)
+        anchor["govt_filing_case_id"] = filing.get("id")
         grouped_rows.append((anchor, members_by_received, members))
 
     def _row_sort_key(bundle):
@@ -1490,8 +1514,12 @@ def get_cases(
                COALESCE(c.location, c.case_metadata->>'matched_value') AS location,
                COALESCE(c.assembly, c.case_metadata->>'assembly_constituency') AS assembly,
                c.case_metadata, c.is_critical, c.created_at, c.updated_at,
-               c.response_to_citizen, c.notes_for_staff, c.assigned_to
-        FROM cases c WHERE {where}
+               c.response_to_citizen, c.notes_for_staff, c.assigned_to,
+               c.govt_status, c.govt_reference_number, c.govt_status_updated_at,
+               c.govt_portal_id, c.govt_department, p.portal_name AS govt_portal_name
+        FROM cases c
+        LEFT JOIN govt_portals p ON p.id = c.govt_portal_id
+        WHERE {where}
         ORDER BY {order_by}
         """,
         params
@@ -1516,8 +1544,58 @@ def get_cases(
         )
         media_count_map = {r["case_id"]: r["n"] for r in media_rows}
 
+    # One batch lookup for the government-sync state of the page's filings
+    # (last status-check event per case). No per-row query — mirrors the
+    # media-count batch above. Feeds the Briefcase STATUS / LAST ACTIVITY
+    # columns; the per-case detail view still owns the full poll history.
+    govt_sync_map = {}
+    filing_ids = [c.get("govt_filing_case_id") or c.get("id") for c in page_cases]
+    filing_ids = [fid for fid in filing_ids if fid is not None]
+    if filing_ids:
+        gs_placeholders = ", ".join(f":gs_id_{i}" for i in range(len(filing_ids)))
+        gs_params = {"tid": tid}
+        for i, cid in enumerate(filing_ids):
+            gs_params[f"gs_id_{i}"] = cid
+        gs_rows = _q(  # nosec B608 — placeholders generated; ids are bound params
+            f"SELECT DISTINCT ON (case_id) case_id, action, payload, created_at "
+            f"FROM govt_submission_log "
+            f"WHERE tenant_id = :tid AND case_id IN ({gs_placeholders}) "
+            f"AND action IN ('status_polled', 'status_check_failed', "
+            f"'status_check_needs_verification', 'status_check_inconclusive') "
+            f"ORDER BY case_id, created_at DESC",
+            gs_params,
+        )
+        for r in gs_rows:
+            action = r.get("action") or ""
+            pl = _parse_meta(r.get("payload"))
+            if action == "status_polled":
+                state = "changed" if pl.get("changed") else "ok"
+            elif action == "status_check_failed":
+                state = "failed"
+            elif action == "status_check_needs_verification":
+                state = "verification"
+            else:
+                state = "inconclusive"
+            govt_sync_map[r["case_id"]] = {
+                "govt_sync_state": state,
+                "govt_last_event_at": _coerce_iso(r.get("created_at")),
+                "govt_last_checked_at": _coerce_iso(r.get("created_at")) if action == "status_polled" else None,
+                "govt_raw_portal_status": pl.get("raw_portal_status") or None,
+            }
+
+    def _with_govt_sync(case):
+        prepared = _prepare_briefcase_list_case(
+            case, tenant_constituency, tid, media_count_map.get(case.get("id"), 0)
+        )
+        for field in ("govt_status_updated_at",):
+            prepared[field] = _coerce_iso(prepared.get(field))
+        sync = govt_sync_map.get(case.get("govt_filing_case_id") or case.get("id"))
+        if sync:
+            prepared.update(sync)
+        return prepared
+
     cases = [
-        _prepare_briefcase_list_case(case, tenant_constituency, tid, media_count_map.get(case.get("id"), 0))
+        _with_govt_sync(case)
         for case in page_cases
     ]
 

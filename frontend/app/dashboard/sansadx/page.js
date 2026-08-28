@@ -174,6 +174,12 @@ function BriefcaseInner() {
                         totalPages={briefcase.totalPages}
                         totalCases={briefcase.totalCases}
                         shown={briefcase.cases.length}
+                        pageSize={briefcase.pageSize}
+                        onPageChange={(n) => briefcase.setPage(n)}
+                        onPageSizeChange={(value) => {
+                            briefcase.setPageSize(value);
+                            briefcase.setPage(1);
+                        }}
                         onPrevious={() => briefcase.setPage((value) => Math.max(1, value - 1))}
                         onNext={() => briefcase.setPage((value) => value + 1)}
                     />
