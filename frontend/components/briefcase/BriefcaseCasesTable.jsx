@@ -42,8 +42,8 @@ const MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace';
 // STATUS (Needle status now nests under the government status, the way the
 // category badge nests under ISSUE/LOCATION) · NEXT ACTION · overflow.
 const GRID_COLS =
-    '34px minmax(150px,1.05fr) minmax(250px,1.7fr) minmax(160px,1.05fr) minmax(230px,1.6fr) minmax(108px,.72fr) 30px';
-const GRID_MIN = 962;
+    '34px minmax(150px,1fr) minmax(268px,1.8fr) minmax(160px,1fr) minmax(224px,1.5fr) minmax(132px,.82fr) 30px';
+const GRID_MIN = 998;
 
 // ─── narrow-layout hook (grid → stacked cards below 1024) ─────────────
 function useNarrow(bp = 1024) {
@@ -336,9 +336,9 @@ function StatusCellContent({ item }) {
                     </>
                 )}
 
-                <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.hair}` }}>
+                <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.hair}` }}>
                     <NeedleStatus status={item.status} />
-                    {since && <div style={{ marginTop: 6, fontSize: 12, color: C.muted }}>Since {since}</div>}
+                    {since && <div style={{ marginTop: 5, fontSize: 12, color: C.muted }}>Since {since}</div>}
                 </div>
             </div>
         </div>
@@ -429,9 +429,9 @@ function Check({ checked, onChange, label }) {
 // ─── skeleton ────────────────────────────────────────────────────────
 function SkeletonGrid() {
     return Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} style={{ display: 'grid', gridTemplateColumns: GRID_COLS, borderBottom: `1px solid ${C.hair}`, minHeight: 112 }}>
+        <div key={i} style={{ display: 'grid', gridTemplateColumns: GRID_COLS, borderBottom: `1px solid ${C.hair}`, minHeight: 92 }}>
             {Array.from({ length: 7 }).map((__, j) => (
-                <div key={j} style={{ padding: '20px 14px' }}>
+                <div key={j} style={{ padding: '16px 16px' }}>
                     <div style={{ height: 10, width: j === 0 || j === 6 ? 15 : '68%', background: C.hair, opacity: 0.55, borderRadius: 2 }} />
                 </div>
             ))}
@@ -556,7 +556,7 @@ export default function BriefcaseCasesTable({
 
     // ── desktop / tablet: grid table ──
     const headCell = { display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', color: C.muted, fontSize: 11, fontWeight: 600, letterSpacing: '.045em' };
-    const cellPad = { padding: '17px 14px' };
+    const cellPad = { padding: '13px 16px', minWidth: 0 };
 
     const SortIcon = ({ active, dir }) => (
         <span style={{ fontSize: 10, color: active ? C.ink : C.faint, userSelect: 'none' }}>{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
@@ -598,7 +598,7 @@ export default function BriefcaseCasesTable({
                             onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = 'transparent'; }}
                             style={{
                                 display: 'grid', gridTemplateColumns: GRID_COLS, alignItems: 'stretch',
-                                borderBottom: `1px solid ${C.hair}`, minHeight: 112, cursor: 'pointer',
+                                borderBottom: `1px solid ${C.hair}`, minHeight: 92, cursor: 'pointer',
                                 background: selected ? C.activeTint : 'transparent',
                                 boxShadow: item.is_critical ? `inset 3px 0 0 ${C.amber}` : selected ? `inset 3px 0 0 ${C.green}` : 'none',
                                 transition: 'background-color 120ms ease',
