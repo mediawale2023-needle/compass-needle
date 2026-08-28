@@ -38,15 +38,12 @@ const C = {
 const SANS = '"Public Sans", "Noto Sans Devanagari", system-ui, sans-serif';
 const MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace';
 
-// Approved dims: checkbox · CASE/THREAD · MESSAGE (widest scan column) ·
-// ISSUE/LOCATION · NEEDLE STATUS · STATUS · NEXT ACTION · overflow.
-// fr weights are exactly the approved baseline — at 1440 they land on the
-// specified widths (MESSAGE ~1.75fr, STATUS ~1.4fr, …). The minmax *mins*
-// are trimmed ~15% below those so 1024–1279 still shows every column
-// without a scrollbar (per the standing "keep all primary information" rule).
+// checkbox · CASE/THREAD · MESSAGE (widest scan column) · ISSUE/LOCATION ·
+// STATUS (Needle status now nests under the government status, the way the
+// category badge nests under ISSUE/LOCATION) · NEXT ACTION · overflow.
 const GRID_COLS =
-    '34px minmax(150px,1.05fr) minmax(248px,1.75fr) minmax(150px,1.05fr) minmax(107px,.75fr) minmax(199px,1.4fr) minmax(104px,.72fr) 30px';
-const GRID_MIN = 1022;
+    '34px minmax(150px,1.05fr) minmax(250px,1.7fr) minmax(160px,1.05fr) minmax(230px,1.6fr) minmax(108px,.72fr) 30px';
+const GRID_MIN = 962;
 
 // ─── narrow-layout hook (grid → stacked cards below 1024) ─────────────
 function useNarrow(bp = 1024) {
@@ -301,8 +298,13 @@ function OverflowMenu({ item, onSelectCase, onOpenContact, onDeleteCase }) {
 }
 
 // ─── STATUS cell content ─────────────────────────────────────────────
+// Government status on top; the Needle lifecycle status nests below it
+// (same pattern as the category badge under ISSUE / LOCATION). The two
+// vocabularies stay visually distinct — govt uses the accent bar + stage
+// wording, Needle keeps its own tinted pill.
 function StatusCellContent({ item }) {
     const g = govtPresentation(item);
+    const since = fmtDayMonth(item.updated_at || item.created_at);
     return (
         <div style={{ display: 'flex', gap: 13 }}>
             {g.accent
@@ -333,6 +335,11 @@ function StatusCellContent({ item }) {
                         </div>
                     </>
                 )}
+
+                <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.hair}` }}>
+                    <NeedleStatus status={item.status} />
+                    {since && <div style={{ marginTop: 6, fontSize: 12, color: C.muted }}>Since {since}</div>}
+                </div>
             </div>
         </div>
     );
@@ -405,16 +412,6 @@ function IssueCellContent({ item }) {
     );
 }
 
-function NeedleCellContent({ item }) {
-    const since = fmtDayMonth(item.updated_at || item.created_at);
-    return (
-        <div>
-            <NeedleStatus status={item.status} />
-            {since && <div style={{ marginTop: 6, fontSize: 12, color: C.muted }}>Since {since}</div>}
-        </div>
-    );
-}
-
 // ─── checkbox ────────────────────────────────────────────────────────
 function Check({ checked, onChange, label }) {
     return (
@@ -433,9 +430,9 @@ function Check({ checked, onChange, label }) {
 function SkeletonGrid() {
     return Array.from({ length: 6 }).map((_, i) => (
         <div key={i} style={{ display: 'grid', gridTemplateColumns: GRID_COLS, borderBottom: `1px solid ${C.hair}`, minHeight: 112 }}>
-            {Array.from({ length: 8 }).map((__, j) => (
+            {Array.from({ length: 7 }).map((__, j) => (
                 <div key={j} style={{ padding: '20px 14px' }}>
-                    <div style={{ height: 10, width: j === 0 || j === 7 ? 15 : '68%', background: C.hair, opacity: 0.55, borderRadius: 2 }} />
+                    <div style={{ height: 10, width: j === 0 || j === 6 ? 15 : '68%', background: C.hair, opacity: 0.55, borderRadius: 2 }} />
                 </div>
             ))}
         </div>
@@ -463,10 +460,7 @@ function CaseCard({ item, selected, onToggle, onSelectCase, onOpenContact, onDel
             </div>
             <div><div style={metaLbl}>Message</div><MessageCell item={item} /></div>
             <div><div style={metaLbl}>Issue / Location</div><IssueCellContent item={item} /></div>
-            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-                <div><div style={metaLbl}>Needle status</div><NeedleCellContent item={item} /></div>
-                <div style={{ flex: '1 1 220px', minWidth: 0 }}><div style={metaLbl}>Status</div><StatusCellContent item={item} /></div>
-            </div>
+            <div><div style={metaLbl}>Status</div><StatusCellContent item={item} /></div>
             {action && (
                 <div onClick={(e) => e.stopPropagation()}>
                     <ActionButton action={action} onClick={(e) => { e.stopPropagation(); onSelectCase(item); }} />
@@ -511,7 +505,6 @@ export default function BriefcaseCasesTable({
         if (!sort.key) return cases;
         const rank = {
             issue: (c) => issueTitle(c).toLowerCase(),
-            needle: (c) => String(c.status || '').toLowerCase(),
             govt: (c) => ['not filed', 'rejected', 'registered with govt portal', 'department action', 'resolved']
                 .indexOf(govtPresentation(c).stage.toLowerCase()),
         }[sort.key];
@@ -582,9 +575,6 @@ export default function BriefcaseCasesTable({
                     <div style={{ ...headCell, cursor: 'pointer' }} onClick={() => onSort('issue')}>
                         ISSUE / LOCATION <SortIcon active={sort.key === 'issue'} dir={sort.dir} />
                     </div>
-                    <div style={{ ...headCell, cursor: 'pointer' }} onClick={() => onSort('needle')}>
-                        NEEDLE STATUS <SortIcon active={sort.key === 'needle'} dir={sort.dir} />
-                    </div>
                     <div style={{ ...headCell, cursor: 'pointer' }} onClick={() => onSort('govt')}>
                         STATUS <SortIcon active={sort.key === 'govt'} dir={sort.dir} />
                     </div>
@@ -622,7 +612,6 @@ export default function BriefcaseCasesTable({
                                 sits mid-column, deliberately off the top baseline. */}
                             <div style={{ ...cellPad, display: 'flex', alignItems: 'center' }}><MessageCell item={item} /></div>
                             <div style={cellPad}><IssueCellContent item={item} /></div>
-                            <div style={cellPad}><NeedleCellContent item={item} /></div>
                             <div style={cellPad}><StatusCellContent item={item} /></div>
                             <div style={{ ...cellPad, display: 'flex', alignItems: 'flex-start' }} onClick={(e) => e.stopPropagation()}>
                                 <ActionButton action={action} onClick={(e) => { e.stopPropagation(); onSelectCase(item); }} />
