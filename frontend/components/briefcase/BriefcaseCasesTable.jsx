@@ -38,13 +38,15 @@ const C = {
 const SANS = '"Public Sans", "Noto Sans Devanagari", system-ui, sans-serif';
 const MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace';
 
-// minmax mins trimmed from the reference (sum ~1028) so the grid fits the
-// dashboard content area (viewport − 220px rail) from 1280px up without a
-// scrollbar; the fr weights keep the reference proportions as it widens.
-// STATUS stays the widest track — portal detail needs the room.
+// Approved dims: checkbox · CASE/THREAD · MESSAGE (widest scan column) ·
+// ISSUE/LOCATION · NEEDLE STATUS · STATUS · NEXT ACTION · overflow.
+// fr weights are exactly the approved baseline — at 1440 they land on the
+// specified widths (MESSAGE ~1.75fr, STATUS ~1.4fr, …). The minmax *mins*
+// are trimmed ~15% below those so 1024–1279 still shows every column
+// without a scrollbar (per the standing "keep all primary information" rule).
 const GRID_COLS =
-    '34px minmax(158px,1.1fr) minmax(172px,1.2fr) minmax(120px,.8fr) minmax(250px,1.6fr) minmax(140px,.9fr) minmax(124px,.8fr) 30px';
-const GRID_MIN = 1028;
+    '34px minmax(150px,1.05fr) minmax(248px,1.75fr) minmax(150px,1.05fr) minmax(107px,.75fr) minmax(199px,1.4fr) minmax(104px,.72fr) 30px';
+const GRID_MIN = 1022;
 
 // ─── narrow-layout hook (grid → stacked cards below 1024) ─────────────
 function useNarrow(bp = 1024) {
@@ -336,28 +338,21 @@ function StatusCellContent({ item }) {
     );
 }
 
-// ─── LAST ACTIVITY cell content ──────────────────────────────────────
-function ActivityCellContent({ item }) {
-    const g = govtPresentation(item);
-    const when = item.govt_last_event_at || item.govt_status_updated_at || item.updated_at || item.created_at;
-    if (!g.filed && !item.govt_last_event_at) {
-        return (
-            <>
-                <div style={{ fontSize: 12, color: C.faint }}>—</div>
-                <div style={{ marginTop: 8, fontSize: 11, color: C.muted }}>Not checked</div>
-            </>
-        );
-    }
-    let line = null;
-    if (g.syncFailed) line = <div style={{ marginTop: 8, fontSize: 11, color: C.err }}>⚠ Retry needed</div>;
-    else if (g.syncState === 'changed') line = <div style={{ marginTop: 8, fontSize: 11, color: C.amberInk }}>● Status changed</div>;
-    else if (g.syncState === 'ok') line = <div style={{ marginTop: 8, fontSize: 11, color: C.green }}>✓ Synced</div>;
-    else line = <div style={{ marginTop: 8, fontSize: 11, color: C.muted }}>Not checked</div>;
+// ─── MESSAGE cell — the citizen's raw complaint, verbatim ─────────────
+// Source is the case row's own raw_message (the anchor complaint the
+// Briefcase already picks as the thread's primary display complaint).
+// No AI summary, no quote chrome, no italics, clamped to 3 lines — the
+// Case Detail modal exposes the full text.
+function MessageCell({ item }) {
+    const text = (item.raw_message || '').trim();
     return (
-        <>
-            <div style={{ fontSize: 12, color: C.ink }}>{fmtActivity(when) || '—'}</div>
-            {line}
-        </>
+        <div style={{
+            fontSize: 13, lineHeight: 1.45, color: C.ink,
+            display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
+            overflow: 'hidden', wordBreak: 'break-word',
+        }}>
+            {text || <span style={{ color: C.faint }}>No message content</span>}
+        </div>
     );
 }
 
@@ -466,11 +461,11 @@ function CaseCard({ item, selected, onToggle, onSelectCase, onOpenContact, onDel
                     <OverflowMenu item={item} onSelectCase={onSelectCase} onOpenContact={onOpenContact} onDeleteCase={onDeleteCase} />
                 </div>
             </div>
-            <IssueCellContent item={item} />
+            <div><div style={metaLbl}>Message</div><MessageCell item={item} /></div>
+            <div><div style={metaLbl}>Issue / Location</div><IssueCellContent item={item} /></div>
             <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                 <div><div style={metaLbl}>Needle status</div><NeedleCellContent item={item} /></div>
                 <div style={{ flex: '1 1 220px', minWidth: 0 }}><div style={metaLbl}>Status</div><StatusCellContent item={item} /></div>
-                <div><div style={metaLbl}>Last activity</div><ActivityCellContent item={item} /></div>
             </div>
             {action && (
                 <div onClick={(e) => e.stopPropagation()}>
@@ -583,6 +578,7 @@ export default function BriefcaseCasesTable({
                         <Check checked={allSelected} onChange={toggleAll} label="Select all cases" />
                     </div>
                     <div style={headCell}>CASE / THREAD</div>
+                    <div style={headCell}>MESSAGE</div>
                     <div style={{ ...headCell, cursor: 'pointer' }} onClick={() => onSort('issue')}>
                         ISSUE / LOCATION <SortIcon active={sort.key === 'issue'} dir={sort.dir} />
                     </div>
@@ -592,7 +588,6 @@ export default function BriefcaseCasesTable({
                     <div style={{ ...headCell, cursor: 'pointer' }} onClick={() => onSort('govt')}>
                         STATUS <SortIcon active={sort.key === 'govt'} dir={sort.dir} />
                     </div>
-                    <div style={headCell}>LAST ACTIVITY</div>
                     <div style={headCell}>NEXT ACTION</div>
                     <div />
                 </div>
@@ -623,10 +618,12 @@ export default function BriefcaseCasesTable({
                                 <Check checked={selected} onChange={() => toggleOne(item.id)} label={`Select case ${item.id}`} />
                             </div>
                             <div style={cellPad}><CaseThreadContent item={item} /></div>
+                            {/* MESSAGE is vertically centred in the row — a short message
+                                sits mid-column, deliberately off the top baseline. */}
+                            <div style={{ ...cellPad, display: 'flex', alignItems: 'center' }}><MessageCell item={item} /></div>
                             <div style={cellPad}><IssueCellContent item={item} /></div>
                             <div style={cellPad}><NeedleCellContent item={item} /></div>
                             <div style={cellPad}><StatusCellContent item={item} /></div>
-                            <div style={cellPad}><ActivityCellContent item={item} /></div>
                             <div style={{ ...cellPad, display: 'flex', alignItems: 'flex-start' }} onClick={(e) => e.stopPropagation()}>
                                 <ActionButton action={action} onClick={(e) => { e.stopPropagation(); onSelectCase(item); }} />
                             </div>
