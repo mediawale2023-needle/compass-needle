@@ -1299,15 +1299,17 @@ function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshi
         );
     }
 
-    const activeIndex = alreadyFiled
-        ? (['resolved', 'rejected'].includes(govtStatus) ? 4 : ['under_review', 'escalated'].includes(govtStatus) ? 3 : 2)
-        : 0;
+    // Four public-facing stages. "Complaint received" is always done once a
+    // case exists; the portal registration step is only current (not done)
+    // while the case sits at pending_staff_submit / "not filed yet".
+    const activeIndex = ['resolved', 'rejected'].includes(govtStatus) ? 4
+        : alreadyFiled ? 2
+        : 1;
     const filedDate = formatShortDate(current.govt_status_updated_at || current.updated_at || current.created_at) || 'Pending';
     const steps = [
-        { label: 'Filed', date: filedDate },
-        { label: 'Registered', date: filedDate },
-        { label: 'Sent for scrutiny', date: activeIndex >= 2 ? filedDate : 'Pending' },
-        { label: 'Department action', date: activeIndex >= 3 ? filedDate : 'Pending' },
+        { label: 'Complaint received', date: formatShortDate(current.created_at) || filedDate },
+        { label: 'Registered with Government portal', date: activeIndex >= 2 ? filedDate : 'Pending' },
+        { label: 'Department action', date: activeIndex >= 4 ? filedDate : 'Pending' },
         { label: 'Resolved', date: activeIndex >= 4 ? filedDate : 'Pending' },
     ];
     const portalName = current.portal_name || current.govt_portal_name || 'Government portal';
@@ -1366,7 +1368,7 @@ function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshi
                                         {complete && <Icon name="check" size={13} color="#fff" stroke={2.5} />}
                                         {isCur && <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#fff' }} />}
                                     </div>
-                                    <div style={{ fontSize: 11, fontWeight: isCur ? 700 : 400, color: complete || isCur ? C.ink : C.ink3, textAlign: 'center', width: 88, lineHeight: 1.25 }}>
+                                    <div style={{ fontSize: 11, fontWeight: isCur ? 700 : 400, color: complete || isCur ? C.ink : C.ink3, textAlign: 'center', width: 116, lineHeight: 1.25 }}>
                                         {step.label}
                                     </div>
                                     <div style={{ fontSize: 10, color: C.ink3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>{step.date}</div>
