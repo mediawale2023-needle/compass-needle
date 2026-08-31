@@ -1,52 +1,50 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { BriefcaseIcon, formatBriefcaseAge } from '@/components/briefcase/briefcase-shared';
+import { formatBriefcaseAge } from '@/components/briefcase/briefcase-shared';
 
-// ─── Case Detail visual language (frozen dc-1440 palette) ─────────────
+// ─── Shared Overview / Case Detail visual system ─────────────────────
 const C = {
     surface:    '#FFFEFB',
     bg:         '#F3EEE2',
     hair:       '#E4DECB',
+    hairStrong: '#C9BFA9',
     hairSoft:   '#DDD6C5',
     ink:        '#211F19',
     muted:      '#6C6858',
-    faint:      '#9D9683',
+    faint:      '#8A8270',
     green:      '#2B6E4C',
     greenDeep:  '#245F45',
+    greenSoft:  '#E4EBDD',
     amber:      '#C9821C',
-    amberInk:   '#B87418',
-    rust:       '#A85C2F',
+    amberInk:   '#7C5514',
+    amberSoft:  '#F2E6CF',
+    rust:       '#BC6A36',
+    rustInk:    '#8A4A22',
+    rustSoft:   '#F1DED0',
     err:        '#A33A32',
-    errAccent:  '#B34336',
+    errAccent:  '#A33A32',
+    neutralSoft:'#ECE6D8',
     rowHover:   '#FCFAF3',
     activeTint: '#F7F2E7',
-    needleProgBg:  '#EEF2F8',
-    needleProgFg:  '#335A8D',
-    needleReviewBg:'#FBEEE3',
-    needleReviewFg:'#B35D24',
-    needleDoneBg:  '#E3ECE3',
-    needleDoneFg:  '#245F45',
-    needleNeutBg:  '#ECE8DC',
-    needleNeutFg:  '#6C6858',
-    tintGreen:  'rgba(43,110,76,.08)',
-    tintAmber:  'rgba(188,106,54,.10)',
-    tintDanger: 'rgba(170,55,45,.08)',
     catBg:      '#F8F4EA',
+    tintGreen:  'rgba(43,110,76,.08)',
+    tintAmber:  'rgba(188,106,54,.12)',
+    tintDanger: 'rgba(163,58,50,.10)',
 };
 
 const SANS = '"Public Sans", "Noto Sans Devanagari", system-ui, sans-serif';
 const MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace';
 
 // checkbox · CASE/THREAD · MESSAGE (widest scan column) · ISSUE/LOCATION ·
-// STATUS (Needle status now nests under the government status, the way the
-// category badge nests under ISSUE/LOCATION) · NEXT ACTION · overflow.
+// STATUS (government primary + short divider + Needle pill & since) ·
+// NEXT ACTION · overflow.
 const GRID_COLS =
-    '34px minmax(150px,1fr) minmax(268px,1.8fr) minmax(160px,1fr) minmax(224px,1.5fr) minmax(132px,.82fr) 30px';
-const GRID_MIN = 998;
+    '34px minmax(116px,0.8fr) minmax(252px,2.4fr) minmax(144px,1fr) minmax(160px,1.18fr) minmax(96px,0.6fr) 30px';
+const GRID_MIN = 912;
 
-// ─── narrow-layout hook (grid → stacked cards below 1024) ─────────────
-function useNarrow(bp = 1024) {
+// ─── narrow-layout hook (grid → stacked cards below the desktop table) ─
+function useNarrow(bp = 1200) {
     const [narrow, setNarrow] = useState(false);
     useEffect(() => {
         if (typeof window === 'undefined' || !window.matchMedia) return undefined;
@@ -69,17 +67,6 @@ function fmtDayMonth(v) {
     const d = toDate(v);
     return d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '';
 }
-function fmtActivity(v) {
-    const d = toDate(v);
-    if (!d) return '';
-    const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }).toLowerCase();
-    const today = new Date();
-    const isSameDay = (a, b) => a.toDateString() === b.toDateString();
-    if (isSameDay(d, today)) return `Today, ${time}`;
-    const yst = new Date(today); yst.setDate(today.getDate() - 1);
-    if (isSameDay(d, yst)) return `Yesterday, ${time}`;
-    return `${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}, ${time}`;
-}
 
 // ─── government status presentation (mirrors Case Detail journey) ─────
 const FILED_STATUSES = ['submitted', 'registered', 'forwarded', 'under_review', 'escalated', 'resolved', 'rejected', 'disposed'];
@@ -87,60 +74,76 @@ function isGovtFiled(item) {
     if (String(item.govt_reference_number || '').trim()) return true;
     return FILED_STATUSES.includes(String(item.govt_status || '').toLowerCase());
 }
+// STATUS cell = government status (primary) + short divider + Needle pill &
+// "since" (secondary). Government stage + AT MOST ONE supporting line; the
+// reference number gets its own line only when the case is registered.
+// "Ready for government portal" is NEVER inferred from status === in_progress;
+// it requires the real govt_status = 'pending_staff_submit'.
 function govtPresentation(item) {
     const s = String(item.govt_status || '').toLowerCase();
     const needleStatus = String(item.status || '').toLowerCase();
     const syncState = item.govt_sync_state || null;               // ok | changed | failed | verification | inconclusive
     const ref = String(item.govt_reference_number || '').trim();
     const portal = item.govt_portal_name || item.portal_name || '';
-    const lastChecked = item.govt_last_checked_at || null;
+    const syncFailed = syncState === 'failed' || syncState === 'verification';
 
-    let stage, accent, detail = [];
+    let stage = 'NOT FILED';
+    let lines = [];
+    let tone = null; // null | 'green' | 'err'
+
     if (['resolved', 'disposed'].includes(s)) {
-        stage = 'Resolved'; accent = C.green;
+        stage = 'RESOLVED'; tone = 'green';
+        const d = fmtDayMonth(item.resolved_at);
+        if (d) lines = [d];
     } else if (s === 'rejected') {
-        stage = 'Rejected'; accent = C.err;
+        stage = 'REJECTED'; tone = 'err';
+    } else if (syncFailed) {
+        stage = 'SYNC ISSUE'; tone = 'err'; lines = ['Check required'];
     } else if (['under_review', 'escalated', 'forwarded'].includes(s)) {
-        stage = 'Department Action'; accent = C.green;
+        stage = 'DEPARTMENT ACTION'; tone = 'green';
+        if (item.govt_department) lines = [String(item.govt_department)];
     } else if (isGovtFiled(item)) {
-        stage = 'Registered with Govt Portal'; accent = C.green;
+        stage = 'REGISTERED WITH GOVT PORTAL'; tone = 'green';
+        lines = [portal, ref ? `#${ref}` : ''].filter(Boolean);
     } else if (s === 'pending_staff_submit') {
-        stage = 'Not Filed'; accent = C.amber; detail = ['Ready for government portal'];
+        stage = 'NOT FILED'; lines = ['Ready for government portal'];
+    } else if (needleStatus === 'pending_review') {
+        stage = 'NOT FILED'; lines = ['Review pending'];
+    } else if (needleStatus === 'awaiting_location') {
+        stage = 'NOT FILED'; lines = ['Location needed first'];
     } else {
-        stage = 'Not Filed'; accent = null;
-        detail = needleStatus === 'pending_review'
-            ? ['Review pending', 'Ready for portal']
-            : needleStatus === 'in_progress'
-                ? ['Ready for government portal']
-                : ['Not filed'];
+        stage = 'NOT FILED';
     }
 
-    const filed = stage !== 'Not Filed';
-    const syncFailed = syncState === 'failed' || syncState === 'verification';
-    if (syncFailed && filed) accent = C.errAccent;
-
-    return { stage, accent, detail, ref, portal, lastChecked, syncState, syncFailed, filed };
+    const filed = !['NOT FILED', 'SYNC ISSUE'].includes(stage) || isGovtFiled(item);
+    return { stage, lines, tone, ref, portal, syncState, syncFailed, filed };
 }
 
-// ─── needle status pill ──────────────────────────────────────────────
+// ─── Needle status pill — always the real cases.status, approved semantic
+// palette only (no blue/purple), and no invented "READY" state. ──────
 const NEEDLE_MAP = {
-    in_progress:       { label: 'In Progress',   bg: C.needleProgBg,   fg: C.needleProgFg },
-    pending_review:    { label: 'Needs Review',  bg: C.needleReviewBg, fg: C.needleReviewFg },
-    awaiting_location: { label: 'Needs Location', bg: C.needleReviewBg, fg: C.needleReviewFg },
-    new:               { label: 'New',           bg: C.needleProgBg,   fg: C.needleProgFg },
-    pending:           { label: 'Pending',       bg: C.needleReviewBg, fg: C.needleReviewFg },
-    resolved:          { label: 'Resolved',      bg: C.needleDoneBg,   fg: C.needleDoneFg },
-    completed:         { label: 'Resolved',      bg: C.needleDoneBg,   fg: C.needleDoneFg },
-    closed:            { label: 'Closed',        bg: C.needleNeutBg,   fg: C.needleNeutFg },
-    irrelevant:        { label: 'Closed',        bg: C.needleNeutBg,   fg: C.needleNeutFg },
+    new:               { label: 'New',                bg: C.neutralSoft, fg: '#544E40' },
+    pending_review:    { label: 'Needs Review',       bg: C.rustSoft,    fg: C.rustInk },
+    awaiting_location: { label: 'Awaiting Location',  bg: C.amberSoft,   fg: C.amberInk },
+    in_progress:       { label: 'In Progress',        bg: C.neutralSoft, fg: '#544E40' },
+    pending:           { label: 'Pending',            bg: C.amberSoft,   fg: C.amberInk },
+    incomplete:        { label: 'Incomplete',         bg: C.amberSoft,   fg: C.amberInk },
+    resolved:          { label: 'Resolved',           bg: '#E0E8DA',     fg: C.greenDeep },
+    completed:         { label: 'Resolved',           bg: '#E0E8DA',     fg: C.greenDeep },
+    closed:            { label: 'Closed',             bg: C.neutralSoft, fg: C.muted },
+    irrelevant:        { label: 'Closed',             bg: C.neutralSoft, fg: C.muted },
+    offensive:         { label: 'Closed',             bg: C.neutralSoft, fg: C.muted },
 };
 function NeedleStatus({ status }) {
-    const m = NEEDLE_MAP[String(status || 'new').toLowerCase()] || NEEDLE_MAP.new;
+    const key = String(status || 'new').toLowerCase();
+    const m = NEEDLE_MAP[key] || { label: (status || 'New').replace(/_/g, ' '), bg: C.neutralSoft, fg: C.muted };
     return (
         <span style={{
             display: 'inline-flex', alignItems: 'center',
-            padding: '5px 8px', borderRadius: 5,
-            fontSize: 11, fontWeight: 500, background: m.bg, color: m.fg, whiteSpace: 'nowrap',
+            border: `1px solid ${C.hairStrong}`, padding: '2px 6px',
+            fontFamily: MONO, fontSize: 9, fontWeight: 600, letterSpacing: '.03em',
+            textTransform: 'uppercase', lineHeight: 1.15,
+            background: m.bg, color: m.fg, whiteSpace: 'nowrap',
         }}>
             {m.label}
         </span>
@@ -195,47 +198,26 @@ function locationLine(item) {
     if (loc && asm && !loc.includes(asm)) return `${loc}, ${asm}`;
     return loc || asm || '—';
 }
-function languageName(item) {
-    const raw = (item.case_metadata?.detected_language || item.case_metadata?.language || item.detected_language || '').trim();
-    if (!raw || /unknown/i.test(raw)) return '';
-    return raw.charAt(0).toUpperCase() + raw.slice(1);
-}
-
-// ─── small UI atoms ──────────────────────────────────────────────────
-const badgeBase = {
-    padding: '3px 7px', borderRadius: 4, fontSize: 10, fontWeight: 600, letterSpacing: '.025em', whiteSpace: 'nowrap',
-};
-function ThreadBadge({ isThread, count, tone }) {
-    const tones = {
-        default:   { bg: C.tintGreen,  fg: C.green },
-        attention: { bg: C.tintAmber,  fg: C.rust },
-        danger:    { bg: C.tintDanger, fg: C.err },
-    };
-    const t = tones[tone] || tones.default;
-    return (
-        <span style={{ ...badgeBase, background: t.bg, color: t.fg }}>
-            {isThread ? `THREAD · ${count}` : '1 COMPLAINT'}
-        </span>
-    );
-}
-
+// Restrained, outlined — reads as "step into a workflow", never a filled
+// one-click execute, and never out-shouts the citizen's message.
 function ActionButton({ action, onClick }) {
-    if (!action) return null;
-    const primary = action.kind === 'primary';
+    if (!action) return <span style={{ color: C.faint, fontSize: 12 }}>—</span>;
+    const strong = action.kind === 'primary';
     return (
         <button
             type="button"
             onClick={onClick}
             style={{
-                minHeight: 36, padding: '0 14px', borderRadius: 5,
-                fontSize: 12, fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer',
-                border: `1px solid ${primary ? C.greenDeep : C.hairSoft}`,
-                background: primary ? C.greenDeep : 'transparent',
-                color: primary ? '#FFFFFF' : C.greenDeep,
-                whiteSpace: 'nowrap',
+                display: 'inline-flex', alignItems: 'center', gap: 5, maxWidth: '100%',
+                minHeight: 28, padding: '5px 9px',
+                fontSize: 11, fontWeight: 550, fontFamily: SANS, cursor: 'pointer',
+                border: `1px solid ${strong ? 'rgba(43,110,76,0.5)' : C.hairStrong}`,
+                background: 'transparent', color: C.greenDeep,
+                lineHeight: 1.15, whiteSpace: 'nowrap',
             }}
         >
             {action.label}
+            <span style={{ fontFamily: MONO, fontSize: 10, opacity: 0.7 }} aria-hidden="true">→</span>
         </button>
     );
 }
@@ -297,49 +279,45 @@ function OverflowMenu({ item, onSelectCase, onOpenContact, onDeleteCase }) {
     );
 }
 
-// ─── STATUS cell content ─────────────────────────────────────────────
-// Government status on top; the Needle lifecycle status nests below it
-// (same pattern as the category badge under ISSUE / LOCATION). The two
-// vocabularies stay visually distinct — govt uses the accent bar + stage
-// wording, Needle keeps its own tinted pill.
+// ─── STATUS cell — two conceptually distinct systems, kept separate but
+// compact. Layer A (primary): government stage + AT MOST ONE supporting
+// line (+ a #reference line only when registered). Layer B (secondary,
+// below a short divider): the real Needle status pill and a "Since" date.
+// "Since" is rendered ONLY from cases.status_changed_at — never
+// updated_at / created_at / resolved_at / any complaint timestamp. When
+// status_changed_at is null the line is omitted.
+const GOV_BAR = { green: C.green, err: C.err };
 function StatusCellContent({ item }) {
     const g = govtPresentation(item);
-    const since = fmtDayMonth(item.updated_at || item.created_at);
+    const sinceIso = item.status_changed_at || null;
+    const since = sinceIso ? fmtDayMonth(sinceIso) : '';
     return (
-        <div style={{ display: 'flex', gap: 13 }}>
-            {g.accent
-                ? <div style={{ width: 3, flex: '0 0 3px', borderRadius: 2, background: g.accent }} />
-                : <div style={{ width: 7, height: 7, flex: '0 0 7px', marginTop: 5, borderRadius: '50%', background: C.faint }} />}
+        <div style={{ display: 'flex', gap: 9, minWidth: 0 }}>
+            <div style={{ flex: '0 0 2px', width: 2, alignSelf: 'stretch', background: GOV_BAR[g.tone] || C.hairStrong }} />
             <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{g.stage}</div>
-                {g.filed && g.portal && (
-                    <div style={{ marginTop: 6, fontSize: 12, color: C.muted, lineHeight: 1.35 }}>{g.portal}</div>
-                )}
-                {g.filed && g.ref && (
-                    <div style={{ marginTop: 4, fontSize: 12, color: C.muted, fontFamily: MONO }}>#{g.ref}</div>
-                )}
-                {!g.filed && g.detail.map((d, i) => (
-                    <div key={i} style={{ marginTop: 6, fontSize: 12, color: C.muted, lineHeight: 1.35 }}>{d}</div>
-                ))}
-                {g.filed && !g.syncFailed && g.lastChecked && (
-                    <div style={{ marginTop: 8, fontSize: 11, color: C.muted }}>
-                        <span style={{ display: 'inline-block', width: 7, height: 7, marginRight: 7, borderRadius: '50%', background: C.green }} />
-                        Last sync: {fmtActivity(g.lastChecked)}
-                    </div>
-                )}
-                {g.syncFailed && (
-                    <>
-                        <div style={{ marginTop: 6, fontSize: 11, color: C.err }}>● Retry needed</div>
-                        <div style={{ marginTop: 5, fontSize: 11, color: C.err }}>
-                            ⚠ {g.syncState === 'verification' ? 'Verification needed' : 'Sync failed'}
-                        </div>
-                    </>
-                )}
-
-                <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.hair}` }}>
-                    <NeedleStatus status={item.status} />
-                    {since && <div style={{ marginTop: 5, fontSize: 12, color: C.muted }}>Since {since}</div>}
+                <div style={{
+                    fontFamily: MONO, fontSize: 10, fontWeight: 700, letterSpacing: '.03em',
+                    textTransform: 'uppercase', color: C.ink, lineHeight: 1.2,
+                }}>
+                    {g.stage}
                 </div>
+                {g.lines.map((line, i) => (
+                    <div
+                        key={i}
+                        style={{
+                            marginTop: i === 0 ? 2 : 1,
+                            fontSize: i >= 1 ? 10.5 : 11,
+                            fontFamily: i >= 1 ? MONO : SANS,
+                            color: g.tone === 'err' ? C.err : (i >= 1 ? C.faint : C.muted),
+                            lineHeight: 1.25,
+                        }}
+                    >
+                        {line}
+                    </div>
+                ))}
+                <span style={{ display: 'block', width: 22, height: 1, background: C.hairStrong, margin: '5px 0 4px' }} />
+                <NeedleStatus status={item.status} />
+                {since && <div style={{ marginTop: 3, fontSize: 10.5, color: C.faint }}>Since {since}</div>}
             </div>
         </div>
     );
@@ -354,7 +332,7 @@ function MessageCell({ item }) {
     const text = (item.raw_message || '').trim();
     return (
         <div style={{
-            fontSize: 13, lineHeight: 1.45, color: C.ink,
+            fontSize: 13, lineHeight: 1.4, color: C.ink,
             display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
             overflow: 'hidden', wordBreak: 'break-word',
         }}>
@@ -363,32 +341,34 @@ function MessageCell({ item }) {
     );
 }
 
-// ─── CASE / THREAD cell content ──────────────────────────────────────
+// ─── CASE / THREAD cell — compact: ref (+ critical marker), thread/count,
+// age. No channel prose, no decorative icon tile. ──────────────────────
 function CaseThreadContent({ item }) {
     const t = threadInfo(item);
-    const lang = languageName(item);
-    const secondary = t.isThread
-        ? `Latest complaint ${formatBriefcaseAge(item.created_at)} ago`
-        : `Received ${fmtDayMonth(item.created_at) || '—'}`;
+    const age = formatBriefcaseAge(item.created_at);
     return (
-        <div style={{ display: 'flex', gap: 11, minWidth: 0 }}>
-            <div style={{
-                flex: '0 0 34px', width: 34, height: 34, borderRadius: 7,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: C.tintGreen, color: C.green,
-            }}>
-                <BriefcaseIcon name={t.isThread ? 'cluster' : 'briefcase'} size={16} color={C.green} stroke={1.9} />
+        <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 600, color: C.ink }}>
+                    {item.case_ref || `#${item.id}`}
+                </span>
+                {item.is_critical && (
+                    <span
+                        title="Critical"
+                        style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: 14, height: 14, background: C.rust, color: '#F3EEE2',
+                            fontSize: 10, fontWeight: 800, lineHeight: 1,
+                        }}
+                    >
+                        !
+                    </span>
+                )}
             </div>
-            <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                    <span style={{ fontSize: 14, fontWeight: 650, color: C.ink }}>{item.case_ref || `#${item.id}`}</span>
-                    <ThreadBadge isThread={t.isThread} count={t.count} tone={t.badgeTone} />
-                </div>
-                <div style={{ marginTop: 6, fontSize: 12, color: C.muted, lineHeight: 1.35 }}>
-                    WhatsApp{!t.isThread && lang ? <> <span style={{ color: C.faint }}>•</span> {lang}</> : null}
-                </div>
-                <div style={{ marginTop: 6, fontSize: 12, color: C.faint, lineHeight: 1.35 }}>{secondary}</div>
+            <div style={{ marginTop: 5, fontFamily: MONO, fontSize: 10, color: C.muted }}>
+                {t.isThread ? `Thread · ${t.count}` : '1 complaint'}
             </div>
+            <div style={{ marginTop: 3, fontFamily: MONO, fontSize: 10, color: C.faint }}>{age}</div>
         </div>
     );
 }
@@ -397,13 +377,13 @@ function CaseThreadContent({ item }) {
 function IssueCellContent({ item }) {
     return (
         <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, lineHeight: 1.3 }}>{issueTitle(item)}</div>
-            <div style={{ marginTop: 6, fontSize: 12, color: C.muted, lineHeight: 1.35 }}>{locationLine(item)}</div>
+            <div style={{ fontSize: 12.5, fontWeight: 640, color: C.ink, lineHeight: 1.3 }}>{issueTitle(item)}</div>
+            <div style={{ marginTop: 4, fontSize: 11.5, color: C.muted, lineHeight: 1.3 }}>{locationLine(item)}</div>
             {item.category && (
                 <span style={{
-                    display: 'inline-flex', marginTop: 10, padding: '4px 7px',
-                    border: `1px solid ${C.hair}`, borderRadius: 4, background: C.catBg,
-                    color: C.muted, fontSize: 11,
+                    display: 'inline-flex', marginTop: 7, padding: '3px 6px',
+                    border: `1px solid ${C.hair}`, background: C.catBg,
+                    color: C.muted, fontSize: 10.5,
                 }}>
                     {item.category}
                 </span>
@@ -429,9 +409,9 @@ function Check({ checked, onChange, label }) {
 // ─── skeleton ────────────────────────────────────────────────────────
 function SkeletonGrid() {
     return Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} style={{ display: 'grid', gridTemplateColumns: GRID_COLS, borderBottom: `1px solid ${C.hair}`, minHeight: 92 }}>
+        <div key={i} style={{ display: 'grid', gridTemplateColumns: GRID_COLS, borderBottom: `1px solid ${C.hair}`, minHeight: 100 }}>
             {Array.from({ length: 7 }).map((__, j) => (
-                <div key={j} style={{ padding: '16px 16px' }}>
+                <div key={j} style={{ padding: '14px 14px' }}>
                     <div style={{ height: 10, width: j === 0 || j === 6 ? 15 : '68%', background: C.hair, opacity: 0.55, borderRadius: 2 }} />
                 </div>
             ))}
@@ -488,7 +468,7 @@ export default function BriefcaseCasesTable({
     onOpenContact,
     onDeleteCase,
 }) {
-    const narrow = useNarrow(1024);
+    const narrow = useNarrow(1200);
     const [sort, setSort] = useState({ key: null, dir: 'asc' });
 
     const allSelected = cases.length > 0 && selectedIds.size === cases.length;
@@ -555,8 +535,8 @@ export default function BriefcaseCasesTable({
     }
 
     // ── desktop / tablet: grid table ──
-    const headCell = { display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', color: C.muted, fontSize: 11, fontWeight: 600, letterSpacing: '.045em' };
-    const cellPad = { padding: '13px 16px', minWidth: 0 };
+    const headCell = { display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', color: C.faint, fontSize: 9, fontWeight: 600, letterSpacing: '.08em', fontFamily: MONO, textTransform: 'uppercase' };
+    const cellPad = { padding: '12px 14px', minWidth: 0 };
 
     const SortIcon = ({ active, dir }) => (
         <span style={{ fontSize: 10, color: active ? C.ink : C.faint, userSelect: 'none' }}>{active ? (dir === 'asc' ? '↑' : '↓') : '↕'}</span>
@@ -564,6 +544,7 @@ export default function BriefcaseCasesTable({
 
     return (
         <div style={{ overflowX: 'auto', background: C.surface, borderTop: `1px solid ${C.hair}`, borderBottom: `1px solid ${C.hair}`, fontFamily: SANS }}>
+            <style>{`.bfc-row:focus-visible{outline:2px solid ${C.greenDeep};outline-offset:-2px;}`}</style>
             <div style={{ minWidth: GRID_MIN }}>
                 {/* header */}
                 <div style={{ display: 'grid', gridTemplateColumns: GRID_COLS, minHeight: 44, alignItems: 'center', borderBottom: `1px solid ${C.hair}` }}>
@@ -593,14 +574,21 @@ export default function BriefcaseCasesTable({
                     return (
                         <div
                             key={item.id}
+                            className="bfc-row"
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Open case ${item.case_ref || item.id}${item.is_critical ? ' (critical)' : ''}`}
                             onClick={() => onSelectCase(item)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectCase(item); }
+                            }}
                             onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = C.rowHover; }}
                             onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = 'transparent'; }}
                             style={{
-                                display: 'grid', gridTemplateColumns: GRID_COLS, alignItems: 'stretch',
-                                borderBottom: `1px solid ${C.hair}`, minHeight: 92, cursor: 'pointer',
+                                display: 'grid', gridTemplateColumns: GRID_COLS, alignItems: 'start',
+                                borderBottom: `1px solid ${C.hair}`, minHeight: 100, cursor: 'pointer',
                                 background: selected ? C.activeTint : 'transparent',
-                                boxShadow: item.is_critical ? `inset 3px 0 0 ${C.amber}` : selected ? `inset 3px 0 0 ${C.green}` : 'none',
+                                boxShadow: selected ? `inset 3px 0 0 ${C.green}` : item.is_critical ? `inset 3px 0 0 ${C.rust}` : 'none',
                                 transition: 'background-color 120ms ease',
                             }}
                         >
@@ -608,9 +596,7 @@ export default function BriefcaseCasesTable({
                                 <Check checked={selected} onChange={() => toggleOne(item.id)} label={`Select case ${item.id}`} />
                             </div>
                             <div style={cellPad}><CaseThreadContent item={item} /></div>
-                            {/* MESSAGE is vertically centred in the row — a short message
-                                sits mid-column, deliberately off the top baseline. */}
-                            <div style={{ ...cellPad, display: 'flex', alignItems: 'center' }}><MessageCell item={item} /></div>
+                            <div style={cellPad}><MessageCell item={item} /></div>
                             <div style={cellPad}><IssueCellContent item={item} /></div>
                             <div style={cellPad}><StatusCellContent item={item} /></div>
                             <div style={{ ...cellPad, display: 'flex', alignItems: 'flex-start' }} onClick={(e) => e.stopPropagation()}>

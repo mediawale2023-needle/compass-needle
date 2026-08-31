@@ -1,97 +1,63 @@
 'use client';
 
-import { briefcaseFonts, briefcasePalette as P, BriefcaseIcon } from '@/components/briefcase/briefcase-shared';
-
-const { serif: SERIF, mono: MONO } = briefcaseFonts;
-
-function StatCard({ accent, icon, label, value, note }) {
-    return (
-        <div
-            style={{
-                background: P.surface,
-                border: `1px solid ${P.hair}`,
-                padding: '16px 18px',
-                minHeight: 108,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 10,
-                boxShadow: '0 1px 0 rgba(19,52,43,0.03)',
-            }}
-        >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <span
-                    style={{
-                        fontFamily: MONO,
-                        fontSize: 9.5,
-                        letterSpacing: '0.16em',
-                        textTransform: 'uppercase',
-                        color: P.ink3,
-                    }}
-                >
-                    {label}
-                </span>
-                <span
-                    style={{
-                        width: 26,
-                        height: 26,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: accent,
-                        color: accent === P.saffron ? P.greenDeep : P.paper,
-                    }}
-                >
-                    <BriefcaseIcon
-                        name={icon}
-                        size={14}
-                        color={accent === P.saffron ? P.greenDeep : P.paper}
-                        stroke={2}
-                    />
-                </span>
-            </div>
-            <div style={{ fontFamily: SERIF, fontSize: 30, lineHeight: 0.95, color: P.ink }}>{value.toLocaleString()}</div>
-            <div style={{ fontSize: 12, lineHeight: 1.35, color: P.ink2 }}>{note}</div>
-        </div>
-    );
-}
+// Compact operational counter strip — a single hairline row, not KPI cards.
+// Only truthful counts computed by useBriefcaseCases: needsYou (new +
+// pending_review + awaiting_location), newToday, uncategorised. No SLA metric,
+// no fabricated scoring, no serif numerals, no icon grid.
+const C = {
+    surface: '#FFFEFB',
+    border: '#E4DECB',
+    ink: '#211F19',
+    muted: '#6C6858',
+};
+const SANS = '"Public Sans", "Noto Sans Devanagari", system-ui, sans-serif';
+const MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace';
 
 export default function BriefcaseTriageStrip({ triage }) {
-    const stats = [
-        {
-            label: 'Needs you',
-            value: triage?.needsYou || 0,
-            note: 'Open cases requiring office intervention or review.',
-            accent: P.saffron,
-            icon: 'briefcase',
-        },
-        {
-            label: 'New today',
-            value: triage?.newToday || 0,
-            note: 'Fresh grievances received since the start of today.',
-            accent: P.green,
-            icon: 'bell',
-        },
-        {
-            label: 'Uncategorised',
-            value: triage?.uncategorised || 0,
-            note: 'Cases still waiting for final issue classification.',
-            accent: '#B45309',
-            icon: 'filter',
-        },
-        {
-            label: 'SLA risk',
-            value: triage?.slaRisk || 0,
-            note: 'Cases nearing or breaching the 24 hour response threshold.',
-            accent: P.red,
-            icon: 'eye',
-        },
+    const counters = [
+        { key: 'needsYou', label: 'Needs attention', value: triage?.needsYou || 0 },
+        { key: 'newToday', label: 'New today', value: triage?.newToday || 0 },
+        { key: 'uncategorised', label: 'Uncategorised', value: triage?.uncategorised || 0 },
     ];
 
     return (
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {stats.map((stat) => (
-                <StatCard key={stat.label} {...stat} />
+        <div
+            style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                background: C.surface,
+                border: `1px solid ${C.border}`,
+                fontFamily: SANS,
+            }}
+        >
+            {counters.map((c, i) => (
+                <div
+                    key={c.key}
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'baseline',
+                        gap: 8,
+                        padding: '9px 16px',
+                        borderRight: i < counters.length - 1 ? `1px solid ${C.border}` : 'none',
+                        minWidth: 0,
+                    }}
+                >
+                    <span
+                        style={{
+                            fontFamily: MONO,
+                            fontSize: 9.5,
+                            letterSpacing: '0.08em',
+                            textTransform: 'uppercase',
+                            color: C.muted,
+                        }}
+                    >
+                        {c.label}
+                    </span>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: C.ink, letterSpacing: '-0.01em' }}>
+                        {c.value.toLocaleString()}
+                    </span>
+                </div>
             ))}
-        </section>
+        </div>
     );
 }
