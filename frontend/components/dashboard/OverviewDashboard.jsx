@@ -384,7 +384,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     background: ${C.bg};
                     color: ${C.ink};
                     font-family: ${SANS};
-                    padding: 30px 34px 48px;
+                    padding: 22px 34px 40px;
                 }
 
                 .overview-dashboard * {
@@ -401,7 +401,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     align-items: end;
                     justify-content: space-between;
                     gap: 24px;
-                    margin-bottom: 18px;
+                    margin-bottom: 13px;
                 }
 
                 .overview-kicker,
@@ -419,7 +419,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 }
 
                 .overview-kicker {
-                    margin: 0 0 8px;
+                    margin: 0 0 6px;
                     color: ${C.greenDeep};
                     font-size: 10px;
                     letter-spacing: 0.1em;
@@ -429,17 +429,17 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 .overview-dashboard h1 {
                     margin: 0;
                     font-family: ${SERIF};
-                    font-size: clamp(38px, 4.1vw, 68px);
+                    font-size: clamp(32px, 3.4vw, 51px);
                     font-weight: 700;
                     letter-spacing: -0.035em;
-                    line-height: 0.95;
+                    line-height: 0.96;
                     color: ${C.ink};
                 }
 
                 .overview-context {
-                    margin: 10px 0 0;
+                    margin: 7px 0 0;
                     color: ${C.muted};
-                    font-size: 15px;
+                    font-size: 13.5px;
                 }
 
                 .attention-strip {
@@ -447,16 +447,16 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     grid-template-columns: repeat(5, minmax(0, 1fr));
                     background: ${C.surface};
                     border: 1px solid ${C.border};
-                    margin-bottom: 18px;
+                    margin-bottom: 13px;
                 }
 
                 .attention-item {
-                    min-height: 70px;
+                    min-height: 58px;
                     display: grid;
                     grid-template-columns: auto auto 1fr;
                     align-items: center;
                     gap: 8px;
-                    padding: 14px 16px;
+                    padding: 11px 14px;
                     border-right: 1px solid ${C.border};
                 }
 
@@ -473,7 +473,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
 
                 .attention-value {
                     font-family: ${SERIF};
-                    font-size: 30px;
+                    font-size: 26px;
                     line-height: 1;
                     font-weight: 690;
                     letter-spacing: -0.04em;
@@ -483,7 +483,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 .attention-label {
                     color: ${C.muted};
                     font-size: 10px;
-                    line-height: 1.25;
+                    line-height: 1.2;
                     text-transform: uppercase;
                     letter-spacing: 0.06em;
                 }
@@ -491,13 +491,13 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 .overview-columns {
                     display: grid;
                     grid-template-columns: minmax(0, 1.68fr) minmax(324px, 0.92fr);
-                    gap: 18px;
+                    gap: 14px;
                     align-items: start;
                 }
 
                 .overview-col {
                     display: grid;
-                    gap: 18px;
+                    gap: 14px;
                     align-content: start;
                     min-width: 0;
                 }
@@ -509,19 +509,19 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 }
 
                 .op-section-head {
-                    min-height: 58px;
+                    min-height: 48px;
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
                     gap: 16px;
-                    padding: 15px 18px;
+                    padding: 12px 16px;
                     border-bottom: 1px solid ${C.border};
                 }
 
                 .op-section-head h2 {
                     margin: 0;
                     font-family: ${SERIF};
-                    font-size: 24px;
+                    font-size: 21px;
                     font-weight: 670;
                     letter-spacing: -0.025em;
                     line-height: 1;
@@ -530,7 +530,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
 
                 .op-section-head a {
                     color: ${C.greenDeep};
-                    font-size: 12px;
+                    font-size: 11.5px;
                     text-decoration: none;
                     white-space: nowrap;
                     transition: color 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
@@ -559,19 +559,19 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 .queue-row {
                     display: grid;
                     grid-template-columns: minmax(88px, 0.6fr) minmax(250px, 2.15fr) minmax(112px, 0.84fr) minmax(88px, 0.62fr) minmax(112px, 0.84fr);
-                    column-gap: 10px;
+                    column-gap: 9px;
                     align-items: center;
                 }
 
                 .queue-empty {
                     display: block;
-                    padding: 20px 18px;
+                    padding: 16px 16px;
                     color: ${C.muted};
                     font-size: 13px;
                 }
 
                 .queue-header {
-                    padding: 10px 18px;
+                    padding: 8px 16px;
                     color: ${C.faint};
                     font-size: 9.5px;
                     letter-spacing: 0.08em;
@@ -580,8 +580,8 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 }
 
                 .queue-row {
-                    min-height: 98px;
-                    padding: 14px 18px;
+                    min-height: 78px;
+                    padding: 11px 16px;
                     border-bottom: 1px solid ${C.border};
                     cursor: pointer;
                     transition: background 140ms cubic-bezier(0.23, 1, 0.32, 1);
@@ -620,25 +620,25 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 }
 
                 .critical-mark {
-                    width: 6px;
-                    height: 24px;
+                    width: 5px;
+                    height: 20px;
                     background: ${C.red};
                     display: inline-block;
                 }
 
                 .case-meta {
-                    margin-top: 6px;
+                    margin-top: 4px;
                     color: ${C.faint};
                     font-size: 10px;
-                    line-height: 1.25;
+                    line-height: 1.2;
                 }
 
                 .message-cell {
                     margin: 0;
                     color: #1F1D17;
-                    font-size: 14.5px;
+                    font-size: 13px;
                     font-weight: 620;
-                    line-height: 1.38;
+                    line-height: 1.3;
                     letter-spacing: -0.01em;
                     display: -webkit-box;
                     -webkit-line-clamp: 2;
@@ -648,9 +648,9 @@ export default function OverviewDashboard({ data, onNavigate }) {
 
                 .issue-cell {
                     display: grid;
-                    gap: 4px;
-                    font-size: 12.5px;
-                    line-height: 1.25;
+                    gap: 3px;
+                    font-size: 12px;
+                    line-height: 1.2;
                 }
 
                 .issue-cell strong {
@@ -677,7 +677,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     max-width: 100%;
                     border: 1px solid ${C.borderStrong};
                     background: ${C.surfaceWarm};
-                    padding: 5px 7px;
+                    padding: 4px 6px;
                     color: ${C.greenDeep};
                     font-size: 10px;
                     font-weight: 650;
@@ -721,7 +721,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     display: inline-flex;
                     align-items: center;
                     max-width: 100%;
-                    min-height: 30px;
+                    min-height: 26px;
                     border: 1px solid rgba(43, 110, 76, 0.34);
                     background: ${C.surface};
                     color: ${C.greenDeep};
@@ -729,15 +729,15 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     font-size: 10px;
                     font-weight: 650;
                     letter-spacing: 0.025em;
-                    line-height: 1.18;
-                    padding: 6px 8px;
+                    line-height: 1.15;
+                    padding: 5px 7px;
                     text-align: left;
                     transition: border-color 150ms cubic-bezier(0.23, 1, 0.32, 1), background 150ms cubic-bezier(0.23, 1, 0.32, 1), color 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
                 }
 
                 .action-cell .action-none {
                     color: ${C.faint};
-                    font-size: 12px;
+                    font-size: 11px;
                 }
 
                 @media (hover: hover) and (pointer: fine) {
@@ -756,14 +756,14 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     position: relative;
                     display: grid;
                     gap: 0;
-                    padding: 13px 16px 2px;
+                    padding: 10px 14px 2px;
                 }
 
                 .journey-step {
                     position: relative;
                     display: grid;
                     grid-template-columns: 1fr;
-                    padding-left: 15px;
+                    padding-left: 14px;
                     align-items: start;
                 }
 
@@ -771,7 +771,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     content: '';
                     position: absolute;
                     left: 0;
-                    top: 18px;
+                    top: 15px;
                     width: 6px;
                     height: 6px;
                     border-radius: 999px;
@@ -782,7 +782,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     content: '';
                     position: absolute;
                     left: 2.5px;
-                    top: 27px;
+                    top: 23px;
                     bottom: -2px;
                     width: 1px;
                     background: rgba(43, 110, 76, 0.22);
@@ -791,7 +791,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 .journey-step > div {
                     border: 1px solid ${C.border};
                     background: ${C.surfaceWarm};
-                    padding: 10px 12px;
+                    padding: 8px 11px;
                     display: flex;
                     align-items: baseline;
                     justify-content: space-between;
@@ -800,12 +800,12 @@ export default function OverviewDashboard({ data, onNavigate }) {
 
                 .journey-step span:first-child {
                     color: #514B3F;
-                    font-size: 13px;
+                    font-size: 12px;
                 }
 
                 .journey-step strong {
                     font-family: ${SERIF};
-                    font-size: 26px;
+                    font-size: 22px;
                     color: ${C.ink};
                     font-weight: 680;
                     letter-spacing: -0.04em;
@@ -817,44 +817,44 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 }
 
                 .govt-resolved {
-                    margin: 8px 16px 11px;
-                    font-size: 11.5px;
-                    line-height: 1.4;
+                    margin: 7px 14px 9px;
+                    font-size: 11px;
+                    line-height: 1.35;
                 }
 
                 .sync-box {
-                    margin: 0 16px 15px;
+                    margin: 0 14px 12px;
                     background: ${C.rustSoft};
                     border: 1px solid rgba(188, 106, 54, 0.28);
-                    padding: 11px 12px;
+                    padding: 9px 11px;
                 }
 
                 .sync-box strong {
                     display: block;
                     color: ${C.ink};
-                    font-size: 13px;
-                    margin-bottom: 3px;
+                    font-size: 12px;
+                    margin-bottom: 2px;
                 }
 
                 .sync-box span,
                 .sync-box li {
-                    font-size: 11.5px;
+                    font-size: 11px;
                     line-height: 1.3;
                 }
 
                 .sync-box ul {
-                    margin: 8px 0 0;
-                    padding-left: 16px;
+                    margin: 6px 0 0;
+                    padding-left: 15px;
                     color: #514B3F;
                 }
 
                 .map-card {
-                    padding: 10px 14px 12px;
+                    padding: 9px 13px 10px;
                 }
 
                 .map-shape {
                     position: relative;
-                    height: 214px;
+                    height: 184px;
                     background: ${C.greenSoft};
                     border: 1px solid ${C.borderStrong};
                     clip-path: polygon(13% 2%, 63% 6%, 91% 27%, 83% 70%, 59% 98%, 19% 88%, 3% 52%);
@@ -883,7 +883,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 .hotspot-list {
                     display: grid;
                     gap: 0;
-                    margin-top: 10px;
+                    margin-top: 8px;
                 }
 
                 .hotspot-list div {
@@ -891,10 +891,10 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     justify-content: space-between;
                     align-items: baseline;
                     border-top: 1px solid ${C.border};
-                    padding-top: 7px;
-                    padding-bottom: 7px;
+                    padding-top: 6px;
+                    padding-bottom: 6px;
                     color: #514B3F;
-                    font-size: 12.5px;
+                    font-size: 12px;
                 }
 
                 .hotspot-list strong {
@@ -912,9 +912,9 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 .pressure-row {
                     display: grid;
                     grid-template-columns: minmax(160px, 0.78fr) minmax(200px, 1fr) auto;
-                    gap: 18px;
+                    gap: 14px;
                     align-items: center;
-                    padding: 14px 18px;
+                    padding: 11px 16px;
                     border-bottom: 1px solid ${C.border};
                 }
 
@@ -926,24 +926,24 @@ export default function OverviewDashboard({ data, onNavigate }) {
 
                 .pressure-row div {
                     display: grid;
-                    gap: 4px;
+                    gap: 3px;
                 }
 
                 .pressure-row strong {
                     color: ${C.ink};
-                    font-size: 14px;
+                    font-size: 13px;
                     font-weight: 650;
                 }
 
                 .pressure-row span {
                     color: ${C.faint};
-                    font-size: 12px;
+                    font-size: 11.5px;
                 }
 
                 .pressure-row b {
                     font-family: ${SERIF};
                     color: ${C.greenDeep};
-                    font-size: 26px;
+                    font-size: 22px;
                     font-weight: 700;
                     letter-spacing: -0.04em;
                 }
@@ -952,18 +952,18 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 .movement-row {
                     display: grid;
                     align-items: center;
-                    gap: 12px;
-                    padding: 13px 18px;
+                    gap: 10px;
+                    padding: 10px 16px;
                     border-bottom: 1px solid ${C.border};
                     text-decoration: none;
                 }
 
                 .agenda-row {
-                    grid-template-columns: 52px 1fr;
+                    grid-template-columns: 46px 1fr;
                 }
 
                 .movement-row {
-                    grid-template-columns: 48px auto 1fr;
+                    grid-template-columns: 42px auto 1fr;
                 }
 
                 @media (hover: hover) and (pointer: fine) {
@@ -982,8 +982,8 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 .movement-row p {
                     margin: 0;
                     color: ${C.ink};
-                    font-size: 13px;
-                    line-height: 1.35;
+                    font-size: 12px;
+                    line-height: 1.3;
                 }
 
                 .pending-list {
@@ -993,17 +993,17 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 }
 
                 .pending-list button {
-                    min-height: 92px;
+                    min-height: 76px;
                     border: 0;
                     border-right: 1px solid ${C.border};
                     background: transparent;
                     color: ${C.ink};
                     cursor: pointer;
                     font-family: ${SANS};
-                    font-size: 14px;
+                    font-size: 12.5px;
                     font-weight: 560;
-                    line-height: 1.35;
-                    padding: 16px 18px;
+                    line-height: 1.3;
+                    padding: 13px 16px;
                     text-align: left;
                     transition: background 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
                 }
@@ -1019,7 +1019,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                 }
 
                 .media-strip {
-                    margin-top: 18px;
+                    margin-top: 14px;
                 }
 
                 .media-list {
@@ -1029,8 +1029,8 @@ export default function OverviewDashboard({ data, onNavigate }) {
 
                 .media-list article,
                 .media-list a {
-                    min-height: 92px;
-                    padding: 16px 18px;
+                    min-height: 76px;
+                    padding: 13px 16px;
                     border-right: 1px solid ${C.border};
                     text-decoration: none;
                     display: block;
@@ -1054,15 +1054,15 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     font-size: 10px;
                     letter-spacing: 0.04em;
                     text-transform: uppercase;
-                    margin-bottom: 8px;
+                    margin-bottom: 6px;
                 }
 
                 .media-list p {
                     margin: 0;
                     color: ${C.ink};
-                    font-size: 14px;
+                    font-size: 12.5px;
                     font-weight: 560;
-                    line-height: 1.35;
+                    line-height: 1.3;
                 }
 
                 /* Below ~1440 the fixed 220px app rail leaves too little room for
@@ -1076,14 +1076,14 @@ export default function OverviewDashboard({ data, onNavigate }) {
                    width (no narrow partial-width cards). */
                 @media (max-width: 1439px) {
                     .overview-dashboard {
-                        padding: 26px 24px 42px;
+                        padding: 20px 24px 36px;
                     }
 
                     .overview-columns {
                         display: flex;
                         flex-wrap: wrap;
                         align-items: flex-start;
-                        gap: 18px;
+                        gap: 14px;
                     }
 
                     .overview-col {
@@ -1091,8 +1091,8 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     }
 
                     .overview-col-left > :nth-child(1) { order: 1; flex: 1 1 100%; }                       /* Attention Queue */
-                    .overview-col-right > :nth-child(1) { order: 2; flex: 1 1 calc(50% - 9px); min-width: 0; }  /* Government Tracking */
-                    .overview-col-right > :nth-child(2) { order: 3; flex: 1 1 calc(50% - 9px); min-width: 0; }  /* Constituency Pressure */
+                    .overview-col-right > :nth-child(1) { order: 2; flex: 1 1 calc(50% - 7px); min-width: 0; }  /* Government Tracking */
+                    .overview-col-right > :nth-child(2) { order: 3; flex: 1 1 calc(50% - 7px); min-width: 0; }  /* Constituency Pressure */
                     .overview-col-left > :nth-child(2) { order: 4; flex: 1 1 100%; }                       /* Issue Pressure */
                     .overview-col-right > :nth-child(3) { order: 5; flex: 1 1 100%; }                      /* Today */
                     .overview-col-left > :nth-child(3) { order: 6; flex: 1 1 100%; }                       /* Office Pending */
@@ -1124,7 +1124,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     }
 
                     .message-cell {
-                        font-size: 14px;
+                        font-size: 12.5px;
                     }
 
                     .action-cell button {
@@ -1189,7 +1189,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     }
 
                     .map-shape {
-                        height: 246px;
+                        height: 210px;
                     }
                 }
 
@@ -1242,18 +1242,18 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     }
 
                     .op-section-head {
-                        padding: 14px;
+                        padding: 12px 14px;
                     }
 
                     .op-section-head h2 {
-                        font-size: 22px;
+                        font-size: 20px;
                     }
 
                     .queue-row {
                         grid-template-columns: 1fr;
                         min-height: 0;
-                        padding: 14px;
-                        row-gap: 10px;
+                        padding: 13px 14px;
+                        row-gap: 9px;
                     }
 
                     .queue-table .queue-row:nth-of-type(n + 6) {
@@ -1292,7 +1292,7 @@ export default function OverviewDashboard({ data, onNavigate }) {
                     }
 
                     .message-cell {
-                        font-size: 13.75px;
+                        font-size: 12.75px;
                         margin-bottom: 5px;
                         -webkit-line-clamp: 3;
                     }
@@ -1345,8 +1345,8 @@ export default function OverviewDashboard({ data, onNavigate }) {
 
                     .pressure-row {
                         grid-template-columns: 1fr auto;
-                        gap: 7px 12px;
-                        padding: 14px;
+                        gap: 6px 12px;
+                        padding: 12px 14px;
                     }
 
                     .pending-list,
