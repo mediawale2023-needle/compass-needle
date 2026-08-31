@@ -1762,7 +1762,7 @@ def _prepare_briefcase_list_case(case: dict, tenant_constituency: str | None, te
         prepared["convergence_program_type"] = parsed_meta.get("convergence_program_type")
     _apply_tenant_safe_case_geography(prepared, tenant_constituency, tenant_id)
 
-    for field in ["created_at", "updated_at"]:
+    for field in ["created_at", "updated_at", "status_changed_at", "resolved_at"]:
         prepared[field] = _coerce_iso(prepared.get(field))
     return prepared
 
@@ -1892,6 +1892,7 @@ def get_cases(
                COALESCE(c.location, c.case_metadata->>'matched_value') AS location,
                COALESCE(c.assembly, c.case_metadata->>'assembly_constituency') AS assembly,
                c.case_metadata, c.is_critical, c.created_at, c.updated_at,
+               c.status_changed_at, c.resolved_at,
                c.response_to_citizen, c.notes_for_staff, c.assigned_to,
                c.govt_status, c.govt_reference_number, c.govt_status_updated_at,
                c.govt_portal_id, c.govt_department, p.portal_name AS govt_portal_name
@@ -2454,24 +2455,66 @@ def _log_case_activity(tenant_id, case_id, username, action, old_value=None, new
         pass  # nosec B110
 
 
+# Needle "resolved" family — entering it stamps cases.resolved_at, leaving it
+# clears it. `closed`/`irrelevant`/`offensive` are separate terminal buckets and
+# are deliberately NOT treated as "resolved" here.
+_RESOLVED_NEEDLE_STATUSES = ("resolved", "completed")
+
+
+def _write_case_status(conn, tenant_id, case_id, new_status, *, old_status,
+                       actor="", now=None, log_action="status_change"):
+    """Atomically set cases.status together with status_changed_at and
+    resolved_at, applying the 'advance only on a real change' rule, and log the
+    old->new transition when it actually changed. Returns True if status moved.
+
+    - status_changed_at advances to `now` only when the normalized value differs.
+    - resolved_at is stamped on entry into the resolved family and cleared on exit.
+    - No unrelated column is touched; callers pass a live `conn` (same txn).
+    """
+    now = now or _utcnow()
+    norm_new = _normalize_case_status_value(new_status)
+    norm_old = _normalize_case_status_value(old_status)
+    conn.execute(text(
+        "UPDATE cases SET "
+        "status = :st, updated_at = :now, "
+        "status_changed_at = CASE WHEN LOWER(COALESCE(status, '')) <> :st "
+        "                         THEN :now ELSE status_changed_at END, "
+        "resolved_at = CASE "
+        "  WHEN :st IN ('resolved', 'completed') "
+        "       AND LOWER(COALESCE(status, '')) NOT IN ('resolved', 'completed') THEN :now "
+        "  WHEN :st NOT IN ('resolved', 'completed') "
+        "       AND LOWER(COALESCE(status, '')) IN ('resolved', 'completed') THEN NULL "
+        "  ELSE resolved_at END "
+        "WHERE id = :cid AND tenant_id = :tid"
+    ), {"st": norm_new, "now": now, "cid": case_id, "tid": tenant_id})
+    changed = norm_new != norm_old
+    if changed and log_action:
+        # Use the caller's connection so the log row is part of the same txn
+        # (a nested engine.begin() here would deadlock/fail silently on SQLite).
+        try:
+            conn.execute(text(
+                "INSERT INTO case_activity_log "
+                "(tenant_id, case_id, username, action, old_value, new_value, details, created_at) "
+                "VALUES (:tid, :cid, :user, :action, :old, :new, NULL, :now)"
+            ), {"tid": tenant_id, "cid": case_id, "user": actor, "action": log_action,
+                "old": old_status, "new": norm_new, "now": now})
+        except Exception:
+            pass  # nosec B110
+    return changed
+
+
 @router.patch("/cases/{case_id}/status")
 def update_case_status(case_id: int, body: StatusUpdate, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
     current = _q_one("SELECT status FROM cases WHERE id = :cid AND tenant_id = :tid", {"cid": case_id, "tid": tid})
-    old_status = current["status"] if current else None
+    if current is None:
+        raise HTTPException(404, "Case not found")
+    old_status = current["status"]
     next_status = _normalize_case_status_value(body.status)
 
     with engine.begin() as conn:
-        result = conn.execute(text(
-            "UPDATE cases SET status = :st, updated_at = :now WHERE id = :cid AND tenant_id = :tid"
-        ), {"st": next_status, "now": _utcnow(), "cid": case_id, "tid": tid})
-    if result.rowcount == 0:
-        raise HTTPException(404, "Case not found")
-
-    try:
-        _log_case_activity(tid, case_id, user.get("username", ""), "status_change", old_value=old_status, new_value=next_status)
-    except Exception:
-        pass  # nosec B110
+        _write_case_status(conn, tid, case_id, next_status, old_status=old_status,
+                           actor=user.get("username", ""))
 
     return {"success": True}
 
@@ -2932,10 +2975,10 @@ def add_complaint_to_case(case_id: int, body: AddComplaintRequest, user=Depends(
                     """
                     INSERT INTO cases
                         (tenant_id, user_phone, raw_message, category, problem_domain, problem_subdomain,
-                         status, location, case_metadata, is_critical, created_at, case_ref)
+                         status, location, case_metadata, is_critical, created_at, status_changed_at, case_ref)
                     VALUES
                         (:tid, :phone, :msg, :category, :problem_domain, :problem_subdomain,
-                         'new', :location, :meta, false, :now, :case_ref)
+                         'new', :location, :meta, false, :now, :now, :case_ref)
                     RETURNING id
                     """
                 ),
@@ -3196,12 +3239,13 @@ async def notify_citizen(case_id: int, request: Request, body: Optional[CitizenN
         logger.error("Citizen notification failed for case %s: %s", case_id, e)
         raise HTTPException(500, "Notification failed. Please try again or contact support.")
 
-    # Auto-resolve: move case to 'resolved' once citizen has been notified
+    # Auto-resolve: move case to 'resolved' once citizen has been notified.
+    # _write_case_status advances status_changed_at + stamps resolved_at + logs
+    # the status_change; the citizen_notified breadcrumb is kept alongside it.
     with engine.begin() as conn:
-        conn.execute(
-            text("UPDATE cases SET status = 'resolved', updated_at = :now WHERE id = :cid AND tenant_id = :tid"),
-            {"now": _utcnow(), "cid": case_id, "tid": tid},
-        )
+        _write_case_status(conn, tid, case_id, "resolved",
+                           old_status=case.get("status"),
+                           actor=user.get("username", ""))
     try:
         _log_case_activity(tid, case_id, user.get("username", ""), "citizen_notified", new_value="resolved")
     except Exception:
@@ -3757,17 +3801,25 @@ def govt_submit_case(case_id: int, body: GovtSubmitRequest, user=Depends(get_cur
             }
         raise HTTPException(409, _govt_already_filed_detail(case.get("govt_status"), existing_ref))
 
+    _old_needle_status = str(case.get("status") or "")
+    _keep_terminal = _old_needle_status.strip().lower() in ("resolved", "completed", "closed")
+    _next_needle_status = _old_needle_status if _keep_terminal else "in_progress"
+    _now = _utcnow()
     with engine.begin() as conn:
         conn.execute(
             text(
                 "UPDATE cases SET govt_reference_number = :ref, govt_status = 'submitted', "
-                "govt_status_updated_at = :now, "
-                "status = CASE WHEN LOWER(COALESCE(status, '')) IN ('resolved', 'completed', 'closed') "
-                "THEN status ELSE 'in_progress' END "
+                "govt_status_updated_at = :now "
                 "WHERE id = :cid AND tenant_id = :tid"
             ),
-            {"ref": ref, "now": _utcnow(), "cid": case_id, "tid": tid},
+            {"ref": ref, "now": _now, "cid": case_id, "tid": tid},
         )
+        # Filing side-effect on the Needle status (never demotes a terminal case).
+        # _write_case_status advances status_changed_at + logs status_change only
+        # when the value actually moves.
+        _write_case_status(conn, tid, case_id, _next_needle_status,
+                           old_status=_old_needle_status,
+                           actor=user.get("username", ""), now=_now)
     _log_govt_action(tid, case_id, "staff_submitted", user.get("username"), payload={"reference_number": ref})
     try:
         _log_case_activity(tid, case_id, user.get("username", ""), "govt_submitted", new_value=ref)

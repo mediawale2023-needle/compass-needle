@@ -16,15 +16,17 @@ import BriefcaseHeader from '@/components/briefcase/BriefcaseHeader';
 import BriefcaseNewCasesNotice from '@/components/briefcase/BriefcaseNewCasesNotice';
 import BriefcasePagination from '@/components/briefcase/BriefcasePagination';
 import BriefcaseTriageStrip from '@/components/briefcase/BriefcaseTriageStrip';
-import { briefcasePalette as P } from '@/components/briefcase/briefcase-shared';
 import useBriefcaseCases from '@/hooks/useBriefcaseCases';
+
+// Shared Overview / Case Detail visual system.
+const P = { hair: '#E4DECB', paper: '#FFFEFB' };
 
 function BriefcaseInner() {
     const { user } = useAuth();
     const briefcase = useBriefcaseCases(user);
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 24 }}>
             <BriefcaseHeader
                 searchInput={briefcase.searchInput}
                 onSearchInputChange={briefcase.setSearchInput}
@@ -120,15 +122,14 @@ function BriefcaseInner() {
 
                 <BriefcaseActiveFilters
                     assemblyFilter={briefcase.assemblyFilter}
-                    casesCount={briefcase.cases.length}
                     categoryFilter={briefcase.categoryFilter}
-                    color={briefcase.color}
                     loading={briefcase.loading}
                     locationFilter={briefcase.locationFilter}
+                    totalCases={briefcase.totalCases}
                     onClearAssembly={briefcase.clearAssemblyFilter}
                     onClearCategory={briefcase.clearCategoryFilter}
                     onClearLocation={briefcase.clearLocationFilter}
-                    onResetStatus={() => briefcase.switchTab('all_cases')}
+                    onClearAll={briefcase.clearAdvancedFilters}
                     statusFilter={briefcase.statusFilter}
                 />
 

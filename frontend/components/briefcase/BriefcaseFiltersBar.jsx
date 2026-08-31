@@ -1,8 +1,26 @@
 'use client';
 
-import { briefcaseFonts, briefcasePalette as P, BriefcaseIcon, TABS } from '@/components/briefcase/briefcase-shared';
+import { briefcasePalette as BASE_P, BriefcaseIcon, TABS } from '@/components/briefcase/briefcase-shared';
 
-const { mono: MONO } = briefcaseFonts;
+const MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace';
+
+// Retint the legacy briefcase palette onto the approved Overview / Case Detail
+// visual system without rewriting every usage.
+const P = {
+    ...BASE_P,
+    paper: '#F3EEE2',
+    surface: '#FFFEFB',
+    surfaceWarm: '#F8F1E0',
+    hair: '#E4DECB',
+    hairStrong: '#C9BFA9',
+    ink: '#211F19',
+    ink2: '#4A453A',
+    ink3: '#6C6858',
+    green: '#2B6E4C',
+    greenDeep: '#245F45',
+    saffron: '#BC6A36',
+    saffronTint: '#F1DED0',
+};
 
 export default function BriefcaseFiltersBar(props) {
     const {
@@ -144,7 +162,6 @@ export default function BriefcaseFiltersBar(props) {
                         </span>
                         {[
                             { label: 'Critical', active: criticalOnly, onClick: () => onCriticalOnlyChange(!criticalOnly), count: null },
-                            { label: 'New', active: statusFilter === 'new', onClick: () => onTabChange('new'), count: tabCounts?.new },
                             { label: 'Today', active: !!dateFrom && dateFrom === dateTo, onClick: () => {
                                 const today = new Date().toISOString().slice(0, 10);
                                 onDateFromChange(today);
@@ -197,24 +214,6 @@ export default function BriefcaseFiltersBar(props) {
                                 <option value="updated">Recently updated</option>
                                 <option value="critical">Critical first</option>
                             </select>
-                            <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', marginLeft: 4 }}>Show</span>
-                            <select
-                                value={pageSize}
-                                onChange={(event) => onPageSizeChange(Number(event.target.value))}
-                                style={{
-                                    border: `1px solid ${P.hair}`,
-                                    background: P.surface,
-                                    padding: '4px 8px',
-                                    fontSize: 11,
-                                    fontFamily: 'inherit',
-                                    color: P.ink,
-                                    cursor: 'pointer',
-                                }}
-                            >
-                                {[25, 50, 100].map((count) => (
-                                    <option key={count} value={count}>{count}</option>
-                                ))}
-                            </select>
                         </div>
                     </div>
 
@@ -232,7 +231,7 @@ export default function BriefcaseFiltersBar(props) {
                                 style={{
                                     padding: '5px 10px',
                                     background: 'transparent',
-                                    border: `1px dashed ${P.hairStrong}`,
+                                    border: `1px solid ${P.hairStrong}`,
                                     fontSize: 11.5,
                                     color: P.ink2,
                                     cursor: 'pointer',

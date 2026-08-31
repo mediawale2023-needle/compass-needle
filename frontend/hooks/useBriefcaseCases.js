@@ -491,15 +491,6 @@ export default function useBriefcaseCases(user) {
     const uncategorisedCount =
         countFrom(categoryEntries, (value) => value === 'uncategorised' || value === 'general' || value === 'general grievance') ||
         cases.filter((item) => !item.category || /general|uncategor/i.test(String(item.category))).length;
-    const slaRiskCount = cases.filter((item) => {
-        if (item.is_critical || ['pending_review'].includes((item.status || '').toLowerCase())) {
-            return true;
-        }
-        if (!item.created_at) {
-            return false;
-        }
-        return (Date.now() - new Date(item.created_at).getTime()) / 3600000 >= 18;
-    }).length;
     const othersCount =
         statusEntries
             .filter((entry) => OTHER_STATUSES.includes(String(entry.value || '').toLowerCase()))
@@ -520,7 +511,6 @@ export default function useBriefcaseCases(user) {
             cases.filter((item) => ['new', 'pending_review', 'awaiting_location'].includes((item.status || '').toLowerCase())).length,
         newToday: newCount || cases.filter((item) => String(item.created_at || '').startsWith(todayIso)).length,
         uncategorised: uncategorisedCount,
-        slaRisk: slaRiskCount,
     };
     const subtitle = `${activeCaseTotal.toLocaleString()} active cases · ${triage.needsYou} need your attention · ${user?.constituency || 'Constituency'} · ${todayLabel}`;
 

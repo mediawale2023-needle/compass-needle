@@ -260,6 +260,11 @@ class Case(Base):
     case_metadata = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+    # Exact moment the CURRENT value of `status` became active. Advanced only
+    # when status actually changes to a different normalized value; never bumped
+    # by unrelated column writes. NULL = unknown (legacy row with no trustworthy
+    # case_activity_log history) — callers must NOT substitute created_at/updated_at.
+    status_changed_at = Column(DateTime, nullable=True, index=True)
     resolved_at = Column(DateTime, nullable=True)
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True)

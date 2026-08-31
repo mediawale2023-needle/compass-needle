@@ -1,7 +1,5 @@
 'use client';
 
-import { Badge } from '@/components/ui/badge';
-
 export const briefcasePalette = {
     paper: '#F2EBD9',
     paperDeep: '#E8E0CB',
@@ -42,14 +40,27 @@ export const TABS = [
     { key: 'deleted', label: 'Deleted' },
 ];
 
+// Values + labels drive the status <select>s; colour is applied by
+// getStatusBadge via the shared Overview token palette (no Tailwind colour
+// utilities, no blue/purple/slate).
+const STATUS_TONE = {
+    new:               { bg: '#ECE6D8', fg: '#544E40' },
+    awaiting_location: { bg: '#F2E6CF', fg: '#7C5514' },
+    pending_review:    { bg: '#F1DED0', fg: '#8A4A22' },
+    in_progress:       { bg: '#ECE6D8', fg: '#544E40' },
+    resolved:          { bg: '#E0E8DA', fg: '#245F45' },
+    closed:            { bg: '#ECE6D8', fg: '#6C6858' },
+    irrelevant:        { bg: '#ECE6D8', fg: '#6C6858' },
+};
+
 export const STATUS_OPTIONS = [
-    { value: 'new', label: 'New', className: 'bg-blue-100 text-blue-700' },
-    { value: 'awaiting_location', label: 'Needs Location', className: 'bg-orange-100 text-orange-700' },
-    { value: 'pending_review', label: 'Needs Review', className: 'bg-purple-100 text-purple-700' },
-    { value: 'in_progress', label: 'In Progress', className: 'bg-amber-100 text-amber-700' },
-    { value: 'resolved', label: 'Resolved', className: 'bg-green-100 text-green-700' },
-    { value: 'closed', label: 'Closed', className: 'bg-slate-100 text-slate-600' },
-    { value: 'irrelevant', label: 'Irrelevant', className: 'bg-slate-100 text-slate-500' },
+    { value: 'new', label: 'New' },
+    { value: 'awaiting_location', label: 'Needs Location' },
+    { value: 'pending_review', label: 'Needs Review' },
+    { value: 'in_progress', label: 'In Progress' },
+    { value: 'resolved', label: 'Resolved' },
+    { value: 'closed', label: 'Closed' },
+    { value: 'irrelevant', label: 'Irrelevant' },
 ];
 
 export const OTHER_CATEGORIES = [
@@ -70,15 +81,23 @@ export const OTHER_CATEGORIES = [
 export const OTHER_STATUSES = ['offensive', 'irrelevant', 'abusive'];
 
 export function getStatusBadge(status) {
-    const option = STATUS_OPTIONS.find((item) => item.value === (status || '').toLowerCase());
-    if (option) {
-        return (
-            <Badge variant="secondary" className={option.className}>
-                {option.label}
-            </Badge>
-        );
-    }
-    return <Badge variant="secondary">{status}</Badge>;
+    const key = (status || '').toLowerCase();
+    const option = STATUS_OPTIONS.find((item) => item.value === key);
+    const tone = STATUS_TONE[key] || { bg: '#ECE6D8', fg: '#6C6858' };
+    return (
+        <span
+            style={{
+                display: 'inline-flex', alignItems: 'center',
+                border: '1px solid #C9BFA9', padding: '2px 7px',
+                fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
+                fontSize: 9.5, fontWeight: 600, letterSpacing: '.03em',
+                textTransform: 'uppercase', lineHeight: 1.15,
+                background: tone.bg, color: tone.fg, whiteSpace: 'nowrap',
+            }}
+        >
+            {option ? option.label : (status || '—')}
+        </span>
+    );
 }
 
 export function BriefcaseIcon({ name, size = 14, color = 'currentColor', stroke = 1.5 }) {
