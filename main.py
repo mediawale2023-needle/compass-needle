@@ -73,6 +73,44 @@ def _get_meta_app_secret() -> str:
 
 from sansadx_backend.db import engine, init_db, get_phone_tenant_mapping, get_geo_overrides, get_tenant_phone_number_id, log_letterbox_activity
 
+
+# ── Needle status write helpers ──────────────────────────────────────────
+# The intake/classification pipeline writes cases.status directly. Keep
+# cases.status_changed_at truthful (advance only on a real change; never bump
+# from unrelated writes) and log the old->new transition in case_activity_log
+# so /api/cases can show a real "since" date. resolved_at follows the same
+# rule as api_router._write_case_status.
+def _normalize_needle_status(value):
+    v = str(value or "").strip().lower()
+    return "in_progress" if v == "escalated" else v
+
+
+_STATUS_SINCE_SET_SQL = (
+    "status_changed_at = CASE WHEN LOWER(COALESCE(status, '')) <> :new_status "
+    "                         THEN :status_now ELSE status_changed_at END, "
+    "resolved_at = CASE "
+    "  WHEN :new_status IN ('resolved', 'completed') "
+    "       AND LOWER(COALESCE(status, '')) NOT IN ('resolved', 'completed') THEN :status_now "
+    "  WHEN :new_status NOT IN ('resolved', 'completed') "
+    "       AND LOWER(COALESCE(status, '')) IN ('resolved', 'completed') THEN NULL "
+    "  ELSE resolved_at END"
+)
+
+
+def _log_case_status_change(conn, tenant_id, case_id, old_status, new_status, actor="system"):
+    """Insert a case_activity_log 'status_change' row when the value actually
+    moved. `conn` is a live connection in the caller's transaction."""
+    if _normalize_needle_status(old_status) == _normalize_needle_status(new_status):
+        return
+    try:
+        conn.execute(text(
+            "INSERT INTO case_activity_log (tenant_id, case_id, username, action, old_value, new_value, details, created_at) "
+            "VALUES (:tid, :cid, :user, 'status_change', :old, :new, NULL, :now)"
+        ), {"tid": tenant_id, "cid": case_id, "user": actor,
+            "old": old_status, "new": _normalize_needle_status(new_status), "now": _utcnow()})
+    except Exception:
+        pass  # nosec B110
+
 # ─────────────────────────────────────────
 # GEOGRAPHY RESOLVER
 # ─────────────────────────────────────────
@@ -1213,6 +1251,39 @@ try:
 except Exception as _govt_sync_exc:
     logger.warning(f"Government Department Sync migration skipped: {_govt_sync_exc}")
 
+# ─── Migration: cases.status_changed_at — exact timestamp the current Needle
+# status became active. Additive, idempotent, runs under the startup advisory
+# lock. Backfill ONLY from trustworthy case_activity_log 'status_change' history;
+# rows with no such history stay NULL (never created_at/updated_at). ───
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE cases ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMP"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_cases_status_changed_at ON cases (status_changed_at)"))
+        # One-time backfill: newest logged transition INTO the case's current
+        # status. Handles the legacy escalated→in_progress normalisation by
+        # accepting either new_value for a current status of 'in_progress'.
+        conn.execute(text("""
+            UPDATE cases c
+            SET status_changed_at = sub.ts
+            FROM (
+                SELECT DISTINCT ON (l.case_id) l.case_id, l.created_at AS ts
+                FROM case_activity_log l
+                JOIN cases cc ON cc.id = l.case_id
+                WHERE l.action = 'status_change'
+                  AND (
+                        LOWER(COALESCE(l.new_value, '')) = LOWER(COALESCE(cc.status, ''))
+                     OR (LOWER(COALESCE(cc.status, '')) = 'in_progress'
+                         AND LOWER(COALESCE(l.new_value, '')) = 'escalated')
+                  )
+                ORDER BY l.case_id, l.created_at DESC
+            ) sub
+            WHERE c.id = sub.case_id
+              AND c.status_changed_at IS NULL
+        """))
+    logger.info("Migration: cases.status_changed_at ready (backfilled from case_activity_log where trustworthy)")
+except Exception as _status_since_exc:
+    logger.warning(f"cases.status_changed_at migration skipped: {_status_since_exc}")
+
 # ─── Seed: govt_portals rows (Rajasthan Sampark, UP Jansunwai, CPGRAMS) ───
 # department_taxonomy/field_schema are hand-curated per modules/data/govt_portals.json
 # and are safe to re-seed (upsert by portal_name) — they don't touch case data.
@@ -1953,8 +2024,8 @@ def _create_raw_contact_case(
             text(
                 """
                 INSERT INTO cases
-                (tenant_id, user_phone, category, raw_message, status, case_metadata, is_critical, created_at)
-                VALUES (:tid, :phone, 'Uncategorised', :msg, 'pending', :meta, false, :now)
+                (tenant_id, user_phone, category, raw_message, status, case_metadata, is_critical, created_at, status_changed_at)
+                VALUES (:tid, :phone, 'Uncategorised', :msg, 'pending', :meta, false, :now, :now)
                 RETURNING id
                 """
             ),
@@ -2193,8 +2264,11 @@ def _promote_archived_thread_issue(case_row: dict, archived_index: int, message_
     meta["summary"] = matched_issue.get("summary") or meta.get("summary") or message_body[:100]
     meta = _update_contact_thread_meta(meta, last_activity_at=now_iso)
 
+    _promote_new_status = matched_issue.get("status") or "new"
     try:
         with engine.begin() as conn:
+            _pr_old = conn.execute(text("SELECT status FROM cases WHERE id = :cid"), {"cid": case_row["id"]}).fetchone()
+            _pr_old_status = _pr_old[0] if _pr_old else None
             conn.execute(
                 text(
                     """
@@ -2206,7 +2280,8 @@ def _promote_archived_thread_issue(case_row: dict, archived_index: int, message_
                         convergence_program_type = :convergence_program_type,
                         status = :status,
                         case_metadata = :meta,
-                        updated_at = :now
+                        updated_at = :now,
+                        """ + _STATUS_SINCE_SET_SQL + """
                     WHERE id = :cid
                     """
                 ),
@@ -2216,12 +2291,15 @@ def _promote_archived_thread_issue(case_row: dict, archived_index: int, message_
                     "problem_domain": matched_issue.get("problem_domain"),
                     "problem_subdomain": matched_issue.get("problem_subdomain"),
                     "convergence_program_type": matched_issue.get("convergence_program_type"),
-                    "status": matched_issue.get("status") or "new",
+                    "status": _promote_new_status,
                     "meta": json.dumps(meta),
                     "now": _utcnow(),
                     "cid": case_row["id"],
+                    "new_status": _normalize_needle_status(_promote_new_status),
+                    "status_now": _utcnow(),
                 },
             )
+            _log_case_status_change(conn, case_row.get("tenant_id"), case_row["id"], _pr_old_status, _promote_new_status, actor="thread_reactivate")
         return True
     except Exception as exc:
         logger.warning("Failed to promote archived thread issue for case %s: %s", case_row.get("id"), exc)
@@ -2386,12 +2464,15 @@ def _release_due_buffered_contact_cases(case_id: int | None = None) -> None:
                             SET category = 'Spam',
                                 status = 'new',
                                 case_metadata = :meta,
-                                updated_at = :now
+                                updated_at = :now,
+                                """ + _STATUS_SINCE_SET_SQL + """
                             WHERE id = :cid
                             """
                         ),
-                        {"meta": json.dumps(meta), "now": _utcnow(), "cid": row["id"]},
+                        {"meta": json.dumps(meta), "now": _utcnow(), "cid": row["id"],
+                         "new_status": "new", "status_now": _utcnow()},
                     )
+                    _log_case_status_change(conn, row.get("tenant_id"), row["id"], row.get("status"), "new", actor="buffer_release")
             except Exception as exc:
                 logger.warning("Failed to finalise buffered spam case %s: %s", row["id"], exc)
             continue
@@ -3728,10 +3809,10 @@ def _process_citizen_media_complaint(
                             text("""
                                 INSERT INTO cases (
                                     tenant_id, user_phone, category, raw_message, status,
-                                    case_metadata, is_critical, created_at
+                                    case_metadata, is_critical, created_at, status_changed_at
                                 ) VALUES (
                                     :tid, :phone, 'Document / Attachment Only', :msg, 'incomplete',
-                                    :meta, false, :now
+                                    :meta, false, :now, :now
                                 ) RETURNING id
                             """),
                             {
@@ -3751,13 +3832,16 @@ def _process_citizen_media_complaint(
                         )
                         case_id = result.fetchone()[0]
                     else:
+                        _mo_old = conn.execute(text("SELECT status FROM cases WHERE id = :cid"), {"cid": case_id}).fetchone()
+                        _mo_old_status = _mo_old[0] if _mo_old else None
                         conn.execute(
                             text("""
                                 UPDATE cases
                                 SET category = 'Document / Attachment Only',
                                     raw_message = :msg,
                                     status = 'incomplete',
-                                    case_metadata = :meta
+                                    case_metadata = :meta,
+                                    """ + _STATUS_SINCE_SET_SQL + """
                                 WHERE id = :cid
                             """),
                             {
@@ -3771,8 +3855,11 @@ def _process_citizen_media_complaint(
                                     "media_extraction_failed": True,
                                     "media_extraction_error": normalized.error,
                                 }),
+                                "new_status": "incomplete",
+                                "status_now": _utcnow(),
                             },
                         )
+                        _log_case_status_change(conn, current_tenant, case_id, _mo_old_status, "incomplete", actor="media_intake")
 
                     existing_media = conn.execute(
                         text("""
@@ -4613,16 +4700,6 @@ def _save_case_enrichment_and_respond(
     enrichment["meta_data"] = meta_data
 
     try:
-        sql = """
-            UPDATE cases
-            SET category = :cat,
-                problem_domain = :problem_domain,
-                problem_subdomain = :problem_subdomain,
-                convergence_program_type = :convergence_program_type,
-                status = :stat,
-                case_metadata = :meta,
-                is_critical = :crit
-        """
         params = {
             "cat": category,
             "problem_domain": enrichment["problem_domain"],
@@ -4632,14 +4709,29 @@ def _save_case_enrichment_and_respond(
             "meta": json.dumps(meta_data),
             "crit": enrichment["is_emergency_complaint"],
             "cid": case_id,
+            "new_status": _normalize_needle_status(status),
+            "status_now": _utcnow(),
         }
+        set_parts = [
+            "category = :cat",
+            "problem_domain = :problem_domain",
+            "problem_subdomain = :problem_subdomain",
+            "convergence_program_type = :convergence_program_type",
+            "status = :stat",
+            "case_metadata = :meta",
+            "is_critical = :crit",
+            _STATUS_SINCE_SET_SQL,
+        ]
         if raw_message_override is not None:
-            sql += ", raw_message = :raw_message"
+            set_parts.append("raw_message = :raw_message")
             params["raw_message"] = raw_message_override
-        sql += " WHERE id = :cid"
+        sql = "UPDATE cases SET " + ", ".join(set_parts) + " WHERE id = :cid"
 
         with engine.begin() as conn:
+            _old_row = conn.execute(text("SELECT status FROM cases WHERE id = :cid"), {"cid": case_id}).fetchone()
+            _old_status = _old_row[0] if _old_row else None
             conn.execute(text(sql), params)
+            _log_case_status_change(conn, current_tenant, case_id, _old_status, status, actor="ai")
             logger.info("AI updated case %s: status='%s' category='%s' constituency='%s'", case_id, status, category, enrichment["final_constituency"])
     except Exception as e:
         logger.error(f"DB update failed for case {case_id}: {e}")
@@ -4668,11 +4760,14 @@ def _save_case_enrichment_and_respond(
                 _rv_conn.execute(
                     text("""
                         UPDATE cases
-                        SET status = 'pending_review', case_metadata = :meta
+                        SET status = 'pending_review', case_metadata = :meta,
+                            """ + _STATUS_SINCE_SET_SQL + """
                         WHERE id = :cid
                     """),
-                    {"meta": json.dumps(_rv_meta), "cid": case_id}
+                    {"meta": json.dumps(_rv_meta), "cid": case_id,
+                     "new_status": "pending_review", "status_now": _utcnow()}
                 )
+                _log_case_status_change(_rv_conn, current_tenant, case_id, status, "pending_review", actor="ai")
         except Exception as _rv_exc:
             logger.error("Failed to set pending_review status for case %s: %s", case_id, _rv_exc)
 
@@ -4768,11 +4863,11 @@ def _buffer_distinct_contact_case(
                     """
                     INSERT INTO cases
                         (tenant_id, user_phone, category, raw_message, status, case_metadata,
-                         is_critical, created_at, problem_domain, problem_subdomain,
+                         is_critical, created_at, status_changed_at, problem_domain, problem_subdomain,
                          convergence_program_type)
                     VALUES
                         (:tid, :phone, :cat, :msg, :status, :meta,
-                         false, :now, :problem_domain, :problem_subdomain,
+                         false, :now, :now, :problem_domain, :problem_subdomain,
                          :convergence_program_type)
                     RETURNING id
                     """
@@ -4965,9 +5060,9 @@ def _process_incoming_message(
                     text("""
                         INSERT INTO cases
                             (tenant_id, user_phone, category, raw_message,
-                             status, case_metadata, is_critical, created_at)
+                             status, case_metadata, is_critical, created_at, status_changed_at)
                         VALUES (:tid, :phone, :cat, :msg,
-                                :status, :meta, false, :now)
+                                :status, :meta, false, :now, :now)
                     """),
                     {
                         "tid":   current_tenant,
@@ -5027,9 +5122,9 @@ def _process_incoming_message(
                     text("""
                         INSERT INTO cases
                             (tenant_id, user_phone, category, raw_message,
-                             status, case_metadata, is_critical, is_deleted, created_at)
+                             status, case_metadata, is_critical, is_deleted, created_at, status_changed_at)
                         VALUES (:tid, :phone, 'Spam', :msg,
-                                'new', :meta, false, false, :now)
+                                'new', :meta, false, false, :now, :now)
                     """),
                     {
                         "tid": current_tenant, "phone": sender, "msg": message_body,
