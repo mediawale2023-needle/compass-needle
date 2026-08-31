@@ -20,9 +20,10 @@ const SANS = '"Public Sans", "Noto Sans Devanagari", system-ui, sans-serif';
 const SERIF = '"Source Serif 4", Georgia, serif';
 const MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace';
 
-// Local desktop/mobile switch. The project's Tailwind build currently emits
-// `md:*` display utilities un-media-queried, so `className="md:hidden"` cannot
-// be relied on here — a JS media query renders exactly one header.
+// Local desktop/mobile switch. The previous mobile header set an inline
+// `display: flex` alongside `className="md:hidden"`; the inline style outranks
+// the responsive utility, so both the desktop and mobile headers rendered at
+// desktop widths. Selecting one header in JS keeps that class of mistake out.
 function useIsDesktop() {
     const [isDesktop, setIsDesktop] = useState(true);
     useEffect(() => {
