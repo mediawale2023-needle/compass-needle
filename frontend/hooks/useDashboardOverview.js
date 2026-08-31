@@ -1,65 +1,45 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { apiGet } from '@/lib/api';
-import {
-    getDashboardIsEmpty,
-    getEmptyDashboardSummary,
-    normalizeDashboardCases,
-    normalizeDashboardLetters,
-    normalizeDashboardNewsFeeds,
-    normalizeDashboardSummary,
-} from '@/lib/dashboard-mappers';
+import { getOverviewIsEmpty, mapOverviewResponse } from '@/lib/dashboard-mappers';
 
 export function useDashboardOverview() {
-    const [summary, setSummary] = useState(null);
-    const [cases, setCases] = useState([]);
-    const [letters, setLetters] = useState([]);
-    const [news, setNews] = useState({ national: [], local: [] });
+    const [overview, setOverview] = useState(null);
+    const [engagements, setEngagements] = useState({ items: [] });
+    const [localNews, setLocalNews] = useState({ articles: [] });
     const [seatManifest, setSeatManifest] = useState(null);
-    const [summaryLoaded, setSummaryLoaded] = useState(false);
-    const [casesLoaded, setCasesLoaded] = useState(false);
+    const [overviewLoaded, setOverviewLoaded] = useState(false);
+    const [isError, setIsError] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
 
         (async () => {
-            const response = await apiGet('/api/dashboard/summary').catch(() => getEmptyDashboardSummary());
-            if (!cancelled) {
-                setSummary(normalizeDashboardSummary(response));
-                setSummaryLoaded(true);
+            const response = await apiGet('/api/dashboard/overview').catch(() => null);
+            if (cancelled) return;
+            if (response) {
+                setOverview(response);
+            } else {
+                setIsError(true);
             }
+            setOverviewLoaded(true);
         })();
 
         (async () => {
-            const response = await apiGet('/api/cases?page=1&limit=20').catch(() => ({ cases: [] }));
-            if (!cancelled) {
-                setCases(normalizeDashboardCases(response));
-                setCasesLoaded(true);
-            }
+            const response = await apiGet('/api/dashboard/engagements').catch(() => ({ items: [] }));
+            if (!cancelled) setEngagements(response || { items: [] });
         })();
 
         (async () => {
             const response = await apiGet('/api/maps/seat-manifest').catch(() => null);
-            if (!cancelled) {
-                setSeatManifest(response);
-            }
+            if (!cancelled) setSeatManifest(response);
         })();
 
         const timer = setTimeout(async () => {
-            const [letterboxResponse, newsResponse] = await Promise.all([
-                apiGet('/api/letterbox?direction=inbox&limit=10').catch(() => ({ items: [] })),
-                Promise.all([
-                    apiGet('/api/news?news_type=national').catch(() => ({ articles: [] })),
-                    apiGet('/api/news?news_type=local').catch(() => ({ articles: [] })),
-                ]),
-            ]);
-
-            if (!cancelled) {
-                setLetters(normalizeDashboardLetters(letterboxResponse));
-                setNews(normalizeDashboardNewsFeeds(newsResponse[0], newsResponse[1]));
-            }
-        }, 600);
+            const response = await apiGet('/api/news?news_type=local').catch(() => ({ articles: [] }));
+            if (!cancelled) setLocalNews(response || { articles: [] });
+        }, 400);
 
         return () => {
             cancelled = true;
@@ -67,13 +47,17 @@ export function useDashboardOverview() {
         };
     }, []);
 
+    const data = useMemo(
+        () => mapOverviewResponse(overview, engagements, localNews),
+        [overview, engagements, localNews],
+    );
+
     return {
-        summary,
-        cases,
-        letters,
-        news,
+        data,
+        overview,
         seatManifest,
-        isInitialLoading: !summaryLoaded || !casesLoaded,
-        isEmpty: getDashboardIsEmpty(summary, cases),
+        isInitialLoading: !overviewLoaded,
+        isEmpty: overviewLoaded && !isError && getOverviewIsEmpty(overview),
+        isError,
     };
 }
