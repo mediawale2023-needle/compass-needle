@@ -13,6 +13,12 @@ Chronological log of completed repository work. Read before making changes to un
 ## Entries
 
 - Date: 2026-09-01
+- Request: Commit and push the Tamil Nadu filing assistant implementation before production deployment.
+- Summary: Committed the Tamil Nadu human-assisted filing + attachment integration slice as `9208b2b4` (`Add Tamil Nadu filing assistant`) and pushed it to `origin/claude/case-detail-lifecycle-consolidation`. Confirmed this branch was exactly one commit ahead of `origin/main` before preparing the main deploy path, avoiding accidental inclusion of unrelated branch history.
+- Files touched: `TASK_LOG.md`
+- Risks or follow-ups: Production deployment still needs the explicit main push/workflow verification step; protected Rajasthan/Karnataka/Maharashtra adapter and status files remained unchanged in the implementation commit.
+
+- Date: 2026-09-01
 - Request: Tamil Nadu Filing Slice 2 — connect existing Needle case attachments to the TN filing assistant, preserve final-submit and protected-state boundaries, add focused tests, and do not submit another grievance. No commit, push, or deploy.
 - Summary: Wired Tamil Nadu-only attachment integration through existing `case_media`: `GET /api/cases/{case_id}` now includes each media row's `size_bytes`; the Briefcase TN assistant lists/selects current case attachments and sends selected media IDs; the backend tenant/case-scopes selected IDs, writes temporary upload files, passes them to the existing TN Playwright file-input helper, enriches per-attachment results back to original media IDs, strips temp paths from responses, and cleans temp files. The TN adapter now reports `attachment_results`, returns `ATTACHMENT_ERROR` on portal rejection/visible verification failure, and still never auto-submits. Added tests for selected attachment mapping/cleanup, missing selected media, upload success/rejection, malformed/missing reference extraction, and no automatic submit from prepare-to-submit. Live non-submitting calibration was not performed because no human-authenticated TN session was available in this run.
 - Files touched: `api_router.py`, `frontend/components/briefcase/BriefcaseCaseModal.jsx`, `modules/govt_sync/filing/base.py`, `modules/govt_sync/filing/tamil_nadu.py`, `tests/test_tamil_nadu_filing.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
