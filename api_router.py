@@ -2321,8 +2321,8 @@ def get_case(case_id: int, user=Depends(get_current_user)):
                        convergence_program_type, status, raw_message, ward,
                        COALESCE(location, case_metadata->>'matched_value') AS location,
                        COALESCE(assembly, case_metadata->>'assembly_constituency') AS assembly,
-                       case_metadata, is_critical, priority, followed_by, created_at, updated_at, notes_for_staff,
-                       response_to_citizen, assigned_to, govt_status, govt_reference_number
+                       case_metadata, is_critical, priority, followed_by, created_at, updated_at, resolved_at, notes_for_staff,
+                       response_to_citizen, assigned_to, govt_status, govt_reference_number, govt_status_updated_at
                 FROM cases
                 WHERE tenant_id = :tid
                   AND user_phone = :phone
@@ -2362,12 +2362,14 @@ def get_case(case_id: int, user=Depends(get_current_user)):
             "assembly": member.get("assembly") or "",
             "created_at": member.get("created_at"),
             "updated_at": member.get("updated_at"),
+            "resolved_at": member.get("resolved_at"),
             "is_critical": bool(member.get("is_critical")),
             "assigned_to": member.get("assigned_to"),
             "notes_for_staff": member.get("notes_for_staff"),
             "response_to_citizen": member.get("response_to_citizen"),
             "govt_status": member.get("govt_status"),
             "govt_reference_number": member.get("govt_reference_number"),
+            "govt_status_updated_at": _coerce_iso(member.get("govt_status_updated_at")),
             "case_metadata": _parse_meta(member.get("case_metadata")),
         }
         for member in sorted(thread_members, key=lambda item: _thread_sort_value(item, "created_at"), reverse=True)
@@ -3317,6 +3319,10 @@ class GovtSubmitRequest(BaseModel):
     reference_number: str
 
 
+class GovtResolutionReviewRequest(BaseModel):
+    decision: str  # currently only "continue_follow_up"
+
+
 _FILED_GOVT_STATUSES = frozenset({
     "submitted", "under_review", "escalated", "resolved", "rejected",
 })
@@ -3769,6 +3775,45 @@ def get_govt_forward_state(case_id: int, user=Depends(get_current_user)):
         "log": log,
         "latest_status_check": _latest_govt_status_check_payload(tid, case_id),
     }
+
+
+@router.post("/cases/{case_id}/govt/resolution-review")
+def record_govt_resolution_review(case_id: int, body: GovtResolutionReviewRequest, user=Depends(get_current_user)):
+    """Record a staff workflow decision after they reviewed the government's
+    resolution of this grievance. Government status and Needle status are
+    independent lifecycles — this endpoint NEVER changes cases.status. The
+    decision is persisted as a case_activity_log row (so it survives refresh,
+    other sessions, and shows in the Activity Timeline). `details` stamps the
+    government-resolution cycle it was made against (govt_status_updated_at) so
+    a later/re-opened government resolution does not inherit a stale review.
+    """
+    tid = get_tenant_or_fail(user)
+    decision = (body.decision or "").strip().lower()
+    if decision != "continue_follow_up":
+        raise HTTPException(400, "Unsupported resolution-review decision")
+
+    case = _q_one(
+        "SELECT govt_status, govt_reference_number, govt_status_updated_at "
+        "FROM cases WHERE id = :cid AND tenant_id = :tid",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+    if str(case.get("govt_status") or "").strip().lower() not in ("resolved", "disposed"):
+        raise HTTPException(409, "The government portal has not marked this grievance resolved")
+
+    cycle_marker = _coerce_iso(case.get("govt_status_updated_at"))
+    _log_case_activity(
+        tid, case_id, user.get("username", ""),
+        "govt_resolution_reviewed", new_value=decision,
+        details=json.dumps({
+            "decision": decision,
+            "govt_status": str(case.get("govt_status") or "").strip().lower(),
+            "govt_reference_number": case.get("govt_reference_number") or None,
+            "govt_status_updated_at": cycle_marker,
+        }),
+    )
+    return {"success": True, "decision": decision, "govt_status_updated_at": cycle_marker}
 
 
 @router.post("/cases/{case_id}/govt/submit")
