@@ -453,28 +453,6 @@ function formatShortDate(value) {
     return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
 
-function inferCaseDisplayTitle(current, meta) {
-    if (meta.issue_title || meta.summary_title || current.case_title) {
-        return meta.issue_title || meta.summary_title || current.case_title;
-    }
-    const text = `${current.raw_message || ''} ${meta.summary || ''}`.toLowerCase();
-    const location = meta.matched_value || current.location || '';
-    if (location && /\bpotholes?\b|\bgadd?ha\b|\bkhadda\b|\bpits?\b/.test(text)) {
-        return `Potholes in ${location}`;
-    }
-    if (location && /\bwater\b|\bpaani\b|\bneer\b|\bjal\b/.test(text)) {
-        return `Water issue in ${location}`;
-    }
-    if (location && /\bgarbage\b|\bwaste\b|\bkachra\b/.test(text)) {
-        return `Garbage issue in ${location}`;
-    }
-    if (location && /\bdrain|sewer|nala|naali\b/.test(text)) {
-        return `Drainage issue in ${location}`;
-    }
-    const category = current.problem_subdomain || current.problem_domain || current.category;
-    return location && category ? `${category} in ${location}` : category || 'Citizen grievance';
-}
-
 function CaseMetaRow({ phone, createdAt, updatedAt, language, narrow }) {
     const fmt = (d) => (d ? d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '–');
     const dateStr = fmt(createdAt);
@@ -518,11 +496,10 @@ function CaseHero({ current, meta }) {
     const priority = current.priority || (current.is_critical ? 'critical' : 'standard');
     const priorityLabel = { critical: 'Critical', high: 'High', low: 'Low', standard: 'Standard' }[priority] || 'Standard';
     const priorityColor = { critical: C.red, high: C.saffron, standard: C.ink3, low: C.ink3 }[priority] || C.ink3;
-    const title = inferCaseDisplayTitle(current, meta);
     const geoConf = String(meta.geography_confidence || '').toLowerCase();
     const aiNote = (!geoConf || geoConf === '–') ? ''
-        : (['exact', 'high', 'alias'].includes(geoConf) ? 'High confidence classification'
-            : ['fuzzy', 'speech_phonetic', 'medium'].includes(geoConf) ? 'Medium confidence classification' : '');
+        : (['exact', 'high', 'alias'].includes(geoConf) ? 'High confidence'
+            : ['fuzzy', 'speech_phonetic', 'medium'].includes(geoConf) ? 'Medium confidence' : '');
 
     const chip = {
         display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -532,12 +509,6 @@ function CaseHero({ current, meta }) {
 
     return (
         <div style={{ marginBottom: 18 }}>
-            <h2 style={{
-                margin: '0 0 8px', fontFamily: '"Source Serif 4", Georgia, serif',
-                fontSize: 19, fontWeight: 600, color: C.ink, lineHeight: 1.25,
-            }}>
-                {title}
-            </h2>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, alignItems: 'center' }}>
                 <span style={chip}><Icon name="doc" size={13} color={C.ink3} /> {category}</span>
                 <span style={chip}><Icon name="pin" size={13} color={C.ink3} /> {location}</span>
@@ -546,8 +517,8 @@ function CaseHero({ current, meta }) {
                     {priorityLabel} priority
                 </span>
                 {aiNote && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.green, marginLeft: 4 }}>
-                        <Icon name="star" size={13} color={C.green} /> {aiNote}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: C.ink3, marginLeft: 2 }}>
+                        <Icon name="star" size={11} color={C.ink3} /> {aiNote}
                     </span>
                 )}
             </div>
@@ -749,10 +720,10 @@ function CitizenComplaintSection({ current, meta }) {
 
     return (
         <>
-            <div style={{ background: C.paper, borderRadius: 8, padding: '14px 16px', fontSize: 14, fontStyle: 'italic', color: C.ink, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+            <div style={{ fontSize: 14.5, fontStyle: 'italic', color: C.ink, lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
                 &ldquo;{current.raw_message || 'No message content.'}&rdquo;
             </div>
-            <div style={{ fontSize: 11.5, color: C.ink3, marginTop: 8 }}>
+            <div style={{ fontSize: 11.5, color: C.ink3, marginTop: 10 }}>
                 Received via WhatsApp{createdAt ? ` · ${createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} · ${createdAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} IST` : ''}
                 {lang ? ` · original language: ${lang}` : ''}
             </div>
@@ -1145,6 +1116,16 @@ function StatusActions({ currentStatus, onStatusChange, updating }) {
 
 // ─── Activity timeline (case-level; shows the selected complaint's history) ─
 function ActivityTimeline({ activities, loading, bare }) {
+    // Human-readable copy for actions whose raw name shouldn't be shown as-is.
+    // Everything else keeps the existing underscores→spaces + "→ value" style.
+    const describe = (act) => {
+        if (act.action === 'govt_resolution_reviewed') {
+            return act.new_value === 'continue_follow_up'
+                ? 'Government resolution reviewed — follow-up continued'
+                : 'Government resolution reviewed';
+        }
+        return `${(act.action || '').replace(/_/g, ' ')}${act.new_value ? ` → ${act.new_value}` : ''}`;
+    };
     const iconFor = (action = '') => {
         if (action.includes('creat'))  return 'bolt';
         if (action.includes('translat') || action.includes('summar') || action.includes('classif')) return 'sparkle';
@@ -1183,10 +1164,7 @@ function ActivityTimeline({ activities, loading, bare }) {
                             </div>
                             <div style={{ fontSize: 12, color: C.ink, lineHeight: 1.4 }}>
                                 <span style={{ fontWeight: 600 }}>{act.username || 'System'}</span>{' '}
-                                <span style={{ color: C.ink2 }}>
-                                    {(act.action || '').replace(/_/g, ' ')}
-                                    {act.new_value ? ` → ${act.new_value}` : ''}
-                                </span>
+                                <span style={{ color: C.ink2 }}>{describe(act)}</span>
                             </div>
                             <div style={{
                                 fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace',
@@ -1282,29 +1260,88 @@ function formatGovtCheckedAt(value) {
     return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+// The government lifecycle stepper — identical visual for every state; only
+// the step labels / dates / active index differ per lifecycle state.
+function JourneyStepper({ steps, activeIndex, narrow }) {
+    return (
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: narrow ? 600 : 'auto' }}>
+                {steps.map((step, idx) => {
+                    const complete = idx < activeIndex;
+                    const isCur = idx === activeIndex;
+                    const dotBg = complete ? C.green : isCur ? C.amber : C.card;
+                    const dotBorder = complete ? C.green : isCur ? C.amber : C.hairStrong;
+                    return (
+                        <div key={step.label} style={{ display: 'flex', alignItems: 'flex-start', flex: idx < steps.length - 1 ? 1 : '0 0 auto', minWidth: 0 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                                <div style={{
+                                    width: 26, height: 26, borderRadius: '50%',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: dotBg, border: `1.5px solid ${dotBorder}`,
+                                }}>
+                                    {complete && <Icon name="check" size={13} color="#fff" stroke={2.5} />}
+                                    {isCur && <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#fff' }} />}
+                                </div>
+                                <div style={{ fontSize: 11, fontWeight: isCur ? 700 : 400, color: complete || isCur ? C.ink : C.ink3, textAlign: 'center', width: 116, lineHeight: 1.25 }}>
+                                    {step.label}
+                                </div>
+                                <div style={{ fontSize: 10, color: C.ink3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>{step.date}</div>
+                            </div>
+                            {idx < steps.length - 1 && (
+                                <div style={{ flex: 1, height: 2, background: complete ? C.green : C.hair, margin: '13px 4px 0', minWidth: 12 }} />
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+// One persistent lifecycle card for every complaint. Pre-filing it shows the
+// journey with the government stages still pending and NO fabricated grievance
+// id / portal / department / dates. Once actually filed (a real reference
+// number, or a submitted / under_review / escalated / resolved / rejected
+// govt_status) it shows the existing filed journey with the real portal data
+// and the status-check control — unchanged.
 function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshing, narrow }) {
     const govtStatus = String(current.govt_status || 'not_forwarded').toLowerCase();
     const alreadyFiled = isGovtAlreadyFiled(current);
-    const submitted = alreadyFiled || govtStatus === 'pending_staff_submit';
 
-    // Not filed yet — compact dashed note (mirrors Main.dc.html "not filed" state).
-    if (!submitted) {
+    const cardStyle = { background: C.card, border: `1px solid ${C.hair}`, borderRadius: 12, padding: '20px 22px', marginBottom: 16 };
+    const headLbl = { fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', color: C.ink3, textTransform: 'uppercase', marginBottom: 4 };
+    const metaLbl = { fontSize: 10.5, color: C.ink3, marginBottom: 3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', letterSpacing: '0.04em', textTransform: 'uppercase' };
+    const metaVal = { fontSize: 13, fontWeight: 600, color: C.ink, overflowWrap: 'anywhere' };
+    const gridStyle = { display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(3, 1fr)', gap: narrow ? 14 : 16, marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.hair}` };
+
+    // ── Pre-filing — same card, government stages still pending, no invented
+    // data. The escalation CTA stays in the action panel; nothing actionable
+    // is added here.
+    if (!alreadyFiled) {
+        const steps = [
+            { label: 'Complaint received', date: formatShortDate(current.created_at) || '—' },
+            { label: 'Government filing', date: 'Not filed' },
+            { label: 'Department action', date: 'Pending' },
+            { label: 'Resolved', date: 'Pending' },
+        ];
         return (
-            <div style={{
-                background: C.card, border: `1px dashed ${C.hair}`, borderRadius: 12,
-                padding: '18px 22px', marginBottom: 16, color: C.ink2, fontSize: 13, lineHeight: 1.5,
-            }}>
-                Not yet filed with the government portal. Escalate this complaint from the action panel to open a filing session.
+            <div style={cardStyle}>
+                <div style={{ marginBottom: 16 }}>
+                    <div style={headLbl}>Government grievance journey</div>
+                    <div style={{ fontSize: 14.5, fontWeight: 600, color: C.ink }}>Grievance ID not assigned</div>
+                </div>
+                <JourneyStepper steps={steps} activeIndex={1} narrow={narrow} />
+                <div style={gridStyle}>
+                    <div><div style={metaLbl}>Government filing</div><div style={metaVal}>Not yet filed</div></div>
+                    <div><div style={metaLbl}>Currently with</div><div style={metaVal}>MP office</div></div>
+                    <div><div style={metaLbl}>Next step</div><div style={metaVal}>Review and escalate to government</div></div>
+                </div>
             </div>
         );
     }
 
-    // Four public-facing stages. "Complaint received" is always done once a
-    // case exists; the portal registration step is only current (not done)
-    // while the case sits at pending_staff_submit / "not filed yet".
-    const activeIndex = ['resolved', 'rejected'].includes(govtStatus) ? 4
-        : alreadyFiled ? 2
-        : 1;
+    // ── Filed / in-progress / resolved — unchanged behaviour + real portal data.
+    const activeIndex = ['resolved', 'rejected'].includes(govtStatus) ? 4 : 2;
     const filedDate = formatShortDate(current.govt_status_updated_at || current.updated_at || current.created_at) || 'Pending';
     const steps = [
         { label: 'Complaint received', date: formatShortDate(current.created_at) || filedDate },
@@ -1321,16 +1358,11 @@ function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshi
     const lastChecked = formatGovtCheckedAt(current.latest_status_check?.checked_at)
         || formatShortDate(current.govt_status_updated_at) || '—';
 
-    const metaLbl = { fontSize: 10.5, color: C.ink3, marginBottom: 3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', letterSpacing: '0.04em', textTransform: 'uppercase' };
-    const metaVal = { fontSize: 13, fontWeight: 600, color: C.ink, overflowWrap: 'anywhere' };
-
     return (
-        <div style={{ background: C.card, border: `1px solid ${C.hair}`, borderRadius: 12, padding: '20px 22px', marginBottom: 16 }}>
+        <div style={cardStyle}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
                 <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', color: C.ink3, textTransform: 'uppercase', marginBottom: 4 }}>
-                        Government grievance journey
-                    </div>
+                    <div style={headLbl}>Government grievance journey</div>
                     <div style={{ fontSize: 14.5, fontWeight: 600, color: C.ink }}>
                         Grievance {grievanceNo} <span style={{ fontWeight: 400, color: C.ink2 }}>· {portalName}</span>
                     </div>
@@ -1350,39 +1382,9 @@ function GovernmentJourneyPanel({ current, onViewSubmission, onRefresh, refreshi
             {/* Desktop: stepper fills the card width. Narrow (< lg): the stepper
                 itself scrolls horizontally at a fixed min-width so labels never
                 collide and the page never overflows sideways. */}
-            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: narrow ? 600 : 'auto' }}>
-                    {steps.map((step, idx) => {
-                        const complete = idx < activeIndex;
-                        const isCur = idx === activeIndex;
-                        const dotBg = complete ? C.green : isCur ? C.amber : C.card;
-                        const dotBorder = complete ? C.green : isCur ? C.amber : C.hairStrong;
-                        return (
-                            <div key={step.label} style={{ display: 'flex', alignItems: 'flex-start', flex: idx < steps.length - 1 ? 1 : '0 0 auto', minWidth: 0 }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                                    <div style={{
-                                        width: 26, height: 26, borderRadius: '50%',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        background: dotBg, border: `1.5px solid ${dotBorder}`,
-                                    }}>
-                                        {complete && <Icon name="check" size={13} color="#fff" stroke={2.5} />}
-                                        {isCur && <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#fff' }} />}
-                                    </div>
-                                    <div style={{ fontSize: 11, fontWeight: isCur ? 700 : 400, color: complete || isCur ? C.ink : C.ink3, textAlign: 'center', width: 116, lineHeight: 1.25 }}>
-                                        {step.label}
-                                    </div>
-                                    <div style={{ fontSize: 10, color: C.ink3, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace' }}>{step.date}</div>
-                                </div>
-                                {idx < steps.length - 1 && (
-                                    <div style={{ flex: 1, height: 2, background: complete ? C.green : C.hair, margin: '13px 4px 0', minWidth: 12 }} />
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
+            <JourneyStepper steps={steps} activeIndex={activeIndex} narrow={narrow} />
 
-            <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : 'repeat(3, 1fr)', gap: narrow ? 14 : 16, marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.hair}` }}>
+            <div style={gridStyle}>
                 <div><div style={metaLbl}>Department</div><div style={metaVal}>{dept}</div></div>
                 <div><div style={metaLbl}>Currently with</div><div style={metaVal}>{owner}</div></div>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
@@ -2387,9 +2389,135 @@ const PANEL_SEL = {
 };
 const PANEL_LBL = { display: 'block', fontSize: 11, color: C.ink3, marginBottom: 5, letterSpacing: '0.02em' };
 
+// ─── Resolved-state summary (Action Panel) ───────────────────────────
+// Replaces the action-required workflow cards when the Needle case is
+// resolved/completed. The rest of Case Detail (Citizen Complaint, capsules,
+// Government Grievance Journey, accordion, Activity Timeline) stays exactly
+// as it is in the active state. Every value is real — omitted if unknown.
+// The Needle Status select below stays live so staff can reopen by moving
+// the status away from Resolved (existing mechanism).
+function ResolvedStateCard({ resolvedOn, citizenNotifiedOn, resolutionMessage, govtStatusLabel, govtRef }) {
+    const monoLbl2 = { fontSize: 9.5, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 };
+    const val = { fontSize: 12.5, fontWeight: 600, color: C.ink, overflowWrap: 'anywhere' };
+    return (
+        <div style={{ background: C.greenWash, border: `1px solid ${C.greenTint}`, borderRadius: 10, padding: '14px 16px', marginBottom: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', color: C.greenInk, marginBottom: 8 }}>
+                <Icon name="check" size={13} color={C.greenInk} stroke={2} />
+                CASE RESOLVED
+            </div>
+            <div style={{ fontSize: 13, lineHeight: 1.5, color: C.ink, marginBottom: (resolvedOn || citizenNotifiedOn || govtStatusLabel || resolutionMessage) ? 12 : 0 }}>
+                This case was closed by the office.
+            </div>
+            {(resolvedOn || citizenNotifiedOn || govtStatusLabel) && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: resolutionMessage ? 12 : 0 }}>
+                    {resolvedOn && <div><div style={monoLbl2}>Resolved on</div><div style={val}>{resolvedOn}</div></div>}
+                    {citizenNotifiedOn && <div><div style={monoLbl2}>Citizen notified</div><div style={val}>{citizenNotifiedOn}</div></div>}
+                    {govtStatusLabel && <div><div style={monoLbl2}>Government status</div><div style={val}>{govtStatusLabel}{govtRef ? ` · #${govtRef}` : ''}</div></div>}
+                </div>
+            )}
+            {resolutionMessage && (
+                <>
+                    <div style={monoLbl2}>Resolution message sent</div>
+                    <div style={{ fontSize: 12, color: C.ink2, lineHeight: 1.55, background: C.surface, border: `1px solid ${C.hair}`, padding: '8px 10px', whiteSpace: 'pre-wrap' }}>
+                        {resolutionMessage}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+// ─── Government-resolved review (Action Panel) ────────────────────────
+// Shown ONLY when the complaint has a real government filing, the latest
+// government status is resolved/disposed, and the Needle case is not yet
+// resolved. Government "resolved" and Needle "resolved" are separate
+// lifecycles — this makes staff explicitly decide, it never auto-closes.
+// Every value here comes from real case fields; the full portal position
+// (remarks / disposed date / officer / office) is in the existing
+// GOVERNMENT SUBMISSION section, reached via "View full portal position".
+function ResolutionReviewCard({
+    open, followingUp, updating, data,
+    onOpen, onCollapse, onViewPortalDetail, onMarkResolved, onContinueFollowUp,
+}) {
+    const settled = followingUp && !open;
+    const accent = settled ? C.slate : C.green;
+    const bg = settled ? C.slateTint : C.greenTint;
+    const monoLbl2 = { fontSize: 9.5, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 };
+    const val = { fontSize: 12.5, fontWeight: 600, color: C.ink, overflowWrap: 'anywhere' };
+    const btnPrimary = {
+        width: '100%', background: C.green, color: '#fff', border: 'none', borderRadius: 8,
+        padding: '9px', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+        cursor: updating ? 'not-allowed' : 'pointer', opacity: updating ? 0.6 : 1,
+    };
+    const btnGhost = {
+        width: '100%', background: 'none', color: C.ink2, border: `1px solid ${C.hairStrong}`, borderRadius: 8,
+        padding: '9px', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', marginTop: 8,
+    };
+    const linkBtn = {
+        background: 'none', border: 'none', padding: 0, fontFamily: 'inherit',
+        fontSize: 12, color: C.green, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
+    };
+
+    return (
+        <div style={{ background: bg, border: `1px solid ${accent}`, borderRadius: 10, padding: '14px 16px', marginBottom: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', color: accent, marginBottom: 8 }}>
+                <Icon name={settled ? 'clock' : 'check'} size={13} color={accent} stroke={2} />
+                {settled ? 'FOLLOWING UP' : 'GOVERNMENT MARKED RESOLVED'}
+            </div>
+
+            {!open ? (
+                <>
+                    <div style={{ fontSize: 13, lineHeight: 1.5, color: C.ink, marginBottom: 12 }}>
+                        {followingUp
+                            ? 'The government marked this grievance resolved, but the case is being kept open for the citizen.'
+                            : 'The government portal has marked this grievance resolved. Review the outcome before closing the case.'}
+                    </div>
+                    {followingUp ? (
+                        <>
+                            <button type="button" style={btnPrimary} disabled={updating} onClick={onMarkResolved}>Mark case resolved</button>
+                            <button type="button" style={{ ...linkBtn, marginTop: 10 }} onClick={onOpen}>Review government resolution again</button>
+                        </>
+                    ) : (
+                        <button type="button" style={{ ...btnPrimary, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={onOpen}>
+                            Review resolution
+                        </button>
+                    )}
+                </>
+            ) : (
+                <>
+                    <div style={{ fontSize: 13, lineHeight: 1.5, color: C.ink, marginBottom: 12 }}>
+                        Confirm the government outcome resolves the citizen&rsquo;s complaint before closing the Needle case.
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                        <div><div style={monoLbl2}>Government status</div><div style={val}>Resolved</div></div>
+                        <div><div style={monoLbl2}>Resolved on</div><div style={val}>{data.resolvedOn || '—'}</div></div>
+                        <div><div style={monoLbl2}>Department</div><div style={val}>{data.department || '—'}</div></div>
+                        <div><div style={monoLbl2}>Grievance ID</div><div style={val}>{data.grievanceId || '—'}</div></div>
+                    </div>
+                    {data.portal && (
+                        <div style={{ fontSize: 11.5, color: C.ink3, marginBottom: 10 }}>Portal · {data.portal}</div>
+                    )}
+                    <button type="button" style={{ ...linkBtn, marginBottom: 12 }} onClick={onViewPortalDetail}>
+                        View full portal position <Icon name="external" size={12} color={C.green} stroke={2} />
+                    </button>
+                    <div style={{ fontSize: 11, color: C.ink3, lineHeight: 1.5, marginBottom: 12 }}>
+                        Government resolution remarks and any portal documents appear under Government Submission below.
+                    </div>
+                    <div style={{ height: 1, background: C.hair, margin: '0 0 12px' }} />
+                    <button type="button" style={btnPrimary} disabled={updating} onClick={onMarkResolved}>
+                        Accept &amp; mark resolved
+                    </button>
+                    <button type="button" style={btnGhost} onClick={onContinueFollowUp}>Continue follow-up</button>
+                    <button type="button" style={{ ...linkBtn, marginTop: 10, color: C.ink3 }} onClick={onCollapse}>Collapse</button>
+                </>
+            )}
+        </div>
+    );
+}
+
 function ActionPanel({
     current, meta, threadCount, open, onToggle,
-    callout,
+    callout, resolutionReview, resolvedSummary,
     needleStatus, onNeedleStatus, updating,
     priority, onPriority,
     assignee, onAssign, staff, onAssignToMe,
@@ -2419,7 +2547,11 @@ function ActionPanel({
 
             {open && (
                 <div>
-                    {callout && (
+                    {resolvedSummary ? (
+                        <ResolvedStateCard {...resolvedSummary} />
+                    ) : resolutionReview ? (
+                        <ResolutionReviewCard {...resolutionReview} />
+                    ) : callout ? (
                         <div style={{
                             background: callout.bg, border: `1px solid ${callout.border}`, borderRadius: 10,
                             padding: '14px 16px', marginBottom: 18,
@@ -2439,7 +2571,7 @@ function ActionPanel({
                                 </button>
                             )}
                         </div>
-                    )}
+                    ) : null}
 
                     <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', color: C.ink3, marginBottom: 10 }}>
                         CASE-LEVEL — applies across all {threadCount} complaint{threadCount === 1 ? '' : 's'}
@@ -2501,62 +2633,6 @@ function ActionPanel({
     );
 }
 
-// ─── Resolved-complaint summary (shown in place of the 4 sections when the
-// selected complaint is resolved — the tab strip and right rail stay live
-// so staff can switch to another complaint or reopen this one) ────
-function ResolvedComplaintSummary({ current, meta, activities, loadingActivity }) {
-    const createdAt = current.created_at ? new Date(current.created_at) : null;
-    const notifyAct = [...activities].reverse().find((a) => a.action === 'citizen_notified');
-    const notifiedAt = notifyAct ? new Date(notifyAct.created_at) : null;
-
-    const fields = [
-        ['Category', current.problem_subdomain || current.problem_domain || current.category || 'General'],
-        ['Location', meta.matched_value || current.location || '–'],
-        ['Assembly', meta.assembly_constituency || current.assembly || '–'],
-        ['Filed', createdAt ? createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '–'],
-        ['Resolved', notifiedAt ? notifiedAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '–'],
-    ];
-
-    return (
-        <>
-            <div style={sec}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    {fields.map(([label, value]) => (
-                        <div key={label} style={{ border: `1px solid ${C.hair}`, padding: '8px 12px', background: C.surface, minWidth: 0 }}>
-                            <div style={{ fontSize: 9.5, color: C.ink3, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', marginBottom: 3 }}>{label}</div>
-                            <div style={{ fontSize: 13, fontWeight: 500, color: C.ink, overflowWrap: 'anywhere' }}>{value}</div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-            <div style={sec}>
-                <SectionHeading n={1} label="Raw complaint (from citizen)" />
-                <div style={{ padding: '12px 14px', background: C.paperDeep, borderLeft: `3px solid ${C.green}`, fontSize: 13.5, lineHeight: 1.6, color: C.ink, whiteSpace: 'pre-wrap' }}>
-                    {current.raw_message || 'No message content.'}
-                </div>
-            </div>
-            {current.response_to_citizen && (
-                <div style={sec}>
-                    <span style={monoLbl}>Resolution message sent</span>
-                    <div style={{ padding: '12px 14px', background: C.greenWash, borderLeft: `3px solid ${C.green}`, fontSize: 13, color: C.ink, lineHeight: 1.6 }}>
-                        {current.response_to_citizen}
-                    </div>
-                </div>
-            )}
-            {(current.govt_status || current.govt_reference_number) && (
-                <div style={sec}>
-                    <SectionHeading n={3} label="Government filing" />
-                    <div style={{ fontSize: 12.5, color: C.ink2 }}>
-                        Status: <strong style={{ color: C.ink }}>{GOVT_STATUS_LABEL[current.govt_status] || current.govt_status || 'Not forwarded'}</strong>
-                        {current.govt_reference_number && <> · Reference: <strong style={{ color: C.ink }}>{current.govt_reference_number}</strong></>}
-                    </div>
-                </div>
-            )}
-            <ActivityTimeline activities={activities} loading={loadingActivity} />
-        </>
-    );
-}
-
 // ─── Main export ──────────────────────────────────────────────
 export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusChange, statusFilter, staff, user, onDeleteCase }) {
     const toast = useToast();
@@ -2584,6 +2660,12 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const [locationOpenSignal, setLocationOpenSignal] = useState(0);
     const [govtOpenSignal, setGovtOpenSignal] = useState(0);
     const [notesOpenSignal, setNotesOpenSignal] = useState(0);
+    // Government-resolved review: staff must explicitly decide whether the
+    // government's "resolved" closes the Needle case. The "continue follow-up"
+    // decision is persisted server-side (see followUpDecision below) — this
+    // flag only tracks whether the review panel is expanded, and resets on
+    // complaint switch.
+    const [resolutionReviewOpen, setResolutionReviewOpen] = useState(false);
     const responseSectionRef = useRef(null);
     const responseInputRef = useRef(null);
     const govtSyncRef = useRef(null);      // imperative handle into GovtSyncSection — lets Escalate trigger its live-session flow
@@ -2629,6 +2711,10 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
         localStorage.setItem(`draft_notes_${activeCaseId}`, notes);
         localStorage.setItem(`draft_response_${activeCaseId}`, response);
     }, [notes, response, activeCaseId]);
+
+    useEffect(() => {
+        setResolutionReviewOpen(false);
+    }, [activeCaseId]);
 
     const handleGovtStateChange = useCallback((targetId, govtCase) => {
         if (!targetId) return;
@@ -2694,6 +2780,30 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     const alreadyFiledFlag = isGovtAlreadyFiled(current);
     const hasBeenEscalated = alreadyFiledFlag || String(current.govt_status || '').toLowerCase() === 'pending_staff_submit';
     const escalateLabel = alreadyFiledFlag ? 'View submission' : 'Escalate';
+    // Government portal reports the grievance closed. Independent of the Needle
+    // case status — staff decide separately whether that closes our case.
+    const govtResolvedTerminal = ['resolved', 'disposed'].includes(String(current.govt_status || '').toLowerCase());
+    const showResolutionReview = alreadyFiledFlag && govtResolvedTerminal && !isResolved;
+
+    // FOLLOWING UP is derived from a persisted case_activity_log row, not local
+    // state — it survives refresh / other sessions. `activities` is already
+    // fetched per selected complaint. The decision only counts for the CURRENT
+    // government-resolution cycle: its stamped govt_status_updated_at must still
+    // match the case's current one, so a later/re-opened resolution starts fresh.
+    // (Plain derivation — no hook, since the component early-returns above.)
+    const followUpDecision = (() => {
+        if (!showResolutionReview) return null;
+        const latest = (activities || []).find(
+            (a) => a.action === 'govt_resolution_reviewed' && a.new_value === 'continue_follow_up'
+        );
+        if (!latest) return null;
+        let d = {};
+        try { d = latest.details ? JSON.parse(latest.details) : {}; } catch { d = {}; }
+        const reviewedCycle = String(d.govt_status_updated_at || '');
+        const currentCycle = String(current.govt_status_updated_at || '');
+        return reviewedCycle && reviewedCycle === currentCycle ? latest : null;
+    })();
+    const followingUp = !!followUpDecision;
     const confirmLabel = (isUncategorised && suggestedTriage?.ai_category)
         ? 'Confirm category & assign'
         : (isResolved ? 'Mark resolved' : 'Resolve');
@@ -2722,6 +2832,10 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
     // Main.dc.html calloutFor) — every CTA maps to a real handler.
     const contextCallout = (() => {
         if (isResolved) return null;
+        // Government-resolved + Needle still open: the resolution-review card
+        // (rendered by ActionPanel) owns this state, not the status-monitoring
+        // "Check government status" callout.
+        if (showResolutionReview) return null;
         if (alreadyFiledFlag) {
             return {
                 bg: C.amberTint, border: C.amber, accent: C.amber, icon: 'clock',
@@ -3070,15 +3184,13 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                         <div style={{ flex: 1, minWidth: 0, overflowY: isMobile ? 'visible' : 'auto', padding: isMobile ? '16px 20px 24px' : '20px 28px 28px' }}>
                             <ContactQueueNotice current={current} />
 
-                            {isResolved ? (
-                                <ResolvedComplaintSummary
-                                    current={current}
-                                    meta={meta}
-                                    activities={activities}
-                                    loadingActivity={loadingActivity}
-                                />
-                            ) : (
-                                <>
+                            {/* One structural Case Detail path for every Needle
+                                state. Resolution is a state transition — the
+                                workspace (Citizen Complaint → capsules →
+                                Government Grievance Journey → accordion) stays
+                                mounted; only the Action Panel content changes
+                                (see resolvedSummary below). */}
+                            <>
                                     {currentStatus === 'pending_review' && (
                                         <ReviewReasonBanner
                                             current={current}
@@ -3086,6 +3198,15 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                             onViewSummary={viewCaseSummary}
                                         />
                                     )}
+
+                                    {/* Citizen complaint — moved up from the detail
+                                        accordion so the citizen's own words sit
+                                        directly under the complaint selector. Same
+                                        component/props, rendered once. */}
+                                    <div style={{ background: C.card, border: `1px solid ${C.hair}`, borderRadius: 12, padding: '14px 18px', marginBottom: 16 }}>
+                                        <span style={monoLbl}>Citizen complaint</span>
+                                        <CitizenComplaintSection current={current} meta={meta} />
+                                    </div>
 
                                     <CaseHero current={current} meta={meta} />
 
@@ -3097,10 +3218,6 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                     />
 
                                     <div ref={detailCardRef} style={{ border: `1px solid ${C.hair}`, borderRadius: 12, overflow: 'hidden', background: C.card }}>
-                                        <AccordionRow icon="chat" label="CITIZEN COMPLAINT" defaultOpen>
-                                            <CitizenComplaintSection current={current} meta={meta} />
-                                        </AccordionRow>
-
                                         <AccordionRow icon="sparkle" label="AI UNDERSTANDING" forwardedRef={aiSectionRef}>
                                             <AiUnderstandingSection
                                                 part="ai"
@@ -3170,8 +3287,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                             />
                                         </AccordionRow>
                                     </div>
-                                </>
-                            )}
+                            </>
                         </div>
 
                         {/* ACTION PANEL */}
@@ -3190,6 +3306,51 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                 open={panelOpen}
                                 onToggle={() => setPanelOpen((v) => !v)}
                                 callout={isResolved ? null : contextCallout}
+                                resolvedSummary={isResolved ? {
+                                    resolvedOn: current.resolved_at
+                                        ? new Date(current.resolved_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                        : '',
+                                    citizenNotifiedOn: (() => {
+                                        const a = (activities || []).find((x) => x.action === 'citizen_notified');
+                                        return a?.created_at
+                                            ? new Date(a.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                            : '';
+                                    })(),
+                                    resolutionMessage: current.response_to_citizen || '',
+                                    govtStatusLabel: (current.govt_status && current.govt_status !== 'not_forwarded')
+                                        ? (GOVT_STATUS_LABEL[current.govt_status] || current.govt_status)
+                                        : '',
+                                    govtRef: current.govt_reference_number || '',
+                                } : null}
+                                resolutionReview={showResolutionReview ? {
+                                    open: resolutionReviewOpen,
+                                    followingUp,
+                                    updating: !!updating,
+                                    data: {
+                                        resolvedOn: formatShortDate(current.govt_status_updated_at || current.updated_at) || '',
+                                        department: current.govt_department || '',
+                                        portal: current.portal_name || current.govt_portal_name || '',
+                                        grievanceId: current.govt_reference_number || '',
+                                    },
+                                    onOpen: () => setResolutionReviewOpen(true),
+                                    onCollapse: () => setResolutionReviewOpen(false),
+                                    onViewPortalDetail: () => {
+                                        setGovtOpenSignal((n) => n + 1);
+                                        govtSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                    },
+                                    onMarkResolved: () => handleStatusChange('resolved'),
+                                    onContinueFollowUp: async () => {
+                                        try {
+                                            await apiPost(`/api/cases/${current.id}/govt/resolution-review`, { decision: 'continue_follow_up' });
+                                            setResolutionReviewOpen(false);
+                                            const res = await apiGet(`/api/cases/${current.id}/activity`);
+                                            setActivities(res.activities || []);
+                                            toast.success('Follow-up continued — recorded on the case.');
+                                        } catch (e) {
+                                            toast.error(e.message || 'Could not record the decision');
+                                        }
+                                    },
+                                } : null}
                                 needleStatus={currentStatus}
                                 onNeedleStatus={handleStatusChange}
                                 updating={updating}
