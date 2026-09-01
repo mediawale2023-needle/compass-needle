@@ -17,12 +17,12 @@
         "description",
         "priority_category"
       ],
-      "taxonomy_verified": true,
-      "entry_path": "/portal/ta/signin",
+      "taxonomy_verified": false,
+      "entry_path": null,
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": "\\bTN/[A-Z0-9]+/[A-Z0-9]+/[A-Z]/PORTAL/[0-9A-Z]{7}/[0-9]{5,}\\b",
-      "post_login_entry_path": "/portal/ta/newticket"
+      "reference_regex": null,
+      "post_login_entry_path": null
     },
     "department_taxonomy": {
       "Infrastructure & Utilities": "PWD / Urban Development & Housing Department",
@@ -865,12 +865,12 @@
         "description",
         "priority_category"
       ],
-      "taxonomy_verified": false,
-      "entry_path": null,
+      "taxonomy_verified": true,
+      "entry_path": "/portal/ta/signin",
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null,
-      "post_login_entry_path": null
+      "reference_regex": "\\bTN/[A-Z0-9]+/[A-Z0-9]+/[A-Z]/PORTAL/[0-9A-Z]{7}/[0-9]{5,}\\b",
+      "post_login_entry_path": "/portal/ta/newticket"
     },
     "department_taxonomy": {
       "Infrastructure & Utilities": "Public Works Department / Housing and Urban Development Department / Municipal Administration and Water Supply Department",
