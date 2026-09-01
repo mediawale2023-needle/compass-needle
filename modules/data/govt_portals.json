@@ -17,12 +17,12 @@
         "description",
         "priority_category"
       ],
-      "taxonomy_verified": false,
-      "entry_path": null,
+      "taxonomy_verified": true,
+      "entry_path": "/portal/ta/signin",
       "selectors": {},
       "reference_selector": null,
-      "reference_regex": null,
-      "post_login_entry_path": null
+      "reference_regex": "\\bTN/[A-Z0-9]+/[A-Z0-9]+/[A-Z]/PORTAL/[0-9A-Z]{7}/[0-9]{5,}\\b",
+      "post_login_entry_path": "/portal/ta/newticket"
     },
     "department_taxonomy": {
       "Infrastructure & Utilities": "PWD / Urban Development & Housing Department",
@@ -886,7 +886,7 @@
     "is_primary": true,
     "active": true,
     "verification_status": "confirmed",
-    "source_note": "URL confirmed and reachable (verified 2026-08-19 via SSH from the EC2 backend host/container — TCP connects and HTTPS returns 200/OK on the actual base_url). Department taxonomy added 2026-08-20 (best-effort mapping to known government department names, same treatment given to Rajasthan/UP/Karnataka/Maharashtra). Municipal Administration and Water Supply Department and Personnel and Administrative Reforms Department are standard, well-known Tamil Nadu department names, not explicitly confirmed in the source used. Still field_schema.taxonomy_verified=false — not yet confirmed against this portal's live post-login department dropdown."
+    "source_note": "URL confirmed and reachable (verified 2026-08-19 via SSH from the EC2 backend host/container — TCP connects and HTTPS returns 200/OK on the actual base_url). Department taxonomy added 2026-08-20 (best-effort mapping to known government department names, same treatment given to Rajasthan/UP/Karnataka/Maharashtra). Authorized human-assisted walkthrough confirmed Tamil Nadu's login-gated Mudhalvarin Mugavari form at /portal/ta/newticket, dynamic department/layout behavior, and successful reference shape like TN/FOODCO/CBE/P/PORTAL/01SEP26/18968314. Filing remains human-assisted through the browser; do not build a direct Zoho API integration."
   },
   {
     "state": "Telangana",

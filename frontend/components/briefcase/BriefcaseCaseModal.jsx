@@ -1620,7 +1620,7 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone, prepare
 // LOCKED until this complaint is escalated — filing is a deliberate staff
 // decision made after reviewing the citizen's complaint, not something that
 // happens automatically the moment a case is opened.
-const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSubmitted, onGovtStateChange }, ref) {
+const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSubmitted, onGovtStateChange, caseMedia = [] }, ref) {
     const toast = useToast();
     // The portal a tenant can use is derived server-side from tenant -> constituency
     // -> state (tenant_profiles.state) — never a staff choice. This is a read-only
@@ -1640,6 +1640,9 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     const [interactiveAttempt, setInteractiveAttempt] = useState(null);
     const [interactiveAnswers, setInteractiveAnswers] = useState({ captcha: '', otp: '' });
     const [liveSession, setLiveSession] = useState(null); // { session_id, ws_path, viewport, portal_name }
+    const [tnFields, setTnFields] = useState({});
+    const [tnSelectedMediaIds, setTnSelectedMediaIds] = useState([]);
+    const [tnFilingState, setTnFilingState] = useState(null);
     const [liveConnecting, setLiveConnecting] = useState(false);
     const liveSessionRef = useRef(null); // mirrors liveSession so the unmount cleanup below sees the latest value, not a stale closure
     const [hostedSessions, setHostedSessions] = useState([]);
@@ -1651,6 +1654,8 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         setNeedsGovtVerification(false);
         setInteractiveAttempt(null);
         setInteractiveAnswers({ captcha: '', otp: '' });
+        setTnSelectedMediaIds([]);
+        setTnFilingState(null);
         apiGet(`/api/cases/${caseId}/govt`).then(setGovtState).catch(() => setGovtState(null));
     }, [caseId]);
 
@@ -1872,6 +1877,74 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         }
     }
 
+    function isTamilNaduSession() {
+        const name = `${liveSession?.portal_name || ''} ${resolvedPortal?.state || ''}`.toLowerCase();
+        return name.includes('tamil nadu') || name.includes('mudhalvarin mugavari');
+    }
+
+    function updateTnField(key, value) {
+        setTnFields((prev) => ({ ...prev, [key]: value }));
+    }
+
+    function toggleTnMedia(mediaId) {
+        setTnSelectedMediaIds((prev) => (
+            prev.includes(mediaId) ? prev.filter((id) => id !== mediaId) : [...prev, mediaId]
+        ));
+    }
+
+    async function handleTamilNaduPrepareToSubmit() {
+        const session = liveSessionRef.current;
+        if (!session) return;
+        setBusy(true);
+        try {
+            const result = await apiPost(
+                `/api/cases/${caseId}/govt/session/${session.session_id}/tamil-nadu/prepare-to-submit`,
+                { fields: tnFields, selected_media_ids: tnSelectedMediaIds },
+            );
+            setTnFilingState(result);
+            if (result.state === 'READY_TO_SUBMIT') {
+                toast.success('Tamil Nadu form is ready for staff review and final submit');
+            } else if (result.human_checkpoints?.length) {
+                toast.warning(result.note || 'Tamil Nadu portal needs staff input in the browser');
+            } else {
+                toast.error(result.note || 'Tamil Nadu filing assistant needs more information');
+            }
+        } catch (e) {
+            if (e.message === 'Live session not found') { handleSessionGone(); return; }
+            toast.error(e.message || 'Tamil Nadu filing assistant failed');
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function handleTamilNaduSubmitConfirmed() {
+        const session = liveSessionRef.current;
+        if (!session) return;
+        if (!window.confirm('Submit this grievance to Tamil Nadu CM Helpline now? This creates a real government ticket.')) {
+            return;
+        }
+        setBusy(true);
+        try {
+            const result = await apiPost(`/api/cases/${caseId}/govt/session/${session.session_id}/tamil-nadu/submit-confirmed`, {});
+            setTnFilingState(result);
+            if (result.reference_number) {
+                const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
+                setGovtState(refreshed);
+                onSubmitted?.(caseId, result.saved?.status || 'in_progress');
+                toast.success(`Tamil Nadu reference captured: ${result.reference_number}`);
+            } else if (result.state === 'REFERENCE_CAPTURE_FAILED') {
+                toast.warning('Ticket appears created, but the full reference was not captured. Copy it from the browser and save it below.');
+            } else {
+                toast.error(result.note || 'Submission result is ambiguous. Verify on the portal before retrying.');
+            }
+        } catch (e) {
+            if (e.message === 'Live session not found') { handleSessionGone(); return; }
+            toast.error(e.message || 'Tamil Nadu submit failed');
+        } finally {
+            setBusy(false);
+        }
+    }
+
     async function handlePrepare() {
         setBusy(true);
         toast.info('Preparing the filing worksheet…');
@@ -2010,6 +2083,13 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         ['Filer/citizen name to enter on portal', worksheet?.portal_filer_name || liveSession?.portal_filer_name],
         ['Contact number to enter on portal', worksheet?.portal_contact_number || liveSession?.portal_contact_number],
     ].filter(([, value]) => String(value || '').trim()).map(([label, value]) => [label, String(value).trim()]);
+    const formatMediaSize = (bytes) => {
+        const n = Number(bytes || 0);
+        if (!n) return '';
+        if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(n >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+        if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+        return `${n} B`;
+    };
     // A case keeps whatever portal it was prepared against forever, even after a
     // better match becomes available (e.g. this tenant's state didn't have its own
     // portal yet when this case was first prepared, so it fell back to CPGRAMS —
@@ -2188,6 +2268,99 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                     {busy ? <Loader2 size={14} className="animate-spin" /> : 'Submitted — capture reference number'}
                                 </Button>
                             </div>
+                            {isTamilNaduSession() && !alreadyFiled && (
+                                <div style={{ border: `1px solid ${C.saffron}`, background: C.saffronTint, padding: 12, marginBottom: 10 }}>
+                                    <div style={{ ...monoLbl, marginBottom: 8 }}>Tamil Nadu filing assistant</div>
+                                    <div style={{ fontSize: 11.5, color: C.ink2, lineHeight: 1.5, marginBottom: 10 }}>
+                                        Staff handles login, OTP, CAPTCHA, review, and the final government Submit confirmation. Needle only assists with rendered form fields in this live browser session.
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginBottom: 10 }}>
+                                        {[
+                                            ['address', 'Address'],
+                                            ['gender', 'Gender'],
+                                            ['differently_abled', 'Differently abled'],
+                                            ['petition_scope', 'Public / Individual / Association'],
+                                            ['department', 'Government department'],
+                                            ['local_body_type', 'Local body type'],
+                                            ['grievance_type', 'Grievance type'],
+                                            ['grievance_subtype', 'Grievance subtype'],
+                                            ['district', 'District'],
+                                            ['taluk', 'Taluk'],
+                                            ['revenue_division', 'Revenue division'],
+                                            ['block', 'Block'],
+                                            ['responsible_officer', 'Responsible officer'],
+                                        ].map(([key, label]) => (
+                                            <Input
+                                                key={key}
+                                                placeholder={label}
+                                                value={tnFields[key] || ''}
+                                                onChange={(e) => updateTnField(key, e.target.value)}
+                                                style={{ fontSize: 12 }}
+                                            />
+                                        ))}
+                                    </div>
+                                    <textarea
+                                        placeholder="Description override (optional; defaults to worksheet description)"
+                                        value={tnFields.description || ''}
+                                        onChange={(e) => updateTnField('description', e.target.value)}
+                                        style={{ width: '100%', minHeight: 64, border: `1px solid ${C.hair}`, background: C.paper, padding: 8, fontSize: 12, color: C.ink, marginBottom: 10 }}
+                                    />
+                                    <div style={{ border: `1px solid ${C.hair}`, background: C.paper, padding: 10, marginBottom: 10 }}>
+                                        <div style={{ ...monoLbl, marginBottom: 7 }}>Case attachments</div>
+                                        {caseMedia.length ? (
+                                            <div style={{ display: 'grid', gap: 6 }}>
+                                                {caseMedia.map((media) => {
+                                                    const mediaId = Number(media.id);
+                                                    const checked = tnSelectedMediaIds.includes(mediaId);
+                                                    const result = (tnFilingState?.attachment_results || []).find((item) => Number(item.media_id) === mediaId);
+                                                    return (
+                                                        <label key={media.id} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, color: C.ink2 }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={checked}
+                                                                onChange={() => toggleTnMedia(mediaId)}
+                                                                style={{ accentColor: C.saffron }}
+                                                            />
+                                                            <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
+                                                                {media.file_name || `${media.media_type || 'Attachment'} #${media.id}`}
+                                                                {formatMediaSize(media.size_bytes) ? ` — ${formatMediaSize(media.size_bytes)}` : ''}
+                                                            </span>
+                                                            {result && (
+                                                                <span style={{ color: result.status === 'uploaded' ? C.greenInk : C.red, fontSize: 11 }}>
+                                                                    {result.status === 'uploaded' ? 'Uploaded' : 'Failed'}
+                                                                </span>
+                                                            )}
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <div style={{ fontSize: 11.5, color: C.ink3 }}>No case attachments available for upload.</div>
+                                        )}
+                                    </div>
+                                    {tnFilingState && (
+                                        <div style={{ fontSize: 11.5, color: C.ink2, background: C.paper, border: `1px solid ${C.hair}`, padding: 8, marginBottom: 10 }}>
+                                            State: <strong>{tnFilingState.state}</strong>
+                                            {tnFilingState.note ? ` · ${tnFilingState.note}` : ''}
+                                            {tnFilingState.reference_number ? ` · ${tnFilingState.reference_number}` : ''}
+                                            {tnFilingState.missing_fields?.length ? ` · missing: ${tnFilingState.missing_fields.join(', ')}` : ''}
+                                            {tnFilingState.attachment_results?.some((item) => item.error) ? ` · attachment: ${tnFilingState.attachment_results.find((item) => item.error)?.error}` : ''}
+                                        </div>
+                                    )}
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                        <Button size="sm" variant="outline" disabled={busy} onClick={handleTamilNaduPrepareToSubmit}>
+                                            {busy ? <Loader2 size={14} className="animate-spin" /> : 'Prepare to submit'}
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            disabled={busy || tnFilingState?.state !== 'READY_TO_SUBMIT'}
+                                            onClick={handleTamilNaduSubmitConfirmed}
+                                        >
+                                            {busy ? <Loader2 size={14} className="animate-spin" /> : 'Submit grievance'}
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -3263,6 +3436,7 @@ export default function BriefcaseCaseModal({ caseItem, color, onClose, onStatusC
                                                 isMp={isMp}
                                                 onSubmitted={onStatusChange}
                                                 onGovtStateChange={handleGovtStateChange}
+                                                caseMedia={current.media || []}
                                             />
                                         </AccordionRow>
 

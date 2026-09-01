@@ -11,6 +11,7 @@ import logging
 import re
 import secrets
 import string
+import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone, date
 from typing import Optional
@@ -2285,7 +2286,8 @@ def get_case(case_id: int, user=Depends(get_current_user)):
 
     try:
         media_rows = _q("""
-            SELECT id, media_type, mime_type, file_name, caption, extracted_text, created_at
+            SELECT id, media_type, mime_type, file_name, caption, extracted_text, created_at,
+                   LENGTH(media_data) AS size_bytes
             FROM case_media
             WHERE tenant_id = :tid AND case_id = :cid
             ORDER BY id ASC
@@ -4165,13 +4167,19 @@ def govt_notify_citizen(case_id: int, user=Depends(get_current_user)):
 # ─────────────────────────────────────────
 # GOVERNMENT DEPARTMENT SYNC — live browser sessions
 # Real Playwright automation on this EC2 host: opens the actual portal,
-# auto-fills every field it has a calibrated selector for, and streams the
-# live page to the staff dashboard so they can solve the CAPTCHA/OTP and
-# click Submit themselves. See modules/govt_sync/browser_session.py.
+# streams the live page to the staff dashboard, and relays staff input back
+# into that real browser session. Staff solve CAPTCHA/OTP, type grievance
+# fields, and click Submit themselves. See modules/govt_sync/browser_session.py.
 # ─────────────────────────────────────────
 
 class GovtSessionStartRequest(BaseModel):
     retranslate: bool = False
+
+
+class GovtTamilNaduFilingAssistRequest(BaseModel):
+    fields: Optional[dict] = None
+    attachments: Optional[list[str]] = None
+    selected_media_ids: Optional[list[int]] = None
 
 
 def _get_ws_user(token: str) -> dict | None:
@@ -4354,6 +4362,216 @@ async def govt_capture_reference(case_id: int, session_id: str, user=Depends(get
 
     ref = await capture_reference(session_id)
     return {"reference_number": ref, "auto_captured": bool(ref)}
+
+
+def _get_tamil_nadu_live_filing_context(case_id: int, session_id: str, user: dict):
+    tid = get_tenant_or_fail(user)
+    from modules.govt_sync.browser_session import get_live_session
+    from modules.govt_sync.filing import get_filing_adapter
+
+    session = get_live_session(session_id)
+    if not session or session.tenant_id != tid or session.case_id != case_id:
+        raise HTTPException(404, "Live session not found")
+
+    case = _q_one(
+        "SELECT id, govt_status, govt_reference_number, govt_submission_worksheet "
+        "FROM cases WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+    if _govt_already_filed(case.get("govt_status"), case.get("govt_reference_number")):
+        raise HTTPException(409, _govt_already_filed_detail(case.get("govt_status"), case.get("govt_reference_number")))
+
+    adapter = get_filing_adapter(session.portal)
+    if not adapter or getattr(adapter, "state_key", "") != "tamil_nadu":
+        raise HTTPException(400, "This live session does not support Tamil Nadu filing assistance.")
+    return tid, session, case, adapter
+
+
+def _safe_media_suffix(file_name: str | None, mime_type: str | None) -> str:
+    raw = os.path.basename(file_name or "").strip()
+    _, ext = os.path.splitext(raw)
+    if ext and re.fullmatch(r"\.[A-Za-z0-9]{1,8}", ext):
+        return ext
+    mime = (mime_type or "").lower()
+    if "pdf" in mime:
+        return ".pdf"
+    if "png" in mime:
+        return ".png"
+    if "jpeg" in mime or "jpg" in mime:
+        return ".jpg"
+    if "mp4" in mime:
+        return ".mp4"
+    return ".bin"
+
+
+def _materialize_tn_case_media_attachments(tid: int, case_id: int, selected_media_ids: list[int] | None) -> tuple[list[str], list[dict]]:
+    ids = []
+    seen = set()
+    for raw_id in selected_media_ids or []:
+        try:
+            mid = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        if mid > 0 and mid not in seen:
+            ids.append(mid)
+            seen.add(mid)
+    if not ids:
+        return [], []
+
+    placeholders = ", ".join(f":mid_{i}" for i in range(len(ids)))
+    params = {"tid": tid, "cid": case_id, **{f"mid_{i}": mid for i, mid in enumerate(ids)}}
+    rows = _q(
+        f"""
+        SELECT id, media_data, mime_type, file_name
+        FROM case_media
+        WHERE tenant_id = :tid AND case_id = :cid AND id IN ({placeholders})
+        ORDER BY id ASC
+        """,  # nosec B608 — placeholders are generated and all media IDs are bound params.
+        params,
+    )
+    found = {int(row["id"]) for row in rows}
+    missing = [mid for mid in ids if mid not in found]
+    if missing:
+        raise HTTPException(404, f"Selected attachment not found for this case: {missing[0]}")
+
+    temp_paths = []
+    metas = []
+    for row in rows:
+        suffix = _safe_media_suffix(row.get("file_name"), row.get("mime_type"))
+        with tempfile.NamedTemporaryFile(prefix=f"needle-tn-case-{case_id}-media-{row['id']}-", suffix=suffix, delete=False) as tmp:
+            tmp.write(bytes(row["media_data"]))
+            temp_paths.append(tmp.name)
+        metas.append({
+            "media_id": row["id"],
+            "file_name": row.get("file_name") or os.path.basename(temp_paths[-1]),
+            "mime_type": row.get("mime_type"),
+            "temp_path": temp_paths[-1],
+        })
+    return temp_paths, metas
+
+
+def _cleanup_materialized_attachments(paths: list[str]) -> None:
+    for path in paths:
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+        except Exception:
+            logger.debug("Could not clean up temporary Tamil Nadu attachment file")
+
+
+@router.post("/cases/{case_id}/govt/session/{session_id}/tamil-nadu/prepare-to-submit")
+async def govt_tamil_nadu_prepare_to_submit(
+    case_id: int,
+    session_id: str,
+    body: GovtTamilNaduFilingAssistRequest,
+    user=Depends(get_current_user),
+):
+    """Fill the authenticated Tamil Nadu form up to the human submit boundary.
+
+    This endpoint never clicks the irreversible government Submit button and
+    never attempts to answer OTP/CAPTCHA prompts. It operates only on this
+    tenant's existing live browser session.
+    """
+    tid, session, case, adapter = _get_tamil_nadu_live_filing_context(case_id, session_id, user)
+    worksheet = _parse_meta(case.get("govt_submission_worksheet"))
+    materialized_paths = []
+    try:
+        media_paths, media_meta = _materialize_tn_case_media_attachments(tid, case_id, body.selected_media_ids)
+        materialized_paths.extend(media_paths)
+        attachment_paths = [*(body.attachments or []), *media_paths]
+        result = await adapter.prepare_to_submit(session.page, worksheet, body.fields or {}, attachment_paths)
+    except Exception as e:
+        if e.__class__.__name__ == "PortalValidationError":
+            result = {
+                "state": "VALIDATION_ERROR",
+                "note": str(e),
+                "missing_fields": getattr(e, "missing_fields", []),
+                "validation_errors": [str(e)],
+                "human_checkpoints": [],
+                "fields": {},
+                "reference_number": None,
+                "short_id": None,
+                "current_url": session.page.url,
+            }
+        elif isinstance(e, HTTPException):
+            raise
+        else:
+            logger.error("Tamil Nadu filing prepare failed for case %s session %s: %s", case_id, session_id, e)
+            _log_govt_action(tid, case_id, "TN_FIELD_VALIDATION_ERROR", user.get("username"), payload={"session_id": session_id})
+            raise HTTPException(502, "Tamil Nadu filing assistant could not prepare the form.")
+    else:
+        result = result.to_dict()
+        if result.get("attachment_results"):
+            by_path = {item["temp_path"]: item for item in media_meta}
+            enriched = []
+            for item in result["attachment_results"]:
+                meta = by_path.get(item.get("source_path"))
+                if meta:
+                    item = {**item, "media_id": meta["media_id"], "file_name": meta["file_name"], "mime_type": meta["mime_type"]}
+                item.pop("source_path", None)
+                enriched.append(item)
+            result["attachment_results"] = enriched
+    finally:
+        _cleanup_materialized_attachments(materialized_paths)
+
+    action_by_state = {
+        "AUTH_REQUIRED": "TN_AUTH_REQUIRED",
+        "OTP_REQUIRED": "TN_OTP_REQUIRED",
+        "CAPTCHA_REQUIRED": "TN_CAPTCHA_REQUIRED",
+        "FORM_LOADING": "TN_FORM_OPENED",
+        "VALIDATION_ERROR": "TN_FIELD_VALIDATION_ERROR",
+        "ATTACHMENT_ERROR": "TN_ATTACHMENT_ERROR",
+        "READY_TO_SUBMIT": "TN_READY_TO_SUBMIT",
+        "SESSION_EXPIRED": "TN_SESSION_EXPIRED",
+        "PORTAL_ERROR": "TN_PORTAL_ERROR",
+    }
+    _log_govt_action(
+        tid,
+        case_id,
+        action_by_state.get(result.get("state"), "TN_FILING_STARTED"),
+        user.get("username"),
+        payload={"session_id": session_id, "state": result.get("state")},
+    )
+    return {"success": True, **result}
+
+
+@router.post("/cases/{case_id}/govt/session/{session_id}/tamil-nadu/submit-confirmed")
+async def govt_tamil_nadu_submit_confirmed(case_id: int, session_id: str, user=Depends(get_current_user)):
+    """Click Tamil Nadu Submit only after explicit staff confirmation."""
+    tid, session, _case, adapter = _get_tamil_nadu_live_filing_context(case_id, session_id, user)
+    _log_govt_action(tid, case_id, "TN_SUBMIT_CONFIRMED", user.get("username"), payload={"session_id": session_id})
+    result = await adapter.submit_confirmed(session.page)
+    payload = result.to_dict()
+
+    if result.state == "SUBMITTED" and result.reference_number:
+        saved = govt_submit_case(case_id, GovtSubmitRequest(reference_number=result.reference_number), user)
+        _log_govt_action(
+            tid,
+            case_id,
+            "TN_REFERENCE_CAPTURED",
+            user.get("username"),
+            payload={"session_id": session_id, "reference_number": result.reference_number},
+        )
+        return {"success": True, "saved": saved, **payload}
+
+    action_by_state = {
+        "REFERENCE_CAPTURE_FAILED": "TN_REFERENCE_CAPTURED",
+        "SUBMISSION_AMBIGUOUS": "TN_SUBMISSION_AMBIGUOUS",
+        "OTP_REQUIRED": "TN_OTP_REQUIRED",
+        "CAPTCHA_REQUIRED": "TN_CAPTCHA_REQUIRED",
+        "AUTH_REQUIRED": "TN_AUTH_REQUIRED",
+    }
+    _log_govt_action(
+        tid,
+        case_id,
+        action_by_state.get(result.state, "TN_SUBMITTED"),
+        user.get("username"),
+        payload={"session_id": session_id, "state": result.state},
+    )
+    return {"success": result.state == "REFERENCE_CAPTURE_FAILED", **payload}
 
 
 @router.post("/cases/{case_id}/govt/session/{session_id}/close")
