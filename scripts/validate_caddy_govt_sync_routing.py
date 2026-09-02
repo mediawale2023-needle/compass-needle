@@ -96,6 +96,14 @@ CASES = [
     ("GET", "/api/govt/session/abc123/stream", "backend_govt_live"),
     ("POST", "/api/cases/20/govt/session/abc123/capture-reference", "backend_govt_live"),
     ("POST", "/api/cases/20/govt/session/abc123/close", "backend_govt_live"),
+    # Tamil Nadu status-check live session (2026-09-02) — regression case for
+    # the exact gap this script exists to catch: these two routes shipped
+    # without being added to @govt_live, so start-status-check silently fell
+    # through to the multi-worker `backend` below while its /stream WebSocket
+    # correctly landed on backend_govt_live — two different processes, so the
+    # live browser view never found its own session and hung on "Connecting…".
+    ("POST", "/api/cases/20/govt/session/start-status-check", "backend_govt_live"),
+    ("POST", "/api/cases/20/govt/session/abc123/tamil-nadu/check-status", "backend_govt_live"),
 ]
 
 

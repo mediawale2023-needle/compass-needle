@@ -45,7 +45,16 @@ api.theneedle.in {
 	# real routes are "sessions" (plural). Every pattern below is written
 	# for the exact real route it targets, none relying on a wildcard
 	# spanning more than the one segment it's meant to.
-	@govt_live path /api/cases/*/govt/session/start /api/cases/*/govt/session/*/capture-reference /api/cases/*/govt/session/*/close /api/govt/session/*/stream /api/govt/sessions /api/govt/sessions/close-all /api/govt/sessions/*/close /api/cases/*/govt/status-check/start /api/cases/*/govt/status-check/*/advance
+	#
+	# Tamil Nadu status-check live session (2026-09-02): the same class of
+	# gap recurred when these two routes shipped without being added here —
+	# start-status-check fell through to the plain multi-worker `backend`
+	# below, so the Playwright session it opened lived in a process the
+	# @govt_live-routed /stream WebSocket (correctly sent to
+	# backend_govt_live) could never see, and the live browser view hung on
+	# "Connecting..." forever instead of showing the portal. Every new
+	# govt/session route must be added here, not just the WebSocket one.
+	@govt_live path /api/cases/*/govt/session/start /api/cases/*/govt/session/start-status-check /api/cases/*/govt/session/*/capture-reference /api/cases/*/govt/session/*/close /api/cases/*/govt/session/*/tamil-nadu/check-status /api/govt/session/*/stream /api/govt/sessions /api/govt/sessions/close-all /api/govt/sessions/*/close /api/cases/*/govt/status-check/start /api/cases/*/govt/status-check/*/advance
 	reverse_proxy @govt_live backend_govt_live:8000
 
 	reverse_proxy backend:8000
