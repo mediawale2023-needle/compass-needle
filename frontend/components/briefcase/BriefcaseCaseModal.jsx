@@ -1620,6 +1620,29 @@ function GovtLiveBrowserView({ wsPath, viewport, onClose, onSessionGone, prepare
 // LOCKED until this complaint is escalated — filing is a deliberate staff
 // decision made after reviewing the citizen's complaint, not something that
 // happens automatically the moment a case is opened.
+
+// Pure, exported so they're independently testable without rendering the
+// whole modal. Two DIFFERENT questions — do not conflate them:
+//   - isTamilNaduLiveSessionActive: is a live browser session CURRENTLY OPEN
+//     for Tamil Nadu right now? Derived ONLY from the open session's own
+//     portal name. Must NOT fall back to the tenant's resolved state — doing
+//     that once made this true before any session existed, which hid
+//     "Verify on Tamil Nadu portal" and routed straight to "Check Tamil Nadu
+//     status" with no session to check (a silent no-op click).
+//   - isTamilNaduResolvedPortal: is this tenant's resolved government portal
+//     Tamil Nadu at all? Independent of whether a session is open — used to
+//     decide whether the assisted (browser-session) status flow applies to
+//     this tenant in the first place.
+export function isTamilNaduLiveSessionActive(livePortalName) {
+    const name = String(livePortalName || '').toLowerCase();
+    return name.includes('tamil nadu') || name.includes('mudhalvarin mugavari');
+}
+
+export function isTamilNaduResolvedPortal(portalName, state) {
+    const name = `${portalName || ''} ${state || ''}`.toLowerCase();
+    return name.includes('tamil nadu') || name.includes('mudhalvarin mugavari');
+}
+
 const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSubmitted, onGovtStateChange }, ref) {
     const toast = useToast();
     // The portal a tenant can use is derived server-side from tenant -> constituency
@@ -1877,16 +1900,14 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     }
 
     function isTamilNaduSession() {
-        const name = `${liveSession?.portal_name || ''} ${resolvedPortal?.state || ''}`.toLowerCase();
-        return name.includes('tamil nadu') || name.includes('mudhalvarin mugavari');
+        return isTamilNaduLiveSessionActive(liveSession?.portal_name);
     }
 
     // Whether this tenant's resolved portal is Tamil Nadu — independent of
     // whether a live session is open (used to route the already-filed
     // status-check controls to the assisted flow).
     function isTamilNaduPortal() {
-        const name = `${resolvedPortal?.portal?.portal_name || ''} ${resolvedPortal?.state || ''}`.toLowerCase();
-        return name.includes('tamil nadu') || name.includes('mudhalvarin mugavari');
+        return isTamilNaduResolvedPortal(resolvedPortal?.portal?.portal_name, resolvedPortal?.state);
     }
 
     async function handleStartTnStatusSession() {
