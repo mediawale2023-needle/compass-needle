@@ -870,7 +870,8 @@
       "selectors": {},
       "reference_selector": null,
       "reference_regex": null,
-      "post_login_entry_path": null
+      "post_login_entry_path": null,
+      "status_area_path": "/portal/ta/myarea"
     },
     "department_taxonomy": {
       "Infrastructure & Utilities": "Public Works Department / Housing and Urban Development Department / Municipal Administration and Water Supply Department",

@@ -4356,6 +4356,225 @@ async def govt_capture_reference(case_id: int, session_id: str, user=Depends(get
     return {"reference_number": ref, "auto_captured": bool(ref)}
 
 
+def _get_tamil_nadu_live_status_context(case_id: int, session_id: str, user: dict):
+    """Live-session context for READING a filed Tamil Nadu grievance's status.
+
+    A status read only makes sense once the case IS filed and has a reference
+    number already on file (recorded the same way as any other portal, via
+    the existing capture-reference / govt/submit flow).
+    """
+    tid = get_tenant_or_fail(user)
+    from modules.govt_sync.browser_session import get_live_session
+    from modules.govt_sync.status import get_status_adapter
+
+    session = get_live_session(session_id)
+    if not session or session.tenant_id != tid or session.case_id != case_id:
+        raise HTTPException(404, "Live session not found")
+
+    case = _q_one(
+        "SELECT id, govt_status, govt_reference_number "
+        "FROM cases WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+    reference_number = _govt_stored_reference(case.get("govt_reference_number"))
+    if not reference_number:
+        raise HTTPException(400, "No reference number recorded yet — record it first, then check status.")
+
+    adapter = get_status_adapter(session.portal)
+    if not adapter or getattr(adapter, "state_key", "") != "tamil_nadu":
+        raise HTTPException(400, "This live session does not support Tamil Nadu status checking.")
+    return tid, session, case, adapter, reference_number
+
+
+@router.post("/cases/{case_id}/govt/session/start-status-check")
+async def govt_start_tn_status_check_session(case_id: int, user=Depends(get_current_user)):
+    """Open a live, staff-controlled browser session to READ a filed grievance's
+    status on a login-gated portal (currently Tamil Nadu CM Helpline).
+
+    Distinct from POST .../govt/session/start, which is for FILING and refuses
+    an already-filed case. This one *requires* the case to be filed, and the
+    session it opens never fills, submits, edits, or replies to anything —
+    staff sign in (and clear any OTP/CAPTCHA), then Needle only navigates to
+    My Petitions and reads. See modules/govt_sync/status/.
+    """
+    tid = get_tenant_or_fail(user)
+    case = _q_one(
+        "SELECT id, govt_status, govt_reference_number, govt_portal_id "
+        "FROM cases WHERE id = :cid AND tenant_id = :tid AND (is_deleted = false OR is_deleted IS NULL)",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+    if not _govt_already_filed(case.get("govt_status"), case.get("govt_reference_number")):
+        raise HTTPException(400, "This case hasn't been filed on the government portal yet — nothing to check.")
+    if not _govt_stored_reference(case.get("govt_reference_number")):
+        raise HTTPException(400, "No reference number recorded yet — record it first, then check status.")
+
+    portal, state = _resolve_govt_portal_for_tenant(tid)
+    if not portal:
+        raise HTTPException(400, f"No government portal configured for {('state ' + state) if state else 'this tenant'} yet.")
+
+    from modules.govt_sync.status import get_status_adapter
+    status_adapter = get_status_adapter(portal)
+    if not status_adapter or getattr(status_adapter, "state_key", "") != "tamil_nadu":
+        raise HTTPException(400, f"{portal['portal_name']} doesn't support an assisted status check — use \"Check status now\".")
+
+    # Same infrastructure gates as the filing session-start path.
+    if not portal.get("live_session_supported", True):
+        raise HTTPException(403, f"Live browser sessions aren't available for {portal['portal_name']}.")
+    if not _govt_live_automation_enabled():
+        raise HTTPException(403, "Automated portal sessions are currently off.")
+
+    # Land staff on My Petitions after they log in, not any filing form. Done
+    # purely by handing browser_session a portal dict whose post-login path is
+    # the status area — it reads that key generically, so this needs no change
+    # to browser_session.py.
+    field_schema = dict(portal.get("field_schema") or {})
+    status_area_path = field_schema.get("status_area_path") or "/portal/ta/myarea"
+    status_portal = {**portal, "field_schema": {**field_schema, "post_login_entry_path": status_area_path}}
+
+    from modules.govt_sync.browser_session import start_session, VIEWPORT, list_session_metas
+    try:
+        session = await start_session(tid, case_id, status_portal)
+    except RuntimeError as e:
+        mine = list_session_metas(tid)
+        extra = f" {len(mine)} of them belong to this office — end one in Government Portal, then retry." if mine else " End an open session, then retry."
+        raise HTTPException(409, str(e).rstrip(".") + "." + extra)
+    except Exception as e:
+        logger.error("Govt sync: Tamil Nadu status-check session failed to open for case %s: %s", case_id, e)
+        raise HTTPException(502, "Could not open the portal — try again in a moment.")
+
+    _log_govt_action(tid, case_id, "TN_STATUS_SESSION_STARTED", user.get("username"), payload={
+        "portal": portal["portal_name"], "session_id": session.session_id,
+    })
+    return {
+        "success": True,
+        "session_id": session.session_id,
+        "ws_path": f"/api/govt/session/{session.session_id}/stream",
+        "portal_name": portal["portal_name"],
+        "reference_number": case["govt_reference_number"],
+        "viewport": VIEWPORT,
+        "status_check": True,
+    }
+
+
+@router.post("/cases/{case_id}/govt/session/{session_id}/tamil-nadu/check-status")
+async def govt_tamil_nadu_check_status(case_id: int, session_id: str, user=Depends(get_current_user)):
+    """Read this filed grievance's status from the authenticated Tamil Nadu
+    portal in an open live session.
+
+    Never signs in, never answers OTP/CAPTCHA, never submits/edits/replies.
+    Returns either a human-checkpoint state (staff acts in the browser, then
+    calls this again — no status is written) or a read result. A successful
+    read reuses the existing status_polled / status_check_inconclusive
+    persistence exactly as the non-interactive poll paths do.
+    """
+    tid, session, case, adapter, reference_number = _get_tamil_nadu_live_status_context(case_id, session_id, user)
+
+    from modules.govt_sync.status import HUMAN_CHECKPOINT_STATES
+    from modules.govt_sync.status.base import StatusCheckState
+
+    try:
+        result = await adapter.check_status_on_page(session.page, reference_number)
+    except Exception as e:
+        logger.error("Tamil Nadu status check failed for case %s session %s: %s", case_id, session_id, e)
+        _log_govt_action(tid, case_id, "TN_STATUS_PORTAL_ERROR", user.get("username"), payload={"session_id": session_id})
+        raise HTTPException(502, "Tamil Nadu status check could not complete — verify manually on the portal.")
+
+    payload = result.to_dict()
+    state = result.state
+    portal_name = session.portal.get("portal_name") or case.get("portal_name")
+
+    tn_action = {
+        StatusCheckState.AUTH_REQUIRED: "TN_STATUS_AUTH_REQUIRED",
+        StatusCheckState.OTP_REQUIRED: "TN_STATUS_OTP_REQUIRED",
+        StatusCheckState.CAPTCHA_REQUIRED: "TN_STATUS_CAPTCHA_REQUIRED",
+        StatusCheckState.SESSION_EXPIRED: "TN_STATUS_SESSION_EXPIRED",
+        StatusCheckState.PETITIONS_LOADING: "TN_STATUS_PETITIONS_LOADING",
+        StatusCheckState.STATUS_FORM_LOADING: "TN_STATUS_FORM_LOADING",
+        StatusCheckState.CASE_NOT_FOUND: "TN_STATUS_CASE_NOT_FOUND",
+        StatusCheckState.AMBIGUOUS_MATCH: "TN_STATUS_AMBIGUOUS_MATCH",
+        StatusCheckState.PORTAL_ERROR: "TN_STATUS_PORTAL_ERROR",
+        StatusCheckState.STATUS_CHECK_INCONCLUSIVE: "TN_STATUS_INCONCLUSIVE",
+        StatusCheckState.STATUS_CHECKED: "TN_STATUS_CHECKED",
+    }.get(state, "TN_STATUS_INCONCLUSIVE")
+
+    # A human checkpoint is not a check outcome: log the checkpoint, hand the
+    # state back so the UI tells staff what to do in the browser, and write
+    # nothing to cases.govt_status / no status_polled / no inconclusive row.
+    if state in HUMAN_CHECKPOINT_STATES:
+        _log_govt_action(tid, case_id, tn_action, user.get("username"), payload={"session_id": session_id, "state": state})
+        return {"success": True, "changed": False, "checkpoint": True, **payload}
+
+    if state != StatusCheckState.STATUS_CHECKED or not result.normalized_status:
+        # Reached-but-unreadable, no match, ambiguous, still loading, portal
+        # error — persisted with the SAME action the non-interactive poll paths
+        # use for this (govt_poll_case, poller.py), so get_govt_forward_state's
+        # "last successfully checked" stays truthful.
+        _log_govt_action(
+            tid, case_id, "status_check_inconclusive", user.get("username"),
+            payload={
+                "portal": portal_name,
+                "raw_portal_status": result.raw_detail_status or result.raw_list_status,
+                "tn_state": state,
+                "session_id": session_id,
+            },
+        )
+        return {
+            "success": True, "changed": False, "checkpoint": False,
+            "note": result.note or "Portal check inconclusive — verify manually on the portal.",
+            **payload,
+        }
+
+    # Genuine success: the authenticated page was reached and a status was read
+    # AND it normalized cleanly.
+    old_status = case.get("govt_status")
+    normalized = result.normalized_status
+    changed = normalized != old_status
+    if changed:
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE cases SET govt_status = :status, govt_status_updated_at = :now WHERE id = :cid AND tenant_id = :tid"),
+                {"status": normalized, "now": _utcnow(), "cid": case_id, "tid": tid},
+            )
+
+    portal_detail = {
+        "status_text": result.raw_detail_status,
+        "sub_status_text": result.raw_list_status,
+        "department_name": result.department,
+        "last_action_date": result.last_updated,
+        "pendency_details": result.action_taken_report,
+        # Both raw portal strings kept verbatim alongside the display fields —
+        # the list card and the detail page can legitimately disagree.
+        "raw_list_status": result.raw_list_status,
+        "raw_detail_status": result.raw_detail_status,
+        "replies": payload["replies"],
+    }
+    portal_detail = {k: v for k, v in portal_detail.items() if v not in (None, "", [])}
+    _log_govt_action(
+        tid, case_id, "status_polled", user.get("username"),
+        payload={
+            "old_status": old_status,
+            "new_status": normalized,
+            "raw_portal_status": result.raw_detail_status or result.raw_list_status,
+            "portal_detail": portal_detail,
+            "portal": portal_name,
+            "changed": changed,
+            "channel": "tn_live_status",
+            "session_id": session_id,
+        },
+    )
+    return {
+        "success": True,
+        "changed": changed,
+        "checkpoint": False,
+        "govt_status": normalized if changed else old_status,
+        **payload,
+    }
+
+
 @router.post("/cases/{case_id}/govt/session/{session_id}/close")
 async def govt_close_live_session(case_id: int, session_id: str, user=Depends(get_current_user)):
     tid = get_tenant_or_fail(user)
