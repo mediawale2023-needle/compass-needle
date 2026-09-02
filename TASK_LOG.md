@@ -12,6 +12,18 @@ Chronological log of completed repository work. Read before making changes to un
 
 ## Entries
 
+- Date: 2026-09-02
+- Request: Implement Tamil Nadu status selector calibration from verified authenticated live DOM evidence; do not calibrate beyond the evidence, mutate the government portal, commit, push, deploy, or touch protected state adapters.
+- Summary: Replaced the TN status reader's unverified generic card/list/detail heuristics with verified CM Helpline selectors: `.TicketListItem__container` cards, `[data-id^='ticket_title_']` full-reference/title links, `[data-id^='ticket_id_']` short IDs, `[data-id^='createdTime_'][title]` created timestamps, scoped `[data-id='ticket_department_name']`, `.TicketListItem_status .Badge__badge`, empty state selectors, `.TicketDetailLeftContainer__wrapper`, and `[data-id='ticket_status_value']`. Preserved exact full-reference matching first, unique short-ID fallback only, separate raw list/detail statuses, and fail-closed behavior. Stopped inferring Action Taken Report from parent body; ATR is read only from accessible child frames such as `*.zappsusercontent.in`, otherwise an explicit unavailable value is returned. Replies remain empty until a stable officer reply/comment selector is verified.
+- Files touched: `modules/govt_sync/status/base.py`, `modules/govt_sync/status/tamil_nadu.py`, `tests/test_tamil_nadu_status.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Live portal read still needs a real authenticated non-mutating run using the calibrated selectors. `Pending Action` remains raw-preserved but only succeeds if existing normalization maps the chosen detail/list wording. Requested TN/Karnataka/Maharashtra/Rajasthan-relevant regressions passed; protected state adapter diffs remained empty.
+
+- Date: 2026-09-02
+- Request: Build a temporary development-only, read-only Playwright DOM inspection bridge for authenticated government live sessions; do not calibrate selectors, commit, push, deploy, or touch protected state adapters.
+- Summary: Added `GET /api/dev/govt/session/{session_id}/dom`, hard-disabled in production and disabled by default unless `GOVT_SYNC_DEV_DOM_INSPECTION=true`. The endpoint reuses normal Needle auth, requires tenant-owned live-session ownership, rejects missing/cross-tenant/non-govt sessions, and calls a narrow read-only `inspect_live_session_dom()` helper on the existing in-memory Playwright `session.page`. The helper returns bounded/redacted URL, title, body text, sanitized HTML, structural elements, and accessible frame snapshots without input values, cookies/storage/tokens, caller-supplied JS, navigation, clicks, typing, uploads, or submit actions. TN status selectors and filing code were not changed.
+- Files touched: `api_router.py`, `modules/govt_sync/browser_session.py`, `tests/test_govt_live_dom_inspection.py`, `PROJECT_MEMORY.md`, `TASK_LOG.md`
+- Risks or follow-ups: Temporary local calibration aid only. Remove or keep flag-off before any production-facing release. Focused bridge tests and requested TN/Karnataka/Maharashtra regressions passed; protected Rajasthan/Karnataka/Maharashtra adapter diffs remained empty.
+
 - Date: 2026-09-01
 - Request: Commit and push the Tamil Nadu filing assistant implementation before production deployment.
 - Summary: Committed the Tamil Nadu human-assisted filing + attachment integration slice as `9208b2b4` (`Add Tamil Nadu filing assistant`) and pushed it to `origin/claude/case-detail-lifecycle-consolidation`. Confirmed this branch was exactly one commit ahead of `origin/main` before preparing the main deploy path, avoiding accidental inclusion of unrelated branch history.

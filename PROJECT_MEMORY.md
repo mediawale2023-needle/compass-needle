@@ -57,6 +57,8 @@ This file is the persistent working memory for Compass Needle. Read it before ma
 - Never build raw SQL from user input. Use bound parameters.
 - Never expose raw internal errors in API responses.
 - Treat WhatsApp, AI classification, and case query flows as high-impact surfaces because regressions are user-visible quickly.
+- The live government-portal DOM inspection bridge is a temporary development-only tool. It must stay disabled by default, reject `ENV=production` even when flagged on, require normal Needle auth plus tenant-owned live-session ownership, and expose only bounded/redacted read-only snapshots. It must never grow browser-control actions, arbitrary JavaScript execution, cookies/storage/token access, or production routing.
+- Tamil Nadu CM Helpline status checks are calibrated against verified authenticated live DOM selectors: petition cards are `.TicketListItem__container` with `[data-id^='ticket_title_']`, `[data-id^='ticket_id_']`, scoped `[data-id='ticket_department_name']`, `[data-id^='createdTime_'][title]`, and `.TicketListItem_status .Badge__badge`; detail status comes from `[data-id='ticket_status_value']`. The Action Taken Report area lives in a `*.zappsusercontent.in` iframe, so never infer ATR from the parent document; only read it from an accessible child frame or report it unavailable.
 
 ## Fragile Or High-Risk Areas
 

@@ -870,7 +870,8 @@
       "selectors": {},
       "reference_selector": null,
       "reference_regex": "\\bTN/[A-Z0-9]+/[A-Z0-9]+/[A-Z]/PORTAL/[0-9A-Z]{7}/[0-9]{5,}\\b",
-      "post_login_entry_path": "/portal/ta/newticket"
+      "post_login_entry_path": "/portal/ta/newticket",
+      "status_area_path": "/portal/ta/myarea"
     },
     "department_taxonomy": {
       "Infrastructure & Utilities": "Public Works Department / Housing and Urban Development Department / Municipal Administration and Water Supply Department",

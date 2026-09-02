@@ -83,6 +83,67 @@ _DEFAULT_REFERENCE_REGEX = r"\b[A-Z]{2,10}[/\-][A-Z0-9]{2,10}[/\-][0-9]{2,10}[/\
 # everywhere instead of needing per-portal selector configuration.
 _ENGLISH_TOGGLE_TEXTS = ["English", "ENGLISH", "English Version", "View in English", "EN"]
 
+_DEV_DOM_MAX_BODY_CHARS = 12_000
+_DEV_DOM_MAX_HTML_CHARS = 30_000
+_DEV_DOM_MAX_ELEMENTS = 160
+_DEV_DOM_MAX_TEXT_CHARS = 800
+_DEV_DOM_ALLOWED_ATTRS = (
+    "id", "name", "type", "role", "aria-label", "aria-labelledby",
+    "aria-describedby", "placeholder", "title", "href", "class",
+    "data-testid", "data-test", "data-cy",
+)
+_DEV_DOM_SENSITIVE_ATTR_RE = re.compile(r"(password|passwd|pwd|otp|token|secret|cookie|auth|session|csrf)", re.I)
+_DEV_DOM_SENSITIVE_TEXT_RE = re.compile(
+    r"(?i)\b(password|passwd|pwd|otp|one[- ]?time password|token|secret|cookie|authorization|bearer|csrf)\b"
+    r"(\s*[:=\-]?\s*)([^\s<,;]{2,})"
+)
+_DEV_DOM_REFERENCE_RE = re.compile(r"\bTN/[A-Z0-9]+/[A-Z0-9]+/[A-Z]/PORTAL/[0-9A-Z]{7}/[0-9]{5,}\b")
+_DEV_DOM_RELEVANT_TEXT_RE = re.compile(
+    r"(petition|grievance|ticket|complaint|status|pending|received|disposed|resolved|closed|"
+    r"under process|action taken|reply|remark|department|last updated|#\d{5,}|"
+    r"மனு|குறை|நிலை|துறை)",
+    re.I,
+)
+_DEV_DOM_STRUCTURAL_SELECTORS = (
+    "input", "textarea", "select", "button", "a", "iframe", "[role]",
+)
+_DEV_DOM_RELEVANT_SELECTORS = (
+    "article", "li", "tr", "td", "th", "section", "div", "span", "p", "label",
+)
+
+
+def _truncate(value: str | None, limit: int) -> str:
+    text = "" if value is None else str(value)
+    if len(text) <= limit:
+        return text
+    return text[:limit] + f"... [truncated {len(text) - limit} chars]"
+
+
+def _redact_dev_dom_text(value: str | None) -> str:
+    text = "" if value is None else str(value)
+    text = _DEV_DOM_SENSITIVE_TEXT_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}[REDACTED]", text)
+    text = re.sub(
+        r"(?i)\s+[a-z0-9:_-]*(password|passwd|pwd|otp|token|secret|cookie|auth|session|csrf)[a-z0-9:_-]*"
+        r"\s*=\s*(?:(['\"])[^'\"]*\2|[^\s>]+)",
+        " data-redacted=\"[REDACTED]\"",
+        text,
+    )
+    text = re.sub(
+        r"(?i)(value|content)\s*=\s*(['\"])[^'\"]*(password|otp|token|secret|cookie|auth|csrf)[^'\"]*\2",
+        r"\1=\2[REDACTED]\2",
+        text,
+    )
+    text = re.sub(r"(?i)\b(value)\s*=\s*(['\"])[^'\"]*\2", r"\1=\2[REDACTED]\2", text)
+    return text
+
+
+def _safe_dev_dom_attr(name: str, value: str | None) -> str | None:
+    if value is None or _DEV_DOM_SENSITIVE_ATTR_RE.search(name or ""):
+        return None
+    if (name or "").lower() == "href" and str(value).lower().startswith("javascript:"):
+        return "[REDACTED]"
+    return _truncate(_redact_dev_dom_text(value), 500)
+
 
 async def _ensure_english(page) -> bool:
     """Best-effort click of a visible English-language toggle. Returns True
@@ -424,6 +485,141 @@ def get_live_session(session_id: str) -> LiveSession | None:
     tenant/case ownership before operating on the returned session.
     """
     return _sessions.get(session_id)
+
+
+def is_session_expired(session_id: str) -> bool:
+    session = _sessions.get(session_id)
+    if not session:
+        return True
+    return (time.time() - session.last_activity_at) > SESSION_IDLE_SECONDS
+
+
+async def inspect_live_session_dom(session_id: str) -> dict | None:
+    """Read a bounded, redacted DOM snapshot from an existing live session.
+
+    Development-only callers use this to calibrate read-only selectors against
+    the real Playwright page after a human has authenticated in the streamed
+    browser. It deliberately exposes no browser-control primitive: no click,
+    no typing, no navigation, no caller-supplied JavaScript, no cookies/storage.
+    """
+    session = get_live_session(session_id)
+    if not session:
+        return None
+
+    async def _text_from(root) -> str:
+        try:
+            return _redact_dev_dom_text(await root.locator("body").inner_text(timeout=1500))
+        except Exception:
+            return ""
+
+    async def _html_from(root) -> str:
+        try:
+            return _redact_dev_dom_text(await root.content())
+        except Exception:
+            return ""
+
+    async def _element_snapshot(locator, tag_hint: str | None = None) -> dict | None:
+        try:
+            text = _redact_dev_dom_text(await locator.inner_text(timeout=800))
+        except Exception:
+            text = ""
+        attrs = {}
+        for attr in _DEV_DOM_ALLOWED_ATTRS:
+            try:
+                safe = _safe_dev_dom_attr(attr, await locator.get_attribute(attr, timeout=500))
+            except Exception:
+                safe = None
+            if safe not in (None, ""):
+                attrs[attr] = safe
+        tag = tag_hint or attrs.get("role") or "element"
+        return {
+            "tag": tag,
+            "role": attrs.get("role"),
+            "text": _truncate(text.strip(), _DEV_DOM_MAX_TEXT_CHARS),
+            "attributes": attrs,
+        }
+
+    async def _collect_elements(root) -> list[dict]:
+        elements: list[dict] = []
+        seen: set[tuple[str, str, str]] = set()
+
+        async def add_from_selector(selector: str, *, relevant_only: bool = False):
+            if len(elements) >= _DEV_DOM_MAX_ELEMENTS:
+                return
+            try:
+                loc = root.locator(selector)
+                count = min(await loc.count(), _DEV_DOM_MAX_ELEMENTS - len(elements))
+            except Exception:
+                return
+            for idx in range(count):
+                if len(elements) >= _DEV_DOM_MAX_ELEMENTS:
+                    return
+                item = loc.nth(idx)
+                snap = await _element_snapshot(item, selector)
+                if not snap:
+                    continue
+                text = snap.get("text") or ""
+                attrs = snap.get("attributes") or {}
+                useful = bool(text or attrs)
+                if relevant_only:
+                    useful = bool(_DEV_DOM_REFERENCE_RE.search(text) or _DEV_DOM_RELEVANT_TEXT_RE.search(text))
+                if not useful:
+                    continue
+                key = (selector, text[:120], json.dumps(attrs, sort_keys=True))
+                if key in seen:
+                    continue
+                seen.add(key)
+                elements.append(snap)
+
+        for selector in _DEV_DOM_STRUCTURAL_SELECTORS:
+            await add_from_selector(selector)
+        for selector in _DEV_DOM_RELEVANT_SELECTORS:
+            await add_from_selector(selector, relevant_only=True)
+        return elements
+
+    async def _frame_snapshot(frame, index: int) -> dict:
+        body_text = await _text_from(frame)
+        html = await _html_from(frame)
+        return {
+            "index": index,
+            "name": _truncate(getattr(frame, "name", "") or "", 200),
+            "url": _truncate(_redact_dev_dom_text(getattr(frame, "url", "") or ""), 2000),
+            "body_text": _truncate(body_text, _DEV_DOM_MAX_BODY_CHARS),
+            "html": _truncate(html, _DEV_DOM_MAX_HTML_CHARS),
+            "elements": await _collect_elements(frame),
+        }
+
+    page = session.page
+    body_text = await _text_from(page)
+    html = await _html_from(page)
+    try:
+        title = await page.title()
+    except Exception:
+        title = ""
+
+    frames = []
+    for idx, frame in enumerate(getattr(page, "frames", []) or []):
+        if idx == 0:
+            continue
+        frames.append(await _frame_snapshot(frame, idx))
+
+    return {
+        "session_id": session.session_id,
+        "case_id": session.case_id,
+        "portal_name": session.portal.get("portal_name"),
+        "url": _truncate(_redact_dev_dom_text(getattr(page, "url", "") or ""), 2000),
+        "title": _truncate(_redact_dev_dom_text(title), 500),
+        "body_text": _truncate(body_text, _DEV_DOM_MAX_BODY_CHARS),
+        "html": _truncate(html, _DEV_DOM_MAX_HTML_CHARS),
+        "elements": await _collect_elements(page),
+        "frames": frames,
+        "limits": {
+            "max_body_chars": _DEV_DOM_MAX_BODY_CHARS,
+            "max_html_chars": _DEV_DOM_MAX_HTML_CHARS,
+            "max_elements": _DEV_DOM_MAX_ELEMENTS,
+            "max_text_chars": _DEV_DOM_MAX_TEXT_CHARS,
+        },
+    }
 
 
 async def sweep_idle_sessions():
