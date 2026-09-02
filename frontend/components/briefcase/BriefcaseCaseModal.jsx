@@ -2274,12 +2274,9 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                             {isTamilNaduSession() && alreadyFiled && (
                                 <div style={{ border: `1px solid ${C.hair}`, background: C.surface, padding: 12, marginBottom: 10 }}>
                                     <div style={{ ...monoLbl, marginBottom: 8 }}>Tamil Nadu status check</div>
-                                    <div style={{ fontSize: 11.5, color: C.ink2, lineHeight: 1.5, marginBottom: 10 }}>
-                                        Staff signs in and clears any OTP/CAPTCHA in this browser. Needle then only opens My Petitions and reads this grievance — it never submits, edits, or replies to anything.
+                                    <div style={{ fontSize: 11.5, color: C.ink2, lineHeight: 1.5 }}>
+                                        Staff signs in and clears any OTP/CAPTCHA in this browser. Needle then only opens My Petitions and reads this grievance — it never submits, edits, or replies to anything. Use "Check Tamil Nadu status" below once signed in.
                                     </div>
-                                    <Button size="sm" variant="outline" disabled={busy} onClick={handleTamilNaduCheckStatus}>
-                                        {busy ? <Loader2 size={14} className="animate-spin" /> : 'Check Tamil Nadu status'}
-                                    </Button>
                                     {tnStatusResult && (
                                         <div style={{
                                             fontSize: 11.5, marginTop: 8, padding: '8px 10px',
@@ -2411,7 +2408,11 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                             : 'Tamil Nadu status is only visible on the CM Helpline portal after a signed-in session. Opening the portal lets staff sign in; Needle then only reads this grievance from My Petitions — it never submits, edits, or replies to anything.'}
                                     </div>
                                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                        {!isTamilNaduSession() && (
+                                        {isTamilNaduSession() ? (
+                                            <Button size="sm" variant="outline" disabled={busy} onClick={handleTamilNaduCheckStatus}>
+                                                {busy ? <Loader2 size={14} className="animate-spin" /> : 'Check Tamil Nadu status'}
+                                            </Button>
+                                        ) : (
                                             <Button size="sm" variant="outline" disabled={liveConnecting} onClick={handleStartTnStatusSession}>
                                                 {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Verify on Tamil Nadu portal'}
                                             </Button>
