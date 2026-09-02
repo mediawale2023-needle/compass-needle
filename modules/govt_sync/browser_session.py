@@ -416,6 +416,16 @@ def get_session_meta(session_id: str) -> dict | None:
     }
 
 
+def get_live_session(session_id: str) -> LiveSession | None:
+    """Return the in-memory session object for server-side status/filing helpers.
+
+    Existing callers should keep using get_session_meta() unless they truly
+    need access to the Playwright page. API endpoints must still enforce
+    tenant/case ownership before operating on the returned session.
+    """
+    return _sessions.get(session_id)
+
+
 async def sweep_idle_sessions():
     """Close any session idle longer than SESSION_IDLE_SECONDS. Run on a timer from main.py."""
     now = time.time()

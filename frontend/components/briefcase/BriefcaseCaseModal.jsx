@@ -1640,6 +1640,9 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     const [interactiveAttempt, setInteractiveAttempt] = useState(null);
     const [interactiveAnswers, setInteractiveAnswers] = useState({ captcha: '', otp: '' });
     const [liveSession, setLiveSession] = useState(null); // { session_id, ws_path, viewport, portal_name }
+    // Last response from the Tamil Nadu assisted status-check endpoint. null
+    // until a check runs; carries { checkpoint, state, note, ... }.
+    const [tnStatusResult, setTnStatusResult] = useState(null);
     const [liveConnecting, setLiveConnecting] = useState(false);
     const liveSessionRef = useRef(null); // mirrors liveSession so the unmount cleanup below sees the latest value, not a stale closure
     const [hostedSessions, setHostedSessions] = useState([]);
@@ -1651,6 +1654,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         setNeedsGovtVerification(false);
         setInteractiveAttempt(null);
         setInteractiveAnswers({ captcha: '', otp: '' });
+        setTnStatusResult(null);
         apiGet(`/api/cases/${caseId}/govt`).then(setGovtState).catch(() => setGovtState(null));
     }, [caseId]);
 
@@ -1867,6 +1871,83 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         } catch (e) {
             if (e.message === 'Live session not found') { handleSessionGone(); return; }
             toast.error(e.message || 'Capture failed');
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    function isTamilNaduSession() {
+        const name = `${liveSession?.portal_name || ''} ${resolvedPortal?.state || ''}`.toLowerCase();
+        return name.includes('tamil nadu') || name.includes('mudhalvarin mugavari');
+    }
+
+    // Whether this tenant's resolved portal is Tamil Nadu — independent of
+    // whether a live session is open (used to route the already-filed
+    // status-check controls to the assisted flow).
+    function isTamilNaduPortal() {
+        const name = `${resolvedPortal?.portal?.portal_name || ''} ${resolvedPortal?.state || ''}`.toLowerCase();
+        return name.includes('tamil nadu') || name.includes('mudhalvarin mugavari');
+    }
+
+    async function handleStartTnStatusSession() {
+        setLiveConnecting(true);
+        try {
+            const listed = await loadHostedSessions();
+            const existing = (listed?.sessions || []).find((item) => item.case_id === caseId);
+            if (existing) {
+                setLive(existing);
+                toast.success('Reconnected to the open Tamil Nadu session — sign in to continue');
+                return;
+            }
+            toast.info('Opening the Tamil Nadu portal…');
+            const result = await apiPost(`/api/cases/${caseId}/govt/session/start-status-check`, {});
+            setLive(result);
+            setTnStatusResult(null);
+            toast.success('Tamil Nadu portal open — sign in, then Check Tamil Nadu status');
+            await loadHostedSessions();
+        } catch (e) {
+            setLive(null);
+            await loadHostedSessions();
+            toast.error(e.message || 'Could not open the Tamil Nadu portal');
+        } finally {
+            setLiveConnecting(false);
+        }
+    }
+
+    async function handleTamilNaduCheckStatus() {
+        const session = liveSessionRef.current;
+        if (!session) return;
+        setBusy(true);
+        try {
+            const result = await apiPost(
+                `/api/cases/${caseId}/govt/session/${session.session_id}/tamil-nadu/check-status`, {},
+            );
+            setTnStatusResult(result);
+            if (result.checkpoint) {
+                const msg = {
+                    AUTH_REQUIRED: 'Sign in on the Tamil Nadu portal in the browser above, then Check Tamil Nadu status again.',
+                    SESSION_EXPIRED: 'The Tamil Nadu session expired — sign in again in the browser above, then check again.',
+                    OTP_REQUIRED: 'Enter the OTP on the Tamil Nadu portal in the browser above, then check again.',
+                    CAPTCHA_REQUIRED: 'Solve the CAPTCHA on the Tamil Nadu portal in the browser above, then check again.',
+                }[result.state] || 'The Tamil Nadu portal needs staff input in the browser above, then check again.';
+                toast.warning(msg);
+                return;
+            }
+            if (result.state === 'STATUS_CHECKED') {
+                const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
+                setGovtState(refreshed);
+                const raw = String(result.raw_detail_status || result.raw_list_status || '').trim();
+                toast.success(
+                    result.changed
+                        ? `Status updated: ${GOVT_STATUS_LABEL[result.govt_status] || result.govt_status}${raw ? ` (portal: ${raw})` : ''}`
+                        : (raw ? `Portal says: ${raw} — no change` : 'Status checked — no change'),
+                );
+                return;
+            }
+            toast.error(result.note || 'Tamil Nadu status check was inconclusive — verify manually on the portal.');
+        } catch (e) {
+            if (e.message === 'Live session not found') { handleSessionGone(); return; }
+            toast.error(e.message || 'Tamil Nadu status check failed');
         } finally {
             setBusy(false);
         }
@@ -2183,11 +2264,37 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                 workspaceMode={GOVT_FILING_WORKSPACE_SPIKE}
                                 portalName={liveSession.portal_name || resolvedPortal?.portal?.portal_name}
                             />
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                                <Button size="sm" variant="outline" disabled={busy} onClick={handleCaptureReference}>
-                                    {busy ? <Loader2 size={14} className="animate-spin" /> : 'Submitted — capture reference number'}
-                                </Button>
-                            </div>
+                            {!alreadyFiled && (
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                                    <Button size="sm" variant="outline" disabled={busy} onClick={handleCaptureReference}>
+                                        {busy ? <Loader2 size={14} className="animate-spin" /> : 'Submitted — capture reference number'}
+                                    </Button>
+                                </div>
+                            )}
+                            {isTamilNaduSession() && alreadyFiled && (
+                                <div style={{ border: `1px solid ${C.hair}`, background: C.surface, padding: 12, marginBottom: 10 }}>
+                                    <div style={{ ...monoLbl, marginBottom: 8 }}>Tamil Nadu status check</div>
+                                    <div style={{ fontSize: 11.5, color: C.ink2, lineHeight: 1.5, marginBottom: 10 }}>
+                                        Staff signs in and clears any OTP/CAPTCHA in this browser. Needle then only opens My Petitions and reads this grievance — it never submits, edits, or replies to anything.
+                                    </div>
+                                    <Button size="sm" variant="outline" disabled={busy} onClick={handleTamilNaduCheckStatus}>
+                                        {busy ? <Loader2 size={14} className="animate-spin" /> : 'Check Tamil Nadu status'}
+                                    </Button>
+                                    {tnStatusResult && (
+                                        <div style={{
+                                            fontSize: 11.5, marginTop: 8, padding: '8px 10px',
+                                            background: C.paper, border: `1px solid ${C.hair}`,
+                                            color: tnStatusResult.checkpoint ? C.saffron : C.ink2,
+                                        }}>
+                                            {tnStatusResult.checkpoint
+                                                ? 'Waiting on portal sign-in / OTP / CAPTCHA in the browser above — complete it, then Check again.'
+                                                : (tnStatusResult.state === 'STATUS_CHECKED'
+                                                    ? `Read from the portal — ${String(tnStatusResult.raw_detail_status || tnStatusResult.raw_list_status || 'status recorded').trim()}`
+                                                    : (tnStatusResult.note || 'Inconclusive — verify manually on the portal.'))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -2296,21 +2403,44 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                     </div>
                                 </div>
                             )}
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                <Button
-                                    size="sm" variant="outline"
-                                    disabled={busy || (interactiveStatusCheck && !!interactiveAttempt)}
-                                    onClick={interactiveStatusCheck ? handleStartInteractiveCheck : handlePollNow}
-                                >
-                                    {busy ? <Loader2 size={14} className="animate-spin" /> : 'Check status now'}
-                                </Button>
-                                {isMp && (
-                                    <Button size="sm" disabled={busy} onClick={handleNotifyCitizen}>
-                                        <Send size={13} style={{ marginRight: 6 }} />
-                                        Forward update to citizen
+                            {isTamilNaduPortal() ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    <div style={{ fontSize: 11, color: C.ink3, lineHeight: 1.5 }}>
+                                        {isTamilNaduSession()
+                                            ? 'A Tamil Nadu portal session is open above — sign in there, then use "Check Tamil Nadu status".'
+                                            : 'Tamil Nadu status is only visible on the CM Helpline portal after a signed-in session. Opening the portal lets staff sign in; Needle then only reads this grievance from My Petitions — it never submits, edits, or replies to anything.'}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                        {!isTamilNaduSession() && (
+                                            <Button size="sm" variant="outline" disabled={liveConnecting} onClick={handleStartTnStatusSession}>
+                                                {liveConnecting ? <Loader2 size={14} className="animate-spin" /> : 'Verify on Tamil Nadu portal'}
+                                            </Button>
+                                        )}
+                                        {isMp && (
+                                            <Button size="sm" disabled={busy} onClick={handleNotifyCitizen}>
+                                                <Send size={13} style={{ marginRight: 6 }} />
+                                                Forward update to citizen
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                    <Button
+                                        size="sm" variant="outline"
+                                        disabled={busy || (interactiveStatusCheck && !!interactiveAttempt)}
+                                        onClick={interactiveStatusCheck ? handleStartInteractiveCheck : handlePollNow}
+                                    >
+                                        {busy ? <Loader2 size={14} className="animate-spin" /> : 'Check status now'}
                                     </Button>
-                                )}
-                            </div>
+                                    {isMp && (
+                                        <Button size="sm" disabled={busy} onClick={handleNotifyCitizen}>
+                                            <Send size={13} style={{ marginRight: 6 }} />
+                                            Forward update to citizen
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </>
