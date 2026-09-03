@@ -1224,7 +1224,7 @@ function GovtSyncCopyField({ label, value }) {
     );
 }
 
-function formatGovtPortalDetailRows(statusCheck) {
+export function formatGovtPortalDetailRows(statusCheck) {
     const detail = statusCheck?.portal_detail || {};
     const rows = [
         ['Portal status', detail.status_text || statusCheck?.raw_portal_status],

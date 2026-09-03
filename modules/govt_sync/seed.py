@@ -4,9 +4,17 @@ modules/data/govt_portals.json seed file into the database.
 
 department_taxonomy and field_schema are treated as hand-verified data, not
 something inferred at runtime — see field_schema.taxonomy_verified in the
-seed file. Re-running this on every startup keeps the DB in sync with the
-JSON file (which is what ops actually edits), without ever touching
-per-case data (cases.govt_* columns are untouched by this seed).
+seed file. Re-running this on every startup keeps the reference/research
+columns (base_url, department_taxonomy, field_schema, otp_bound, ...) in
+sync with the JSON file (which is what ops actually edits), without ever
+touching per-case data (cases.govt_* columns are untouched by this seed).
+
+active/is_primary/verification_status/source_note/live_session_supported/
+status_check_adapter are operational/verification state, not reference
+data — an existing row's values for these are left untouched by the
+reseed once the row exists (see the ON CONFLICT clause below). A brand
+new portal row still gets its initial values from the JSON on first
+insert.
 """
 import json
 import logging
@@ -52,18 +60,23 @@ def seed_govt_portals() -> int:
                         status_check_mode = EXCLUDED.status_check_mode,
                         department_taxonomy = EXCLUDED.department_taxonomy,
                         field_schema = EXCLUDED.field_schema,
-                        otp_bound = EXCLUDED.otp_bound,
-                        verification_status = EXCLUDED.verification_status,
-                        source_note = EXCLUDED.source_note,
-                        live_session_supported = EXCLUDED.live_session_supported,
-                        status_check_adapter = EXCLUDED.status_check_adapter
-                        -- active/is_primary intentionally NOT overwritten on conflict — once a
-                        -- portal row exists, enabled/primary is admin-managed operational state
-                        -- (PATCH /admin/govt-portals/{id}), not something a reseed on every
-                        -- startup should silently flip. verification_status/source_note/
-                        -- live_session_supported/status_check_adapter are our own research/
-                        -- diagnostic findings, not admin-set operational state, so those do
-                        -- stay in sync with whatever's currently in the seed file.
+                        otp_bound = EXCLUDED.otp_bound
+                        -- active/is_primary/verification_status/source_note/
+                        -- live_session_supported/status_check_adapter are intentionally
+                        -- NOT overwritten on conflict. All six are operational/verification
+                        -- state that a live check or an admin can update after the row
+                        -- already exists (PATCH /admin/govt-portals/{id}), not something a
+                        -- reseed on every process start should silently flip back to
+                        -- whatever the checked-in JSON still says. This was previously
+                        -- documented as "these DO stay in sync with the seed file" and
+                        -- actually did overwrite them — a real Maharashtra pilot-readiness
+                        -- finding (2026-09): a manually-confirmed live connectivity/
+                        -- verification result would have been silently reverted on the
+                        -- very next deploy, with no error or log line calling it out. The
+                        -- remaining fields above (base_url, department_taxonomy,
+                        -- field_schema, ...) are genuinely research/reference data that
+                        -- ops edits only in the JSON file, so those still re-sync every
+                        -- start as before.
                 """),
                 {
                     "state": p["state"],
