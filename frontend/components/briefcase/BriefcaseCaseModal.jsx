@@ -1260,6 +1260,104 @@ function formatGovtCheckedAt(value) {
     return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+function govtHistoryFieldValue(field) {
+    if (!field || field.state !== 'present') return '';
+    const value = field.value;
+    if (value == null) return '';
+    if (typeof value === 'object') {
+        const parts = [value.name, value.designation].filter(Boolean);
+        return parts.length ? parts.join(' · ') : JSON.stringify(value);
+    }
+    return String(value).trim();
+}
+
+function govtHistoryEventText(event) {
+    if (!event) return '';
+    if (event.type === 'officer_changed') {
+        const from = [event.from?.name, event.from?.designation].filter(Boolean).join(' · ') || 'Not recorded';
+        const to = [event.to?.name, event.to?.designation].filter(Boolean).join(' · ') || 'Not recorded';
+        return `${from} → ${to}`;
+    }
+    if (event.type === 'comment_added' || event.type === 'reply_added') {
+        const c = event.communication || {};
+        return [c.author, c.text].filter(Boolean).join(': ') || 'New portal communication observed';
+    }
+    const from = typeof event.from === 'object' ? JSON.stringify(event.from) : String(event.from ?? 'Empty');
+    const to = typeof event.to === 'object' ? JSON.stringify(event.to) : String(event.to ?? 'Empty');
+    return `${from} → ${to}`;
+}
+
+function GovtHistoryPanel({ history }) {
+    if (!history?.latest_snapshot && !Object.keys(history?.latest_known || {}).length) return null;
+    const latestKnown = history.latest_known || {};
+    const latestSnapshot = history.latest_snapshot || {};
+    const events = Array.isArray(history.events) ? history.events.slice(0, 5) : [];
+    const snapshots = Array.isArray(history.snapshots) ? history.snapshots.slice(0, 4) : [];
+    const fields = [
+        ['Status', latestKnown.status],
+        ['Department', latestKnown.department],
+        ['Officer', latestKnown.officer],
+        ['Designation', latestKnown.designation],
+        ['Current position', latestKnown.current_position],
+    ].filter(([, field]) => govtHistoryFieldValue(field));
+    return (
+        <div style={{ fontSize: 11.5, color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: 10, marginBottom: 8 }}>
+            <div style={{ fontSize: 9.5, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+                Government case now
+                {formatGovtCheckedAt(history.current_state?.latest_successful_check_at) ? ` · last checked ${formatGovtCheckedAt(history.current_state.latest_successful_check_at)}` : ''}
+            </div>
+            {fields.length > 0 && (
+                <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+                    {fields.map(([label, field]) => (
+                        <div key={label} style={{ display: 'grid', gridTemplateColumns: '120px minmax(0, 1fr)', gap: 8 }}>
+                            <span style={{ color: C.ink3 }}>{label}</span>
+                            <span>
+                                <strong style={{ color: C.ink, fontWeight: 650 }}>{govtHistoryFieldValue(field)}</strong>
+                                {formatGovtCheckedAt(field.last_confirmed_at) && (
+                                    <span style={{ color: C.ink3 }}> · last confirmed {formatGovtCheckedAt(field.last_confirmed_at)}</span>
+                                )}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
+            {latestSnapshot.snapshot_status === 'partial' && (
+                <div style={{ background: C.paper, border: `1px solid ${C.hair}`, padding: '8px 10px', marginBottom: 10 }}>
+                    Latest check was partial. Unavailable fields did not replace the last confirmed values.
+                </div>
+            )}
+            {events.length > 0 ? (
+                <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+                    {events.map((event) => (
+                        <div key={event.id} style={{ borderLeft: `3px solid ${C.green}`, paddingLeft: 8 }}>
+                            <strong style={{ color: C.ink }}>{String(event.type || '').replace(/_/g, ' ')}</strong>
+                            <div>{govtHistoryEventText(event)}</div>
+                            {formatGovtCheckedAt(event.occurred_at) && <div style={{ color: C.ink3 }}>{formatGovtCheckedAt(event.occurred_at)}</div>}
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div style={{ background: C.greenWash, border: `1px solid ${C.greenTint}`, color: C.greenInk, padding: '8px 10px', marginBottom: 10 }}>
+                    Checked{formatGovtCheckedAt(latestSnapshot.captured_at) ? ` at ${formatGovtCheckedAt(latestSnapshot.captured_at)}` : ''}. No meaningful change detected.
+                </div>
+            )}
+            {snapshots.length > 0 && (
+                <div style={{ display: 'grid', gap: 5 }}>
+                    <div style={{ ...monoLbl, marginBottom: 0 }}>Full history</div>
+                    {snapshots.map((snapshot) => (
+                        <div key={snapshot.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                            <span>{formatGovtCheckedAt(snapshot.captured_at) || `Snapshot #${snapshot.id}`}</span>
+                            <span style={{ color: snapshot.event_count ? C.greenInk : C.ink3 }}>
+                                {snapshot.event_count ? `${snapshot.event_count} meaningful change${snapshot.event_count === 1 ? '' : 's'}` : 'No change'}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 // The government lifecycle stepper — identical visual for every state; only
 // the step labels / dates / active index differ per lifecycle state.
 function JourneyStepper({ steps, activeIndex, narrow }) {
@@ -1651,6 +1749,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
     // translate/session-start call regardless of anything sent from here.
     const [resolvedPortal, setResolvedPortal] = useState(null); // /api/govt-portal response
     const [govtState, setGovtState] = useState(null); // /api/cases/{id}/govt response
+    const [govtHistory, setGovtHistory] = useState(null); // /api/cases/{id}/govt/history response
     const [worksheet, setWorksheet] = useState(null);  // response from /govt/translate (includes portal_contact_number, staff_action_note)
     const [refInput, setRefInput] = useState('');
     const [busy, setBusy] = useState(false);
@@ -1679,6 +1778,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         setInteractiveAnswers({ captcha: '', otp: '' });
         setTnStatusResult(null);
         apiGet(`/api/cases/${caseId}/govt`).then(setGovtState).catch(() => setGovtState(null));
+        apiGet(`/api/cases/${caseId}/govt/history`).then(setGovtHistory).catch(() => setGovtHistory(null));
     }, [caseId]);
 
     useEffect(() => {
@@ -1796,6 +1896,13 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         setLiveSession(session);
     }
 
+    async function refreshGovtViews() {
+        const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
+        setGovtState(refreshed);
+        apiGet(`/api/cases/${caseId}/govt/history`).then(setGovtHistory).catch(() => setGovtHistory(null));
+        return refreshed;
+    }
+
     // The backend's live sessions live in one process's memory (see
     // modules/govt_sync/browser_session.py) — they don't survive that
     // process restarting, which happens on every backend deploy. If staff
@@ -1829,8 +1936,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
             const result = await apiPost(`/api/cases/${caseId}/govt/session/start`, {});
             setLive(result);
             toast.success('Live portal session open — log in to continue');
-            const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
-            setGovtState(refreshed);
+            await refreshGovtViews();
             await loadHostedSessions();
         } catch (e) {
             setLive(null);
@@ -1955,8 +2061,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                 return;
             }
             if (result.state === 'STATUS_CHECKED') {
-                const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
-                setGovtState(refreshed);
+                await refreshGovtViews();
                 const raw = String(result.raw_detail_status || result.raw_list_status || '').trim();
                 toast.success(
                     result.changed
@@ -1980,8 +2085,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         try {
             const result = await apiPost(`/api/cases/${caseId}/govt/translate`, {});
             setWorksheet(result);
-            const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
-            setGovtState(refreshed);
+            await refreshGovtViews();
             toast.success(`Worksheet ready for ${result.portal.portal_name}`);
         } catch (e) {
             toast.error(e.message || 'AI translation failed — try again');
@@ -1995,8 +2099,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         setBusy(true);
         try {
             const result = await apiPost(`/api/cases/${caseId}/govt/submit`, { reference_number: refInput.trim() });
-            const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
-            setGovtState(refreshed);
+            await refreshGovtViews();
             setRefInput('');
             if (liveSessionRef.current) {
                 await handleCloseLive();
@@ -2014,8 +2117,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
         setBusy(true);
         try {
             const result = await apiPost(`/api/cases/${caseId}/govt/poll`, {});
-            const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
-            setGovtState(refreshed);
+            await refreshGovtViews();
             setNeedsGovtVerification(!!result.needs_verification);
             if (result.needs_verification) {
                 toast.warning(result.note || 'Verify Rajasthan Sampark access under Settings → Government Portal, then try again.');
@@ -2072,8 +2174,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                 return;
             }
             if (result.state === 'complete') {
-                const refreshed = await apiGet(`/api/cases/${caseId}/govt`);
-                setGovtState(refreshed);
+                await refreshGovtViews();
                 setInteractiveAttempt(null);
                 setInteractiveAnswers({ captcha: '', otp: '' });
                 const raw = String(result.raw_portal_status || '').trim();
@@ -2338,6 +2439,7 @@ const GovtSyncSection = forwardRef(function GovtSyncSection({ caseId, isMp, onSu
                                     <> · updated {new Date(govtState.case.govt_status_updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</>
                                 )}
                             </div>
+                            <GovtHistoryPanel history={govtHistory} />
                             {formatGovtPortalDetailRows(govtState?.latest_status_check).length > 0 && (
                                 <div style={{ fontSize: 11.5, color: C.ink2, background: C.surface, border: `1px solid ${C.hair}`, padding: '10px', marginBottom: 8 }}>
                                     <div style={{ fontSize: 9.5, fontFamily: '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace', color: C.ink3, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>

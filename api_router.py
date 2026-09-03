@@ -3376,6 +3376,34 @@ def _govt_status_poll_payload(case: dict, result, portal_name: str | None = None
     }
 
 
+def _observe_govt_status_snapshot(
+    tenant_id: int,
+    case_id: int,
+    case: dict,
+    result,
+    *,
+    actor_username: str | None = None,
+    source_url: str | None = None,
+    adapter_key: str | None = None,
+) -> None:
+    try:
+        from modules.govt_sync.status_snapshot import persist_status_snapshot
+
+        persist_status_snapshot(
+            tenant_id=tenant_id,
+            case_id=case_id,
+            portal_id=case.get("portal_id") or case.get("govt_portal_id"),
+            reference_number=case.get("govt_reference_number"),
+            adapter_key=adapter_key or case.get("status_check_adapter") or case.get("portal_type"),
+            result=result,
+            portal_name=case.get("portal_name"),
+            source_url=source_url or case.get("status_check_url") or case.get("base_url"),
+            created_by=actor_username,
+        )
+    except Exception:
+        logger.exception("Govt status snapshot observer failed tenant=%s case=%s", tenant_id, case_id)
+
+
 def _latest_govt_status_check_payload(tenant_id: int, case_id: int) -> dict | None:
     row = _q_one(
         "SELECT payload, created_at FROM govt_submission_log "
@@ -3777,6 +3805,31 @@ def get_govt_forward_state(case_id: int, user=Depends(get_current_user)):
     }
 
 
+@router.get("/cases/{case_id}/govt/history")
+def get_govt_status_history(case_id: int, limit: int = Query(default=25, ge=1, le=100), before_snapshot_id: int | None = Query(default=None, ge=1), user=Depends(get_current_user)):
+    """Government status observation history for one tenant-scoped case."""
+    tid = get_tenant_or_fail(user)
+    case = _q_one(
+        """SELECT c.id, c.govt_portal_id, c.govt_reference_number, c.govt_status,
+                  c.govt_status_updated_at, p.id AS portal_id, p.portal_name, p.state AS portal_state
+           FROM cases c LEFT JOIN govt_portals p ON p.id = c.govt_portal_id
+           WHERE c.id = :cid AND c.tenant_id = :tid AND (c.is_deleted = false OR c.is_deleted IS NULL)""",
+        {"cid": case_id, "tid": tid},
+    )
+    if not case:
+        raise HTTPException(404, "Case not found")
+    from modules.govt_sync.status_snapshot import build_history_response
+
+    with engine.connect() as conn:
+        return build_history_response(
+            conn=conn,
+            tenant_id=tid,
+            case=case,
+            limit=limit,
+            before_snapshot_id=before_snapshot_id,
+        )
+
+
 @router.post("/cases/{case_id}/govt/resolution-review")
 def record_govt_resolution_review(case_id: int, body: GovtResolutionReviewRequest, user=Depends(get_current_user)):
     """Record a staff workflow decision after they reviewed the government's
@@ -3939,6 +3992,7 @@ def govt_poll_case(case_id: int, user=Depends(get_current_user)):
         user.get("username"),
         payload=_govt_status_poll_payload(case, result, case.get("portal_name")),
     )
+    _observe_govt_status_snapshot(tid, case_id, case, result, actor_username=user.get("username"))
 
     return {
         "success": True,
@@ -4132,6 +4186,7 @@ def govt_status_check_advance(case_id: int, attempt_id: str, body: GovtStatusChe
         user.get("username"),
         payload={**_govt_status_poll_payload(case, result, case.get("portal_name")), "attempt_id": attempt_id},
     )
+    _observe_govt_status_snapshot(tid, case_id, case, result, actor_username=user.get("username"))
 
     return {
         "success": True,
@@ -4565,6 +4620,22 @@ async def govt_tamil_nadu_check_status(case_id: int, session_id: str, user=Depen
             "channel": "tn_live_status",
             "session_id": session_id,
         },
+    )
+    from modules.govt_sync.adapters.base import StatusResult
+
+    _observe_govt_status_snapshot(
+        tid,
+        case_id,
+        case,
+        StatusResult(
+            status=normalized,
+            raw_portal_status=result.raw_detail_status or result.raw_list_status,
+            checked=True,
+            portal_detail=portal_detail,
+        ),
+        actor_username=user.get("username"),
+        source_url=result.current_url,
+        adapter_key="tamil_nadu_live_status",
     )
     return {
         "success": True,
