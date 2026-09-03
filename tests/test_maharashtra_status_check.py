@@ -183,7 +183,8 @@ def _seed_database():
     now = _utcnow()
 
     with test_engine.begin() as conn:
-        for table_name in ("govt_submission_log", "case_activity_log", "cases", "govt_portals",
+        for table_name in ("govt_status_snapshot_events", "govt_status_snapshot_fields", "govt_status_snapshots",
+                            "govt_submission_log", "case_activity_log", "cases", "govt_portals",
                             "tenant_overrides", "token_blocklist", "users", "tenant_profiles", "tenants"):
             conn.execute(text(f"DELETE FROM {table_name}"))  # nosec B608
 
@@ -646,6 +647,62 @@ def test_endpoint_full_three_stage_round_trip(mock_session_cls):
     assert len(log_rows) == 1
     logged_payload = json.loads(log_rows[0][0]) if isinstance(log_rows[0][0], str) else log_rows[0][0]
     assert logged_payload["attempt_id"] == attempt_id
+
+
+@patch("requests.Session")
+def test_endpoint_full_three_stage_round_trip_persists_snapshot_without_duplicate_events(mock_session_cls):
+    """Maharashtra pilot gap closed: prior coverage never proved a real
+    3-stage completion reaches the Phase 9 snapshot layer at all. A first
+    completion must persist exactly one govt_status_snapshots row and zero
+    events (first snapshot = baseline, per the approved snapshot contract).
+    A second, identical 3-stage run (repeated status check, unchanged
+    status) must persist a SECOND snapshot row (audit trail) but create NO
+    new events — this is the same "repeated identical successful reads
+    create snapshots without events" contract tested generically in
+    tests/test_govt_status_snapshot.py, exercised here through Maharashtra's
+    own real StatusResult/portal_detail shape end to end, not a synthetic one."""
+    _seed_database()
+    mock_session_cls.side_effect = _full_success_session_sequence()
+
+    attempt_id = client.post("/api/cases/30/govt/status-check/start", headers=_auth_headers()).json()["attempt_id"]
+    client.post(f"/api/cases/30/govt/status-check/{attempt_id}/advance", json={"captcha": "CAP1"}, headers=_auth_headers())
+    client.post(f"/api/cases/30/govt/status-check/{attempt_id}/advance", json={"captcha": "CAP2", "otp": "654321"}, headers=_auth_headers())
+    first = client.post(f"/api/cases/30/govt/status-check/{attempt_id}/advance", json={"captcha": "CAP3"}, headers=_auth_headers())
+    assert first.status_code == 200, first.text
+
+    with test_engine.connect() as conn:
+        snapshots = list(conn.execute(text(
+            "SELECT id, normalized_status FROM govt_status_snapshots WHERE case_id = 30 AND portal_id = 1"
+        )))
+        events = list(conn.execute(text("SELECT event_type FROM govt_status_snapshot_events WHERE case_id = 30")))
+    assert len(snapshots) == 1
+    assert snapshots[0][1] == "submitted"
+    assert events == []  # baseline snapshot — no prior snapshot to diff against
+
+    # Repeat the identical 3-stage flow (a fresh attempt — the first one is
+    # already complete). Unchanged status must persist a second snapshot
+    # (audit trail is append-only by design) but create zero new events.
+    mock_session_cls.side_effect = _full_success_session_sequence()
+    attempt_id2 = client.post("/api/cases/30/govt/status-check/start", headers=_auth_headers()).json()["attempt_id"]
+    client.post(f"/api/cases/30/govt/status-check/{attempt_id2}/advance", json={"captcha": "CAP1"}, headers=_auth_headers())
+    client.post(f"/api/cases/30/govt/status-check/{attempt_id2}/advance", json={"captcha": "CAP2", "otp": "654321"}, headers=_auth_headers())
+    second = client.post(f"/api/cases/30/govt/status-check/{attempt_id2}/advance", json={"captcha": "CAP3"}, headers=_auth_headers())
+    assert second.status_code == 200, second.text
+
+    with test_engine.connect() as conn:
+        snapshots2 = list(conn.execute(text(
+            "SELECT id FROM govt_status_snapshots WHERE case_id = 30 AND portal_id = 1"
+        )))
+        events2 = list(conn.execute(text("SELECT event_type FROM govt_status_snapshot_events WHERE case_id = 30")))
+    assert len(snapshots2) == 2
+    assert events2 == []
+
+    # Briefcase-facing contract: the history API must surface this real
+    # Maharashtra result correctly (current_state + latest_known.status).
+    history = client.get("/api/cases/30/govt/history", headers=_auth_headers()).json()
+    assert history["current_state"]["needle_govt_status"] == "submitted"
+    assert history["latest_known"]["status"]["value"] == "submitted"
+    assert len(history["snapshots"]) == 2
 
 
 @patch("requests.Session")

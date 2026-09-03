@@ -67,19 +67,15 @@ THE REAL CONTRACT (mixed CONFIRMED/OBSERVED — see docstrings per function):
     downgraded to UNKNOWN in the evidence: "no stable DOM ids/classes").
     Only `Status` is parsed here — see PII/scope discipline below.
 
-KNOWN TAXONOMY GAP (found via testing, not worked around): the one real
-CONFIRMED status value for Maharashtra is literally "Submitted" — but the
-EXISTING, unmodified `normalize_status_keywords()` (base.py) maps its
-"submitted" bucket to `["registered", "received", "acknowledged", ...]`,
-which does not include the literal word "submitted". So this real value
-normalizes to nothing today (`checked=False`), and a status_polled entry
-never gets written for it. This is left exactly as-is per explicit
-instruction not to modify the shared taxonomy for this adapter's sake —
-noted here so it isn't mistaken for a bug in this module later. Whether
-`normalize_status_keywords` should ever be extended to also match
-"submitted" is a decision for whoever owns that shared function, informed
-by more than one portal's real wording, same discipline as every other
-taxonomy change in this codebase.
+TAXONOMY GAP — FIXED (2026-08-24, `db3c08ee`): the one real CONFIRMED
+status value for Maharashtra is literally "Submitted". `base.py`'s
+`STATUS_KEYWORDS`'s "submitted" bucket now explicitly includes the literal
+keyword "submitted" (added after this exact gap was found via testing),
+so this real value normalizes correctly today instead of falling through
+to `checked=False`. This section previously described the gap as still
+open; it was left stale after the shared fix landed. Kept here, corrected,
+so a future reader isn't misled into re-discovering or re-"fixing" an
+already-closed gap.
 
 CSRF: `_csrfToken` is re-scraped fresh from each HTML response before the
 next POST — never reused from an earlier stage. This is a defensive
@@ -108,12 +104,25 @@ first real end-to-end run through all three stages, live, is still
 outstanding. See this package's test file for exactly what is and isn't
 covered by mocks.
 
-PRODUCTION CONNECTIVITY: independent of all of the above, the EC2 backend
-cannot currently reach grievances.maharashtra.gov.in at all (TCP 80/443
-time out; DNS resolves) — confirmed multiple times, most recently the same
-day as this module was written. This adapter will not function in
-production until that network-level issue is separately resolved. See
-modules/data/govt_portals.json's source_note for this portal.
+PRODUCTION CONNECTIVITY (updated 2026-09-03 — do not trust the sentence
+below this one without checking the date on any future edit): the EC2
+backend was network-blocked from grievances.maharashtra.gov.in as
+recently as 2026-08-26 (TCP 80/443 timed out; DNS resolved) — confirmed
+multiple times up to and including that date. A fresh, live, read-only
+reachability check run 2026-09-03 directly from the production EC2 host
+(diagnose-portal-reachability.yml, no CAPTCHA/OTP/portal interaction, DNS
++ TCP connect + HTTPS HEAD only) found the block NO LONGER PRESENT: DNS
+resolves, TCP connects on both 80 and 443, HTTPS HEAD returns a normal
+302 with a verified SSL certificate. This directly un-blocks THIS
+adapter's own status-check HTTP calls (plain `requests`, same client
+shape as the successful check). It does NOT by itself prove the 3-stage
+CAPTCHA+OTP+CAPTCHA flow completes successfully end-to-end — that still
+requires a real staff-assisted run, not yet re-performed since 2026-08-24
+— and it does NOT prove the separate live-browser/Playwright filing path
+works (different client, not re-tested; see
+modules/data/govt_portals.json's `live_session_supported`, deliberately
+left false pending that separate check). See that file's source_note for
+this portal for the full, dated evidence trail.
 
 PERSISTENCE: process-local, in-memory only — same precedent as
 karnataka_ipgrs.py's `_attempts` dict and, further back,

@@ -7140,6 +7140,8 @@ class UpdateGovtPortalRequest(BaseModel):
     is_primary: Optional[bool] = None
     verification_status: Optional[str] = None   # 'confirmed' | 'verify' | 'investigate' | 'needs_correction' | 'unverified'
     source_note: Optional[str] = None
+    live_session_supported: Optional[bool] = None
+    status_check_adapter: Optional[str] = None
 
 
 class CreateGovtPortalRequest(BaseModel):
@@ -7241,7 +7243,7 @@ def admin_update_govt_portal(portal_id: int, req: UpdateGovtPortalRequest, admin
     updates, params = [], {"pid": portal_id}
     plain_fields = [
         "state", "base_url", "status_check_url", "status_check_mode", "otp_bound", "active", "is_primary",
-        "verification_status", "source_note",
+        "verification_status", "source_note", "live_session_supported", "status_check_adapter",
     ]
     for field in plain_fields:
         value = getattr(req, field)
