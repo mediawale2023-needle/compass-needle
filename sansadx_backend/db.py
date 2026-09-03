@@ -7,7 +7,7 @@ import json
 import time
 import bcrypt
 import logging
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Text, ForeignKey, JSON, Float, LargeBinary, text as sa_text, UniqueConstraint
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Text, ForeignKey, JSON, Float, LargeBinary, text as sa_text, UniqueConstraint, Index
 try:
     from sqlalchemy.orm import declarative_base
 except ImportError:
@@ -234,6 +234,78 @@ class GovtOtpSession(Base):
     # longer works ("Invalid Transaction Number" / "Invalid Mobile Number"),
     # so the UI can show "needs re-verification" without another round trip.
     last_check_failed = Column(Boolean, nullable=False, default=False)
+
+
+class GovtStatusSnapshot(Base):
+    """Point-in-time government portal status read, stored beside current state."""
+    __tablename__ = "govt_status_snapshots"
+    __table_args__ = (
+        Index("idx_govt_status_snapshots_case", "tenant_id", "case_id"),
+        Index("idx_govt_status_snapshots_portal_ref", "tenant_id", "portal_id", "reference_number"),
+        Index("idx_govt_status_snapshots_lookup", "tenant_id", "case_id", "portal_id", "reference_number", "captured_at", "id"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    case_id = Column(Integer, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    portal_id = Column(Integer, ForeignKey("govt_portals.id"), nullable=False, index=True)
+    reference_number = Column(String, nullable=False, index=True)
+    adapter_key = Column(String, nullable=True)
+    snapshot_status = Column(String, nullable=False, default="complete")
+    normalized_status = Column(String, nullable=True)
+    raw_status = Column(Text, nullable=True)
+    captured_at = Column(DateTime, default=datetime.utcnow, index=True)
+    source_url = Column(Text, nullable=True)
+    raw_capture_ref = Column(String, nullable=True)
+    created_by = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class GovtStatusSnapshotField(Base):
+    """Normalized field-level values extracted from a status snapshot."""
+    __tablename__ = "govt_status_snapshot_fields"
+    __table_args__ = (
+        Index("idx_govt_status_snapshot_fields_snapshot", "snapshot_id"),
+        Index("idx_govt_status_snapshot_fields_key", "field_key"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    snapshot_id = Column(Integer, ForeignKey("govt_status_snapshots.id", ondelete="CASCADE"), nullable=False, index=True)
+    field_key = Column(String, nullable=False, index=True)
+    field_label = Column(String, nullable=False)
+    field_type = Column(String, nullable=False, default="text")
+    value_text = Column(Text, nullable=True)
+    value_json = Column(JSON, nullable=True)
+    availability = Column(String, nullable=False, default="present")
+    source = Column(String, nullable=False, default="unknown")
+    selector_or_path = Column(Text, nullable=True)
+    confidence = Column(String, nullable=True)
+    raw_excerpt = Column(Text, nullable=True)
+
+
+class GovtStatusSnapshotEvent(Base):
+    """Diff event emitted when comparable fields change between snapshots."""
+    __tablename__ = "govt_status_snapshot_events"
+    __table_args__ = (
+        Index("idx_govt_status_snapshot_events_case", "tenant_id", "case_id", "created_at"),
+        Index("idx_govt_status_snapshot_events_snapshot", "snapshot_id"),
+        Index("idx_govt_status_snapshot_events_type", "event_type"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    case_id = Column(Integer, ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    portal_id = Column(Integer, ForeignKey("govt_portals.id"), nullable=False, index=True)
+    reference_number = Column(String, nullable=False, index=True)
+    previous_snapshot_id = Column(Integer, ForeignKey("govt_status_snapshots.id"), nullable=True)
+    snapshot_id = Column(Integer, ForeignKey("govt_status_snapshots.id", ondelete="CASCADE"), nullable=False, index=True)
+    field_key = Column(String, nullable=False, index=True)
+    event_type = Column(String, nullable=False, index=True)
+    old_value_text = Column(Text, nullable=True)
+    new_value_text = Column(Text, nullable=True)
+    old_value_json = Column(JSON, nullable=True)
+    new_value_json = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Case(Base):

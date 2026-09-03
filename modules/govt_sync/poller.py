@@ -156,6 +156,22 @@ def poll_all_pending() -> dict:
                     "now": _utcnow(),
                 },
             )
+        try:
+            from modules.govt_sync.status_snapshot import persist_status_snapshot
+
+            persist_status_snapshot(
+                tenant_id=row["tenant_id"],
+                case_id=row["case_id"],
+                portal_id=row["portal_id"],
+                reference_number=row["govt_reference_number"],
+                adapter_key=row.get("status_check_adapter") or row.get("portal_type"),
+                result=result,
+                portal_name=row.get("portal_name"),
+                source_url=row.get("status_check_url") or row.get("base_url"),
+                created_by=None,
+            )
+        except Exception:
+            logger.exception("Govt status snapshot observer failed case=%s", row["case_id"])
         if changed_this_case:
             changed += 1
             logger.info(

@@ -1247,6 +1247,69 @@ try:
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_govt_otp_sessions_tenant_portal "
             "ON govt_otp_sessions (tenant_id, portal_id)"
         ))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS govt_status_snapshots (
+                id SERIAL PRIMARY KEY,
+                tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+                case_id INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+                portal_id INTEGER NOT NULL REFERENCES govt_portals(id),
+                reference_number VARCHAR NOT NULL,
+                adapter_key VARCHAR,
+                snapshot_status VARCHAR NOT NULL DEFAULT 'complete',
+                normalized_status VARCHAR,
+                raw_status TEXT,
+                captured_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                source_url TEXT,
+                raw_capture_ref VARCHAR,
+                created_by VARCHAR,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_status_snapshots_case ON govt_status_snapshots (tenant_id, case_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_status_snapshots_portal_ref ON govt_status_snapshots (tenant_id, portal_id, reference_number)"))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_govt_status_snapshots_lookup "
+            "ON govt_status_snapshots (tenant_id, case_id, portal_id, reference_number, captured_at DESC, id DESC)"
+        ))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS govt_status_snapshot_fields (
+                id SERIAL PRIMARY KEY,
+                snapshot_id INTEGER NOT NULL REFERENCES govt_status_snapshots(id) ON DELETE CASCADE,
+                field_key VARCHAR NOT NULL,
+                field_label VARCHAR NOT NULL,
+                field_type VARCHAR NOT NULL DEFAULT 'text',
+                value_text TEXT,
+                value_json JSONB,
+                availability VARCHAR NOT NULL DEFAULT 'present',
+                source VARCHAR NOT NULL DEFAULT 'unknown',
+                selector_or_path TEXT,
+                confidence VARCHAR,
+                raw_excerpt TEXT
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_status_snapshot_fields_snapshot ON govt_status_snapshot_fields (snapshot_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_status_snapshot_fields_key ON govt_status_snapshot_fields (field_key)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS govt_status_snapshot_events (
+                id SERIAL PRIMARY KEY,
+                tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+                case_id INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+                portal_id INTEGER NOT NULL REFERENCES govt_portals(id),
+                reference_number VARCHAR NOT NULL,
+                previous_snapshot_id INTEGER REFERENCES govt_status_snapshots(id),
+                snapshot_id INTEGER NOT NULL REFERENCES govt_status_snapshots(id) ON DELETE CASCADE,
+                field_key VARCHAR NOT NULL,
+                event_type VARCHAR NOT NULL,
+                old_value_text TEXT,
+                new_value_text TEXT,
+                old_value_json JSONB,
+                new_value_json JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_status_snapshot_events_case ON govt_status_snapshot_events (tenant_id, case_id, created_at DESC)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_status_snapshot_events_snapshot ON govt_status_snapshot_events (snapshot_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_govt_status_snapshot_events_type ON govt_status_snapshot_events (event_type)"))
     logger.info("Migration: Government Department Sync tables/columns ready")
 except Exception as _govt_sync_exc:
     logger.warning(f"Government Department Sync migration skipped: {_govt_sync_exc}")
